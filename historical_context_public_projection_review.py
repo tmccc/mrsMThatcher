@@ -12,6 +12,7 @@ access and never changes packet or evidence data.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import re
@@ -46,6 +47,9 @@ POST_V9_TRANSITION_MANIFEST_PATH = (
 )
 STATECRAFT_TRANSITION_MANIFEST_PATH = (
     ROOT / "historical_context_v9_statecraft_primary_transition_manifest.json"
+)
+MTF_TRANSITION_MANIFEST_PATH = (
+    ROOT / "historical_context_v9_mtf_corpus_evidence_transition_manifest.json"
 )
 POST_V9_TRANSITION_KIND = (
     "historical_context_v9_reviewed_evidence_transition"
@@ -117,6 +121,55 @@ STATECRAFT_BASELINE_CURATED_SOURCE_IDS_SHA256 = (
 STATECRAFT_NEW_COMPLETED_PACKET_IDS = frozenset({
     "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
 })
+MTF_REVIEWED_BINDINGS = {
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": (
+        "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
+        "6017a42f90d19f69704efb4d38579a0efd6c605171d2602f6a6aaa2455a64fe1",
+    ),
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": (
+        "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3",
+        "38c95daa90f07d3aef657c286196bcc2c70160bbb65a798915c34d400064ffb8",
+    ),
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": (
+        "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134",
+        "66e3a53345d2c26099be1d26261b61034d3771d6fd6838b387d1a5bf928a2475",
+    ),
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": (
+        "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
+        "697d20def5221d948b13dbeb3558f3a0c50b42f2061fc8d8552cd2ab18afcb44",
+    ),
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": (
+        "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+        "dcbc02336418ac22fb320eef2ddfdef01afa37aa91107b8e942e61f4a097480b",
+    ),
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": (
+        "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b",
+        "c95f63a62feb46803a5c70457ae767fdd20d984358fdd9db5b0cd1ace067903d",
+    ),
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": (
+        "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+        "8278eaf3dd974a1fc373a9b7673789c523b4a1530b52df4469b5f96fc81a1247",
+    ),
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": (
+        "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
+        "9f9940b176aaba1efeb7f3c912621b47f5cb75eceb9e9f2ad430383cd44e73fa",
+    ),
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855": (
+        "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
+        "b12bb0ba59ea93c59a6e590deb0c1dfc6b1eeb15fa123e843e62361408819029",
+    ),
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": (
+        "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
+        "d11341e3e900bfb2bf2759a7e094f27e21be7ddccbcee7773da022dac5082c8a",
+    ),
+}
+MTF_BASELINE_CURATED_SOURCE_COUNT = 26
+MTF_BASELINE_CURATED_SOURCE_IDS_SHA256 = (
+    "965df9185118298b82c8ebd848cd6938344a69430b2f08108f98c87c74a464b9"
+)
+MTF_TRANSITION_MANIFEST_SHA256 = (
+    "10d9955279e41a0908475bb083f5a0c93bddabbe152767c74c5a18da39dbdafd"
+)
 POST_V9_INPUT_NAMES = (
     "corpus_manifest.json",
     "historical_context_packet_corrections.json",
@@ -543,6 +596,24 @@ def _context_line(public_reply_text: str) -> str:
     return public_reply_text.split("\n\n", 1)[0]
 
 
+def _packet_without_later_sources(
+    packet: dict[str, Any],
+    source_ids: set[str],
+    public_fields: list[str],
+) -> dict[str, Any]:
+    """Reconstruct a frozen projection without later curated sources."""
+    reconstructed = copy.deepcopy(packet)
+    audit = reconstructed["_source_role_audit"]
+    for collection in ("curated_sources", "renderable_sources"):
+        audit[collection] = [
+            source
+            for source in audit.get(collection, [])
+            if source.get("source_id") not in source_ids
+        ]
+    audit["public_context_supported_fields"] = list(public_fields)
+    return reconstructed
+
+
 def _public_source_projection(rendered: dict[str, Any]) -> list[dict[str, Any]]:
     """Return concise public source identity fields used by this review."""
     return [
@@ -662,6 +733,9 @@ def build_review(
     statecraft_transition = _load_post_v9_transition_manifest(
         STATECRAFT_TRANSITION_MANIFEST_PATH
     )
+    mtf_transition = _load_post_v9_transition_manifest(
+        MTF_TRANSITION_MANIFEST_PATH
+    )
     packets, _ = load_and_validate_corpus(
         research_dir,
         require_source_role_audit=True,
@@ -682,6 +756,7 @@ def build_review(
             if isinstance(source, dict)
         )
     }
+    independently_reviewed_ids -= set(MTF_REVIEWED_BINDINGS)
     current_field_map = {
         quote_id: list(
             packet["_source_role_audit"].get(
@@ -696,15 +771,49 @@ def build_review(
         source_id for source_id, _candidate_id
         in STATECRAFT_REVIEWED_BINDINGS.values()
     }
+    mtf_source_ids = {
+        source_id for source_id, _candidate_id
+        in MTF_REVIEWED_BINDINGS.values()
+    }
+    if mtf_transition is not None:
+        if (
+            _file_sha256(MTF_TRANSITION_MANIFEST_PATH)
+            != MTF_TRANSITION_MANIFEST_SHA256
+        ):
+            raise RuntimeError("frozen MTF transition manifest differs")
+        historical_v9_field_map, mtf_records = (
+            _validate_post_v9_transition(
+                mtf_transition,
+                packets=packets,
+                curated=curated,
+                current_field_map=current_field_map,
+                historical_transition_ids=transition_ids,
+                expected_input_hashes=_post_v9_input_hashes(research_dir),
+                expected_bindings=MTF_REVIEWED_BINDINGS,
+                expected_baseline_source_count=(
+                    MTF_BASELINE_CURATED_SOURCE_COUNT
+                ),
+                expected_baseline_source_ids_sha256=(
+                    MTF_BASELINE_CURATED_SOURCE_IDS_SHA256
+                ),
+                expected_declared_baseline_fields={
+                    quote_id: list(
+                        item["v9_baseline_public_context_supported_fields"]
+                    )
+                    for quote_id, item in mtf_transition["items"].items()
+                },
+            )
+        )
+        post_v9_records.extend(mtf_records)
     if statecraft_transition is not None:
         historical_v9_field_map, statecraft_records = (
             _validate_post_v9_transition(
                 statecraft_transition,
                 packets=packets,
                 curated=curated,
-                current_field_map=current_field_map,
+                current_field_map=historical_v9_field_map,
                 historical_transition_ids=transition_ids,
-                expected_input_hashes=_post_v9_input_hashes(research_dir),
+                expected_input_hashes=statecraft_transition["input_hashes"],
                 expected_bindings=STATECRAFT_REVIEWED_BINDINGS,
                 expected_baseline_source_count=(
                     STATECRAFT_BASELINE_CURATED_SOURCE_COUNT
@@ -715,6 +824,7 @@ def build_review(
                 expected_declared_baseline_fields={
                     quote_id: [] for quote_id in STATECRAFT_REVIEWED_BINDINGS
                 },
+                later_source_ids=mtf_source_ids,
             )
         )
         post_v9_records.extend(statecraft_records)
@@ -739,7 +849,7 @@ def build_review(
                 expected_baseline_source_ids_sha256=(
                     POST_V9_BASELINE_CURATED_SOURCE_IDS_SHA256
                 ),
-                later_source_ids=statecraft_source_ids,
+                later_source_ids=statecraft_source_ids | mtf_source_ids,
             )
         )
         post_v9_records.extend(local_book_records)
@@ -791,7 +901,11 @@ def build_review(
         transition_item = transition_items.get(quote_id)
         v7_fields = (
             list(historical_v9_field_map[quote_id])
-            if transition_item is None and quote_id in post_v9_quote_ids
+            if (
+                transition_item is None
+                and quote_id in post_v9_quote_ids
+                and quote_id not in MTF_REVIEWED_BINDINGS
+            )
             else _v7_public_context_supported_fields(
                 packet,
                 transition_item,
@@ -825,7 +939,12 @@ def build_review(
                 })
         if v7_fields == v9_fields:
             continue
-        rendered = format_context_reply_public(packet)
+        render_packet = (
+            _packet_without_later_sources(packet, mtf_source_ids, v9_fields)
+            if quote_id in MTF_REVIEWED_BINDINGS
+            else packet
+        )
+        rendered = format_context_reply_public(render_packet)
         if rendered is None:
             raise RuntimeError(f"public formatter failed for {quote_id}")
         public_text = rendered["text"]
@@ -1024,6 +1143,10 @@ def build_review(
         input_hashes[STATECRAFT_TRANSITION_MANIFEST_PATH.name] = _file_sha256(
             STATECRAFT_TRANSITION_MANIFEST_PATH
         )
+    if mtf_transition is not None:
+        input_hashes[MTF_TRANSITION_MANIFEST_PATH.name] = _file_sha256(
+            MTF_TRANSITION_MANIFEST_PATH
+        )
     counts = {
         "change_count": len(records),
         "date_only_day_precision_count": date_precision_counts["day"],
@@ -1118,6 +1241,7 @@ def _validate_output_path(
             "historical_context_public_projection_review.py",
             "historical_context_v8_v9_transition_manifest.json",
             "historical_context_v9_local_book_evidence_transition_manifest.json",
+            "historical_context_v9_mtf_corpus_evidence_transition_manifest.json",
             "historical_context_v9_statecraft_primary_transition_manifest.json",
             "historical_context_source_roles.py",
             "mrsMThatcher.txt",

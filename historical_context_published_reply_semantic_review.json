@@ -29,11 +29,11 @@
     },
     "source_role_audit": {
       "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-      "sha256": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b"
+      "sha256": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9"
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",
-      "sha256": "636941cf5053516a08e11e8fdacbef02903637861c80796aec7eb9ade14ef7df"
+      "sha256": "1dc8154bc4eb58ea4cde7c821e01339c417533c246bec3b51bd442d03425b20c"
     }
   },
   "manual_review_totals": {
@@ -71,7 +71,7 @@
       "reply_post_id": "2077121398795907462"
     },
     {
-      "current_reply_sha256": "d7f5ceb306b18a2d94f2a80825ba08c82871a536d3ee92d2e576e1a38fdf0b5f",
+      "current_reply_sha256": "63eb956769e796eca13bec278ba0f1ec6bbad93ccc1edd250c335172ca25e3a3",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -100,7 +100,7 @@
       "reply_post_id": "2077155111084716541"
     },
     {
-      "current_reply_sha256": "eca1ad5050de239d9acb45f7ee25a5672e020918f641b1895e8bbfd2de50becc",
+      "current_reply_sha256": "a13495b72103ef7f0481322ea85987d3307896b7486501a1759a7379e5547234",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -255,7 +255,7 @@
       "reply_post_id": "2077328631244668965"
     },
     {
-      "current_reply_sha256": "7592285cde16634497a8fd4562fafb26b26e709eca90c235b221d7e064e9ac32",
+      "current_reply_sha256": "ab60badaf151e4335145e7661e7e26e79d4720f1697e5ad803de241bf0d48876",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -275,7 +275,7 @@
       "reply_post_id": "2077359394153435227"
     },
     {
-      "current_reply_sha256": "e978c389599cb5218db9f5baec79c808732406a0d2dc044ee3a8e7febb80fa20",
+      "current_reply_sha256": "658cda30f36d61d56f65c31c49fc9c36cc754a339d81e3f72a57fbdc10eae18f",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -304,7 +304,7 @@
       "reply_post_id": "2077390014078505419"
     },
     {
-      "current_reply_sha256": "78781a84f1076a2565665a45163c13adf328acb2849ab4e40302ec3b88c96066",
+      "current_reply_sha256": "7283f754cad7c5684de6a2861dbd1bb33d8ea07349d33b9625bdbae49db42834",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -334,7 +334,7 @@
       "reply_post_id": "2077427277004955656"
     },
     {
-      "current_reply_sha256": "19b203689057254f5636999e891fd066619bd53ea5cd45f62d80675d5890f060",
+      "current_reply_sha256": "e24c5f975363aa3e45af8144c3f37f23e2548b3ac6f24c87b7f833c5f793cf99",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -450,7 +450,7 @@
       "reply_post_id": "2077602156006244418"
     },
     {
-      "current_reply_sha256": "84f9275c61e3029350e0d595a760f8808dc751a6f84bb6e4e7aaf83b9b8e96e1",
+      "current_reply_sha256": "5e0f0f93add3d7904a272aaaf7a09007aa32ace268af96311ce042c7ca7cdb8a",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -479,7 +479,7 @@
       "reply_post_id": "2077639724068421755"
     },
     {
-      "current_reply_sha256": "01ee11952de9792d07363f9e5be6154d00edf205498f0c08c480ccc31ca632f4",
+      "current_reply_sha256": "462e184fc5463a49a1a94260f2e11f0aca101dafb7c26746b3a05f84cccc19cd",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -512,7 +512,7 @@
       "reply_post_id": "2077677038614302736"
     },
     {
-      "current_reply_sha256": "13b89e2099f9400090287ace7f0d960c4848a0d2afe81e8dd63873158c88a555",
+      "current_reply_sha256": "8d3186c701bb8bcb3440efa0099aa88bc1de2607a8b9430273cdb85c1923b242",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -586,7 +586,7 @@
       "reply_post_id": "2077773151769895290"
     },
     {
-      "current_reply_sha256": "7da985900157b4fad473d3eb5e4b8d28937dfc57cb55b0812573086454f782d0",
+      "current_reply_sha256": "9face540762457833f06362810da728f08d9986c2b4e6872036b4e3a5cfa05d7",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -615,7 +615,7 @@
       "reply_post_id": "2077810772101443922"
     },
     {
-      "current_reply_sha256": "02156e644ea760eabc1d1cd8d382c9f7b4b66c001be39ff1f57c5818e5f567fe",
+      "current_reply_sha256": "9d35c0bc7eb83411659963054dc847bd22ee5f2861badb1966d7b5dcf2800722",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -644,7 +644,7 @@
       "reply_post_id": "2077843333997527262"
     },
     {
-      "current_reply_sha256": "5f6ac6f165e87825694a20edb90e62310f3c5c3b75b889637d36d551990edfc4",
+      "current_reply_sha256": "009efb3037869bd313af18d8a99edfccd266c1995ef74b98b2ccf303cb3e7e7b",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -758,7 +758,7 @@
       "reply_post_id": "2077974969716179089"
     },
     {
-      "current_reply_sha256": "b150190c0ff9b791f20319dd72c6467d5ae5febdefded0b3bb2bbdf3cc5621e1",
+      "current_reply_sha256": "3f35462386ff1818804877c9bb291417f13fbabc70276178ddafad6cc100a012",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -787,7 +787,7 @@
       "reply_post_id": "2078008080919310821"
     },
     {
-      "current_reply_sha256": "514f0284d21ba8edd2d33b75546a11af2504b5a30786130e8cbe511d4be4f6bc",
+      "current_reply_sha256": "137f38d87062a8b8750dd4d91b022f7b557a6552f71076f558269be91d24b56c",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -807,7 +807,7 @@
       "reply_post_id": "2078045507402842366"
     },
     {
-      "current_reply_sha256": "7cc88c70b85b710784f362ec6d848d22ace65bf31fffe98f66cb4ed91172cb71",
+      "current_reply_sha256": "4338ec91968935effc1c67713944a9649bc560063474def0ec6e72795c896ca1",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -827,7 +827,7 @@
       "reply_post_id": "2078078319141044329"
     },
     {
-      "current_reply_sha256": "ad6cbd32c43fe98d96b69d97803c50df3295e71f984aa1b42e3ceb962805c9d0",
+      "current_reply_sha256": "b4917e316d0bd2a43c08cd4e291cb779d81cea107fa00ea0a8fd0c46e98dde00",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -857,7 +857,7 @@
       "reply_post_id": "2078114438792519941"
     },
     {
-      "current_reply_sha256": "c1bf868efa647d4848b8664b8539f793adf2002878f20fc7f9b9143d8f394bdd",
+      "current_reply_sha256": "67afcbd6fb0e32c883b60835b0a2df65ea3c86a1e33814728341464354fad615",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -886,7 +886,7 @@
       "reply_post_id": "2078146107322839256"
     },
     {
-      "current_reply_sha256": "466ebb819cb90ca4e11b43cb32eb6b0efc1db6ee13940f13a896046fac97a0c7",
+      "current_reply_sha256": "aa8d15bb964cff4ed1afed205b92fac23c2f77c468217dd0e27af99b1928c9fb",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -959,7 +959,7 @@
       "reply_post_id": "2078218536367825348"
     },
     {
-      "current_reply_sha256": "2fb09c58787c8946be35e35edd6adda21f72d974c3c3062f1b0b150355db98a2",
+      "current_reply_sha256": "7485e65ab2face5511aa8af47294d1f2bdeed681e961d9974aada9a13099b20e",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1017,7 +1017,7 @@
       "reply_post_id": "2078287671802106342"
     },
     {
-      "current_reply_sha256": "28d0f1a991ac9e305b955189b45ef6746271252bde22fa260eca95e76ccc4e8d",
+      "current_reply_sha256": "e5deead0162349c37064b1295035aa7452f9a9f1b21d8fb68618001142a07d25",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -1102,7 +1102,7 @@
       "reply_post_id": "2078390338373275807"
     },
     {
-      "current_reply_sha256": "d60a036c07463988887b65b7be0f9cd12851926842a36a4fb56a6dfe35e009dc",
+      "current_reply_sha256": "9413105d11066a2c4b6a405592908cef1e23b2f15f8d8ab459defc99701760ff",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -1122,7 +1122,7 @@
       "reply_post_id": "2078427957048033699"
     },
     {
-      "current_reply_sha256": "ec9948c457318879ca5b2bf212a3503e5448211309a67661b43b12f174c0cd87",
+      "current_reply_sha256": "021af9ac3864f5e3013a0d11c3524a8854940b426ed347d0d48e555b2b34380c",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1151,7 +1151,7 @@
       "reply_post_id": "2078460212852240592"
     },
     {
-      "current_reply_sha256": "d62f46e84484069a62d3c37bf21e87f5480ca10b9bfc1b4383a8d2a85fc56949",
+      "current_reply_sha256": "b754e0d749eb1798d68cad2d8b4785601b65968cadc940fd4662da05a78ac93c",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1211,7 +1211,7 @@
       "reply_post_id": "2078530884492267617"
     },
     {
-      "current_reply_sha256": "a2fb855e09587d1959d727b76ea6921edd203cdff42fbc8bbcaa86d0d622086c",
+      "current_reply_sha256": "5572492ee34ffdcef6aa98f9f1a7e047e4e558da42585ad5487614549a287980",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1244,7 +1244,7 @@
       "reply_post_id": "2078562407715094824"
     },
     {
-      "current_reply_sha256": "a62c8c5a93a191f04010ba2fd12eddfc8438265c3a4093c19ace86285c6af5f4",
+      "current_reply_sha256": "ea4d4293328721b1420fc4775ec230e28b225e2596373d9423c9a67f3e58c5ce",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -1264,7 +1264,7 @@
       "reply_post_id": "2078594999776620546"
     },
     {
-      "current_reply_sha256": "3b21bdbf57d42bd01763f76db613b9e5448788ea73f76e0c004b4d86ce181bd8",
+      "current_reply_sha256": "9ad79147c839b50908ed437454f1525b266b30feebd166d36613c574037e577d",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1354,7 +1354,7 @@
       "reply_post_id": "2078699547912450423"
     },
     {
-      "current_reply_sha256": "01eb2b88b05a73ffcc4702337f7abdd1d16a4a7314928e768c6fc452740fc973",
+      "current_reply_sha256": "d4b026eac2de0112bf116572b9c5ef25e7b17999aba35e4b34958708c7ef579f",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1411,7 +1411,7 @@
       "reply_post_id": "2078770833221169664"
     },
     {
-      "current_reply_sha256": "5fe66e7c3d9724db0d5d5194efc33b45ccbc029e4831c266930ada68c68c2423",
+      "current_reply_sha256": "7509f75cf78b4d5246294594c2a730cfd69ba4690c1a00e4b5ab75aab3a1974f",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1441,7 +1441,7 @@
       "reply_post_id": "2078806430497308678"
     },
     {
-      "current_reply_sha256": "e74242f82f7eafc3555a63327c0a568acf4ee21d3f5b7eaddc4a907a633c054e",
+      "current_reply_sha256": "8979a7fb3fe94e79fa0ca4d1e361bc1a7020d1955462f67bbae473fa4eae5c3a",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -1461,14 +1461,16 @@
       "reply_post_id": "2078841735124336789"
     },
     {
-      "current_reply_sha256": "dca6512b55e6c3e19f03c1ac5860d0388a5e183564003bf4f003a623d5db1b61",
+      "current_reply_sha256": "7a6deae3180d3dc73e77a1accff844a3c2749d5dedb1969820fb4fa4bf2759b7",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [],
         "public_context_supported_fields": [
+          "source_event",
           "date"
         ],
         "renderable_source_ids": [
+          "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
           "5f17cd289362d1ec4a1fd4993132af8f2ba4e779bb17f1d672a4ff450953a752",
           "a2c7c2e6e36518c56751f5fa5cd580f2a1dfb3e6ec9910cff170876e23c0406f"
         ],
@@ -1488,7 +1490,7 @@
       "reply_post_id": "2078873503109898599"
     },
     {
-      "current_reply_sha256": "6018543b75d05c2cf7ec1514c44d04e8e6c2af890ab14016db0db365faa4b2fc",
+      "current_reply_sha256": "1d811602a09994b68f29dca4a188351be18694be3466a2bc36bfc1e111175441",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -1620,7 +1622,7 @@
       "reply_post_id": "2079052328502542410"
     },
     {
-      "current_reply_sha256": "79fab48b24bb8966e83b7f34c7d15c2c90f4ecc5a899a3e59b761aa7cdde4656",
+      "current_reply_sha256": "d2d38abf6fe0f9f9f20dc351c3a3a981d3828518104714e96253b25e957065b4",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1649,7 +1651,7 @@
       "reply_post_id": "2079089679597535480"
     },
     {
-      "current_reply_sha256": "d33c4d75e97e4aa8877a52325f9f701b29d05f8561ae62594e45aac5c2725051",
+      "current_reply_sha256": "2b444fdf7c81743b59b3a431b440d975415aa2093f1265ef3482cd2d29e5957e",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1848,7 +1850,7 @@
       "reply_post_id": "2079286619106947425"
     },
     {
-      "current_reply_sha256": "0f7aacc1aac1fe9cfd22b25484f332f654fa047f616ae12183a5497be5879752",
+      "current_reply_sha256": "4aae53cb0632374cc62b72f95ccd8bd684b81333fd4718c38b797524d85d27a0",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -1897,7 +1899,7 @@
       "reply_post_id": "2079353516070416821"
     },
     {
-      "current_reply_sha256": "0c6fa869fe60c427789cb4a765fc36b02567480a1ba83ea2e613fe6ccb539f0b",
+      "current_reply_sha256": "57013a7310df2a630d9eee8b8bd9dbc766c3ecca5242a75f7426bd60dd519e3c",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1963,7 +1965,7 @@
       "reply_post_id": "2079420089384706278"
     },
     {
-      "current_reply_sha256": "bc4c10e4854cd97b9dc134a18a52e70735413e97d438cb63acb84b26214c933c",
+      "current_reply_sha256": "7c57b3086dd4a9ac413fd02b0ad9506bc51c13d5000efcd5eac66327f9c5df38",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -1996,7 +1998,7 @@
       "reply_post_id": "2079456971619491938"
     },
     {
-      "current_reply_sha256": "d7ccf85eb511a8bc9258eaefddb63c71c9515109985a964a630eeee51f9ef5b3",
+      "current_reply_sha256": "053b8feb046adbf1654b9c19f69f4cdcb17c77b9b6742a008df6f83f688e96eb",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -2026,7 +2028,7 @@
       "reply_post_id": "2079489780321075389"
     },
     {
-      "current_reply_sha256": "102bf24c4d9cea46ae96e3e5298ffd390b00bf33ca2b415a2086061e090e2972",
+      "current_reply_sha256": "fac363352bff15054e3a8327562c9c6c299be5dacc500067777da315db692d5d",
       "disposition": "supported_as_published",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -2110,7 +2112,7 @@
       "reply_post_id": "2079594719563124968"
     },
     {
-      "current_reply_sha256": "fba451d7889d2d1a62515ddf2e5c7acba6bf4bba337724a31acdac1253c542ad",
+      "current_reply_sha256": "4b5a537ea4bd83f53e9fa084248444bc859e6332da773cfdd6ab7ffb36b07a95",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -2130,7 +2132,7 @@
       "reply_post_id": "2079630327601901996"
     },
     {
-      "current_reply_sha256": "28a766028ba1f744fcd344f03ecddb22c9f38cb77c1a34e5d2f8b75797f31b59",
+      "current_reply_sha256": "3b5ab54c81d7d0bc00dbf8a05bececcc06b8fc0b3c8f5809ca24fc904949bf35",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -2365,7 +2367,7 @@
       "reply_post_id": "2080033593817027066"
     },
     {
-      "current_reply_sha256": "f5eb2269e42a780b1e7edabd447c87a962b323f8612f0750bb0836b0ff787cb5",
+      "current_reply_sha256": "646bd9b70dd801ca69fa9f72205f892b70cf4c49bae0f2bcbd6ac572b4c0e898",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -2482,7 +2484,7 @@
       "reply_post_id": "2080172660042969461"
     },
     {
-      "current_reply_sha256": "aa84d002dda19b9e02b95372d6dbc27054874ca67f7847bd7feb803a5cc93833",
+      "current_reply_sha256": "b42b7880eb0aa2f2a80127904f8cdb2058bb5b126850e8aeefc82ec87f3333f2",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -2538,7 +2540,7 @@
       "reply_post_id": "2080583100665397633"
     },
     {
-      "current_reply_sha256": "8b6dd2491e0d96ea7ce64b73d579dd48a659b941e363a8e2f504592ec96d52ab",
+      "current_reply_sha256": "9629c98adf8a1222a99096476f499689292d5b5b57f789078af586e92402e2eb",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -2591,7 +2593,7 @@
       "reply_post_id": "2080651970029699503"
     },
     {
-      "current_reply_sha256": "b20902227f2b29cc0053647a663f2a47bde82d2eff149d46ff6a6d6e9134991c",
+      "current_reply_sha256": "c5e55c0ce86f039525bf6779a240c0b7ea559b50ecac36363ca0c6b905996c50",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -2622,7 +2624,7 @@
       "reply_post_id": "2080684909178298865"
     },
     {
-      "current_reply_sha256": "92905be73c65e62732acf04ecec14b2fff000330c9ffa1237fd027b316234336",
+      "current_reply_sha256": "5eabcff9e179c2252168208e5acf78eff325ba24b7e6e0ce185a20276c69bf22",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
@@ -2642,7 +2644,7 @@
       "reply_post_id": "2080715231861297379"
     },
     {
-      "current_reply_sha256": "f7e414caf6b05bd826ac6724f772a0eb6ff92ff22bdb964619f5a16b072cd956",
+      "current_reply_sha256": "9570af051f08aa03813dc16e92690c88cdea65699d41a1a49129630123a7c666",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -2673,7 +2675,7 @@
       "reply_post_id": "2080747549737046398"
     },
     {
-      "current_reply_sha256": "fb228fcfed97b9122768d9b8cee7a0d7ca9f61d709804eff6b1bacb03534573c",
+      "current_reply_sha256": "18ea37437f0e874f6d0f9c0ba00c54955ca2806fc0c99e8dd8837ef49eb4e0b3",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [

@@ -1,0 +1,77 @@
+{
+  "all_substantive_outputs_byte_identical": true,
+  "base_commit": "982eda4374ef294cb4ae20b0aa40b97de3862592",
+  "compared_file_count": 17,
+  "comparison_kind": "historical_context_mtf_corpus_evidence_deterministic_build_comparison",
+  "files": {
+    "historical_context_evidence_truth_audit.json": {
+      "byte_identical": true,
+      "sha256": "1dc8154bc4eb58ea4cde7c821e01339c417533c246bec3b51bd442d03425b20c"
+    },
+    "historical_context_mtf_corpus_evidence_admission_audit.json": {
+      "byte_identical": true,
+      "sha256": "9f5d4e425f54611a02e0181990aa5f1d599e94bd50f72147cda17efd5812877b"
+    },
+    "historical_context_mtf_priority_manual_review.json": {
+      "byte_identical": true,
+      "sha256": "2ae127b920003c9557407840e9b025ddccaebd16ffd4bbb1a2868f4ea43ffa28"
+    },
+    "historical_context_mtf_remaining_manual_review.json": {
+      "byte_identical": true,
+      "sha256": "ca9a03eb9bf8fd4fa17d238bf6e93f4b2ab98015a8dba0e6ac1f09316bd9bb87"
+    },
+    "historical_context_public_projection_review.json": {
+      "byte_identical": true,
+      "sha256": "31e1e90410e4197158ab1ea4790b8bd72ff44d9176bedbfc83b1996d51d90757"
+    },
+    "historical_context_public_render_review.txt": {
+      "byte_identical": true,
+      "sha256": "056de646b6bcb7c339ce8ebcca50ee8ffe7873d8e0b3cb45ea29f88a103c72e6"
+    },
+    "historical_context_public_source_deduplication_audit.json": {
+      "byte_identical": true,
+      "sha256": "b0fda0094d26171904bec8cd0e40c862a502a27524b3e967adb16657d76eacb9"
+    },
+    "historical_context_published_reply_semantic_review.json": {
+      "byte_identical": true,
+      "sha256": "5c253406841ffa0d9632e489f4b1fdcfe7415462bbfa21686f94ad48a588dc39"
+    },
+    "historical_context_reply_semantic_gate_audit.json": {
+      "byte_identical": true,
+      "sha256": "e71f4634f95f18f5d452ac250f289df5e7a4d856e404711d24f31a01c7ffed4a"
+    },
+    "historical_context_v9_mtf_corpus_evidence_transition_manifest.json": {
+      "byte_identical": true,
+      "sha256": "10d9955279e41a0908475bb083f5a0c93bddabbe152767c74c5a18da39dbdafd"
+    },
+    "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json": {
+      "byte_identical": true,
+      "sha256": "e06437dc919cb99328958d400e694d003e7efdd6cced5d047ab4b3e412974761"
+    },
+    "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json": {
+      "byte_identical": true,
+      "sha256": "e85a83f640c4e6fda85293c4821099cdf5810035681538cea4cda368ed38a5ba"
+    },
+    "semantic_alignment_research/quote_research_full_001/final_unresolved/corpus_closure_audit.json": {
+      "byte_identical": true,
+      "sha256": "3fd802bd31ca7a410013c876b7443913c64f21191bfdfbef468072221b578a58"
+    },
+    "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": {
+      "byte_identical": true,
+      "sha256": "6225bbc2762664509fc6abcbc9b8f430e96dcd92ee6e815aba24bd40be38cfdb"
+    },
+    "semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json": {
+      "byte_identical": true,
+      "sha256": "5ffd1bd4a865ce2d3bff983305f1049962d37df47e8c6a6f9d5cdd3a06bb1542"
+    },
+    "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json": {
+      "byte_identical": true,
+      "sha256": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9"
+    },
+    "semantic_alignment_research/quote_research_full_001/research_packets.json": {
+      "byte_identical": true,
+      "sha256": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291"
+    }
+  },
+  "schema_version": 1
+}

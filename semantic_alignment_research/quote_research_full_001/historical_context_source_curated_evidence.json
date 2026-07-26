@@ -97,6 +97,51 @@
         }
       ]
     },
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": {
+      "quote_id": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "quote_text": "Quite simple: Do you give up the power to issue your own currency? Do you give up the pound sterling?",
+      "quote_text_sha256": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/107868",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1990-11-15",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "Quite simple: Do you give up the power to issue your own currency? Do you give up the pound sterling?",
+          "exact_supporting_passage_sha256": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+          "page_independently_inspected": true,
+          "page_sha256": "70e4bdf628085c1aecdfff4075bd1e6f4b2ae88a0b9287ba8a2216e25496bf44",
+          "page_text_sha256": "04d551a2d8af2cca0afb41fe83b6672d72a82e2b1a092c1b95ae76707540125e",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "1990-11-15",
+          "source_date_raw": "1990-11-15",
+          "source_event": "Interview for the Sunday Times",
+          "source_id": "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "6017a42f90d19f69704efb4d38579a0efd6c605171d2602f6a6aaa2455a64fe1",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 107868",
+          "supporting_context": "Asked how a referendum question on the proposed currency change could be framed, Thatcher reduced it to whether Britain would give up issuing its own currency and the pound sterling.",
+          "supporting_context_sha256": "3afba532afba7d4ab9f0fb31bdfbed1032b2adffe03b74f50d6752c7b40a5507",
+          "title": "Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)",
+          "url": "https://www.margaretthatcher.org/document/107868",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": {
       "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
       "quote_text": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices.",
@@ -334,6 +379,51 @@
         }
       ]
     },
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": {
+      "quote_id": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+      "quote_text": "We have not successfully rolled back the frontiers of the State in Britain only to see them reimposed at European level, with a European super-State exercising a new dominance from Brussels.",
+      "quote_text_sha256": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/107332",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1988-09-20",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "We have not successfully rolled back the frontiers of the state in Britain, only to see them re-imposed at a European level with a European super-state exercising a new dominance from Brussels.",
+          "exact_supporting_passage_sha256": "b723da3097041865bd524796acb5758977a39b787967cedf30931ca88298de99",
+          "page_independently_inspected": true,
+          "page_sha256": "c81b81d30dde9bb6faaeb204a25269e68d6a467014f242d627b65cf927f5b8e6",
+          "page_text_sha256": "b3fd5db8d9d016642e4dd1fab25849cb0df214fec8478cc40006e707b6b73b6e",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "September 20, 1988",
+          "source_date_raw": "1988-09-20",
+          "source_event": "Speech to the College of Europe (The Bruges Speech)",
+          "source_id": "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "38c95daa90f07d3aef657c286196bcc2c70160bbb65a798915c34d400064ffb8",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 107332",
+          "supporting_context": "In the Bruges speech, Thatcher opposed centralising European power in Brussels after Britain had dispersed state power at home.",
+          "supporting_context_sha256": "9c6d5cefa79c4917fabcf0fcd33f09239cfbb33cb20e9554dd0672d7949669d4",
+          "title": "Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)",
+          "url": "https://www.margaretthatcher.org/document/107332",
+          "wording_match_kind": "historical_variant"
+        }
+      ]
+    },
     "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5": {
       "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
       "quote_text": "Governments should not run business.",
@@ -380,6 +470,51 @@
           "transport_url": "https://web.archive.org/web/20180628044240id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F106498",
           "url": "https://www.margaretthatcher.org/document/106498",
           "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": {
+      "quote_id": "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
+      "quote_text": "The Russians put guns before butter. We put just about everything before guns.",
+      "quote_text_sha256": "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/102939",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1976-01-19",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "They put guns before butter, while we put just about everything before guns.",
+          "exact_supporting_passage_sha256": "3f7e2e6470e9e281c494bc93186df9360c74d32fa279da26c7c876648da591fd",
+          "page_independently_inspected": true,
+          "page_sha256": "8d98575a081526544f1286431ea28dd9db417b8e8c6d8e248d4b68ff576fbaec",
+          "page_text_sha256": "39959086efd34cca7435b79627187dfdba6fa3f0fd19f319ed16fffd5effc59d",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "January 19, 1976",
+          "source_date_raw": "1976-01-19",
+          "source_event": "Speech at Kensington Town Hall ('Britain Awake')",
+          "source_id": "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "66e3a53345d2c26099be1d26261b61034d3771d6fd6838b387d1a5bf928a2475",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 102939",
+          "supporting_context": "Thatcher contrasted the Soviet Politburo's military priority with Western spending priorities in her Britain Awake speech.",
+          "supporting_context_sha256": "2c1a47efabff68403990d00ebf0b91445ec96748234bbb26a918555f178a96b4",
+          "title": "Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)",
+          "url": "https://www.margaretthatcher.org/document/102939",
+          "wording_match_kind": "historical_variant"
         }
       ]
     },
@@ -430,6 +565,51 @@
         }
       ]
     },
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": {
+      "quote_id": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+      "quote_text": "There is no such thing as society: there are individual men and women, and there are families.",
+      "quote_text_sha256": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/106689",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1987-09-23",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "There is no such thing! There are individual men and women and there are families.",
+          "exact_supporting_passage_sha256": "baa61ec9257833f3a1331250d76432b31dd9724344254275f73ed7c23396687c",
+          "page_independently_inspected": true,
+          "page_sha256": "f9857d5f5ec8ef1c67104077a4b2963bd297e33fa4f01ece7d85ce245bd4828e",
+          "page_text_sha256": "3051dfa50c983f18c7f1139ce8ff3d9c32fa35a407bfee213fd58257ea8e013e",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "1987-09-23",
+          "source_date_raw": "1987-09-23",
+          "source_event": "Interview for Woman's Own magazine",
+          "source_id": "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "697d20def5221d948b13dbeb3558f3a0c50b42f2061fc8d8552cd2ab18afcb44",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 106689",
+          "supporting_context": "In the Woman's Own interview, Thatcher rejected treating society as an actor separate from individuals and families, then continued with reciprocal duties and obligations.",
+          "supporting_context_sha256": "659e0c5483ea15934d08977cd297038ce6e195a30723987ad634d5886b3e52c3",
+          "title": "Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)",
+          "url": "https://www.margaretthatcher.org/document/106689",
+          "wording_match_kind": "historical_variant"
+        }
+      ]
+    },
     "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7": {
       "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
       "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
@@ -476,6 +656,141 @@
           "transport_url": "https://web.archive.org/web/20190718015940id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F103336",
           "url": "https://www.margaretthatcher.org/document/103336",
           "wording_match_kind": "normalised"
+        }
+      ]
+    },
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": {
+      "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "quote_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+      "quote_text_sha256": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108258",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1990-11-28",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+          "exact_supporting_passage_sha256": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "page_independently_inspected": true,
+          "page_sha256": "8161baa20a84fbb484b511d2bd15f179d8e64fec4cc44ace1f4d61a2f922d454",
+          "page_text_sha256": "caa31224e13b5ce75d53b486d32f3677b75e1bf7eaa39dcdc9ae9b454f540d30",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "November 28, 1990",
+          "source_date_raw": "1990-11-28",
+          "source_event": "Remarks departing Downing Street",
+          "source_id": "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "dcbc02336418ac22fb320eef2ddfdef01afa37aa91107b8e942e61f4a097480b",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108258",
+          "supporting_context": "Thatcher made the remarks outside 10 Downing Street as she left after resigning as Prime Minister.",
+          "supporting_context_sha256": "ffa540a2d2e20c8c96bc9e8cb23334fbb49e3b2d1ce1a685559d2aaa0b185eb1",
+          "title": "Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)",
+          "url": "https://www.margaretthatcher.org/document/108258",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": {
+      "quote_id": "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
+      "quote_text": "The hon. Gentleman is saying that he would rather that the poor were poorer, provided that the rich were less rich. That way one will never create the wealth for better social services, as we have. What a policy.",
+      "quote_text_sha256": "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108256",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1990-11-22",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "The hon. Gentleman is saying that he would rather that the poor were poorer, provided that the rich were less rich. That way one will never create the wealth for better social services, as we have. What a policy.",
+          "exact_supporting_passage_sha256": "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
+          "page_independently_inspected": true,
+          "page_sha256": "dd238f9c309b3ee1e413d366a873faa4766345d1292e4ae4055daddf0eb39049",
+          "page_text_sha256": "d19e2a5a5559d412fe16994dd087a62c6dece32cca53723110f640c9b653c582",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "22 November 1990",
+          "source_date_raw": "1990-11-22",
+          "source_event": "House of Commons Debate on a Motion of No Confidence in Her Majesty's Government",
+          "source_id": "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "c95f63a62feb46803a5c70457ae767fdd20d984358fdd9db5b0cd1ace067903d",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108256",
+          "supporting_context": "During the Commons confidence debate, Thatcher answered Simon Hughes's criticism of inequality by contrasting relative inequality with higher absolute living standards.",
+          "supporting_context_sha256": "efdfa485449163af40b2e39294acbb512d2e5d4baaea373055e591f3ef9d7807",
+          "title": "Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)",
+          "url": "https://www.margaretthatcher.org/document/108256",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": {
+      "quote_id": "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
+      "quote_text": "I tell you what they really mean, they mean, 'We don't like the expenditure we have agreed, we are unwilling to raise the tax to pay for it. Let us print the money instead.' The most immoral path of all.",
+      "quote_text_sha256": "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/104594",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1981-03-11",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "I tell you what they really mean, they mean, “We don't like the expenditure we have agreed, we are unwilling to raise the tax to pay for it. Let us print the money instead.” The most immoral path of all.",
+          "exact_supporting_passage_sha256": "5509fbcbe7ce61ff46e188edee782b7ede2f1fd8fa60eb18262a07ac77e6dd95",
+          "page_independently_inspected": true,
+          "page_sha256": "3ad3761923818b5bf0259bbb39d8c9bbbe8d6b7501ed46ac3f567b911b0a9d6a",
+          "page_text_sha256": "a222da4341a502cd82d11d9d4ed781637f94befe982340e66cc8a37967e01b29",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "1981-03-11",
+          "source_date_raw": "1981-03-11",
+          "source_event": "Speech at Guardian Young Businessman of the Year Award (defence of the budget)",
+          "source_id": "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "8278eaf3dd974a1fc373a9b7673789c523b4a1530b52df4469b5f96fc81a1247",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 104594",
+          "supporting_context": "Defending the Budget, Thatcher rejected deficit-financed reflation and characterised printing money instead of taxing to fund agreed expenditure as the most immoral course.",
+          "supporting_context_sha256": "5fb28bcf23241b69e5ad18147a3fbcc96d653e5b919a1d0b299e741698c8e923",
+          "title": "Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)",
+          "url": "https://www.margaretthatcher.org/document/104594",
+          "wording_match_kind": "exact"
         }
       ]
     },
@@ -559,6 +874,51 @@
           "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
           "url": "",
           "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": {
+      "quote_id": "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5",
+      "quote_text": "You don't win by just being against things, you only win by being for things and making your message perfectly clear.",
+      "quote_text_sha256": "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/102487",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1975-02-11",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "You don't win but just being against things, you only win by being for things and making your message perfectly clear.",
+          "exact_supporting_passage_sha256": "9ff8f73ffe46d808794dc16613ce50d6776e04d205e1d4fb863ec11f330d4407",
+          "page_independently_inspected": true,
+          "page_sha256": "977d3c2ed77db2bd68d2fd913931cb2763c802203a6ad064ba66afd5c6b6c98f",
+          "page_text_sha256": "6226e495a0c61950d9c9d0c107a05baf55cf5e6ccd129b2871827e83bd1f564f",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "February 11, 1975",
+          "source_date_raw": "1975-02-11",
+          "source_event": "Remarks upon being elected Leader of the Conservative Party",
+          "source_id": "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "9f9940b176aaba1efeb7f3c912621b47f5cb75eceb9e9f2ad430383cd44e73fa",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 102487",
+          "supporting_context": "After winning the Conservative leadership, Thatcher said a distinctive positive Conservative philosophy and clear message were needed to win.",
+          "supporting_context_sha256": "e34cce6a24e5576088756e27908bc9e51096b6be933ce7c1c48d5991ffe7f7b1",
+          "title": "Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)",
+          "url": "https://www.margaretthatcher.org/document/102487",
+          "wording_match_kind": "historical_variant"
         }
       ]
     },
@@ -649,6 +1009,51 @@
           "supporting_context_sha256": "490fc20578a810e5abf57f346bec18fd7e473dae4e909e9b53c8387490390c23",
           "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
           "url": "",
+          "wording_match_kind": "historical_variant"
+        }
+      ]
+    },
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855": {
+      "quote_id": "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855",
+      "quote_text": "What we have seen in this country is the emergence of an organised revolutionary minority who are prepared to exploit industrial disputes, but whose real aim is the breakdown of law and order and the destruction of democratic parliamentary government.",
+      "quote_text_sha256": "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/105763",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1984-10-12",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "what we have seen in this country is the emergence of an organized revolutionary minority who are prepared to exploit industrial disputes, but whose real aim is the breakdown of law and order and the destruction of democratic parliamentary government.",
+          "exact_supporting_passage_sha256": "d85c018c8db5b7f79f9b77d9f4503fa739d5757ab3592b56133f9c68211d9076",
+          "page_independently_inspected": true,
+          "page_sha256": "9d66bf235ac60a5eda7b40608afb204cce6fa4603fbd7926e9b80faaf220a839",
+          "page_text_sha256": "959f631d90c53596081f9ac8bf6cc355a5b091ea04755f053232e4bb9461ee43",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "12 October 1984",
+          "source_date_raw": "1984-10-12",
+          "source_event": "Conservative Party Conference Address",
+          "source_id": "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "b12bb0ba59ea93c59a6e590deb0c1dfc6b1eeb15fa123e843e62361408819029",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 105763",
+          "supporting_context": "In the 1984 conference speech, Thatcher described a revolutionary minority exploiting industrial disputes to attack democratic order.",
+          "supporting_context_sha256": "f0e9df1fafdd241120204a40ffc7652a7b305f8998bc538e83ee17f474948306",
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, 1984-10-12 (Document 105763)",
+          "url": "https://www.margaretthatcher.org/document/105763",
           "wording_match_kind": "historical_variant"
         }
       ]
@@ -746,6 +1151,51 @@
           "transport_url": "https://web.archive.org/web/20250319094733id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F108364",
           "url": "https://www.margaretthatcher.org/document/108364",
           "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": {
+      "quote_id": "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8",
+      "quote_text": "In a free society, people can give away as much as they want to and whenever they want to. They don't have to say, 'I will only give mine away, if I can compel you to give yours away too.'  If they believe in pooling their possessions with others, they're welcome to do so.",
+      "quote_text_sha256": "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/102769",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1975-09-15",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "in a free society, they can give away as much as they want to, to whom they want to, and whenever they want to. They don't have to say, ‘I will only give mine away, if I can compel you to give yours away too.’ [end p4] In a free society, if they believe in pooling their possessions with others, they're welcome to do so.",
+          "exact_supporting_passage_sha256": "4f8ce242c6f7797f73bc08ad86dc656eccf3b05a580eddda0b106dee307fef53",
+          "page_independently_inspected": true,
+          "page_sha256": "8da7a8b9ca51da2ddb015af2cd57af4a48f6a956224f7f20904447285b98d523",
+          "page_text_sha256": "e5842b254608bc1f789cb69586029bbd4d689f84de2c897d83f292cb7bb3b590",
+          "rationale": "The locally preserved MTF HTML was independently reverified against its reviewed byte and article-text hashes. It identifies Margaret Thatcher, the event and date, and contains the reviewed exact or variant passage. The public canonical URL remains the source identity and no private path is retained.",
+          "recorded_at": "2026-07-26",
+          "source_date": "September 15, 1975",
+          "source_date_raw": "1975-09-15",
+          "source_event": "Speech to the Institute of SocioEconomic Studies ('Let Our Children Grow Tall')",
+          "source_id": "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "d11341e3e900bfb2bf2759a7e094f27e21be7ddccbcee7773da022dac5082c8a",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 102769",
+          "supporting_context": "Thatcher contrasted voluntary giving and pooling in a free society with state-compelled redistribution.",
+          "supporting_context_sha256": "01da5e36359c461b5156c02a8bf99056ba09648a109c60eb511ab1c2fe67ee83",
+          "title": "Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)",
+          "url": "https://www.margaretthatcher.org/document/102769",
+          "wording_match_kind": "historical_variant"
         }
       ]
     },
@@ -1221,7 +1671,7 @@
     }
   },
   "policy_version": "historical-context-curated-evidence-v3-archive-provenance",
-  "quote_count": 26,
+  "quote_count": 36,
   "schema_version": 3,
   "source_adjudication_count": 1,
   "source_adjudications": [
@@ -1240,5 +1690,5 @@
       "wording_coverage": "normalised"
     }
   ],
-  "source_count": 26
+  "source_count": 36
 }

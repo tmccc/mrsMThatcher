@@ -10028,7 +10028,7 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Margaret Thatcher Foundation Archive, 15 November 1990",
-      "text_variation_notes": "The quote matches the official transcript exactly.",
+      "text_variation_notes": "The stored quotation matches the inspected primary transcript; ordinary terminal-punctuation normalisation is non-substantive.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
@@ -18649,12 +18649,12 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Margaret Thatcher Foundation archive, Speech to the College of Europe",
-      "text_variation_notes": "The quote is widely cited exactly as spoken, though capitalization of 'State' and 'super-State' sometimes varies in secondary reproductions.",
+      "text_variation_notes": "Primary variant: the source uses lower-case 'state' and 'super-state', hyphenates 're-imposed', inserts 'a' before 'European level', and differs in comma placement from the stored quotation.",
       "transport": "developer_api",
       "unresolved_questions": [],
       "validation_status": "valid",
-      "verification_status": "exact",
-      "verified_text": "We have not successfully rolled back the frontiers of the State in Britain only to see them reimposed at European level, with a European super-State exercising a new dominance from Brussels."
+      "verification_status": "variant",
+      "verified_text": "We have not successfully rolled back the frontiers of the state in Britain, only to see them re-imposed at a European level with a European super-state exercising a new dominance from Brussels."
     },
     "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c": {
       "broader_principle": "Economic freedom is inseparable from personal freedom, and the state should not confiscate the wealth of individuals to fund excessive government spending.",
@@ -19605,12 +19605,12 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Paragraph discussing the Soviet Politburo and military spending.",
-      "text_variation_notes": "The popular quote substitutes 'The Russians' for 'They' and removes the conjunction 'while' to create a standalone aphorism.",
+      "text_variation_notes": "Primary variant: the source says 'They put guns before butter, while we put just about everything before guns'; the stored quotation replaces 'They' with 'The Russians' and divides the single sentence into two.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
       "verification_status": "variant",
-      "verified_text": "The men in the Soviet Politburo do not have to worry about the ebb and flow of public opinion. They put guns before butter, while we put just about everything before guns."
+      "verified_text": "They put guns before butter, while we put just about everything before guns."
     },
     "67aebf2698e84c3d0dfb1ba16237b57f11c1693c223f444de1134b3768693150": {
       "broader_principle": "Economic prosperity and job creation depend on encouraging free enterprise, investment, and rewarding industriousness.",
@@ -21216,14 +21216,14 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Margaret Thatcher Foundation Archive, Document 106689",
-      "text_variation_notes": "Often quoted out of context to suggest Thatcher lacked compassion, omitting her subsequent emphasis on families and mutual obligation.",
+      "text_variation_notes": "Primary variant: the source asks 'who is society?' before saying 'There is no such thing!' and then names individual men, women and families; the stored quotation recasts this as 'There is no such thing as society:' and adds a comma before the final clause.",
       "transport": "developer_api",
       "unresolved_questions": [
         "Whether she intended the phrase to become the defining philosophical summary of Thatcherism."
       ],
       "validation_status": "valid",
-      "verification_status": "excerpt",
-      "verified_text": "And, you know, there is no such thing as society. There are individual men and women and there are families and no government can do anything except through people and people look to themselves first."
+      "verification_status": "variant",
+      "verified_text": "There is no such thing! There are individual men and women and there are families."
     },
     "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7": {
       "broader_principle": "Excessive state intervention and high taxation inherently stifle individual enterprise and economic growth.",
@@ -22194,8 +22194,8 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, Document 108254",
-      "text_variation_notes": "The uploaded quotation perfectly matches the official transcript of her departure remarks.",
+      "stable_locator": "Margaret Thatcher Foundation Document 108258",
+      "text_variation_notes": "The stored quotation matches the inspected primary transcript; ordinary terminal-punctuation normalisation is non-substantive.",
       "transport": "developer_api",
       "unresolved_questions": [
         "What were the exact private conversations with her cabinet that forced her resignation just days prior?"
@@ -23401,7 +23401,7 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Hansard HC Deb 22 November 1990 vol 181 c448",
-      "text_variation_notes": "The quotation is exact as recorded in Hansard. It is sometimes followed by her reiteration: 'Yes, he would rather have the poor poorer, provided that the rich were less rich. That is the Liberal policy.'",
+      "text_variation_notes": "The stored quotation matches the inspected primary transcript; ordinary terminal-punctuation normalisation is non-substantive.",
       "transport": "developer_api",
       "unresolved_questions": [],
       "validation_status": "valid",
@@ -23726,7 +23726,7 @@
       "broader_principle": "Inflation deliberately caused by government monetary expansion is a moral failing and a form of theft from citizens.",
       "claimed_consequence": "Resorting to printing money punishes thrift and quietly confiscates wealth from everyday citizens.",
       "completed_at": "2026-07-13T18:39:25.167125Z",
-      "date": "1981",
+      "date": "1981-03-11",
       "editorial_guidance": {
         "common_visual_mistakes": [
           "Presenting the quote without the context of inflation and savings.",
@@ -23761,7 +23761,7 @@
       "quote_id": "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
       "quote_text": "I tell you what they really mean, they mean, 'We don't like the expenditure we have agreed, we are unwilling to raise the tax to pay for it. Let us print the money instead.' The most immoral path of all.",
       "research_confidence": "medium",
-      "source_event": "unknown",
+      "source_event": "Speech at Guardian Young Businessman of the Year Award (defence of the budget)",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -23779,14 +23779,14 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Forbes article by Kyle Smith, April 10, 2013",
-      "text_variation_notes": "The quote is often cited as part of a longer passage where Thatcher explains that printing money steals from every pound in circulation and from thrifty savers.",
+      "stable_locator": "Margaret Thatcher Foundation Document 104594",
+      "text_variation_notes": "The stored quotation matches the inspected primary transcript under authorised curly-versus-straight quotation-mark normalisation.",
       "transport": "developer_api",
       "unresolved_questions": [
         "The exact date and venue of the 1981 speech or interview where this was stated."
       ],
       "validation_status": "valid",
-      "verification_status": "excerpt",
+      "verification_status": "exact",
       "verified_text": "I tell you what they really mean, they mean, 'We don't like the expenditure we have agreed, we are unwilling to raise the tax to pay for it. Let us print the money instead.' The most immoral path of all."
     },
     "79f56edd93c69559dfb1724efeedb46db18779e49cb20be32106ecbce333ac70": {
@@ -30838,12 +30838,12 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Margaret Thatcher Foundation Archive, Document 102487",
-      "text_variation_notes": "The quote is consistently cited in this exact form across various sources.",
+      "text_variation_notes": "Primary variant: the inspected transcript reads 'you don't win but just being against things'; the stored quotation regularises the apparent transcription error to 'You don't win by just being against things'.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
-      "verification_status": "exact",
-      "verified_text": "You don't win by just being against things, you only win by being for things and making your message perfectly clear."
+      "verification_status": "variant",
+      "verified_text": "You don't win but just being against things, you only win by being for things and making your message perfectly clear."
     },
     "9835e15e662d305f5ad51ea4bfb4a4951af60cf8303fda7380c8b41b70885cd2": {
       "broader_principle": "National exceptionalism and the belief that individual genius and private enterprise are the true engines of progress.",
@@ -33875,12 +33875,12 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Margaret Thatcher Foundation Archive, Speech to Conservative Party Conference, Brighton, 12 October 1984",
-      "text_variation_notes": "The quotation is consistently reproduced exactly as delivered in the original speech.",
+      "text_variation_notes": "Primary variant: the source spells 'organized' with a z; the stored quotation uses British spelling 'organised'.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
-      "verification_status": "exact",
-      "verified_text": "What we have seen in this country is the emergence of an organised revolutionary minority who are prepared to exploit industrial disputes, but whose real aim is the breakdown of law and order and the destruction of democratic parliamentary government."
+      "verification_status": "variant",
+      "verified_text": "what we have seen in this country is the emergence of an organized revolutionary minority who are prepared to exploit industrial disputes, but whose real aim is the breakdown of law and order and the destruction of democratic parliamentary government."
     },
     "a8cc9b0e7ea3e7803172a7d3f3191c1687067c33a5c8ca3e42d1ed3205d1683f": {
       "broader_principle": "Collectivist ideologies are inherently oppressive because they conflict with fundamental human nature and individual liberty.",
@@ -35291,12 +35291,12 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Margaret Thatcher Foundation Document 102769",
-      "text_variation_notes": "The uploaded quote slightly alters the wording, changing 'they can give' to 'people can give', omitting 'to whom they want to', and removing the repeated phrase 'In a free society' before the final sentence.",
+      "text_variation_notes": "Primary variant: the source uses 'they' rather than 'people', adds 'to whom they want to', and repeats 'In a free society' before the final clause; the stored quotation omits those words.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
       "verification_status": "variant",
-      "verified_text": "Because, in a free society, they can give away as much as they want to, to whom they want to, and whenever they want to. They don't have to say, 'I will only give mine away, if I can compel you to give yours away too.' [...] In a free society, if they believe in pooling their possessions with others, they're welcome to do so."
+      "verified_text": "in a free society, they can give away as much as they want to, to whom they want to, and whenever they want to. They don't have to say, ‘I will only give mine away, if I can compel you to give yours away too.’ [end p4] In a free society, if they believe in pooling their possessions with others, they're welcome to do so."
     },
     "b316430b4f3e47f2816d0d7b44c211301234c9521bfa2417864b17be11ea9b32": {
       "broader_principle": "Economic realism and fiscal responsibility are foundational to a stable and prosperous society.",

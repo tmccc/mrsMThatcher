@@ -11,9 +11,9 @@
     "duplicate_full_reply_group_count": 0,
     "event_only_downgrade_count": 2,
     "manual_hint_count": 9,
-    "post_v9_public_field_change_count": 12,
-    "post_v9_source_addition_count": 12,
-    "post_v9_transition_packet_count": 12,
+    "post_v9_public_field_change_count": 20,
+    "post_v9_source_addition_count": 22,
+    "post_v9_transition_packet_count": 22,
     "safe_date_only_count": 64,
     "safe_event_only_context_count": 1,
     "safe_event_only_fallback_count": 1,
@@ -2521,13 +2521,14 @@
   ],
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "historical_context_formatter.py": "02886eea0c734e36278a83a18a2e9a84862675b35a689db184a99f0c2494cd95",
-    "historical_context_public_projection_review.py": "0eba2f218302fa653de64545d56d76e4f4f986d0e28b190b794e50e1a5ccbaaa",
-    "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
+    "historical_context_formatter.py": "1bfc42e977316dd36beee8093d23e83816371988e18c8d22798e4a6a54a64ffb",
+    "historical_context_public_projection_review.py": "85c41def0fbe65371b067acfe72939b7bc73ab41df5da82b9d7c7b2c3ec38108",
+    "historical_context_source_role_audit.json": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9",
     "historical_context_v8_v9_transition_manifest.json": "75077d0522df8cb8f673e8892846624faad9075e907bd20f05bed906f80476ba",
     "historical_context_v9_local_book_evidence_transition_manifest.json": "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f",
+    "historical_context_v9_mtf_corpus_evidence_transition_manifest.json": "10d9955279e41a0908475bb083f5a0c93bddabbe152767c74c5a18da39dbdafd",
     "historical_context_v9_statecraft_primary_transition_manifest.json": "79ed91b04acf9c840a353eea334d2ffc2de136a2ddeef4cf5f7754edab5291d6",
-    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
+    "research_packets.json": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291"
   },
   "interpretation": {
     "duplicate_context_lines": "Shared dates legitimately reuse the deterministic date-only sentence; only duplicate full replies are blocking.",
@@ -2686,6 +2687,39 @@
       "v9_baseline_public_context_supported_fields": []
     },
     {
+      "context_line": "Context — Interview for the Sunday Times, 15 November 1990.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Interview for the Sunday Times, 15 November 1990.\n\nMeaning — The decision to adopt a single currency is not merely a technical economic issue but a fundamental constitutional surrender of national sovereignty.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)\nhttps://www.margaretthatcher.org/document/107868",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)",
+          "url": "https://www.margaretthatcher.org/document/107868"
+        }
+      ],
+      "quote_id": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "source_bindings": [
+        {
+          "source_id": "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
+          "source_review_candidate_id": "6017a42f90d19f69704efb4d38579a0efd6c605171d2602f6a6aaa2455a64fe1"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
       "context_line": "Context — The Downing Street Years (Memoir), 1993.",
       "current_public_context_supported_fields": [
         "source_event",
@@ -2754,6 +2788,76 @@
       "v9_baseline_public_context_supported_fields": []
     },
     {
+      "context_line": "Context — Speech to the College of Europe (The Bruges Speech), 20 September 1988.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Speech to the College of Europe (The Bruges Speech), 20 September 1988.\n\nMeaning — The European project should remain a cooperative free-trade area of sovereign states rather than evolving into a centralized, federal super-state that dictates domestic economic and social policies.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)\nhttps://www.margaretthatcher.org/document/107332\n\nSource — This Brexit disaster has been brewing in the Conservative party for 30 years | John Harris | The Guardian\nhttps://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)",
+          "url": "https://www.margaretthatcher.org/document/107332"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "This Brexit disaster has been brewing in the Conservative party for 30 years | John Harris | The Guardian",
+          "url": "https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right"
+        }
+      ],
+      "quote_id": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+      "source_bindings": [
+        {
+          "source_id": "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3",
+          "source_review_candidate_id": "38c95daa90f07d3aef657c286196bcc2c70160bbb65a798915c34d400064ffb8"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Speech at Kensington Town Hall ('Britain Awake'), 19 January 1976.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Speech at Kensington Town Hall ('Britain Awake'), 19 January 1976.\n\nMeaning — Western nations must prioritize defense spending to counter the growing Soviet military threat, rather than relying on détente.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)\nhttps://www.margaretthatcher.org/document/102939",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)",
+          "url": "https://www.margaretthatcher.org/document/102939"
+        }
+      ],
+      "quote_id": "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
+      "source_bindings": [
+        {
+          "source_id": "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134",
+          "source_review_candidate_id": "66e3a53345d2c26099be1d26261b61034d3771d6fd6838b387d1a5bf928a2475"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
       "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
       "current_public_context_supported_fields": [
         "source_event",
@@ -2790,6 +2894,143 @@
         {
           "source_id": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
           "source_review_candidate_id": "192e8d138fa01dbf160ede438db59ca5c1f26321df2d3b04ffeb60d11b396b95"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Interview for Woman's Own magazine, 23 September 1987.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Interview for Woman's Own magazine, 23 September 1987.\n\nMeaning — Government cannot act independently of people; individuals must first take responsibility for themselves and their families.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)\nhttps://www.margaretthatcher.org/document/106689",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)",
+          "url": "https://www.margaretthatcher.org/document/106689"
+        }
+      ],
+      "quote_id": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+      "source_bindings": [
+        {
+          "source_id": "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
+          "source_review_candidate_id": "697d20def5221d948b13dbeb3558f3a0c50b42f2061fc8d8552cd2ab18afcb44"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Remarks departing Downing Street, 28 November 1990.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Remarks departing Downing Street, 28 November 1990.\n\nMeaning — Despite her forced resignation, she believed her administration had successfully transformed and improved the country over her three terms in office.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)\nhttps://www.margaretthatcher.org/document/108258",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)",
+          "url": "https://www.margaretthatcher.org/document/108258"
+        }
+      ],
+      "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "source_bindings": [
+        {
+          "source_id": "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+          "source_review_candidate_id": "dcbc02336418ac22fb320eef2ddfdef01afa37aa91107b8e942e61f4a097480b"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — House of Commons Debate on a Motion of No Confidence in Her Majesty's Government, 22 November 1990.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — House of Commons Debate on a Motion of No Confidence in Her Majesty's Government, 22 November 1990.\n\nMeaning — Prioritizing the reduction of relative inequality over absolute economic growth is counterproductive and ultimately harms the poor by stifling wealth creation.\n\nVerification — Exact wording verified\n\nSource — Hansard HC Deb 22 November 1990 vol 181 c448\n\nSource — Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)\nhttps://www.margaretthatcher.org/document/108256",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Hansard HC Deb 22 November 1990 vol 181 c448",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)",
+          "url": "https://www.margaretthatcher.org/document/108256"
+        }
+      ],
+      "quote_id": "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
+      "source_bindings": [
+        {
+          "source_id": "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b",
+          "source_review_candidate_id": "c95f63a62feb46803a5c70457ae767fdd20d984358fdd9db5b0cd1ace067903d"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "context_line": "Context — Speech at Guardian Young Businessman of the Year Award (defence of the budget), 11 March 1981.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Speech at Guardian Young Businessman of the Year Award (defence of the budget), 11 March 1981.\n\nMeaning — Funding government spending by printing money is a deceptive and immoral practice because it causes inflation, which acts as a hidden tax on the public.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)\nhttps://www.margaretthatcher.org/document/104594",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)",
+          "url": "https://www.margaretthatcher.org/document/104594"
+        }
+      ],
+      "quote_id": "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
+      "source_bindings": [
+        {
+          "source_id": "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+          "source_review_candidate_id": "8278eaf3dd974a1fc373a9b7673789c523b4a1530b52df4469b5f96fc81a1247"
         }
       ],
       "v9_baseline_public_context_supported_fields": []
@@ -2836,6 +3077,37 @@
       "v9_baseline_public_context_supported_fields": []
     },
     {
+      "context_line": "Context — Remarks upon being elected Leader of the Conservative Party, 11 February 1975.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Remarks upon being elected Leader of the Conservative Party, 11 February 1975.\n\nMeaning — A political movement must offer a positive, articulate vision of what it supports, rather than merely criticizing the opposition's policies.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)\nhttps://www.margaretthatcher.org/document/102487",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)",
+          "url": "https://www.margaretthatcher.org/document/102487"
+        }
+      ],
+      "quote_id": "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5",
+      "source_bindings": [
+        {
+          "source_id": "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
+          "source_review_candidate_id": "9f9940b176aaba1efeb7f3c912621b47f5cb75eceb9e9f2ad430383cd44e73fa"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
       "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
       "current_public_context_supported_fields": [
         "source_event",
@@ -2875,6 +3147,40 @@
         }
       ],
       "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Conservative Party Conference Address, 12 October 1984.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Conservative Party Conference Address, 12 October 1984.\n\nMeaning — That the strike was not a legitimate labor dispute over jobs, but a politically motivated insurrection by Marxist union leaders attempting to overthrow the democratically elected government.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984 (Document 105763)\nhttps://www.margaretthatcher.org/document/105763",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984 (Document 105763)",
+          "url": "https://www.margaretthatcher.org/document/105763"
+        }
+      ],
+      "quote_id": "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855",
+      "source_bindings": [
+        {
+          "source_id": "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
+          "source_review_candidate_id": "b12bb0ba59ea93c59a6e590deb0c1dfc6b1eeb15fa123e843e62361408819029"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
     },
     {
       "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
@@ -2921,6 +3227,37 @@
         {
           "source_id": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
           "source_review_candidate_id": "9016f29ef388fe954005aa090add8fe86bd9fd8b1b1db4997548cd200257adf4"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Speech to the Institute of SocioEconomic Studies ('Let Our Children Grow Tall'), 15 September 1975.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Speech to the Institute of SocioEconomic Studies ('Let Our Children Grow Tall'), 15 September 1975.\n\nMeaning — Individuals who believe in wealth redistribution are free to practice it voluntarily without forcing others to do the same through state taxation.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)\nhttps://www.margaretthatcher.org/document/102769",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)",
+          "url": "https://www.margaretthatcher.org/document/102769"
+        }
+      ],
+      "quote_id": "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8",
+      "source_bindings": [
+        {
+          "source_id": "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
+          "source_review_candidate_id": "d11341e3e900bfb2bf2759a7e094f27e21be7ddccbcee7773da022dac5082c8a"
         }
       ],
       "v9_baseline_public_context_supported_fields": []

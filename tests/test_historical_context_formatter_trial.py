@@ -110,6 +110,12 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
     statecraft_transition = read_json(
         Path("historical_context_v9_statecraft_primary_transition_manifest.json")
     )["items"]
+    mtf_corpus_transition = read_json(
+        Path("historical_context_v9_mtf_corpus_evidence_transition_manifest.json")
+    )["items"]
+    source_role_audit = read_json(
+        RESEARCH / "historical_context_source_role_audit.json"
+    )["items"]
     curated = read_json(
         RESEARCH / "historical_context_source_curated_evidence.json"
     )["items"]
@@ -127,7 +133,7 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
         "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
     }
     assert set(frozen) == set(packets) - newly_completed
-    assert set(transition) == independently_reviewed_ids
+    assert set(transition) | set(mtf_corpus_transition) == independently_reviewed_ids
     assert len(transition) == 12
     for quote_id, packet in packets.items():
         actual = v1.format_context_reply_v2(packet)
@@ -180,6 +186,22 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
             assert actual["source"]["url"] == ""
             assert actual["source_omitted"] is False
             assert actual["formatter_version"] == v1.HISTORICAL_CONTEXT_FORMATTER_V2
+            continue
+        elif quote_id in mtf_corpus_transition:
+            reviewed = mtf_corpus_transition[quote_id]
+            assert actual["source_omitted"] is False
+            assert actual["formatter_version"] == v1.HISTORICAL_CONTEXT_FORMATTER_V2
+            assert reviewed["quote_text_sha256"] == quote_id
+            assert reviewed["current_public_context_supported_fields"] == (
+                source_role_audit[quote_id][
+                    "public_context_supported_fields"
+                ]
+            )
+            assert len(reviewed["source_bindings"]) == 1
+            assert reviewed["source_bindings"][0]["source_id"] in {
+                source["source_id"]
+                for source in source_role_audit[quote_id]["curated_sources"]
+            }
             continue
         else:
             assert actual["text"] == expected_text

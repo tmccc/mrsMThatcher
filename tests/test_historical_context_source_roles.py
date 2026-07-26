@@ -782,12 +782,11 @@ def test_gemini_queue_and_cost_preflight_cover_only_true_no_source_residual(corp
     packets, _ = corpus
     queue = residual_queue(audit)
     preflight = build_preflight(packets, audit, queue)
-    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 100
+    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 98
     assert len(set(queue)) == len(queue)
     assert queue[0] == THAMES_ID
     assert "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a" not in queue
     assert MANDATORY_GOOGLE_IDS & set(queue) == {
-        "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
         "7c29b290a8e1898c86c39b0cdd23c60161ca73cc068d4a888a19f1f7f3967d0d",
     }
     assert preflight["maximum_single_call_exposure_usd"] < HARD_LIMIT_USD

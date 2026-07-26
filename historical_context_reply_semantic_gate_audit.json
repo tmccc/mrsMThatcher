@@ -25,14 +25,14 @@
     },
     "failure_reason": "",
     "reviewed_blocked_quote_count": 21,
-    "semantic_review_ledger_sha256": "80e2b8179283d722ae21b33cab7e03e8df8814fb05d3383af11f493e8bca5f19"
+    "semantic_review_ledger_sha256": "5c253406841ffa0d9632e489f4b1fdcfe7415462bbfa21686f94ad48a588dc39"
   },
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "80e2b8179283d722ae21b33cab7e03e8df8814fb05d3383af11f493e8bca5f19",
-    "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
+    "historical_context_published_reply_semantic_review.json": "5c253406841ffa0d9632e489f4b1fdcfe7415462bbfa21686f94ad48a588dc39",
+    "historical_context_source_role_audit.json": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
-    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0",
-    "runtime_eligible_quote_manifest.json": "6018627b2f22d762c5af15022123bafae7456f7d9f04eff0cd98f6aa6a2c2045"
+    "research_packets.json": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291",
+    "runtime_eligible_quote_manifest.json": "e85a83f640c4e6fda85293c4821099cdf5810035681538cea4cda368ed38a5ba"
   },
   "invariant_failure_count": 0,
   "invariants": {
@@ -156,7 +156,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Leaders should be guided by rational thought rather than public displays of emotion, keeping their feelings private where they can drive conviction without causing vulnerability.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — Leaders should be guided by rational thought rather than public displays of emotion, keeping their feelings private where they can drive conviction without causing vulnerability.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
       "quote_text": "To wear your heart on your sleeve isn't a very good plan; you should wear it inside, where it functions best."
@@ -788,7 +788,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105799\nhttps://www.margaretthatcher.org/document/105799",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105799\nhttps://www.margaretthatcher.org/document/105799",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
       "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed."
@@ -3044,7 +3044,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That Britain under her leadership successfully reversed socialist policies, which she equated with the dangers of communism, by promoting individual self-reliance.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — That Britain under her leadership successfully reversed socialist policies, which she equated with the dangers of communism, by promoting individual self-reliance.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4",
       "quote_text": "We were the first country to attempt and to succeed in rolling back the frontiers of socialism, which is the first cousin to communism."
@@ -3188,7 +3188,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — True leaders forge their own path rather than conforming to popular opinion.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — True leaders forge their own path rather than conforming to popular opinion.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
       "quote_text": "Don't follow the crowd, let the crowd follow you."
@@ -3236,7 +3236,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 104297\nhttps://www.margaretthatcher.org/document/104297",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 104297\nhttps://www.margaretthatcher.org/document/104297",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
       "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time."
@@ -3332,7 +3332,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the International Free Enterprise dinner (Document 108381)\nhttps://www.margaretthatcher.org/document/108381",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the International Free Enterprise dinner (Document 108381)\nhttps://www.margaretthatcher.org/document/108381",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
       "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible."
@@ -3436,7 +3436,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 104052\nhttps://www.margaretthatcher.org/document/104052",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 104052\nhttps://www.margaretthatcher.org/document/104052",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
       "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover."
@@ -3940,7 +3940,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103411\nhttps://www.margaretthatcher.org/document/103411",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103411\nhttps://www.margaretthatcher.org/document/103411",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
       "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses."
@@ -4220,7 +4220,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
       "quote_text": "Socialism and Britain go ill together. It is not the British character."
@@ -4548,7 +4548,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That her critics are so biased against her that they will interpret any action, no matter how extraordinary or positive, as a weakness or failure.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Meaning — That her critics are so biased against her that they will interpret any action, no matter how extraordinary or positive, as a weakness or failure.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
       "quote_text": "If my critics saw me walking over the Thames they would say it was because I couldn't swim."

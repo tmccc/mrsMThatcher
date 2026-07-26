@@ -25,8 +25,8 @@ AUDIT_KIND = "historical_context_mtf_priority_manual_review"
 SCHEMA_VERSION = 1
 EXPECTED_PACKET_COUNT = 139
 EXPECTED_COMPARISON_COUNT = 148
-EXPECTED_CURRENT_PRIORITY_PACKET_COUNT = 136
-EXPECTED_RETIRED_PRIORITY_PACKET_COUNT = 3
+EXPECTED_CURRENT_PRIORITY_PACKET_COUNT = 133
+EXPECTED_RETIRED_PRIORITY_PACKET_COUNT = 6
 DISPOSITIONS = {"verified", "mismatch", "uncertain", "retrieval_failed"}
 
 # These are the event-title judgements that cannot be obtained from a token

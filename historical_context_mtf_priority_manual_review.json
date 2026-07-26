@@ -3255,7 +3255,7 @@
       "verified": 76
     },
     "comparisons_with_actionable_findings": 72,
-    "current_truth_priority_packet_count": 136,
+    "current_truth_priority_packet_count": 133,
     "date_mismatch_comparison_count": 27,
     "packet_dispositions": {
       "mismatch": 28,
@@ -3266,7 +3266,7 @@
     "packets_with_actionable_mismatch": 28,
     "priority_comparison_count": 148,
     "priority_packet_count": 139,
-    "reviewed_but_no_longer_current_priority_count": 3,
+    "reviewed_but_no_longer_current_priority_count": 6,
     "source_event_mismatch_comparison_count": 29,
     "source_event_uncertain_comparison_count": 3
   },
@@ -3277,7 +3277,7 @@
     "verified": "official archive identity, source event, date and quotation linkage align; semantic Meaning is not assessed"
   },
   "input_hashes": {
-    "historical_context_evidence_truth_audit.json": "636941cf5053516a08e11e8fdacbef02903637861c80796aec7eb9ade14ef7df",
+    "historical_context_evidence_truth_audit.json": "1dc8154bc4eb58ea4cde7c821e01339c417533c246bec3b51bd442d03425b20c",
     "historical_context_mtf_primary_review.json": "f93a27e1e5bdcb658430bf03c08ca2c5cac1c34121087bd4290fa77e5f543148"
   },
   "invariants": {
@@ -7708,12 +7708,15 @@
   "scope": {
     "assessment": "source identity, source event, date and quotation linkage",
     "automatic_evidence_promotion_authorised": false,
-    "current_truth_priority_packet_count": 136,
+    "current_truth_priority_packet_count": 133,
     "packet_or_evidence_mutation_authorised": false,
-    "reviewed_but_no_longer_current_priority_count": 3,
+    "reviewed_but_no_longer_current_priority_count": 6,
     "reviewed_but_no_longer_current_priority_quote_ids": [
       "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
       "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8",
       "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9"
     ],
     "semantic_meaning_assessed": false

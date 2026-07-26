@@ -8,34 +8,34 @@
     "malformed_or_nested_url_count": 0,
     "markdown_link_count": 0,
     "packets_with_duplicate_source_identity": 0,
-    "public_source_record_count": 579,
+    "public_source_record_count": 583,
     "public_source_role_leakage_count": 0,
     "repeated_archive_document_number_group_count": 0
   },
   "audit_kind": "historical_context_public_source_deduplication_audit",
   "before_deduplication": {
-    "duplicate_canonical_identity_excess_record_count": 36,
-    "duplicate_canonical_identity_group_count": 36,
-    "duplicate_canonical_url_excess_record_count": 36,
-    "duplicate_canonical_url_group_count": 36,
+    "duplicate_canonical_identity_excess_record_count": 42,
+    "duplicate_canonical_identity_group_count": 42,
+    "duplicate_canonical_url_excess_record_count": 42,
+    "duplicate_canonical_url_group_count": 42,
     "legacy_exact_key_identity_conflict_count": 0,
-    "packets_with_duplicate_source_identity": 36,
-    "public_source_record_count": 612,
-    "repeated_archive_document_number_excess_record_count": 35,
-    "repeated_archive_document_number_group_count": 35
+    "packets_with_duplicate_source_identity": 42,
+    "public_source_record_count": 622,
+    "repeated_archive_document_number_excess_record_count": 41,
+    "repeated_archive_document_number_group_count": 41
   },
   "counts": {
     "attribution_eligible_quote_count": 611,
     "attribution_ineligible_completed_quote_count": 16,
     "blocking_item_violation_count": 0,
     "completed_packet_count": 627,
-    "distinct_canonical_source_count": 579,
+    "distinct_canonical_source_count": 583,
     "identity_ambiguity_count": 66,
-    "internal_source_record_count": 945,
-    "internal_source_records_merged_for_public_display": 366,
+    "internal_source_record_count": 956,
+    "internal_source_records_merged_for_public_display": 373,
     "invariant_violation_count": 0,
-    "packets_with_no_reliable_public_source": 100,
-    "packets_with_public_source_merges": 246,
+    "packets_with_no_reliable_public_source": 98,
+    "packets_with_public_source_merges": 249,
     "render_failure_count": 0,
     "rendered_packet_count": 627,
     "unresolved_quote_count": 5
@@ -54,7 +54,7 @@
       "unresolved_quote_count_is_5": true
     },
     "completed_quote_id_text_sha256": "8470c74cab3001e80c989faed5a6edcb4b023238b062832aabcd0291c1433000",
-    "confidence_metadata_sha256": "18143f6396dec3cd31dca0919f89334e515b1d621c7e98b6fe1a89e174b7269d",
+    "confidence_metadata_sha256": "74d2313ac1c90cbc9312bd63fa679ec1d43840a1d872fd3bf3d2438810a631a9",
     "cycle_membership_count": 611,
     "cycle_membership_quote_ids_sha256": "db72c0c0e8cf766c5ac463bb3ad0d2538733d37e8c1938f59c90cf73c9bb87d2",
     "quote_analysis_record_count": 619,
@@ -22956,32 +22956,42 @@
         "public_source_count": 1,
         "public_sources": [
           {
-            "canonical_identity": "bibliographic:margaret_thatcher_foundation:06fce4303b81f1647e6b151b5c526fa06a8c3ce6bef8d54fb49c346f0cd8ad8a",
-            "canonical_url": "",
-            "document_numbers": [],
-            "title": "Margaret Thatcher Foundation, 15 November 1990",
-            "url": ""
+            "canonical_identity": "margaret_thatcher_foundation:document:107868",
+            "canonical_url": "https://www.margaretthatcher.org/document/107868",
+            "document_numbers": [
+              "107868"
+            ],
+            "title": "Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)",
+            "url": "https://www.margaretthatcher.org/document/107868"
           }
         ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
-        "duplicate_canonical_identities": [],
-        "duplicate_canonical_identity_excess_records": 0,
-        "duplicate_canonical_url_excess_records": 0,
-        "duplicate_canonical_urls": [],
+        "duplicate_canonical_identities": [
+          "margaret_thatcher_foundation:document:107868"
+        ],
+        "duplicate_canonical_identity_excess_records": 1,
+        "duplicate_canonical_url_excess_records": 1,
+        "duplicate_canonical_urls": [
+          "https://www.margaretthatcher.org/document/107868"
+        ],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
-              "bibliographic:margaret_thatcher_foundation:06fce4303b81f1647e6b151b5c526fa06a8c3ce6bef8d54fb49c346f0cd8ad8a"
+              "margaret_thatcher_foundation:document:107868"
             ],
-            "canonical_identity": "bibliographic:margaret_thatcher_foundation:06fce4303b81f1647e6b151b5c526fa06a8c3ce6bef8d54fb49c346f0cd8ad8a",
-            "canonical_url": "",
-            "canonical_urls": [],
-            "document_number": null,
-            "document_numbers": [],
+            "canonical_identity": "margaret_thatcher_foundation:document:107868",
+            "canonical_url": "https://www.margaretthatcher.org/document/107868",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/107868"
+            ],
+            "document_number": "107868",
+            "document_numbers": [
+              "107868"
+            ],
             "roles": [
               "attribution_support",
               "source_event_support",
@@ -22993,21 +23003,48 @@
             ],
             "title": "Margaret Thatcher Foundation Archive, 15 November 1990",
             "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:107868"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:107868",
+            "canonical_url": "https://www.margaretthatcher.org/document/107868",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/107868"
+            ],
+            "document_number": "107868",
+            "document_numbers": [
+              "107868"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449"
+            ],
+            "title": "Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)",
+            "url": "https://www.margaretthatcher.org/document/107868"
           }
         ],
-        "repeated_archive_document_number_excess_records": 0,
-        "repeated_archive_document_numbers": []
+        "repeated_archive_document_number_excess_records": 1,
+        "repeated_archive_document_numbers": [
+          "107868"
+        ]
       },
       "canonical_source_groups": [
         {
-          "canonical_identity": "bibliographic:margaret_thatcher_foundation:06fce4303b81f1647e6b151b5c526fa06a8c3ce6bef8d54fb49c346f0cd8ad8a",
-          "canonical_url": "",
-          "document_number": null,
-          "identity_basis": "bibliographic_identity",
+          "canonical_identity": "margaret_thatcher_foundation:document:107868",
+          "canonical_url": "https://www.margaretthatcher.org/document/107868",
+          "document_number": "107868",
+          "identity_basis": "margaret_thatcher_foundation_document",
           "public_source": {
             "claims_supported": [
               "wording",
               "attribution",
+              "source_event",
               "date"
             ],
             "roles": [
@@ -23017,14 +23054,15 @@
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, 15 November 1990",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)",
+            "url": "https://www.margaretthatcher.org/document/107868"
           },
           "source_ids": [
             "a2c7c2e6e36518c56751f5fa5cd580f2a1dfb3e6ec9910cff170876e23c0406f",
+            "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
             "5f17cd289362d1ec4a1fd4993132af8f2ba4e779bb17f1d672a4ff450953a752"
           ],
-          "source_record_count": 2
+          "source_record_count": 3
         }
       ],
       "diagnostics": {
@@ -23049,12 +23087,12 @@
       },
       "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 2,
+      "internal_source_record_count": 3,
       "internal_source_records": [
         {
           "authoritative_urls": [],
-          "canonical_identity": "bibliographic:margaret_thatcher_foundation:06fce4303b81f1647e6b151b5c526fa06a8c3ce6bef8d54fb49c346f0cd8ad8a",
-          "canonical_url": "",
+          "canonical_identity": "margaret_thatcher_foundation:document:107868",
+          "canonical_url": "https://www.margaretthatcher.org/document/107868",
           "claims_supported": [
             "attribution"
           ],
@@ -23062,13 +23100,15 @@
           "date_identities": [
             "1990-11-15"
           ],
-          "document_number": null,
-          "document_numbers": [],
+          "document_number": "107868",
+          "document_numbers": [
+            "107868"
+          ],
           "evidence_targets": [
             "attribution"
           ],
           "explicit_identifiers": [],
-          "identity_basis": "bibliographic_identity",
+          "identity_basis": "corroborated_reviewed_curated_mtf_locator",
           "internal_roles": [
             "attribution_support"
           ],
@@ -23086,9 +23126,59 @@
           "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEZOR5_gxbGPpVVjB1R7wHfJMqfg1-FmWsSe4-YA2JOuZA15GWIHtlbYLYng9Kisb3cr7FR8OB9MbxJTCaZDItNNBGpO2OEQvx5QIV5FGutTbqOTcLIzmfQnOK991RHZ22ACEL8H_MEOUzK3Q=="
         },
         {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/107868"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:107868",
+          "canonical_url": "https://www.margaretthatcher.org/document/107868",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1990-11-15"
+          ],
+          "document_number": "107868",
+          "document_numbers": [
+            "107868"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_107868"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)",
+          "url": "https://www.margaretthatcher.org/document/107868"
+        },
+        {
           "authoritative_urls": [],
-          "canonical_identity": "bibliographic:margaret_thatcher_foundation:06fce4303b81f1647e6b151b5c526fa06a8c3ce6bef8d54fb49c346f0cd8ad8a",
-          "canonical_url": "",
+          "canonical_identity": "margaret_thatcher_foundation:document:107868",
+          "canonical_url": "https://www.margaretthatcher.org/document/107868",
           "claims_supported": [
             "wording",
             "attribution",
@@ -23098,15 +23188,17 @@
           "date_identities": [
             "1990-11-15"
           ],
-          "document_number": null,
-          "document_numbers": [],
+          "document_number": "107868",
+          "document_numbers": [
+            "107868"
+          ],
           "evidence_targets": [
             "wording",
             "attribution",
             "date"
           ],
           "explicit_identifiers": [],
-          "identity_basis": "bibliographic_identity",
+          "identity_basis": "corroborated_reviewed_curated_mtf_locator",
           "internal_roles": [
             "attribution_support",
             "source_event_support",
@@ -23128,27 +23220,30 @@
           "url": ""
         }
       ],
-      "merged_internal_source_record_count": 1,
+      "merged_internal_source_record_count": 2,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, 15 November 1990"
+        "Source — Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, 15 November 1990"
+        "Source — Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)\nhttps://www.margaretthatcher.org/document/107868"
       ],
-      "public_urls": [],
+      "public_urls": [
+        "https://www.margaretthatcher.org/document/107868"
+      ],
       "quote_id": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
       "quote_text": "Quite simple: Do you give up the power to issue your own currency? Do you give up the pound sterling?",
       "source_records_merged_for_public_display": [
         {
-          "canonical_identity": "bibliographic:margaret_thatcher_foundation:06fce4303b81f1647e6b151b5c526fa06a8c3ce6bef8d54fb49c346f0cd8ad8a",
-          "canonical_url": "",
-          "document_number": null,
-          "identity_basis": "bibliographic_identity",
+          "canonical_identity": "margaret_thatcher_foundation:document:107868",
+          "canonical_url": "https://www.margaretthatcher.org/document/107868",
+          "document_number": "107868",
+          "identity_basis": "margaret_thatcher_foundation_document",
           "public_source": {
             "claims_supported": [
               "wording",
               "attribution",
+              "source_event",
               "date"
             ],
             "roles": [
@@ -23158,14 +23253,15 @@
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, 15 November 1990",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, Interview for Sunday Times, 1990-11-15 (Document 107868)",
+            "url": "https://www.margaretthatcher.org/document/107868"
           },
           "source_ids": [
             "a2c7c2e6e36518c56751f5fa5cd580f2a1dfb3e6ec9910cff170876e23c0406f",
+            "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
             "5f17cd289362d1ec4a1fd4993132af8f2ba4e779bb17f1d672a4ff450953a752"
           ],
-          "source_record_count": 2
+          "source_record_count": 3
         }
       ]
     },
@@ -41427,8 +41523,17 @@
     },
     "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": {
       "after_deduplication": {
-        "public_source_count": 1,
+        "public_source_count": 2,
         "public_sources": [
+          {
+            "canonical_identity": "margaret_thatcher_foundation:document:107332",
+            "canonical_url": "https://www.margaretthatcher.org/document/107332",
+            "document_numbers": [
+              "107332"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)",
+            "url": "https://www.margaretthatcher.org/document/107332"
+          },
           {
             "canonical_identity": "url:https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right",
             "canonical_url": "https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right",
@@ -41445,8 +41550,32 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:107332"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:107332",
+            "canonical_url": "https://www.margaretthatcher.org/document/107332",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/107332"
+            ],
+            "document_number": "107332",
+            "document_numbers": [
+              "107332"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)",
+            "url": "https://www.margaretthatcher.org/document/107332"
+          },
           {
             "canonical_identities": [
               "url:https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right"
@@ -41473,6 +41602,33 @@
         "repeated_archive_document_numbers": []
       },
       "canonical_source_groups": [
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:107332",
+          "canonical_url": "https://www.margaretthatcher.org/document/107332",
+          "document_number": "107332",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)",
+            "url": "https://www.margaretthatcher.org/document/107332"
+          },
+          "source_ids": [
+            "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3"
+          ],
+          "source_record_count": 1
+        },
         {
           "canonical_identity": "url:https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right",
           "canonical_url": "https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right",
@@ -41518,9 +41674,9 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 1,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 2,
       "internal_source_records": [
         {
           "authoritative_urls": [
@@ -41559,17 +41715,70 @@
           "supporting_passage_count": 1,
           "title": "This Brexit disaster has been brewing in the Conservative party for 30 years | John Harris | The Guardian",
           "url": "https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right"
+        },
+        {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/107332"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:107332",
+          "canonical_url": "https://www.margaretthatcher.org/document/107332",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1988-09-20"
+          ],
+          "document_number": "107332",
+          "document_numbers": [
+            "107332"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_107332"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)",
+          "url": "https://www.margaretthatcher.org/document/107332"
         }
       ],
       "merged_internal_source_record_count": 0,
       "no_reliable_source": false,
       "public_source_lines": [
+        "Source — Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)",
         "Source — This Brexit disaster has been brewing in the Conservative party for 30 years | John Harris | The Guardian"
       ],
       "public_source_sections": [
+        "Source — Margaret Thatcher Foundation, Speech to the College of Europe (\"The Bruges Speech\"), 1988-09-20 (Document 107332)\nhttps://www.margaretthatcher.org/document/107332",
         "Source — This Brexit disaster has been brewing in the Conservative party for 30 years | John Harris | The Guardian\nhttps://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right"
       ],
       "public_urls": [
+        "https://www.margaretthatcher.org/document/107332",
         "https://www.theguardian.com/commentisfree/2020/dec/13/brexit-disaster-conservative-party-margaret-thatcher-tory-right"
       ],
       "quote_id": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
@@ -43859,8 +44068,18 @@
     },
     "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 1,
+        "public_sources": [
+          {
+            "canonical_identity": "margaret_thatcher_foundation:document:102939",
+            "canonical_url": "https://www.margaretthatcher.org/document/102939",
+            "document_numbers": [
+              "102939"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)",
+            "url": "https://www.margaretthatcher.org/document/102939"
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -43869,12 +44088,65 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 1,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:102939"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:102939",
+            "canonical_url": "https://www.margaretthatcher.org/document/102939",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/102939"
+            ],
+            "document_number": "102939",
+            "document_numbers": [
+              "102939"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)",
+            "url": "https://www.margaretthatcher.org/document/102939"
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:102939",
+          "canonical_url": "https://www.margaretthatcher.org/document/102939",
+          "document_number": "102939",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)",
+            "url": "https://www.margaretthatcher.org/document/102939"
+          },
+          "source_ids": [
+            "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -43895,19 +44167,72 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 1,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/102939"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:102939",
+          "canonical_url": "https://www.margaretthatcher.org/document/102939",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1976-01-19"
+          ],
+          "document_number": "102939",
+          "document_numbers": [
+            "102939"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_102939"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)",
+          "url": "https://www.margaretthatcher.org/document/102939"
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher Foundation, Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady), 1976-01-19 (Document 102939)\nhttps://www.margaretthatcher.org/document/102939"
       ],
-      "public_urls": [],
+      "public_urls": [
+        "https://www.margaretthatcher.org/document/102939"
+      ],
       "quote_id": "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
       "quote_text": "The Russians put guns before butter. We put just about everything before guns.",
       "source_records_merged_for_public_display": []
@@ -46817,19 +47142,23 @@
             "document_numbers": [
               "106689"
             ],
-            "title": "Margaret Thatcher Foundation, Document 106689",
+            "title": "Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)",
             "url": "https://www.margaretthatcher.org/document/106689"
           }
         ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
-        "duplicate_canonical_identities": [],
-        "duplicate_canonical_identity_excess_records": 0,
-        "duplicate_canonical_url_excess_records": 0,
-        "duplicate_canonical_urls": [],
+        "duplicate_canonical_identities": [
+          "margaret_thatcher_foundation:document:106689"
+        ],
+        "duplicate_canonical_identity_excess_records": 1,
+        "duplicate_canonical_url_excess_records": 1,
+        "duplicate_canonical_urls": [
+          "https://www.margaretthatcher.org/document/106689"
+        ],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -46854,10 +47183,36 @@
             ],
             "title": "Margaret Thatcher Foundation Archive, Document 106689",
             "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:106689"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:106689",
+            "canonical_url": "https://www.margaretthatcher.org/document/106689",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/106689"
+            ],
+            "document_number": "106689",
+            "document_numbers": [
+              "106689"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463"
+            ],
+            "title": "Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)",
+            "url": "https://www.margaretthatcher.org/document/106689"
           }
         ],
-        "repeated_archive_document_number_excess_records": 0,
-        "repeated_archive_document_numbers": []
+        "repeated_archive_document_number_excess_records": 1,
+        "repeated_archive_document_numbers": [
+          "106689"
+        ]
       },
       "canonical_source_groups": [
         {
@@ -46868,22 +47223,26 @@
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 106689",
+            "title": "Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)",
             "url": "https://www.margaretthatcher.org/document/106689"
           },
           "source_ids": [
             "30a4b4be0699b3bf81f826b249fdb0409f701c1a2651268bc0cb59843b2ab9be",
+            "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
             "2959daebf00663e80e899f2752e9b05c7766ad6374252d0107e94d6f5943cad3"
           ],
-          "source_record_count": 2
+          "source_record_count": 3
         }
       ],
       "diagnostics": {
@@ -46908,7 +47267,7 @@
       },
       "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 2,
+      "internal_source_record_count": 3,
       "internal_source_records": [
         {
           "authoritative_urls": [],
@@ -46943,6 +47302,56 @@
           "supporting_passage_count": 5,
           "title": "Margaret Thatcher Foundation Archive, Document 106689",
           "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQELe8R2UzJdnHIvlQ8xKzHgbiodkjUKF48TIoDPkzBFIe0Ttt5GPR9xMF_ogONLTEKEPMz7eSYHMxIdJbKqGRTU5JpkrQ-e5PVuG7o5VQ9jvtYLd2BifjZYq0XanIysll6EiPOvjg=="
+        },
+        {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/106689"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:106689",
+          "canonical_url": "https://www.margaretthatcher.org/document/106689",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1987-09-23"
+          ],
+          "document_number": "106689",
+          "document_numbers": [
+            "106689"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_106689"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)",
+          "url": "https://www.margaretthatcher.org/document/106689"
         },
         {
           "authoritative_urls": [],
@@ -46983,13 +47392,13 @@
           "url": ""
         }
       ],
-      "merged_internal_source_record_count": 1,
+      "merged_internal_source_record_count": 2,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, Document 106689"
+        "Source — Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, Document 106689\nhttps://www.margaretthatcher.org/document/106689"
+        "Source — Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)\nhttps://www.margaretthatcher.org/document/106689"
       ],
       "public_urls": [
         "https://www.margaretthatcher.org/document/106689"
@@ -47005,22 +47414,26 @@
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 106689",
+            "title": "Margaret Thatcher Foundation, Interview for Woman's Own (\"no such thing [as society] \"), 1987-09-23 (Document 106689)",
             "url": "https://www.margaretthatcher.org/document/106689"
           },
           "source_ids": [
             "30a4b4be0699b3bf81f826b249fdb0409f701c1a2651268bc0cb59843b2ab9be",
+            "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
             "2959daebf00663e80e899f2752e9b05c7766ad6374252d0107e94d6f5943cad3"
           ],
-          "source_record_count": 2
+          "source_record_count": 3
         }
       ]
     },
@@ -49074,37 +49487,41 @@
         "public_source_count": 1,
         "public_sources": [
           {
-            "canonical_identity": "margaret_thatcher_foundation:document:108254",
-            "canonical_url": "https://www.margaretthatcher.org/document/108254",
+            "canonical_identity": "margaret_thatcher_foundation:document:108258",
+            "canonical_url": "https://www.margaretthatcher.org/document/108258",
             "document_numbers": [
-              "108254"
+              "108258"
             ],
-            "title": "Margaret Thatcher Foundation, Document 108254",
-            "url": "https://www.margaretthatcher.org/document/108254"
+            "title": "Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)",
+            "url": "https://www.margaretthatcher.org/document/108258"
           }
         ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
-        "duplicate_canonical_identities": [],
-        "duplicate_canonical_identity_excess_records": 0,
-        "duplicate_canonical_url_excess_records": 0,
-        "duplicate_canonical_urls": [],
+        "duplicate_canonical_identities": [
+          "margaret_thatcher_foundation:document:108258"
+        ],
+        "duplicate_canonical_identity_excess_records": 1,
+        "duplicate_canonical_url_excess_records": 1,
+        "duplicate_canonical_urls": [
+          "https://www.margaretthatcher.org/document/108258"
+        ],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
-              "margaret_thatcher_foundation:document:108254"
+              "margaret_thatcher_foundation:document:108258"
             ],
-            "canonical_identity": "margaret_thatcher_foundation:document:108254",
-            "canonical_url": "https://www.margaretthatcher.org/document/108254",
+            "canonical_identity": "margaret_thatcher_foundation:document:108258",
+            "canonical_url": "https://www.margaretthatcher.org/document/108258",
             "canonical_urls": [
-              "https://www.margaretthatcher.org/document/108254"
+              "https://www.margaretthatcher.org/document/108258"
             ],
-            "document_number": "108254",
+            "document_number": "108258",
             "document_numbers": [
-              "108254"
+              "108258"
             ],
             "roles": [
               "attribution_support",
@@ -49112,40 +49529,70 @@
             ],
             "source_ids": [
               "b12cc0a69ab446152cb9307119401c0fef3ff5597c76cbd8c27f2a7dbc6b5cdc",
-              "4deb609c0803b26caaf426b90111e1cb7f547352f09a530ebcc184f5e08fd501"
+              "8ad78b80fa62ed6c994628ebee0863fa72d983c0926f86758d841f4f9be8e20c"
             ],
-            "title": "Margaret Thatcher Foundation Archive, Document 108254",
+            "title": "Margaret Thatcher Foundation Document 108258",
             "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:108258"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:108258",
+            "canonical_url": "https://www.margaretthatcher.org/document/108258",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/108258"
+            ],
+            "document_number": "108258",
+            "document_numbers": [
+              "108258"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79"
+            ],
+            "title": "Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)",
+            "url": "https://www.margaretthatcher.org/document/108258"
           }
         ],
-        "repeated_archive_document_number_excess_records": 0,
-        "repeated_archive_document_numbers": []
+        "repeated_archive_document_number_excess_records": 1,
+        "repeated_archive_document_numbers": [
+          "108258"
+        ]
       },
       "canonical_source_groups": [
         {
-          "canonical_identity": "margaret_thatcher_foundation:document:108254",
-          "canonical_url": "https://www.margaretthatcher.org/document/108254",
-          "document_number": "108254",
+          "canonical_identity": "margaret_thatcher_foundation:document:108258",
+          "canonical_url": "https://www.margaretthatcher.org/document/108258",
+          "document_number": "108258",
           "identity_basis": "margaret_thatcher_foundation_document",
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 108254",
-            "url": "https://www.margaretthatcher.org/document/108254"
+            "title": "Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)",
+            "url": "https://www.margaretthatcher.org/document/108258"
           },
           "source_ids": [
             "b12cc0a69ab446152cb9307119401c0fef3ff5597c76cbd8c27f2a7dbc6b5cdc",
-            "4deb609c0803b26caaf426b90111e1cb7f547352f09a530ebcc184f5e08fd501"
+            "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+            "8ad78b80fa62ed6c994628ebee0863fa72d983c0926f86758d841f4f9be8e20c"
           ],
-          "source_record_count": 2
+          "source_record_count": 3
         }
       ],
       "diagnostics": {
@@ -49170,20 +49617,20 @@
       },
       "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 2,
+      "internal_source_record_count": 3,
       "internal_source_records": [
         {
           "authoritative_urls": [],
-          "canonical_identity": "margaret_thatcher_foundation:document:108254",
-          "canonical_url": "https://www.margaretthatcher.org/document/108254",
+          "canonical_identity": "margaret_thatcher_foundation:document:108258",
+          "canonical_url": "https://www.margaretthatcher.org/document/108258",
           "claims_supported": [
             "wording"
           ],
           "composite_locator": false,
           "date_identities": [],
-          "document_number": "108254",
+          "document_number": "108258",
           "document_numbers": [
-            "108254"
+            "108258"
           ],
           "evidence_targets": [
             "wording"
@@ -49203,22 +49650,72 @@
           "source_quality_class": "strong_primary_evidence",
           "source_type": "grounded_web_source",
           "supporting_passage_count": 8,
-          "title": "Margaret Thatcher Foundation Archive, Document 108254",
+          "title": "Margaret Thatcher Foundation Document 108258",
           "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFxACs11IcwzUnNDMedMSlKdzufyX3jWzIzcFgVYvLnQ675EMjV6cQ5gpVKFIR9-60Cn8B29or7MIX91YNni8e3cd6DzLlDvkRQjfEjIJ6tmfkiEr6HbtHi9dYmrN6NgcnAnL7GMss="
         },
         {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/108258"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:108258",
+          "canonical_url": "https://www.margaretthatcher.org/document/108258",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1990-11-28"
+          ],
+          "document_number": "108258",
+          "document_numbers": [
+            "108258"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_108258"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)",
+          "url": "https://www.margaretthatcher.org/document/108258"
+        },
+        {
           "authoritative_urls": [],
-          "canonical_identity": "margaret_thatcher_foundation:document:108254",
-          "canonical_url": "https://www.margaretthatcher.org/document/108254",
+          "canonical_identity": "margaret_thatcher_foundation:document:108258",
+          "canonical_url": "https://www.margaretthatcher.org/document/108258",
           "claims_supported": [
             "wording",
             "attribution"
           ],
           "composite_locator": false,
           "date_identities": [],
-          "document_number": "108254",
+          "document_number": "108258",
           "document_numbers": [
-            "108254"
+            "108258"
           ],
           "evidence_targets": [
             "wording",
@@ -49237,52 +49734,56 @@
             "wording_verification"
           ],
           "secondary_recollection": false,
-          "source_id": "4deb609c0803b26caaf426b90111e1cb7f547352f09a530ebcc184f5e08fd501",
+          "source_id": "8ad78b80fa62ed6c994628ebee0863fa72d983c0926f86758d841f4f9be8e20c",
           "source_quality_class": "strong_primary_evidence",
           "source_type": "canonical_stable_locator",
           "supporting_passage_count": 0,
-          "title": "Margaret Thatcher Foundation Archive, Document 108254",
+          "title": "Margaret Thatcher Foundation Document 108258",
           "url": ""
         }
       ],
-      "merged_internal_source_record_count": 1,
+      "merged_internal_source_record_count": 2,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, Document 108254"
+        "Source — Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, Document 108254\nhttps://www.margaretthatcher.org/document/108254"
+        "Source — Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)\nhttps://www.margaretthatcher.org/document/108258"
       ],
       "public_urls": [
-        "https://www.margaretthatcher.org/document/108254"
+        "https://www.margaretthatcher.org/document/108258"
       ],
       "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
       "quote_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
       "source_records_merged_for_public_display": [
         {
-          "canonical_identity": "margaret_thatcher_foundation:document:108254",
-          "canonical_url": "https://www.margaretthatcher.org/document/108254",
-          "document_number": "108254",
+          "canonical_identity": "margaret_thatcher_foundation:document:108258",
+          "canonical_url": "https://www.margaretthatcher.org/document/108258",
+          "document_number": "108258",
           "identity_basis": "margaret_thatcher_foundation_document",
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 108254",
-            "url": "https://www.margaretthatcher.org/document/108254"
+            "title": "Margaret Thatcher Foundation, Remarks departing Downing Street, 1990-11-28 (Document 108258)",
+            "url": "https://www.margaretthatcher.org/document/108258"
           },
           "source_ids": [
             "b12cc0a69ab446152cb9307119401c0fef3ff5597c76cbd8c27f2a7dbc6b5cdc",
-            "4deb609c0803b26caaf426b90111e1cb7f547352f09a530ebcc184f5e08fd501"
+            "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+            "8ad78b80fa62ed6c994628ebee0863fa72d983c0926f86758d841f4f9be8e20c"
           ],
-          "source_record_count": 2
+          "source_record_count": 3
         }
       ]
     },
@@ -51631,7 +52132,7 @@
     },
     "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": {
       "after_deduplication": {
-        "public_source_count": 1,
+        "public_source_count": 2,
         "public_sources": [
           {
             "canonical_identity": "bibliographic:hansard:482d7ce890bb10372a806af272a14945007fe3a898fa6dce5fcaed58bd9e191a",
@@ -51639,6 +52140,15 @@
             "document_numbers": [],
             "title": "Hansard HC Deb 22 November 1990 vol 181 c448",
             "url": ""
+          },
+          {
+            "canonical_identity": "margaret_thatcher_foundation:document:108256",
+            "canonical_url": "https://www.margaretthatcher.org/document/108256",
+            "document_numbers": [
+              "108256"
+            ],
+            "title": "Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)",
+            "url": "https://www.margaretthatcher.org/document/108256"
           }
         ]
       },
@@ -51649,7 +52159,7 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -51672,6 +52182,30 @@
             ],
             "title": "Hansard HC Deb 22 November 1990 vol 181 c448",
             "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:108256"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:108256",
+            "canonical_url": "https://www.margaretthatcher.org/document/108256",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/108256"
+            ],
+            "document_number": "108256",
+            "document_numbers": [
+              "108256"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b"
+            ],
+            "title": "Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)",
+            "url": "https://www.margaretthatcher.org/document/108256"
           }
         ],
         "repeated_archive_document_number_excess_records": 0,
@@ -51706,6 +52240,33 @@
             "1f0166444c9757e5df0f56e9cd7952f412ea4b8500109316aeee0452d8d3c056"
           ],
           "source_record_count": 3
+        },
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:108256",
+          "canonical_url": "https://www.margaretthatcher.org/document/108256",
+          "document_number": "108256",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)",
+            "url": "https://www.margaretthatcher.org/document/108256"
+          },
+          "source_ids": [
+            "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b"
+          ],
+          "source_record_count": 1
         }
       ],
       "diagnostics": {
@@ -51728,9 +52289,9 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 1,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 3,
+      "internal_source_record_count": 4,
       "internal_source_records": [
         {
           "authoritative_urls": [],
@@ -51813,6 +52374,56 @@
           "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGqgD2xvysAA6vDuAq-ydRFQvOUKhSKlmV4cWBVteQu0UaGemp2mP7gXnK1zGE72eW6KyaeMulJVg2R6b6dAZ5aI_Sg2eJpwAfhgj3BIn9IIWt2K7wvjp6YciiaPsd2LAqFFzwK7YnRC8dyt7QM2NpV83OK57xM5R6J-x0QveOwBFeKW53ap_M="
         },
         {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/108256"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:108256",
+          "canonical_url": "https://www.margaretthatcher.org/document/108256",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1990-11-22"
+          ],
+          "document_number": "108256",
+          "document_numbers": [
+            "108256"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_108256"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)",
+          "url": "https://www.margaretthatcher.org/document/108256"
+        },
+        {
           "authoritative_urls": [],
           "canonical_identity": "bibliographic:hansard:482d7ce890bb10372a806af272a14945007fe3a898fa6dce5fcaed58bd9e191a",
           "canonical_url": "",
@@ -51860,12 +52471,16 @@
       "merged_internal_source_record_count": 2,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Hansard HC Deb 22 November 1990 vol 181 c448"
+        "Source — Hansard HC Deb 22 November 1990 vol 181 c448",
+        "Source — Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)"
       ],
       "public_source_sections": [
-        "Source — Hansard HC Deb 22 November 1990 vol 181 c448"
+        "Source — Hansard HC Deb 22 November 1990 vol 181 c448",
+        "Source — Margaret Thatcher Foundation, HC S: [Confidence in Her Majesty's Government], 1990-11-22 (Document 108256)\nhttps://www.margaretthatcher.org/document/108256"
       ],
-      "public_urls": [],
+      "public_urls": [
+        "https://www.margaretthatcher.org/document/108256"
+      ],
       "quote_id": "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
       "quote_text": "The hon. Gentleman is saying that he would rather that the poor were poorer, provided that the rich were less rich. That way one will never create the wealth for better social services, as we have. What a policy.",
       "source_records_merged_for_public_display": [
@@ -52842,22 +53457,115 @@
     },
     "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 1,
+        "public_sources": [
+          {
+            "canonical_identity": "margaret_thatcher_foundation:document:104594",
+            "canonical_url": "https://www.margaretthatcher.org/document/104594",
+            "document_numbers": [
+              "104594"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)",
+            "url": "https://www.margaretthatcher.org/document/104594"
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
-        "duplicate_canonical_identities": [],
-        "duplicate_canonical_identity_excess_records": 0,
-        "duplicate_canonical_url_excess_records": 0,
-        "duplicate_canonical_urls": [],
+        "duplicate_canonical_identities": [
+          "margaret_thatcher_foundation:document:104594"
+        ],
+        "duplicate_canonical_identity_excess_records": 1,
+        "duplicate_canonical_url_excess_records": 1,
+        "duplicate_canonical_urls": [
+          "https://www.margaretthatcher.org/document/104594"
+        ],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
-        "repeated_archive_document_number_excess_records": 0,
-        "repeated_archive_document_numbers": []
+        "legacy_public_source_count": 2,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:104594"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:104594",
+            "canonical_url": "https://www.margaretthatcher.org/document/104594",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/104594"
+            ],
+            "document_number": "104594",
+            "document_numbers": [
+              "104594"
+            ],
+            "roles": [
+              "attribution_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "f3b4dcddfea31c5db6932840d0799c52c48921878253afe17233bd976fc93906"
+            ],
+            "title": "Margaret Thatcher Foundation Document 104594",
+            "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:104594"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:104594",
+            "canonical_url": "https://www.margaretthatcher.org/document/104594",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/104594"
+            ],
+            "document_number": "104594",
+            "document_numbers": [
+              "104594"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)",
+            "url": "https://www.margaretthatcher.org/document/104594"
+          }
+        ],
+        "repeated_archive_document_number_excess_records": 1,
+        "repeated_archive_document_numbers": [
+          "104594"
+        ]
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:104594",
+          "canonical_url": "https://www.margaretthatcher.org/document/104594",
+          "document_number": "104594",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)",
+            "url": "https://www.margaretthatcher.org/document/104594"
+          },
+          "source_ids": [
+            "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+            "f3b4dcddfea31c5db6932840d0799c52c48921878253afe17233bd976fc93906"
+          ],
+          "source_record_count": 2
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -52878,22 +53586,142 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
-      "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "internal_source_record_count": 2,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/104594"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:104594",
+          "canonical_url": "https://www.margaretthatcher.org/document/104594",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1981-03-11"
+          ],
+          "document_number": "104594",
+          "document_numbers": [
+            "104594"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_104594"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)",
+          "url": "https://www.margaretthatcher.org/document/104594"
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "margaret_thatcher_foundation:document:104594",
+          "canonical_url": "https://www.margaretthatcher.org/document/104594",
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "composite_locator": false,
+          "date_identities": [],
+          "document_number": "104594",
+          "document_numbers": [
+            "104594"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "f3b4dcddfea31c5db6932840d0799c52c48921878253afe17233bd976fc93906",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Margaret Thatcher Foundation Document 104594",
+          "url": ""
+        }
+      ],
+      "merged_internal_source_record_count": 1,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)\nhttps://www.margaretthatcher.org/document/104594"
       ],
-      "public_urls": [],
+      "public_urls": [
+        "https://www.margaretthatcher.org/document/104594"
+      ],
       "quote_id": "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
       "quote_text": "I tell you what they really mean, they mean, 'We don't like the expenditure we have agreed, we are unwilling to raise the tax to pay for it. Let us print the money instead.' The most immoral path of all.",
-      "source_records_merged_for_public_display": []
+      "source_records_merged_for_public_display": [
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:104594",
+          "canonical_url": "https://www.margaretthatcher.org/document/104594",
+          "document_number": "104594",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, Speech at Guardian Young Businessman of the Year Award (defence of the budget), 1981-03-11 (Document 104594)",
+            "url": "https://www.margaretthatcher.org/document/104594"
+          },
+          "source_ids": [
+            "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+            "f3b4dcddfea31c5db6932840d0799c52c48921878253afe17233bd976fc93906"
+          ],
+          "source_record_count": 2
+        }
+      ]
     },
     "79f56edd93c69559dfb1724efeedb46db18779e49cb20be32106ecbce333ac70": {
       "after_deduplication": {
@@ -68121,19 +68949,23 @@
             "document_numbers": [
               "102487"
             ],
-            "title": "Margaret Thatcher Foundation, Document 102487",
+            "title": "Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)",
             "url": "https://www.margaretthatcher.org/document/102487"
           }
         ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
-        "duplicate_canonical_identities": [],
-        "duplicate_canonical_identity_excess_records": 0,
-        "duplicate_canonical_url_excess_records": 0,
-        "duplicate_canonical_urls": [],
+        "duplicate_canonical_identities": [
+          "margaret_thatcher_foundation:document:102487"
+        ],
+        "duplicate_canonical_identity_excess_records": 1,
+        "duplicate_canonical_url_excess_records": 1,
+        "duplicate_canonical_urls": [
+          "https://www.margaretthatcher.org/document/102487"
+        ],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -68157,10 +68989,36 @@
             ],
             "title": "Margaret Thatcher Foundation Archive, Document 102487",
             "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:102487"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:102487",
+            "canonical_url": "https://www.margaretthatcher.org/document/102487",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/102487"
+            ],
+            "document_number": "102487",
+            "document_numbers": [
+              "102487"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995"
+            ],
+            "title": "Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)",
+            "url": "https://www.margaretthatcher.org/document/102487"
           }
         ],
-        "repeated_archive_document_number_excess_records": 0,
-        "repeated_archive_document_numbers": []
+        "repeated_archive_document_number_excess_records": 1,
+        "repeated_archive_document_numbers": [
+          "102487"
+        ]
       },
       "canonical_source_groups": [
         {
@@ -68171,21 +69029,25 @@
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 102487",
+            "title": "Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)",
             "url": "https://www.margaretthatcher.org/document/102487"
           },
           "source_ids": [
+            "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
             "49021b6b3c36e17fda568a3ac281c6dfcc1536496f83ff1e11570f0cd76a26de"
           ],
-          "source_record_count": 1
+          "source_record_count": 2
         }
       ],
       "diagnostics": {
@@ -68210,8 +69072,58 @@
       },
       "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 2,
       "internal_source_records": [
+        {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/102487"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:102487",
+          "canonical_url": "https://www.margaretthatcher.org/document/102487",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1975-02-11"
+          ],
+          "document_number": "102487",
+          "document_numbers": [
+            "102487"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_102487"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)",
+          "url": "https://www.margaretthatcher.org/document/102487"
+        },
         {
           "authoritative_urls": [],
           "canonical_identity": "margaret_thatcher_foundation:document:102487",
@@ -68251,20 +69163,49 @@
           "url": ""
         }
       ],
-      "merged_internal_source_record_count": 0,
+      "merged_internal_source_record_count": 1,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, Document 102487"
+        "Source — Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, Document 102487\nhttps://www.margaretthatcher.org/document/102487"
+        "Source — Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)\nhttps://www.margaretthatcher.org/document/102487"
       ],
       "public_urls": [
         "https://www.margaretthatcher.org/document/102487"
       ],
       "quote_id": "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5",
       "quote_text": "You don't win by just being against things, you only win by being for things and making your message perfectly clear.",
-      "source_records_merged_for_public_display": []
+      "source_records_merged_for_public_display": [
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:102487",
+          "canonical_url": "https://www.margaretthatcher.org/document/102487",
+          "document_number": "102487",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, Press Conference after winning Conservative leadership (Conservative Central Office), 1975-02-11 (Document 102487)",
+            "url": "https://www.margaretthatcher.org/document/102487"
+          },
+          "source_ids": [
+            "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
+            "49021b6b3c36e17fda568a3ac281c6dfcc1536496f83ff1e11570f0cd76a26de"
+          ],
+          "source_record_count": 2
+        }
+      ]
     },
     "9835e15e662d305f5ad51ea4bfb4a4951af60cf8303fda7380c8b41b70885cd2": {
       "after_deduplication": {
@@ -75154,32 +76095,42 @@
         "public_source_count": 1,
         "public_sources": [
           {
-            "canonical_identity": "bibliographic:margaret_thatcher_foundation:9eac3b3f9bf6d3cbdc27e6c5b9e65b9145b04f0f0dfad69d47fa418626343004",
-            "canonical_url": "",
-            "document_numbers": [],
-            "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984",
-            "url": ""
+            "canonical_identity": "margaret_thatcher_foundation:document:105763",
+            "canonical_url": "https://www.margaretthatcher.org/document/105763",
+            "document_numbers": [
+              "105763"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984 (Document 105763)",
+            "url": "https://www.margaretthatcher.org/document/105763"
           }
         ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
-        "duplicate_canonical_identities": [],
-        "duplicate_canonical_identity_excess_records": 0,
-        "duplicate_canonical_url_excess_records": 0,
-        "duplicate_canonical_urls": [],
+        "duplicate_canonical_identities": [
+          "margaret_thatcher_foundation:document:105763"
+        ],
+        "duplicate_canonical_identity_excess_records": 1,
+        "duplicate_canonical_url_excess_records": 1,
+        "duplicate_canonical_urls": [
+          "https://www.margaretthatcher.org/document/105763"
+        ],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
-              "bibliographic:margaret_thatcher_foundation:9eac3b3f9bf6d3cbdc27e6c5b9e65b9145b04f0f0dfad69d47fa418626343004"
+              "margaret_thatcher_foundation:document:105763"
             ],
-            "canonical_identity": "bibliographic:margaret_thatcher_foundation:9eac3b3f9bf6d3cbdc27e6c5b9e65b9145b04f0f0dfad69d47fa418626343004",
-            "canonical_url": "",
-            "canonical_urls": [],
-            "document_number": null,
-            "document_numbers": [],
+            "canonical_identity": "margaret_thatcher_foundation:document:105763",
+            "canonical_url": "https://www.margaretthatcher.org/document/105763",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/105763"
+            ],
+            "document_number": "105763",
+            "document_numbers": [
+              "105763"
+            ],
             "roles": [
               "attribution_support",
               "source_event_support",
@@ -75190,17 +76141,43 @@
             ],
             "title": "Margaret Thatcher Foundation Archive, Speech to Conservative Party Conference, Brighton, 12 October 1984",
             "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:105763"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:105763",
+            "canonical_url": "https://www.margaretthatcher.org/document/105763",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/105763"
+            ],
+            "document_number": "105763",
+            "document_numbers": [
+              "105763"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, 1984-10-12 (Document 105763)",
+            "url": "https://www.margaretthatcher.org/document/105763"
           }
         ],
-        "repeated_archive_document_number_excess_records": 0,
-        "repeated_archive_document_numbers": []
+        "repeated_archive_document_number_excess_records": 1,
+        "repeated_archive_document_numbers": [
+          "105763"
+        ]
       },
       "canonical_source_groups": [
         {
-          "canonical_identity": "bibliographic:margaret_thatcher_foundation:9eac3b3f9bf6d3cbdc27e6c5b9e65b9145b04f0f0dfad69d47fa418626343004",
-          "canonical_url": "",
-          "document_number": null,
-          "identity_basis": "bibliographic_identity",
+          "canonical_identity": "margaret_thatcher_foundation:document:105763",
+          "canonical_url": "https://www.margaretthatcher.org/document/105763",
+          "document_number": "105763",
+          "identity_basis": "margaret_thatcher_foundation_document",
           "public_source": {
             "claims_supported": [
               "wording",
@@ -75215,13 +76192,14 @@
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984 (Document 105763)",
+            "url": "https://www.margaretthatcher.org/document/105763"
           },
           "source_ids": [
+            "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
             "ddc1dfec85f1916cd8495f0463b3fbed2ecf006fd380a389411a2277a73d0e31"
           ],
-          "source_record_count": 1
+          "source_record_count": 2
         }
       ],
       "diagnostics": {
@@ -75246,12 +76224,14 @@
       },
       "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 2,
       "internal_source_records": [
         {
-          "authoritative_urls": [],
-          "canonical_identity": "bibliographic:margaret_thatcher_foundation:9eac3b3f9bf6d3cbdc27e6c5b9e65b9145b04f0f0dfad69d47fa418626343004",
-          "canonical_url": "",
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/105763"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:105763",
+          "canonical_url": "https://www.margaretthatcher.org/document/105763",
           "claims_supported": [
             "wording",
             "attribution",
@@ -75262,8 +76242,10 @@
           "date_identities": [
             "1984-10-12"
           ],
-          "document_number": null,
-          "document_numbers": [],
+          "document_number": "105763",
+          "document_numbers": [
+            "105763"
+          ],
           "evidence_targets": [
             "wording",
             "attribution",
@@ -75271,7 +76253,55 @@
             "date"
           ],
           "explicit_identifiers": [],
-          "identity_basis": "bibliographic_identity",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_105763"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, 1984-10-12 (Document 105763)",
+          "url": "https://www.margaretthatcher.org/document/105763"
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "margaret_thatcher_foundation:document:105763",
+          "canonical_url": "https://www.margaretthatcher.org/document/105763",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1984-10-12"
+          ],
+          "document_number": "105763",
+          "document_numbers": [
+            "105763"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "corroborated_reviewed_curated_mtf_locator",
           "internal_roles": [
             "attribution_support",
             "source_event_support",
@@ -75293,18 +76323,49 @@
           "url": ""
         }
       ],
-      "merged_internal_source_record_count": 0,
+      "merged_internal_source_record_count": 1,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984"
+        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984 (Document 105763)"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984"
+        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984 (Document 105763)\nhttps://www.margaretthatcher.org/document/105763"
       ],
-      "public_urls": [],
+      "public_urls": [
+        "https://www.margaretthatcher.org/document/105763"
+      ],
       "quote_id": "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855",
       "quote_text": "What we have seen in this country is the emergence of an organised revolutionary minority who are prepared to exploit industrial disputes, but whose real aim is the breakdown of law and order and the destruction of democratic parliamentary government.",
-      "source_records_merged_for_public_display": []
+      "source_records_merged_for_public_display": [
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:105763",
+          "canonical_url": "https://www.margaretthatcher.org/document/105763",
+          "document_number": "105763",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Brighton, 12 October 1984 (Document 105763)",
+            "url": "https://www.margaretthatcher.org/document/105763"
+          },
+          "source_ids": [
+            "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
+            "ddc1dfec85f1916cd8495f0463b3fbed2ecf006fd380a389411a2277a73d0e31"
+          ],
+          "source_record_count": 2
+        }
+      ]
     },
     "a8cc9b0e7ea3e7803172a7d3f3191c1687067c33a5c8ca3e42d1ed3205d1683f": {
       "after_deduplication": {
@@ -78435,7 +79496,7 @@
             "document_numbers": [
               "102769"
             ],
-            "title": "Margaret Thatcher Foundation, Document 102769",
+            "title": "Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)",
             "url": "https://www.margaretthatcher.org/document/102769"
           }
         ]
@@ -78515,23 +79576,27 @@
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 102769",
+            "title": "Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)",
             "url": "https://www.margaretthatcher.org/document/102769"
           },
           "source_ids": [
             "1c457ea987ca68afbfe643392557e76e0ee4358170de58f09719f7a23a53beba",
             "7a085ccae3d797966a5e36340254ae37a98b690de7dadc2d6f367addca952170",
+            "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
             "bd2bd88f218f060000c466e097b1974b465ed6b9bd3e7dd223137e6c3da08d0b"
           ],
-          "source_record_count": 3
+          "source_record_count": 4
         }
       ],
       "diagnostics": {
@@ -78556,7 +79621,7 @@
       },
       "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 3,
+      "internal_source_record_count": 4,
       "internal_source_records": [
         {
           "authoritative_urls": [],
@@ -78633,6 +79698,56 @@
           "url": "https://www.margaretthatcher.org/document/102769"
         },
         {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/102769"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:102769",
+          "canonical_url": "https://www.margaretthatcher.org/document/102769",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1975-09-15"
+          ],
+          "document_number": "102769",
+          "document_numbers": [
+            "102769"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_102769"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)",
+          "url": "https://www.margaretthatcher.org/document/102769"
+        },
+        {
           "authoritative_urls": [],
           "canonical_identity": "margaret_thatcher_foundation:document:102769",
           "canonical_url": "https://www.margaretthatcher.org/document/102769",
@@ -78671,13 +79786,13 @@
           "url": ""
         }
       ],
-      "merged_internal_source_record_count": 2,
+      "merged_internal_source_record_count": 3,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, Document 102769"
+        "Source — Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, Document 102769\nhttps://www.margaretthatcher.org/document/102769"
+        "Source — Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)\nhttps://www.margaretthatcher.org/document/102769"
       ],
       "public_urls": [
         "https://www.margaretthatcher.org/document/102769"
@@ -78693,23 +79808,27 @@
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 102769",
+            "title": "Margaret Thatcher Foundation, Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\"), 1975-09-15 (Document 102769)",
             "url": "https://www.margaretthatcher.org/document/102769"
           },
           "source_ids": [
             "1c457ea987ca68afbfe643392557e76e0ee4358170de58f09719f7a23a53beba",
             "7a085ccae3d797966a5e36340254ae37a98b690de7dadc2d6f367addca952170",
+            "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
             "bd2bd88f218f060000c466e097b1974b465ed6b9bd3e7dd223137e6c3da08d0b"
           ],
-          "source_record_count": 3
+          "source_record_count": 4
         }
       ]
     },
@@ -116786,13 +117905,13 @@
   "schema_version": 1,
   "source_file_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "final_unresolved/final_research_status.json": "ae50570746fe1df12d947e11d84de488efb32e2a1a4777ea92a286eacc46194a",
+    "final_unresolved/final_research_status.json": "6225bbc2762664509fc6abcbc9b8f430e96dcd92ee6e815aba24bd40be38cfdb",
     "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
-    "historical_context_source_curated_evidence.json": "c90fe15bb8259c8b83f2b7100aff0112be4475d22bf054a890233b75683b8381",
-    "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
+    "historical_context_source_curated_evidence.json": "5ffd1bd4a865ce2d3bff983305f1049962d37df47e8c6a6f9d5cdd3a06bb1542",
+    "historical_context_source_role_audit.json": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
+    "research_packets.json": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291"
   },
   "source_role_policy_version": "historical-context-source-roles-v9-archive-provenance"
 }

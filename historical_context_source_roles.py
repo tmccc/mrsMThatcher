@@ -1878,13 +1878,14 @@ _QUALITY_PRIORITY = {
 _IDENTITY_BASIS_PRIORITY = {
     "margaret_thatcher_foundation_document": 0,
     "corroborated_metadata_locator": 1,
-    "corroborated_hansard_locator_url": 2,
-    "explicit_repository_identifier": 3,
-    "explicit_archive_reference": 4,
-    "canonical_url_alias_to_explicit_identifier": 5,
-    "canonical_url": 6,
-    "bibliographic_identity": 7,
-    "distinct_source_record": 8,
+    "corroborated_reviewed_curated_mtf_locator": 2,
+    "corroborated_hansard_locator_url": 3,
+    "explicit_repository_identifier": 4,
+    "explicit_archive_reference": 5,
+    "canonical_url_alias_to_explicit_identifier": 6,
+    "canonical_url": 7,
+    "bibliographic_identity": 8,
+    "distinct_source_record": 9,
 }
 _MTF_DOCUMENT_PATH = re.compile(r"^/document/(\d{5,9})/?$", re.I)
 _DOCUMENT_TEXT = re.compile(
@@ -3397,6 +3398,124 @@ def public_source_identity_diagnostics(packet: dict[str, Any]) -> dict[str, Any]
                 "canonical_identities": sorted(identities),
                 "source_ids": sorted(record["source_id"] for record in url_records),
             })
+
+    # A reviewed curated MTF document can safely absorb a redundant weak
+    # packet-locator identity for public display without deleting either
+    # underlying audit row.  This is deliberately narrower than the ordinary
+    # metadata bridge: exactly one explicit MTF document must be present, its
+    # curated page must have been independently inspected, and the weak group
+    # must be claim-compatible, primary, date-compatible, and free of any
+    # competing identifier or provenance.  Unreviewed and ambiguous locators
+    # continue to be displayed separately and diagnosed below.
+    records_by_identity: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        records_by_identity.setdefault(record["canonical_identity"], []).append(
+            record
+        )
+    explicit_mtf_identities = {
+        identity: members
+        for identity, members in records_by_identity.items()
+        if any(
+            member["identity_basis"]
+            == "margaret_thatcher_foundation_document"
+            for member in members
+        )
+    }
+    reviewed_explicit_mtf: tuple[str, list[dict[str, Any]]] | None = None
+    if len(explicit_mtf_identities) == 1:
+        identity, members = next(iter(explicit_mtf_identities.items()))
+        reviewed_rows = [
+            member for member in members
+            if (
+                member["_row"].get("curated_evidence_record") is True
+                and member["_row"].get("page_independently_inspected") is True
+                and _clean(
+                    member["_row"].get("source_publisher")
+                ).casefold() == "margaret thatcher foundation"
+                and member["identity_basis"]
+                == "margaret_thatcher_foundation_document"
+            )
+        ]
+        if len(reviewed_rows) == 1:
+            reviewed_explicit_mtf = identity, reviewed_rows
+    if reviewed_explicit_mtf is not None:
+        explicit_identity, reviewed_rows = reviewed_explicit_mtf
+        explicit_claims = {
+            claim
+            for member in reviewed_rows
+            for claim in member["claims_supported"]
+        }
+        explicit_dates = {
+            date for member in reviewed_rows for date in member["date_identities"]
+        }
+        packet_dates = _source_date_identities(packet)
+        packet_locator = _clean(packet.get("stable_locator"))
+        packet_has_exact_mtf_marker = bool(re.search(
+            r"\bMargaret Thatcher Foundation(?: Archive)?\b",
+            packet_locator,
+            re.I,
+        ))
+        for identity, members in records_by_identity.items():
+            if identity == explicit_identity:
+                continue
+            virtual_members = [
+                member for member in members
+                if (
+                    member["_row"].get("virtual_locator_record") is True
+                    and member["source_type"].casefold()
+                    == "canonical_stable_locator"
+                    and _clean(
+                        member["_row"].get("public_title")
+                        or member["_row"].get("source_title")
+                    ).casefold() == packet_locator.casefold()
+                )
+            ]
+            candidate_dates = {
+                date for member in members for date in member["date_identities"]
+            }
+            candidate_claims = {
+                claim
+                for member in members
+                for claim in member["claims_supported"]
+            }
+            has_disqualifying_identity_evidence = any(
+                member["secondary_recollection"]
+                or member["composite_locator"]
+                or member["document_numbers"]
+                or member["explicit_identifiers"]
+                or any(_provenance_identity(member["_row"]))
+                for member in members
+            )
+            if not (
+                virtual_members
+                and packet_has_exact_mtf_marker
+                and all(
+                    member["source_quality_class"] == "strong_primary_evidence"
+                    for member in members
+                )
+                and not has_disqualifying_identity_evidence
+                and candidate_claims
+                and candidate_claims.issubset(explicit_claims)
+                and candidate_dates
+                and packet_dates
+                and explicit_dates
+                and _dates_compatible(candidate_dates, packet_dates)
+                and _dates_compatible(candidate_dates, explicit_dates)
+            ):
+                continue
+            document_number = reviewed_rows[0]["document_number"]
+            for member in members:
+                member["canonical_identity"] = explicit_identity
+                member["identity_basis"] = (
+                    "corroborated_reviewed_curated_mtf_locator"
+                )
+                member["canonical_url"] = (
+                    "https://www.margaretthatcher.org/document/"
+                    f"{document_number}"
+                )
+                member["document_number"] = document_number
+                member["document_numbers"] = [document_number]
+                member["publisher"] = "margaret_thatcher_foundation"
     groups_by_key: dict[str, list[dict[str, Any]]] = {}
     for record in records:
         key = record["canonical_identity"]

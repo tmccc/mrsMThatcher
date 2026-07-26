@@ -52,11 +52,11 @@ INTERNAL_COLLECTIONS = (
 IMMUTABLE_HASHES = {
     ROOT / "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    RESEARCH / "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0",
+    RESEARCH / "research_packets.json": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291",
     RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
+    RESEARCH / "historical_context_source_role_audit.json": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9",
     RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
-    RESEARCH / "final_unresolved/final_research_status.json": "ae50570746fe1df12d947e11d84de488efb32e2a1a4777ea92a286eacc46194a",
+    RESEARCH / "final_unresolved/final_research_status.json": "6225bbc2762664509fc6abcbc9b8f430e96dcd92ee6e815aba24bd40be38cfdb",
 }
 
 
@@ -779,6 +779,69 @@ def test_possible_same_mtf_document_identity_is_diagnostic_only(corpus):
     }
 
 
+def test_independently_reviewed_curated_mtf_document_absorbs_weak_locator_group(
+    corpus,
+):
+    template = copy.deepcopy(corpus[0][KNOWN_107352_ID])
+    locator_title = (
+        "Margaret Thatcher Foundation Archive, Speech Foo, 14 October 1988"
+    )
+    template["date"] = "1988-10-14"
+    template["stable_locator"] = locator_title
+    direct = _row(
+        "direct",
+        "Margaret Thatcher Foundation, Speech Foo, 1988-10-14 "
+        "(Document 107352)",
+        "https://www.margaretthatcher.org/document/107352",
+        roles=(
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+        ),
+        claims=("wording", "attribution", "source_event", "date"),
+        source_type="official_primary_transcript",
+        source_date="1988-10-14",
+        source_publisher="Margaret Thatcher Foundation",
+        curated_evidence_record=True,
+        page_independently_inspected=True,
+    )
+    locator = _row(
+        "locator",
+        locator_title,
+        claims=("wording", "attribution", "date"),
+        roles=(
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+        ),
+        source_type="canonical_stable_locator",
+        virtual_locator_record=True,
+    )
+    provider = _row(
+        "provider",
+        locator_title,
+        claims=("attribution",),
+        roles=("attribution_support",),
+        source_type="grounded_web_source",
+    )
+
+    diagnostics = public_source_identity_diagnostics(
+        _with_sources(template, [provider, direct, locator])
+    )
+
+    assert len(diagnostics["records"]) == 3
+    assert len(diagnostics["groups"]) == 1
+    group = diagnostics["groups"][0]
+    assert group["canonical_identity"] == (
+        "margaret_thatcher_foundation:document:107352"
+    )
+    assert group["source_record_count"] == 3
+    assert group["canonical_url"] == (
+        "https://www.margaretthatcher.org/document/107352"
+    )
+    assert diagnostics["identity_ambiguities"] == []
+
+
 def test_possible_same_mtf_warning_excludes_distinct_documents_and_recollection(
     corpus,
 ):
@@ -1244,7 +1307,7 @@ def test_full_corpus_public_render_has_no_source_defects(corpus):
     assert len(corpus[0]) == 627
     assert len(corpus[1]) == 5
     assert eligible == 611
-    assert source_distribution == Counter({0: 100, 1: 478, 2: 46, 3: 3})
+    assert source_distribution == Counter({0: 98, 1: 478, 2: 48, 3: 3})
 
 
 def test_audit_conflict_guard_detects_distinctions_before_ready_status():
@@ -1388,9 +1451,9 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
     assert all(written["invariants"]["checks"].values())
     assert written["before_deduplication"][
         "duplicate_canonical_identity_group_count"
-    ] == 36
+    ] == 42
     assert written["after_deduplication"] == {
-        "public_source_record_count": 579,
+        "public_source_record_count": 583,
         "packets_with_duplicate_source_identity": 0,
         "duplicate_canonical_identity_group_count": 0,
         "duplicate_canonical_url_group_count": 0,

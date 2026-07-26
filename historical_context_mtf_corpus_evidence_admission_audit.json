@@ -1,0 +1,252 @@
+{
+  "after_hashes": {
+    "final_research_status.json": "6225bbc2762664509fc6abcbc9b8f430e96dcd92ee6e815aba24bd40be38cfdb",
+    "historical_context_source_curated_evidence.json": "5ffd1bd4a865ce2d3bff983305f1049962d37df47e8c6a6f9d5cdd3a06bb1542",
+    "research_packets.json": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291"
+  },
+  "audit_kind": "historical_context_mtf_corpus_evidence_admission",
+  "before_hashes": {
+    "final_research_status.json": "ae50570746fe1df12d947e11d84de488efb32e2a1a4777ea92a286eacc46194a",
+    "historical_context_source_curated_evidence.json": "c90fe15bb8259c8b83f2b7100aff0112be4475d22bf054a890233b75683b8381",
+    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
+  },
+  "before_public_context_supported_fields": {
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": [
+      "date"
+    ],
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": [],
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": [],
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": [],
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": [],
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": [
+      "source_event",
+      "date"
+    ],
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": [],
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": [],
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855": [
+      "source_event",
+      "date"
+    ],
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": []
+  },
+  "counts": {
+    "exact_primary": 4,
+    "primary_variant": 6,
+    "source_records_admitted": 10
+  },
+  "generated_at": "2026-07-26T09:27:02Z",
+  "human_review": {
+    "human_review_decisions_sha256": "7a969ba9764ec9128d5cc6d148d6fc4d4841ec97560c17d6677fd7f28f1087dd",
+    "research_candidate_manifest_sha256": "9116d924c6ee204f8258962f7f51c7f4339761c4badedc659b228dc5f1fd4721"
+  },
+  "meaning_fields_changed": 0,
+  "network_requests": 0,
+  "provider_requests": 0,
+  "quotation_text_changed": false,
+  "schema_version": 1,
+  "source_bindings": {
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": {
+      "candidate_id": "6017a42f90d19f69704efb4d38579a0efd6c605171d2602f6a6aaa2455a64fe1",
+      "document_number": "107868",
+      "source_id": "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
+      "verification_status": "exact"
+    },
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": {
+      "candidate_id": "38c95daa90f07d3aef657c286196bcc2c70160bbb65a798915c34d400064ffb8",
+      "document_number": "107332",
+      "source_id": "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3",
+      "verification_status": "variant"
+    },
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": {
+      "candidate_id": "66e3a53345d2c26099be1d26261b61034d3771d6fd6838b387d1a5bf928a2475",
+      "document_number": "102939",
+      "source_id": "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134",
+      "verification_status": "variant"
+    },
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": {
+      "candidate_id": "697d20def5221d948b13dbeb3558f3a0c50b42f2061fc8d8552cd2ab18afcb44",
+      "document_number": "106689",
+      "source_id": "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
+      "verification_status": "variant"
+    },
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": {
+      "candidate_id": "dcbc02336418ac22fb320eef2ddfdef01afa37aa91107b8e942e61f4a097480b",
+      "document_number": "108258",
+      "source_id": "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+      "verification_status": "exact"
+    },
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": {
+      "candidate_id": "c95f63a62feb46803a5c70457ae767fdd20d984358fdd9db5b0cd1ace067903d",
+      "document_number": "108256",
+      "source_id": "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b",
+      "verification_status": "exact"
+    },
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": {
+      "candidate_id": "8278eaf3dd974a1fc373a9b7673789c523b4a1530b52df4469b5f96fc81a1247",
+      "document_number": "104594",
+      "source_id": "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+      "verification_status": "exact"
+    },
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": {
+      "candidate_id": "9f9940b176aaba1efeb7f3c912621b47f5cb75eceb9e9f2ad430383cd44e73fa",
+      "document_number": "102487",
+      "source_id": "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
+      "verification_status": "variant"
+    },
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855": {
+      "candidate_id": "b12bb0ba59ea93c59a6e590deb0c1dfc6b1eeb15fa123e843e62361408819029",
+      "document_number": "105763",
+      "source_id": "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
+      "verification_status": "variant"
+    },
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": {
+      "candidate_id": "d11341e3e900bfb2bf2759a7e094f27e21be7ddccbcee7773da022dac5082c8a",
+      "document_number": "102769",
+      "source_id": "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
+      "verification_status": "variant"
+    }
+  },
+  "source_reverification": {
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": {
+      "article_text_sha256": "04d551a2d8af2cca0afb41fe83b6672d72a82e2b1a092c1b95ae76707540125e",
+      "candidate_id": "6017a42f90d19f69704efb4d38579a0efd6c605171d2602f6a6aaa2455a64fe1",
+      "canonical_url": "https://www.margaretthatcher.org/document/107868",
+      "document_number": "107868",
+      "local_file_sha256": "70e4bdf628085c1aecdfff4075bd1e6f4b2ae88a0b9287ba8a2216e25496bf44",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1990-11-15",
+        "title": "Interview for Sunday Times"
+      },
+      "passage_sha256": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "verified": true
+    },
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": {
+      "article_text_sha256": "b3fd5db8d9d016642e4dd1fab25849cb0df214fec8478cc40006e707b6b73b6e",
+      "candidate_id": "38c95daa90f07d3aef657c286196bcc2c70160bbb65a798915c34d400064ffb8",
+      "canonical_url": "https://www.margaretthatcher.org/document/107332",
+      "document_number": "107332",
+      "local_file_sha256": "c81b81d30dde9bb6faaeb204a25269e68d6a467014f242d627b65cf927f5b8e6",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1988-09-20",
+        "title": "Speech to the College of Europe (\"The Bruges Speech\")"
+      },
+      "passage_sha256": "b723da3097041865bd524796acb5758977a39b787967cedf30931ca88298de99",
+      "verified": true
+    },
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": {
+      "article_text_sha256": "39959086efd34cca7435b79627187dfdba6fa3f0fd19f319ed16fffd5effc59d",
+      "candidate_id": "66e3a53345d2c26099be1d26261b61034d3771d6fd6838b387d1a5bf928a2475",
+      "canonical_url": "https://www.margaretthatcher.org/document/102939",
+      "document_number": "102939",
+      "local_file_sha256": "8d98575a081526544f1286431ea28dd9db417b8e8c6d8e248d4b68ff576fbaec",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1976-01-19",
+        "title": "Speech at Kensington Town Hall (\"Britain Awake\") (The Iron Lady)"
+      },
+      "passage_sha256": "3f7e2e6470e9e281c494bc93186df9360c74d32fa279da26c7c876648da591fd",
+      "verified": true
+    },
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": {
+      "article_text_sha256": "3051dfa50c983f18c7f1139ce8ff3d9c32fa35a407bfee213fd58257ea8e013e",
+      "candidate_id": "697d20def5221d948b13dbeb3558f3a0c50b42f2061fc8d8552cd2ab18afcb44",
+      "canonical_url": "https://www.margaretthatcher.org/document/106689",
+      "document_number": "106689",
+      "local_file_sha256": "f9857d5f5ec8ef1c67104077a4b2963bd297e33fa4f01ece7d85ce245bd4828e",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1987-09-23",
+        "title": "Interview for Woman's Own (\"no such thing [as society] \")"
+      },
+      "passage_sha256": "baa61ec9257833f3a1331250d76432b31dd9724344254275f73ed7c23396687c",
+      "verified": true
+    },
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": {
+      "article_text_sha256": "caa31224e13b5ce75d53b486d32f3677b75e1bf7eaa39dcdc9ae9b454f540d30",
+      "candidate_id": "dcbc02336418ac22fb320eef2ddfdef01afa37aa91107b8e942e61f4a097480b",
+      "canonical_url": "https://www.margaretthatcher.org/document/108258",
+      "document_number": "108258",
+      "local_file_sha256": "8161baa20a84fbb484b511d2bd15f179d8e64fec4cc44ace1f4d61a2f922d454",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1990-11-28",
+        "title": "Remarks departing Downing Street"
+      },
+      "passage_sha256": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "verified": true
+    },
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": {
+      "article_text_sha256": "d19e2a5a5559d412fe16994dd087a62c6dece32cca53723110f640c9b653c582",
+      "candidate_id": "c95f63a62feb46803a5c70457ae767fdd20d984358fdd9db5b0cd1ace067903d",
+      "canonical_url": "https://www.margaretthatcher.org/document/108256",
+      "document_number": "108256",
+      "local_file_sha256": "dd238f9c309b3ee1e413d366a873faa4766345d1292e4ae4055daddf0eb39049",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1990-11-22",
+        "title": "HC S: [Confidence in Her Majesty's Government]"
+      },
+      "passage_sha256": "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
+      "verified": true
+    },
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": {
+      "article_text_sha256": "a222da4341a502cd82d11d9d4ed781637f94befe982340e66cc8a37967e01b29",
+      "candidate_id": "8278eaf3dd974a1fc373a9b7673789c523b4a1530b52df4469b5f96fc81a1247",
+      "canonical_url": "https://www.margaretthatcher.org/document/104594",
+      "document_number": "104594",
+      "local_file_sha256": "3ad3761923818b5bf0259bbb39d8c9bbbe8d6b7501ed46ac3f567b911b0a9d6a",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1981-03-11",
+        "title": "Speech at Guardian Young Businessman of the Year Award (defence of the budget)"
+      },
+      "passage_sha256": "5509fbcbe7ce61ff46e188edee782b7ede2f1fd8fa60eb18262a07ac77e6dd95",
+      "verified": true
+    },
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": {
+      "article_text_sha256": "6226e495a0c61950d9c9d0c107a05baf55cf5e6ccd129b2871827e83bd1f564f",
+      "candidate_id": "9f9940b176aaba1efeb7f3c912621b47f5cb75eceb9e9f2ad430383cd44e73fa",
+      "canonical_url": "https://www.margaretthatcher.org/document/102487",
+      "document_number": "102487",
+      "local_file_sha256": "977d3c2ed77db2bd68d2fd913931cb2763c802203a6ad064ba66afd5c6b6c98f",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1975-02-11",
+        "title": "Press Conference after winning Conservative leadership (Conservative Central Office)"
+      },
+      "passage_sha256": "9ff8f73ffe46d808794dc16613ce50d6776e04d205e1d4fb863ec11f330d4407",
+      "verified": true
+    },
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855": {
+      "article_text_sha256": "959f631d90c53596081f9ac8bf6cc355a5b091ea04755f053232e4bb9461ee43",
+      "candidate_id": "b12bb0ba59ea93c59a6e590deb0c1dfc6b1eeb15fa123e843e62361408819029",
+      "canonical_url": "https://www.margaretthatcher.org/document/105763",
+      "document_number": "105763",
+      "local_file_sha256": "9d66bf235ac60a5eda7b40608afb204cce6fa4603fbd7926e9b80faaf220a839",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1984-10-12",
+        "title": "Speech to Conservative Party Conference"
+      },
+      "passage_sha256": "d85c018c8db5b7f79f9b77d9f4503fa739d5757ab3592b56133f9c68211d9076",
+      "verified": true
+    },
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": {
+      "article_text_sha256": "e5842b254608bc1f789cb69586029bbd4d689f84de2c897d83f292cb7bb3b590",
+      "candidate_id": "d11341e3e900bfb2bf2759a7e094f27e21be7ddccbcee7773da022dac5082c8a",
+      "canonical_url": "https://www.margaretthatcher.org/document/102769",
+      "document_number": "102769",
+      "local_file_sha256": "8da7a8b9ca51da2ddb015af2cd57af4a48f6a956224f7f20904447285b98d523",
+      "metadata": {
+        "author": "Margaret Thatcher",
+        "date": "1975-09-15",
+        "title": "Speech to the Institute of SocioEconomic Studies (\"Let Our Children Grow Tall\")"
+      },
+      "passage_sha256": "4f8ce242c6f7797f73bc08ad86dc656eccf3b05a580eddda0b106dee307fef53",
+      "verified": true
+    }
+  }
+}

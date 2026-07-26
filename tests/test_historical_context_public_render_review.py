@@ -92,27 +92,27 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     assert summary["render_failure_count"] == 0
     assert summary["item_blocker_count"] == 0
     assert summary["source_distribution"] == {
-        "0": 100, "1": 478, "2": 46, "3": 3,
+        "0": 98, "1": 478, "2": 48, "3": 3,
     }
-    assert summary["packets_with_source_merges"] == 246
-    assert summary["merged_internal_source_record_count"] == 366
+    assert summary["packets_with_source_merges"] == 249
+    assert summary["merged_internal_source_record_count"] == 373
     assert summary["identity_ambiguity_count"] == 66
     assert summary["packets_with_identity_ambiguities"] == 52
-    assert summary["packets_with_no_reliable_source"] == 100
-    assert summary["eligible_packets_with_no_reliable_source"] == 89
-    assert summary["packets_with_multiple_public_sources"] == 49
-    assert summary["packets_with_generic_context"] == 451
-    assert summary["packets_with_generic_context_and_public_source"] == 351
+    assert summary["packets_with_no_reliable_source"] == 98
+    assert summary["eligible_packets_with_no_reliable_source"] == 87
+    assert summary["packets_with_multiple_public_sources"] == 51
+    assert summary["packets_with_generic_context"] == 444
+    assert summary["packets_with_generic_context_and_public_source"] == 346
     assert summary[
         "packets_with_generic_context_and_event_or_date_evidence"
     ] == 0
-    assert summary["packets_with_generic_context_and_exact_verification"] == 146
+    assert summary["packets_with_generic_context_and_exact_verification"] == 144
     assert summary["duplicate_full_public_reply_group_count"] == 1
-    assert summary["packets_with_urlless_public_sources"] == 169
-    assert summary["urlless_public_source_entry_count"] == 177
-    assert summary["packets_with_generic_mtf_document_titles"] == 180
-    assert summary["generic_mtf_document_title_entry_count"] == 184
-    assert summary["packets_with_reused_identity_display_variants"] == 221
+    assert summary["packets_with_urlless_public_sources"] == 167
+    assert summary["urlless_public_source_entry_count"] == 175
+    assert summary["packets_with_generic_mtf_document_titles"] == 176
+    assert summary["generic_mtf_document_title_entry_count"] == 180
+    assert summary["packets_with_reused_identity_display_variants"] == 227
     assert summary["editorial_queue_category_count"] == 9
     assert summary["url_like_public_title_count"] == 0
     assert summary["mtf_page_title_chrome_count"] == 0
@@ -149,7 +149,7 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
         for entry in entries.values()
         if entry["template_variant"] == "compact_generic_context_omitted"
     ]
-    assert len(generic_omissions) == 451
+    assert len(generic_omissions) == 444
     assert all(
         "Context — The surviving attribution does not establish an occasion, "
         "date or immediate historical issue."

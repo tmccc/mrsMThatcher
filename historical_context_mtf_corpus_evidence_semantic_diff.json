@@ -1,0 +1,288 @@
+{
+  "base_commit": "982eda4374ef294cb4ae20b0aa40b97de3862592",
+  "curated_source_addition_count": 10,
+  "curated_source_additions": {
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": [
+      {
+        "document_number": "107868",
+        "source_date": "1990-11-15",
+        "source_event": "Interview for the Sunday Times",
+        "source_id": "51045c02f8aeb528e66d95b35bad779e0e73d9f9a8adbfce07fb2a9afb687449",
+        "verification_status": "exact"
+      }
+    ],
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": [
+      {
+        "document_number": "107332",
+        "source_date": "September 20, 1988",
+        "source_event": "Speech to the College of Europe (The Bruges Speech)",
+        "source_id": "1429e65633067db730c618f5edca3e883a23094b40487a6d15dd81dcee7bcee3",
+        "verification_status": "variant"
+      }
+    ],
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": [
+      {
+        "document_number": "102939",
+        "source_date": "January 19, 1976",
+        "source_event": "Speech at Kensington Town Hall ('Britain Awake')",
+        "source_id": "aa3695c4df72590ded150383080e0147930c9fced14bc310be5b0ddf047e2134",
+        "verification_status": "variant"
+      }
+    ],
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": [
+      {
+        "document_number": "106689",
+        "source_date": "1987-09-23",
+        "source_event": "Interview for Woman's Own magazine",
+        "source_id": "66dfecb37c8e8c16c7476b00bd682955c65568751feb78d5b12e74857478a463",
+        "verification_status": "variant"
+      }
+    ],
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": [
+      {
+        "document_number": "108258",
+        "source_date": "November 28, 1990",
+        "source_event": "Remarks departing Downing Street",
+        "source_id": "cde6083f6cffca2a6cf233f2bf612e469267d89aa772f757a024c3669c025c79",
+        "verification_status": "exact"
+      }
+    ],
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": [
+      {
+        "document_number": "108256",
+        "source_date": "22 November 1990",
+        "source_event": "House of Commons Debate on a Motion of No Confidence in Her Majesty's Government",
+        "source_id": "6fa5c4ead6119dd1b991adb53b9aaf29a1ee36c35d01d1257dbe6cb4cce2136b",
+        "verification_status": "exact"
+      }
+    ],
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": [
+      {
+        "document_number": "104594",
+        "source_date": "1981-03-11",
+        "source_event": "Speech at Guardian Young Businessman of the Year Award (defence of the budget)",
+        "source_id": "dc53442a426141551ac3a4a0052dd20e5954e0c54d689c33cced561a90af848f",
+        "verification_status": "exact"
+      }
+    ],
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": [
+      {
+        "document_number": "102487",
+        "source_date": "February 11, 1975",
+        "source_event": "Remarks upon being elected Leader of the Conservative Party",
+        "source_id": "1dda5cfc334ed87441a23a3042ff173679b534e768bb42178382c2f98d327995",
+        "verification_status": "variant"
+      }
+    ],
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855": [
+      {
+        "document_number": "105763",
+        "source_date": "12 October 1984",
+        "source_event": "Conservative Party Conference Address",
+        "source_id": "2074c64d598f7db44fea37d5f0b35186a09e7b79431d64fd8a8c3cb3ead90d45",
+        "verification_status": "variant"
+      }
+    ],
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": [
+      {
+        "document_number": "102769",
+        "source_date": "September 15, 1975",
+        "source_event": "Speech to the Institute of SocioEconomic Studies ('Let Our Children Grow Tall')",
+        "source_id": "06c28b7a0bc0cd662eeb0ce134c753bd9f09472c440c6295f56c3675a948380e",
+        "verification_status": "variant"
+      }
+    ]
+  },
+  "diff_kind": "historical_context_mtf_corpus_evidence_semantic_diff",
+  "gate_after_count": 21,
+  "gate_before_count": 21,
+  "gate_dispositions_changed": [],
+  "gate_ids_added": [],
+  "gate_ids_removed": [],
+  "meaning_change_count": 0,
+  "ordinary_cycle_after_count": 611,
+  "ordinary_cycle_before_count": 611,
+  "ordinary_cycle_ids_and_order_unchanged": true,
+  "packet_diffs": {
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": {
+      "after_packet_sha256": "5ad5919971b80a59bd13e41fc3cca39860576cb0901277ccb4ee738e51168ce2",
+      "before_packet_sha256": "1955b97030a25b48bed6a9afa89dedb02e4fea6aa22481b7a791c8956ceaad74",
+      "changed_fields": [
+        "text_variation_notes"
+      ]
+    },
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": {
+      "after_packet_sha256": "f4892e3245c960bcbacb57ee5b3991e812d7b0faa9551ca1be02deec2323fad4",
+      "before_packet_sha256": "c78b7e44db461cf5e0fe0b602786c283abc07b38041e51a04d76efa40bbd54b7",
+      "changed_fields": [
+        "text_variation_notes",
+        "verification_status",
+        "verified_text"
+      ]
+    },
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": {
+      "after_packet_sha256": "9b1fbda17f0edad54acd50dd5d3252322f06c8107a3683a6dd3b9c7369cb0de4",
+      "before_packet_sha256": "45285a33f3febbf14734b4dd1724f43da87f43da7772d0dea51724cca47da8e4",
+      "changed_fields": [
+        "text_variation_notes",
+        "verified_text"
+      ]
+    },
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": {
+      "after_packet_sha256": "7c2208efa7f653c88e9cb718e60ec4e1323e2c70b2ecb4671df7416d452726c2",
+      "before_packet_sha256": "4b721c14e78152aa660067005a7312c746a58c49c178a99a16df5e8c55adbc29",
+      "changed_fields": [
+        "text_variation_notes",
+        "verification_status",
+        "verified_text"
+      ]
+    },
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": {
+      "after_packet_sha256": "231ee16217ba177d00b412f89863e87f7e3af6245041a359451daa2d7865dd07",
+      "before_packet_sha256": "c77b93ded49b5fe736a4cfe4bb9584f3c44a8f4adeafe18febd6e457b1b3217e",
+      "changed_fields": [
+        "stable_locator",
+        "text_variation_notes"
+      ]
+    },
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f": {
+      "after_packet_sha256": "8b7c7f51906249e34d0dc7979f8997ea4e21c857cf202e244503f1e12f286f0b",
+      "before_packet_sha256": "af8ba21eb612bf95e170081c87faea4a62f3a030e2777902437512a94149bbbd",
+      "changed_fields": [
+        "text_variation_notes"
+      ]
+    },
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": {
+      "after_packet_sha256": "5255642f7c76b7f4e782b017f64e1e9aa54796d3ffc0e940a625d6d113507eb0",
+      "before_packet_sha256": "1d68b18b313d251ff3982b7939e6bf2441e9add7b6949eecc36f58a6b04d1de3",
+      "changed_fields": [
+        "date",
+        "source_event",
+        "stable_locator",
+        "text_variation_notes",
+        "verification_status"
+      ]
+    },
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": {
+      "after_packet_sha256": "ca915cede488ae2e73cb46f9bd256bfeeedc1e721ed890cfa3a4d098b192165d",
+      "before_packet_sha256": "168797fb0c45e2846364ccf3ee6dc9a9e309d0cba60ff4f7c633607d3a379a87",
+      "changed_fields": [
+        "text_variation_notes",
+        "verification_status",
+        "verified_text"
+      ]
+    },
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855": {
+      "after_packet_sha256": "4d5f79895eb6d6311c249372d8a6d3ed313f230f65ddf77ae8e57a4e3740d445",
+      "before_packet_sha256": "7150e4b9e4fc38ae42a056d8c6629ea7991ee3e298daabe6f242722d45215bf8",
+      "changed_fields": [
+        "text_variation_notes",
+        "verification_status",
+        "verified_text"
+      ]
+    },
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": {
+      "after_packet_sha256": "0199de79cd632d40696d5c0d9196d43fdd2f470f53a9222de2b6908d0c0fa674",
+      "before_packet_sha256": "173620552e792243e356f2201a716acae2086a0316879baf23ef02ba9614fd69",
+      "changed_fields": [
+        "text_variation_notes",
+        "verified_text"
+      ]
+    }
+  },
+  "packet_semantic_change_count": 10,
+  "packet_semantic_change_ids": [
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5",
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855",
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8"
+  ],
+  "public_supported_field_change_count": 8,
+  "public_supported_field_changes": {
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": [
+        "date"
+      ]
+    },
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": []
+    },
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": []
+    },
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": []
+    },
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": []
+    },
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": []
+    },
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": []
+    },
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8": {
+      "after": [
+        "source_event",
+        "date"
+      ],
+      "before": []
+    }
+  },
+  "quotation_ids_unchanged": true,
+  "quotation_text_unchanged": true,
+  "quote_text_change_count": 0,
+  "schema_version": 1,
+  "target_quote_ids": [
+    "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+    "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+    "7748a7ec8ec505312e4714e9e98961453b0eecd8813a9678e28a57c332d3cd9f",
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
+    "98000f36211d96c33ca0e033551ef2a7b24f56f5d624768c13abf666f5c61fe5",
+    "a8b53417a59ef215988e22c6c44d52e6a8401fec6ba89400001ba1e778b04855",
+    "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8"
+  ],
+  "unrelated_packet_semantic_change_count": 0,
+  "unresolved_after_count": 5,
+  "unresolved_before_count": 5,
+  "unresolved_ids_added": [],
+  "unresolved_ids_removed": []
+}

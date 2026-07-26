@@ -14,6 +14,7 @@ from historical_context_public_projection_review import (
     DOCUMENT_104653_CONTEXT,
     DOCUMENT_104653_QUOTE_ID,
     EXPECTED_MANUAL_HINT_IDS,
+    MTF_REVIEWED_BINDINGS,
     POST_V9_INPUT_NAMES,
     POST_V9_TRANSITION_KIND,
     POST_V9_TRANSITION_STATUS,
@@ -48,9 +49,9 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
         "duplicate_full_reply_group_count": 0,
         "event_only_downgrade_count": 2,
         "manual_hint_count": 9,
-        "post_v9_public_field_change_count": 12,
-        "post_v9_source_addition_count": 12,
-        "post_v9_transition_packet_count": 12,
+        "post_v9_public_field_change_count": 20,
+        "post_v9_source_addition_count": 22,
+        "post_v9_transition_packet_count": 22,
         "v8_to_v9_public_field_change_count": 6,
         "safe_date_only_count": 64,
         "safe_event_only_context_count": 1,
@@ -73,7 +74,7 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
     assert len(review["incremental_v8_to_v9_records"]) == 6
     assert {
         record["quote_id"] for record in review["post_v9_transition_records"]
-    } == {
+    } == set(MTF_REVIEWED_BINDINGS) | {
         "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
         "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
         "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",

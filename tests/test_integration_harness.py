@@ -308,7 +308,7 @@ def test_digest_reports_historical_context_reply_outcomes(tmp_path: Path) -> Non
     result = run_digest(base_dir)
 
     assert result.returncode == 0, result.stderr
-    assert "1 historical context reply/replies completed" in result.stdout
+    assert "1 historical-context reply completed" in result.stdout
     assert "Historical context replies" in result.stdout
     assert "already_completed" in result.stdout
     assert "skipped_no_completed_packet" in result.stdout
@@ -4675,7 +4675,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         assert "## Input files" in digest.stdout
         assert "records_after_since=" in digest.stdout
         assert "records_in_window_before_dedupe=" in digest.stdout
-        assert "mention reply/replies" in digest.stdout
+        assert "1 mention reply" in digest.stdout
         assert "hot_search" in digest.stdout or "hot-post" in digest.stdout
     finally:
         server.stop()
@@ -4783,8 +4783,10 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     )
     classified_digest = run_digest(classified_base)
     assert classified_digest.returncode == 0, classified_digest.stderr
-    assert "1 operational error(s)" in classified_digest.stdout
-    assert "1 handled API restriction incident(s)" in classified_digest.stdout
+    assert "current health: 1 unresolved operational incident" in (
+        classified_digest.stdout
+    )
+    assert "1 handled API restriction incident" in classified_digest.stdout
     assert "self-test failures: 2 check(s)" in classified_digest.stdout
     assert "Handled API restrictions" in classified_digest.stdout
     assert "post/reply" in classified_digest.stdout
@@ -4820,9 +4822,13 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     )
     main_post_recovery_digest = run_digest(main_post_recovery_base)
     assert main_post_recovery_digest.returncode == 0, main_post_recovery_digest.stderr
-    assert "1 quote/image post(s)" in main_post_recovery_digest.stdout
-    assert "2 confirmed-post recovery warning(s)" in main_post_recovery_digest.stdout
-    assert "1 asset metadata warning(s)" in main_post_recovery_digest.stdout
+    assert "1 quote/image post" in main_post_recovery_digest.stdout
+    assert "2 confirmed-post recovery records in window" in (
+        main_post_recovery_digest.stdout
+    )
+    assert "1 asset-metadata warning in window" in (
+        main_post_recovery_digest.stdout
+    )
     assert "Main-post recovery" in main_post_recovery_digest.stdout
     assert "regular_written" in main_post_recovery_digest.stdout
     assert "regular_removed" in main_post_recovery_digest.stdout
@@ -5135,8 +5141,8 @@ def test_digest_latest_state_ignores_authoritative_state_after_window_end(tmp_pa
     digest = run_digest(base, until=window_end)
     assert digest.returncode == 0, digest.stderr
     assert "Window: `2026-07-08 05:39:31` → `2026-07-08 06:39:38`" in digest.stdout
-    assert "0 mention reply/replies" in digest.stdout
-    assert "1 quote-tweet reply/replies" in digest.stdout
+    assert "0 mention replies" in digest.stdout
+    assert "1 quote-tweet reply" in digest.stdout
     assert "A mention reply." not in digest.stdout
     assert "State timestamp: `2026-07-08 05:39:35`" in digest.stdout
     assert "daily_reply_count       = 1" in digest.stdout
@@ -5302,9 +5308,9 @@ def test_digest_groups_handled_media_v2_fallback_as_one_warning(tmp_path: Path) 
     )
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
-    assert "1 handled media-upload fallback(s)" in digest.stdout
-    assert "2 operational error(s)" not in digest.stdout
-    assert "no serious errors" in digest.stdout
+    assert "1 handled media-upload fallback" in digest.stdout
+    assert "2 current independent errors" not in digest.stdout
+    assert "current health: no unresolved operational incidents" in digest.stdout
     assert "Media upload incidents" in digest.stdout
     assert "handled_fallbacks     = 1" in digest.stdout
     assert "unrecovered_failures  = 0" in digest.stdout
@@ -5326,7 +5332,7 @@ def test_digest_counts_unrecovered_media_fallback_as_one_incident(tmp_path: Path
     )
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
-    assert "1 unrecovered media-upload failure(s)" in digest.stdout
+    assert "1 unrecovered media-upload failure" in digest.stdout
     assert "handled_fallbacks     = 0" in digest.stdout
     assert "unrecovered_failures  = 1" in digest.stdout
     assert "2 operational error(s)" not in digest.stdout
@@ -5344,7 +5350,7 @@ def test_digest_keeps_unrelated_nearby_errors_separate(tmp_path: Path) -> None:
     )
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
-    assert "2 operational error(s)" in digest.stdout
+    assert "current health: 2 unresolved operational incidents" in digest.stdout
     assert "First unrelated failure" in digest.stdout
     assert "Second unrelated failure" in digest.stdout
 
@@ -5365,7 +5371,7 @@ def test_digest_does_not_double_count_repeated_media_chain_lines(tmp_path: Path)
     )
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
-    assert "1 handled media-upload fallback(s)" in digest.stdout
+    assert "1 handled media-upload fallback" in digest.stdout
     assert "operational error(s)" not in digest.stdout
 
 
@@ -5427,7 +5433,7 @@ def test_digest_reports_confirmed_reply_recovery_failures(tmp_path: Path) -> Non
     digest = run_digest(base)
 
     assert digest.returncode == 0, digest.stderr
-    assert "4 confirmed-reply recovery warning(s)" in digest.stdout
+    assert "4 confirmed-reply recovery records in window" in digest.stdout
     assert "Confirmed replies with local recovery/persistence trouble" in digest.stdout
     assert "state save failed" in digest.stdout
     assert "receipt removal failed" in digest.stdout
@@ -5448,7 +5454,7 @@ def test_digest_reports_confirmed_reply_emergency_persistence_paths(tmp_path: Pa
     digest = run_digest(base)
 
     assert digest.returncode == 0, digest.stderr
-    assert "2 confirmed-reply recovery warning(s)" in digest.stdout
+    assert "2 confirmed-reply recovery records in window" in digest.stdout
     assert "failed writing recovery receipt" in digest.stdout
     assert "both receipt write and emergency state save failed" in digest.stdout
 
@@ -5637,7 +5643,7 @@ def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:
     assert "total_tokens         = 2423" in digest.stdout
     assert "sources_used         = 2" in digest.stdout
     assert "cost_in_usd_ticks    = 44487000" in digest.stdout
-    assert "mention reply/replies" in digest.stdout
+    assert "0 mention replies" in digest.stdout
 
 
 def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
