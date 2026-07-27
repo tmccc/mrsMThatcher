@@ -312,6 +312,59 @@ def unit_confirmed_v3_reply_receipt(**kwargs: object) -> dict[str, object]:
     return receipt
 
 
+def unit_v4_reply_receipt_template(**kwargs: object) -> dict[str, object]:
+    """Build the untimed schema-v4 template used immediately before sending."""
+    receipt = unit_sending_reply_receipt(**kwargs)
+    receipt["schema_version"] = 4
+    for field in (
+        "attempt_epoch",
+        "confirmation_epoch",
+        "reply_epoch",
+        "daily_reply_date",
+        "daily_quote_reply_date",
+    ):
+        receipt.pop(field, None)
+    return receipt
+
+
+def unit_sending_v4_reply_receipt(
+    *,
+    attempt_epoch: int = 2_000_000_000,
+    **kwargs: object,
+) -> dict[str, object]:
+    """Build a complete schema-v4 sending receipt with an attempt time."""
+    receipt = unit_v4_reply_receipt_template(**kwargs)
+    attempt_date = bot.epoch_date_str(attempt_epoch)
+    receipt["attempt_epoch"] = attempt_epoch
+    receipt["reply_epoch"] = attempt_epoch
+    receipt["daily_reply_date"] = attempt_date
+    if receipt["candidate_source"] == "quote_tweet":
+        receipt["daily_quote_reply_date"] = attempt_date
+    return receipt
+
+
+def unit_confirmed_v4_reply_receipt(
+    *,
+    attempt_epoch: int = 2_000_000_000,
+    confirmation_epoch: int = 2_000_000_005,
+    **kwargs: object,
+) -> dict[str, object]:
+    """Build a schema-v4 confirmed receipt with authoritative confirmation time."""
+    receipt = unit_sending_v4_reply_receipt(
+        attempt_epoch=attempt_epoch,
+        **kwargs,
+    )
+    confirmation_date = bot.epoch_date_str(confirmation_epoch)
+    receipt["lifecycle_state"] = "confirmed"
+    receipt["reply_post_id"] = str(kwargs.get("reply_post_id", "999"))
+    receipt["confirmation_epoch"] = confirmation_epoch
+    receipt["reply_epoch"] = confirmation_epoch
+    receipt["daily_reply_date"] = confirmation_date
+    if receipt["candidate_source"] == "quote_tweet":
+        receipt["daily_quote_reply_date"] = confirmation_date
+    return receipt
+
+
 @pytest.fixture(autouse=True)
 def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Operational command tests model the supported post-bootstrap dispatch path.
@@ -7630,6 +7683,403 @@ def test_conversational_reply_receipt_schema_v3_lifecycle_is_explicit() -> None:
     assert bot.confirmed_reply_receipt_is_semantically_valid(sending) is False
     assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
     assert bot.sending_reply_receipt_is_semantically_valid(confirmed) is False
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+def test_conversational_reply_receipt_schema_v4_separates_attempt_and_confirmation(
+    lane: str,
+) -> None:
+    attempt_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
+    confirmation_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
+    sending = unit_sending_v4_reply_receipt(
+        lane=lane,
+        attempt_epoch=attempt_epoch,
+    )
+    confirmed = unit_confirmed_v4_reply_receipt(
+        lane=lane,
+        attempt_epoch=attempt_epoch,
+        confirmation_epoch=confirmation_epoch,
+    )
+
+    assert bot.sending_reply_receipt_is_semantically_valid(sending) is True
+    assert "confirmation_epoch" not in sending
+    assert sending["reply_epoch"] == attempt_epoch
+    assert sending["daily_reply_date"] == bot.epoch_date_str(attempt_epoch)
+    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert confirmed["attempt_epoch"] == attempt_epoch
+    assert confirmed["confirmation_epoch"] == confirmation_epoch
+    assert confirmed["reply_epoch"] == confirmation_epoch
+    assert confirmed["daily_reply_date"] == bot.epoch_date_str(
+        confirmation_epoch
+    )
+    if lane == "quote_tweet":
+        assert confirmed["daily_quote_reply_date"] == bot.epoch_date_str(
+            confirmation_epoch
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("attempt_epoch", 2_000_000_010),
+        ("confirmation_epoch", 1_999_999_999),
+        ("reply_epoch", 2_000_000_004),
+        ("daily_reply_date", "2033-05-19"),
+    ],
+)
+def test_schema_v4_confirmed_receipt_rejects_inconsistent_timing(
+    field: str,
+    value: object,
+) -> None:
+    confirmed = unit_confirmed_v4_reply_receipt()
+    confirmed[field] = value
+
+    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is False
+
+
+def test_schema_v4_sending_receipt_rejects_invented_confirmation() -> None:
+    sending = unit_sending_v4_reply_receipt()
+    sending["confirmation_epoch"] = sending["attempt_epoch"]
+
+    assert bot.sending_reply_receipt_is_semantically_valid(sending) is False
+
+
+def test_schema_v4_mention_receipt_accepts_pagination_provenance() -> None:
+    sending = unit_sending_v4_reply_receipt()
+    sending["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+    confirmed = unit_confirmed_v4_reply_receipt()
+    confirmed["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+
+    assert bot.sending_reply_receipt_is_semantically_valid(sending) is True
+    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+def test_reply_post_helper_captures_confirmation_after_remote_success(
+    monkeypatch: pytest.MonkeyPatch,
+    lane: str,
+) -> None:
+    attempt_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
+    confirmation_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
+    clock = {"epoch": attempt_epoch}
+    monkeypatch.setattr(bot, "now_epoch", lambda: clock["epoch"])
+    sending = bot.bind_conversational_reply_attempt_time(
+        unit_v4_reply_receipt_template(lane=lane)
+    )
+
+    def confirmed_remote(
+        *_args: object,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+        clock["epoch"] = confirmation_epoch
+        return {"data": {"id": "999"}}
+
+    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    response, confirmed = bot.post_conversational_reply_with_durable_identity(
+        state=bot.default_state(),
+        receipt_template=sending,
+        reply_text=str(sending["reply_text"]),
+        reply_to_id=str(sending["target_id"]),
+        made_with_ai=False,
+        lane=lane,
+    )
+
+    assert response == {"data": {"id": "999"}}
+    assert confirmed["attempt_epoch"] == attempt_epoch
+    assert confirmed["confirmation_epoch"] == confirmation_epoch
+    assert confirmed["reply_epoch"] == confirmation_epoch
+    assert confirmed["daily_reply_date"] == bot.epoch_date_str(
+        confirmation_epoch
+    )
+    assert bot.load_confirmed_reply_receipt() == ("valid", confirmed)
+
+
+def test_schema_v4_clock_rollback_uses_conservative_confirmation_time(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    attempt_epoch = 2_000_000_000
+    clock = {"epoch": attempt_epoch}
+    monkeypatch.setattr(bot, "now_epoch", lambda: clock["epoch"])
+    sending = bot.bind_conversational_reply_attempt_time(
+        unit_v4_reply_receipt_template()
+    )
+
+    def confirmed_after_clock_rollback(
+        *_args: object,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        clock["epoch"] = attempt_epoch - 60
+        return {"data": {"id": "999"}}
+
+    monkeypatch.setattr(bot, "x_request", confirmed_after_clock_rollback)
+    _, confirmed = bot.post_conversational_reply_with_durable_identity(
+        state=bot.default_state(),
+        receipt_template=sending,
+        reply_text=str(sending["reply_text"]),
+        reply_to_id=str(sending["target_id"]),
+        made_with_ai=False,
+        lane="mention",
+    )
+
+    assert confirmed["attempt_epoch"] == attempt_epoch
+    assert confirmed["confirmation_epoch"] == attempt_epoch
+    assert confirmed["reply_epoch"] == attempt_epoch
+    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert "Wall clock moved backward" in caplog.text
+
+
+def test_invalid_v4_confirmation_never_mutates_fallback_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    sending = bot.bind_conversational_reply_attempt_time(
+        unit_v4_reply_receipt_template()
+    )
+    state = bot.default_state()
+    baseline = copy.deepcopy(state)
+    original_validator = bot.confirmed_reply_receipt_is_semantically_valid
+
+    monkeypatch.setattr(
+        bot,
+        "x_request",
+        lambda *_args, **_kwargs: {"data": {"id": "999"}},
+    )
+    monkeypatch.setattr(
+        bot,
+        "confirmed_reply_receipt_is_semantically_valid",
+        lambda receipt: (
+            False
+            if receipt.get("schema_version") == 4
+            else original_validator(receipt)
+        ),
+    )
+
+    with pytest.raises(bot.UnrecoverableConfirmedReplyPersistenceError):
+        bot.post_conversational_reply_with_durable_identity(
+            state=state,
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert state == baseline
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+
+
+def test_schema_v4_promotion_failure_fallback_uses_confirmation_time(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
+    confirmation_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
+    clock = {"epoch": attempt_epoch}
+    monkeypatch.setattr(bot, "now_epoch", lambda: clock["epoch"])
+    sending = bot.bind_conversational_reply_attempt_time(
+        unit_v4_reply_receipt_template()
+    )
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.epoch_date_str(attempt_epoch)
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+
+    def confirmed_remote(
+        *_args: object,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        clock["epoch"] = confirmation_epoch
+        return {"data": {"id": "999"}}
+
+    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    monkeypatch.setattr(
+        bot,
+        "promote_sending_reply_receipt",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("promotion failed")
+        ),
+    )
+
+    with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):
+        bot.post_conversational_reply_with_durable_identity(
+            state=state,
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert state["last_reply_epoch"] == confirmation_epoch
+    assert state["daily_reply_date"] == bot.epoch_date_str(confirmation_epoch)
+    assert state["daily_reply_count"] == 1
+    assert state["ai_reply_history"][0]["attempt_epoch"] == attempt_epoch
+    assert state["ai_reply_history"][0]["confirmation_epoch"] == confirmation_epoch
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+
+
+@pytest.mark.parametrize(
+    ("remote_error", "expected_status"),
+    [
+        (
+            bot.ApiError("definite failure", service="x", status_code=400),
+            "absent",
+        ),
+        (
+            bot.AmbiguousRemotePostOutcome("uncertain", service="x"),
+            "sending",
+        ),
+    ],
+)
+def test_schema_v4_failed_remote_outcome_never_invents_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+    remote_error: Exception,
+    expected_status: str,
+) -> None:
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    sending = bot.bind_conversational_reply_attempt_time(
+        unit_v4_reply_receipt_template()
+    )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(remote_error),
+    )
+
+    with pytest.raises(type(remote_error)):
+        bot.post_conversational_reply_with_durable_identity(
+            state=bot.default_state(),
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    status, receipt = bot.load_confirmed_reply_receipt()
+    assert status == expected_status
+    if receipt is not None:
+        assert "confirmation_epoch" not in receipt
+        assert receipt["reply_epoch"] == receipt["attempt_epoch"]
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+def test_schema_v4_confirmation_advances_daily_counters_once_across_midnight(
+    lane: str,
+) -> None:
+    attempt_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
+    confirmation_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
+    receipt = unit_confirmed_v4_reply_receipt(
+        lane=lane,
+        attempt_epoch=attempt_epoch,
+        confirmation_epoch=confirmation_epoch,
+        author_id="200",
+    )
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.epoch_date_str(attempt_epoch)
+    state["daily_reply_count"] = 7
+    state["daily_replied_author_ids"] = ["old-author"]
+    state["daily_replied_author_counts"] = {"old-author": 2}
+    state["daily_quote_reply_date"] = bot.epoch_date_str(attempt_epoch)
+    state["daily_quote_reply_count"] = 3
+
+    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    confirmation_date = bot.epoch_date_str(confirmation_epoch)
+    assert state["daily_reply_date"] == confirmation_date
+    assert state["daily_reply_count"] == 1
+    assert state["daily_replied_author_ids"] == ["200"]
+    assert state["daily_replied_author_counts"] == {"200": 1}
+    assert state["last_reply_epoch"] == confirmation_epoch
+    assert state["ai_reply_history"][0]["attempt_epoch"] == attempt_epoch
+    assert state["ai_reply_history"][0]["confirmation_epoch"] == confirmation_epoch
+    assert state["ai_reply_history"][0]["reply_epoch"] == confirmation_epoch
+    assert state["tweet_cache"]["999"]["created_at"] == datetime.fromtimestamp(
+        confirmation_epoch
+    ).isoformat()
+    if lane == "quote_tweet":
+        assert state["daily_quote_reply_date"] == confirmation_date
+        assert state["daily_quote_reply_count"] == 1
+    else:
+        assert state["daily_quote_reply_date"] == bot.epoch_date_str(attempt_epoch)
+        assert state["daily_quote_reply_count"] == 3
+
+
+def test_schema_v4_reconciliation_never_rolls_newer_daily_state_backward() -> None:
+    attempt_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
+    confirmation_epoch = int(datetime(2026, 7, 7, 0, 0, 5).timestamp())
+    receipt = unit_confirmed_v4_reply_receipt(
+        lane="quote_tweet",
+        attempt_epoch=attempt_epoch,
+        confirmation_epoch=confirmation_epoch,
+    )
+    state = bot.default_state()
+    state["daily_reply_date"] = "2026-07-08"
+    state["daily_reply_count"] = 4
+    state["daily_replied_author_ids"] = ["later-author"]
+    state["daily_replied_author_counts"] = {"later-author": 1}
+    state["daily_quote_reply_date"] = "2026-07-08"
+    state["daily_quote_reply_count"] = 2
+
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert state["daily_reply_date"] == "2026-07-08"
+    assert state["daily_reply_count"] == 4
+    assert state["daily_replied_author_counts"] == {"later-author": 1}
+    assert state["daily_quote_reply_date"] == "2026-07-08"
+    assert state["daily_quote_reply_count"] == 2
+
+
+def test_reply_spacing_is_measured_from_schema_v4_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt_epoch = 2_000_000_000
+    confirmation_epoch = attempt_epoch + 120
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.epoch_date_str(confirmation_epoch)
+    state["daily_reply_count"] = 0
+    bot.apply_confirmed_reply_receipt(
+        state,
+        unit_confirmed_v4_reply_receipt(
+            attempt_epoch=attempt_epoch,
+            confirmation_epoch=confirmation_epoch,
+        ),
+    )
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setitem(bot.ai_first_reply_strategy, "enabled", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 1800)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        bot,
+        "now_epoch",
+        lambda: confirmation_epoch + 1799,
+    )
+    monkeypatch.setattr(
+        bot,
+        "current_datetime",
+        lambda: datetime.fromtimestamp(confirmation_epoch + 1799),
+    )
+    monkeypatch.setattr(
+        bot,
+        "get_mentions",
+        lambda _state: pytest.fail("spacing must block candidate retrieval"),
+    )
+
+    assert (
+        bot.maybe_reply_to_mentions(state)
+        == bot.NORMAL_CHECK_STATUS_SKIPPED_SPACING
+    )
 
 
 @pytest.mark.parametrize(

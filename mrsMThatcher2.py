@@ -10300,7 +10300,7 @@ def _conversational_reply_receipt_is_semantically_valid(
     if lifecycle_state not in {"sending", "confirmed"}:
         return False
     schema_version = data.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {2, 3}:
+    if type(schema_version) is not int or schema_version not in {2, 3, 4}:
         return False
     if schema_version == 2:
         if lifecycle_state != "confirmed" or "lifecycle_state" in data:
@@ -10318,14 +10318,41 @@ def _conversational_reply_receipt_is_semantically_valid(
     author_id = data.get("author_id")
     if author_id is None or isinstance(author_id, (dict, list)):
         return False
-    if receipt_int(data.get("reply_epoch")) is None or not valid_receipt_epoch(data.get("reply_epoch")):
-        return False
     source = str(data.get("candidate_source") or "")
     if source not in {"mention", "hot_post_reply", "quote_tweet"}:
         return False
+    reply_epoch = receipt_int(data.get("reply_epoch"))
+    if reply_epoch is None or not valid_receipt_epoch(reply_epoch):
+        return False
+    if schema_version == 4:
+        attempt_epoch = receipt_int(data.get("attempt_epoch"))
+        if attempt_epoch is None or not valid_receipt_epoch(attempt_epoch):
+            return False
+        if lifecycle_state == "sending":
+            if "confirmation_epoch" in data or reply_epoch != attempt_epoch:
+                return False
+            effective_epoch = attempt_epoch
+        else:
+            confirmation_epoch = receipt_int(data.get("confirmation_epoch"))
+            if (
+                confirmation_epoch is None
+                or not valid_receipt_epoch(confirmation_epoch)
+                or confirmation_epoch < attempt_epoch
+                or reply_epoch != confirmation_epoch
+            ):
+                return False
+            effective_epoch = confirmation_epoch
+        expected_date = safe_epoch_date_str(effective_epoch)
+        if expected_date is None or data.get("daily_reply_date") != expected_date:
+            return False
+        if source == "quote_tweet":
+            if data.get("daily_quote_reply_date") != expected_date:
+                return False
+        elif "daily_quote_reply_date" in data:
+            return False
     if "mention_pagination" in data:
         mention_pagination = data.get("mention_pagination")
-        if schema_version != 3 or source != "mention":
+        if schema_version not in {3, 4} or source != "mention":
             return False
         if not mention_pagination_provenance_is_valid(mention_pagination):
             return False
@@ -10335,12 +10362,16 @@ def _conversational_reply_receipt_is_semantically_valid(
     conversation_id = data.get("conversation_id")
     if not valid_post_id(conversation_id):
         return False
-    daily_reply_date = data.get("daily_reply_date")
-    if daily_reply_date is not None and not isinstance(daily_reply_date, str):
-        return False
-    daily_quote_reply_date = data.get("daily_quote_reply_date")
-    if daily_quote_reply_date is not None and not isinstance(daily_quote_reply_date, str):
-        return False
+    if schema_version in {2, 3}:
+        daily_reply_date = data.get("daily_reply_date")
+        if daily_reply_date is not None and not isinstance(daily_reply_date, str):
+            return False
+        daily_quote_reply_date = data.get("daily_quote_reply_date")
+        if daily_quote_reply_date is not None and not isinstance(
+            daily_quote_reply_date,
+            str,
+        ):
+            return False
     original_post_id = data.get("original_post_id")
     if original_post_id is not None and isinstance(original_post_id, (dict, list)):
         return False
@@ -10472,10 +10503,87 @@ def write_sending_reply_receipt(receipt: dict) -> None:
     )
 
 
+def bind_conversational_reply_attempt_time(receipt_template: dict) -> dict:
+    """Bind a schema-v4 reply template to its immediately pre-send time."""
+    if (
+        not isinstance(receipt_template, dict)
+        or receipt_template.get("schema_version") != 4
+        or receipt_template.get("lifecycle_state") != "sending"
+    ):
+        raise RuntimeError("A reply attempt time can only bind a schema-v4 sending template")
+    timing_fields = {
+        "attempt_epoch",
+        "confirmation_epoch",
+        "reply_epoch",
+        "daily_reply_date",
+        "daily_quote_reply_date",
+    }
+    if timing_fields.intersection(receipt_template):
+        raise RuntimeError("Reply attempt template already contains timing fields")
+    attempt_epoch = now_epoch()
+    attempt_date = epoch_date_str(attempt_epoch)
+    prepared = {
+        **receipt_template,
+        "attempt_epoch": attempt_epoch,
+        "reply_epoch": attempt_epoch,
+        "daily_reply_date": attempt_date,
+    }
+    if receipt_template.get("candidate_source") == "quote_tweet":
+        prepared["daily_quote_reply_date"] = attempt_date
+    if not sending_reply_receipt_is_semantically_valid(prepared):
+        raise RuntimeError("Internal error: prepared reply attempt failed validation")
+    return prepared
+
+
+def _confirmed_reply_receipt_from_sending(
+    sending_receipt: dict,
+    *,
+    reply_post_id: str,
+    confirmation_epoch: int,
+) -> dict:
+    """Build the confirmed form without mutating its durable sending input."""
+    confirmed = {
+        **sending_receipt,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": str(reply_post_id),
+    }
+    if sending_receipt.get("schema_version") == 4:
+        confirmed_date = epoch_date_str(confirmation_epoch)
+        confirmed.update(
+            {
+                "confirmation_epoch": confirmation_epoch,
+                "reply_epoch": confirmation_epoch,
+                "daily_reply_date": confirmed_date,
+            }
+        )
+        if sending_receipt.get("candidate_source") == "quote_tweet":
+            confirmed["daily_quote_reply_date"] = confirmed_date
+    return confirmed
+
+
+def _reply_confirmation_epoch_after_remote_success(sending_receipt: dict) -> int:
+    """Return a conservative monotonic wall time after remote confirmation."""
+    observed_epoch = now_epoch()
+    if sending_receipt.get("schema_version") != 4:
+        return observed_epoch
+    attempt_epoch = receipt_int(sending_receipt.get("attempt_epoch"))
+    if attempt_epoch is None or observed_epoch >= attempt_epoch:
+        return observed_epoch
+    log.warning(
+        "Wall clock moved backward during conversational reply creation; "
+        "using durable attempt epoch as conservative confirmation time "
+        "attempt_epoch=%s observed_epoch=%s",
+        attempt_epoch,
+        observed_epoch,
+    )
+    return attempt_epoch
+
+
 def promote_sending_reply_receipt(
     sending_receipt: dict,
     *,
     reply_post_id: str,
+    confirmation_epoch: int,
 ) -> dict:
     """Atomically promote the exact prepared transaction to confirmed."""
     status, current = load_confirmed_reply_receipt()
@@ -10483,11 +10591,11 @@ def promote_sending_reply_receipt(
         raise UnresolvedSendingReplyReceipt(
             "Conversational reply sending receipt changed before confirmation"
         )
-    confirmed = {
-        **sending_receipt,
-        "lifecycle_state": "confirmed",
-        "reply_post_id": str(reply_post_id),
-    }
+    confirmed = _confirmed_reply_receipt_from_sending(
+        sending_receipt,
+        reply_post_id=reply_post_id,
+        confirmation_epoch=confirmation_epoch,
+    )
     if not confirmed_reply_receipt_is_semantically_valid(confirmed):
         raise RuntimeError(
             "Internal error: promoted confirmed-reply receipt failed validation"
@@ -10568,17 +10676,85 @@ def remove_confirmed_reply_receipt(
         return
 
 
+def conversational_reply_confirmation_epoch(receipt: dict) -> int:
+    """Return the best available confirmed time for a reply receipt."""
+    if receipt.get("schema_version") == 4:
+        confirmation_epoch = receipt_int(receipt.get("confirmation_epoch"))
+        if confirmation_epoch is None:
+            raise InvalidConfirmedReplyReceipt(
+                "Schema-v4 confirmed reply receipt lacks a confirmation epoch"
+            )
+        return confirmation_epoch
+    reply_epoch = receipt_int(receipt.get("reply_epoch"))
+    if reply_epoch is None:
+        raise InvalidConfirmedReplyReceipt(
+            "Legacy confirmed reply receipt lacks its best-known reply epoch"
+        )
+    return reply_epoch
+
+
+def _valid_iso_date(value: object) -> bool:
+    """Return whether a value is a canonical calendar date."""
+    if not isinstance(value, str):
+        return False
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d") == value
+    except ValueError:
+        return False
+
+
+def _advance_reply_counters_to_confirmation_date(
+    state: dict,
+    confirmation_date: str,
+    *,
+    include_quote_lane: bool,
+) -> None:
+    """Advance stale daily reply buckets without rolling newer state backward."""
+    state_reply_date = state.get("daily_reply_date")
+    if not _valid_iso_date(state_reply_date) or state_reply_date < confirmation_date:
+        log.info(
+            "Advancing daily reply accounting to confirmation date. "
+            "previous_date=%s new_date=%s previous_count=%s",
+            state_reply_date,
+            confirmation_date,
+            state.get("daily_reply_count"),
+        )
+        state["daily_reply_date"] = confirmation_date
+        state["daily_reply_count"] = 0
+        state["daily_replied_author_ids"] = []
+        state["daily_replied_author_counts"] = {}
+    if not include_quote_lane:
+        return
+    state_quote_date = state.get("daily_quote_reply_date")
+    if not _valid_iso_date(state_quote_date) or state_quote_date < confirmation_date:
+        log.info(
+            "Advancing daily quote-reply accounting to confirmation date. "
+            "previous_date=%s new_date=%s previous_count=%s",
+            state_quote_date,
+            confirmation_date,
+            state.get("daily_quote_reply_count"),
+        )
+        state["daily_quote_reply_date"] = confirmation_date
+        state["daily_quote_reply_count"] = 0
+
+
 def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     """Apply confirmed reply receipt."""
     target_id = str(receipt["target_id"])
     reply_post_id = str(receipt["reply_post_id"])
     author_id = str(receipt.get("author_id") or "")
-    reply_epoch = int(receipt["reply_epoch"])
+    reply_epoch = conversational_reply_confirmation_epoch(receipt)
     candidate_source = str(receipt.get("candidate_source") or "mention")
     conversation_id = str(receipt.get("conversation_id") or target_id)
     reply_text = str(receipt.get("reply_text") or "")
     receipt_reply_date = str(receipt.get("daily_reply_date") or epoch_date_str(reply_epoch))
     receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
+    if receipt.get("schema_version") == 4:
+        _advance_reply_counters_to_confirmation_date(
+            state,
+            receipt_reply_date,
+            include_quote_lane=candidate_source == "quote_tweet",
+        )
     clarification = receipt.get("clarification_reply")
     if isinstance(clarification, dict):
         existing_records = state.get("clarification_reply_records", {})
@@ -10681,6 +10857,11 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
                 "id": target_id,
             }
         ],
+        created_at=(
+            datetime.fromtimestamp(reply_epoch).isoformat()
+            if receipt.get("schema_version") == 4
+            else None
+        ),
         post_type="auto_reply",
     )
     ai_reply_draft = receipt.get("ai_reply_draft")
@@ -10692,6 +10873,9 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
             "reply_epoch": reply_epoch,
             **ai_reply_draft,
         }
+        if receipt.get("schema_version") == 4:
+            record["attempt_epoch"] = int(receipt["attempt_epoch"])
+            record["confirmation_epoch"] = reply_epoch
         history = [
             item for item in state.get("ai_reply_history", [])
             if isinstance(item, dict) and str(item.get("reply_post_id") or "") != reply_post_id
@@ -10827,14 +11011,16 @@ def confirmed_reply_emergency_representation_is_complete(
     target_id = str(receipt["target_id"])
     reply_post_id = str(receipt["reply_post_id"])
     candidate_source = str(receipt.get("candidate_source") or "mention")
-    reply_epoch = receipt_int(receipt.get("reply_epoch"))
+    try:
+        reply_epoch = conversational_reply_confirmation_epoch(receipt)
+    except InvalidConfirmedReplyReceipt:
+        return False
     state_reply_epoch = receipt_int(state.get("last_reply_epoch"))
     own_reply_ids = {str(item) for item in state.get("own_auto_reply_ids", [])}
     drafts = state.get("pending_ai_reply_drafts")
     pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
     if (
-        reply_epoch is None
-        or state_reply_epoch is None
+        state_reply_epoch is None
         or state_reply_epoch < reply_epoch
         or reply_post_id not in own_reply_ids
         or (isinstance(drafts, dict) and pending_key in drafts)
@@ -10941,20 +11127,32 @@ def post_conversational_reply_with_durable_identity(
         ) from remote_error
 
     own_reply_id = str(response.get("data", {}).get("id") or "")
-    receipt = {
-        **receipt_template,
-        "lifecycle_state": "confirmed",
-        "reply_post_id": own_reply_id,
-    }
+    confirmation_epoch = _reply_confirmation_epoch_after_remote_success(
+        receipt_template
+    )
+    receipt = _confirmed_reply_receipt_from_sending(
+        receipt_template,
+        reply_post_id=own_reply_id,
+        confirmation_epoch=confirmation_epoch,
+    )
     try:
+        if not confirmed_reply_receipt_is_semantically_valid(receipt):
+            raise RuntimeError(
+                "Internal error: confirmed reply representation failed validation"
+            )
         receipt = promote_sending_reply_receipt(
             receipt_template,
             reply_post_id=own_reply_id,
+            confirmation_epoch=confirmation_epoch,
         )
     except BaseException as receipt_error:
         fallback_error: BaseException | None = None
         fallback_complete = False
         try:
+            if not confirmed_reply_receipt_is_semantically_valid(receipt):
+                raise InvalidConfirmedReplyReceipt(
+                    "Refusing to apply an invalid confirmed reply representation"
+                )
             apply_confirmed_reply_receipt(state, receipt)
             try:
                 save_state(state, durable=True)
@@ -11459,8 +11657,10 @@ def maybe_reply_to_mentions(state: dict) -> str:
                 target_id=mention_id,
             )
 
+            completion_epoch = now_epoch()
+            reset_daily_reply_count_if_needed(state)
             state["daily_reply_count"] += 1
-            state["last_reply_epoch"] = current
+            state["last_reply_epoch"] = completion_epoch
 
             dry_run_seen_ids.add(mention_id)
             state["dry_run_seen_mention_ids"] = append_unique_capped(
@@ -11491,14 +11691,10 @@ def maybe_reply_to_mentions(state: dict) -> str:
             return NORMAL_CHECK_STATUS_POSTED
 
         receipt_template = {
-            "schema_version": 3,
+            "schema_version": 4,
             "lifecycle_state": "sending",
             "target_id": mention_id,
             "author_id": author_id,
-            "reply_epoch": current,
-            "daily_reply_date": str(
-                state.get("daily_reply_date") or epoch_date_str(current)
-            ),
             "candidate_source": candidate_source,
             "conversation_id": str(
                 mention.get("conversation_id", mention_id)
@@ -11540,6 +11736,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
                 )
             }
 
+        receipt_template = bind_conversational_reply_attempt_time(receipt_template)
         try:
             reply_response, receipt = (
                 post_conversational_reply_with_durable_identity(
@@ -12336,9 +12533,12 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                     target_id=quote_id,
                 )
 
+                completion_epoch = now_epoch()
+                reset_daily_reply_count_if_needed(state)
+                reset_daily_quote_reply_count_if_needed(state)
                 state["daily_reply_count"] = int(state.get("daily_reply_count", 0) or 0) + 1
                 state["daily_quote_reply_count"] = int(state.get("daily_quote_reply_count", 0) or 0) + 1
-                state["last_reply_epoch"] = current
+                state["last_reply_epoch"] = completion_epoch
 
                 mark_daily_author_replied(state, author_id)
                 mark_quote_tweet_replied(state, quote_id)
@@ -12361,18 +12561,10 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 return QUOTE_CHECK_STATUS_POSTED
 
             receipt_template = {
-                "schema_version": 3,
+                "schema_version": 4,
                 "lifecycle_state": "sending",
                 "target_id": quote_id,
                 "author_id": author_id,
-                "reply_epoch": current,
-                "daily_reply_date": str(
-                    state.get("daily_reply_date") or epoch_date_str(current)
-                ),
-                "daily_quote_reply_date": str(
-                    state.get("daily_quote_reply_date")
-                    or epoch_date_str(current)
-                ),
                 "candidate_source": "quote_tweet",
                 "conversation_id": str(
                     quote_tweet.get("conversation_id", quote_id)
@@ -12382,6 +12574,9 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 "reply_context": copy.deepcopy(reply_context),
                 "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
             }
+            receipt_template = bind_conversational_reply_attempt_time(
+                receipt_template
+            )
             try:
                 reply_response, receipt = (
                     post_conversational_reply_with_durable_identity(
