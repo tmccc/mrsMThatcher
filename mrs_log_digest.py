@@ -2041,9 +2041,11 @@ def classify_operational_error(message: str) -> str:
     if "quote/image posting failed" in lowered:
         return "quote_image_posting_failure"
     if (
-        "failed to post generated reply" in lowered
-        or "unresolved conversational reply sending receipt" in lowered
+        "unresolved conversational reply sending receipt" in lowered
+        or "unresolved confirmed reply receipt reconciliation" in lowered
     ):
+        return "conversational_reply_receipt_barrier"
+    if "failed to post generated reply" in lowered:
         return "conversational_reply_posting_failure"
     if exception_line:
         return _normalise_incident_text(exception_line).split(":", 1)[0] or "operational_error"
@@ -2070,6 +2072,7 @@ def summarise_operational_error_health(
         "historical_context_source_role_incompatibility",
         "historical_context_reply_failure",
         "legacy_regular_receipt_barrier",
+        "conversational_reply_receipt_barrier",
         "process_crash",
     }
     for item in serious:
@@ -3466,6 +3469,7 @@ def analyse(
             or "Confirmed reply receipt state was saved but receipt removal failed" in msg
             or "Confirmed reply id=" in msg
             or "Confirmed quote-tweet reply id=" in msg
+            or "reply required its durable state fallback" in msg
         )
         is_asset_metadata_warning = (
             "Quote analysis" in msg
@@ -3970,6 +3974,7 @@ def analyse(
                 r,
                 lane=m.group(1),
                 target_id=m.group(2),
+                disposition="definite_non_success",
             )
             continue
         m = re.search(
@@ -3983,6 +3988,7 @@ def analyse(
                 r,
                 lane=m.group(1),
                 target_id=m.group(2),
+                disposition="confirmed_state_fallback",
             )
             continue
         if "Removed reconciled regular-post receipt" in msg:
@@ -4749,21 +4755,53 @@ def analyse(
 
     pending_sending_lifecycle: Counter = Counter()
     latest_sending_event: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    pending_reconciliations: List[
+        Tuple[Tuple[str, str, str], Dict[str, Any]]
+    ] = []
+
+    def clear_latest_reconciliation(
+        *,
+        identity: Tuple[str, str, str] | None = None,
+        lane: str | None = None,
+    ) -> Tuple[str, str, str] | None:
+        for index in range(len(pending_reconciliations) - 1, -1, -1):
+            candidate_identity, _item = pending_reconciliations[index]
+            if identity is not None and candidate_identity != identity:
+                continue
+            if lane is not None and candidate_identity[0] != lane:
+                continue
+            pending_reconciliations.pop(index)
+            return candidate_identity
+        return None
+
     for item in confirmed_reply_receipts:
-        identity = (
+        sending_identity = (
             str(item.get("lane") or ""),
             str(item.get("target_id") or ""),
         )
+        identity = (
+            *sending_identity,
+            str(item.get("reply_post_id") or ""),
+        )
         kind = str(item.get("kind") or "")
         if kind == "sending":
-            pending_sending_lifecycle[identity] += 1
-            latest_sending_event[identity] = item
+            pending_sending_lifecycle[sending_identity] += 1
+            latest_sending_event[sending_identity] = item
         elif kind in {
             "promoted",
             "sending_removed",
             "confirmed_state_fallback_removed",
-        } and pending_sending_lifecycle[identity] > 0:
-            pending_sending_lifecycle[identity] -= 1
+        } and pending_sending_lifecycle[sending_identity] > 0:
+            pending_sending_lifecycle[sending_identity] -= 1
+        if kind == "reconciled":
+            pending_reconciliations.append((identity, item))
+        elif kind == "removed":
+            clear_latest_reconciliation(identity=identity)
+        elif kind in {
+            "replay_suppressed_mention_check",
+            "replay_suppressed_quote_tweet_check",
+        }:
+            clear_latest_reconciliation(lane=sending_identity[0])
     for identity, count in sorted(pending_sending_lifecycle.items()):
         if count <= 0:
             continue
@@ -4771,6 +4809,22 @@ def analyse(
         raw_message = (
             "Unresolved conversational reply sending receipt remains at the end "
             f"of the observed window lane={identity[0]} target_id={identity[1]}"
+        )
+        errors.append(
+            {
+                "time": str(source.get("time") or ""),
+                "level": "CRITICAL",
+                "where": "confirmed_reply_receipt_lifecycle",
+                "message": raw_message,
+                "_raw_message": raw_message,
+            }
+        )
+    for identity, source in pending_reconciliations:
+        raw_message = (
+            "Unresolved confirmed reply receipt reconciliation remains at the "
+            "end of the observed window "
+            f"lane={identity[0]} target_id={identity[1]} "
+            f"reply_post_id={identity[2]}"
         )
         errors.append(
             {
@@ -7151,10 +7205,30 @@ def render_markdown(report: Dict[str, Any]) -> str:
     if reply_receipt_events or reply_recovery_warnings:
         pending_sending_receipts: Counter = Counter()
         pending_reply_receipts: Counter = Counter()
+        pending_reconciliations: List[
+            Tuple[Tuple[str, str, str], Dict[str, Any]]
+        ] = []
         unmatched_reply_receipts: List[Dict[str, Any]] = []
         normal_reply_pairs = 0
+        terminal_reply_removals_outside_window = 0
         definite_non_success_clears = 0
         confirmed_state_fallback_clears = 0
+
+        def clear_latest_reconciliation(
+            *,
+            identity: Tuple[str, str, str] | None = None,
+            lane: str | None = None,
+        ) -> Tuple[str, str, str] | None:
+            for index in range(len(pending_reconciliations) - 1, -1, -1):
+                candidate_identity, _item = pending_reconciliations[index]
+                if identity is not None and candidate_identity != identity:
+                    continue
+                if lane is not None and candidate_identity[0] != lane:
+                    continue
+                pending_reconciliations.pop(index)
+                return candidate_identity
+            return None
+
         for item in reply_receipt_events:
             sending_identity = (
                 str(item.get("lane") or ""),
@@ -7174,20 +7248,43 @@ def render_markdown(report: Dict[str, Any]) -> str:
             elif kind == "sending_removed":
                 if pending_sending_receipts[sending_identity] > 0:
                     pending_sending_receipts[sending_identity] -= 1
-                    definite_non_success_clears += 1
-                else:
-                    unmatched_reply_receipts.append(item)
+                # The matching pre-send event may be outside the selected log
+                # window.  This terminal event still proves that the receipt
+                # was cleared after a definite non-success.
+                definite_non_success_clears += 1
             elif kind == "confirmed_state_fallback_removed":
                 if pending_sending_receipts[sending_identity] > 0:
                     pending_sending_receipts[sending_identity] -= 1
-                    confirmed_state_fallback_clears += 1
-                else:
-                    unmatched_reply_receipts.append(item)
+                # Likewise, a digest window can begin after the sending event.
+                # The terminal fallback event is self-contained evidence that
+                # the confirmed reply identity was durably preserved.
+                confirmed_state_fallback_clears += 1
             elif kind == "written":
                 pending_reply_receipts[identity] += 1
-            elif kind == "removed" and pending_reply_receipts[identity] > 0:
-                pending_reply_receipts[identity] -= 1
-                normal_reply_pairs += 1
+            elif kind == "reconciled":
+                pending_reconciliations.append((identity, item))
+            elif kind == "removed":
+                clear_latest_reconciliation(identity=identity)
+                if pending_reply_receipts[identity] > 0:
+                    pending_reply_receipts[identity] -= 1
+                    normal_reply_pairs += 1
+                else:
+                    # The opening write can legitimately precede the selected
+                    # window.  A removal is nevertheless terminal evidence,
+                    # not an unresolved receipt.
+                    terminal_reply_removals_outside_window += 1
+            elif kind in {
+                "replay_suppressed_mention_check",
+                "replay_suppressed_quote_tweet_check",
+            }:
+                completed_identity = clear_latest_reconciliation(
+                    lane=sending_identity[0]
+                )
+                if (
+                    completed_identity is not None
+                    and pending_reply_receipts[completed_identity] > 0
+                ):
+                    pending_reply_receipts[completed_identity] -= 1
             else:
                 unmatched_reply_receipts.append(item)
         unresolved_reply_receipts = list(unmatched_reply_receipts)
@@ -7216,10 +7313,30 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     ),
                 }
             )
+        pending_reconciliation_counts = Counter(
+            identity for identity, _item in pending_reconciliations
+        )
+        for identity, source in pending_reconciliations:
+            unresolved_reply_receipts.append(
+                {
+                    **source,
+                    "lane": identity[0],
+                    "target_id": identity[1],
+                    "reply_post_id": identity[2],
+                    "kind": "reconciliation_unresolved",
+                    "message": (
+                        "Confirmed-reply reconciliation began, but no terminal "
+                        "receipt removal or completion was observed"
+                    ),
+                }
+            )
         for (lane, target_id, reply_post_id), count in sorted(
             pending_reply_receipts.items()
         ):
             if count <= 0:
+                continue
+            identity = (lane, target_id, reply_post_id)
+            if pending_reconciliation_counts[identity] >= count:
                 continue
             source = next(
                 (
@@ -7269,6 +7386,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 out.append(
                     "Confirmed replies preserved through the durable canonical-state "
                     f"fallback: **{confirmed_state_fallback_clears}**."
+                )
+            if terminal_reply_removals_outside_window:
+                out.append(
+                    "Confirmed-reply receipt removals whose opening write was outside "
+                    f"the observed window: **{terminal_reply_removals_outside_window}**."
                 )
             if unresolved_reply_receipts:
                 out.append("Stale or unresolved confirmed-reply receipts:")

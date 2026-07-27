@@ -5553,21 +5553,13 @@ def test_digest_reports_confirmed_reply_receipt_lifecycle(tmp_path: Path) -> Non
     digest = run_digest(base)
 
     assert digest.returncode == 0, digest.stderr
-    assert "## Confirmed-reply recovery" in digest.stdout
-    assert "written" in digest.stdout
-    assert "reconciled" in digest.stdout
-    assert "removed" in digest.stdout
+    assert "## Confirmed-reply receipt lifecycle" in digest.stdout
+    assert "## Confirmed-reply recovery" not in digest.stdout
     assert (
         "Routine confirmed-reply receipt write/remove pairs completed: **1**."
         in digest.stdout
     )
-    assert "Stale or unresolved confirmed-reply receipts:" in digest.stdout
-    assert (
-        "| 2026-07-07 06:02:11 | WARNING | mention | reconciled | 123 | 999 |"
-        in digest.stdout
-    )
-    assert "123" in digest.stdout
-    assert "999" in digest.stdout
+    assert "Stale or unresolved confirmed-reply receipts:" not in digest.stdout
     assert "operational error(s)" not in digest.stdout
 
 

@@ -639,7 +639,7 @@ def test_schema_v3_reply_receipt_lifecycle_is_routine_and_observable():
     assert report["error_health"]["current_independent_incident_count"] == 0
 
 
-def test_unresolved_schema_v3_sending_receipt_is_reported_as_recovery():
+def test_unresolved_schema_v3_sending_receipt_stays_current_after_other_reply():
     report = digest.analyse(
         [
             record(
@@ -648,7 +648,19 @@ def test_unresolved_schema_v3_sending_receipt_is_reported_as_recovery():
                 "write_sending_reply_receipt",
                 "Wrote conversational reply sending receipt "
                 "source=quote_tweet target_id=456 path=/tmp/reply.json",
-            )
+            ),
+            record(
+                1,
+                "INFO",
+                "maybe_reply_to_mentions",
+                "Considering mention id=789 author_id=42 text='different transaction'",
+            ),
+            record(
+                2,
+                "INFO",
+                "maybe_reply_to_mentions",
+                "Reply posted successfully",
+            ),
         ]
     )
 
@@ -658,7 +670,12 @@ def test_unresolved_schema_v3_sending_receipt_is_reported_as_recovery():
     assert "sending_unresolved" in rendered
     assert "Pre-send reply receipt remains unresolved" in rendered
     assert report["error_health"]["current_independent_incident_count"] == 1
+    assert report["error_health"]["historical_resolved_incident_count"] == 0
+    assert report["error_health"]["current_incidents"][0]["category"] == (
+        "conversational_reply_receipt_barrier"
+    )
     assert "1 unresolved operational incident" in report["summary"]["headline"]
+    assert "no unresolved operational incidents" not in report["summary"]["headline"]
 
 
 def test_confirmed_state_fallback_is_not_labelled_definite_non_success():
@@ -679,6 +696,61 @@ def test_confirmed_state_fallback_is_not_labelled_definite_non_success():
                 "identity was preserved in canonical state "
                 "source=mention target_id=123 path=/tmp/reply.json",
             ),
+            record(
+                2,
+                "CRITICAL",
+                "maybe_reply_to_mentions",
+                traceback(
+                    "Confirmed mention reply required its durable state fallback",
+                    "ConfirmedReplyLocalPersistenceError: promotion failed",
+                ),
+            ),
+        ]
+    )
+
+    rendered = digest.render_markdown(report)
+    receipt_events = report["confirmed_reply_recovery"]["receipt_events"]
+
+    assert "## Confirmed-reply recovery" in rendered
+    assert [item["kind"] for item in receipt_events] == [
+        "sending",
+        "confirmed_state_fallback_removed",
+    ]
+    assert receipt_events[1]["disposition"] == "confirmed_state_fallback"
+    assert (
+        report["summary"]["stats"][
+            "confirmed_reply_receipt_confirmed_state_fallback_removed"
+        ]
+        == 1
+    )
+    assert (
+        report["summary"]["stats"].get(
+            "confirmed_reply_receipt_sending_removed",
+            0,
+        )
+        == 0
+    )
+    assert (
+        "Confirmed replies preserved through the durable canonical-state "
+        "fallback: **1**."
+        in rendered
+    )
+    assert "Prepared reply receipts cleared after a definite non-success" not in rendered
+    assert len(report["confirmed_reply_recovery"]["warnings"]) == 1
+    assert report["error_health"]["current_independent_incident_count"] == 0
+
+
+def test_confirmed_state_fallback_removal_is_terminal_across_window_boundary():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "WARNING",
+                "remove_confirmed_reply_receipt",
+                "Removed conversational reply sending receipt after confirmed "
+                "identity was preserved in canonical state "
+                "source=quote_tweet target_id=456 path=/tmp/reply.json",
+            )
         ]
     )
 
@@ -690,7 +762,112 @@ def test_confirmed_state_fallback_is_not_labelled_definite_non_success():
         "fallback: **1**."
         in rendered
     )
-    assert "Prepared reply receipts cleared after a definite non-success" not in rendered
+    assert "Stale or unresolved confirmed-reply receipts:" not in rendered
+    assert report["error_health"]["current_independent_incident_count"] == 0
+
+
+def test_definite_non_success_removal_is_terminal_across_window_boundary():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "INFO",
+                "remove_confirmed_reply_receipt",
+                "Removed conversational reply sending receipt after definite "
+                "non-success source=mention target_id=123 path=/tmp/reply.json",
+            )
+        ]
+    )
+
+    rendered = digest.render_markdown(report)
+
+    assert "## Confirmed-reply receipt lifecycle" in rendered
+    assert (
+        "Prepared reply receipts cleared after a definite non-success: **1**."
+        in rendered
+    )
+    assert "Stale or unresolved confirmed-reply receipts:" not in rendered
+    assert report["error_health"]["current_independent_incident_count"] == 0
+
+
+def test_confirmed_receipt_removal_is_terminal_across_window_boundary():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "INFO",
+                "remove_confirmed_reply_receipt",
+                "Removed reconciled confirmed-reply receipt "
+                "source=mention target_id=123 reply_post_id=999 "
+                "path=/tmp/reply.json",
+            )
+        ]
+    )
+
+    rendered = digest.render_markdown(report)
+
+    assert "## Confirmed-reply receipt lifecycle" in rendered
+    assert (
+        "Confirmed-reply receipt removals whose opening write was outside "
+        "the observed window: **1**."
+        in rendered
+    )
+    assert "Stale or unresolved confirmed-reply receipts:" not in rendered
+    assert report["error_health"]["current_independent_incident_count"] == 0
+
+
+def test_reconciliation_start_without_terminal_event_remains_current():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "WARNING",
+                "reconcile_confirmed_reply_receipt",
+                "Reconciling confirmed reply receipt "
+                "source=quote_tweet target_id=456 reply_post_id=999",
+            )
+        ]
+    )
+
+    rendered = digest.render_markdown(report)
+
+    assert "## Confirmed-reply recovery" in rendered
+    assert "reconciliation_unresolved" in rendered
+    assert (
+        "no terminal receipt removal or completion was observed"
+        in rendered
+    )
+    assert report["error_health"]["current_independent_incident_count"] == 1
+    assert report["error_health"]["current_incidents"][0]["category"] == (
+        "conversational_reply_receipt_barrier"
+    )
+    assert "1 unresolved operational incident" in report["summary"]["headline"]
+
+
+def test_explicit_replay_suppression_completes_reconciliation_observation():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "WARNING",
+                "reconcile_confirmed_reply_receipt",
+                "Reconciling confirmed reply receipt "
+                "source=mention target_id=123 reply_post_id=999",
+            ),
+            record(
+                1,
+                "WARNING",
+                "maybe_reply_to_mentions",
+                "Reconciled confirmed reply receipt before checking new "
+                "mention candidates",
+            ),
+        ]
+    )
+
+    rendered = digest.render_markdown(report)
+
+    assert "## Confirmed-reply receipt lifecycle" in rendered
+    assert "Stale or unresolved confirmed-reply receipts:" not in rendered
     assert report["error_health"]["current_independent_incident_count"] == 0
 
 

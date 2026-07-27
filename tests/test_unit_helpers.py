@@ -5913,6 +5913,12 @@ def test_test_main_tick_stops_after_reply_safety_barrier(
     [
         ("normal", "normal", bot.AmbiguousRemotePostOutcome),
         (
+            "normal",
+            "normal",
+            bot.UnrecoverableConfirmedReplyPersistenceError,
+        ),
+        ("quote", "quote_tweet", bot.AmbiguousRemotePostOutcome),
+        (
             "quote",
             "quote_tweet",
             bot.UnrecoverableConfirmedReplyPersistenceError,
@@ -5981,6 +5987,152 @@ def test_production_reply_tick_stops_sibling_lane_on_safety_failure(
 
 
 @pytest.mark.parametrize(
+    ("priority", "first_lane", "failure_type"),
+    [
+        ("normal", "normal", bot.AmbiguousRemotePostOutcome),
+        (
+            "normal",
+            "normal",
+            bot.UnrecoverableConfirmedReplyPersistenceError,
+        ),
+        ("quote", "quote_tweet", bot.AmbiguousRemotePostOutcome),
+        (
+            "quote",
+            "quote_tweet",
+            bot.UnrecoverableConfirmedReplyPersistenceError,
+        ),
+    ],
+)
+def test_main_reply_safety_failure_reaches_top_of_loop_barrier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    priority: str,
+    first_lane: str,
+    failure_type: type[BaseException],
+) -> None:
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    current = 1_784_708_283
+    state = bot.default_state()
+    state.update(
+        {
+            "next_reply_lane_priority": priority,
+            "last_reply_epoch": 0,
+            "last_reply_check_epoch": 0,
+            "last_quote_tweet_check_epoch": 0,
+            "next_quote_post_epoch": 0,
+            "next_meme_post_epoch": 0,
+            "last_quote_post_epoch": 0,
+        }
+    )
+    sending = unit_sending_reply_receipt(
+        lane="quote_tweet" if first_lane == "quote_tweet" else "mention",
+    )
+    clock_must_not_run = False
+    context_ticks = 0
+    reply_attempts = 0
+
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "reconcile_runtime_historical_context_state", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "glob", lambda _pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "REPLY_CHECK_EVERY_SECONDS", 1)
+    monkeypatch.setattr(bot, "QUOTE_CHECK_EVERY_SECONDS", 1)
+    monkeypatch.setattr(bot, "list_meme_candidates", lambda: [])
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
+    monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (int(state_arg.get(key, 0) or 0), False),
+    )
+
+    def controlled_clock() -> int:
+        if clock_must_not_run:
+            pytest.fail("the top-of-loop barrier must run before another clock read")
+        return current
+
+    def context_tick(*_args: object, **_kwargs: object) -> list[dict]:
+        nonlocal context_ticks
+        context_ticks += 1
+        return []
+
+    def safety_failure(_state: dict) -> str:
+        nonlocal clock_must_not_run, reply_attempts
+        reply_attempts += 1
+        bot.write_sending_reply_receipt(sending)
+        clock_must_not_run = True
+        if issubclass(failure_type, bot.ApiError):
+            raise failure_type("reply safety failure", service="x")
+        raise failure_type("reply safety failure")
+
+    def later_lane(_state: dict) -> str:
+        pytest.fail("the sibling reply lane must not run after a safety failure")
+
+    monkeypatch.setattr(bot, "now_epoch", controlled_clock)
+    monkeypatch.setattr(
+        bot,
+        "safely_process_due_historical_context_obligations",
+        context_tick,
+    )
+    monkeypatch.setattr(
+        bot,
+        "maybe_reply_to_mentions",
+        safety_failure if first_lane == "normal" else later_lane,
+    )
+    monkeypatch.setattr(
+        bot,
+        "maybe_reply_to_quote_tweets",
+        safety_failure if first_lane == "quote_tweet" else later_lane,
+    )
+    monkeypatch.setattr(
+        bot,
+        "post_random_quote",
+        lambda *_args, **_kwargs: pytest.fail(
+            "main quote lane must not run after a reply safety failure"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "post_next_meme",
+        lambda _state: pytest.fail(
+            "meme lane must not run after a reply safety failure"
+        ),
+    )
+
+    class SafetyBarrierTickComplete(Exception):
+        pass
+
+    monkeypatch.setattr(
+        bot,
+        "sleep",
+        lambda _seconds: (_ for _ in ()).throw(SafetyBarrierTickComplete),
+    )
+
+    with pytest.raises(SafetyBarrierTickComplete):
+        bot.main()
+
+    assert reply_attempts == 1
+    assert context_ticks == 1
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+@pytest.mark.parametrize(
     ("priority", "first_lane", "failure_type", "expected_wait_lane"),
     [
         (
@@ -5988,6 +6140,18 @@ def test_production_reply_tick_stops_sibling_lane_on_safety_failure(
             "normal",
             bot.AmbiguousRemotePostOutcome,
             "normal_reply",
+        ),
+        (
+            "normal",
+            "normal",
+            bot.UnrecoverableConfirmedReplyPersistenceError,
+            "normal_reply",
+        ),
+        (
+            "quote",
+            "quote_tweet",
+            bot.AmbiguousRemotePostOutcome,
+            "quote_tweet_reply",
         ),
         (
             "quote",
@@ -7736,6 +7900,108 @@ def test_prepared_reply_bypass_requires_exact_receipt_text_and_target(
     assert remote_calls == 0
 
 
+@pytest.mark.parametrize(
+    "lane",
+    [
+        "regular_quote",
+        "meme",
+        "mention",
+        "quote_tweet",
+        "historical_context",
+        "direct_create",
+        "direct_media_upload",
+    ],
+)
+def test_sending_reply_receipt_blocks_each_remote_lane_before_preparation(
+    monkeypatch: pytest.MonkeyPatch,
+    lane: str,
+) -> None:
+    import historical_context_formatter
+
+    sending = unit_sending_reply_receipt()
+    bot.write_sending_reply_receipt(sending)
+    calls: list[str] = []
+
+    def prepared(name: str) -> None:
+        calls.append(name)
+        pytest.fail(f"{name} preparation must not run through a sending receipt")
+
+    if lane == "regular_quote":
+        monkeypatch.setattr(
+            bot,
+            "reconcile_main_post_receipts",
+            lambda *_args: prepared("receipt reconciliation"),
+        )
+        invoke = lambda: bot.post_random_quote(set(), set(), bot.default_state())
+    elif lane == "meme":
+        monkeypatch.setattr(
+            bot,
+            "both_main_post_receipts_exist",
+            lambda: prepared("meme receipt check"),
+        )
+        invoke = lambda: bot.post_next_meme(bot.default_state())
+    elif lane == "mention":
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(
+            bot,
+            "get_mentions",
+            lambda *_args: prepared("mention fetch"),
+        )
+        invoke = lambda: bot.maybe_reply_to_mentions(bot.default_state())
+    elif lane == "quote_tweet":
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+        monkeypatch.setattr(
+            bot,
+            "build_quote_lookup_post_ids",
+            lambda *_args: prepared("quote lookup"),
+        )
+        invoke = lambda: bot.maybe_reply_to_quote_tweets(bot.default_state())
+    elif lane == "historical_context":
+        monkeypatch.setattr(
+            bot,
+            "historical_context_reply",
+            {**bot.historical_context_reply, "enabled": True},
+        )
+        monkeypatch.setattr(
+            historical_context_formatter,
+            "load_and_validate_corpus",
+            lambda *_args: prepared("historical research load"),
+        )
+        invoke = lambda: bot.maybe_post_historical_context_reply(
+            quote_hash="a" * 64,
+            quote_text="Quote",
+            parent_post_id="123",
+        )
+    elif lane == "direct_create":
+        monkeypatch.setattr(
+            bot,
+            "x_request",
+            lambda *_args, **_kwargs: prepared("X request"),
+        )
+        invoke = lambda: bot.create_post("test")
+    else:
+        monkeypatch.setattr(
+            bot,
+            "upload_media_v2",
+            lambda *_args, **_kwargs: prepared("media upload"),
+        )
+        monkeypatch.setattr(
+            bot,
+            "upload_media_v1_1",
+            lambda *_args, **_kwargs: prepared("media upload fallback"),
+        )
+        invoke = lambda: bot.upload_media("image.png")
+
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="unresolved conversational-reply",
+    ):
+        invoke()
+
+    assert calls == []
+
+
 def test_conversational_reply_template_must_match_declared_lane(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -8025,6 +8291,93 @@ def test_reply_sigint_is_delivered_only_after_confirmed_receipt(
     assert bot.load_confirmed_reply_receipt() == ("absent", None)
     assert state["replied_to_ids"] == ["100"]
     assert state["own_auto_reply_ids"] == ["999"]
+
+
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+def test_reply_sigint_during_confirmed_promotion_reconciles_without_duplicate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lane: str,
+) -> None:
+    sending = unit_sending_reply_receipt(lane=lane)
+    original_atomic_write = bot.atomic_write_json
+    original_begin = bot.begin_confirmed_post_sigint_deferral
+    prior_handler = signal.getsignal(signal.SIGINT)
+    guard_holder: dict[str, bot.ConfirmedPostSigintDeferral] = {}
+    remote_calls = 0
+
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+
+    def begin_deferral() -> bot.ConfirmedPostSigintDeferral:
+        guard = original_begin()
+        guard_holder["guard"] = guard
+        return guard
+
+    def interrupt_after_confirmed_promotion(
+        path: Path,
+        data: object,
+        **kwargs: object,
+    ) -> None:
+        original_atomic_write(path, data, **kwargs)
+        if (
+            path == bot.CONFIRMED_REPLY_RECEIPT_FILE
+            and isinstance(data, dict)
+            and data.get("lifecycle_state") == "confirmed"
+        ):
+            guard_holder["guard"].handle(signal.SIGINT, None)
+
+    def confirmed_remote(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal remote_calls
+        remote_calls += 1
+        return {"data": {"id": "999"}}
+
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin_deferral)
+    monkeypatch.setattr(bot, "atomic_write_json", interrupt_after_confirmed_promotion)
+    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            bot.post_conversational_reply_with_durable_identity(
+                state=bot.default_state(),
+                receipt_template=sending,
+                reply_text=str(sending["reply_text"]),
+                reply_to_id=str(sending["target_id"]),
+                made_with_ai=False,
+                lane=lane,
+            )
+    finally:
+        signal.signal(signal.SIGINT, prior_handler)
+
+    status, receipt = bot.load_confirmed_reply_receipt()
+    assert status == "valid"
+    assert receipt is not None
+    assert receipt["reply_post_id"] == "999"
+    assert remote_calls == 1
+
+    restarted_state = bot.default_state()
+    restarted_state["daily_reply_date"] = str(receipt["daily_reply_date"])
+    if lane == "quote_tweet":
+        restarted_state["daily_quote_reply_date"] = str(
+            receipt["daily_quote_reply_date"]
+        )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda *_args, **_kwargs: pytest.fail(
+            "confirmed receipt restart reconciliation must not repeat X"
+        ),
+    )
+
+    assert bot.reconcile_confirmed_reply_receipt(restarted_state) is True
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+    assert restarted_state["own_auto_reply_ids"] == ["999"]
+    if lane == "quote_tweet":
+        assert restarted_state["replied_to_quote_post_ids"] == ["100"]
+        assert restarted_state["seen_quote_post_ids"] == ["100"]
+    else:
+        assert restarted_state["replied_to_ids"] == ["100"]
+    assert remote_calls == 1
 
 
 def test_remove_reply_receipt_refuses_changed_transaction() -> None:
