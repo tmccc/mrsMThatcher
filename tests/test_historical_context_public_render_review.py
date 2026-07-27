@@ -92,27 +92,27 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     assert summary["render_failure_count"] == 0
     assert summary["item_blocker_count"] == 0
     assert summary["source_distribution"] == {
-        "0": 98, "1": 478, "2": 48, "3": 3,
+        "0": 91, "1": 507, "2": 26, "3": 3,
     }
-    assert summary["packets_with_source_merges"] == 249
-    assert summary["merged_internal_source_record_count"] == 373
-    assert summary["identity_ambiguity_count"] == 66
-    assert summary["packets_with_identity_ambiguities"] == 52
-    assert summary["packets_with_no_reliable_source"] == 98
-    assert summary["eligible_packets_with_no_reliable_source"] == 87
-    assert summary["packets_with_multiple_public_sources"] == 51
-    assert summary["packets_with_generic_context"] == 444
-    assert summary["packets_with_generic_context_and_public_source"] == 346
+    assert summary["packets_with_source_merges"] == 453
+    assert summary["merged_internal_source_record_count"] == 1035
+    assert summary["identity_ambiguity_count"] == 19
+    assert summary["packets_with_identity_ambiguities"] == 17
+    assert summary["packets_with_no_reliable_source"] == 91
+    assert summary["eligible_packets_with_no_reliable_source"] == 80
+    assert summary["packets_with_multiple_public_sources"] == 29
+    assert summary["packets_with_generic_context"] == 145
+    assert summary["packets_with_generic_context_and_public_source"] == 54
     assert summary[
         "packets_with_generic_context_and_event_or_date_evidence"
     ] == 0
-    assert summary["packets_with_generic_context_and_exact_verification"] == 144
+    assert summary["packets_with_generic_context_and_exact_verification"] == 5
     assert summary["duplicate_full_public_reply_group_count"] == 1
-    assert summary["packets_with_urlless_public_sources"] == 167
-    assert summary["urlless_public_source_entry_count"] == 175
-    assert summary["packets_with_generic_mtf_document_titles"] == 176
-    assert summary["generic_mtf_document_title_entry_count"] == 180
-    assert summary["packets_with_reused_identity_display_variants"] == 227
+    assert summary["packets_with_urlless_public_sources"] == 59
+    assert summary["urlless_public_source_entry_count"] == 67
+    assert summary["packets_with_generic_mtf_document_titles"] == 25
+    assert summary["generic_mtf_document_title_entry_count"] == 25
+    assert summary["packets_with_reused_identity_display_variants"] == 135
     assert summary["editorial_queue_category_count"] == 9
     assert summary["url_like_public_title_count"] == 0
     assert summary["mtf_page_title_chrome_count"] == 0
@@ -149,7 +149,7 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
         for entry in entries.values()
         if entry["template_variant"] == "compact_generic_context_omitted"
     ]
-    assert len(generic_omissions) == 444
+    assert len(generic_omissions) == 145
     assert all(
         "Context — The surviving attribution does not establish an occasion, "
         "date or immediate historical issue."
@@ -157,7 +157,7 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
         for entry in generic_omissions
     )
     known = entries[KNOWN_107352_ID]
-    assert known["internal_source_record_count"] == 2
+    assert known["internal_source_record_count"] == 3
     assert len(known["canonical_source_groups"]) == 1
     assert known["public_source_count"] == 1
     assert known["public_text"].count("Source —") == 1
@@ -170,9 +170,9 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
 
     hansard = entries[KNOWN_HANSARD_ID]
     assert hansard["internal_source_record_count"] == 3
-    assert len(hansard["canonical_source_groups"]) == 1
-    assert hansard["public_source_count"] == 1
-    assert hansard["public_text"].count("Source —") == 1
+    assert len(hansard["canonical_source_groups"]) == 2
+    assert hansard["public_source_count"] == 2
+    assert hansard["public_text"].count("Source —") == 2
     assert hansard["public_text"].count(
         "https://publications.parliament.uk/pa/cm199091/cmhansrd/"
         "1990-11-22/Debate-3.html"

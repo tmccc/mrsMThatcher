@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "diff_kind": "mtf_live_context_admission_semantic_diff",
+  "production_base_commit": "99c141d7fc9cd85478c1f70510db8311cdebd4ef",
+  "reviewed_quote_count": 422,
+  "changed_packet_count": 422,
+  "unrelated_changed_packet_count": 0,
+  "packet_field_change_counts": {
+    "immediate_subject": 422,
+    "stable_locator": 391,
+    "date": 349,
+    "source_event": 284,
+    "speaker": 7
+  },
+  "quotation_text_change_count": 0,
+  "meaning_change_count": 0,
+  "verification_status_change_count": 0,
+  "curated_source_count_before": 36,
+  "curated_source_count_after": 443,
+  "new_curated_source_count": 407,
+  "upgraded_curated_source_count": 15,
+  "gate": {
+    "blocked_count_before": 21,
+    "blocked_count_after": 13,
+    "added_quote_ids": [],
+    "removed_quote_ids": [
+      "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+      "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+      "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+      "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+      "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+      "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+      "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f"
+    ]
+  },
+  "unresolved_count_before": 5,
+  "unresolved_count_after": 5,
+  "unresolved_membership_unchanged": true,
+  "ordinary_cycle_count_before": 611,
+  "ordinary_cycle_count_after": 611,
+  "ordinary_cycle_membership_and_order_unchanged": true
+}

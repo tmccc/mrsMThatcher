@@ -27,8 +27,8 @@ from semantic_alignment.historical_context_formatter_trial import (
 
 RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
 V1_GOLDEN_OUTPUTS = {
-    "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d": "fe5f562f0e3d17ba186974315c61e8ac973f35524fdfd2c368839c22db0a8929",
-    "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b": "c9bf51816d04492e809977a25d5da827685f1b4edb5cdce56db24c80675f4b4d",
+    "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d": "12a7f59258368688c1c87e648c9868bc1b70f4ce6917a0df9f5e0ac518622fc9",
+    "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b": "2e0fe6193506d15aeaeda83a5024d6a19f5eec664686fb3b25733b9aca9325a1",
     "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b": "123bc7e6455a36ef82d14ed2c47ba1e14cc515402bf91ef51b8f897568258a34",
 }
 REVIEWED_MEANING_REASON_CHANGES = {
@@ -113,6 +113,9 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
     mtf_corpus_transition = read_json(
         Path("historical_context_v9_mtf_corpus_evidence_transition_manifest.json")
     )["items"]
+    mtf_live_transition = read_json(
+        Path("historical_context_v9_mtf_live_context_transition_manifest.json")
+    )["items"]
     source_role_audit = read_json(
         RESEARCH / "historical_context_source_role_audit.json"
     )["items"]
@@ -133,7 +136,10 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
         "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
     }
     assert set(frozen) == set(packets) - newly_completed
-    assert set(transition) | set(mtf_corpus_transition) == independently_reviewed_ids
+    assert (
+        set(transition) | set(mtf_corpus_transition) | set(mtf_live_transition)
+        == independently_reviewed_ids
+    )
     assert len(transition) == 12
     for quote_id, packet in packets.items():
         actual = v1.format_context_reply_v2(packet)
@@ -159,6 +165,22 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
                 correction["corrected_value"],
                 1,
             )
+        if quote_id in mtf_live_transition:
+            reviewed = mtf_live_transition[quote_id]
+            assert actual["source_omitted"] is False
+            assert actual["formatter_version"] == v1.HISTORICAL_CONTEXT_FORMATTER_V2
+            assert reviewed["quote_text_sha256"] == quote_id
+            assert reviewed["current_public_context_supported_fields"] == (
+                source_role_audit[quote_id][
+                    "public_context_supported_fields"
+                ]
+            )
+            assert len(reviewed["source_bindings"]) == 1
+            assert reviewed["source_bindings"][0]["source_id"] in {
+                source["source_id"]
+                for source in source_role_audit[quote_id]["curated_sources"]
+            }
+            continue
         if quote_id in transition:
             reviewed = transition[quote_id]
             assert hashlib.sha256(

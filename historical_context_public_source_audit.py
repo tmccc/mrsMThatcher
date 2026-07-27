@@ -332,6 +332,32 @@ def _group_identity_conflicts(
         semantic_source_types = sorted(
             set(source_types).difference(_EVIDENCE_RECORD_SOURCE_TYPES)
         )
+        reviewed_primary_sources = [
+            member
+            for member in members
+            if (
+                _clean(member.get("source_type")).casefold()
+                == "official_primary_transcript"
+                and member.get("source_quality_class")
+                == "strong_primary_evidence"
+                and int(member.get("supporting_passage_count", 0)) > 0
+                and member.get("authoritative_urls")
+                and member.get("document_numbers")
+                and member.get("date_identities")
+                and member.get("locator_components")
+                and {
+                    "wording", "attribution", "historical_context",
+                }.issubset(set(member.get("claims_supported", [])))
+            )
+        ]
+        reviewed_primary_consolidation = bool(
+            len(reviewed_primary_sources) == 1
+            and all(
+                set(member.get("claims_supported", []))
+                <= set(reviewed_primary_sources[0].get("claims_supported", []))
+                for member in members
+            )
+        )
         reasons: list[str] = []
         if len(document_numbers) > 1:
             reasons.append("different_document_numbers")
@@ -362,7 +388,10 @@ def _group_identity_conflicts(
             reasons.append("different_authoritative_urls_without_shared_identifier")
         if len(publishers) > 1:
             reasons.append("different_publishers")
-        if len(semantic_source_types) > 1:
+        if (
+            len(semantic_source_types) > 1
+            and not reviewed_primary_consolidation
+        ):
             reasons.append("different_semantic_source_types")
         recollection_states = {
             bool(member.get("secondary_recollection")) for member in members
@@ -381,7 +410,10 @@ def _group_identity_conflicts(
                     for member in recollection_members
                 )
             )
-            if not same_document_locator_projection:
+            if (
+                not same_document_locator_projection
+                and not reviewed_primary_consolidation
+            ):
                 reasons.append("primary_and_recollection_documents_merged")
         if reasons:
             conflicts.append({

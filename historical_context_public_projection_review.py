@@ -51,6 +51,9 @@ STATECRAFT_TRANSITION_MANIFEST_PATH = (
 MTF_TRANSITION_MANIFEST_PATH = (
     ROOT / "historical_context_v9_mtf_corpus_evidence_transition_manifest.json"
 )
+MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH = (
+    ROOT / "historical_context_v9_mtf_live_context_transition_manifest.json"
+)
 POST_V9_TRANSITION_KIND = (
     "historical_context_v9_reviewed_evidence_transition"
 )
@@ -169,6 +172,9 @@ MTF_BASELINE_CURATED_SOURCE_IDS_SHA256 = (
 )
 MTF_TRANSITION_MANIFEST_SHA256 = (
     "10d9955279e41a0908475bb083f5a0c93bddabbe152767c74c5a18da39dbdafd"
+)
+MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_SHA256 = (
+    "ebcc1e793ec710067084831f84236b7599edf08b5236eca2dd98be8ae4124436"
 )
 POST_V9_INPUT_NAMES = (
     "corpus_manifest.json",
@@ -341,6 +347,26 @@ def _load_post_v9_transition_manifest(
     return value
 
 
+def _manifest_bindings(
+    manifest: dict[str, Any],
+) -> dict[str, tuple[str, str]]:
+    """Return the exact one-source binding map from a hash-bound transition."""
+    bindings: dict[str, tuple[str, str]] = {}
+    for quote_id, item in manifest.get("items", {}).items():
+        rows = item.get("source_bindings") if isinstance(item, dict) else None
+        if not isinstance(rows, list) or len(rows) != 1:
+            raise RuntimeError("post-v9 transition binding cardinality differs")
+        source_id = _clean(rows[0].get("source_id"))
+        candidate_id = _clean(rows[0].get("source_review_candidate_id"))
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", source_id)
+            or not re.fullmatch(r"[0-9a-f]{64}", candidate_id)
+        ):
+            raise RuntimeError("post-v9 transition binding identity differs")
+        bindings[str(quote_id)] = (source_id, candidate_id)
+    return bindings
+
+
 def _public_fields_without_sources(
     audit: dict[str, Any],
     excluded_source_ids: set[str],
@@ -385,6 +411,8 @@ def _validate_post_v9_transition(
     expected_declared_baseline_fields: (
         dict[str, list[str]] | None
     ) = None,
+    expected_existing_source_ids: set[str] | None = None,
+    allow_transition_overlap: bool = False,
 ) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
     """Validate and apply one hash-bound, disjoint post-v9 transition."""
     items = manifest["items"]
@@ -400,7 +428,7 @@ def _validate_post_v9_transition(
         f"{quote_id}\n" for quote_id in sorted(transition_ids)
     ).encode("utf-8")).hexdigest()
     if (
-        transition_ids & historical_transition_ids
+        (transition_ids & historical_transition_ids and not allow_transition_overlap)
         or not transition_ids <= set(packets)
         or set(manifest.get("input_hashes", {})) != set(POST_V9_INPUT_NAMES)
         or manifest.get("input_hashes") != expected_input_hashes
@@ -423,15 +451,20 @@ def _validate_post_v9_transition(
     }
     later_source_ids = set(later_source_ids or ())
     active_curated_source_ids = all_curated_source_ids - later_source_ids
-    baseline_source_ids = all_curated_source_ids - reviewed_source_ids
+    existing_source_ids = set(expected_existing_source_ids or ())
+    if not existing_source_ids <= reviewed_source_ids:
+        raise RuntimeError("post-v9 existing source scope differs")
+    new_reviewed_source_ids = reviewed_source_ids - existing_source_ids
+    baseline_source_ids = all_curated_source_ids - new_reviewed_source_ids
     baseline_source_ids -= later_source_ids
     baseline_source_ids_hash = hashlib.sha256("".join(
         f"{source_id}\n" for source_id in sorted(baseline_source_ids)
     ).encode("utf-8")).hexdigest()
     if (
         len(active_curated_source_ids)
-        != expected_baseline_source_count + len(reviewed_source_ids)
+        != expected_baseline_source_count + len(new_reviewed_source_ids)
         or len(baseline_source_ids) != expected_baseline_source_count
+        or not existing_source_ids <= baseline_source_ids
         or baseline_source_ids_hash
         != expected_baseline_source_ids_sha256
     ):
@@ -443,6 +476,7 @@ def _validate_post_v9_transition(
     seen_candidate_ids: set[str] = set()
     source_addition_count = 0
     public_field_change_count = 0
+    binding_action_counts: Counter[str] = Counter()
     for quote_id in sorted(transition_ids):
         item = items[quote_id]
         if not isinstance(item, dict):
@@ -495,18 +529,27 @@ def _validate_post_v9_transition(
             raise RuntimeError(
                 f"post-v9 transition binding is not reviewed for {quote_id}"
             )
-        curated_pairs = {
-            (
-                _clean(source.get("source_id")),
-                _clean(source.get("source_review_candidate_id")),
+        binding_action = item.get("binding_action")
+        if expected_existing_source_ids is not None:
+            expected_action = (
+                "upgraded_existing_curated_source"
+                if canonical_bindings[0]["source_id"] in existing_source_ids
+                else "admitted_new_curated_source"
             )
+            if binding_action != expected_action:
+                raise RuntimeError(
+                    f"post-v9 transition action differs for {quote_id}"
+                )
+            binding_action_counts[binding_action] += 1
+        curated_pairs = {
+            (_clean(source.get("source_id")), candidate_id)
             for source in curated_items.get(quote_id, {}).get("sources", [])
             if isinstance(source, dict)
-            and (
-                _clean(source.get("source_id")),
+            for candidate_id in {
                 _clean(source.get("source_review_candidate_id")),
-            )
-            in declared_pairs
+                _clean(source.get("prior_source_review_candidate_id")),
+            }
+            if (_clean(source.get("source_id")), candidate_id) in declared_pairs
         }
         audit = packets[quote_id]["_source_role_audit"]
         audited_source_ids = {
@@ -552,11 +595,22 @@ def _validate_post_v9_transition(
             "v9_baseline_public_context_supported_fields": baseline_fields,
         })
 
-    if manifest.get("counts") != {
-        "transition_packets": len(transition_ids),
-        "source_additions": source_addition_count,
-        "public_field_changes": public_field_change_count,
-    }:
+    expected_counts = (
+        {
+            "transition_packets": len(transition_ids),
+            "source_bindings": source_addition_count,
+            "new_curated_sources": len(new_reviewed_source_ids),
+            "upgraded_curated_sources": len(existing_source_ids),
+            "public_field_changes": public_field_change_count,
+        }
+        if expected_existing_source_ids is not None
+        else {
+            "transition_packets": len(transition_ids),
+            "source_additions": source_addition_count,
+            "public_field_changes": public_field_change_count,
+        }
+    )
+    if manifest.get("counts") != expected_counts:
         raise RuntimeError("post-v9 transition counts differ")
     return baseline_field_map, records
 
@@ -736,6 +790,9 @@ def build_review(
     mtf_transition = _load_post_v9_transition_manifest(
         MTF_TRANSITION_MANIFEST_PATH
     )
+    mtf_live_context_transition = _load_post_v9_transition_manifest(
+        MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH
+    )
     packets, _ = load_and_validate_corpus(
         research_dir,
         require_source_role_audit=True,
@@ -757,6 +814,31 @@ def build_review(
         )
     }
     independently_reviewed_ids -= set(MTF_REVIEWED_BINDINGS)
+    mtf_live_context_bindings: dict[str, tuple[str, str]] = {}
+    mtf_live_context_source_ids: set[str] = set()
+    mtf_live_context_new_source_ids: set[str] = set()
+    if mtf_live_context_transition is not None:
+        if (
+            _file_sha256(MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH)
+            != MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_SHA256
+        ):
+            raise RuntimeError("frozen live-MTF context transition differs")
+        mtf_live_context_bindings = _manifest_bindings(
+            mtf_live_context_transition
+        )
+        independently_reviewed_ids -= (
+            set(mtf_live_context_bindings) - transition_ids
+        )
+        mtf_live_context_source_ids = {
+            source_id
+            for source_id, _candidate_id
+            in mtf_live_context_bindings.values()
+        }
+        mtf_live_context_new_source_ids = {
+            item["source_bindings"][0]["source_id"]
+            for item in mtf_live_context_transition["items"].values()
+            if item.get("binding_action") == "admitted_new_curated_source"
+        }
     current_field_map = {
         quote_id: list(
             packet["_source_role_audit"].get(
@@ -775,6 +857,46 @@ def build_review(
         source_id for source_id, _candidate_id
         in MTF_REVIEWED_BINDINGS.values()
     }
+    pre_live_post_v9_quote_ids = (
+        set(POST_V9_REVIEWED_BINDINGS)
+        | set(STATECRAFT_REVIEWED_BINDINGS)
+        | set(MTF_REVIEWED_BINDINGS)
+    )
+    if mtf_live_context_transition is not None:
+        existing_ids = (
+            mtf_live_context_source_ids - mtf_live_context_new_source_ids
+        )
+        historical_v9_field_map, live_context_records = (
+            _validate_post_v9_transition(
+                mtf_live_context_transition,
+                packets=packets,
+                curated=curated,
+                current_field_map=historical_v9_field_map,
+                historical_transition_ids=transition_ids,
+                expected_input_hashes=_post_v9_input_hashes(research_dir),
+                expected_bindings=mtf_live_context_bindings,
+                expected_baseline_source_count=(
+                    mtf_live_context_transition[
+                        "baseline_curated_source_count"
+                    ]
+                ),
+                expected_baseline_source_ids_sha256=(
+                    mtf_live_context_transition[
+                        "baseline_curated_source_ids_sha256"
+                    ]
+                ),
+                expected_declared_baseline_fields={
+                    quote_id: list(
+                        item["v9_baseline_public_context_supported_fields"]
+                    )
+                    for quote_id, item
+                    in mtf_live_context_transition["items"].items()
+                },
+                expected_existing_source_ids=existing_ids,
+                allow_transition_overlap=True,
+            )
+        )
+        post_v9_records.extend(live_context_records)
     if mtf_transition is not None:
         if (
             _file_sha256(MTF_TRANSITION_MANIFEST_PATH)
@@ -786,9 +908,9 @@ def build_review(
                 mtf_transition,
                 packets=packets,
                 curated=curated,
-                current_field_map=current_field_map,
+                current_field_map=historical_v9_field_map,
                 historical_transition_ids=transition_ids,
-                expected_input_hashes=_post_v9_input_hashes(research_dir),
+                expected_input_hashes=mtf_transition["input_hashes"],
                 expected_bindings=MTF_REVIEWED_BINDINGS,
                 expected_baseline_source_count=(
                     MTF_BASELINE_CURATED_SOURCE_COUNT
@@ -802,6 +924,7 @@ def build_review(
                     )
                     for quote_id, item in mtf_transition["items"].items()
                 },
+                later_source_ids=mtf_live_context_new_source_ids,
             )
         )
         post_v9_records.extend(mtf_records)
@@ -824,7 +947,9 @@ def build_review(
                 expected_declared_baseline_fields={
                     quote_id: [] for quote_id in STATECRAFT_REVIEWED_BINDINGS
                 },
-                later_source_ids=mtf_source_ids,
+                later_source_ids=(
+                    mtf_source_ids | mtf_live_context_new_source_ids
+                ),
             )
         )
         post_v9_records.extend(statecraft_records)
@@ -849,7 +974,17 @@ def build_review(
                 expected_baseline_source_ids_sha256=(
                     POST_V9_BASELINE_CURATED_SOURCE_IDS_SHA256
                 ),
-                later_source_ids=statecraft_source_ids | mtf_source_ids,
+                expected_declared_baseline_fields={
+                    quote_id: list(
+                        item["v9_baseline_public_context_supported_fields"]
+                    )
+                    for quote_id, item in post_v9_transition["items"].items()
+                },
+                later_source_ids=(
+                    statecraft_source_ids
+                    | mtf_source_ids
+                    | mtf_live_context_new_source_ids
+                ),
             )
         )
         post_v9_records.extend(local_book_records)
@@ -899,19 +1034,37 @@ def build_review(
         if audit.get("policy_version") != V9_POLICY:
             raise RuntimeError(f"unexpected source-role policy for {quote_id}")
         transition_item = transition_items.get(quote_id)
-        v7_fields = (
-            list(historical_v9_field_map[quote_id])
-            if (
-                transition_item is None
-                and quote_id in post_v9_quote_ids
-                and quote_id not in MTF_REVIEWED_BINDINGS
-            )
-            else _v7_public_context_supported_fields(
+        live_context_item = (
+            mtf_live_context_transition["items"].get(quote_id)
+            if mtf_live_context_transition is not None
+            else None
+        )
+        if transition_item is not None:
+            v7_fields = _v7_public_context_supported_fields(
                 packet,
                 transition_item,
                 later_source_ids=post_v9_source_ids,
             )
-        )
+        elif (
+            live_context_item is not None
+            and quote_id not in pre_live_post_v9_quote_ids
+        ):
+            v7_fields = list(
+                live_context_item[
+                    "v7_baseline_public_context_supported_fields"
+                ]
+            )
+        elif (
+            quote_id in post_v9_quote_ids
+            and quote_id not in MTF_REVIEWED_BINDINGS
+        ):
+            v7_fields = list(historical_v9_field_map[quote_id])
+        else:
+            v7_fields = _v7_public_context_supported_fields(
+                packet,
+                transition_item,
+                later_source_ids=post_v9_source_ids,
+            )
         v9_fields = list(historical_v9_field_map[quote_id])
         v8_fields = (
             list(transition_item["v8_public_context_supported_fields"])
@@ -939,9 +1092,17 @@ def build_review(
                 })
         if v7_fields == v9_fields:
             continue
+        historical_render_source_ids = (
+            mtf_source_ids | mtf_live_context_new_source_ids
+        )
         render_packet = (
-            _packet_without_later_sources(packet, mtf_source_ids, v9_fields)
-            if quote_id in MTF_REVIEWED_BINDINGS
+            _packet_without_later_sources(
+                packet, historical_render_source_ids, v9_fields
+            )
+            if (
+                quote_id in MTF_REVIEWED_BINDINGS
+                or quote_id in mtf_live_context_bindings
+            )
             else packet
         )
         rendered = format_context_reply_public(render_packet)
@@ -1064,14 +1225,16 @@ def build_review(
         "all_64_date_only_contexts_are_safe": flag_counts[
             "safe_date_only_context"
         ] == 64,
-        "date_only_precision_is_59_day_3_month_2_year": (
+        "date_only_precision_is_60_day_2_month_2_year": (
             date_precision_counts
-            == {"day": 59, "month": 3, "year": 2}
+            == {"day": 60, "month": 2, "year": 2}
         ),
         "v8_to_v9_field_change_count_is_6": len(incremental_records) == 6,
-        "post_v9_transition_is_disjoint": not (
+        "post_v9_transition_overlap_is_explicit": (
             set(transition_items)
             & {record["quote_id"] for record in post_v9_records}
+        ) == (
+            set(transition_items) & set(mtf_live_context_bindings)
         ),
         "post_v9_projections_are_safe": all(
             not blocker_flags & set(record["presentation_flags"])
@@ -1079,13 +1242,12 @@ def build_review(
             and bool(record["public_sources"])
             for record in post_v9_records
         ),
-        "b32_uses_safe_fallback": (
+        "b32_uses_reviewed_event_context": (
             by_id.get(B32_QUOTE_ID, {}).get("context_line")
-            == SAFE_EVENT_ONLY_FALLBACK
-            and all(
-                marker not in by_id[B32_QUOTE_ID]["context_line"]
-                for marker in ("1979", "1984", "/")
-            )
+            == "Context — TV Interview for BBC1 Panorama."
+            and "safe_event_only_context"
+            in by_id[B32_QUOTE_ID]["presentation_flags"]
+            and B32_QUOTE_ID in mtf_live_context_bindings
         ),
         "clean_event_only_context_is_preserved": (
             by_id.get(CLEAN_EVENT_ONLY_QUOTE_ID, {}).get("context_line")
@@ -1108,10 +1270,16 @@ def build_review(
             for record in records
         ),
         "no_duplicate_full_reply": not duplicate_full_replies,
-        "manual_hint_count_is_9": len(manual_hints) == 9,
+        "manual_hint_count_matches_remaining_review_set": (
+            len(manual_hints)
+            == len(EXPECTED_MANUAL_HINT_IDS - set(mtf_live_context_bindings))
+        ),
         "manual_hint_ids_match_reviewed_set": (
             {row["quote_id"] for row in manual_hints}
-            == EXPECTED_MANUAL_HINT_IDS
+            == (
+                EXPECTED_MANUAL_HINT_IDS
+                - set(mtf_live_context_bindings)
+            )
         ),
         "manual_hints_do_not_promote_fields": all(
             row["promotes_public_fields"] is False for row in manual_hints
@@ -1147,6 +1315,10 @@ def build_review(
         input_hashes[MTF_TRANSITION_MANIFEST_PATH.name] = _file_sha256(
             MTF_TRANSITION_MANIFEST_PATH
         )
+    if mtf_live_context_transition is not None:
+        input_hashes[
+            MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH.name
+        ] = _file_sha256(MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH)
     counts = {
         "change_count": len(records),
         "date_only_day_precision_count": date_precision_counts["day"],
@@ -1242,6 +1414,7 @@ def _validate_output_path(
             "historical_context_v8_v9_transition_manifest.json",
             "historical_context_v9_local_book_evidence_transition_manifest.json",
             "historical_context_v9_mtf_corpus_evidence_transition_manifest.json",
+            "historical_context_v9_mtf_live_context_transition_manifest.json",
             "historical_context_v9_statecraft_primary_transition_manifest.json",
             "historical_context_source_roles.py",
             "mrsMThatcher.txt",

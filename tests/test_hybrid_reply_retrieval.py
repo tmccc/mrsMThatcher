@@ -40,7 +40,7 @@ def test_corpus_invariants_and_unresolved_exclusion():
     assert len(unresolved) == 5
     assert set(packets).isdisjoint(unresolved)
     assert metadata["research_packets_sha256"] == (
-        "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291"
+        "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e"
     )
 
 

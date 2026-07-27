@@ -217,8 +217,8 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     assert audit["schema_version"] == 2
     decomposition = audit["records"]["unsupported_claim_decomposition"]
     decomposition_counts = audit["unsupported_claim_counts"]
-    assert len(decomposition) == 1495
-    assert audit["counts"]["unsupported_claim_decomposition_count"] == 1495
+    assert len(decomposition) == 437
+    assert audit["counts"]["unsupported_claim_decomposition_count"] == 437
     claim_keys = [row["claim_key"] for row in decomposition]
     assert claim_keys == sorted(claim_keys)
     assert len(claim_keys) == len(set(claim_keys))
@@ -231,48 +231,48 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     }
     assert all(not row["supporting_internal_source_ids"] for row in decomposition)
     assert all(not row["supporting_renderable_source_ids"] for row in decomposition)
-    assert decomposition_counts["total"] == 1495
+    assert decomposition_counts["total"] == 437
     assert decomposition_counts[
         "intended_argument_or_meaning_claims_in_this_1539_count"
     ] == 0
     assert decomposition_counts["by_field"] == {
-        "source_event": 467,
-        "date": 403,
-        "historical_context": 625,
+        "source_event": 128,
+        "date": 106,
+        "historical_context": 203,
     }
     assert decomposition_counts["by_attribution_eligibility"] == {
-        "eligible": 1460,
+        "eligible": 402,
         "ineligible": 35,
     }
     assert decomposition_counts["by_public_reachability"] == {
-        "currently_rendered_exact_occurrence": 112,
-        "formatter_reachable_but_suppressed": 722,
-        "internal_only_or_unreachable": 661,
+        "currently_rendered_exact_occurrence": 9,
+        "formatter_reachable_but_suppressed": 196,
+        "internal_only_or_unreachable": 232,
     }
     assert decomposition_counts["by_field_and_public_reachability"] == {
         "source_event": {
-            "currently_rendered_exact_occurrence": 111,
-            "formatter_reachable_but_suppressed": 328,
-            "internal_only_or_unreachable": 28,
+            "currently_rendered_exact_occurrence": 9,
+            "formatter_reachable_but_suppressed": 98,
+            "internal_only_or_unreachable": 21,
         },
         "date": {
-            "currently_rendered_exact_occurrence": 1,
-            "formatter_reachable_but_suppressed": 393,
+            "currently_rendered_exact_occurrence": 0,
+            "formatter_reachable_but_suppressed": 97,
             "internal_only_or_unreachable": 9,
         },
         "historical_context": {
             "currently_rendered_exact_occurrence": 0,
             "formatter_reachable_but_suppressed": 1,
-            "internal_only_or_unreachable": 624,
+            "internal_only_or_unreachable": 202,
         },
     }
     assert decomposition_counts[
         "by_attribution_eligibility_and_public_reachability"
     ] == {
         "eligible": {
-            "currently_rendered_exact_occurrence": 112,
-            "formatter_reachable_but_suppressed": 722,
-            "internal_only_or_unreachable": 626,
+            "currently_rendered_exact_occurrence": 9,
+            "formatter_reachable_but_suppressed": 196,
+            "internal_only_or_unreachable": 197,
         },
         "ineligible": {
             "currently_rendered_exact_occurrence": 0,
@@ -283,58 +283,44 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     assert decomposition_counts["by_current_public_surface"] == {
         "context": 0,
         "meaning": 0,
-        "source_title": 112,
+        "source_title": 9,
         "source_url": 0,
     }
     assert decomposition_counts["by_current_public_exposure_kind"] == {
-        "bibliographic_exact_occurrence": 112,
+        "bibliographic_exact_occurrence": 9,
     }
     assert decomposition_counts["by_evidence_state"] == {
-        "no_audited_source_claim": 1495,
+        "no_audited_source_claim": 437,
         "internal_source_claim_only": 0,
         "renderable_source_claim_not_admitted": 0,
     }
     assert decomposition_counts["by_context_slot_reachability"] == {
-        "currently_rendered_exact_occurrence": 112,
-        "formatter_slot_reachable_but_not_currently_exposed": 1348,
+        "currently_rendered_exact_occurrence": 9,
+        "formatter_slot_reachable_but_not_currently_exposed": 393,
         "production_ineligible": 35,
         "formatter_slot_unreachable": 0,
     }
     assert decomposition_counts["by_exclusive_unreachable_reason"] == {
         "attribution_ineligible": 35,
-        "direct_claim_value_not_selected": 17,
-        "shadowed_by_immediate_subject": 609,
+        "direct_claim_value_not_selected": 10,
+        "shadowed_by_immediate_subject": 187,
     }
 
     decomposition_by_key = {
         (row["quote_id"], row["field"]): row for row in decomposition
     }
-    bibliographic_date = decomposition_by_key[
-        (DATE_IN_SOURCE_TITLE_QUOTE_ID, "date")
-    ]
-    assert bibliographic_date["formatter_projection"] == "19 April 1983"
-    assert bibliographic_date["public_reachability"] == (
-        "currently_rendered_exact_occurrence"
-    )
-    assert bibliographic_date["current_public_exposures"][0]["surface"] == (
-        "source_title"
-    )
-    assert bibliographic_date["evidence_state"] == "no_audited_source_claim"
-
-    formerly_exposed_date = decomposition_by_key[
-        (FORMER_DATE_IN_CONTEXT_QUOTE_ID, "date")
-    ]
-    assert formerly_exposed_date["formatter_projection"] == "1979"
-    assert formerly_exposed_date["current_public_exposures"] == []
-    assert formerly_exposed_date["public_reachability"] == (
-        "formatter_reachable_but_suppressed"
-    )
-    assert formerly_exposed_date["counterfactual_projection"][
-        "current_context"
-    ] == (
-        "The surviving record identifies an occasion, but does not establish "
-        "a reliable date."
-    )
+    current_renderings = {
+        row["quote_id"]: row
+        for row in audit["records"]["current_public_renderings"]
+    }
+    for quote_id in (
+        DATE_IN_SOURCE_TITLE_QUOTE_ID,
+        FORMER_DATE_IN_CONTEXT_QUOTE_ID,
+    ):
+        assert (quote_id, "date") not in decomposition_by_key
+        assert current_renderings[quote_id][
+            "public_context_supported_fields"
+        ] == ["date", "historical_context", "source_event"]
 
     direct_historical_context = decomposition_by_key[
         (DIRECT_HISTORICAL_CONTEXT_FALLBACK_QUOTE_ID, "historical_context")
@@ -353,7 +339,7 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
             "shadowed_by_immediate_subject"
         )
     ]
-    assert len(eligible_shadowed) == 609
+    assert len(eligible_shadowed) == 187
 
     same_documents = {
         row["quote_id"]: row
@@ -413,7 +399,7 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     approximate = precise_identities[APPROXIMATE_PACKET_LOCATOR_QUOTE_ID]
     assert approximate["accepted_document_numbers"] == ["104066"]
     assert approximate["packet_locator_candidate_document_numbers"] == [
-        "104077"
+        "104066"
     ]
     assert approximate["public_document_numbers"] == ["104066"]
 

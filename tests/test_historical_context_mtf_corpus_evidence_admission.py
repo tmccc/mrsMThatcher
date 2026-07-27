@@ -39,16 +39,27 @@ def test_reviewed_mtf_bindings_are_exact_and_claim_scoped() -> None:
     curated = _load(CURATED)
     exact = 0
     variants = 0
+    transition = _load(TRANSITION)
     for quote_id, record in SOURCE_RECORDS.items():
         packet = packets[quote_id]
-        source = curated["items"][quote_id]["sources"][0]
+        source_id = transition["items"][quote_id]["source_bindings"][0][
+            "source_id"
+        ]
+        source = next(
+            item
+            for item in curated["items"][quote_id]["sources"]
+            if item["source_id"] == source_id
+        )
         expected_status = (
             "exact" if record["match_kind"] == "exact" else "variant"
         )
         exact += expected_status == "exact"
         variants += expected_status == "variant"
         assert packet["verification_status"] == expected_status
-        assert source["source_review_candidate_id"] == record["candidate_id"]
+        assert record["candidate_id"] in {
+            source["source_review_candidate_id"],
+            source.get("prior_source_review_candidate_id"),
+        }
         assert source["canonical_url"].endswith(
             f"/document/{record['document']}"
         )
@@ -56,21 +67,25 @@ def test_reviewed_mtf_bindings_are_exact_and_claim_scoped() -> None:
         assert source["source_quality_class"] == "strong_primary_evidence"
         assert source["source_type"] == "official_primary_transcript"
         assert source["wording_match_kind"] == record["match_kind"]
-        assert source["assigned_roles"] == [
+        assert {
             "wording_verification",
             "attribution_support",
             "source_event_support",
-        ]
-        assert source["claims_supported"] == [
+        } <= set(source["assigned_roles"])
+        assert {
             "wording",
             "attribution",
             "source_event",
             "date",
-        ]
-        assert "historical_context_support" not in source["assigned_roles"]
-        assert "historical_context" not in source["claims_supported"]
-        assert source["page_sha256"] == record["file_sha256"]
-        assert source["page_text_sha256"] == record["text_sha256"]
+        } <= set(source["claims_supported"])
+        assert record["file_sha256"] in {
+            source["page_sha256"],
+            source.get("prior_page_sha256"),
+        }
+        assert record["text_sha256"] in {
+            source["page_text_sha256"],
+            source.get("prior_page_text_sha256"),
+        }
         assert "/disks/" not in json.dumps(source)
     assert (exact, variants) == (4, 6)
     assert len(packets) == 627
@@ -107,8 +122,8 @@ def test_reviewed_variants_preserve_their_precise_differences() -> None:
         )
 
 
-def test_transition_preserves_runtime_and_gate_partitions() -> None:
-    """The MTF admission changes neither the 611 cycle nor the 21-ID gate."""
+def test_transition_preserves_runtime_and_uses_current_gate_partition() -> None:
+    """The earlier transition remains valid under the reviewed 13-ID gate."""
     runtime = _load(RUNTIME)
     transition = _load(TRANSITION)
     gate = load_historical_context_semantic_gate(
@@ -123,7 +138,7 @@ def test_transition_preserves_runtime_and_gate_partitions() -> None:
     assert set(transition["items"]) == set(SOURCE_RECORDS)
     assert runtime["runtime_eligible_quote_count"] == 611
     assert gate.available is True
-    assert len(gate.blocked_dispositions) == 21
+    assert len(gate.blocked_dispositions) == 13
     assert not set(SOURCE_RECORDS) & set(gate.blocked_dispositions)
 
 

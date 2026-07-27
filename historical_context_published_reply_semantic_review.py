@@ -36,8 +36,22 @@ ORIGINAL_REVIEW_QUOTE_IDS_SHA256 = (
     "f23372c0227e63b89d2c4634b8a17dfbdc409f59d987a7c326fb0400d5991976"
 )
 POST_BASELINE_REVIEW_IDS = {
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
     "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
     "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+    "1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9",
+    "3b3285fe25407b81c5b15528ecff391639f5ad89d810ac32a875af9f5a4a1cd9",
+    "3b79f3b3c58a0f499bfaca4dc4ac8f3bdb603dd4a2fe71cfcf44335d230cb2f6",
+    "4b53af75f4bf9c618f8705d104bebb7ea47088877fcf9f31e742299b411bf119",
+    "4c9b51eb69875a896e83f9e4a07655ad8c1de12056089090f235152d46f67b61",
+    "5956332c9ec11e840051d9693954ea80ecc6d805b915d68b2f5bc1d01e2ce04a",
+    "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113",
+    "75f102a1b859b3fb5b260f7a35da8a63eeddbf04babd3ed2cdcac22889acd2c0",
+    "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+    "7830ae2b38fba9cfec72584776893605800dd10667f3947e8b72125a2ee5853d",
+    "78a93a309c25dd1f316b7cfcf323a74e9fd1a4a50dea30ea668627ddc40921a2",
+    "7c3c83a5f13c69183da08fec26f1954ee8e800f6f920aca21dabba27739895cb",
     "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
     "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
     "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
@@ -49,9 +63,17 @@ POST_BASELINE_REVIEW_IDS = {
     "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
     "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
     "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+    "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d",
     "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+    "c657fe54330c41e625adb0a38f1b9a2b0069e1f10394b7e3488121fce123050b",
+    "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
     "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
     "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+    "d5371da309d337df802d77431c030251c5fa2c0d453c7e3cc683895f9438875c",
+    "e0770f780618ce92d923068028007ac02706da421db1454ab8f9f88d80feec38",
+    "ee54561d01b8e0a1eaa6ac803a44731f503b4bf677393eedaea59f776dcaee8d",
+    "eedd44ae6091311a51996b72ece3c5a1f44a867ce2f8df6795495052052cee37",
+    "9cff99eb9acab35c114c4ea26018a11fa1764abf5b5a653c4b07bb4271d415d9",
 }
 DISPOSITIONS = {
     "supported_as_published",
@@ -396,9 +418,48 @@ INSUFFICIENT_FINDINGS = {
     **UNREVIEWED_POST_BASELINE_FINDINGS,
 }
 
+MTF_LIVE_CONTEXT_RESOLVED_FINDINGS = {
+    quote_id: (
+        "The operator-reviewed primary Margaret Thatcher Foundation document "
+        "now supplies verified wording or a recorded variant, Thatcher "
+        "attribution and source-specific historical context. Its hash-bound "
+        "curated-source transition resolves future rendering without changing "
+        "the immutable published reply."
+    )
+    for quote_id in {
+        "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+        "1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9",
+        "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+        "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+        "3b3285fe25407b81c5b15528ecff391639f5ad89d810ac32a875af9f5a4a1cd9",
+        "4b53af75f4bf9c618f8705d104bebb7ea47088877fcf9f31e742299b411bf119",
+        "4c9b51eb69875a896e83f9e4a07655ad8c1de12056089090f235152d46f67b61",
+        "5956332c9ec11e840051d9693954ea80ecc6d805b915d68b2f5bc1d01e2ce04a",
+        "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113",
+        "75f102a1b859b3fb5b260f7a35da8a63eeddbf04babd3ed2cdcac22889acd2c0",
+        "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+        "7830ae2b38fba9cfec72584776893605800dd10667f3947e8b72125a2ee5853d",
+        "78a93a309c25dd1f316b7cfcf323a74e9fd1a4a50dea30ea668627ddc40921a2",
+        "7c3c83a5f13c69183da08fec26f1954ee8e800f6f920aca21dabba27739895cb",
+        "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+        "9cff99eb9acab35c114c4ea26018a11fa1764abf5b5a653c4b07bb4271d415d9",
+        "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+        "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d",
+        "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+        "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+        "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+        "d5371da309d337df802d77431c030251c5fa2c0d453c7e3cc683895f9438875c",
+        "e0770f780618ce92d923068028007ac02706da421db1454ab8f9f88d80feec38",
+        "ee54561d01b8e0a1eaa6ac803a44731f503b4bf677393eedaea59f776dcaee8d",
+        "eedd44ae6091311a51996b72ece3c5a1f44a867ce2f8df6795495052052cee37",
+    }
+}
+
 RESOLVED_IDS = (
     set(RESOLVED_CORRECTION_FINDINGS)
     | set(TARGETED_REMEDIATION_RESOLVED_FINDINGS)
+    | set(MTF_LIVE_CONTEXT_RESOLVED_FINDINGS)
     | {
     "7514859e06c16389eab799267fdd69dfa29ef15be82abf4127561661d176cd2b",
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
@@ -467,6 +528,8 @@ def _finding_reason(
     row: dict[str, Any],
     source_rows: list[dict[str, Any]],
 ) -> str:
+    if quote_id in MTF_LIVE_CONTEXT_RESOLVED_FINDINGS:
+        return MTF_LIVE_CONTEXT_RESOLVED_FINDINGS[quote_id]
     if quote_id in TARGETED_REMEDIATION_RESOLVED_FINDINGS:
         return TARGETED_REMEDIATION_RESOLVED_FINDINGS[quote_id]
     if quote_id in INSUFFICIENT_FINDINGS:

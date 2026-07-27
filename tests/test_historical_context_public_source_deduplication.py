@@ -52,11 +52,11 @@ INTERNAL_COLLECTIONS = (
 IMMUTABLE_HASHES = {
     ROOT / "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    RESEARCH / "research_packets.json": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291",
+    RESEARCH / "research_packets.json": "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e",
     RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9",
+    RESEARCH / "historical_context_source_role_audit.json": "904e1b24b8ebe7ef74756e086958a64cc81a3669d4ea3861a42bb0499b9ffd24",
     RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
-    RESEARCH / "final_unresolved/final_research_status.json": "6225bbc2762664509fc6abcbc9b8f430e96dcd92ee6e815aba24bd40be38cfdb",
+    RESEARCH / "final_unresolved/final_research_status.json": "766f2bbb0c722d4dfc85a4b3fda1de9cf9c97e39a5311ab92196aa81a67c826e",
 }
 
 
@@ -136,7 +136,7 @@ def test_known_document_107352_is_one_clean_public_source(corpus):
 
     assert public is not None and internal is not None
     assert len(public["sources"]) == 1
-    assert len(internal["sources"]) == 2
+    assert len(internal["sources"]) == 3
     assert public["sources"][0]["url"] == (
         "https://www.margaretthatcher.org/document/107352"
     )
@@ -144,9 +144,12 @@ def test_known_document_107352_is_one_clean_public_source(corpus):
     assert public["text"].count("Source —") == 1
     assert (
         "Source — Margaret Thatcher Foundation, Speech to Conservative Party "
-        "Conference, 14 October 1988 (Document 107352)"
+        "Conference, 1988-10-14 (Document 107352)"
     ) in public["text"]
-    assert "Context — Conservative Party Conference, 14 October 1988." in public["text"]
+    assert (
+        "Context — Speech to Conservative Party Conference, 14 October 1988:"
+        in public["text"]
+    )
     assert "Verification — Exact wording verified" in public["text"]
     assert "Source (" not in public["text"]
     assert "Secondary recollection" not in public["text"]
@@ -165,18 +168,22 @@ def test_known_document_107352_keeps_lossless_internal_records_and_diagnostics(c
             "_source_role_audit"
         ][collection]
     assert "Source (wording, attribution)" in internal["text"]
-    assert "Source (wording, attribution, source event, date)" in internal["text"]
+    assert (
+        "Source (wording, attribution, source event, date, historical context)"
+        in internal["text"]
+    )
     assert "Confidence —" in internal["text"]
     diagnostics = internal["source_identity_diagnostics"]
-    assert len(diagnostics["records"]) == 2
+    assert len(diagnostics["records"]) == 3
     assert len(diagnostics["groups"]) == 1
     group = diagnostics["groups"][0]
     assert group["canonical_identity"] == (
         "margaret_thatcher_foundation:document:107352"
     )
-    assert group["source_record_count"] == 2
+    assert group["source_record_count"] == 3
     assert set(group["public_source"]["roles"]) == {
-        "attribution_support", "source_event_support", "wording_verification",
+        "attribution_support", "historical_context_support",
+        "source_event_support", "wording_verification",
     }
 
 
@@ -190,19 +197,24 @@ def test_known_hansard_locator_and_official_transcript_render_once(corpus):
 
     assert public is not None and internal is not None
     assert len(diagnostics["records"]) == 3
-    assert len(diagnostics["groups"]) == 1
-    group = diagnostics["groups"][0]
-    assert group["identity_basis"] == "corroborated_hansard_locator_url"
-    assert group["source_record_count"] == 3
+    assert len(diagnostics["groups"]) == 2
+    group = next(
+        row for row in diagnostics["groups"]
+        if row["canonical_url"].startswith("https://publications.parliament.uk/")
+    )
+    assert group["source_record_count"] == 1
     assert group["canonical_url"] == (
         "https://publications.parliament.uk/pa/cm199091/cmhansrd/"
         "1990-11-22/Debate-3.html"
     )
-    assert len(public["sources"]) == 1
-    assert public["sources"][0]["title"] == (
-        "Hansard, HC Deb 22 November 1990 vol 181 cc439-518"
+    assert len(public["sources"]) == 2
+    assert next(
+        source for source in public["sources"]
+        if source["url"] == group["canonical_url"]
+    )["title"] == (
+        "UK Parliament Hansard, House of Commons, 22 November 1990, Debate 3"
     )
-    assert public["text"].count("Source —") == 1
+    assert public["text"].count("Source —") == 2
     assert public["text"].count(group["canonical_url"]) == 1
     assert len(internal["sources"]) == 3
     assert packet["_source_role_audit"] == before
@@ -891,8 +903,8 @@ def test_possible_same_mtf_document_warning_corpus_count_is_stable(corpus):
         if row["kind"] == "possible_same_mtf_document_identity_unresolved"
     ]
 
-    assert len(warnings) == 25
-    assert len({quote_id for quote_id, _row in warnings}) == 25
+    assert len(warnings) == 3
+    assert len({quote_id for quote_id, _row in warnings}) == 3
 
 
 def test_lead_bridge_rejects_conflicting_dates_and_same_path_different_hash(corpus):
@@ -1307,7 +1319,7 @@ def test_full_corpus_public_render_has_no_source_defects(corpus):
     assert len(corpus[0]) == 627
     assert len(corpus[1]) == 5
     assert eligible == 611
-    assert source_distribution == Counter({0: 98, 1: 478, 2: 48, 3: 3})
+    assert source_distribution == Counter({0: 91, 1: 507, 2: 26, 3: 3})
 
 
 def test_audit_conflict_guard_detects_distinctions_before_ready_status():
@@ -1351,6 +1363,49 @@ def test_audit_conflict_guard_detects_distinctions_before_ready_status():
         "composite_locator_merged",
         "primary_and_recollection_documents_merged",
     }
+
+
+def test_audit_allows_one_reviewed_primary_to_consolidate_same_document():
+    group = {
+        "canonical_identity": "margaret_thatcher_foundation:document:123456",
+        "source_ids": ["reviewed", "legacy"],
+    }
+    reviewed = {
+        "source_id": "reviewed",
+        "document_numbers": ["123456"],
+        "source_quality_class": "strong_primary_evidence",
+        "source_type": "official_primary_transcript",
+        "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_123456"
+        ],
+        "date_identities": ["1988-10-14"],
+        "explicit_identifiers": [],
+        "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/123456"
+        ],
+        "publisher": "margaret_thatcher_foundation",
+        "composite_locator": False,
+        "secondary_recollection": False,
+        "title": "Reviewed transcript",
+        "supporting_passage_count": 1,
+        "claims_supported": [
+            "wording", "attribution", "source_event", "date",
+            "historical_context",
+        ],
+    }
+    legacy = {
+        **reviewed,
+        "source_id": "legacy",
+        "source_type": "grounded_web_source",
+        "locator_components": [],
+        "date_identities": [],
+        "secondary_recollection": True,
+        "title": "Legacy locator",
+        "supporting_passage_count": 0,
+        "claims_supported": ["wording", "attribution"],
+    }
+
+    assert _group_identity_conflicts([group], [reviewed, legacy]) == []
 
 
 def test_corpus_quote_eligibility_cycle_confidence_and_evidence_are_unchanged(
@@ -1451,9 +1506,9 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
     assert all(written["invariants"]["checks"].values())
     assert written["before_deduplication"][
         "duplicate_canonical_identity_group_count"
-    ] == 42
+    ] == 423
     assert written["after_deduplication"] == {
-        "public_source_record_count": 583,
+        "public_source_record_count": 568,
         "packets_with_duplicate_source_identity": 0,
         "duplicate_canonical_identity_group_count": 0,
         "duplicate_canonical_url_group_count": 0,
@@ -1466,11 +1521,11 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
             "identical_public_entry_conflict_count": 0,
         }
     known = written["items"][KNOWN_107352_ID]
-    assert known["internal_source_record_count"] == 2
+    assert known["internal_source_record_count"] == 3
     assert known["distinct_canonical_source_count"] == 1
     assert known["public_source_lines"] == [
         "Source — Margaret Thatcher Foundation, Speech to Conservative Party "
-        "Conference, 14 October 1988 (Document 107352)"
+        "Conference, 1988-10-14 (Document 107352)"
     ]
     assert known["public_urls"] == [
         "https://www.margaretthatcher.org/document/107352"

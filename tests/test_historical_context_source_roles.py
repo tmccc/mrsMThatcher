@@ -741,9 +741,12 @@ def test_b32_public_context_admits_event_but_not_date(audit):
     quote_id = "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c"
     item = audit["items"][quote_id]
 
-    assert item["confidence_after"]["source_event"] == "low"
-    assert item["confidence_after"]["date"] == "unknown"
-    assert item["public_context_supported_fields"] == ["source_event"]
+    assert item["confidence_after"]["source_event"] == "high"
+    assert item["confidence_after"]["date"] == "high"
+    assert item["confidence_after"]["historical_context"] == "high"
+    assert item["public_context_supported_fields"] == [
+        "source_event", "date", "historical_context",
+    ]
 
 
 def test_secondary_wording_requires_explicit_thatcher_attribution(audit):
@@ -782,7 +785,7 @@ def test_gemini_queue_and_cost_preflight_cover_only_true_no_source_residual(corp
     packets, _ = corpus
     queue = residual_queue(audit)
     preflight = build_preflight(packets, audit, queue)
-    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 98
+    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 91
     assert len(set(queue)) == len(queue)
     assert queue[0] == THAMES_ID
     assert "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a" not in queue
@@ -1556,9 +1559,14 @@ def test_reviewed_local_book_admission_is_exactly_scoped(corpus, audit):
     )]["curated_sources"][0]["supporting_passages"][0]["text"]
     assert "other things being equal" in trade_union_passage
     assert "British goods uncompetitive" in trade_union_passage
-    people_passage = audit["items"][next(
-        quote_id for quote_id in variant_ids if quote_id.startswith("e259")
-    )]["curated_sources"][0]["supporting_passages"][0]["text"]
+    people_passage = next(
+        source
+        for source in audit["items"][next(
+            quote_id for quote_id in variant_ids if quote_id.startswith("e259")
+        )]["curated_sources"]
+        if source["source_id"]
+        == "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa"
+    )["supporting_passages"][0]["text"]
     assert "numbers in a state computer" in people_passage
     assert "We are all unequal" in people_passage
     assert "is quite like anyone else" in people_passage

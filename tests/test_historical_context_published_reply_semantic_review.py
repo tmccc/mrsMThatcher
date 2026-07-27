@@ -34,14 +34,14 @@ def test_published_reply_review_is_complete_hash_bound_and_reproducible():
 
     assert review == build_review()
     assert counts == {
-        "reviewed": 93,
-        "supported_as_published": 41,
+        "reviewed": 115,
+        "supported_as_published": 63,
         "future_correction_needed": 33,
         "insufficient_to_assess": 19,
-        "resolved": 31,
-        "remaining": 21,
+        "resolved": 39,
+        "remaining": 13,
     }
-    assert len({record["quote_id"] for record in review["records"]}) == 93
+    assert len({record["quote_id"] for record in review["records"]}) == 115
     assert all(record["reason"].strip() for record in review["records"])
     assert all(record["evidence_basis"] for record in review["records"])
     assert before == {
@@ -141,14 +141,11 @@ def test_latest_history_row_is_explicitly_held_for_future_correction():
     assert "inherent causal mechanism" in record["reason"]
 
 
-def test_post_baseline_unreviewed_rows_stay_closed_except_reviewed_book_case():
+def test_post_baseline_rows_reflect_reviewed_mtf_and_still_open_cases():
     review = _load(OUTPUT_PATH)
     expected = {
-        "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
-        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
         "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
         "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-        "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
     }
     records = {
         record["quote_id"]: record
@@ -163,6 +160,19 @@ def test_post_baseline_unreviewed_rows_stay_closed_except_reviewed_book_case():
         and "without a historical conclusion" in record["reason"]
         for record in records.values()
     )
+    for quote_id in {
+        "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+        "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+    }:
+        record = next(
+            row for row in review["records"] if row["quote_id"] == quote_id
+        )
+        assert record["disposition"] == "insufficient_to_assess"
+        assert record["follow_up_status"] == "resolved_by_current_rendering"
+        assert "operator-reviewed primary Margaret Thatcher Foundation" in (
+            record["reason"]
+        )
     reviewed = next(
         record for record in review["records"]
         if record["quote_id"]

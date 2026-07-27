@@ -166,7 +166,7 @@ def test_runtime_partition_and_context_gate_are_fail_closed() -> None:
     assert len(runtime_ids) == 611
     assert set(EXPECTED) <= runtime_ids
     assert gate.available is True
-    assert len(gate.blocked_dispositions) == 21
+    assert len(gate.blocked_dispositions) == 13
     for quote_id in {
         "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
         "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",

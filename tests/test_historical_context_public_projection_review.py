@@ -14,6 +14,7 @@ from historical_context_public_projection_review import (
     DOCUMENT_104653_CONTEXT,
     DOCUMENT_104653_QUOTE_ID,
     EXPECTED_MANUAL_HINT_IDS,
+    MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH,
     MTF_REVIEWED_BINDINGS,
     POST_V9_INPUT_NAMES,
     POST_V9_TRANSITION_KIND,
@@ -40,22 +41,22 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
     assert all(review["invariants"].values())
     assert review["counts"] == {
         "change_count": 72,
-        "date_only_day_precision_count": 59,
-        "date_only_month_precision_count": 3,
+        "date_only_day_precision_count": 60,
+        "date_only_month_precision_count": 2,
         "date_only_year_precision_count": 2,
         "downgraded_count": 66,
-        "duplicate_context_group_count": 10,
-        "duplicate_context_record_count": 26,
+        "duplicate_context_group_count": 11,
+        "duplicate_context_record_count": 28,
         "duplicate_full_reply_group_count": 0,
         "event_only_downgrade_count": 2,
-        "manual_hint_count": 9,
-        "post_v9_public_field_change_count": 20,
-        "post_v9_source_addition_count": 22,
-        "post_v9_transition_packet_count": 22,
+        "manual_hint_count": 4,
+        "post_v9_public_field_change_count": 442,
+        "post_v9_source_addition_count": 444,
+        "post_v9_transition_packet_count": 444,
         "v8_to_v9_public_field_change_count": 6,
         "safe_date_only_count": 64,
-        "safe_event_only_context_count": 1,
-        "safe_event_only_fallback_count": 1,
+        "safe_event_only_context_count": 2,
+        "safe_event_only_fallback_count": 0,
         "upgraded_count": 6,
     }
     assert len(review["downgraded_records"]) == 66
@@ -70,11 +71,14 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
             for record in review["downgraded_records"]
         )
         for precision in ("day", "month", "year")
-    } == {"day": 59, "month": 3, "year": 2}
+    } == {"day": 60, "month": 2, "year": 2}
     assert len(review["incremental_v8_to_v9_records"]) == 6
+    live_transition_ids = set(json.loads(
+        MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH.read_text()
+    )["items"])
     assert {
         record["quote_id"] for record in review["post_v9_transition_records"]
-    } == set(MTF_REVIEWED_BINDINGS) | {
+    } == set(MTF_REVIEWED_BINDINGS) | live_transition_ids | {
         "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
         "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
         "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
@@ -287,11 +291,8 @@ def test_projection_review_records_safe_outputs_and_non_promoting_hints(review):
         for record in review["downgraded_records"] + review["upgraded_records"]
     }
     b32 = records[B32_QUOTE_ID]
-    assert b32["context_line"] == SAFE_EVENT_ONLY_FALLBACK
-    assert all(marker not in b32["context_line"] for marker in (
-        "1979", "1984", "/",
-    ))
-    assert b32["presentation_flags"] == ["safe_event_only_fallback"]
+    assert b32["context_line"] == "Context — TV Interview for BBC1 Panorama."
+    assert b32["presentation_flags"] == ["safe_event_only_context"]
 
     clean = records[CLEAN_EVENT_ONLY_QUOTE_ID]
     assert clean["context_line"] == CLEAN_EVENT_ONLY_CONTEXT
@@ -317,8 +318,11 @@ def test_projection_review_records_safe_outputs_and_non_promoting_hints(review):
         for record in records.values()
     )
     assert review["duplicate_full_reply_groups"] == []
+    live_transition_ids = set(json.loads(
+        MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH.read_text()
+    )["items"])
     assert {row["quote_id"] for row in review["manual_hints"]} == (
-        EXPECTED_MANUAL_HINT_IDS
+        EXPECTED_MANUAL_HINT_IDS - live_transition_ids
     )
     assert all(
         row["promotes_public_fields"] is False

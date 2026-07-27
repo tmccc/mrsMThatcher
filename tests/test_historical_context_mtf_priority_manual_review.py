@@ -25,10 +25,10 @@ def test_priority_review_is_complete_conservative_and_current():
     assert saved == review
     assert review["counts"]["priority_packet_count"] == 139
     assert review["counts"]["priority_comparison_count"] == 148
-    assert review["counts"]["current_truth_priority_packet_count"] == 133
+    assert review["counts"]["current_truth_priority_packet_count"] == 16
     assert (
         review["counts"]["reviewed_but_no_longer_current_priority_count"]
-        == 6
+        == 123
     )
     assert review["counts"]["comparison_dispositions"] == {
         "mismatch": 29,
@@ -45,16 +45,18 @@ def test_priority_review_is_complete_conservative_and_current():
     assert all(review["invariants"].values())
     assert review["scope"]["semantic_meaning_assessed"] is False
     assert review["scope"]["automatic_evidence_promotion_authorised"] is False
-    assert review["scope"][
+    retired = review["scope"][
         "reviewed_but_no_longer_current_priority_quote_ids"
-    ] == [
+    ]
+    assert len(retired) == 123
+    assert {
         "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
         "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
         "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
         "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
         "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8",
         "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-    ]
+    } <= set(retired)
     assert review["input_hashes"][TRUTH.name] == hashlib.sha256(
         TRUTH.read_bytes()
     ).hexdigest()

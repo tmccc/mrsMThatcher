@@ -292,14 +292,16 @@ def test_public_event_only_context_rejects_date_leakage_and_diagnostic_slash(
     )
 
 
-def test_public_b32_context_does_not_leak_unadmitted_dates_or_diagnostic_slash(
+def test_public_b32_context_uses_reviewed_date_without_diagnostic_slash(
     corpus,
 ):
     quote_id = "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c"
     packet = corpus[0][quote_id]
 
     assert packet["_source_role_audit"]["public_context_supported_fields"] == [
-        "source_event"
+        "source_event",
+        "date",
+        "historical_context",
     ]
     public = format_context_reply_public(
         packet,
@@ -317,21 +319,19 @@ def test_public_b32_context_does_not_leak_unadmitted_dates_or_diagnostic_slash(
 
     assert public is not None
     assert public["text"] == (
-        "Context — The surviving record identifies an occasion, but does not "
-        "establish a reliable date."
+        "Context — TV Interview for BBC1 Panorama, 9 April 1984: Thatcher was "
+        "preparing to take office in 1979, a time when the UK was plagued by "
+        "economic stagnation and industrial unrest."
     )
-    assert "1979" not in public["text"]
-    assert "1984" not in public["text"]
     assert " / " not in public["text"]
     assert internal is not None
-    assert internal["text"].startswith(
-        "Context — Pre-election statements (1979) / Recalled in BBC1 Panorama "
-        "Interview (1984)."
-    )
+    assert internal["text"].startswith(public["text"])
 
 
 def test_standalone_formatter_cli_distinguishes_internal_and_public_rendering(corpus, capsys):
-    packet = next(iter(corpus[0].values()))
+    packet = corpus[0][
+        "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5"
+    ]
     assert context_module.main([
         "--research-dir", str(RESEARCH), "--quote-id", packet["quote_id"],
     ]) == 0
@@ -434,10 +434,17 @@ def test_context_reply_uses_compact_archive_entry_layout(corpus):
 
     text = format_context_reply(packet)["text"]
 
-    assert text.startswith("Historical context\nOccasion: Speech to the Fraser Institute.\n")
+    assert text.startswith(
+        'Historical context\nOccasion: Speech to the Fraser Institute '
+        '("The New World Order").\n'
+    )
     assert "\n\nMeaning: Capitalism is inherently moral" in text
     assert "\nVerification: Exact wording\n" in text
-    assert "\nSource: Margaret Thatcher Foundation, 8 November 1993" in text
+    assert (
+        "\nSource: Margaret Thatcher Foundation, Speech to the Fraser "
+        'Institute ("The New World Order"), 1993-11-08 (Document 108325)'
+    ) in text
+    assert "\nhttps://www.margaretthatcher.org/document/108325" in text
     assert "vertexaisearch.cloud.google.com" not in text
     assert "\nSource\n" not in text
 

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "comparison_kind": "mtf_live_context_independent_double_build",
+  "input_history_snapshot_sha256": "986b71a2c32c6cf340b2df1218e458cc2618b5f3d2daf841922aadacaa0141f4",
+  "build_a": "isolated_build_a",
+  "build_b": "isolated_build_b",
+  "substantive_outputs_identical": true,
+  "hashes": {
+    "historical_context_v9_mtf_live_context_transition_manifest.json": "ebcc1e793ec710067084831f84236b7599edf08b5236eca2dd98be8ae4124436",
+    "historical_context_public_projection_review.json": "d251de6b1b4746b20e2d629cb0a07a0f0940b0181c512607913f8c8b2f13795b",
+    "historical_context_public_source_deduplication_audit.json": "f34d193e35f93ffeb05ca079fde766f31981926b2bc145ed7795d690e8db7401",
+    "historical_context_evidence_truth_audit.json": "0714db027126ffd381e4277bb1c085ce2dc5c91ca4a69f7074f0ecbe9d6b461e",
+    "historical_context_published_reply_semantic_review.json": "7c003b09889146ba9dc58ab8c8370df0b028b08015e8be0ab41b6545bdba7010",
+    "historical_context_reply_semantic_gate_audit.json": "8f453580c49ec98cd114525fd54d0844767254359f8ba18ad6db88384a8cb732",
+    "historical_context_source_role_audit.json": "904e1b24b8ebe7ef74756e086958a64cc81a3669d4ea3861a42bb0499b9ffd24",
+    "runtime_eligible_quote_manifest.json": "8b74dab5db91082e5448b89eb0d5a9e13d79939ff2af5d30b922aadacaa0141f",
+    "historical_context_candidate_render_review.txt": "cbb4a3f45e14b413f097f8266aed153e54b27c6c122e2a130540bff76231a51f",
+    "historical_context_mtf_priority_manual_review.json": "31a4b66ce1f7c93f39d1d0520329d9f1650813ae689bb2999a5b1701813dd07e",
+    "historical_context_mtf_remaining_manual_review.json": "9b4b33a9fa76bef987f9d81dc697c02a43b024445991abf4cdb2e6a47b6a918c",
+    "material_veto_v3_shadow_manifest.json": "80d660871d0329b3114a386ab650923578831a695318fe491bae1ea9b3002b38"
+  },
+  "semantic_veto_matrix_entries_unchanged": true,
+  "unexplained_nondeterminism": []
+}

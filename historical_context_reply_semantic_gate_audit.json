@@ -11,28 +11,28 @@
     "unresolved_quote_count": 5
   },
   "decision_counts": {
-    "blocked_open_semantic_review": 21,
-    "eligible_allow": 590,
+    "blocked_open_semantic_review": 13,
+    "eligible_allow": 598,
     "ineligible_not_regular_post": 16
   },
   "gate": {
     "available": true,
-    "blocked_projection_sha256": "04988bb6a89046e19c31979d493c1beec246e486bf837e3b780b3045262dd614",
-    "blocked_quote_count": 21,
+    "blocked_projection_sha256": "933067c8ee4a28759cca2e8c264cb49a3282bf6dd6b6ba1ea472629dfa19e857",
+    "blocked_quote_count": 13,
     "disposition_counts": {
       "future_correction_needed": 6,
-      "insufficient_to_assess": 15
+      "insufficient_to_assess": 7
     },
     "failure_reason": "",
-    "reviewed_blocked_quote_count": 21,
-    "semantic_review_ledger_sha256": "5c253406841ffa0d9632e489f4b1fdcfe7415462bbfa21686f94ad48a588dc39"
+    "reviewed_blocked_quote_count": 13,
+    "semantic_review_ledger_sha256": "7c003b09889146ba9dc58ab8c8370df0b028b08015e8be0ab41b6545bdba7010"
   },
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "5c253406841ffa0d9632e489f4b1fdcfe7415462bbfa21686f94ad48a588dc39",
-    "historical_context_source_role_audit.json": "33379d2ac4f447dff6a8ec76e68162a845202f7c46aa35fae6d814dcfd5c2ad9",
+    "historical_context_published_reply_semantic_review.json": "7c003b09889146ba9dc58ab8c8370df0b028b08015e8be0ab41b6545bdba7010",
+    "historical_context_source_role_audit.json": "904e1b24b8ebe7ef74756e086958a64cc81a3669d4ea3861a42bb0499b9ffd24",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
-    "research_packets.json": "325f1147c45358850db2936aafd273198c6218fadcfe12fce3427fd6cb307291",
-    "runtime_eligible_quote_manifest.json": "e85a83f640c4e6fda85293c4821099cdf5810035681538cea4cda368ed38a5ba"
+    "research_packets.json": "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e",
+    "runtime_eligible_quote_manifest.json": "8b74dab5db91082e5448b89eb0d5a9e13d79939ff2af5d30b922aadacaa0141f"
   },
   "invariant_failure_count": 0,
   "invariants": {
@@ -75,9 +75,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — Speech to the National Press Club, 19 September 1975.\n\nMeaning — Political systems must accommodate human nature rather than forcing people to conform to rigid, preconceived ideological theories.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the National Press Club (19 September 1975)",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
       "quote_text": "One reason I'm not a Marxist or a Socialist is because I know you can't fit people into theories. I was trained as a scientist - a chemist - and I know what a real theory is when I see one."
     },
@@ -99,9 +99,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 2 May 1979",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
       "quote_text": "The Britain I want is a country which once again is known throughout the world for its integrity, its industry, the calibre of its people and its valiant championship of justice and truth."
     },
@@ -691,9 +691,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — Speech to Young Conservative Conference, 10 February 1990.\n\nMeaning — Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Young Conservative Conference (10 February 1990)",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
       "quote_text": "Freedom and Socialism just don't mix."
     },
@@ -787,9 +787,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Meaning — That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105799\nhttps://www.margaretthatcher.org/document/105799",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
       "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed."
     },
@@ -3107,9 +3107,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — Speech to Scottish Conservative Party Conference, 13 May 1978.\n\nMeaning — That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, speech dated 13 May 1978",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
       "quote_text": "Our opponents offer only division and discord, socialism and separatism."
     },
@@ -3331,9 +3331,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Meaning — That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the International Free Enterprise dinner (Document 108381)\nhttps://www.margaretthatcher.org/document/108381",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
       "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible."
     },
@@ -3435,9 +3435,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Meaning — A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 104052\nhttps://www.margaretthatcher.org/document/104052",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
       "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover."
     },
@@ -3939,9 +3939,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Meaning — State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103411\nhttps://www.margaretthatcher.org/document/103411",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
       "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses."
     },

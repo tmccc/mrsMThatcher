@@ -30,16 +30,16 @@ SEMANTIC_REVIEW_PATH = (
 )
 POLICY_VERSION = "historical-context-semantic-gate-v1-open-review-whole-reply"
 EXPECTED_LEDGER_SHA256 = (
-    "5c253406841ffa0d9632e489f4b1fdcfe7415462bbfa21686f94ad48a588dc39"
+    "7c003b09889146ba9dc58ab8c8370df0b028b08015e8be0ab41b6545bdba7010"
 )
-EXPECTED_REVIEWED_COUNT = 93
-EXPECTED_BLOCKED_COUNT = 21
+EXPECTED_REVIEWED_COUNT = 115
+EXPECTED_BLOCKED_COUNT = 13
 EXPECTED_DISPOSITION_COUNTS = {
     "future_correction_needed": 6,
-    "insufficient_to_assess": 15,
+    "insufficient_to_assess": 7,
 }
 EXPECTED_PROJECTION_SHA256 = (
-    "04988bb6a89046e19c31979d493c1beec246e486bf837e3b780b3045262dd614"
+    "933067c8ee4a28759cca2e8c264cb49a3282bf6dd6b6ba1ea472629dfa19e857"
 )
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 
