@@ -12,6 +12,10 @@ from typing import Iterable, Sequence
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+UNTRACKED_OPERATIONAL_SNAPSHOT_PATHS = (
+    "production_deployments/**",
+    "production_incident_reviews/**",
+)
 
 
 @dataclass(frozen=True, order=True)
@@ -31,21 +35,42 @@ class DocumentationViolation:
 
 def maintained_python_files(project_root: Path = PROJECT_ROOT) -> list[Path]:
     """Return versioned or pending non-test Python files covered by the policy."""
-    result = subprocess.run(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "*.py"],
+    tracked_result = subprocess.run(
+        ["git", "ls-files", "--cached", "--", "*.py"],
         cwd=project_root,
         check=True,
         capture_output=True,
         text=True,
     )
-    paths = []
-    for relative_text in result.stdout.splitlines():
+    untracked_result = subprocess.run(
+        [
+            "git",
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "--",
+            "*.py",
+            *(
+                f":(top,exclude){path}"
+                for path in UNTRACKED_OPERATIONAL_SNAPSHOT_PATHS
+            ),
+        ],
+        cwd=project_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    paths = set()
+    for relative_text in (
+        *tracked_result.stdout.splitlines(),
+        *untracked_result.stdout.splitlines(),
+    ):
         relative = Path(relative_text)
         if relative.name.startswith("._"):
             continue
         if "tests" in relative.parts:
             continue
-        paths.append(relative)
+        paths.add(relative)
     return sorted(paths)
 
 
