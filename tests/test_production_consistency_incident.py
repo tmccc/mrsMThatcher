@@ -1188,6 +1188,74 @@ def test_main_acquires_process_lock_before_context_reconciliation(
     assert order == ["lock", "context_reconcile"]
 
 
+@pytest.mark.parametrize(
+    "command_name",
+    [
+        "run_test_cycle",
+        "run_test_main_tick",
+        "run_test_post_quote",
+        "run_test_post_meme",
+    ],
+)
+def test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    command_name: str,
+) -> None:
+    receipt_bytes = json.dumps(
+        {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "830003",
+            "quote_id": "5" * 64,
+            "reply_text": "Context reply with an unresolved remote outcome.",
+            "reply_epoch": 8_303,
+            "started_at": "2026-07-27T19:00:00Z",
+            "attempt_number": 1,
+        }
+    ).encode("utf-8")
+    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_bytes(
+        receipt_bytes,
+    )
+    order: list[str] = []
+    real_reconcile = bot.reconcile_runtime_historical_context_state
+
+    monkeypatch.setenv("MRS_TEST_MODE", "1")
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(
+        bot,
+        "acquire_instance_lock",
+        lambda: order.append("lock"),
+    )
+
+    def reconcile_after_lock() -> None:
+        order.append("context_reconcile")
+        real_reconcile()
+
+    monkeypatch.setattr(
+        bot,
+        "reconcile_runtime_historical_context_state",
+        reconcile_after_lock,
+    )
+    monkeypatch.setattr(
+        bot,
+        "load_runtime_state",
+        lambda: pytest.fail(
+            "one-shot command loaded state despite an ambiguous context receipt"
+        ),
+    )
+
+    with pytest.raises(
+        context_formatter.AmbiguousContextReplyOutcome,
+        match="interrupted while sending",
+    ):
+        getattr(bot, command_name)()
+
+    assert order == ["lock", "context_reconcile"]
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_bytes
+    assert not bot.STATE_FILE.exists()
+
+
 def test_corrupt_context_outbox_latches_only_context_and_quote_preflight(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

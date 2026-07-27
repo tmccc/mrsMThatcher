@@ -13122,6 +13122,7 @@ def run_test_cycle() -> int:
         return 2
 
     acquire_instance_lock()
+    reconcile_runtime_historical_context_state()
 
     log.info("Running one test cycle")
     log.info("Base dir=%s", BASE_DIR)
@@ -13240,6 +13241,7 @@ def run_test_main_tick() -> int:
         return 2
 
     acquire_instance_lock()
+    reconcile_runtime_historical_context_state()
 
     log.info("Running one test production reply-lane tick")
     state = load_runtime_state()
@@ -13319,6 +13321,7 @@ def run_test_post_quote() -> int:
         return 2
 
     acquire_instance_lock()
+    reconcile_runtime_historical_context_state()
 
     log.info("Running one test quote/image post cycle")
     state = load_runtime_state()
@@ -13386,6 +13389,7 @@ def run_test_post_meme() -> int:
         return 2
 
     acquire_instance_lock()
+    reconcile_runtime_historical_context_state()
 
     log.info("Running one test daily meme post cycle")
     state = load_runtime_state()
