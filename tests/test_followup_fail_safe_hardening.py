@@ -21,6 +21,21 @@ def install_paths(monkeypatch: pytest.MonkeyPatch, base: Path) -> None:
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", base / "meme_post_receipt.json")
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", base / "confirmed_reply_receipt.json")
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", base / "ambiguous_post_outcome.json")
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE",
+        base / "historical_context_reply_history.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
+        base / "historical_context_reply_receipt.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE",
+        base / "historical_context_reply_outbox.json",
+    )
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
 
@@ -182,9 +197,9 @@ def test_ambiguous_remote_post_blocks_process_when_marker_write_fails(tmp_path, 
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("storage unavailable")),
     )
 
-    with pytest.raises(OSError, match="storage unavailable"):
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="timeout"):
         bot.create_post("first")
-    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="in-process ambiguity latch"):
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="in-process remote-write safety latch"):
         bot.create_post("second")
 
     assert calls == 1
@@ -244,17 +259,33 @@ def test_x_definite_client_rejection_does_not_create_ambiguity_barrier(
 
 @pytest.mark.parametrize(
     "lane",
-    ["regular_quote", "meme", "mention", "quote_tweet", "historical_context"],
+    [
+        "regular_quote",
+        "meme",
+        "mention",
+        "quote_tweet",
+        "historical_context",
+        "direct_create",
+        "direct_media_upload",
+    ],
+)
+@pytest.mark.parametrize(
+    "barrier_kind",
+    ["durable_marker", "confirmed_persistence_in_process"],
 )
 def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
     lane: str,
+    barrier_kind: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import historical_context_formatter
 
     install_paths(monkeypatch, tmp_path)
-    (tmp_path / "ambiguous_post_outcome.json").write_text("{}\n", encoding="utf-8")
+    if barrier_kind == "durable_marker":
+        (tmp_path / "ambiguous_post_outcome.json").write_text("{}\n", encoding="utf-8")
+    else:
+        monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", True)
     calls: list[str] = []
 
     def prepared(name: str):
@@ -276,7 +307,7 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
         monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda *_args: prepared("quote lookup"))
         invoke = lambda: bot.maybe_reply_to_quote_tweets(bot.default_state())
-    else:
+    elif lane == "historical_context":
         monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
         monkeypatch.setattr(
             historical_context_formatter,
@@ -288,8 +319,15 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
             quote_text="Quote",
             parent_post_id="123",
         )
+    elif lane == "direct_create":
+        monkeypatch.setattr(bot, "x_request", lambda *_args, **_kwargs: prepared("X request"))
+        invoke = lambda: bot.create_post("test")
+    else:
+        monkeypatch.setattr(bot, "upload_media_v2", lambda *_args, **_kwargs: prepared("media upload"))
+        monkeypatch.setattr(bot, "upload_media_v1_1", lambda *_args, **_kwargs: prepared("media upload fallback"))
+        invoke = lambda: bot.upload_media(str(tmp_path / "image.png"))
 
-    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Unreconciled ambiguous"):
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Unreconciled"):
         invoke()
 
     assert calls == []

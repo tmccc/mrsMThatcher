@@ -5,6 +5,9 @@ import json
 import hashlib
 import logging
 import os
+import signal
+import subprocess
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -2589,6 +2592,7 @@ def test_confirmed_regular_post_receipt_recovers_local_persistence_failures(
     with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
         bot.post_random_quote(lines_used, images_used, state)
 
+    assert bot.ambiguous_remote_post_is_blocking() is False
     assert receipt_file.exists()
     assert quote_hash in lines_used
     assert "t01.jpg" in images_used
@@ -2621,12 +2625,241 @@ def test_receipt_write_failure_leaves_confirmed_assets_marked_in_memory(
     quote_hash = bot.quote_text_hash("Good quote.")
     monkeypatch.setattr(bot, "write_regular_post_receipt", lambda receipt: (_ for _ in ()).throw(OSError("receipt failed")))
 
-    with pytest.raises(RuntimeError, match="failed local recovery receipt"):
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError, match="failed local recovery receipt") as caught:
         bot.post_random_quote(lines_used, images_used, state)
 
+    assert type(caught.value) is bot.ConfirmedPostLocalPersistenceError
+    assert bot.ambiguous_remote_post_is_blocking() is False
     assert quote_hash in lines_used
     assert "t01.jpg" in images_used
     assert state["next_quote_post_epoch"] > state["last_quote_post_epoch"]
+
+
+def test_confirmed_regular_post_sigint_is_delivered_only_after_durable_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        lines_used,
+        images_used,
+        state,
+        _lines_used_file,
+        _images_used_file,
+        receipt_file,
+        _lines_file,
+    ) = configure_simple_quote_post(tmp_path, monkeypatch)
+    stages: list[str] = []
+    original_write = bot.write_regular_post_receipt
+
+    guard_token = object()
+
+    def begin_deferral() -> object:
+        stages.append("begin")
+        return guard_token
+
+    def write_receipt(receipt: dict) -> None:
+        stages.append("receipt")
+        original_write(receipt)
+
+    def deliver_pending_sigint(guard: object | None) -> None:
+        assert guard is guard_token
+        assert receipt_file.exists()
+        stages.append("end")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin_deferral)
+    monkeypatch.setattr(bot, "write_regular_post_receipt", write_receipt)
+    monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", deliver_pending_sigint)
+
+    with pytest.raises(KeyboardInterrupt):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert stages == ["begin", "receipt", "end"]
+    assert json.loads(receipt_file.read_text(encoding="utf-8"))["post_id"] == "950001"
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_regular_ambiguous_create_without_marker_keeps_sigint_deferred(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_paths = configure_simple_quote_post(
+        tmp_path,
+        monkeypatch,
+    )
+
+    def ambiguous_create(**_kwargs: object) -> dict:
+        bot.record_ambiguous_remote_post({"text": "Good quote."})
+        raise bot.AmbiguousRemotePostOutcome("ambiguous", service="x")
+
+    monkeypatch.setattr(bot, "create_post", ambiguous_create)
+    monkeypatch.setattr(
+        bot,
+        "atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("marker failed")),
+    )
+    guard_token = object()
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard_token)
+    monkeypatch.setattr(
+        bot,
+        "end_confirmed_post_sigint_deferral",
+        lambda _guard: pytest.fail(
+            "SIGINT must remain deferred while the process-local latch is the only barrier"
+        ),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
+def test_confirmed_post_sigint_deferral_restores_handler_and_delivers_pending() -> None:
+    prior_handler = signal.getsignal(signal.SIGINT)
+    guard = bot.begin_confirmed_post_sigint_deferral()
+    try:
+        guard.handle(signal.SIGINT, None)
+        assert guard.pending is True
+        with pytest.raises(KeyboardInterrupt):
+            bot.end_confirmed_post_sigint_deferral(guard)
+    finally:
+        signal.signal(signal.SIGINT, prior_handler)
+
+    assert signal.getsignal(signal.SIGINT) == prior_handler
+
+
+def test_confirmed_post_sigint_deferral_handles_process_signal_from_worker() -> None:
+    code = """
+import os
+import signal
+import threading
+import time
+import mrsMThatcher2 as bot
+
+guard = bot.begin_confirmed_post_sigint_deferral()
+sender = threading.Thread(target=lambda: os.kill(os.getpid(), signal.SIGINT))
+sender.start()
+sender.join()
+deadline = time.monotonic() + 2
+while not guard.pending and time.monotonic() < deadline:
+    time.sleep(0.01)
+if not guard.pending:
+    raise SystemExit("SIGINT was not deferred")
+try:
+    bot.end_confirmed_post_sigint_deferral(guard)
+except KeyboardInterrupt:
+    print("deferred-and-delivered")
+else:
+    raise SystemExit("pending SIGINT was not delivered")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=Path(bot.__file__).resolve().parent,
+        env={**os.environ, **IMPORT_ENV},
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().endswith("deferred-and-delivered")
+
+
+def test_regular_no_receipt_emergency_representation_reloads_completely(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        lines_used,
+        images_used,
+        state,
+        _lines_used_file,
+        _images_used_file,
+        receipt_file,
+        lines_file,
+    ) = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        bot,
+        "write_regular_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert not receipt_file.exists()
+    reloaded_state = bot.load_runtime_state()
+    reloaded_lines = bot.load_quote_used_hashes(
+        lines_file.read_text(encoding="utf-8").splitlines(keepends=True)
+    )
+    image_paths = bot.current_image_paths()
+    reloaded_images = bot.load_image_used_basenames(image_paths)
+    quote_hash = bot.quote_text_hash("Good quote.")
+
+    assert bot.confirmed_regular_emergency_representation_is_complete(
+        post_id="950001",
+        post_epoch=1_800_000_000,
+        quote_hash=quote_hash,
+        image_basename="t01.jpg",
+        lines_used=reloaded_lines,
+        images_used=reloaded_images,
+        state=reloaded_state,
+    )
+    assert reloaded_state["next_quote_post_epoch"] > reloaded_state["last_quote_post_epoch"]
+
+
+def test_regular_emergency_canonical_state_survives_backup_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        bot,
+        "write_regular_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "write_latest_state_backup",
+        lambda **_kwargs: (_ for _ in ()).throw(OSError("backup failed")),
+    )
+
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError) as caught:
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert type(caught.value) is bot.ConfirmedPostLocalPersistenceError
+    assert bot.json_file_matches(bot.STATE_FILE, state) is True
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_regular_emergency_parent_fsync_failure_still_latches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        bot,
+        "write_regular_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+    original_fsync_parent_dir = bot.fsync_parent_dir
+
+    def fail_state_parent_fsync(path: Path, *, strict: bool = False) -> None:
+        if path == bot.STATE_FILE:
+            raise OSError("state parent fsync failed")
+        original_fsync_parent_dir(path, strict=strict)
+
+    monkeypatch.setattr(bot, "fsync_parent_dir", fail_state_parent_fsync)
+
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert bot.json_file_matches(bot.STATE_FILE, state) is True
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
+    assert "state" in marker["failure_components"]
 
 
 @pytest.mark.parametrize(
@@ -2659,13 +2892,155 @@ def test_receipt_write_failure_emergency_persistence_attempts_all_components(
     monkeypatch.setattr(bot, "save_image_used_basenames", lambda *args, **kwargs: maybe_fail("image_history"))
     monkeypatch.setattr(bot, "save_state", lambda *args, **kwargs: maybe_fail("state"))
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError) as excinfo:
         bot.post_random_quote(lines_used, images_used, state)
 
     assert attempts == ["quote_history", "image_history", "state"]
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
+    assert marker["outcome"] == "confirmed_remote_post_local_persistence_failed"
+    assert marker["lane"] == "quote_image"
+    assert marker["post_id"] == "950001"
+    assert marker["failure_components"] == sorted({"regular_post_receipt", *failed_components})
     for name in failed_components:
         assert name in str(excinfo.value)
     assert state["next_quote_post_epoch"] > state["last_quote_post_epoch"]
+
+
+def test_regular_total_persistence_loss_latches_when_marker_write_also_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_create_post = bot.create_post
+    lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
+    remote_calls = 0
+
+    def confirmed_create(**_kwargs: object) -> dict:
+        nonlocal remote_calls
+        remote_calls += 1
+        return {"data": {"id": "950001"}}
+
+    monkeypatch.setattr(bot, "create_post", confirmed_create)
+    monkeypatch.setattr(
+        bot,
+        "write_regular_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_quote_used_hashes",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("quote history failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_image_used_basenames",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("image history failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("state failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("marker failed")),
+    )
+    guard_token = object()
+    monkeypatch.setattr(
+        bot,
+        "begin_confirmed_post_sigint_deferral",
+        lambda: guard_token,
+    )
+    monkeypatch.setattr(
+        bot,
+        "end_confirmed_post_sigint_deferral",
+        lambda _guard: pytest.fail(
+            "SIGINT must remain deferred while the process-local latch is the only barrier"
+        ),
+    )
+
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert remote_calls == 1
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    boundary_calls = 0
+
+    def unexpected_boundary(*_args: object, **_kwargs: object) -> dict:
+        nonlocal boundary_calls
+        boundary_calls += 1
+        pytest.fail("remote boundary must not be reached after the safety latch")
+
+    monkeypatch.setattr(bot, "x_request", unexpected_boundary)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="in-process remote-write safety latch"):
+        original_create_post("must not be sent")
+    assert remote_calls == 1
+    assert boundary_calls == 0
+
+
+def test_confirmed_regular_post_with_incomplete_emergency_state_latches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
+    state.update(
+        {
+            "last_main_post_id": "940000",
+            "last_quote_post_epoch": 1_700_000_000,
+            "next_quote_post_epoch": 1_700_007_200,
+        }
+    )
+    clock_calls = 0
+
+    def fail_after_preflight() -> int:
+        nonlocal clock_calls
+        clock_calls += 1
+        if clock_calls == 1:
+            return 1_800_000_000
+        raise RuntimeError("clock failed after confirmation")
+
+    monkeypatch.setattr(
+        bot,
+        "now_epoch",
+        fail_after_preflight,
+    )
+
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
+    assert marker["failure_components"] == [
+        "incomplete_regular_post_state",
+        "regular_post_receipt",
+    ]
+    assert marker["recorded_at_unavailable"] is True
+
+
+def test_confirmed_regular_post_fallback_helper_failure_latches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_paths = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        bot,
+        "write_regular_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "update_regular_generated_image_spacing_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("spacing failed")),
+    )
+
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
+    assert "generated_image_spacing_state" in marker["failure_components"]
+    assert bot.ambiguous_remote_post_is_blocking() is True
 
 
 @pytest.mark.parametrize("helper", ["cache_tweet", "record_recent_own_post"])
@@ -3629,16 +4004,21 @@ def test_regular_post_context_stage_runs_only_after_durable_main_post(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
-    saved = {"done": False}; context_calls = []
+    saved = {"done": False}
+    context_calls = []
     original_save = bot.save_regular_post_protected_state
+
     def tracked_save(*args, **kwargs):
-        original_save(*args, **kwargs); saved["done"] = True
+        original_save(*args, **kwargs)
+        saved["done"] = True
+
     def context(**kwargs):
         assert saved["done"] is True
         assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
         assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.exists()
         context_calls.append(kwargs)
         return {"status": "completed", "reply_post_id": "960001"}
+
     monkeypatch.setattr(
         bot,
         "historical_context_reply",
@@ -4325,6 +4705,275 @@ def test_main_global_pause_stops_before_every_remote_lane(
     assert receipt_file.read_bytes() == receipt_bytes
 
 
+def test_main_total_persistence_loss_latch_stops_later_remote_lanes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "reconcile_runtime_historical_context_state", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "glob", lambda _pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
+    monkeypatch.setattr(bot, "list_meme_candidates", lambda: [])
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    state = {
+        "next_quote_post_epoch": 1,
+        "next_meme_post_epoch": 1,
+        "last_quote_post_epoch": 0,
+    }
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
+    monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
+    clock_must_not_run = False
+
+    def controlled_clock() -> int:
+        if clock_must_not_run:
+            pytest.fail("the safety latch must be checked before the next clock read")
+        return 1_784_708_283
+
+    monkeypatch.setattr(bot, "now_epoch", controlled_clock)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (int(state_arg.get(key, current)), False),
+    )
+
+    context_ticks = 0
+    reply_ticks = 0
+    quote_attempts = 0
+
+    def context_tick(*_args: object, **_kwargs: object) -> list[dict]:
+        nonlocal context_ticks
+        context_ticks += 1
+        return []
+
+    def reply_tick(
+        _state: dict,
+        _current: int,
+        last_reply_check_epoch: int,
+        last_quote_tweet_check_epoch: int,
+    ) -> tuple[int, int]:
+        nonlocal reply_ticks
+        reply_ticks += 1
+        return last_reply_check_epoch, last_quote_tweet_check_epoch
+
+    def catastrophic_quote(*_args: object, **_kwargs: object) -> None:
+        nonlocal clock_must_not_run, quote_attempts
+        quote_attempts += 1
+        bot.latch_confirmed_post_persistence_failure(
+            lane="quote_image",
+            post_id="950001",
+            failure_components=["regular_post_receipt", "state"],
+        )
+        clock_must_not_run = True
+        raise bot.UnrecoverableConfirmedPostPersistenceError("confirmed and unrepresented")
+
+    monkeypatch.setattr(bot, "safely_process_due_historical_context_obligations", context_tick)
+    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", reply_tick)
+    monkeypatch.setattr(bot, "post_random_quote", catastrophic_quote)
+    monkeypatch.setattr(
+        bot,
+        "schedule_next_quote_post",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an unrecoverable confirmed post must never be scheduled for retry"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "post_next_meme",
+        lambda _state: pytest.fail("meme lane must not run after the safety latch"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("marker failed")),
+    )
+
+    class SafetyBarrierTickComplete(Exception):
+        pass
+
+    monkeypatch.setattr(
+        bot,
+        "sleep",
+        lambda seconds: (_ for _ in ()).throw(SafetyBarrierTickComplete),
+    )
+
+    with pytest.raises(SafetyBarrierTickComplete):
+        bot.main()
+
+    assert quote_attempts == 1
+    assert context_ticks == 1
+    assert reply_ticks == 1
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
+@pytest.mark.parametrize(
+    ("lane", "failure_kind"),
+    [
+        ("quote", "ambiguous"),
+        ("meme", "ambiguous"),
+        ("meme", "unrecoverable"),
+    ],
+)
+def test_main_routes_remote_safety_failures_without_error_retry_bookkeeping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    lane: str,
+    failure_kind: str,
+) -> None:
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "reconcile_runtime_historical_context_state", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "glob", lambda _pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
+    monkeypatch.setattr(bot, "list_meme_candidates", lambda: [])
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    current = 1_784_708_283
+    state = {
+        "next_quote_post_epoch": 1 if lane == "quote" else current + 3600,
+        "next_meme_post_epoch": 1,
+        "last_quote_post_epoch": 0,
+    }
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
+    monkeypatch.setattr(bot, "ensure_meme_schedule_initialized", lambda _state: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (int(state_arg.get(key, current)), False),
+    )
+    monkeypatch.setattr(
+        bot,
+        "safely_process_due_historical_context_obligations",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        bot,
+        "run_reply_lane_checks_for_tick",
+        lambda _state, _current, reply_epoch, quote_epoch: (reply_epoch, quote_epoch),
+    )
+    monkeypatch.setattr(
+        bot,
+        "record_api_error",
+        lambda *_args, **_kwargs: pytest.fail(
+            "remote safety exceptions must not enter API-error bookkeeping"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "schedule_next_quote_post",
+        lambda *_args, **_kwargs: pytest.fail(
+            "remote safety exceptions must not schedule a quote retry"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "set_meme_delay_schedule",
+        lambda *_args, **_kwargs: pytest.fail(
+            "remote safety exceptions must not schedule a meme retry"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("marker failed")),
+    )
+
+    def raise_safety_failure() -> None:
+        if failure_kind == "ambiguous":
+            bot.record_ambiguous_remote_post({"text": "confirmed or ambiguous"})
+            raise bot.AmbiguousRemotePostOutcome("ambiguous", service="x")
+        bot.latch_confirmed_post_persistence_failure(
+            lane="daily_meme",
+            post_id="970001",
+            failure_components=["meme_post_receipt", "state"],
+        )
+        raise bot.UnrecoverableConfirmedPostPersistenceError(
+            "confirmed and unrepresented"
+        )
+
+    if lane == "quote":
+        monkeypatch.setattr(
+            bot,
+            "post_random_quote",
+            lambda *_args, **_kwargs: raise_safety_failure(),
+        )
+        monkeypatch.setattr(
+            bot,
+            "post_next_meme",
+            lambda _state: pytest.fail("meme lane must not run through the safety latch"),
+        )
+    else:
+        monkeypatch.setattr(
+            bot,
+            "post_random_quote",
+            lambda *_args, **_kwargs: pytest.fail("future quote lane must not run"),
+        )
+        monkeypatch.setattr(bot, "post_next_meme", lambda _state: raise_safety_failure())
+
+    class SafetyBarrierTickComplete(Exception):
+        pass
+
+    monkeypatch.setattr(
+        bot,
+        "sleep",
+        lambda _seconds: (_ for _ in ()).throw(SafetyBarrierTickComplete),
+    )
+
+    with pytest.raises(SafetyBarrierTickComplete):
+        bot.main()
+
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
+def test_confirmed_persistence_marker_blocks_main_after_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bot.latch_confirmed_post_persistence_failure(
+        lane="quote_image",
+        post_id="950001",
+        failure_components=["regular_post_receipt", "state"],
+    )
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(
+        bot,
+        "acquire_instance_lock",
+        lambda: pytest.fail("startup must stop before acquiring the instance lock"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "reconcile_runtime_historical_context_state",
+        lambda: pytest.fail("startup reconciliation must not run through the barrier"),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="remote-write safety barrier"):
+        bot.main()
+
+
 def test_regular_receipt_replay_does_not_create_second_post(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4579,6 +5228,7 @@ def test_confirmed_meme_state_failure_reconciles_receipt(
     with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
         bot.post_next_meme(state)
 
+    assert bot.ambiguous_remote_post_is_blocking() is False
     assert receipt_file.exists()
     receipt = json.loads(receipt_file.read_text(encoding="utf-8"))
     assert receipt["next_meme_post_epoch"] > 1_800_000_000
@@ -4632,19 +5282,289 @@ def test_confirmed_meme_receipt_write_failure_keeps_normal_schedule(
     monkeypatch.setattr(bot, "create_post", lambda **kwargs: {"data": {"id": "970001"}})
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "write_meme_post_receipt", lambda receipt: (_ for _ in ()).throw(OSError("receipt failed")))
-    saved_states: list[dict] = []
-    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: saved_states.append(json.loads(json.dumps(state))))
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
 
     state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
-    with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError) as caught:
         bot.post_next_meme(state)
 
+    assert type(caught.value) is bot.ConfirmedPostLocalPersistenceError
+    assert bot.ambiguous_remote_post_is_blocking() is False
     assert state["posted_meme_filenames"] == ["001_meme.png"]
     assert state["next_meme_post_epoch"] > 1_800_000_000
     assert state["next_meme_post_epoch"] > state["last_meme_post_epoch"]
-    assert saved_states[-1]["next_meme_post_epoch"] == state["next_meme_post_epoch"]
     assert state["next_meme_schedule_mode"] == "fallback"
+    persisted_state = json.loads(bot.STATE_FILE.read_text(encoding="utf-8"))
+    assert persisted_state["last_main_post_id"] == "970001"
+    assert persisted_state["posted_meme_filenames"] == ["001_meme.png"]
+    assert persisted_state["next_meme_post_epoch"] == state["next_meme_post_epoch"]
+
+
+def test_confirmed_meme_sigint_is_delivered_only_after_durable_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    meme_dir = tmp_path / "memes"
+    meme_dir.mkdir()
+    (meme_dir / "001_meme.png").write_bytes(b"meme")
+    receipt_file = tmp_path / "meme_post_receipt.json"
+    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", receipt_file)
+    monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
+    monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "create_post", lambda **_kwargs: {"data": {"id": "970001"}})
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+    stages: list[str] = []
+    original_write = bot.write_meme_post_receipt
+
+    guard_token = object()
+
+    def begin_deferral() -> object:
+        stages.append("begin")
+        return guard_token
+
+    def write_receipt(receipt: dict) -> None:
+        stages.append("receipt")
+        original_write(receipt)
+
+    def deliver_pending_sigint(guard: object | None) -> None:
+        assert guard is guard_token
+        assert receipt_file.exists()
+        stages.append("end")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin_deferral)
+    monkeypatch.setattr(bot, "write_meme_post_receipt", write_receipt)
+    monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", deliver_pending_sigint)
+
+    state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
+    with pytest.raises(KeyboardInterrupt):
+        bot.post_next_meme(state)
+
+    assert stages == ["begin", "receipt", "end"]
+    assert json.loads(receipt_file.read_text(encoding="utf-8"))["post_id"] == "970001"
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_meme_ambiguous_create_without_marker_keeps_sigint_deferred(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    meme_dir = tmp_path / "memes"
+    meme_dir.mkdir()
+    (meme_dir / "001_meme.png").write_bytes(b"meme")
+    monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
+    monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    def ambiguous_create(**_kwargs: object) -> dict:
+        bot.record_ambiguous_remote_post({"text": bot.MEME_POST_TEXT})
+        raise bot.AmbiguousRemotePostOutcome("ambiguous", service="x")
+
+    monkeypatch.setattr(bot, "create_post", ambiguous_create)
+    monkeypatch.setattr(
+        bot,
+        "atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("marker failed")),
+    )
+    guard_token = object()
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard_token)
+    monkeypatch.setattr(
+        bot,
+        "end_confirmed_post_sigint_deferral",
+        lambda _guard: pytest.fail(
+            "SIGINT must remain deferred while the process-local latch is the only barrier"
+        ),
+    )
+
+    state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.post_next_meme(state)
+
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
+def test_meme_emergency_canonical_state_survives_backup_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    meme_dir = tmp_path / "memes"
+    meme_dir.mkdir()
+    (meme_dir / "001_meme.png").write_bytes(b"meme")
+    monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
+    monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "create_post", lambda **_kwargs: {"data": {"id": "970001"}})
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(
+        bot,
+        "write_meme_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "write_latest_state_backup",
+        lambda **_kwargs: (_ for _ in ()).throw(OSError("backup failed")),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError) as caught:
+        bot.post_next_meme(state)
+
+    assert type(caught.value) is bot.ConfirmedPostLocalPersistenceError
+    assert bot.json_file_matches(bot.STATE_FILE, state) is True
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_meme_total_persistence_loss_latches_all_remote_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    meme_dir = tmp_path / "memes"
+    meme_dir.mkdir()
+    (meme_dir / "001_meme.png").write_bytes(b"meme")
+    remote_calls = 0
+    original_create_post = bot.create_post
+
+    def confirmed_create(**_kwargs: object) -> dict:
+        nonlocal remote_calls
+        remote_calls += 1
+        return {"data": {"id": "970001"}}
+
+    monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
+    monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "create_post", confirmed_create)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(
+        bot,
+        "write_meme_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("state failed")),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        bot.post_next_meme(state)
+
+    assert remote_calls == 1
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
+    assert marker["outcome"] == "confirmed_remote_post_local_persistence_failed"
+    assert marker["lane"] == "daily_meme"
+    assert marker["post_id"] == "970001"
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    boundary_calls = 0
+
+    def unexpected_boundary(*_args: object, **_kwargs: object) -> dict:
+        nonlocal boundary_calls
+        boundary_calls += 1
+        pytest.fail("remote boundary must not be reached after the durable safety marker")
+
+    monkeypatch.setattr(bot, "x_request", unexpected_boundary)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        original_create_post("must not be sent")
+    assert remote_calls == 1
+    assert boundary_calls == 0
+
+
+def test_meme_total_persistence_and_marker_loss_keeps_sigint_deferred(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    meme_dir = tmp_path / "memes"
+    meme_dir.mkdir()
+    (meme_dir / "001_meme.png").write_bytes(b"meme")
+    monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
+    monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "create_post", lambda **_kwargs: {"data": {"id": "970001"}})
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(
+        bot,
+        "write_meme_post_receipt",
+        lambda _receipt: (_ for _ in ()).throw(OSError("receipt failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("state failed")),
+    )
+    monkeypatch.setattr(
+        bot,
+        "atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("marker failed")),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+    guard_token = object()
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard_token)
+    monkeypatch.setattr(
+        bot,
+        "end_confirmed_post_sigint_deferral",
+        lambda _guard: pytest.fail(
+            "SIGINT must remain deferred while the process-local latch is the only barrier"
+        ),
+    )
+
+    state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        bot.post_next_meme(state)
+
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
+def test_confirmed_meme_with_incomplete_emergency_state_latches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    meme_dir = tmp_path / "memes"
+    meme_dir.mkdir()
+    (meme_dir / "001_meme.png").write_bytes(b"meme")
+    monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
+    monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "create_post", lambda **_kwargs: {"data": {"id": "970001"}})
+    monkeypatch.setattr(
+        bot,
+        "now_epoch",
+        lambda: (_ for _ in ()).throw(RuntimeError("clock failed after confirmation")),
+    )
+    saved_states: list[dict] = []
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda state, **_kwargs: saved_states.append(json.loads(json.dumps(state))),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    state = {
+        "last_main_post_id": "960000",
+        "last_meme_post_epoch": 1_700_000_000,
+        "next_meme_post_epoch": 1_700_086_400,
+        "posted_meme_filenames": [],
+    }
+    with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        bot.post_next_meme(state)
+
+    assert saved_states
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
+    assert marker["failure_components"] == [
+        "incomplete_meme_post_state",
+        "meme_post_receipt",
+    ]
+    assert marker["recorded_at_unavailable"] is True
 
 
 def test_meme_receipt_removal_failure_keeps_future_meme_schedule(
@@ -4694,6 +5614,53 @@ def test_test_post_quote_reports_confirmed_local_failure_distinctly(tmp_path: Pa
 
     assert bot.run_test_post_quote() == 3
     assert saved == [{}]
+
+
+def test_one_shot_quote_unrecoverable_failure_cannot_exit_on_memory_latch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    monkeypatch.setenv("MRS_TEST_MODE", "1")
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: {})
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _images: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    monkeypatch.setattr(
+        bot,
+        "post_random_quote",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            bot.UnrecoverableConfirmedPostPersistenceError("confirmed")
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: pytest.fail(
+            "unrecoverable confirmed post must not use ordinary exit bookkeeping"
+        ),
+    )
+    lanes: list[str] = []
+
+    class ProcessHeld(Exception):
+        pass
+
+    def hold(*, lane: str) -> None:
+        lanes.append(lane)
+        raise ProcessHeld
+
+    monkeypatch.setattr(bot, "wait_for_durable_barrier_before_one_shot_exit", hold)
+
+    with pytest.raises(ProcessHeld):
+        bot.run_test_post_quote()
+
+    assert lanes == ["quote_image"]
 
 
 def test_test_post_quote_migrates_old_meme_schedule_before_post_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4802,6 +5769,71 @@ def test_test_post_meme_reports_confirmed_local_failure_distinctly(monkeypatch: 
 
     assert bot.run_test_post_meme() == 3
     assert saved == [{}]
+
+
+def test_one_shot_meme_ambiguity_cannot_exit_on_memory_latch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setenv("MRS_TEST_MODE", "1")
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: {})
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        bot,
+        "post_next_meme",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            bot.AmbiguousRemotePostOutcome("ambiguous", service="x")
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "record_api_error",
+        lambda *_args, **_kwargs: pytest.fail(
+            "ambiguous outcome must not enter ordinary API-error bookkeeping"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: pytest.fail(
+            "ambiguous outcome must not use ordinary exit bookkeeping"
+        ),
+    )
+    lanes: list[str] = []
+
+    class ProcessHeld(Exception):
+        pass
+
+    def hold(*, lane: str) -> None:
+        lanes.append(lane)
+        raise ProcessHeld
+
+    monkeypatch.setattr(bot, "wait_for_durable_barrier_before_one_shot_exit", hold)
+
+    with pytest.raises(ProcessHeld):
+        bot.run_test_post_meme()
+
+    assert lanes == ["daily_meme"]
+
+
+def test_one_shot_memory_only_barrier_waits_for_durable_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", True)
+
+    class ProcessHeld(Exception):
+        pass
+
+    monkeypatch.setattr(
+        bot,
+        "sleep",
+        lambda _seconds: (_ for _ in ()).throw(ProcessHeld),
+    )
+
+    with pytest.raises(ProcessHeld):
+        bot.wait_for_durable_barrier_before_one_shot_exit(lane="quote_image")
 
 
 def test_test_post_meme_migrates_old_meme_schedule_before_post_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -5072,13 +6104,18 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda text: False)
     context = unit_reply_context(target_id="100", contribution="@MrsMThatcher hello")
     monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda mention, state: (context, True))
-    monkeypatch.setattr(bot, "generate_ai_first_reply", lambda actual_context, **_kwargs: unit_approved_reply(actual_context))
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context),
+    )
     monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": "banana"}})
-    monkeypatch.setattr(bot, "save_state", lambda state: None)
+    monkeypatch.setattr(bot, "save_state", lambda state, **_kwargs: None)
 
     status = bot.maybe_reply_to_mentions(state)
 
     assert status == bot.NORMAL_CHECK_STATUS_API_ERROR
+    assert bot.ambiguous_remote_post_is_blocking() is True
     assert state["daily_reply_count"] == 0
     assert state["replied_to_ids"] == []
     assert state["own_auto_reply_ids"] == []

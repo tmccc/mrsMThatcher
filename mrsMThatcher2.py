@@ -15,8 +15,10 @@ import mimetypes
 import os
 import random
 import re
+import signal
 import shutil
 import sys
+import threading
 from collections import Counter
 from datetime import datetime, timedelta
 from glob import glob
@@ -2401,6 +2403,11 @@ def write_latest_state_backup(*, durable: bool = False) -> None:
     log.debug("Latest committed state backup written: %s", bak1)
 
 
+class StateBackupWriteError(RuntimeError):
+    """Raised after canonical state commits but its latest backup write fails."""
+    pass
+
+
 def save_state(state: dict, *, durable: bool = False) -> None:
     """Persist runtime state atomically with bounded backups."""
     if test_process_production_state_write_blocked(STATE_FILE):
@@ -2421,7 +2428,12 @@ def save_state(state: dict, *, durable: bool = False) -> None:
     os.replace(tmp, STATE_FILE)
     if durable:
         fsync_parent_dir(STATE_FILE, strict=durable)
-    write_latest_state_backup(durable=durable)
+    try:
+        write_latest_state_backup(durable=durable)
+    except Exception as exc:
+        raise StateBackupWriteError(
+            f"Canonical state committed but latest backup write failed: {STATE_FILE}"
+        ) from exc
 
 
 def reset_daily_reply_count_if_needed(state: dict) -> None:
@@ -4294,6 +4306,7 @@ def upload_media_v1_1(image_path: str) -> str:
 def upload_media(image_path: str) -> str:
     """Upload media through the preferred endpoint with a safe fallback."""
     require_remote_operation_unpaused("X media upload")
+    block_if_ambiguous_remote_post()
     try:
         return upload_media_v2(image_path)
     except RemoteOperationsPaused:
@@ -4310,49 +4323,228 @@ def upload_media(image_path: str) -> str:
 
 
 def block_if_ambiguous_remote_post() -> None:
-    """Refuse posting while an ambiguous remote-write outcome is unresolved."""
-    if _AMBIGUOUS_REMOTE_POST_SEEN and not AMBIGUOUS_POST_OUTCOME_FILE.exists():
+    """Refuse posting while a remote-write safety incident is unresolved."""
+    if _AMBIGUOUS_REMOTE_POST_SEEN:
+        try:
+            marker_exists = AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        except Exception:
+            marker_exists = False
+        if marker_exists:
+            raise AmbiguousRemotePostOutcome(
+                "Unreconciled ambiguous/confirmed-persistence remote-write safety "
+                f"barrier blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
+                service="x",
+            )
         raise AmbiguousRemotePostOutcome(
-            "Unreconciled in-process ambiguity latch blocks further posting after the durable marker could not be confirmed",
+            "Unreconciled in-process remote-write safety latch blocks further posting",
             service="x",
         )
-    if AMBIGUOUS_POST_OUTCOME_FILE.exists():
+    try:
+        marker_exists = AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    except Exception as exc:
         raise AmbiguousRemotePostOutcome(
-            f"Unreconciled ambiguous remote POST outcome blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
+            "The remote-write safety marker cannot be inspected; failing closed",
+            service="x",
+        ) from exc
+    if marker_exists:
+        raise AmbiguousRemotePostOutcome(
+            "Unreconciled ambiguous/confirmed-persistence remote-write safety barrier "
+            f"blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
             service="x",
         )
 
 
 def ambiguous_remote_post_is_blocking() -> bool:
     """Return the global write barrier state without starting any remote work."""
-    return _AMBIGUOUS_REMOTE_POST_SEEN or AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    if _AMBIGUOUS_REMOTE_POST_SEEN:
+        return True
+    try:
+        return AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    except Exception:
+        log.critical(
+            "The remote-write safety marker cannot be inspected; treating all remote "
+            "writes as blocked",
+            exc_info=True,
+        )
+        return True
+
+
+class ConfirmedPostSigintDeferral:
+    """Process-wide Python SIGINT handler state for one main-post transaction."""
+
+    def __init__(self) -> None:
+        """Capture the prior handler and initialise the deferred-signal state."""
+        self.previous_handler = signal.getsignal(signal.SIGINT)
+        self.pending = False
+        self.pending_frame: object | None = None
+
+    def handle(self, _signum: int, frame: object | None) -> None:
+        """Record a pending SIGINT without interrupting the durability window."""
+        self.pending = True
+        self.pending_frame = frame
+
+
+def begin_confirmed_post_sigint_deferral() -> ConfirmedPostSigintDeferral:
+    """Defer controlled SIGINT while a remote main post gains durable identity.
+
+    The production service stops its Python child with SIGINT. Once an X create
+    request begins, the process-wide Python handler records that signal without
+    raising until the durable receipt/fallback write completes. This also
+    covers process-directed SIGINT delivered through another Python thread.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError(
+            "Confirmed main-post creation requires the main thread for SIGINT deferral"
+        )
+    guard = ConfirmedPostSigintDeferral()
+    signal.signal(signal.SIGINT, guard.handle)
+    return guard
+
+
+def end_confirmed_post_sigint_deferral(
+    guard: ConfirmedPostSigintDeferral | None,
+) -> None:
+    """Restore the prior handler and deliver any deferred controlled SIGINT."""
+    if guard is None:
+        return
+    signal.signal(signal.SIGINT, guard.previous_handler)
+    if not guard.pending:
+        return
+    previous_handler = guard.previous_handler
+    if previous_handler == signal.SIG_IGN:
+        return
+    if callable(previous_handler):
+        previous_handler(signal.SIGINT, guard.pending_frame)
+        return
+    raise KeyboardInterrupt
+
+
+def durable_remote_write_safety_marker_exists() -> bool:
+    """Return whether restart safety survives loss of the in-process latch."""
+    try:
+        return AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    except Exception:
+        log.critical(
+            "The remote-write safety marker cannot be inspected; its durability "
+            "cannot be relied upon",
+            exc_info=True,
+        )
+        return False
+
+
+def retain_sigint_deferral_without_durable_barrier(*, lane: str) -> None:
+    """Explain why controlled shutdown must remain deferred after total loss."""
+    log.critical(
+        "Keeping SIGINT deferred for lane=%s because the confirmed/ambiguous "
+        "remote write has no durable local barrier. The process must remain "
+        "alive and idle until manual reconciliation; do not restart it.",
+        lane,
+    )
 
 
 def record_ambiguous_remote_post(payload: dict) -> None:
     """Persist a manual-reconciliation barrier without claiming success or failure."""
     global _AMBIGUOUS_REMOTE_POST_SEEN
     _AMBIGUOUS_REMOTE_POST_SEEN = True
-    if AMBIGUOUS_POST_OUTCOME_FILE.exists():
+    try:
+        if AMBIGUOUS_POST_OUTCOME_FILE.exists():
+            return
+        text = str(payload.get("text") or "")
+        atomic_write_json(
+            AMBIGUOUS_POST_OUTCOME_FILE,
+            {
+                "schema_version": 1,
+                "recorded_at_epoch": now_epoch(),
+                "outcome": "ambiguous_remote_post",
+                "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "reply_to_id": str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""),
+                "media_ids": list((payload.get("media") or {}).get("media_ids") or []),
+                "made_with_ai": bool(payload.get("made_with_ai")),
+            },
+            durable=True,
+        )
+    except Exception:
+        log.critical(
+            "AMBIGUOUS REMOTE X POST OUTCOME: the durable safety marker could not be "
+            "written. The process-local latch remains active; do not restart this "
+            "process before manual reconciliation.",
+            exc_info=True,
+        )
         return
-    text = str(payload.get("text") or "")
-    atomic_write_json(
-        AMBIGUOUS_POST_OUTCOME_FILE,
-        {
-            "schema_version": 1,
-            "recorded_at_epoch": now_epoch(),
-            "outcome": "ambiguous_remote_post",
-            "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-            "reply_to_id": str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""),
-            "media_ids": list((payload.get("media") or {}).get("media_ids") or []),
-            "made_with_ai": bool(payload.get("made_with_ai")),
-        },
-        durable=True,
-    )
     log.critical(
         "AMBIGUOUS REMOTE X POST OUTCOME: X may have accepted the write, but a usable confirmation was not received. "
         "Automatic posting is blocked pending manual reconciliation: %s",
         AMBIGUOUS_POST_OUTCOME_FILE,
     )
+
+
+def latch_confirmed_post_persistence_failure(
+    *,
+    lane: str,
+    post_id: str,
+    failure_components: list[str],
+) -> bool:
+    """Block all writes after a confirmed post loses every complete recovery path.
+
+    The in-process latch is set before any file operation.  This is essential
+    when the durability failure is caused by an unwritable filesystem: exiting
+    would let the service wrapper restart without a durable record and risk a
+    duplicate post.
+
+    Return whether the durable barrier marker was written (or already exists).
+    """
+    global _AMBIGUOUS_REMOTE_POST_SEEN
+    _AMBIGUOUS_REMOTE_POST_SEEN = True
+    failures = sorted({str(item) for item in failure_components if str(item)})
+    incident_identity = json.dumps(
+        {
+            "failure_components": failures,
+            "lane": str(lane),
+            "post_id": str(post_id),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    try:
+        recorded_at_epoch: int | None = now_epoch()
+    except Exception:
+        recorded_at_epoch = None
+    marker = {
+        "schema_version": 1,
+        "outcome": "confirmed_remote_post_local_persistence_failed",
+        "lane": str(lane),
+        "post_id": str(post_id),
+        "failure_components": failures,
+        "incident_sha256": hashlib.sha256(incident_identity.encode("utf-8")).hexdigest(),
+    }
+    if recorded_at_epoch is None:
+        marker["recorded_at_unavailable"] = True
+    else:
+        marker["recorded_at_epoch"] = recorded_at_epoch
+    try:
+        if not AMBIGUOUS_POST_OUTCOME_FILE.exists():
+            atomic_write_json(AMBIGUOUS_POST_OUTCOME_FILE, marker, durable=True)
+    except Exception:
+        log.critical(
+            "CONFIRMED REMOTE POST LOST COMPLETE LOCAL RECOVERY: post_id=%s lane=%s "
+            "failures=%s. The durable safety marker could not be written. The "
+            "process-local latch remains active; do not restart this process before "
+            "manual reconciliation.",
+            post_id,
+            lane,
+            failures,
+            exc_info=True,
+        )
+        return False
+    log.critical(
+        "CONFIRMED REMOTE POST LOST COMPLETE LOCAL RECOVERY: post_id=%s lane=%s "
+        "failures=%s. All remote writes are blocked pending manual reconciliation: %s",
+        post_id,
+        lane,
+        failures,
+        AMBIGUOUS_POST_OUTCOME_FILE,
+    )
+    return True
 
 
 def create_post(
@@ -4488,6 +4680,11 @@ class ConfirmedPostLocalPersistenceError(RuntimeError):
     # no replay record. Separately, if X accepts a post but no response reaches
     # this process, there is no known post id to receipt.
     """Raised when a confirmed remote post cannot be persisted locally."""
+    pass
+
+
+class UnrecoverableConfirmedPostPersistenceError(ConfirmedPostLocalPersistenceError):
+    """Raised when a confirmed main post has no complete durable representation."""
     pass
 
 
@@ -5340,6 +5537,15 @@ def save_regular_post_protected_state(lines_used: set, images_used: set, state: 
     save_state(state, durable=durable)
 
 
+def json_file_matches(path: Path, expected: object) -> bool:
+    """Return whether a JSON file contains exactly the expected value."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle) == expected
+    except Exception:
+        return False
+
+
 def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: dict) -> list[str]:
     """Return the emergency persist confirmed regular post."""
     failures: list[str] = []
@@ -5350,10 +5556,73 @@ def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, 
     ):
         try:
             func()
-        except Exception:
+        except Exception as exc:
+            if (
+                name == "state"
+                and isinstance(exc, StateBackupWriteError)
+                and json_file_matches(STATE_FILE, state)
+            ):
+                log.warning(
+                    "Emergency canonical state was committed after confirmed regular "
+                    "post, but a later backup/finalisation step failed; treating the "
+                    "canonical durable state as the recovery representation",
+                    exc_info=True,
+                )
+                continue
             failures.append(name)
             log.critical("Emergency persistence component failed after confirmed regular post: %s", name, exc_info=True)
     return failures
+
+
+def confirmed_regular_emergency_representation_is_complete(
+    *,
+    post_id: str,
+    post_epoch: int | None,
+    quote_hash: str,
+    image_basename: str,
+    lines_used: set,
+    images_used: set,
+    state: dict,
+) -> bool:
+    """Return whether the no-receipt regular-post fallback prevents replay."""
+    state_post_epoch = receipt_int(state.get("last_quote_post_epoch"))
+    next_post_epoch = receipt_int(state.get("next_quote_post_epoch"))
+    return bool(
+        valid_post_id(post_id)
+        and post_epoch is not None
+        and valid_receipt_epoch(post_epoch)
+        and str(state.get("last_main_post_id") or "") == str(post_id)
+        and quote_hash in lines_used
+        and image_basename in images_used
+        and state_post_epoch == post_epoch
+        and next_post_epoch is not None
+        and valid_receipt_epoch(next_post_epoch)
+        and next_post_epoch > post_epoch
+    )
+
+
+def confirmed_meme_emergency_representation_is_complete(
+    *,
+    post_id: str,
+    post_epoch: int | None,
+    meme_basename: str,
+    state: dict,
+) -> bool:
+    """Return whether the no-receipt meme fallback prevents replay."""
+    state_post_epoch = receipt_int(state.get("last_meme_post_epoch"))
+    next_post_epoch = receipt_int(state.get("next_meme_post_epoch"))
+    posted = {str(item) for item in state.get("posted_meme_filenames", [])}
+    return bool(
+        valid_post_id(post_id)
+        and post_epoch is not None
+        and valid_receipt_epoch(post_epoch)
+        and str(state.get("last_main_post_id") or "") == str(post_id)
+        and meme_basename in posted
+        and state_post_epoch == post_epoch
+        and next_post_epoch is not None
+        and valid_receipt_epoch(next_post_epoch)
+        and next_post_epoch > post_epoch
+    )
 
 
 def maybe_post_historical_context_reply(
@@ -8250,6 +8519,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         return
     original_lines_used = set(lines_used)
     original_images_used = set(images_used)
+    confirmed_post_sigint_guard: ConfirmedPostSigintDeferral | None = None
 
     try:
         require_historical_context_outbox_writable()
@@ -8325,6 +8595,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         log.debug("Quote text=%r", tweet)
 
         media_id = upload_media(image)
+        confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
         response = create_post(
             text=tweet,
             media_ids=[media_id],
@@ -8336,11 +8607,20 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
 
         if not valid_post_id(posted_id):
             raise RuntimeError("Quote/image post did not return a valid post id; used histories unchanged")
-    except Exception:
+    except BaseException as remote_exc:
         lines_used.clear()
         lines_used.update(original_lines_used)
         images_used.clear()
         images_used.update(original_images_used)
+        if (
+            isinstance(remote_exc, AmbiguousRemotePostOutcome)
+            and _AMBIGUOUS_REMOTE_POST_SEEN
+            and not durable_remote_write_safety_marker_exists()
+        ):
+            retain_sigint_deferral_without_durable_barrier(lane="quote_image")
+        else:
+            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+            confirmed_post_sigint_guard = None
         raise
 
     try:
@@ -8366,23 +8646,52 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             "meme_schedule_changed_by_quote": meme_schedule_changed_by_quote,
         }
         write_regular_post_receipt(receipt)
-    except Exception as exc:
+    except BaseException as receipt_exc:
         log.critical(
             "Confirmed regular quote/image post_id=%s but failed writing recovery receipt; in-memory used histories remain marked",
             posted_id,
             exc_info=True,
         )
-        lines_used.add(quote_hash)
-        images_used.add(image_basename)
-        state["last_main_post_id"] = str(posted_id)
-        if "quote_post_epoch" in locals():
-            state["last_quote_post_epoch"] = quote_post_epoch
-        state["last_regular_image_filename"] = image_basename
-        update_regular_generated_image_spacing_state(state, image_basename)
+        fallback_failures: list[str] = []
+        try:
+            lines_used.add(quote_hash)
+            images_used.add(image_basename)
+            state["last_main_post_id"] = str(posted_id)
+            if "quote_post_epoch" in locals():
+                state["last_quote_post_epoch"] = quote_post_epoch
+            state["last_regular_image_filename"] = image_basename
+        except Exception:
+            fallback_failures.append("in_memory_regular_post_state")
+            log.critical(
+                "Emergency in-memory core state update failed after confirmed regular post",
+                exc_info=True,
+            )
+        try:
+            update_regular_generated_image_spacing_state(state, image_basename)
+        except Exception:
+            fallback_failures.append("generated_image_spacing_state")
+            log.critical(
+                "Emergency generated-image spacing update failed after confirmed regular post",
+                exc_info=True,
+            )
         if "quote_schedule_fields" in locals():
-            apply_state_fields(state, quote_schedule_fields)
+            try:
+                apply_state_fields(state, quote_schedule_fields)
+            except Exception:
+                fallback_failures.append("quote_schedule_state")
+                log.critical(
+                    "Emergency quote schedule update failed after confirmed regular post",
+                    exc_info=True,
+                )
         if "meme_schedule_fields" in locals():
-            apply_state_fields(state, meme_schedule_fields)
+            try:
+                apply_state_fields(state, meme_schedule_fields)
+            except Exception:
+                fallback_failures.append("meme_schedule_state")
+                log.critical(
+                    "Emergency meme schedule update failed after confirmed regular post",
+                    exc_info=True,
+                )
         try:
             cache_tweet(
                 state,
@@ -8396,11 +8705,46 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             record_recent_own_post(state, str(posted_id))
         except Exception:
             log.critical("Emergency in-memory cache/recent update failed after confirmed regular post", exc_info=True)
-        failures = emergency_persist_confirmed_regular_post(lines_used, images_used, state)
+        failures = [
+            *fallback_failures,
+            *emergency_persist_confirmed_regular_post(lines_used, images_used, state),
+        ]
+        if not confirmed_regular_emergency_representation_is_complete(
+            post_id=str(posted_id),
+            post_epoch=quote_post_epoch if "quote_post_epoch" in locals() else None,
+            quote_hash=quote_hash,
+            image_basename=image_basename,
+            lines_used=lines_used,
+            images_used=images_used,
+            state=state,
+        ):
+            failures.append("incomplete_regular_post_state")
         failure_text = ", ".join(failures) if failures else "receipt"
+        if failures:
+            durable_barrier = latch_confirmed_post_persistence_failure(
+                lane="quote_image",
+                post_id=str(posted_id),
+                failure_components=["regular_post_receipt", *failures],
+            )
+            if durable_barrier:
+                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+                confirmed_post_sigint_guard = None
+            else:
+                retain_sigint_deferral_without_durable_barrier(lane="quote_image")
+            raise UnrecoverableConfirmedPostPersistenceError(
+                f"Confirmed regular quote/image post {posted_id} has no complete "
+                f"durable recovery representation: {failure_text}"
+            ) from receipt_exc
+        end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+        confirmed_post_sigint_guard = None
+        if not isinstance(receipt_exc, Exception):
+            raise
         raise ConfirmedPostLocalPersistenceError(
             f"Confirmed regular quote/image post {posted_id} but failed local recovery receipt/persistence: {failure_text}"
-        ) from exc
+        ) from receipt_exc
+
+    end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+    confirmed_post_sigint_guard = None
 
     try:
         lines_used.add(quote_hash)
@@ -8861,23 +9205,36 @@ def post_next_meme(state: dict) -> None:
         lambda: upload_media(str(meme_path)),
     )
 
-    response = run_daily_meme_stage(
-        "x_post_request",
-        lambda: create_post(
-            text=MEME_POST_TEXT,
-            media_ids=[media_id],
-            reply_to_id=None,
-            made_with_ai=False,
-        ),
-    )
+    confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
+    try:
+        response = run_daily_meme_stage(
+            "x_post_request",
+            lambda: create_post(
+                text=MEME_POST_TEXT,
+                media_ids=[media_id],
+                reply_to_id=None,
+                made_with_ai=False,
+            ),
+        )
 
-    posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
-    log.debug("Posted meme id=%s", posted_id)
+        posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
+        log.debug("Posted meme id=%s", posted_id)
 
-    run_daily_meme_stage(
-        "x_post_response_validation",
-        lambda: require_valid_meme_post_id(posted_id),
-    )
+        run_daily_meme_stage(
+            "x_post_response_validation",
+            lambda: require_valid_meme_post_id(posted_id),
+        )
+    except BaseException as remote_exc:
+        if (
+            isinstance(remote_exc, AmbiguousRemotePostOutcome)
+            and _AMBIGUOUS_REMOTE_POST_SEEN
+            and not durable_remote_write_safety_marker_exists()
+        ):
+            retain_sigint_deferral_without_durable_barrier(lane="daily_meme")
+        else:
+            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+            confirmed_post_sigint_guard = None
+        raise
 
     try:
         meme_post_epoch = now_epoch()
@@ -8901,7 +9258,7 @@ def post_next_meme(state: dict) -> None:
             "image_summary": image_summary,
         }
         write_meme_post_receipt(receipt)
-    except Exception as exc:
+    except BaseException as receipt_exc:
         log.critical(
             "Confirmed meme post_id=%s but stage=meme_receipt_creation failed; attempting direct durable state save",
             posted_id,
@@ -8912,9 +9269,11 @@ def post_next_meme(state: dict) -> None:
             status="failed",
             stage="meme_receipt_creation",
             post_id=str(posted_id),
-            error_type=type(exc).__name__,
-            reason=str(exc)[:500],
+            error_type=type(receipt_exc).__name__,
+            reason=str(receipt_exc)[:500],
         )
+        emergency_state_write_succeeded = False
+        emergency_state_complete = False
         try:
             state["last_main_post_id"] = str(posted_id)
             if "meme_post_epoch" in locals():
@@ -8939,9 +9298,59 @@ def post_next_meme(state: dict) -> None:
             except Exception:
                 log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
             save_state(state, durable=True)
-        except Exception:
-            log.critical("Emergency state persistence failed after confirmed meme post", exc_info=True)
-        raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but failed writing recovery receipt") from exc
+            emergency_state_write_succeeded = True
+            emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
+                post_id=str(posted_id),
+                post_epoch=meme_post_epoch if "meme_post_epoch" in locals() else None,
+                meme_basename=meme_path.name,
+                state=state,
+            )
+        except Exception as emergency_exc:
+            if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state):
+                emergency_state_write_succeeded = True
+                emergency_state_complete = confirmed_meme_emergency_representation_is_complete(
+                    post_id=str(posted_id),
+                    post_epoch=meme_post_epoch if "meme_post_epoch" in locals() else None,
+                    meme_basename=meme_path.name,
+                    state=state,
+                )
+                log.warning(
+                    "Emergency canonical state was committed after confirmed meme post, "
+                    "but a later backup/finalisation step failed; using the canonical "
+                    "durable state as the recovery representation",
+                    exc_info=True,
+                )
+            else:
+                log.critical("Emergency state persistence failed after confirmed meme post", exc_info=True)
+        if not emergency_state_complete:
+            incomplete_component = (
+                "incomplete_meme_post_state"
+                if emergency_state_write_succeeded
+                else "state"
+            )
+            durable_barrier = latch_confirmed_post_persistence_failure(
+                lane="daily_meme",
+                post_id=str(posted_id),
+                failure_components=["meme_post_receipt", incomplete_component],
+            )
+            if durable_barrier:
+                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+                confirmed_post_sigint_guard = None
+            else:
+                retain_sigint_deferral_without_durable_barrier(lane="daily_meme")
+            raise UnrecoverableConfirmedPostPersistenceError(
+                f"Confirmed meme post {posted_id} has no complete durable recovery representation"
+            ) from receipt_exc
+        end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+        confirmed_post_sigint_guard = None
+        if not isinstance(receipt_exc, Exception):
+            raise
+        raise ConfirmedPostLocalPersistenceError(
+            f"Confirmed meme post {posted_id} but failed writing recovery receipt"
+        ) from receipt_exc
+
+    end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+    confirmed_post_sigint_guard = None
 
     try:
         state["last_main_post_id"] = str(posted_id)
@@ -11675,6 +12084,34 @@ def main() -> None:
     ambiguity_pause_logged = False
     maintenance_pause_logged = global_remote_writes_paused()
     while True:
+        if ambiguous_remote_post_is_blocking():
+            if not ambiguity_pause_logged:
+                try:
+                    durable_marker_confirmed = AMBIGUOUS_POST_OUTCOME_FILE.exists()
+                except Exception:
+                    durable_marker_confirmed = False
+                    log.critical(
+                        "The remote-write safety marker could not be inspected; the "
+                        "process will remain latched and must not be restarted",
+                        exc_info=True,
+                    )
+                if durable_marker_confirmed:
+                    log.critical(
+                        "All remote posting and reply lanes are paused by the durable "
+                        "remote-write safety barrier; manual reconciliation is required "
+                        "before a controlled restart"
+                    )
+                else:
+                    log.critical(
+                        "All remote posting and reply lanes are paused by an in-process-only "
+                        "remote-write safety latch because its durable marker could not be "
+                        "written; do not restart before manual reconciliation"
+                    )
+                ambiguity_pause_logged = True
+            sleep(60)
+            continue
+        ambiguity_pause_logged = False
+
         current = now_epoch()
         log.debug("Main loop tick. epoch=%s", current)
 
@@ -11690,17 +12127,6 @@ def main() -> None:
         if maintenance_pause_logged:
             log.info("Global runtime control pause cleared; resuming scheduled lanes")
         maintenance_pause_logged = False
-
-        if ambiguous_remote_post_is_blocking():
-            if not ambiguity_pause_logged:
-                log.critical(
-                    "All remote posting and reply lanes are paused by the ambiguous-post barrier; "
-                    "manual reconciliation and a controlled restart are required"
-                )
-                ambiguity_pause_logged = True
-            sleep(60)
-            continue
-        ambiguity_pause_logged = False
 
         safely_process_due_historical_context_obligations(
             limit=1,
@@ -11734,9 +12160,21 @@ def main() -> None:
                 try:
                     post_random_quote(lines_used, images_used, state)
                     quote_posted = True
+                except UnrecoverableConfirmedPostPersistenceError:
+                    quote_posted = True
+                    log.exception(
+                        "Quote/image post was confirmed remotely but no complete durable "
+                        "local representation survived; all remote writes are now blocked"
+                    )
                 except ConfirmedPostLocalPersistenceError:
                     quote_posted = True
                     log.exception("Quote/image post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
+                except AmbiguousRemotePostOutcome:
+                    quote_posted = True
+                    log.exception(
+                        "Quote/image remote outcome is ambiguous; the remote-write safety "
+                        "barrier is active and no retry will be scheduled"
+                    )
                 except ApiError as e:
                     log.exception("Quote/image posting failed due to API error")
                     record_api_error(state, e, "x", scope="write")
@@ -11777,8 +12215,18 @@ def main() -> None:
                 else:
                     try:
                         post_next_meme(state)
+                    except UnrecoverableConfirmedPostPersistenceError:
+                        log.exception(
+                            "Daily meme post was confirmed remotely but no complete durable "
+                            "local representation survived; all remote writes are now blocked"
+                        )
                     except ConfirmedPostLocalPersistenceError:
                         log.exception("Daily meme post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
+                    except AmbiguousRemotePostOutcome:
+                        log.exception(
+                            "Daily meme remote outcome is ambiguous; the remote-write safety "
+                            "barrier is active and no retry will be scheduled"
+                        )
                     except ApiError as e:
                         log.exception("Daily meme posting failed due to API error")
                         record_api_error(state, e, "x", scope="write")
@@ -12052,6 +12500,25 @@ def prepare_test_main_post_state(state: dict) -> None:
         ensure_meme_schedule_initialized(state)
 
 
+def wait_for_durable_barrier_before_one_shot_exit(*, lane: str) -> None:
+    """Keep a one-shot posting process alive while its only barrier is memory."""
+    if not _AMBIGUOUS_REMOTE_POST_SEEN or durable_remote_write_safety_marker_exists():
+        return
+    log.critical(
+        "The one-shot %s command cannot exit because its only remote-write safety "
+        "barrier is process-local. Create and verify a durable reconciliation "
+        "marker before terminating this process.",
+        lane,
+    )
+    while not durable_remote_write_safety_marker_exists():
+        sleep(60)
+    log.critical(
+        "A durable remote-write safety marker is now present for one-shot lane=%s; "
+        "process exit is restart-safe",
+        lane,
+    )
+
+
 def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
     require_production_bootstrap()
@@ -12078,6 +12545,15 @@ def run_test_post_quote() -> int:
 
     try:
         post_random_quote(lines_used, images_used, state)
+    except UnrecoverableConfirmedPostPersistenceError:
+        log.critical(
+            "REMOTE X POST WAS CONFIRMED WITHOUT A COMPLETE DURABLE LOCAL "
+            "REPRESENTATION. The one-shot quote process must not exit while only "
+            "its in-memory safety latch survives.",
+            exc_info=True,
+        )
+        wait_for_durable_barrier_before_one_shot_exit(lane="quote_image")
+        return 3
     except ConfirmedPostLocalPersistenceError:
         log.critical(
             "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
@@ -12086,6 +12562,16 @@ def run_test_post_quote() -> int:
         )
         save_state(state)
         return 3
+    except AmbiguousRemotePostOutcome as exc:
+        log.critical(
+            "The one-shot quote remote outcome is ambiguous; refusing normal exit "
+            "while only an in-memory safety latch survives.",
+            exc_info=True,
+        )
+        wait_for_durable_barrier_before_one_shot_exit(lane="quote_image")
+        record_api_error(state, exc, "x", scope="write")
+        save_state(state)
+        return 1
     except ApiError as exc:
         log.exception("Test quote/image post failed due to API error")
         record_api_error(state, exc, "x", scope="write")
@@ -12121,6 +12607,15 @@ def run_test_post_meme() -> int:
 
     try:
         post_next_meme(state)
+    except UnrecoverableConfirmedPostPersistenceError:
+        log.critical(
+            "REMOTE X POST WAS CONFIRMED WITHOUT A COMPLETE DURABLE LOCAL "
+            "REPRESENTATION. The one-shot meme process must not exit while only "
+            "its in-memory safety latch survives.",
+            exc_info=True,
+        )
+        wait_for_durable_barrier_before_one_shot_exit(lane="daily_meme")
+        return 3
     except ConfirmedPostLocalPersistenceError:
         log.critical(
             "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
@@ -12129,6 +12624,16 @@ def run_test_post_meme() -> int:
         )
         save_state(state)
         return 3
+    except AmbiguousRemotePostOutcome as exc:
+        log.critical(
+            "The one-shot meme remote outcome is ambiguous; refusing normal exit "
+            "while only an in-memory safety latch survives.",
+            exc_info=True,
+        )
+        wait_for_durable_barrier_before_one_shot_exit(lane="daily_meme")
+        record_api_error(state, exc, "x", scope="write")
+        save_state(state)
+        return 1
     except ApiError as exc:
         log.exception("Test daily meme post failed due to API error")
         record_api_error(state, exc, "x", scope="write")
