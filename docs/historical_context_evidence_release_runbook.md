@@ -114,14 +114,22 @@ confidence diagnostics or source-role internals in public output.
 5. Apply only the approved source records, Meaning corrections and
    exact/variant decisions to authoritative inputs.
 6. Regenerate all dependent artefacts with established builders.
-7. Run the semantic-diff checks.
-8. Build the complete generated output twice from identical inputs.
-9. Inspect representative public rendering, including unrelated allowed and
+7. Generate and validate a machine-readable semantic diff. Derive release
+   counts and exact changed quote-ID lists from that diff, not from a prose
+   report, abbreviated terminal output or conversational summary.
+8. Run the semantic-diff checks.
+9. Build the complete generated output twice from identical inputs.
+10. Inspect representative public rendering, including unrelated allowed and
    blocked controls.
-10. Run focused tests, compilation and `git diff --check`.
-11. Run the complete offline suite once against the final candidate.
-12. Inspect and stage every changed file explicitly.
-13. Commit on the isolated admission branch; do not push yet.
+11. Run focused tests, compilation and `git diff --check`.
+12. Run the complete offline suite once against the final candidate.
+13. Inspect and stage every changed file explicitly.
+14. Commit on the isolated admission branch; do not push yet.
+
+Preserve the established serialisation of large generated artefacts unless the
+authoritative builder deliberately changes it. A semantically harmless
+pretty-print or key-order rewrite can obscure the reviewed transition, produce
+an enormous diff and make hash review unnecessarily difficult.
 
 ## Required invariants
 
@@ -142,6 +150,12 @@ report or conversational prompt. Require:
 Report counts using the authoritative schema fields. For example, read the
 unresolved ID list or documented unresolved count directly; do not infer it
 from a similarly named nested field.
+
+Do not assume that two 611-item identity lists in one manifest must be
+byte-for-byte or set-identical. A resolved-manifest list may retain historical
+or alias identities while the runtime-eligible list contains current canonical
+IDs. Prove ordinary-cycle invariance by comparing the authoritative before and
+after runtime-cycle membership and order through the established builder.
 
 ## Deterministic-build proof
 
@@ -174,6 +188,14 @@ the complete suite once more only when the integrated candidate is ready.
 Test expectations which bind exact hashes or generated counts must be updated
 only after verifying that the underlying semantic change is authorised.
 
+The default release gate remains a final green complete-suite run. If the
+operator explicitly directs that a second long run not be performed after a
+broad run exposes repair-related failures, do not describe the broad suite as
+passing. Preserve the complete failed-node list and signatures, require every
+failed node to pass after repair, run the complete directly affected test set,
+and record the omitted second run as an explicit release deviation in both
+admission and deployment validation.
+
 ## Production deployment
 
 Before touching production:
@@ -185,9 +207,20 @@ Before touching production:
    receipts, histories, schedules, the control file and relevant logs.
 5. Record service PIDs, command line, imported paths, start time and restart
    count.
-6. Confirm no ordinary post is due during the maintenance window.
+6. Confirm the due state of every remote-write lane: ordinary posts, memes,
+   mention replies, quote-tweet replies and historical-context outbox work.
 7. Activate the existing supported global remote-write pause atomically.
 8. Wait for the current runtime's actual pause-acknowledgement message.
+
+The first live backup proves the pre-pause state but can race a running
+scheduler. After the pause is acknowledged and the service has stopped, take a
+second quiescent snapshot before changing Git or canonical artefacts.
+
+Pause acknowledgement is runtime-path dependent. At startup the process may
+acknowledge the pause by saying that receipt reconciliation was left untouched,
+while an already-running main loop may emit the general “all remote-write lanes
+remain idle” message. Require a message produced after the pause boundary; do
+not require one hard-coded wording when both paths are established and tested.
 
 Then:
 
@@ -211,6 +244,19 @@ The deployment process itself must make no X post, reply, quote-tweet, deletion
 or media upload. Distinguish any natural bot read-only activity after unpausing
 from deployment-process activity.
 
+Record the exact log offset or timestamp at restart and at unpause. An overdue
+reply check may make natural read-only X requests or a provider assessment as
+soon as the pause clears, even when quote and meme posts are not due. Report
+read requests, provider calls and write requests separately, and require zero
+deployment X writes. If the release requires zero provider activity as well,
+do not unpause while any reply lane is due.
+
+Do not require `NRestarts` to increment after a deliberate
+`systemctl stop`/`start`; systemd commonly reports zero automatic restarts for
+the new invocation. Prove the controlled restart using the deployment event
+trace, changed start timestamp, new wrapper/child PIDs and stable post-start
+process count.
+
 ## Runtime and digest compatibility
 
 Confirm the deployed import paths rather than assuming repository files are the
@@ -229,6 +275,24 @@ Verify that:
 - semantic-veto shadow mode is not presented as enforcement;
 - generated-pool `allowed` and `enabled` states remain distinct;
 - resolved legacy incidents are not presented as current failures.
+
+For semantic-veto validation, use the manifest's actual field names and keep
+three quantities distinct:
+
+- the authorised universe (`quote_count × image_count`, currently
+  `611 × 91 = 55,601`);
+- resolved or adjudicated matrix entries;
+- runtime lookup entries loaded for shadow observation.
+
+`live_production_enabled: false` is the fail-closed enforcement fact in the
+current manifest. A smaller resolved/runtime pair count is not a malformed
+55,601-pair universe.
+
+After an unpaused idle cycle, scheduler state and analytics may legitimately
+change because of natural read-only checks. Compare immutable posting evidence
+separately: quotation and image histories, confirmed receipts, context history
+and outbox. Explain expected state/analytics changes rather than falsely
+requiring every runtime-state byte to remain identical.
 
 ## Rollback
 
@@ -265,3 +329,9 @@ Each release should retain:
 The release record should state explicitly whether production changed, whether
 the service restarted, whether rollback occurred, and the number of
 task-triggered X actions.
+
+The tracked admission validation is necessarily pre-deployment and may record
+`deployment_started: false`, `push_succeeded: false` and no commit hash. Do not
+rewrite that committed evidence after deployment. Record the commit, push,
+service health, natural post-unpause activity and rollback outcome in the
+private production deployment validation instead.
