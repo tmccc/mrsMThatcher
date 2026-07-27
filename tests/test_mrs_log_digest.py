@@ -191,8 +191,8 @@ def semantic_veto_report() -> dict:
             "adjudicated_unknown_selections": 0,
             "not_adjudicated_selections": 1,
             "median_alternative_score_delta": None,
-            "manifest_policy_version": "current-policy",
-            "manifest_sha256": "c" * 64,
+            "manifest_policy_version": "obsolete-policy",
+            "manifest_sha256": "a" * 64,
             "lookup_failures": 0,
             "manifest_strata": [
                 {
@@ -200,12 +200,6 @@ def semantic_veto_report() -> dict:
                     "manifest_sha256": "a" * 64,
                     "selection_time_observations": 1,
                     "status_counts": {"allowed": 1},
-                },
-                {
-                    "manifest_policy_version": "current-policy",
-                    "manifest_sha256": "c" * 64,
-                    "selection_time_observations": 2,
-                    "status_counts": {"allowed": 1, "unknown": 1},
                 },
             ],
         },
@@ -220,9 +214,23 @@ def semantic_veto_report() -> dict:
             "configured_manifest_quote_count": 611,
             "configured_manifest_image_count": 91,
             "configured_manifest_total_authorised_pair_count": 55601,
-            "configured_manifest_resolved_pair_count": 22066,
+            "configured_manifest_resolved_pair_count": 22157,
+            "configured_manifest_allow_pair_count": 22029,
+            "configured_manifest_veto_pair_count": 128,
             "configured_manifest_adjudicated_unknown_pair_count": 167,
-            "configured_manifest_not_adjudicated_pair_count": 33368,
+            "configured_manifest_not_adjudicated_pair_count": 33277,
+            "manifest_policy_version": "older-policy",
+            "manifest_sha256": "b" * 64,
+            "runtime_status_matches_configured_manifest": False,
+            "configured_manifest_named_quote_coverage": {
+                "quote_id": digest.SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID,
+                "authorised_image_count": 91,
+                "allow_count": 91,
+                "veto_count": 0,
+                "adjudicated_unknown_count": 0,
+                "not_adjudicated_count": 0,
+                "complete": True,
+            },
             "configured_manifest_fully_unadjudicated_quotes": [
                 {
                     "quote_id": "new-quotation",
@@ -244,7 +252,7 @@ def test_semantic_veto_reports_authorised_universe_strata_and_new_quote():
     assert "Mode: **shadow**" in rendered
     assert "active enforcement: **disabled" in rendered
     assert "611 quotations × 91 images = 55601 pairs" in rendered
-    assert "22066 resolved" in rendered
+    assert "allow 22029; veto 128" in rendered
     assert "Manifest-version strata" in rendered
     assert "obsolete-policy" in rendered
     assert "current-policy" in rendered
@@ -255,6 +263,168 @@ def test_semantic_veto_reports_authorised_universe_strata_and_new_quote():
     assert "`new-quotation`" in rendered
     assert "not adjudicated **91 / 91**" in rendered
     assert "coverage state, not a runtime error" in rendered
+    assert digest.SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID in rendered
+    assert "allow **91**; veto **0**" in rendered
+    assert "row complete: **yes**" in rendered
+    assert "awaiting first selection observation under configured manifest" in rendered
+
+
+def test_semantic_veto_configured_observation_resolves_older_runtime_status():
+    report = semantic_veto_report()
+    report["quote_image_semantic_veto_shadow"]["summary"]["manifest_sha256"] = "c" * 64
+    report["quote_image_semantic_veto_shadow"]["summary"]["manifest_strata"].append({
+        "manifest_policy_version": "current-policy",
+        "manifest_sha256": "c" * 64,
+        "selection_time_observations": 1,
+        "status_counts": {"allowed": 1},
+    })
+    rendered = digest.render_markdown(report)
+
+    assert "configured manifest observed active" in rendered
+    assert "earlier retained-manifest mismatch is resolved" in rendered
+    assert "awaiting first selection observation" not in rendered
+
+
+def test_semantic_veto_startup_warning_is_resolved_by_later_load():
+    records = [
+        record(
+            0,
+            "WARNING",
+            "initialise_quote_image_semantic_veto_shadow",
+            "Quote/image semantic-veto shadow unavailable; production selection "
+            "remains unchanged. status=manifest_stale reason=source hash mismatch",
+        ),
+        record(
+            10,
+            "INFO",
+            "initialise_quote_image_semantic_veto_shadow",
+            "Quote/image semantic-veto shadow manifest loaded. policy=policy-v3 "
+            f"sha256={'d' * 64} pairs=22157 active_enforcement=false",
+        ),
+    ]
+    lifecycle = digest.semantic_veto_load_lifecycle(records)
+    assert lifecycle["resolved_warning_count"] == 1
+    assert lifecycle["unresolved_warning_count"] == 0
+    report = digest.analyse(records)
+    rendered = digest.render_markdown(report)
+    assert "warning(s) resolved by a later successful load" in rendered
+    other_warnings = rendered.split("## Other warnings", 1)[1]
+    assert "semantic-veto shadow unavailable" not in other_warnings
+
+
+def test_reply_summary_classifies_declines_duplicates_and_posted_modes():
+    events = []
+    reasons = (
+        ["exact_duplicate_reply"] * 3
+        + ["no substantive prompt"] * 2
+        + ["editorially declined"] * 4
+    )
+    for index, reason in enumerate(reasons):
+        events.append({
+            "kind": "reply_strategy_decision",
+            "lane": "mention",
+            "target_id": f"decline-{index}",
+            "mode": "no_reply",
+            "no_reply_reason": reason,
+            "factual_claim": False,
+            "grounded": False,
+        })
+    for index in range(2):
+        events.append({
+            "kind": "reply_strategy_decision",
+            "lane": "mention",
+            "target_id": f"posted-{index}",
+            "mode": "opinion_or_principle",
+            "factual_claim": False,
+            "grounded": False,
+        })
+        events.append({
+            "kind": "reply_strategy_outcome",
+            "status": "posted",
+            "lane": "mention",
+            "target_id": f"posted-{index}",
+            "reply_post_id": f"reply-{index}",
+            "mode": "opinion_or_principle",
+            "factual_claim": False,
+            "grounded": False,
+        })
+
+    summary = digest.reply_strategy_summary(events)
+    assert summary["conversational_candidate_count"] == 11
+    assert summary["confirmed_outcome_count"] == 2
+    assert summary["deliberately_declined_count"] == 9
+    assert summary["no_reply_category_counts"] == {
+        "duplicate_response_rejection": 3,
+        "no_substantive_prompt": 2,
+        "low_value_or_repetitive_engagement": 4,
+    }
+    assert summary["repetition_control_counts"]["exact_duplicate_rejected"] == 3
+    assert summary["claim_free_opinion_or_principle_count"] == 2
+    assert summary["humour_reply_count"] == 0
+
+
+def test_editorial_shadow_rank_distribution_is_robust_to_outliers():
+    events = [
+        {
+            "production_source": "original",
+            "production_shadow_rank": rank,
+            "winner_changed": rank != 1,
+            "production_winner": f"production-{index}",
+            "shadow_original_winner": f"shadow-{index}",
+        }
+        for index, rank in enumerate([1, 1, 1, 1, 1, 1, 1, 2])
+    ]
+    summary = digest.original_editorial_shadow_summary(events)
+    assert summary["average_production_winner_shadow_rank"] == 1.125
+    assert summary["median_production_winner_shadow_rank"] == 1
+    assert summary["worst_production_winner_shadow_rank"] == 2
+    assert summary["production_rank_1"] == 7
+    assert summary["production_rank_2_or_3"] == 1
+    assert summary["production_rank_10_or_worse"] == 0
+    assert summary["severe_disagreements"] == []
+
+
+def test_historical_rendering_summary_and_empty_semantic_columns():
+    events = [
+        {
+            "kind": "historical_context_reply",
+            "status": "completed",
+            "template_variant": "compact_with_meaning",
+            "reply_preview": "Context — Speech at Chelsea, 19 September 1975.\\n\\nMeaning — X",
+        },
+        {
+            "kind": "historical_context_reply",
+            "status": "completed",
+            "template_variant": "compact_with_meaning",
+            "reply_preview": "Context — The surviving record dates this wording to 5 June 1987, but does not establish its occasion.",
+        },
+        {
+            "kind": "historical_context_reply",
+            "status": "completed",
+            "template_variant": "compact_generic_context_omitted",
+            "reply_preview": "Meaning — X",
+        },
+        {
+            "kind": "historical_context_reply",
+            "status": "completed",
+            "reply_preview": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        },
+    ]
+    summary = digest.historical_context_quality_summary(events)
+    assert summary["rendering_context_counts"] == {
+        "concrete_event_or_date_context_included": 1,
+        "date_only_qualified_context_included": 1,
+        "context_omitted_no_useful_event_or_date": 1,
+        "old_generic_fallback_used": 1,
+        "rendering_metadata_unavailable": 0,
+    }
+    report = digest.analyse([])
+    report["events"] = events
+    report["historical_context_quality"] = summary
+    rendered = digest.render_markdown(report)
+    historical_table = rendered.split("## Historical context replies", 1)[1]
+    assert "semantic_review_disposition" not in historical_table
+    assert "empty columns are omitted" in historical_table
 
 
 def generated_image_report(*, detailed: bool = False) -> dict:
@@ -266,7 +436,24 @@ def generated_image_report(*, detailed: bool = False) -> dict:
             "required": 3,
             "original_posts_since_generated": 4,
         },
-        "events": [],
+        "events": [
+            {
+                "time": "2026-07-26 12:00:00",
+                "kind": "state",
+                "pool_enabled": False,
+                "allowed": True,
+                "required": 3,
+                "original_posts_since_generated": 4,
+            },
+            {
+                "time": "2026-07-27 04:00:00",
+                "kind": "state",
+                "pool_enabled": False,
+                "allowed": True,
+                "required": 3,
+                "original_posts_since_generated": 4,
+            },
+        ],
     }
     report["generated_image_pool_health"] = {
         "active_generated_images": 12,
@@ -320,6 +507,54 @@ def test_disabled_generated_pool_and_filename_samples_are_clear():
     assert "unused-04.png" in rendered
     assert "unused-05.png" not in rendered
     assert "Detailed generated-image filename appendix" not in rendered
+    assert "same population is therefore also unused longest" in rendered
+    assert rendered.count("Active generated images unused longest") == 0
+    assert "All **2** spacing observations had the same state" in rendered
+
+
+def test_receipt_pairs_and_pending_then_confirmed_are_not_incidents():
+    report = digest.analyse([])
+    report["main_post_recovery"] = {
+        "receipt_events": [
+            {"time": "t1", "kind": "regular_written", "level": "WARNING", "lane": "quote_image"},
+            {"time": "t2", "kind": "regular_removed", "level": "INFO", "lane": "quote_image"},
+        ],
+        "confirmed_post_recovery": [],
+    }
+    report["events"] = [
+        {
+            "kind": "posting_transaction_state",
+            "time": "t1",
+            "parent_post_id": "post-1",
+            "main_post_state": "main_post_confirmed",
+            "context_reply_state": "context_reply_pending",
+        },
+        {
+            "kind": "historical_context_obligation",
+            "time": "t2",
+            "parent_post_id": "post-1",
+            "status": "completed",
+            "context_reply_state": "context_reply_confirmed",
+        },
+    ]
+    rendered = digest.render_markdown(report)
+    assert "## Transactional receipt lifecycle" in rendered
+    assert "Routine two-phase receipt write/remove pairs completed: **1**" in rendered
+    assert "intermediate `context_reply_pending` states subsequently reached" in rendered
+    assert "they are not outstanding" in rendered
+
+
+def test_engagement_metric_labels_state_exact_denominators():
+    report = digest.analyse([])
+    report["historical_context_engagement"] = {
+        "available": True,
+        "unavailable_impressions_count": 1,
+        "unavailable_click_metrics_count": 295,
+    }
+    rendered = digest.render_markdown(report)
+    assert "Latest analytics snapshots with unavailable impressions: **1**" in rendered
+    assert "latest analytics snapshots with unavailable URL-link clicks: **295**" in rendered
+    assert "Unavailable impressions/click metrics" not in rendered
 
 
 def test_detailed_filename_appendix_is_optional():

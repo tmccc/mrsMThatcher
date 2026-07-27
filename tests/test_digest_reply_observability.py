@@ -1006,12 +1006,17 @@ def test_configured_veto_health_is_visible_before_any_runtime_observation(
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(
         json.dumps(
-            {
-                "policy_version": "current-test-policy",
-                "quote_count": 611,
-                "image_count": 91,
-                "pair_count": 22066,
-            }
+                {
+                    "policy_version": "current-test-policy",
+                    "quote_count": 611,
+                    "image_count": 91,
+                    "pair_count": 22066,
+                    "total_authorised_pair_count": 55601,
+                    "allow_count": 22000,
+                    "veto_count": 66,
+                    "adjudicated_unknown_pair_count": 167,
+                    "not_adjudicated_pair_count": 33368,
+                }
         ),
         encoding="utf-8",
     )

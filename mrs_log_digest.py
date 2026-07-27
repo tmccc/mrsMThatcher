@@ -54,6 +54,9 @@ GENERATED_ANALYSIS_KIND = "images"
 GENERATED_AUDIT_SCHEMA_VERSION = 1
 GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
 RESUME_FINGERPRINT_TAIL_LIMIT = 128
+SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID = (
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+)
 
 
 def file_sha256(path: Path) -> str:
@@ -124,6 +127,7 @@ def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str
         coverage = manifest.get("quote_pair_coverage")
         quote_text = manifest.get("quote_text")
         fully_unadjudicated: List[Dict[str, Any]] = []
+        named_coverage: Optional[Dict[str, Any]] = None
         if isinstance(coverage, dict):
             for quote_id, row in sorted(coverage.items()):
                 if not isinstance(row, dict):
@@ -152,6 +156,32 @@ def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str
                             "not_adjudicated_count": not_adjudicated,
                         }
                     )
+                if str(quote_id) == SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID:
+                    named_coverage = {
+                        "quote_id": str(quote_id),
+                        "authorised_image_count": int(authorised or 0),
+                        "allow_count": int(row.get("allow_count", 0) or 0),
+                        "veto_count": int(row.get("veto_count", 0) or 0),
+                        "adjudicated_unknown_count": int(
+                            row.get("adjudicated_unknown_count", 0) or 0
+                        ),
+                        "not_adjudicated_count": int(not_adjudicated or 0),
+                        "complete": row.get("complete_pair_coverage") is True
+                        and int(not_adjudicated or 0) == 0,
+                    }
+        allow_count = manifest.get("allow_count")
+        veto_count = manifest.get("veto_count")
+        unknown_count = manifest.get("adjudicated_unknown_pair_count")
+        not_adjudicated_count = manifest.get("not_adjudicated_pair_count")
+        if not all(type(value) is int for value in (
+            allow_count, veto_count, unknown_count, not_adjudicated_count
+        )):
+            raise ValueError("manifest does not expose separate allow/veto/unknown/not-adjudicated counts")
+        if type(total_authorised) is int and (
+            allow_count + veto_count + unknown_count + not_adjudicated_count
+            != total_authorised
+        ):
+            raise ValueError("manifest pair-state counts do not equal authorised pair universe")
         result.update(
             {
                 "manifest_path": str(configured_path),
@@ -165,6 +195,8 @@ def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str
                     "resolved_pair_count",
                     audit.get("pair_count", manifest.get("pair_count")),
                 ),
+                "allow_pair_count": allow_count,
+                "veto_pair_count": veto_count,
                 "adjudicated_unknown_pair_count": manifest.get(
                     "adjudicated_unknown_pair_count",
                     audit.get("adjudicated_unknown_pair_count", 0),
@@ -175,6 +207,7 @@ def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str
                 ),
                 "fully_unadjudicated_quote_count": len(fully_unadjudicated),
                 "fully_unadjudicated_quotes": fully_unadjudicated,
+                "named_quote_coverage": named_coverage,
             }
         )
         if stale:
@@ -232,6 +265,12 @@ def _add_configured_veto_health(
             "configured_manifest_resolved_pair_count": configured.get(
                 "resolved_pair_count"
             ),
+            "configured_manifest_allow_pair_count": configured.get(
+                "allow_pair_count"
+            ),
+            "configured_manifest_veto_pair_count": configured.get(
+                "veto_pair_count"
+            ),
             "configured_manifest_adjudicated_unknown_pair_count": configured.get(
                 "adjudicated_unknown_pair_count"
             ),
@@ -245,6 +284,9 @@ def _add_configured_veto_health(
                 "fully_unadjudicated_quotes"
             )
             or [],
+            "configured_manifest_named_quote_coverage": configured.get(
+                "named_quote_coverage"
+            ),
         }
     )
     if runtime.get("available") and configured.get("available"):
@@ -363,6 +405,53 @@ def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, An
         "manifest_sha256": str(value.get("manifest_sha256") or ""),
         "updated_at": value.get("updated_at"),
     }, configured)
+
+
+def semantic_veto_load_lifecycle(records: List["Record"]) -> Dict[str, Any]:
+    """Correlate semantic-veto startup warnings with later successful loads."""
+    stale: List[Dict[str, Any]] = []
+    loads: List[Dict[str, Any]] = []
+    for record in records:
+        message = record.msg
+        if "Quote/image semantic-veto shadow unavailable" in message:
+            stale.append({
+                "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "timestamp": record.ts,
+                "message": message,
+            })
+        elif "Quote/image semantic-veto shadow manifest loaded" in message:
+            policy_match = re.search(r"\bpolicy=(\S+)", message)
+            hash_match = re.search(r"\bsha256=([0-9a-f]{64})", message)
+            loads.append({
+                "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "timestamp": record.ts,
+                "policy": policy_match.group(1) if policy_match else "unavailable",
+                "manifest_sha256": hash_match.group(1) if hash_match else "",
+            })
+    resolved = []
+    unresolved = []
+    for warning in stale:
+        later = next(
+            (load for load in loads if load["timestamp"] > warning["timestamp"]),
+            None,
+        )
+        public = {key: value for key, value in warning.items() if key != "timestamp"}
+        if later:
+            public["resolved_at"] = later["time"]
+            public["resolved_by_manifest_sha256"] = later["manifest_sha256"]
+            resolved.append(public)
+        else:
+            unresolved.append(public)
+    return {
+        "resolved_warning_count": len(resolved),
+        "unresolved_warning_count": len(unresolved),
+        "resolved_warnings": resolved,
+        "unresolved_warnings": unresolved,
+        "successful_loads": [
+            {key: value for key, value in load.items() if key != "timestamp"}
+            for load in loads
+        ],
+    }
 
 
 def historical_context_corpus_snapshot(project_dir: Path) -> Dict[str, Any]:
@@ -586,6 +675,8 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
         elif name in audit_names: warning("invalid_policy", name, repr(policy))
 
     now = now or datetime.now().astimezone()
+    if now.tzinfo is None:
+        now = now.astimezone()
     completed_quarantines = 0
     completed_restores = 0
     latest_quarantine: Optional[Dict[str, Any]] = None
@@ -2318,6 +2409,7 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
     ranks = [int(item["production_shadow_rank"]) for item in events if item.get("production_shadow_rank") is not None]
     rank1 = sum(1 for rank in ranks if rank == 1)
     rank2_3 = sum(1 for rank in ranks if rank in {2, 3})
+    rank10_or_worse = sum(1 for rank in ranks if rank >= 10)
     adjustments = []
     cap_hits = 0
     affinity = Counter()
@@ -2340,8 +2432,16 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
         "winner_changes": len(changed),
         "winner_change_percent": (len(changed) / production_original * 100.0) if production_original else 0.0,
         "average_production_winner_shadow_rank": (sum(ranks) / len(ranks)) if ranks else None,
+        "median_production_winner_shadow_rank": statistics.median(ranks) if ranks else None,
+        "worst_production_winner_shadow_rank": max(ranks) if ranks else None,
         "production_rank_1": rank1,
         "production_rank_2_or_3": rank2_3,
+        "production_rank_10_or_worse": rank10_or_worse,
+        "severe_disagreements": [
+            item for item in events
+            if type(item.get("production_shadow_rank")) is int
+            and item["production_shadow_rank"] >= 10
+        ],
         "shadow_winner_differed": len(changed),
         "most_frequent_shadow_winners": winners.most_common(8),
         "most_frequent_affinity_concepts": affinity.most_common(8),
@@ -2639,6 +2739,32 @@ def historical_context_quality_summary(events: List[Dict[str, Any]]) -> Dict[str
     raw = [int(event["raw_character_count"]) for event in rendered_items
            if type(event.get("raw_character_count")) is int and event["raw_character_count"] > 0]
     attempted = sum(str(event.get("status") or "") in {"completed", "failed", "dry_run"} for event in items)
+    rendering_context_counts = Counter({
+        "concrete_event_or_date_context_included": 0,
+        "date_only_qualified_context_included": 0,
+        "context_omitted_no_useful_event_or_date": 0,
+        "old_generic_fallback_used": 0,
+        "rendering_metadata_unavailable": 0,
+    })
+    generic_fallback = (
+        "Context — The surviving attribution does not establish an occasion, "
+        "date or immediate historical issue."
+    )
+    for event in rendered_items:
+        preview = str(event.get("reply_preview") or "")
+        variant = str(event.get("template_variant") or "")
+        if generic_fallback in preview:
+            rendering_context_counts["old_generic_fallback_used"] += 1
+        elif variant == "compact_generic_context_omitted" or (
+            preview and not preview.startswith("Context —")
+        ):
+            rendering_context_counts["context_omitted_no_useful_event_or_date"] += 1
+        elif preview.startswith("Context — The surviving record dates this wording to "):
+            rendering_context_counts["date_only_qualified_context_included"] += 1
+        elif preview.startswith("Context —"):
+            rendering_context_counts["concrete_event_or_date_context_included"] += 1
+        else:
+            rendering_context_counts["rendering_metadata_unavailable"] += 1
     return {
         "attempted_count": attempted,
         "status_counts": dict(sorted(statuses.items())),
@@ -2650,6 +2776,7 @@ def historical_context_quality_summary(events: List[Dict[str, Any]]) -> Dict[str
             "other authoritative source", "canonical locator only", "no public URL", "unavailable",
         )),
         "confidence_counts": _count_optional(rendered_items, "historical_confidence", ("high", "medium", "low", "unavailable")),
+        "rendering_context_counts": dict(rendering_context_counts),
         "formatter_version_counts": _count_optional(
             rendered_items,
             "formatter_version",
@@ -2695,24 +2822,23 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
-def _no_reply_category(value: Any) -> str | None:
+def _no_reply_category(value: Any) -> str:
     reason = " ".join(str(value or "").lower().replace("-", "_").split())
     if not reason:
-        return None
-    exact = {
-        "no_reply_due_to_unverifiable_claim",
-        "no_reply_due_to_bait_or_abuse",
-        "no_reply_due_to_incoherent",
-    }
-    if reason in exact:
-        return reason
+        return "other_editorial_decline"
+    if "exact_duplicate" in reason or "duplicate reply" in reason:
+        return "duplicate_response_rejection"
     if any(term in reason for term in ("unverifiable", "unverified", "unsupported claim", "endorse")):
         return "no_reply_due_to_unverifiable_claim"
     if any(term in reason for term in ("bait", "abuse", "abusive", "prolong conflict", "needless conflict")):
         return "no_reply_due_to_bait_or_abuse"
     if any(term in reason for term in ("incoherent", "gibberish", "unintelligible")):
         return "no_reply_due_to_incoherent"
-    return None
+    if any(term in reason for term in ("no substantive", "nothing to reply", "no question")):
+        return "no_substantive_prompt"
+    if any(term in reason for term in ("repet", "low value", "not useful", "declin")):
+        return "low_value_or_repetitive_engagement"
+    return "other_editorial_decline"
 
 
 def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -2837,11 +2963,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         if type(event.get("evidence_reference_count")) is int
     ]
     rejection_reasons = Counter()
-    no_reply_categories = Counter({key: 0 for key in (
-        "no_reply_due_to_unverifiable_claim",
-        "no_reply_due_to_bait_or_abuse",
-        "no_reply_due_to_incoherent",
-    )})
+    no_reply_categories = Counter()
     routine_reasons = Counter()
     repetition_controls = Counter({key: 0 for key in (
         "exact_duplicate_rejected", "highly_similar_reply_rejected", "canned_formulation_rejected",
@@ -2879,8 +3001,9 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             reason = str(event.get("no_reply_reason") or "model-selected no_reply")
             rejection_reasons[reason] += 1
             category = _no_reply_category(reason)
-            if category:
-                no_reply_categories[category] += 1
+            no_reply_categories[category] += 1
+            if category == "duplicate_response_rejection":
+                repetition_controls["exact_duplicate_rejected"] += 1
     tone_values = ("firm", "dry", "wry", "warm", "neutral", "light", "playful", "deadpan", "none", "unavailable")
     humour_counts = _count_optional(observations, "humour_tone", tone_values)
     confidence_counts = _count_optional(observations, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
@@ -2924,7 +3047,21 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         ),
         "grounded_count": sum(event.get("grounded") is True for event in observations),
         "grounding_metadata_unavailable_count": sum(type(event.get("grounded")) is not bool for event in observations),
-        "ungrounded_humour_only_count": sum(event.get("grounded") is False and event.get("factual_claim") is False and event.get("mode") not in {"no_reply", None} for event in observations),
+        "claim_free_opinion_or_principle_count": sum(
+            event.get("factual_claim") is False
+            and event.get("mode") in {"opinion_or_principle", "principle_reply"}
+            for event in observations
+        ),
+        "humour_reply_count": sum(
+            str(event.get("mode") or "") in {
+                "light_humour", "wry_reply", "playful_reply", "deadpan_reply"
+            }
+            for event in observations
+        ),
+        "conversational_candidate_count": len(decisions),
+        "deliberately_declined_count": sum(
+            event.get("mode") == "no_reply" for event in decisions
+        ),
         "factual_claim_count": sum(event.get("factual_claim") is True for event in observations),
         "factual_claim_metadata_unavailable_count": sum(type(event.get("factual_claim")) is not bool for event in observations),
         "factual_rejected_insufficient_grounding_count": sum(
@@ -3537,6 +3674,7 @@ def analyse(
                     source_role_audit_version=(
                         event_obj.get("source_role_audit_version") or "unavailable"
                     ),
+                    template_variant=event_obj.get("template_variant") or "",
                     shortening_applied=event_obj.get("shortening_applied"),
                     meaning_omitted=event_obj.get("meaning_omitted"),
                     source_omitted=event_obj.get("source_omitted"),
@@ -4795,6 +4933,24 @@ def analyse(
 
     context_quality = historical_context_quality_summary(events)
     strategy_quality = reply_strategy_summary(events)
+    headline = [
+        item for item in headline
+        if not item.endswith("Grok skip") and not item.endswith("Grok skips")
+    ]
+    health_index = next(
+        (index for index, item in enumerate(headline) if item.startswith("current health:")),
+        len(headline),
+    )
+    candidates = int(strategy_quality.get("conversational_candidate_count", 0) or 0)
+    posted_replies = int(strategy_quality.get("confirmed_outcome_count", 0) or 0)
+    declined = int(strategy_quality.get("deliberately_declined_count", 0) or 0)
+    if candidates:
+        headline.insert(
+            health_index,
+            f"{candidates} conversational candidates AI-reviewed; "
+            f"{plural_count(posted_replies, 'reply', 'replies')} posted; "
+            f"{declined} deliberately declined",
+        )
     routine_reason_map = {
         "Daily generated/replied cap reached": "daily_cap",
         "Skipping mention check: minimum interval between replies not reached": "spacing",
@@ -4902,6 +5058,7 @@ def analyse(
         },
         "historical_context_quality": context_quality,
         "reply_strategy": strategy_quality,
+        "semantic_veto_load_lifecycle": semantic_veto_load_lifecycle(records),
         "reply_media_context": reply_media_context,
         "asset_health": asset_health,
         "media_upload": {
@@ -5638,6 +5795,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
             "Bounded structured-log observations count successful post records retained in the scanned logs. "
             "The two measures answer different questions and are not interchangeable."
         )
+        out.append(
+            "The active-image inventory is a current filesystem snapshot. The structured-log "
+            "coverage shown below is a secondary bounded scan and can extend slightly beyond "
+            "the selected digest event window."
+        )
         out.append("Deprecated machine-readable usage aliases retain the bounded-log values for compatibility and are planned for removal only in a future major digest schema version.")
         coverage_start = utilisation.get("history_coverage_start") or "unavailable"
         coverage_end = utilisation.get("history_coverage_end") or "unavailable"
@@ -5681,9 +5843,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
             or 0
         )
 
+        same_unused_population = (
+            never_used_total == unused_longest_total
+            and [item.get("image") for item in never_used_rows]
+            == [item.get("image") for item in unused_longest_rows]
+            and all(not item.get("last_successful_post") for item in unused_longest_rows)
+        )
         out.append(
-            "Active generated images never successfully posted in observed logs "
-            f"(count: **{never_used_total}**; sample: **{len(never_used_sample)}**)"
+            "Active generated images never successfully posted in observed logs"
+            + (
+                " (the same population is therefore also unused longest)"
+                if same_unused_population else ""
+            )
+            + f" (count: **{never_used_total}**; sample: **{len(never_used_sample)}**)"
         )
         out.append(md_table_row(["image", "origin_quote_hash"]))
         out.append(md_table_row(["---", "---"]))
@@ -5698,22 +5870,23 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row(["none", "-"]))
         out.append("")
 
-        out.append(
-            "Active generated images unused longest in observed logs "
-            f"(count: **{unused_longest_total}**; sample: **{len(unused_longest_sample)}**)"
-        )
-        out.append(md_table_row(["image", "last_successful_post", "successful_posts"]))
-        out.append(md_table_row(["---", "---", "---"]))
-        for item in unused_longest_sample:
-            out.append(md_table_row([item.get("image", ""), item.get("last_successful_post") or "never", item.get("successful_posts", 0)]))
-        if unused_longest_total > len(unused_longest_sample):
+        if not same_unused_population:
             out.append(
-                f"{plural_count(unused_longest_total - len(unused_longest_sample), 'additional row')} "
-                "omitted from the readable summary."
+                "Active generated images unused longest in observed logs "
+                f"(count: **{unused_longest_total}**; sample: **{len(unused_longest_sample)}**)"
             )
-        if not unused_longest_sample:
-            out.append(md_table_row(["none", "never", "0"]))
-        out.append("")
+            out.append(md_table_row(["image", "last_successful_post", "successful_posts"]))
+            out.append(md_table_row(["---", "---", "---"]))
+            for item in unused_longest_sample:
+                out.append(md_table_row([item.get("image", ""), item.get("last_successful_post") or "never", item.get("successful_posts", 0)]))
+            if unused_longest_total > len(unused_longest_sample):
+                out.append(
+                    f"{plural_count(unused_longest_total - len(unused_longest_sample), 'additional row')} "
+                    "omitted from the readable summary."
+                )
+            if not unused_longest_sample:
+                out.append(md_table_row(["none", "never", "0"]))
+            out.append("")
 
         if report.get("detailed_appendix") and (never_used_rows or unused_longest_rows):
             out.append("### Detailed generated-image filename appendix")
@@ -5748,17 +5921,31 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"generated_pool_enabled          = {generated_spacing_latest.get('pool_enabled', '')}")
             out.append(f"generated_pool_allowed          = {generated_spacing_latest.get('allowed', '')}")
             out.append("```")
-        out.append(md_table_row(["time", "kind", "pool_enabled", "allowed", "original_posts_since_generated", "required"]))
-        out.append(md_table_row(["---"] * 6))
-        for item in generated_spacing_events[-20:]:
-            out.append(md_table_row([
-                item.get("time", ""),
-                item.get("kind", ""),
-                item.get("pool_enabled", ""),
-                item.get("allowed", ""),
-                item.get("original_posts_since_generated", ""),
-                item.get("required", ""),
-            ]))
+        spacing_state_fields = (
+            "pool_enabled", "allowed", "original_posts_since_generated", "required"
+        )
+        invariant_spacing = bool(generated_spacing_events) and len({
+            tuple(str(item.get(field, "")) for field in spacing_state_fields)
+            for item in generated_spacing_events
+        }) == 1
+        if invariant_spacing:
+            out.append(
+                f"All **{len(generated_spacing_events)}** spacing observations had the same "
+                f"state; first `{generated_spacing_events[0].get('time', '')}`, "
+                f"last `{generated_spacing_events[-1].get('time', '')}`."
+            )
+        else:
+            out.append(md_table_row(["time", "kind", "pool_enabled", "allowed", "original_posts_since_generated", "required"]))
+            out.append(md_table_row(["---"] * 6))
+            for item in generated_spacing_events[-20:]:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("kind", ""),
+                    item.get("pool_enabled", ""),
+                    item.get("allowed", ""),
+                    item.get("original_posts_since_generated", ""),
+                    item.get("required", ""),
+                ]))
         out.append("")
 
     regular_image_usage = report.get("regular_image_usage") or {}
@@ -5806,13 +5993,38 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"comparable_original_observations     = {shadow_summary.get('comparable_original_observations', 0)}")
         out.append(f"original_winner_changes              = {shadow_summary.get('winner_changes', 0)} ({float(shadow_summary.get('winner_change_percent', 0.0)):.1f}%)")
         avg_rank = shadow_summary.get("average_production_winner_shadow_rank")
-        out.append(f"average_production_winner_shadow_rank = {avg_rank if avg_rank is not None else 'n/a'}")
+        out.append(f"mean_production_winner_shadow_rank    = {avg_rank if avg_rank is not None else 'n/a'}")
+        out.append(
+            "median_production_winner_shadow_rank  = "
+            f"{shadow_summary.get('median_production_winner_shadow_rank', 'n/a')}"
+        )
+        out.append(
+            "worst_production_winner_shadow_rank   = "
+            f"{shadow_summary.get('worst_production_winner_shadow_rank', 'n/a')}"
+        )
         out.append(f"production_winner_shadow_rank_1      = {shadow_summary.get('production_rank_1', 0)}")
         out.append(f"production_winner_shadow_rank_2_or_3 = {shadow_summary.get('production_rank_2_or_3', 0)}")
+        out.append(f"production_winner_shadow_rank_10_plus = {shadow_summary.get('production_rank_10_or_worse', 0)}")
         out.append(f"average_abs_editorial_adjustment     = {float(shadow_summary.get('average_abs_editorial_adjustment', 0.0)):.2f}")
         out.append(f"max_abs_editorial_adjustment         = {float(shadow_summary.get('max_abs_editorial_adjustment', 0.0)):.2f}")
         out.append(f"cap_hit_count                        = {shadow_summary.get('cap_hit_count', 0)}")
         out.append("```")
+        severe = shadow_summary.get("severe_disagreements") or []
+        if severe:
+            out.append("Severe disagreements (production winner ranked 10 or worse):")
+            out.append(md_table_row(["time", "production", "shadow", "production rank"]))
+            out.append(md_table_row(["---"] * 4))
+            for item in severe:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("production_winner", ""),
+                    item.get("shadow_original_winner", ""),
+                    item.get("production_shadow_rank", ""),
+                ]))
+            out.append("")
+        else:
+            out.append("Severe disagreements (production winner ranked 10 or worse): **0**.")
+            out.append("")
         if shadow_summary.get("most_frequent_shadow_winners"):
             out.append("Most frequent shadow winners:")
             out.append(", ".join(f"{name} ({count})" for name, count in shadow_summary.get("most_frequent_shadow_winners", []) if name))
@@ -6080,13 +6292,28 @@ def render_markdown(report: Dict[str, Any]) -> str:
     for label, key in (
         ("Verification labels", "verification_counts"),
         ("Source classes", "source_class_counts"),
-        ("Historical confidence", "confidence_counts"),
+        ("Overall reply confidence", "confidence_counts"),
         ("Formatter versions", "formatter_version_counts"),
         ("Rendering modes", "rendering_mode_counts"),
         ("Source-role audit versions", "source_role_audit_version_counts"),
     ):
         values = context_quality.get(key) or {}
         out.append(f"{label}: {compact_counts(values)}")
+    rendering_counts = context_quality.get("rendering_context_counts") or {}
+    out.append(
+        "Context rendering: "
+        f"concrete event/date included={rendering_counts.get('concrete_event_or_date_context_included', 0)}, "
+        f"date-only qualified included={rendering_counts.get('date_only_qualified_context_included', 0)}, "
+        f"omitted because no useful event/date was admitted="
+        f"{rendering_counts.get('context_omitted_no_useful_event_or_date', 0)}, "
+        f"old generic fallback sentence used={rendering_counts.get('old_generic_fallback_used', 0)}"
+        + (
+            f", metadata unavailable={rendering_counts.get('rendering_metadata_unavailable', 0)}"
+            if rendering_counts.get("rendering_metadata_unavailable", 0)
+            else ""
+        )
+        + "."
+    )
     for field, values in (context_quality.get("confidence_dimension_counts") or {}).items():
         out.append(
             f"Confidence {field.replace('_', ' ')}: {compact_counts(values)}"
@@ -6157,9 +6384,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"{engagement_percent(engagement.get('median_source_link_click_rate'))}**."
         )
         out.append(
-            f"Unavailable impressions/click metrics: "
-            f"**{engagement.get('unavailable_impressions_count', 0)} / "
-            f"{engagement.get('unavailable_click_metrics_count', 0)}**."
+            "Latest analytics snapshots with unavailable impressions: "
+            f"**{engagement.get('unavailable_impressions_count', 0)}**; "
+            "latest analytics snapshots with unavailable URL-link clicks: "
+            f"**{engagement.get('unavailable_click_metrics_count', 0)}**."
         )
         warnings = engagement.get("sample_size_warnings") or []
         if warnings:
@@ -6170,7 +6398,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
     veto_section = report.get("quote_image_semantic_veto_shadow") or {}
     veto_window = veto_section.get("summary") or {}
     veto_runtime = veto_section.get("runtime_summary") or {}
+    veto_load_lifecycle = report.get("semantic_veto_load_lifecycle") or {}
     out.append("## Quote/image semantic veto shadow")
+    if veto_load_lifecycle.get("resolved_warning_count"):
+        latest_resolution = (veto_load_lifecycle.get("resolved_warnings") or [])[-1]
+        out.append(
+            f"Startup lifecycle: **{veto_load_lifecycle.get('resolved_warning_count')} stale/unavailable "
+            "manifest warning(s) resolved by a later successful load**"
+            f" (latest resolution `{latest_resolution.get('resolved_at')}`)."
+        )
+    if veto_load_lifecycle.get("unresolved_warning_count"):
+        out.append(
+            f"Startup lifecycle: **{veto_load_lifecycle.get('unresolved_warning_count')} "
+            "unresolved manifest load warning(s)**."
+        )
     configured_available = veto_runtime.get("configured_manifest_available") is True
     if veto_runtime.get("configured_manifest_present"):
         configured_mode = veto_runtime.get("configured_manifest_mode") or "unavailable"
@@ -6200,8 +6441,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
         out.append(
             "Pair adjudication state: "
-            f"**{veto_runtime.get('configured_manifest_resolved_pair_count', 'unavailable')} resolved "
-            "(allow or veto); "
+            f"**allow {veto_runtime.get('configured_manifest_allow_pair_count', 'unavailable')}; "
+            f"veto {veto_runtime.get('configured_manifest_veto_pair_count', 'unavailable')}; "
             f"{veto_runtime.get('configured_manifest_adjudicated_unknown_pair_count', 'unavailable')} "
             "adjudicated unknown; "
             f"{veto_runtime.get('configured_manifest_not_adjudicated_pair_count', 'unavailable')} "
@@ -6211,10 +6452,29 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(
                 f"Configured manifest warning: **{veto_runtime.get('configured_manifest_reason')}**."
             )
-        if veto_runtime.get("runtime_status_matches_configured_manifest") is False:
+        configured_hash = str(veto_runtime.get("configured_manifest_sha256") or "")
+        observed_hashes = {
+            str(item.get("manifest_sha256") or "")
+            for item in (veto_window.get("manifest_strata") or [])
+        }
+        if str(veto_window.get("manifest_sha256") or ""):
+            observed_hashes.add(str(veto_window.get("manifest_sha256")))
+        configured_observed = bool(configured_hash and configured_hash in observed_hashes)
+        out.append(
+            "Retained runtime-status manifest: "
+            f"policy **{veto_runtime.get('manifest_policy_version') or 'unavailable'}**; "
+            f"hash `{str(veto_runtime.get('manifest_sha256') or '')[:16] or 'unavailable'}`."
+        )
+        if configured_observed:
             out.append(
-                "Runtime-status warning: **the retained runtime status describes a different "
-                "manifest from the currently configured validated manifest**."
+                "Selection observation state: **configured manifest observed active; "
+                "any earlier retained-manifest mismatch is resolved**."
+            )
+        elif veto_runtime.get("runtime_status_matches_configured_manifest") is False:
+            out.append(
+                "Selection observation state: **awaiting first selection observation under "
+                "configured manifest**. The retained runtime-status manifest is older; this "
+                "is a lifecycle state, not an unresolved production fault."
             )
     if (
         not veto_window.get("available")
@@ -6360,6 +6620,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     f"not adjudicated **{item.get('not_adjudicated_count', 0)} / "
                     f"{item.get('authorised_image_count', 0)}**"
                 )
+        named = veto_runtime.get("configured_manifest_named_quote_coverage")
+        if isinstance(named, dict):
+            out.append(
+                f"- named quotation `{named.get('quote_id')}`: "
+                f"allow **{named.get('allow_count', 0)}**; "
+                f"veto **{named.get('veto_count', 0)}**; "
+                f"adjudicated unknown **{named.get('adjudicated_unknown_count', 0)}**; "
+                f"not adjudicated **{named.get('not_adjudicated_count', 0)}**; "
+                f"row complete: **{'yes' if named.get('complete') else 'no'}**"
+            )
         examples = veto_window.get("examples") or []
         if examples:
             out.append("")
@@ -6403,6 +6673,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     strategy = report.get("reply_strategy") or {}
     out.append("## Conversational reply strategy")
+    out.append(
+        f"**{strategy.get('conversational_candidate_count', 0)} conversational candidates "
+        f"AI-reviewed; {strategy.get('confirmed_outcome_count', 0)} replies posted; "
+        f"{strategy.get('deliberately_declined_count', 0)} deliberately declined.**"
+    )
     out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))
     out.append("Public outcomes: " + compact_counts(strategy.get("outcome_status_counts") or {}))
     out.append("Published/terminal modes: " + compact_counts(strategy.get("mode_counts") or {}))
@@ -6429,9 +6704,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append("Generated evidence confidence: " + compact_counts(strategy.get("generated_confidence_counts") or {}))
     out.append("Generated tones: " + compact_counts(strategy.get("generated_humour_tone_counts") or {}))
     out.append(
-        f"Published/terminal grounded: **{strategy.get('grounded_count', 0)}** "
+        f"Published/terminal grounded replies: **{strategy.get('grounded_count', 0)}** "
         f"(metadata unavailable: {strategy.get('grounding_metadata_unavailable_count', 0)}); "
-        f"humour-only ungrounded: **{strategy.get('ungrounded_humour_only_count', 0)}**; "
+        f"claim-free opinion/principle replies: **{strategy.get('claim_free_opinion_or_principle_count', 0)}**; "
+        f"humour replies: **{strategy.get('humour_reply_count', 0)}**; "
         f"factual claims: **{strategy.get('factual_claim_count', 0)}** "
         f"(metadata unavailable: {strategy.get('factual_claim_metadata_unavailable_count', 0)}); "
         f"factual grounding rejections: **{strategy.get('factual_rejected_insufficient_grounding_count', 0)}**."
@@ -6542,12 +6818,57 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "Repair replies completed",
         ["time", "target_id", "thread_id", "author_id", "reply_post_id"],
     )
-    section(
-        "historical_context_reply",
-        "Historical context replies",
-        ["time", "status", "parent_post_id", "quote_id", "weighted_character_count", "verification_label", "source_class", "historical_confidence", "formatter_version", "rendering_mode", "shortening_applied", "reason", "semantic_review_disposition", "semantic_review_ledger_sha256", "semantic_review_projection_sha256"]
-        + (["reply_preview"] if report.get("verbose_replies") else []),
-    )
+    historical_rows = by_kind.get("historical_context_reply") or []
+    if historical_rows:
+        semantic_columns = (
+            "semantic_review_disposition",
+            "semantic_review_ledger_sha256",
+            "semantic_review_projection_sha256",
+        )
+        reliable_semantic_metadata = any(
+            all(row.get(field) not in (None, "") for field in semantic_columns)
+            for row in historical_rows
+        )
+        cols = [
+            "time", "status", "parent_post_id", "quote_id",
+            "weighted_character_count", "verification_label", "source_class",
+            "historical_confidence", "formatter_version", "rendering_mode",
+            "shortening_applied", "reason",
+        ]
+        if reliable_semantic_metadata:
+            cols.extend(semantic_columns)
+        if report.get("verbose_replies"):
+            cols.append("reply_preview")
+        section("historical_context_reply", "Historical context replies", cols)
+        if not reliable_semantic_metadata:
+            out.append(
+                "Per-reply semantic-review disposition and ledger/projection hashes were "
+                "not supplied reliably by these events; empty columns are omitted."
+            )
+            out.append("")
+    terminal_context_parents = {
+        str(row.get("parent_post_id") or "")
+        for row in (by_kind.get("historical_context_obligation") or [])
+        if row.get("context_reply_state") in {
+            "context_reply_confirmed", "context_reply_failed_terminal"
+        }
+    }
+    transaction_rows = by_kind.get("posting_transaction_state") or []
+    superseded_pending = [
+        row for row in transaction_rows
+        if row.get("context_reply_state") == "context_reply_pending"
+        and str(row.get("parent_post_id") or "") in terminal_context_parents
+    ]
+    if superseded_pending:
+        out.append("## Confirmed-main/context transaction states")
+        out.append(
+            f"**{len(superseded_pending)}** intermediate `context_reply_pending` "
+            "states subsequently reached a terminal outbox state; they are not outstanding."
+        )
+        out.append("")
+        by_kind["posting_transaction_state"] = [
+            row for row in transaction_rows if row not in superseded_pending
+        ]
     section(
         "posting_transaction_state",
         "Confirmed-main/context transaction states",
@@ -6613,9 +6934,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         ["time", "lane", "target_id", "outcome", "reason"],
     )
     section("hot_post_search_result", "Hot-post recent-search results", ["time", "original_post_id", "candidates"])
-    section("mention_grok_skip", "Mention Grok skips", ["time", "mention_id", "author_id", "incoming_text"])
-    section("hot_post_reply_grok_skip", "Hot-post Grok skips", ["time", "hot_post_reply_id", "author_id", "incoming_text"])
-    section("quote_tweet_grok_skip", "Quote-tweet Grok skips", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text"])
+    section("mention_grok_skip", "Mention AI-reviewed declines", ["time", "mention_id", "author_id", "incoming_text"])
+    section("hot_post_reply_grok_skip", "Hot-post AI-reviewed declines", ["time", "hot_post_reply_id", "author_id", "incoming_text"])
+    section("quote_tweet_grok_skip", "Quote-tweet AI-reviewed declines", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text"])
     section("mention_skipped", "Mention direct skips", ["time", "mention_id", "author_id", "incoming_text", "reason"])
     section("hot_post_reply_skipped", "Hot-post direct skips", ["time", "hot_post_reply_id", "author_id", "incoming_text", "reason"])
     section("quote_tweet_skipped", "Quote-tweet direct skips", ["time", "quote_tweet_id", "reason"])
@@ -6627,12 +6948,31 @@ def render_markdown(report: Dict[str, Any]) -> str:
     receipt_events = recovery.get("receipt_events") or []
     confirmed_post_recovery = recovery.get("confirmed_post_recovery") or []
     if receipt_events or confirmed_post_recovery:
-        out.append("## Main-post recovery")
+        out.append("## Transactional receipt lifecycle")
         if receipt_events:
-            out.append("Receipt lifecycle:")
-            out.append(md_table_row(["time", "level", "lane", "kind", "post_id", "quote_hash", "image/file", "message"]))
-            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
+            outstanding: List[Dict[str, Any]] = []
+            pending_by_lane: Counter = Counter()
+            normal_pairs = 0
             for item in receipt_events:
+                kind = str(item.get("kind") or "")
+                lane = str(item.get("lane") or "")
+                if kind.endswith("_written"):
+                    pending_by_lane[lane] += 1
+                elif kind.endswith("_removed") and pending_by_lane[lane] > 0:
+                    pending_by_lane[lane] -= 1
+                    normal_pairs += 1
+                else:
+                    outstanding.append(item)
+            out.append(
+                f"Routine two-phase receipt write/remove pairs completed: **{normal_pairs}**. "
+                "The write event can be logged at WARNING while still being a normal durable "
+                "transaction step; it is not an incident by itself."
+            )
+            if any(pending_by_lane.values()) or outstanding:
+                out.append("Stale or unresolved receipt events:")
+                out.append(md_table_row(["time", "level", "lane", "kind", "post_id", "quote_hash", "image/file", "message"]))
+                out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
+            for item in outstanding:
                 out.append(md_table_row([
                     item.get("time", ""),
                     item.get("level", ""),
@@ -6897,10 +7237,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
             )
     out.append("")
 
+    resolved_semantic_warning_times = {
+        item.get("time")
+        for item in (report.get("semantic_veto_load_lifecycle") or {}).get(
+            "resolved_warnings", []
+        )
+    }
     warnings = [
         item
         for item in report.get("errors_and_warnings") or []
         if item.get("level") == "WARNING"
+        and not (
+            item.get("time") in resolved_semantic_warning_times
+            and "Quote/image semantic-veto shadow unavailable" in str(item.get("message") or "")
+        )
     ]
     out.append("## Other warnings")
     if not warnings:
@@ -7208,7 +7558,11 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["project_dir"] = str(project_dir)
     report["resume_state_file"] = None if args.no_state else str(state_file)
     report["state_updated"] = False
-    report["generated_image_pool_health"] = generated_pool_health_snapshot(project_dir)
+    report["generated_image_pool_health"] = (
+        generated_pool_health_snapshot(project_dir, now=report_window_end)
+        if report_window_end is not None
+        else generated_pool_health_snapshot(project_dir)
+    )
     report["historical_context_corpus_snapshot"] = historical_context_corpus_snapshot(
         project_dir
     )
@@ -7264,7 +7618,10 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         report["saved_last_log_entry_time"] = dt_text(since) if since else None
 
     runway_config = load_runway_config(project_dir, dict(report.get("latest_config") or {}))
-    report["generated_image_post_rates"] = generated_post_rate_history(logs)
+    report["generated_image_post_rates"] = generated_post_rate_history(
+        logs,
+        now=report_window_end,
+    )
     report["generated_image_pool_runway"] = generated_pool_runway(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"], runway_config)
     report["generated_image_utilisation"] = generated_image_utilisation(
         report.get("generated_image_pool_health") or {},
