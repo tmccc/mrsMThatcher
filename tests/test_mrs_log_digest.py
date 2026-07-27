@@ -599,6 +599,101 @@ def test_receipt_pairs_and_pending_then_confirmed_are_not_incidents():
     assert "they are not outstanding" in rendered
 
 
+def test_schema_v3_reply_receipt_lifecycle_is_routine_and_observable():
+    records = [
+        record(
+            0,
+            "WARNING",
+            "write_sending_reply_receipt",
+            "Wrote conversational reply sending receipt "
+            "source=mention target_id=123 path=/tmp/reply.json",
+        ),
+        record(
+            1,
+            "WARNING",
+            "promote_sending_reply_receipt",
+            "Promoted conversational reply receipt to confirmed "
+            "source=mention target_id=123 reply_post_id=999 "
+            "path=/tmp/reply.json",
+        ),
+        record(
+            2,
+            "INFO",
+            "remove_confirmed_reply_receipt",
+            "Removed reconciled confirmed-reply receipt "
+            "source=mention target_id=123 reply_post_id=999 "
+            "path=/tmp/reply.json",
+        ),
+    ]
+
+    report = digest.analyse(records)
+    rendered = digest.render_markdown(report)
+
+    assert [
+        item["kind"]
+        for item in report["confirmed_reply_recovery"]["receipt_events"]
+    ] == ["sending", "promoted", "removed"]
+    assert "Routine confirmed-reply receipt write/remove pairs completed: **1**" in rendered
+    assert "## Confirmed-reply receipt lifecycle" in rendered
+    assert "## Confirmed-reply recovery" not in rendered
+    assert report["error_health"]["current_independent_incident_count"] == 0
+
+
+def test_unresolved_schema_v3_sending_receipt_is_reported_as_recovery():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "WARNING",
+                "write_sending_reply_receipt",
+                "Wrote conversational reply sending receipt "
+                "source=quote_tweet target_id=456 path=/tmp/reply.json",
+            )
+        ]
+    )
+
+    rendered = digest.render_markdown(report)
+
+    assert "## Confirmed-reply recovery" in rendered
+    assert "sending_unresolved" in rendered
+    assert "Pre-send reply receipt remains unresolved" in rendered
+    assert report["error_health"]["current_independent_incident_count"] == 1
+    assert "1 unresolved operational incident" in report["summary"]["headline"]
+
+
+def test_confirmed_state_fallback_is_not_labelled_definite_non_success():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "WARNING",
+                "write_sending_reply_receipt",
+                "Wrote conversational reply sending receipt "
+                "source=mention target_id=123 path=/tmp/reply.json",
+            ),
+            record(
+                1,
+                "WARNING",
+                "remove_confirmed_reply_receipt",
+                "Removed conversational reply sending receipt after confirmed "
+                "identity was preserved in canonical state "
+                "source=mention target_id=123 path=/tmp/reply.json",
+            ),
+        ]
+    )
+
+    rendered = digest.render_markdown(report)
+
+    assert "## Confirmed-reply recovery" in rendered
+    assert (
+        "Confirmed replies preserved through the durable canonical-state "
+        "fallback: **1**."
+        in rendered
+    )
+    assert "Prepared reply receipts cleared after a definite non-success" not in rendered
+    assert report["error_health"]["current_independent_incident_count"] == 0
+
+
 def test_explicit_since_is_exact_and_boundary_is_inclusive(tmp_path):
     requested = "2026-07-26 10:54:03"
     log = tmp_path / "mrsMThatcher.log"

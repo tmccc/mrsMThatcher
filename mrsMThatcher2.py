@@ -4322,7 +4322,16 @@ def upload_media(image_path: str) -> str:
         return upload_media_v1_1(image_path)
 
 
-def block_if_ambiguous_remote_post() -> None:
+def unresolved_conversational_reply_receipt_is_blocking() -> bool:
+    """Return whether a reply receipt forbids another remote write."""
+    status, _receipt = load_confirmed_reply_receipt()
+    return status in {"sending", "invalid"}
+
+
+def block_if_ambiguous_remote_post(
+    *,
+    prepared_conversational_reply_receipt: dict | None = None,
+) -> None:
     """Refuse posting while a remote-write safety incident is unresolved."""
     if _AMBIGUOUS_REMOTE_POST_SEEN:
         try:
@@ -4352,6 +4361,20 @@ def block_if_ambiguous_remote_post() -> None:
             f"blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
             service="x",
         )
+    status, receipt = load_confirmed_reply_receipt()
+    if status not in {"sending", "invalid"}:
+        return
+    if (
+        status == "sending"
+        and prepared_conversational_reply_receipt is not None
+        and receipt == prepared_conversational_reply_receipt
+    ):
+        return
+    raise AmbiguousRemotePostOutcome(
+        "An unresolved conversational-reply sending or invalid receipt blocks "
+        f"further posting: {CONFIRMED_REPLY_RECEIPT_FILE}",
+        service="x",
+    )
 
 
 def ambiguous_remote_post_is_blocking() -> bool:
@@ -4359,7 +4382,8 @@ def ambiguous_remote_post_is_blocking() -> bool:
     if _AMBIGUOUS_REMOTE_POST_SEEN:
         return True
     try:
-        return AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        if AMBIGUOUS_POST_OUTCOME_FILE.exists():
+            return True
     except Exception:
         log.critical(
             "The remote-write safety marker cannot be inspected; treating all remote "
@@ -4367,10 +4391,19 @@ def ambiguous_remote_post_is_blocking() -> bool:
             exc_info=True,
         )
         return True
+    try:
+        return unresolved_conversational_reply_receipt_is_blocking()
+    except Exception:
+        log.critical(
+            "The conversational-reply receipt cannot be inspected; treating all "
+            "remote writes as blocked",
+            exc_info=True,
+        )
+        return True
 
 
 class ConfirmedPostSigintDeferral:
-    """Process-wide Python SIGINT handler state for one main-post transaction."""
+    """Process-wide Python SIGINT handler state for one remote-post transaction."""
 
     def __init__(self) -> None:
         """Capture the prior handler and initialise the deferred-signal state."""
@@ -4385,7 +4418,7 @@ class ConfirmedPostSigintDeferral:
 
 
 def begin_confirmed_post_sigint_deferral() -> ConfirmedPostSigintDeferral:
-    """Defer controlled SIGINT while a remote main post gains durable identity.
+    """Defer controlled SIGINT while a remote post gains durable identity.
 
     The production service stops its Python child with SIGINT. Once an X create
     request begins, the process-wide Python handler records that signal without
@@ -4430,6 +4463,17 @@ def durable_remote_write_safety_marker_exists() -> bool:
             exc_info=True,
         )
         return False
+
+
+def durable_remote_write_safety_barrier_exists() -> bool:
+    """Return whether restart safety survives loss of the process latch."""
+    if durable_remote_write_safety_marker_exists():
+        return True
+    try:
+        status, _receipt = load_confirmed_reply_receipt()
+    except Exception:
+        return CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    return status in {"sending", "invalid"}
 
 
 def retain_sigint_deferral_without_durable_barrier(*, lane: str) -> None:
@@ -4552,10 +4596,29 @@ def create_post(
     media_ids: list[str] | None = None,
     reply_to_id: str | None = None,
     made_with_ai: bool = False,
+    *,
+    prepared_conversational_reply_receipt: dict | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
     require_remote_operation_unpaused("X post creation")
-    block_if_ambiguous_remote_post()
+    if prepared_conversational_reply_receipt is not None:
+        prepared = prepared_conversational_reply_receipt
+        if (
+            not sending_reply_receipt_is_semantically_valid(prepared)
+            or str(prepared.get("target_id") or "") != str(reply_to_id or "")
+            or str(prepared.get("reply_text") or "") != str(text)
+            or bool(media_ids)
+        ):
+            raise AmbiguousRemotePostOutcome(
+                "Prepared conversational-reply receipt does not exactly bind the "
+                "requested remote write",
+                service="x",
+            )
+    block_if_ambiguous_remote_post(
+        prepared_conversational_reply_receipt=(
+            prepared_conversational_reply_receipt
+        ),
+    )
     log.info(
         "Creating X post. reply_to_id=%s media_count=%d made_with_ai=%s text=%r",
         reply_to_id,
@@ -4693,12 +4756,24 @@ class InvalidConfirmedReplyReceipt(RuntimeError):
     pass
 
 
+class UnresolvedSendingReplyReceipt(RuntimeError):
+    """Raised when a pre-send reply receipt requires manual reconciliation."""
+    pass
+
+
 class ConfirmedReplyLocalPersistenceError(RuntimeError):
-    # This covers failures after a valid remote reply id is known. A hard crash
-    # after receiving that id but before durable receipt fsync can still leave
-    # no replay record. Separately, if X accepts a reply but no response reaches
-    # this process, there is no known reply id to receipt.
-    """Raised when a confirmed remote reply cannot be persisted locally."""
+    """Raised when a reply transaction needs durable local recovery.
+
+    Conversational replies now have a pre-send lifecycle receipt, so the
+    exception does not imply that restart identity was lost.
+    """
+    pass
+
+
+class UnrecoverableConfirmedReplyPersistenceError(
+    ConfirmedReplyLocalPersistenceError
+):
+    """Raised when a confirmed conversational reply has no durable identity."""
     pass
 
 
@@ -10015,15 +10090,31 @@ def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     return validated["proposed_reply"] == text
 
 
-def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
-    """Return whether a confirmed-reply receipt is internally consistent."""
+def _conversational_reply_receipt_is_semantically_valid(
+    data: dict,
+    *,
+    lifecycle_state: str,
+) -> bool:
+    """Validate one prepared or confirmed conversational-reply receipt."""
     if not isinstance(data, dict):
         return False
-    if type(data.get("schema_version")) is not int or data.get("schema_version") != 2:
+    if lifecycle_state not in {"sending", "confirmed"}:
+        return False
+    schema_version = data.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {2, 3}:
+        return False
+    if schema_version == 2:
+        if lifecycle_state != "confirmed" or "lifecycle_state" in data:
+            return False
+    elif data.get("lifecycle_state") != lifecycle_state:
         return False
     if not valid_post_id(data.get("target_id")):
         return False
-    if not valid_post_id(data.get("reply_post_id")):
+    if lifecycle_state == "confirmed" and not valid_post_id(
+        data.get("reply_post_id")
+    ):
+        return False
+    if lifecycle_state == "sending" and "reply_post_id" in data:
         return False
     author_id = data.get("author_id")
     if author_id is None or isinstance(author_id, (dict, list)):
@@ -10092,6 +10183,22 @@ def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     return True
 
 
+def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
+    """Return whether a confirmed-reply receipt is internally consistent."""
+    return _conversational_reply_receipt_is_semantically_valid(
+        data,
+        lifecycle_state="confirmed",
+    )
+
+
+def sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
+    """Return whether a pre-send conversational-reply receipt is complete."""
+    return _conversational_reply_receipt_is_semantically_valid(
+        data,
+        lifecycle_state="sending",
+    )
+
+
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
     """Load confirmed reply receipt."""
     try:
@@ -10111,6 +10218,8 @@ def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
             CONFIRMED_REPLY_RECEIPT_FILE,
         )
         return "invalid", None
+    if sending_reply_receipt_is_semantically_valid(data):
+        return "sending", data
     if not confirmed_reply_receipt_is_semantically_valid(data):
         log.critical(
             "Semantically invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
@@ -10138,18 +10247,115 @@ def write_confirmed_reply_receipt(receipt: dict) -> None:
     )
 
 
-def remove_confirmed_reply_receipt(receipt: dict | None = None) -> None:
+def write_sending_reply_receipt(receipt: dict) -> None:
+    """Durably record a reply transaction before its remote create request."""
+    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite unresolved conversational-reply receipt: "
+            f"{CONFIRMED_REPLY_RECEIPT_FILE}"
+        )
+    if not sending_reply_receipt_is_semantically_valid(receipt):
+        raise RuntimeError(
+            "Internal error: generated sending-reply receipt failed validation"
+        )
+    atomic_write_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt, durable=True)
+    log.warning(
+        "Wrote conversational reply sending receipt source=%s target_id=%s path=%s",
+        receipt.get("candidate_source", "mention"),
+        receipt.get("target_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+
+
+def promote_sending_reply_receipt(
+    sending_receipt: dict,
+    *,
+    reply_post_id: str,
+) -> dict:
+    """Atomically promote the exact prepared transaction to confirmed."""
+    status, current = load_confirmed_reply_receipt()
+    if status != "sending" or current != sending_receipt:
+        raise UnresolvedSendingReplyReceipt(
+            "Conversational reply sending receipt changed before confirmation"
+        )
+    confirmed = {
+        **sending_receipt,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": str(reply_post_id),
+    }
+    if not confirmed_reply_receipt_is_semantically_valid(confirmed):
+        raise RuntimeError(
+            "Internal error: promoted confirmed-reply receipt failed validation"
+        )
+    atomic_write_json(CONFIRMED_REPLY_RECEIPT_FILE, confirmed, durable=True)
+    log.warning(
+        "Promoted conversational reply receipt to confirmed source=%s "
+        "target_id=%s reply_post_id=%s path=%s",
+        confirmed.get("candidate_source", "mention"),
+        confirmed.get("target_id"),
+        confirmed.get("reply_post_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+    return confirmed
+
+
+def remove_confirmed_reply_receipt(
+    receipt: dict | None = None,
+    *,
+    sending_disposition: str | None = None,
+) -> None:
     """Remove confirmed reply receipt."""
     try:
+        if receipt is not None:
+            with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as handle:
+                current = json.load(handle)
+            if current != receipt:
+                raise InvalidConfirmedReplyReceipt(
+                    "Refusing to remove a conversational-reply receipt whose "
+                    "transaction identity changed"
+                )
+            if receipt.get("lifecycle_state") == "sending":
+                if sending_disposition not in {
+                    "definite_non_success",
+                    "confirmed_state_fallback",
+                }:
+                    raise ValueError(
+                        "Removing a sending reply receipt requires an explicit "
+                        "disposition"
+                    )
+            elif sending_disposition is not None:
+                raise ValueError(
+                    "A confirmed reply receipt cannot use a sending disposition"
+                )
         CONFIRMED_REPLY_RECEIPT_FILE.unlink()
         if receipt:
-            log.info(
-                "Removed reconciled confirmed-reply receipt source=%s target_id=%s reply_post_id=%s path=%s",
-                receipt.get("candidate_source", "mention"),
-                receipt.get("target_id"),
-                receipt.get("reply_post_id"),
-                CONFIRMED_REPLY_RECEIPT_FILE,
-            )
+            if receipt.get("lifecycle_state") == "sending":
+                if sending_disposition == "definite_non_success":
+                    log.info(
+                        "Removed conversational reply sending receipt after definite "
+                        "non-success source=%s target_id=%s path=%s",
+                        receipt.get("candidate_source", "mention"),
+                        receipt.get("target_id"),
+                        CONFIRMED_REPLY_RECEIPT_FILE,
+                    )
+                elif sending_disposition == "confirmed_state_fallback":
+                    log.warning(
+                        "Removed conversational reply sending receipt after "
+                        "confirmed identity was preserved in canonical state "
+                        "source=%s target_id=%s path=%s",
+                        receipt.get("candidate_source", "mention"),
+                        receipt.get("target_id"),
+                        CONFIRMED_REPLY_RECEIPT_FILE,
+                    )
+            else:
+                log.info(
+                    "Removed reconciled confirmed-reply receipt source=%s "
+                    "target_id=%s reply_post_id=%s path=%s",
+                    receipt.get("candidate_source", "mention"),
+                    receipt.get("target_id"),
+                    receipt.get("reply_post_id"),
+                    CONFIRMED_REPLY_RECEIPT_FILE,
+                )
         else:
             log.info("Removed reconciled confirmed-reply receipt: %s", CONFIRMED_REPLY_RECEIPT_FILE)
         fsync_parent_dir(CONFIRMED_REPLY_RECEIPT_FILE, strict=True)
@@ -10329,6 +10535,12 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
     status, receipt = load_confirmed_reply_receipt()
     if status == "absent":
         return False
+    if status == "sending" and receipt is not None:
+        raise UnresolvedSendingReplyReceipt(
+            "A conversational reply was interrupted after its durable sending "
+            "receipt was written; manual reconciliation is required before any "
+            "remote write"
+        )
     if status == "invalid" or receipt is None:
         raise InvalidConfirmedReplyReceipt(
             f"Invalid confirmed-reply receipt blocks auto-reply processing: {CONFIRMED_REPLY_RECEIPT_FILE}"
@@ -10355,6 +10567,219 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
         log.critical("Confirmed reply receipt state was saved but receipt removal failed", exc_info=True)
         raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt removal failed") from exc
     return True
+
+
+def confirmed_reply_emergency_representation_is_complete(
+    receipt: dict,
+    state: dict,
+) -> bool:
+    """Return whether state alone durably suppresses a confirmed reply replay."""
+    if not confirmed_reply_receipt_is_semantically_valid(receipt):
+        return False
+    target_id = str(receipt["target_id"])
+    reply_post_id = str(receipt["reply_post_id"])
+    candidate_source = str(receipt.get("candidate_source") or "mention")
+    reply_epoch = receipt_int(receipt.get("reply_epoch"))
+    state_reply_epoch = receipt_int(state.get("last_reply_epoch"))
+    own_reply_ids = {str(item) for item in state.get("own_auto_reply_ids", [])}
+    drafts = state.get("pending_ai_reply_drafts")
+    pending_key = pending_ai_reply_draft_key(target_id, candidate_source)
+    if (
+        reply_epoch is None
+        or state_reply_epoch is None
+        or state_reply_epoch < reply_epoch
+        or reply_post_id not in own_reply_ids
+        or (isinstance(drafts, dict) and pending_key in drafts)
+    ):
+        return False
+    if candidate_source == "quote_tweet":
+        return bool(
+            target_id
+            in {
+                str(item)
+                for item in state.get("replied_to_quote_post_ids", [])
+            }
+            and target_id
+            in {str(item) for item in state.get("seen_quote_post_ids", [])}
+        )
+    return target_id in {
+        str(item) for item in state.get("replied_to_ids", [])
+    }
+
+
+def post_conversational_reply_with_durable_identity(
+    *,
+    state: dict,
+    receipt_template: dict,
+    reply_text: str,
+    reply_to_id: str,
+    made_with_ai: bool,
+    lane: str,
+) -> tuple[dict, dict]:
+    """Create a conversational reply and durably bind its remote identity.
+
+    A controlled SIGINT is deferred from the first remote-create instruction
+    until either the confirmed-reply receipt, a complete canonical state
+    fallback, or the global manual-reconciliation barrier is durable.
+    """
+    if "reply_post_id" in receipt_template:
+        raise ValueError("reply receipt template must not contain reply_post_id")
+    # The reply text may be an ``AIReply`` string subclass whose constructor
+    # requires provenance arguments, so ``deepcopy`` cannot reconstruct it.
+    # Callers have already copied every mutable nested payload placed in the
+    # template; a fresh outer mapping is sufficient and preserves the exact
+    # reviewed string object for draft validation.
+    receipt_template = dict(receipt_template)
+    if (
+        not sending_reply_receipt_is_semantically_valid(receipt_template)
+        or str(receipt_template.get("candidate_source") or "") != str(lane)
+    ):
+        raise RuntimeError(
+            "Refusing conversational X write with an invalid reply receipt template"
+        )
+
+    write_sending_reply_receipt(receipt_template)
+    sigint_guard = begin_confirmed_post_sigint_deferral()
+    try:
+        response = create_post(
+            text=reply_text,
+            media_ids=None,
+            reply_to_id=reply_to_id,
+            made_with_ai=made_with_ai,
+            prepared_conversational_reply_receipt=receipt_template,
+        )
+    except AmbiguousRemotePostOutcome as exc:
+        # The pre-send receipt is itself the restart-safe ambiguity barrier,
+        # including when create_post could not write its global marker.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        try:
+            record_api_error(state, exc, "x", scope="write")
+            save_state(state)
+        except Exception:
+            log.critical(
+                "The conversational reply sending receipt is durable, but "
+                "write-error bookkeeping could not be persisted",
+                exc_info=True,
+            )
+        raise
+    except (ApiError, RemoteOperationsPaused) as remote_error:
+        # These outcomes are classified before transmission or from a definite
+        # non-success HTTP response. They cannot represent an accepted post.
+        try:
+            remove_confirmed_reply_receipt(
+                receipt_template,
+                sending_disposition="definite_non_success",
+            )
+        except Exception as removal_error:
+            end_confirmed_post_sigint_deferral(sigint_guard)
+            raise ConfirmedReplyLocalPersistenceError(
+                "A definitely failed conversational reply left its durable "
+                "sending receipt unresolved"
+            ) from removal_error
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        raise
+    except BaseException as remote_error:
+        # Any unclassified interruption may have happened after bytes reached
+        # X. Preserve the pre-send receipt as a restart-safe manual
+        # reconciliation barrier. In particular, never discard it for
+        # KeyboardInterrupt/SystemExit or an unexpected transport exception.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        if not isinstance(remote_error, Exception):
+            raise
+        raise AmbiguousRemotePostOutcome(
+            "Conversational reply execution was interrupted with an unclassified "
+            "remote outcome; its durable sending receipt requires reconciliation",
+            service="x",
+        ) from remote_error
+
+    own_reply_id = str(response.get("data", {}).get("id") or "")
+    receipt = {
+        **receipt_template,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": own_reply_id,
+    }
+    try:
+        receipt = promote_sending_reply_receipt(
+            receipt_template,
+            reply_post_id=own_reply_id,
+        )
+    except BaseException as receipt_error:
+        fallback_error: BaseException | None = None
+        fallback_complete = False
+        try:
+            apply_confirmed_reply_receipt(state, receipt)
+            try:
+                save_state(state, durable=True)
+            except StateBackupWriteError:
+                if not json_file_matches(STATE_FILE, state):
+                    raise
+                log.warning(
+                    "Confirmed conversational reply canonical state was committed, "
+                    "but its latest backup write failed; using canonical state as "
+                    "the durable replay barrier",
+                    exc_info=True,
+                )
+            fallback_complete = bool(
+                confirmed_reply_emergency_representation_is_complete(
+                    receipt,
+                    state,
+                )
+                and json_file_matches(STATE_FILE, state)
+            )
+        except BaseException as exc:
+            fallback_error = exc
+            log.critical(
+                "Confirmed conversational reply id=%s target=%s lost its receipt "
+                "and emergency state save",
+                own_reply_id,
+                reply_to_id,
+                exc_info=True,
+            )
+
+        if not fallback_complete:
+            durable_marker_written = latch_confirmed_post_persistence_failure(
+                lane=lane,
+                post_id=own_reply_id,
+                failure_components=[
+                    "confirmed_reply_receipt",
+                    "reply_state",
+                ],
+            )
+            status, current_receipt = load_confirmed_reply_receipt()
+            if (
+                durable_marker_written
+                or status == "invalid"
+                or (status == "sending" and current_receipt == receipt_template)
+            ):
+                end_confirmed_post_sigint_deferral(sigint_guard)
+            else:
+                retain_sigint_deferral_without_durable_barrier(lane=lane)
+            raise UnrecoverableConfirmedReplyPersistenceError(
+                f"Confirmed conversational reply {own_reply_id} to "
+                f"{reply_to_id} has no complete durable recovery representation"
+            ) from (fallback_error or receipt_error)
+
+        try:
+            remove_confirmed_reply_receipt(
+                receipt_template,
+                sending_disposition="confirmed_state_fallback",
+            )
+        except Exception as removal_error:
+            end_confirmed_post_sigint_deferral(sigint_guard)
+            raise ConfirmedReplyLocalPersistenceError(
+                f"Confirmed conversational reply {own_reply_id} to {reply_to_id} "
+                "was preserved in canonical state but its sending receipt remains"
+            ) from removal_error
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        if not isinstance(receipt_error, Exception):
+            raise
+        raise ConfirmedReplyLocalPersistenceError(
+            f"Confirmed conversational reply {own_reply_id} to {reply_to_id} "
+            "but failed writing its recovery receipt"
+        ) from receipt_error
+
+    end_confirmed_post_sigint_deferral(sigint_guard)
+    return response, receipt
 
 
 def maybe_reply_to_mentions(state: dict) -> str:
@@ -10817,13 +11242,75 @@ def maybe_reply_to_mentions(state: dict) -> str:
             save_state(state)
             return NORMAL_CHECK_STATUS_POSTED
 
+        receipt_template = {
+            "schema_version": 3,
+            "lifecycle_state": "sending",
+            "target_id": mention_id,
+            "author_id": author_id,
+            "reply_epoch": current,
+            "daily_reply_date": str(
+                state.get("daily_reply_date") or epoch_date_str(current)
+            ),
+            "candidate_source": candidate_source,
+            "conversation_id": str(
+                mention.get("conversation_id", mention_id)
+            ),
+            "reply_text": reply_text,
+            "reply_context": copy.deepcopy(reply_context),
+            "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
+        }
+        if clarification is not None:
+            receipt_template["clarification_reply"] = {
+                key: clarification[key]
+                for key in (
+                    "thread_id",
+                    "prior_bot_reply_id",
+                    "original_question_id",
+                    "trigger",
+                )
+            }
+
         try:
-            reply_response = create_post(
-                text=reply_text,
-                media_ids=None,
-                reply_to_id=mention_id,
-                made_with_ai=MARK_AI_REPLIES_AS_AI,
+            reply_response, receipt = (
+                post_conversational_reply_with_durable_identity(
+                    state=state,
+                    receipt_template=receipt_template,
+                    reply_text=reply_text,
+                    reply_to_id=mention_id,
+                    made_with_ai=MARK_AI_REPLIES_AS_AI,
+                    lane=str(candidate_source),
+                )
             )
+        except UnrecoverableConfirmedReplyPersistenceError:
+            log.critical(
+                "Confirmed %s reply lost every complete durable local identity; "
+                "the global remote-write safety barrier remains active",
+                candidate_log_source,
+                exc_info=True,
+            )
+            raise
+        except ConfirmedReplyLocalPersistenceError:
+            log.critical(
+                "Confirmed %s reply required its durable state fallback",
+                candidate_log_source,
+                exc_info=True,
+            )
+            raise
+        except AmbiguousRemotePostOutcome:
+            log.critical(
+                "%s reply stopped after an ambiguous remote outcome; the global "
+                "remote-write safety barrier remains active",
+                candidate_log_source,
+                exc_info=True,
+            )
+            log_ai_reply_posting_outcome(
+                reply=reply_text,
+                status="posting_failed_retryable",
+                lane=str(candidate_source),
+                target_id=mention_id,
+                failure_reason="ambiguous_remote_outcome",
+            )
+            raise
         except ApiError as e:
             if api_error_is_reply_not_allowed(e):
                 log.warning(
@@ -10886,51 +11373,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
 
-        own_reply_id = reply_response.get("data", {}).get("id")
-        receipt = {
-            "schema_version": 2,
-            "target_id": mention_id,
-            "reply_post_id": str(own_reply_id),
-            "author_id": author_id,
-            "reply_epoch": current,
-            "daily_reply_date": str(state.get("daily_reply_date") or epoch_date_str(current)),
-            "candidate_source": candidate_source,
-            "conversation_id": str(mention.get("conversation_id", mention_id)),
-            "reply_text": reply_text,
-            "reply_context": copy.deepcopy(reply_context),
-            "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
-        }
-        if clarification is not None:
-            receipt["clarification_reply"] = {
-                key: clarification[key]
-                for key in ("thread_id", "prior_bot_reply_id", "original_question_id", "trigger")
-            }
-        try:
-            write_confirmed_reply_receipt(receipt)
-        except Exception as exc:
-            log.critical(
-                "Confirmed reply id=%s to target=%s but failed writing recovery receipt; "
-                "attempting direct durable state save",
-                own_reply_id,
-                mention_id,
-                exc_info=True,
-            )
-            apply_confirmed_reply_receipt(state, receipt)
-            try:
-                save_state(state, durable=True)
-            except Exception as save_exc:
-                log.critical(
-                    "Confirmed reply id=%s to target=%s but both receipt write and emergency state save failed",
-                    own_reply_id,
-                    mention_id,
-                    exc_info=True,
-                )
-                raise ConfirmedReplyLocalPersistenceError(
-                    f"Confirmed reply {own_reply_id} to {mention_id} but failed recovery receipt and emergency state save"
-                ) from save_exc
-            raise ConfirmedReplyLocalPersistenceError(
-                f"Confirmed reply {own_reply_id} to {mention_id} but failed recovery receipt"
-            ) from exc
+        own_reply_id = str(receipt["reply_post_id"])
 
         apply_confirmed_reply_receipt(state, receipt)
         log.info("Recorded and cached own auto-reply id=%s", own_reply_id)
@@ -11639,13 +12082,66 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 save_state(state)
                 return QUOTE_CHECK_STATUS_POSTED
 
+            receipt_template = {
+                "schema_version": 3,
+                "lifecycle_state": "sending",
+                "target_id": quote_id,
+                "author_id": author_id,
+                "reply_epoch": current,
+                "daily_reply_date": str(
+                    state.get("daily_reply_date") or epoch_date_str(current)
+                ),
+                "daily_quote_reply_date": str(
+                    state.get("daily_quote_reply_date")
+                    or epoch_date_str(current)
+                ),
+                "candidate_source": "quote_tweet",
+                "conversation_id": str(
+                    quote_tweet.get("conversation_id", quote_id)
+                ),
+                "reply_text": reply_text,
+                "original_post_id": str(original_post_id),
+                "reply_context": copy.deepcopy(reply_context),
+                "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
+            }
             try:
-                reply_response = create_post(
-                    text=reply_text,
-                    media_ids=None,
-                    reply_to_id=quote_id,
-                    made_with_ai=MARK_AI_REPLIES_AS_AI,
+                reply_response, receipt = (
+                    post_conversational_reply_with_durable_identity(
+                        state=state,
+                        receipt_template=receipt_template,
+                        reply_text=reply_text,
+                        reply_to_id=quote_id,
+                        made_with_ai=MARK_AI_REPLIES_AS_AI,
+                        lane="quote_tweet",
+                    )
                 )
+            except UnrecoverableConfirmedReplyPersistenceError:
+                log.critical(
+                    "Confirmed quote-tweet reply lost every complete durable local "
+                    "identity; the global remote-write safety barrier remains active",
+                    exc_info=True,
+                )
+                raise
+            except ConfirmedReplyLocalPersistenceError:
+                log.critical(
+                    "Confirmed quote-tweet reply required its durable state fallback",
+                    exc_info=True,
+                )
+                raise
+            except AmbiguousRemotePostOutcome:
+                log.critical(
+                    "Quote-tweet reply stopped after an ambiguous remote outcome; "
+                    "the global remote-write safety barrier remains active",
+                    exc_info=True,
+                )
+                log_ai_reply_posting_outcome(
+                    reply=reply_text,
+                    status="posting_failed_retryable",
+                    lane="quote_tweet",
+                    target_id=quote_id,
+                    failure_reason="ambiguous_remote_outcome",
+                )
+                raise
             except ApiError as e:
                 if api_error_is_reply_not_allowed(e):
                     log.warning(
@@ -11703,48 +12199,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
 
-            own_reply_id = reply_response.get("data", {}).get("id")
-            receipt = {
-                "schema_version": 2,
-                "target_id": quote_id,
-                "reply_post_id": str(own_reply_id),
-                "author_id": author_id,
-                "reply_epoch": current,
-                "daily_reply_date": str(state.get("daily_reply_date") or epoch_date_str(current)),
-                "daily_quote_reply_date": str(state.get("daily_quote_reply_date") or epoch_date_str(current)),
-                "candidate_source": "quote_tweet",
-                "conversation_id": str(quote_tweet.get("conversation_id", quote_id)),
-                "reply_text": reply_text,
-                "original_post_id": str(original_post_id),
-                "reply_context": copy.deepcopy(reply_context),
-                "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
-            }
-            try:
-                write_confirmed_reply_receipt(receipt)
-            except Exception as exc:
-                log.critical(
-                    "Confirmed quote-tweet reply id=%s to target=%s but failed writing recovery receipt; "
-                    "attempting direct durable state save",
-                    own_reply_id,
-                    quote_id,
-                    exc_info=True,
-                )
-                apply_confirmed_reply_receipt(state, receipt)
-                try:
-                    save_state(state, durable=True)
-                except Exception as save_exc:
-                    log.critical(
-                        "Confirmed quote-tweet reply id=%s to target=%s but both receipt write and emergency state save failed",
-                        own_reply_id,
-                        quote_id,
-                        exc_info=True,
-                    )
-                    raise ConfirmedReplyLocalPersistenceError(
-                        f"Confirmed quote-tweet reply {own_reply_id} to {quote_id} but failed recovery receipt and emergency state save"
-                    ) from save_exc
-                raise ConfirmedReplyLocalPersistenceError(
-                    f"Confirmed quote-tweet reply {own_reply_id} to {quote_id} but failed recovery receipt"
-                ) from exc
+            own_reply_id = str(receipt["reply_post_id"])
 
             apply_confirmed_reply_receipt(state, receipt)
             log.info("Recorded and cached own quote-tweet auto-reply id=%s", own_reply_id)
@@ -11852,9 +12307,14 @@ def run_reply_lane_checks_for_tick(
 
         try:
             normal_check_status = maybe_reply_to_mentions(state)
-        except AmbiguousRemotePostOutcome:
+        except (
+            AmbiguousRemotePostOutcome,
+            UnrecoverableConfirmedReplyPersistenceError,
+        ):
             ambiguity_blocked = True
-            log.critical("Normal reply lane stopped by the global ambiguous-post barrier")
+            log.critical(
+                "Normal reply lane stopped by the global remote-write safety barrier"
+            )
             return False
         log.info("Normal/hot-post reply check status=%s", normal_check_status)
         if ambiguous_remote_post_is_blocking():
@@ -11890,9 +12350,14 @@ def run_reply_lane_checks_for_tick(
         priority_at_check = str(state.get("next_reply_lane_priority", reply_lane_priority) or reply_lane_priority)
         try:
             quote_check_status = maybe_reply_to_quote_tweets(state)
-        except AmbiguousRemotePostOutcome:
+        except (
+            AmbiguousRemotePostOutcome,
+            UnrecoverableConfirmedReplyPersistenceError,
+        ):
             ambiguity_blocked = True
-            log.critical("Quote-tweet lane stopped by the global ambiguous-post barrier")
+            log.critical(
+                "Quote-tweet lane stopped by the global remote-write safety barrier"
+            )
             return False
 
         log.info("Quote-tweet check status=%s", quote_check_status)
@@ -12087,7 +12552,9 @@ def main() -> None:
         if ambiguous_remote_post_is_blocking():
             if not ambiguity_pause_logged:
                 try:
-                    durable_marker_confirmed = AMBIGUOUS_POST_OUTCOME_FILE.exists()
+                    durable_marker_confirmed = (
+                        durable_remote_write_safety_barrier_exists()
+                    )
                 except Exception:
                     durable_marker_confirmed = False
                     log.critical(
@@ -12400,8 +12867,31 @@ def run_test_cycle() -> int:
         save_state(state)
         return True
 
+    def run_test_reply_action(lane: str, action) -> tuple[object | None, bool]:
+        try:
+            return action(state), False
+        except (
+            AmbiguousRemotePostOutcome,
+            UnrecoverableConfirmedReplyPersistenceError,
+        ):
+            log.critical(
+                "Test-cycle %s reply lane stopped by the global remote-write "
+                "safety barrier",
+                lane,
+                exc_info=True,
+            )
+            wait_for_durable_barrier_before_one_shot_exit(
+                lane=f"{lane}_reply",
+            )
+            return None, True
+
     if reply_lane_priority == "quote":
-        quote_status = maybe_reply_to_quote_tweets(state)
+        quote_status, safety_stopped = run_test_reply_action(
+            "quote_tweet",
+            maybe_reply_to_quote_tweets,
+        )
+        if safety_stopped:
+            return 0
         if finish_if_ambiguity_blocked():
             return 0
         log.info("Test-cycle quote-tweet check status=%s", quote_status)
@@ -12413,7 +12903,12 @@ def run_test_cycle() -> int:
             save_state(state)
             log.info("Test-cycle quote-tweet lane posted; next reply-lane priority=normal")
         else:
-            maybe_reply_to_mentions(state)
+            _normal_status, safety_stopped = run_test_reply_action(
+                "normal",
+                maybe_reply_to_mentions,
+            )
+            if safety_stopped:
+                return 0
             if finish_if_ambiguity_blocked():
                 return 0
             after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
@@ -12422,7 +12917,12 @@ def run_test_cycle() -> int:
                 save_state(state)
                 log.info("Test-cycle normal/hot-post lane posted; next reply-lane priority=quote")
     else:
-        maybe_reply_to_mentions(state)
+        _normal_status, safety_stopped = run_test_reply_action(
+            "normal",
+            maybe_reply_to_mentions,
+        )
+        if safety_stopped:
+            return 0
         if finish_if_ambiguity_blocked():
             return 0
         after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
@@ -12432,7 +12932,12 @@ def run_test_cycle() -> int:
             save_state(state)
             log.info("Test-cycle normal/hot-post lane posted; next reply-lane priority=quote")
         else:
-            quote_status = maybe_reply_to_quote_tweets(state)
+            quote_status, safety_stopped = run_test_reply_action(
+                "quote_tweet",
+                maybe_reply_to_quote_tweets,
+            )
+            if safety_stopped:
+                return 0
             if finish_if_ambiguity_blocked():
                 return 0
             log.info("Test-cycle quote-tweet check status=%s", quote_status)
@@ -12480,6 +12985,11 @@ def run_test_main_tick() -> int:
         last_reply_check_epoch=last_reply_check_epoch,
         last_quote_tweet_check_epoch=last_quote_tweet_check_epoch,
     )
+    if ambiguous_remote_post_is_blocking():
+        wait_for_durable_barrier_before_one_shot_exit(
+            lane="production_reply_tick",
+        )
+        return 0
 
     save_state(state)
     log.info("Test production reply-lane tick finished")
@@ -12502,7 +13012,10 @@ def prepare_test_main_post_state(state: dict) -> None:
 
 def wait_for_durable_barrier_before_one_shot_exit(*, lane: str) -> None:
     """Keep a one-shot posting process alive while its only barrier is memory."""
-    if not _AMBIGUOUS_REMOTE_POST_SEEN or durable_remote_write_safety_marker_exists():
+    if (
+        not _AMBIGUOUS_REMOTE_POST_SEEN
+        or durable_remote_write_safety_barrier_exists()
+    ):
         return
     log.critical(
         "The one-shot %s command cannot exit because its only remote-write safety "
@@ -12510,7 +13023,7 @@ def wait_for_durable_barrier_before_one_shot_exit(*, lane: str) -> None:
         "marker before terminating this process.",
         lane,
     )
-    while not durable_remote_write_safety_marker_exists():
+    while not durable_remote_write_safety_barrier_exists():
         sleep(60)
     log.critical(
         "A durable remote-write safety marker is now present for one-shot lane=%s; "

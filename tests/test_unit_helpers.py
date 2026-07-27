@@ -295,6 +295,15 @@ def unit_confirmed_reply_receipt(
     return receipt
 
 
+def unit_sending_reply_receipt(**kwargs: object) -> dict[str, object]:
+    """Build the schema-v3 pre-send form of a unit reply receipt."""
+    receipt = unit_confirmed_reply_receipt(**kwargs)
+    receipt["schema_version"] = 3
+    receipt["lifecycle_state"] = "sending"
+    receipt.pop("reply_post_id")
+    return receipt
+
+
 @pytest.fixture(autouse=True)
 def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Operational command tests model the supported post-bootstrap dispatch path.
@@ -5836,6 +5845,192 @@ def test_one_shot_memory_only_barrier_waits_for_durable_marker(
         bot.wait_for_durable_barrier_before_one_shot_exit(lane="quote_image")
 
 
+def test_test_main_tick_stops_after_reply_safety_barrier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    sending = unit_sending_reply_receipt()
+    waited: list[str] = []
+
+    monkeypatch.setenv("MRS_TEST_MODE", "1")
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (int(state_arg.get(key, 0) or 0), False),
+    )
+
+    def trigger_reply_barrier(*_args: object, **_kwargs: object) -> tuple[int, int]:
+        bot.write_sending_reply_receipt(sending)
+        return 0, 0
+
+    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", trigger_reply_barrier)
+    monkeypatch.setattr(
+        bot,
+        "wait_for_durable_barrier_before_one_shot_exit",
+        lambda *, lane: waited.append(lane),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: pytest.fail(
+            "one-shot tick must not perform ordinary completion save after barrier"
+        ),
+    )
+
+    assert bot.run_test_main_tick() == 0
+    assert waited == ["production_reply_tick"]
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+
+
+@pytest.mark.parametrize(
+    ("priority", "first_lane", "failure_type"),
+    [
+        ("normal", "normal", bot.AmbiguousRemotePostOutcome),
+        (
+            "quote",
+            "quote_tweet",
+            bot.UnrecoverableConfirmedReplyPersistenceError,
+        ),
+    ],
+)
+def test_production_reply_tick_stops_sibling_lane_on_safety_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    priority: str,
+    first_lane: str,
+    failure_type: type[BaseException],
+) -> None:
+    state = bot.default_state()
+    state.update(
+        {
+            "next_reply_lane_priority": priority,
+            "last_reply_epoch": 0,
+            "last_reply_check_epoch": 0,
+            "last_quote_tweet_check_epoch": 0,
+        }
+    )
+    sending = unit_sending_reply_receipt(
+        lane="quote_tweet" if first_lane == "quote_tweet" else "mention",
+    )
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "REPLY_CHECK_EVERY_SECONDS", 1)
+    monkeypatch.setattr(bot, "QUOTE_CHECK_EVERY_SECONDS", 1)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (int(state_arg.get(key, 0) or 0), False),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: pytest.fail(
+            "reply safety failure must not consume or save a scheduler interval"
+        ),
+    )
+
+    def safety_failure(_state: dict) -> str:
+        bot.write_sending_reply_receipt(sending)
+        if issubclass(failure_type, bot.ApiError):
+            raise failure_type("reply safety failure", service="x")
+        raise failure_type("reply safety failure")
+
+    def later_lane(_state: dict) -> str:
+        pytest.fail("the sibling reply lane must not run after a safety failure")
+
+    monkeypatch.setattr(
+        bot,
+        "maybe_reply_to_mentions",
+        safety_failure if first_lane == "normal" else later_lane,
+    )
+    monkeypatch.setattr(
+        bot,
+        "maybe_reply_to_quote_tweets",
+        safety_failure if first_lane == "quote_tweet" else later_lane,
+    )
+
+    assert bot.run_reply_lane_checks_for_tick(state, 100, 0, 0) == (0, 0)
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+
+
+@pytest.mark.parametrize(
+    ("priority", "first_lane", "failure_type", "expected_wait_lane"),
+    [
+        (
+            "normal",
+            "normal",
+            bot.AmbiguousRemotePostOutcome,
+            "normal_reply",
+        ),
+        (
+            "quote",
+            "quote_tweet",
+            bot.UnrecoverableConfirmedReplyPersistenceError,
+            "quote_tweet_reply",
+        ),
+    ],
+)
+def test_test_cycle_reply_safety_failure_stops_later_lane(
+    monkeypatch: pytest.MonkeyPatch,
+    priority: str,
+    first_lane: str,
+    failure_type: type[BaseException],
+    expected_wait_lane: str,
+) -> None:
+    state = bot.default_state()
+    state["next_reply_lane_priority"] = priority
+    sending = unit_sending_reply_receipt(
+        lane="quote_tweet" if first_lane == "quote_tweet" else "mention",
+    )
+    waited: list[str] = []
+
+    monkeypatch.setenv("MRS_TEST_MODE", "1")
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: pytest.fail(
+            "test cycle must not perform a final save after reply safety failure"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "wait_for_durable_barrier_before_one_shot_exit",
+        lambda *, lane: waited.append(lane),
+    )
+
+    def safety_failure(_state: dict) -> str:
+        bot.write_sending_reply_receipt(sending)
+        if issubclass(failure_type, bot.ApiError):
+            raise failure_type("reply safety failure", service="x")
+        raise failure_type("reply safety failure")
+
+    def later_lane(_state: dict) -> str:
+        pytest.fail("the sibling reply lane must not run after a safety failure")
+
+    monkeypatch.setattr(
+        bot,
+        "maybe_reply_to_mentions",
+        safety_failure if first_lane == "normal" else later_lane,
+    )
+    monkeypatch.setattr(
+        bot,
+        "maybe_reply_to_quote_tweets",
+        safety_failure if first_lane == "quote_tweet" else later_lane,
+    )
+
+    assert bot.run_test_cycle() == 0
+    assert waited == [expected_wait_lane]
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+
+
 def test_test_post_meme_migrates_old_meme_schedule_before_post_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     state = {
@@ -6112,10 +6307,15 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": "banana"}})
     monkeypatch.setattr(bot, "save_state", lambda state, **_kwargs: None)
 
-    status = bot.maybe_reply_to_mentions(state)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.maybe_reply_to_mentions(state)
 
-    assert status == bot.NORMAL_CHECK_STATUS_API_ERROR
     assert bot.ambiguous_remote_post_is_blocking() is True
+    receipt_status, receipt = bot.load_confirmed_reply_receipt()
+    assert receipt_status == "sending"
+    assert receipt is not None
+    assert receipt["target_id"] == "100"
+    assert "reply_post_id" not in receipt
     assert state["daily_reply_count"] == 0
     assert state["replied_to_ids"] == []
     assert state["own_auto_reply_ids"] == []
@@ -7176,6 +7376,407 @@ def test_confirmed_reply_receipt_reconciliation_is_idempotent(
     assert state["replied_to_ids"].count("100") == 1
     assert state["own_auto_reply_ids"].count("900000") == 1
     assert state["last_seen_mention_id"] == "100"
+
+
+def test_conversational_reply_receipt_schema_v3_lifecycle_is_explicit() -> None:
+    legacy = unit_confirmed_reply_receipt()
+    sending = unit_sending_reply_receipt()
+    confirmed = {
+        **sending,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": "999",
+    }
+
+    assert bot.confirmed_reply_receipt_is_semantically_valid(legacy) is True
+    assert bot.sending_reply_receipt_is_semantically_valid(legacy) is False
+    assert bot.sending_reply_receipt_is_semantically_valid(sending) is True
+    assert bot.confirmed_reply_receipt_is_semantically_valid(sending) is False
+    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+    assert bot.sending_reply_receipt_is_semantically_valid(confirmed) is False
+
+
+def test_conversational_reply_receipt_is_durable_before_remote_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_reply_receipt()
+    state = bot.default_state()
+    observed: list[dict[str, object]] = []
+
+    def confirmed_remote(
+        method: str,
+        path: str,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        status, current = bot.load_confirmed_reply_receipt()
+        assert status == "sending"
+        assert current == sending
+        observed.append({"method": method, "path": path, **kwargs})
+        return {"data": {"id": "999"}}
+
+    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+
+    response, confirmed = bot.post_conversational_reply_with_durable_identity(
+        state=state,
+        receipt_template=sending,
+        reply_text=str(sending["reply_text"]),
+        reply_to_id=str(sending["target_id"]),
+        made_with_ai=False,
+        lane="mention",
+    )
+
+    assert response == {"data": {"id": "999"}}
+    assert confirmed["lifecycle_state"] == "confirmed"
+    assert confirmed["reply_post_id"] == "999"
+    assert bot.load_confirmed_reply_receipt() == ("valid", confirmed)
+    assert observed[0]["method"] == "POST"
+    assert observed[0]["path"] == "/2/tweets"
+
+
+def test_prepared_reply_bypass_requires_exact_receipt_text_and_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_reply_receipt()
+    bot.write_sending_reply_receipt(sending)
+    remote_calls = 0
+
+    def remote(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal remote_calls
+        remote_calls += 1
+        return {"data": {"id": "999"}}
+
+    monkeypatch.setattr(bot, "x_request", remote)
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.create_post(
+            str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+        )
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="does not exactly bind"):
+        bot.create_post(
+            "Different reply text.",
+            reply_to_id=str(sending["target_id"]),
+            prepared_conversational_reply_receipt=sending,
+        )
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="does not exactly bind"):
+        bot.create_post(
+            str(sending["reply_text"]),
+            reply_to_id="101",
+            prepared_conversational_reply_receipt=sending,
+        )
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="does not exactly bind"):
+        bot.create_post(
+            str(sending["reply_text"]),
+            media_ids=["media-1"],
+            reply_to_id=str(sending["target_id"]),
+            prepared_conversational_reply_receipt=sending,
+        )
+
+    assert remote_calls == 0
+
+
+def test_conversational_reply_template_must_match_declared_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_reply_receipt(lane="mention")
+    monkeypatch.setattr(
+        bot,
+        "x_request",
+        lambda *_args, **_kwargs: pytest.fail("invalid lane must fail before X"),
+    )
+
+    with pytest.raises(RuntimeError, match="invalid reply receipt template"):
+        bot.post_conversational_reply_with_durable_identity(
+            state=bot.default_state(),
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="quote_tweet",
+        )
+
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+
+
+def test_definite_reply_rejection_removes_sending_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_reply_receipt()
+
+    def rejected(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise bot.ApiError(
+            "X API error 403: reply forbidden",
+            service="x",
+            status_code=403,
+        )
+
+    monkeypatch.setattr(bot, "x_request", rejected)
+
+    with pytest.raises(bot.ApiError, match="reply forbidden"):
+        bot.post_conversational_reply_with_durable_identity(
+            state=bot.default_state(),
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+
+
+@pytest.mark.parametrize(
+    "remote_error",
+    [
+        RuntimeError("unexpected transport implementation failure"),
+        ValueError("response decoder failed after accepted write"),
+        KeyboardInterrupt(),
+    ],
+)
+def test_unclassified_reply_interruption_preserves_sending_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+    remote_error: BaseException,
+) -> None:
+    sending = unit_sending_reply_receipt()
+
+    def interrupted(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise remote_error
+
+    monkeypatch.setattr(bot, "x_request", interrupted)
+    expected = (
+        bot.AmbiguousRemotePostOutcome
+        if isinstance(remote_error, Exception)
+        else type(remote_error)
+    )
+
+    with pytest.raises(expected):
+        bot.post_conversational_reply_with_durable_identity(
+            state=bot.default_state(),
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+def test_reply_ambiguity_marker_and_state_failure_preserve_restart_barrier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_reply_receipt()
+    original_atomic_write = bot.atomic_write_json
+    remote_calls = 0
+
+    def selective_atomic_write(
+        path: Path,
+        data: object,
+        **kwargs: object,
+    ) -> None:
+        if path == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+            raise OSError("marker failed")
+        original_atomic_write(path, data, **kwargs)
+
+    def accepted_without_response(
+        *_args: object,
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        nonlocal remote_calls
+        remote_calls += 1
+        raise bot.AmbiguousRemotePostOutcome(
+            "accepted then connection closed",
+            service="x",
+        )
+
+    monkeypatch.setattr(bot, "atomic_write_json", selective_atomic_write)
+    monkeypatch.setattr(bot, "x_request", accepted_without_response)
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("state failed")),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.post_conversational_reply_with_durable_identity(
+            state=bot.default_state(),
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert remote_calls == 1
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.create_post("must not be sent")
+    assert remote_calls == 1
+
+
+def test_reply_promotion_state_and_marker_failure_blocks_restart_duplicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_reply_receipt()
+    original_atomic_write = bot.atomic_write_json
+    remote_calls = 0
+
+    def selective_atomic_write(
+        path: Path,
+        data: object,
+        **kwargs: object,
+    ) -> None:
+        if path == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+            raise OSError("marker failed")
+        original_atomic_write(path, data, **kwargs)
+
+    def confirmed_remote(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal remote_calls
+        remote_calls += 1
+        return {"data": {"id": "999"}}
+
+    monkeypatch.setattr(bot, "atomic_write_json", selective_atomic_write)
+    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    monkeypatch.setattr(
+        bot,
+        "promote_sending_reply_receipt",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("promotion failed")
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("state failed")),
+    )
+
+    with pytest.raises(bot.UnrecoverableConfirmedReplyPersistenceError):
+        bot.post_conversational_reply_with_durable_identity(
+            state=bot.default_state(),
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert remote_calls == 1
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.create_post("must not be sent")
+    assert remote_calls == 1
+
+
+def test_reply_promotion_failure_uses_confirmed_state_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    sending = unit_sending_reply_receipt()
+    state = bot.default_state()
+    state["daily_reply_date"] = str(sending["daily_reply_date"])
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(
+        bot,
+        "x_request",
+        lambda *_args, **_kwargs: {"data": {"id": "999"}},
+    )
+    monkeypatch.setattr(
+        bot,
+        "promote_sending_reply_receipt",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("promotion failed")
+        ),
+    )
+
+    with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):
+        bot.post_conversational_reply_with_durable_identity(
+            state=state,
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+    assert bot.confirmed_reply_emergency_representation_is_complete(
+        {
+            **sending,
+            "lifecycle_state": "confirmed",
+            "reply_post_id": "999",
+        },
+        state,
+    )
+    assert bot.json_file_matches(bot.STATE_FILE, state) is True
+    assert "confirmed identity was preserved in canonical state" in caplog.text
+    assert "after definite non-success" not in caplog.text
+
+
+def test_reply_sigint_is_delivered_only_after_confirmed_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sending = unit_sending_reply_receipt()
+    state = bot.default_state()
+    remote_calls = 0
+    guard = object()
+
+    def confirmed_remote(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal remote_calls
+        remote_calls += 1
+        assert bot.load_confirmed_reply_receipt() == ("sending", sending)
+        return {"data": {"id": "999"}}
+
+    def deliver_sigint(actual_guard: object) -> None:
+        assert actual_guard is guard
+        status, receipt = bot.load_confirmed_reply_receipt()
+        assert status == "valid"
+        assert receipt is not None
+        assert receipt["lifecycle_state"] == "confirmed"
+        assert receipt["reply_post_id"] == "999"
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard)
+    monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", deliver_sigint)
+
+    with pytest.raises(KeyboardInterrupt):
+        bot.post_conversational_reply_with_durable_identity(
+            state=state,
+            receipt_template=sending,
+            reply_text=str(sending["reply_text"]),
+            reply_to_id=str(sending["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    assert remote_calls == 1
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+    assert state["replied_to_ids"] == ["100"]
+    assert state["own_auto_reply_ids"] == ["999"]
+
+
+def test_remove_reply_receipt_refuses_changed_transaction() -> None:
+    sending = unit_sending_reply_receipt()
+    bot.write_sending_reply_receipt(sending)
+    changed = {**sending, "target_id": "101"}
+
+    with pytest.raises(
+        bot.InvalidConfirmedReplyReceipt,
+        match="transaction identity changed",
+    ):
+        bot.remove_confirmed_reply_receipt(changed)
+
+    assert bot.load_confirmed_reply_receipt() == ("sending", sending)
 
 
 def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal(

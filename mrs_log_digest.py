@@ -2040,7 +2040,10 @@ def classify_operational_error(message: str) -> str:
         return "daily_meme_failure"
     if "quote/image posting failed" in lowered:
         return "quote_image_posting_failure"
-    if "failed to post generated reply" in lowered:
+    if (
+        "failed to post generated reply" in lowered
+        or "unresolved conversational reply sending receipt" in lowered
+    ):
         return "conversational_reply_posting_failure"
     if exception_line:
         return _normalise_incident_text(exception_line).split(":", 1)[0] or "operational_error"
@@ -3434,6 +3437,10 @@ def analyse(
             "Wrote confirmed regular-post receipt pending local reconciliation" in msg
             or "Wrote confirmed meme-post receipt pending local reconciliation" in msg
             or "Wrote confirmed reply receipt pending local reconciliation" in msg
+            or "Wrote conversational reply sending receipt" in msg
+            or "Promoted conversational reply receipt to confirmed" in msg
+            or "Removed conversational reply sending receipt after definite non-success" in msg
+            or "Removed conversational reply sending receipt after confirmed identity" in msg
             or "Removed reconciled regular-post receipt" in msg
             or "Removed reconciled meme-post receipt" in msg
             or "Removed reconciled confirmed-reply receipt" in msg
@@ -3924,6 +3931,59 @@ def analyse(
             if m.group(1):
                 kwargs.update({"lane": m.group(1), "target_id": m.group(2), "reply_post_id": m.group(3)})
             add_confirmed_reply_receipt_event("written", r, **kwargs)
+            continue
+        m = re.search(
+            r"Wrote conversational reply sending receipt"
+            r" source=([^\s]+) target_id=([^\s]+)",
+            msg,
+        )
+        if m:
+            add_confirmed_reply_receipt_event(
+                "sending",
+                r,
+                lane=m.group(1),
+                target_id=m.group(2),
+            )
+            continue
+        m = re.search(
+            r"Promoted conversational reply receipt to confirmed"
+            r" source=([^\s]+) target_id=([^\s]+) reply_post_id=([^\s]+)",
+            msg,
+        )
+        if m:
+            add_confirmed_reply_receipt_event(
+                "promoted",
+                r,
+                lane=m.group(1),
+                target_id=m.group(2),
+                reply_post_id=m.group(3),
+            )
+            continue
+        m = re.search(
+            r"Removed conversational reply sending receipt after definite "
+            r"non-success source=([^\s]+) target_id=([^\s]+)",
+            msg,
+        )
+        if m:
+            add_confirmed_reply_receipt_event(
+                "sending_removed",
+                r,
+                lane=m.group(1),
+                target_id=m.group(2),
+            )
+            continue
+        m = re.search(
+            r"Removed conversational reply sending receipt after confirmed identity "
+            r"was preserved in canonical state source=([^\s]+) target_id=([^\s]+)",
+            msg,
+        )
+        if m:
+            add_confirmed_reply_receipt_event(
+                "confirmed_state_fallback_removed",
+                r,
+                lane=m.group(1),
+                target_id=m.group(2),
+            )
             continue
         if "Removed reconciled regular-post receipt" in msg:
             add_receipt_event("regular_removed", r, lane="quote_image")
@@ -4686,6 +4746,41 @@ def analyse(
                 continue
         remaining_errors.append(item)
     errors = remaining_errors
+
+    pending_sending_lifecycle: Counter = Counter()
+    latest_sending_event: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for item in confirmed_reply_receipts:
+        identity = (
+            str(item.get("lane") or ""),
+            str(item.get("target_id") or ""),
+        )
+        kind = str(item.get("kind") or "")
+        if kind == "sending":
+            pending_sending_lifecycle[identity] += 1
+            latest_sending_event[identity] = item
+        elif kind in {
+            "promoted",
+            "sending_removed",
+            "confirmed_state_fallback_removed",
+        } and pending_sending_lifecycle[identity] > 0:
+            pending_sending_lifecycle[identity] -= 1
+    for identity, count in sorted(pending_sending_lifecycle.items()):
+        if count <= 0:
+            continue
+        source = latest_sending_event.get(identity, {})
+        raw_message = (
+            "Unresolved conversational reply sending receipt remains at the end "
+            f"of the observed window lane={identity[0]} target_id={identity[1]}"
+        )
+        errors.append(
+            {
+                "time": str(source.get("time") or ""),
+                "level": "CRITICAL",
+                "where": "confirmed_reply_receipt_lifecycle",
+                "message": raw_message,
+                "_raw_message": raw_message,
+            }
+        )
 
     error_health = summarise_operational_error_health(
         errors,
@@ -7054,27 +7149,106 @@ def render_markdown(report: Dict[str, Any]) -> str:
     reply_receipt_events = reply_recovery.get("receipt_events") or []
     reply_recovery_warnings = reply_recovery.get("warnings") or []
     if reply_receipt_events or reply_recovery_warnings:
+        pending_sending_receipts: Counter = Counter()
         pending_reply_receipts: Counter = Counter()
         unmatched_reply_receipts: List[Dict[str, Any]] = []
         normal_reply_pairs = 0
+        definite_non_success_clears = 0
+        confirmed_state_fallback_clears = 0
         for item in reply_receipt_events:
-            identity = (
+            sending_identity = (
                 str(item.get("lane") or ""),
                 str(item.get("target_id") or ""),
+            )
+            identity = (
+                *sending_identity,
                 str(item.get("reply_post_id") or ""),
             )
             kind = str(item.get("kind") or "")
-            if kind == "written":
+            if kind == "sending":
+                pending_sending_receipts[sending_identity] += 1
+            elif kind == "promoted":
+                if pending_sending_receipts[sending_identity] > 0:
+                    pending_sending_receipts[sending_identity] -= 1
+                pending_reply_receipts[identity] += 1
+            elif kind == "sending_removed":
+                if pending_sending_receipts[sending_identity] > 0:
+                    pending_sending_receipts[sending_identity] -= 1
+                    definite_non_success_clears += 1
+                else:
+                    unmatched_reply_receipts.append(item)
+            elif kind == "confirmed_state_fallback_removed":
+                if pending_sending_receipts[sending_identity] > 0:
+                    pending_sending_receipts[sending_identity] -= 1
+                    confirmed_state_fallback_clears += 1
+                else:
+                    unmatched_reply_receipts.append(item)
+            elif kind == "written":
                 pending_reply_receipts[identity] += 1
             elif kind == "removed" and pending_reply_receipts[identity] > 0:
                 pending_reply_receipts[identity] -= 1
                 normal_reply_pairs += 1
             else:
                 unmatched_reply_receipts.append(item)
+        unresolved_reply_receipts = list(unmatched_reply_receipts)
+        for (lane, target_id), count in sorted(pending_sending_receipts.items()):
+            if count <= 0:
+                continue
+            source = next(
+                (
+                    item
+                    for item in reversed(reply_receipt_events)
+                    if str(item.get("kind") or "") == "sending"
+                    and str(item.get("lane") or "") == lane
+                    and str(item.get("target_id") or "") == target_id
+                ),
+                {},
+            )
+            unresolved_reply_receipts.append(
+                {
+                    **source,
+                    "lane": lane,
+                    "target_id": target_id,
+                    "kind": "sending_unresolved",
+                    "message": (
+                        "Pre-send reply receipt remains unresolved at the end "
+                        "of the observed window"
+                    ),
+                }
+            )
+        for (lane, target_id, reply_post_id), count in sorted(
+            pending_reply_receipts.items()
+        ):
+            if count <= 0:
+                continue
+            source = next(
+                (
+                    item
+                    for item in reversed(reply_receipt_events)
+                    if str(item.get("kind") or "") in {"written", "promoted"}
+                    and str(item.get("lane") or "") == lane
+                    and str(item.get("target_id") or "") == target_id
+                    and str(item.get("reply_post_id") or "") == reply_post_id
+                ),
+                {},
+            )
+            unresolved_reply_receipts.append(
+                {
+                    **source,
+                    "lane": lane,
+                    "target_id": target_id,
+                    "reply_post_id": reply_post_id,
+                    "kind": "confirmed_unresolved",
+                    "message": (
+                        "Confirmed reply receipt remains unresolved at the end "
+                        "of the observed window"
+                    ),
+                }
+            )
         has_actual_recovery = bool(
             reply_recovery_warnings
-            or unmatched_reply_receipts
-            or any(pending_reply_receipts.values())
+            or unresolved_reply_receipts
+            or confirmed_state_fallback_clears
         )
         out.append(
             "## Confirmed-reply recovery"
@@ -7086,11 +7260,21 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 f"Routine confirmed-reply receipt write/remove pairs completed: "
                 f"**{normal_reply_pairs}**."
             )
-            if unmatched_reply_receipts or any(pending_reply_receipts.values()):
+            if definite_non_success_clears:
+                out.append(
+                    "Prepared reply receipts cleared after a definite non-success: "
+                    f"**{definite_non_success_clears}**."
+                )
+            if confirmed_state_fallback_clears:
+                out.append(
+                    "Confirmed replies preserved through the durable canonical-state "
+                    f"fallback: **{confirmed_state_fallback_clears}**."
+                )
+            if unresolved_reply_receipts:
                 out.append("Stale or unresolved confirmed-reply receipts:")
                 out.append(md_table_row(["time", "level", "lane", "kind", "target_id", "reply_post_id", "message"]))
                 out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
-            for item in unmatched_reply_receipts:
+            for item in unresolved_reply_receipts:
                 out.append(md_table_row([
                     item.get("time", ""),
                     item.get("level", ""),

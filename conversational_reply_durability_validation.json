@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "branch": "fix/confirmed-reply-durability-20260727T120532Z",
+  "base_commit": "75af744227da0ef4f17f429b2dc5f07b215f8ae9",
+  "scope": {
+    "conversational_lanes": [
+      "mention",
+      "hot_post_reply",
+      "quote_tweet"
+    ],
+    "historical_context_reply_changed": false,
+    "reply_policy_changed": false,
+    "schedules_changed": false,
+    "quotation_or_evidence_data_changed": false
+  },
+  "durability": {
+    "pre_send_receipt": true,
+    "receipt_schema_version": 3,
+    "lifecycle_states": [
+      "sending",
+      "confirmed"
+    ],
+    "exact_prepared_write_binding": true,
+    "atomic_promotion": true,
+    "directory_fsync": true,
+        "unknown_outcome_preserves_sending_receipt": true,
+        "definite_non_success_clears_sending_receipt": true,
+        "confirmed_state_fallback_is_durably_verified": true,
+        "confirmed_state_fallback_is_not_classified_as_remote_failure": true,
+        "legacy_schema_v2_readable": true,
+        "restart_duplicate_guard": true,
+        "controlled_sigint_deferred_until_durable_barrier": true
+  },
+  "validation": {
+        "directly_affected_tests": {
+            "passed": 486,
+            "failed": 0
+        },
+        "additional_fail_safe_tests": {
+            "passed": 290,
+            "failed": 0
+        },
+    "broad_suite": {
+      "passed": 2412,
+      "failed": 1,
+      "warnings": 27,
+      "duration_seconds": 543.66,
+      "failure": "tests/test_quote_research_corpus.py::test_bounded_provider_concurrency",
+      "classification": "unrelated timing-dependent test fixture",
+      "repeated_after_test_only_fix": false
+    },
+        "corrected_concurrency_fixture": {
+            "three_worker_repeat_runs_passed": 10,
+            "affected_module_passed": 11,
+            "affected_module_failed": 0
+        },
+        "python_documentation_tests": {
+            "passed": 2,
+            "failed": 0
+        },
+        "independent_final_review_blockers": 0,
+        "python_compilation_passed": true,
+        "git_diff_check_passed": true,
+        "unresolved_sending_receipt_is_current_digest_incident": true
+  },
+  "external_actions": {
+    "x_actions": 0,
+    "provider_calls": 0,
+    "service_actions": 0,
+    "deployments": 0,
+    "pushes": 0
+  },
+  "production_changed": false
+}
