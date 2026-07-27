@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
-import time
 from pathlib import Path
 
 import requests
@@ -100,12 +99,23 @@ class FakeVertex(VertexResearchClient):
 
 
 class Tracker:
-    def __init__(self): self.active = self.maximum = 0; self.lock = threading.Lock()
+    def __init__(self):
+        self.active = self.maximum = self.entries = 0
+        self.lock = threading.Lock()
+        self.first_pair = threading.Barrier(2)
+
     def enter(self):
-        with self.lock: self.active += 1; self.maximum = max(self.maximum, self.active)
-        time.sleep(.03)
+        with self.lock:
+            self.entries += 1
+            entry_number = self.entries
+            self.active += 1
+            self.maximum = max(self.maximum, self.active)
+        if entry_number <= 2:
+            self.first_pair.wait(timeout=5)
+
     def leave(self):
-        with self.lock: self.active -= 1
+        with self.lock:
+            self.active -= 1
 
 
 def runner(tmp_path, records, developer, vertex, **kwargs):
