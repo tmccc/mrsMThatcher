@@ -5898,7 +5898,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 out.append("Never observed:")
                 for item in never_used_rows:
                     out.append(f"- `{item.get('image', '')}`")
-            if unused_longest_rows:
+            if unused_longest_rows and not same_unused_population:
                 out.append("Unused longest:")
                 for item in unused_longest_rows:
                     out.append(
@@ -7003,10 +7003,32 @@ def render_markdown(report: Dict[str, Any]) -> str:
     if reply_receipt_events or reply_recovery_warnings:
         out.append("## Confirmed-reply recovery")
         if reply_receipt_events:
-            out.append("Receipt lifecycle:")
-            out.append(md_table_row(["time", "level", "lane", "kind", "target_id", "reply_post_id", "message"]))
-            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
+            pending_reply_receipts: Counter = Counter()
+            unmatched_reply_receipts: List[Dict[str, Any]] = []
+            normal_reply_pairs = 0
             for item in reply_receipt_events:
+                identity = (
+                    str(item.get("lane") or ""),
+                    str(item.get("target_id") or ""),
+                    str(item.get("reply_post_id") or ""),
+                )
+                kind = str(item.get("kind") or "")
+                if kind == "written":
+                    pending_reply_receipts[identity] += 1
+                elif kind == "removed" and pending_reply_receipts[identity] > 0:
+                    pending_reply_receipts[identity] -= 1
+                    normal_reply_pairs += 1
+                else:
+                    unmatched_reply_receipts.append(item)
+            out.append(
+                f"Routine confirmed-reply receipt write/remove pairs completed: "
+                f"**{normal_reply_pairs}**."
+            )
+            if unmatched_reply_receipts or any(pending_reply_receipts.values()):
+                out.append("Stale or unresolved confirmed-reply receipts:")
+                out.append(md_table_row(["time", "level", "lane", "kind", "target_id", "reply_post_id", "message"]))
+                out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
+            for item in unmatched_reply_receipts:
                 out.append(md_table_row([
                     item.get("time", ""),
                     item.get("level", ""),

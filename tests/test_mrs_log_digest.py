@@ -521,6 +521,27 @@ def test_receipt_pairs_and_pending_then_confirmed_are_not_incidents():
         ],
         "confirmed_post_recovery": [],
     }
+    report["confirmed_reply_recovery"] = {
+        "receipt_events": [
+            {
+                "time": "t2",
+                "kind": "written",
+                "level": "WARNING",
+                "lane": "mention",
+                "target_id": "target-1",
+                "reply_post_id": "reply-1",
+            },
+            {
+                "time": "t3",
+                "kind": "removed",
+                "level": "INFO",
+                "lane": "mention",
+                "target_id": "target-1",
+                "reply_post_id": "reply-1",
+            },
+        ],
+        "warnings": [],
+    }
     report["events"] = [
         {
             "kind": "posting_transaction_state",
@@ -540,6 +561,7 @@ def test_receipt_pairs_and_pending_then_confirmed_are_not_incidents():
     rendered = digest.render_markdown(report)
     assert "## Transactional receipt lifecycle" in rendered
     assert "Routine two-phase receipt write/remove pairs completed: **1**" in rendered
+    assert "Routine confirmed-reply receipt write/remove pairs completed: **1**" in rendered
     assert "intermediate `context_reply_pending` states subsequently reached" in rendered
     assert "they are not outstanding" in rendered
 
