@@ -113,7 +113,8 @@ def test_network_guard_blocks_child_process_and_shell_escape() -> None:
 def test_open_audit_blocks_production_write_and_allows_private_write(tmp_path: Path) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    forbidden_path = ROOT / f".harness-write-test-{tmp_path.name}"
+    path_identity = hashlib.sha256(str(tmp_path).encode("utf-8")).hexdigest()[:16]
+    forbidden_path = ROOT / f".harness-write-test-{path_identity}"
     audit = harness.OpenAudit(run_dir)
     with audit:
         (run_dir / "ok.json").write_text("{}", encoding="utf-8")

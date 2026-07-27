@@ -213,17 +213,27 @@ def test_bounded_provider_concurrency(tmp_path):
 def test_completed_worker_slot_refills_while_other_call_is_slow(tmp_path):
     data = manifest(3)
     third_started = threading.Event()
-    def slow(_prompt):
+    by_id = {record["quote_id"]: record for record in data["records"]}
+
+    def routed(prompt):
+        record = next(
+            record for quote_id, record in by_id.items() if quote_id in prompt
+        )
+        if record == data["records"][0]:
+            return slow(record)
+        if record == data["records"][2]:
+            third_started.set()
+        return response(record, "developer")
+
+    def slow(record):
         # Full-suite I/O load can delay the completed worker's persistence
         # before the executor refills its slot. Retain a bounded deadlock check
         # without assuming that scheduling and fsync complete within one second.
         assert third_started.wait(30)
-        return response(data["records"][0], "developer")
-    def second(_prompt):
-        return response(data["records"][1], "developer")
-    def third(_prompt):
-        third_started.set()
-        return response(data["records"][2], "developer")
-    dev = FakeDeveloper([slow, second, third])
+        return response(record, "developer")
+
+    # Every worker receives the same prompt-keyed callback, so the assertion
+    # does not depend on thread scheduling or shared-list consumption order.
+    dev = FakeDeveloper([routed, routed, routed])
     status = runner(tmp_path, data, dev, FakeVertex([]), developer_concurrency=2).run()
     assert status["valid_packets"] == 3 and third_started.is_set()

@@ -30,7 +30,11 @@ class FakeApiServer:
         handler = self._handler_class()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.httpd.fake = self  # type: ignore[attr-defined]
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(
+            target=self.httpd.serve_forever,
+            kwargs={"poll_interval": 0.01},
+            daemon=True,
+        )
 
     @property
     def url(self) -> str:

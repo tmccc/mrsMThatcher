@@ -13,8 +13,10 @@ from types import SimpleNamespace
 import pytest
 
 
-UNIT_BASE = Path(tempfile.gettempdir()) / "mrsMThatcher-unit-import"
-UNIT_BASE.mkdir(parents=True, exist_ok=True)
+UNIT_BASE_DIRECTORY = tempfile.TemporaryDirectory(
+    prefix=f"mrsMThatcher-unit-import-{os.getpid()}-"
+)
+UNIT_BASE = Path(UNIT_BASE_DIRECTORY.name)
 
 IMPORT_ENV = {
     "MRS_TEST_MODE": "1",

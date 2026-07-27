@@ -268,7 +268,14 @@ def run_digest(
     state_file: Path | None = None,
     until: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    args = [sys.executable, str(DIGEST), "--glob", "test.log"]
+    args = [
+        sys.executable,
+        str(DIGEST),
+        "--project-dir",
+        str(base_dir),
+        "--glob",
+        "test.log",
+    ]
     if state_file is None:
         args.append("--no-state")
     else:
@@ -4829,7 +4836,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "1 asset-metadata warning in window" in (
         main_post_recovery_digest.stdout
     )
-    assert "Main-post recovery" in main_post_recovery_digest.stdout
+    assert "Transactional receipt lifecycle" in main_post_recovery_digest.stdout
     assert "regular_written" in main_post_recovery_digest.stdout
     assert "regular_removed" in main_post_recovery_digest.stdout
     assert "Confirmed remote posts with local recovery/persistence trouble" in main_post_recovery_digest.stdout
@@ -5140,7 +5147,10 @@ def test_digest_latest_state_ignores_authoritative_state_after_window_end(tmp_pa
 
     digest = run_digest(base, until=window_end)
     assert digest.returncode == 0, digest.stderr
-    assert "Window: `2026-07-08 05:39:31` → `2026-07-08 06:39:38`" in digest.stdout
+    assert (
+        "Observed event window: `2026-07-08 05:39:31` → `2026-07-08 06:39:38`"
+        in digest.stdout
+    )
     assert "0 mention replies" in digest.stdout
     assert "1 quote-tweet reply" in digest.stdout
     assert "A mention reply." not in digest.stdout
@@ -5175,7 +5185,10 @@ def test_digest_without_until_uses_last_record_as_latest_state_boundary(tmp_path
 
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
-    assert "Window: `2026-07-08 05:39:35` → `2026-07-08 06:39:38`" in digest.stdout
+    assert (
+        "Observed event window: `2026-07-08 05:39:35` → `2026-07-08 06:39:38`"
+        in digest.stdout
+    )
     assert "State timestamp: `2026-07-08 05:39:35`" in digest.stdout
     assert "daily_reply_count       = 1" in digest.stdout
     assert "daily_quote_reply_count = 1" in digest.stdout
@@ -5393,8 +5406,15 @@ def test_digest_reports_confirmed_reply_receipt_lifecycle(tmp_path: Path) -> Non
     assert "written" in digest.stdout
     assert "reconciled" in digest.stdout
     assert "removed" in digest.stdout
-    assert "| 2026-07-07 05:48:25 | WARNING | mention | written | 123 | 999 |" in digest.stdout
-    assert "| 2026-07-07 06:02:11 | INFO | mention | removed | 123 | 999 |" in digest.stdout
+    assert (
+        "Routine confirmed-reply receipt write/remove pairs completed: **1**."
+        in digest.stdout
+    )
+    assert "Stale or unresolved confirmed-reply receipts:" in digest.stdout
+    assert (
+        "| 2026-07-07 06:02:11 | WARNING | mention | reconciled | 123 | 999 |"
+        in digest.stdout
+    )
     assert "123" in digest.stdout
     assert "999" in digest.stdout
     assert "operational error(s)" not in digest.stdout
