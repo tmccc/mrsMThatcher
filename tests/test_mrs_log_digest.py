@@ -372,16 +372,44 @@ def test_editorial_shadow_rank_distribution_is_robust_to_outliers():
             "production_winner": f"production-{index}",
             "shadow_original_winner": f"shadow-{index}",
         }
-        for index, rank in enumerate([1, 1, 1, 1, 1, 1, 1, 2])
+        for index, rank in enumerate([1, 1, 1, 1, 1, 1, 1, 1, 2])
     ]
     summary = digest.original_editorial_shadow_summary(events)
-    assert summary["average_production_winner_shadow_rank"] == 1.125
+    assert summary["average_production_winner_shadow_rank"] == 10 / 9
     assert summary["median_production_winner_shadow_rank"] == 1
     assert summary["worst_production_winner_shadow_rank"] == 2
-    assert summary["production_rank_1"] == 7
+    assert summary["production_rank_1"] == 8
     assert summary["production_rank_2_or_3"] == 1
     assert summary["production_rank_10_or_worse"] == 0
     assert summary["severe_disagreements"] == []
+    report = digest.analyse([])
+    report["original_editorial_shadow"] = {"events": events, "summary": summary}
+    rendered = digest.render_markdown(report)
+    assert "mean_production_winner_shadow_rank    = 1.11" in rendered
+    assert "median_production_winner_shadow_rank  = 1" in rendered
+    assert "worst_production_winner_shadow_rank   = 2" in rendered
+    assert "1.1111111111111112" not in rendered
+
+
+def test_equally_frequent_shadow_winners_are_not_silently_capped():
+    events = [
+        {
+            "production_source": "original",
+            "production_shadow_rank": 1,
+            "winner_changed": False,
+            "shadow_original_winner": f"winner-{index:02}.jpg",
+        }
+        for index in range(9)
+    ]
+    summary = digest.original_editorial_shadow_summary(events)
+    assert summary["most_frequent_shadow_winners"] == [
+        (f"winner-{index:02}.jpg", 1) for index in range(9)
+    ]
+    report = digest.analyse([])
+    report["original_editorial_shadow"] = {"events": events, "summary": summary}
+    rendered = digest.render_markdown(report)
+    for index in range(9):
+        assert f"winner-{index:02}.jpg (1)" in rendered
 
 
 def test_historical_rendering_summary_and_empty_semantic_columns():
@@ -423,6 +451,9 @@ def test_historical_rendering_summary_and_empty_semantic_columns():
     report["historical_context_quality"] = summary
     rendered = digest.render_markdown(report)
     historical_table = rendered.split("## Historical context replies", 1)[1]
+    historical_header = historical_table.splitlines()[1]
+    assert "overall_reply_confidence" in historical_header
+    assert "historical_confidence" not in historical_header
     assert "semantic_review_disposition" not in historical_table
     assert "empty columns are omitted" in historical_table
 
@@ -562,8 +593,38 @@ def test_receipt_pairs_and_pending_then_confirmed_are_not_incidents():
     assert "## Transactional receipt lifecycle" in rendered
     assert "Routine two-phase receipt write/remove pairs completed: **1**" in rendered
     assert "Routine confirmed-reply receipt write/remove pairs completed: **1**" in rendered
+    assert "## Confirmed-reply receipt lifecycle" in rendered
+    assert "## Confirmed-reply recovery" not in rendered
     assert "intermediate `context_reply_pending` states subsequently reached" in rendered
     assert "they are not outstanding" in rendered
+
+
+def test_explicit_since_is_exact_and_boundary_is_inclusive(tmp_path):
+    requested = "2026-07-26 10:54:03"
+    log = tmp_path / "mrsMThatcher.log"
+    log.write_text(
+        f"{requested} INFO     fixture:1 - exact-boundary-event\n"
+        "2026-07-26 10:55:03 INFO     fixture:2 - later-event\n",
+        encoding="utf-8",
+    )
+    first = tmp_path / "digest-regression-a.md"
+    second = tmp_path / "digest-regression-b.md"
+    arguments = [
+        "--project-dir", str(tmp_path),
+        "--since", requested,
+        "--until", "2026-07-26 10:55:03",
+        "--no-state",
+    ]
+    assert digest.main([*arguments, "--output", str(first)]) == 0
+    assert digest.main([*arguments, "--output", str(second)]) == 0
+    rendered = first.read_text(encoding="utf-8")
+    assert f"Requested since: `{requested}` (inclusive, source=manual --since)" in rendered
+    assert (
+        f"Observed event window: `{requested}` → `2026-07-26 10:55:03`"
+        in rendered
+    )
+    assert "Records parsed: `2`" in rendered
+    assert first.read_bytes() == second.read_bytes()
 
 
 def test_engagement_metric_labels_state_exact_denominators():

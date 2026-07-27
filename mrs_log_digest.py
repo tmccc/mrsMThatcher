@@ -1008,6 +1008,40 @@ def dt_text(value: datetime) -> str:
     return value.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def format_rank(value: Any, *, mean: bool = False) -> str:
+    """Format an ordinal rank without exposing floating-point noise."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "n/a"
+    number = float(value)
+    if not math.isfinite(number):
+        return "n/a"
+    if mean:
+        return f"{number:.2f}"
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:.2f}".rstrip("0").rstrip(".")
+
+
+def most_common_with_cutoff_ties(
+    counts: Counter,
+    *,
+    limit: int = 8,
+) -> List[Tuple[str, int]]:
+    """Return a deterministic top list without dropping ties at the cut-off."""
+    ordered = sorted(
+        (
+            (str(name), int(count))
+            for name, count in counts.items()
+            if str(name) and int(count) > 0
+        ),
+        key=lambda item: (-item[1], item[0]),
+    )
+    if len(ordered) <= limit:
+        return ordered
+    cutoff = ordered[limit - 1][1]
+    return [item for item in ordered if item[1] >= cutoff]
+
+
 def read_resume_data(state_file: Path) -> Dict[str, Any]:
     """Read the digest resume file.
 
@@ -2443,7 +2477,7 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
             and item["production_shadow_rank"] >= 10
         ],
         "shadow_winner_differed": len(changed),
-        "most_frequent_shadow_winners": winners.most_common(8),
+        "most_frequent_shadow_winners": most_common_with_cutoff_ties(winners),
         "most_frequent_affinity_concepts": affinity.most_common(8),
         "most_frequent_active_dimensions": dimensions.most_common(8),
         "average_abs_editorial_adjustment": (sum(adjustments) / len(adjustments)) if adjustments else 0.0,
@@ -2521,7 +2555,7 @@ def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
         "most_frequent_excluded_images": excluded.most_common(8),
         "most_frequent_penalised_images": penalised.most_common(8),
         "most_frequent_production_policies": policies.most_common(8),
-        "most_frequent_shadow_winners": winners.most_common(8),
+        "most_frequent_shadow_winners": most_common_with_cutoff_ties(winners),
         "selection_phases": phases.most_common(),
         "event_categories": categories,
     }
@@ -5277,7 +5311,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out: List[str] = []
     out.append("# MrsMThatcher log digest")
     out.append("")
-    out.append(f"Window: `{s.get('time_start')}` → `{s.get('time_end')}`")
+    out.append(
+        f"Observed event window: `{s.get('time_start')}` → `{s.get('time_end')}`"
+    )
     out.append(f"Project directory: `{report.get('project_dir') or 'unavailable'}`")
     if report.get("requested_since"):
         mode = "exclusive" if report.get("since_exclusive") else "inclusive"
@@ -5993,14 +6029,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"comparable_original_observations     = {shadow_summary.get('comparable_original_observations', 0)}")
         out.append(f"original_winner_changes              = {shadow_summary.get('winner_changes', 0)} ({float(shadow_summary.get('winner_change_percent', 0.0)):.1f}%)")
         avg_rank = shadow_summary.get("average_production_winner_shadow_rank")
-        out.append(f"mean_production_winner_shadow_rank    = {avg_rank if avg_rank is not None else 'n/a'}")
+        out.append(
+            "mean_production_winner_shadow_rank    = "
+            f"{format_rank(avg_rank, mean=True)}"
+        )
         out.append(
             "median_production_winner_shadow_rank  = "
-            f"{shadow_summary.get('median_production_winner_shadow_rank', 'n/a')}"
+            f"{format_rank(shadow_summary.get('median_production_winner_shadow_rank'))}"
         )
         out.append(
             "worst_production_winner_shadow_rank   = "
-            f"{shadow_summary.get('worst_production_winner_shadow_rank', 'n/a')}"
+            f"{format_rank(shadow_summary.get('worst_production_winner_shadow_rank'))}"
         )
         out.append(f"production_winner_shadow_rank_1      = {shadow_summary.get('production_rank_1', 0)}")
         out.append(f"production_winner_shadow_rank_2_or_3 = {shadow_summary.get('production_rank_2_or_3', 0)}")
@@ -6762,12 +6801,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
     for ev in events:
         by_kind.setdefault(ev["kind"], []).append(ev)
 
-    def section(kind: str, title: str, cols: List[str]) -> None:
+    def section(
+        kind: str,
+        title: str,
+        cols: List[str],
+        *,
+        column_labels: Optional[Dict[str, str]] = None,
+    ) -> None:
         rows = by_kind.get(kind) or []
         if not rows:
             return
         out.append(f"## {title}")
-        out.append(md_table_row(cols))
+        labels = column_labels or {}
+        out.append(md_table_row([labels.get(column, column) for column in cols]))
         out.append(md_table_row(["---"] * len(cols)))
         for ev in rows:
             out.append(md_table_row([ev.get(c, "") for c in cols]))
@@ -6839,7 +6885,14 @@ def render_markdown(report: Dict[str, Any]) -> str:
             cols.extend(semantic_columns)
         if report.get("verbose_replies"):
             cols.append("reply_preview")
-        section("historical_context_reply", "Historical context replies", cols)
+        section(
+            "historical_context_reply",
+            "Historical context replies",
+            cols,
+            column_labels={
+                "historical_confidence": "overall_reply_confidence",
+            },
+        )
         if not reliable_semantic_metadata:
             out.append(
                 "Per-reply semantic-review disposition and ledger/projection hashes were "
@@ -7001,25 +7054,34 @@ def render_markdown(report: Dict[str, Any]) -> str:
     reply_receipt_events = reply_recovery.get("receipt_events") or []
     reply_recovery_warnings = reply_recovery.get("warnings") or []
     if reply_receipt_events or reply_recovery_warnings:
-        out.append("## Confirmed-reply recovery")
+        pending_reply_receipts: Counter = Counter()
+        unmatched_reply_receipts: List[Dict[str, Any]] = []
+        normal_reply_pairs = 0
+        for item in reply_receipt_events:
+            identity = (
+                str(item.get("lane") or ""),
+                str(item.get("target_id") or ""),
+                str(item.get("reply_post_id") or ""),
+            )
+            kind = str(item.get("kind") or "")
+            if kind == "written":
+                pending_reply_receipts[identity] += 1
+            elif kind == "removed" and pending_reply_receipts[identity] > 0:
+                pending_reply_receipts[identity] -= 1
+                normal_reply_pairs += 1
+            else:
+                unmatched_reply_receipts.append(item)
+        has_actual_recovery = bool(
+            reply_recovery_warnings
+            or unmatched_reply_receipts
+            or any(pending_reply_receipts.values())
+        )
+        out.append(
+            "## Confirmed-reply recovery"
+            if has_actual_recovery
+            else "## Confirmed-reply receipt lifecycle"
+        )
         if reply_receipt_events:
-            pending_reply_receipts: Counter = Counter()
-            unmatched_reply_receipts: List[Dict[str, Any]] = []
-            normal_reply_pairs = 0
-            for item in reply_receipt_events:
-                identity = (
-                    str(item.get("lane") or ""),
-                    str(item.get("target_id") or ""),
-                    str(item.get("reply_post_id") or ""),
-                )
-                kind = str(item.get("kind") or "")
-                if kind == "written":
-                    pending_reply_receipts[identity] += 1
-                elif kind == "removed" and pending_reply_receipts[identity] > 0:
-                    pending_reply_receipts[identity] -= 1
-                    normal_reply_pairs += 1
-                else:
-                    unmatched_reply_receipts.append(item)
             out.append(
                 f"Routine confirmed-reply receipt write/remove pairs completed: "
                 f"**{normal_reply_pairs}**."
