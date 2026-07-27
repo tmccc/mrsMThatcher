@@ -3319,6 +3319,103 @@ def test_mentions_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> 
         server.stop()
 
 
+def test_successful_truncated_mention_reply_preserves_cursor_until_tail_is_drained(
+    tmp_path: Path,
+) -> None:
+    mentions = [
+        {
+            "id": str(tweet_id),
+            "author_id": str(400 + tweet_id),
+            "conversation_id": str(tweet_id),
+            "text": "@a @b @MrsMThatcher",
+        }
+        for tweet_id in (204, 203, 202, 201)
+    ]
+    mentions.append(
+        {
+            "id": "200",
+            "author_id": "600",
+            "conversation_id": "200",
+            "text": "@MrsMThatcher The first-page point deserves an answer",
+        }
+    )
+    mentions.append(
+        {
+            "id": "150",
+            "author_id": "550",
+            "conversation_id": "150",
+            "text": "@MrsMThatcher The older continuation point deserves an answer too",
+        }
+    )
+    server = FakeApiServer(
+        {
+            "enable_pagination": True,
+            "mentions": mentions,
+            "grok_replies": [
+                "The first point warrants a concise answer in its own right.",
+                "The older continuation point deserves separate consideration.",
+            ],
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"last_seen_mention_id": "99"},
+            local_config={
+                "MAX_MENTIONS_PER_CHECK": 5,
+                "MENTIONS_MAX_PAGES_PER_CHECK": 1,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-cycle",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert fake_server_post_replies(server) == ["200"]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_seen_mention_id"] == "99"
+        assert state["mention_pagination"] == {
+            "base_since_id": "99",
+            "next_token": "5",
+        }
+
+        second = run_bot_command(
+            base_dir,
+            server,
+            "--test-cycle",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"},
+        )
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert fake_server_post_replies(server) == ["200", "150"]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_seen_mention_id"] == "150"
+        assert state["mention_pagination"] == {}
+        mention_requests = [
+            request
+            for request in server.requests
+            if request["path"].endswith("/mentions")
+        ]
+        assert mention_requests[1]["query"]["since_id"] == ["99"]
+        assert mention_requests[1]["query"]["pagination_token"] == ["5"]
+
+        third = run_bot_command(
+            base_dir,
+            server,
+            "--test-cycle",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000004"},
+        )
+        assert third.returncode == 0, third.stderr + third.stdout
+        assert fake_server_post_replies(server) == ["200", "150"]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_seen_mention_id"] == "204"
+        assert state["mention_pagination"] == {}
+    finally:
+        server.stop()
+
+
 def test_hot_post_truncated_pagination_does_not_advance_since_id(tmp_path: Path) -> None:
     replies = [
         {
@@ -3345,6 +3442,58 @@ def test_hot_post_truncated_pagination_does_not_advance_since_id(tmp_path: Path)
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"] == {}
         assert "Not updating hot-post reply since_id" in result.stdout
+    finally:
+        server.stop()
+
+
+def test_hot_post_resumed_final_unusable_page_clears_cursor_and_advances_since_id(
+    tmp_path: Path,
+) -> None:
+    replies = [
+        {
+            "id": str(tweet_id),
+            "author_id": str(1000 + tweet_id),
+            "conversation_id": "700",
+            "created_at": "2026-01-01T00:00:00.000Z",
+            "text": "Earlier page item",
+        }
+        for tweet_id in range(300, 288, -1)
+    ]
+    server = FakeApiServer(
+        {
+            "enable_pagination": True,
+            "mentions": [],
+            "search_recent": replies,
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            watch_ids=["700"],
+            state={
+                "hot_post_reply_since_ids": {"700": "250"},
+                "hot_post_reply_pagination_tokens": {"700": "10"},
+            },
+            local_config={
+                "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS": 10,
+                "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK": 1,
+                "HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS": 100,
+            },
+        )
+
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert fake_server_post_replies(server) == []
+        state = read_json(base_dir / "bot_state.json")
+        assert state["hot_post_reply_since_ids"] == {"700": "290"}
+        assert state["hot_post_reply_pagination_tokens"] == {}
+        search_request = next(
+            request
+            for request in server.requests
+            if request["path"] == "/2/tweets/search/recent"
+        )
+        assert search_request["query"]["since_id"] == ["250"]
+        assert search_request["query"]["pagination_token"] == ["10"]
     finally:
         server.stop()
 
@@ -3494,6 +3643,8 @@ def test_quote_lookup_truncated_pagination_resumes_on_next_check(tmp_path: Path)
         second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
         assert second.returncode == 0, second.stderr + second.stdout
         assert fake_server_post_replies(server) == ["1030"]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["quote_lookup_pagination_tokens"] == {}
         quote_requests = [r for r in server.requests if r["path"] == "/2/tweets/900/quote_tweets"]
         assert quote_requests[3]["query"]["pagination_token"] == ["30"]
     finally:

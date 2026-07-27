@@ -1629,6 +1629,10 @@ class AmbiguousRemotePostOutcome(ApiError):
     """X may have accepted a write although no response reached this process."""
 
 
+class PaginationCursorProtocolError(ApiError):
+    """An X collection returned a pagination-token cycle."""
+
+
 class RemoteOperationsPaused(RuntimeError):
     """A global runtime-control pause blocked a remote operation."""
 
@@ -2022,11 +2026,35 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid mention_pagination type %s; ignoring", path, type(value).__name__)
         return None
-    out: dict[str, str] = {}
-    for key in ("base_since_id", "next_token"):
-        if value.get(key):
-            out[key] = str(value[key])
-    return out
+    if not value:
+        return {}
+    if not set(value).issubset({"base_since_id", "next_token"}):
+        log.error(
+            "State candidate %s has unknown mention_pagination fields; ignoring",
+            path,
+        )
+        return None
+    base_since_id = value.get("base_since_id", "")
+    next_token = value.get("next_token")
+    if not isinstance(base_since_id, str) or (
+        base_since_id and not base_since_id.isdigit()
+    ):
+        log.error(
+            "State candidate %s has invalid mention pagination base; ignoring",
+            path,
+        )
+        return None
+    candidate = {
+        "base_since_id": base_since_id,
+        "next_token": next_token,
+    }
+    if not mention_pagination_provenance_is_valid(candidate):
+        log.error(
+            "State candidate %s has invalid mention pagination token; ignoring",
+            path,
+        )
+        return None
+    return candidate
 
 
 def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
@@ -3043,61 +3071,192 @@ def x_quote_lookup_request(path: str, params: dict) -> dict:
     return x_request("GET", path, params=params)
 
 
-def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, label: str) -> dict:
-    """Read bounded pages from an X API collection endpoint."""
-    combined: dict[str, object] = {"data": []}
-    users_by_id: dict[str, dict] = {}
-    media_by_key: dict[str, dict] = {}
-    next_token = ""
-    pages_fetched = 0
+def api_error_is_invalid_pagination_cursor(error: BaseException) -> bool:
+    """Recognise only X 400 responses which specifically reject a cursor."""
+    if not isinstance(error, ApiError):
+        return False
+    if error.service != "x" or error.status_code != 400:
+        return False
+    message = str(error)
+    candidate_messages: list[str] = []
+    json_start = message.find("{")
+    if json_start >= 0:
+        try:
+            payload = json.loads(message[json_start:])
+        except (json.JSONDecodeError, TypeError, ValueError):
+            payload = None
+        if isinstance(payload, dict):
+            errors = payload.get("errors")
+            if isinstance(errors, dict):
+                errors = [errors]
+            if isinstance(errors, list):
+                for item in errors:
+                    if not isinstance(item, dict):
+                        continue
+                    for key in ("message", "detail", "reason"):
+                        value = item.get(key)
+                        if isinstance(value, str):
+                            candidate_messages.append(value)
+            for key in ("message", "detail", "reason"):
+                value = payload.get(key)
+                if isinstance(value, str):
+                    candidate_messages.append(value)
+            if not candidate_messages:
+                return False
+    if not candidate_messages:
+        candidate_messages = [message]
 
-    for page in range(1, max(1, int(max_pages)) + 1):
-        pages_fetched = page
-        page_params = dict(params)
-        if next_token:
-            page_params["pagination_token"] = next_token
-
-        result = request_func(path, page_params)
-        if not isinstance(result, dict):
-            raise ApiError(f"X {label} returned a malformed paginated response object", service="x")
-        page_data = result.get("data", [])
-        includes = result.get("includes", {})
-        meta = result.get("meta", {})
-        if not isinstance(page_data, list) or any(not isinstance(item, dict) for item in page_data):
-            raise ApiError(f"X {label} returned malformed paginated response data", service="x")
-        if not isinstance(includes, dict):
-            raise ApiError(f"X {label} returned malformed paginated response includes", service="x")
-        users = includes.get("users", [])
-        media_items = includes.get("media", [])
-        if not isinstance(users, list) or any(not isinstance(user, dict) for user in users):
-            raise ApiError(f"X {label} returned malformed paginated response users", service="x")
-        if not isinstance(media_items, list) or any(not isinstance(media, dict) for media in media_items):
-            raise ApiError(f"X {label} returned malformed paginated response media", service="x")
-        if not isinstance(meta, dict):
-            raise ApiError(f"X {label} returned malformed paginated response meta", service="x")
-        combined["data"].extend(page_data)
-
-        for user in users:
-            user_id = str(user.get("id", ""))
-            if user_id:
-                users_by_id[user_id] = user
-
-        for media in media_items:
-            media_key = str(media.get("media_key", ""))
-            if media_key:
-                media_by_key[media_key] = media
-
-        next_token = str(meta.get("next_token", "") or "")
-        log.info(
-            "Fetched %s page %d/%d items=%d next_token=%s",
-            label,
-            page,
-            max_pages,
-            len(page_data) if isinstance(page_data, list) else 0,
-            bool(next_token),
+    def explicitly_rejects_cursor(candidate: str) -> bool:
+        candidate = candidate.casefold()
+        names_cursor = any(
+            marker in candidate
+            for marker in (
+                "pagination_token",
+                "pagination token",
+                "next_token",
+                "next token",
+                "pagination cursor",
+            )
         )
-        if not next_token:
-            break
+        rejects_cursor = any(
+            marker in candidate
+            for marker in (
+                "invalid",
+                "expired",
+                "malformed",
+                "not valid",
+                "not recognised",
+                "not recognized",
+            )
+        )
+        return names_cursor and rejects_cursor
+
+    return any(explicitly_rejects_cursor(item) for item in candidate_messages)
+
+
+def x_paginated_get(
+    request_func,
+    path: str,
+    params: dict,
+    *,
+    max_pages: int,
+    label: str,
+    on_invalid_cursor=None,
+) -> dict:
+    """
+    Read bounded pages from an X API collection endpoint.
+
+    A cursor-specific HTTP 400 gets one recovery from the original collection
+    head. The caller clears its durable saved cursor before that retry. Other
+    client errors remain fail-closed. A repeated token is rejected before it
+    can be requested twice or persisted as a continuation.
+    """
+    base_params = dict(params)
+    recovered_invalid_cursor = False
+    cursor_state_invalidated = False
+    requested_tokens: set[str] = set()
+
+    def invalidate_cursor_state() -> None:
+        nonlocal cursor_state_invalidated
+        if cursor_state_invalidated:
+            return
+        if on_invalid_cursor is not None:
+            on_invalid_cursor()
+        cursor_state_invalidated = True
+
+    while True:
+        combined: dict[str, object] = {"data": []}
+        users_by_id: dict[str, dict] = {}
+        media_by_key: dict[str, dict] = {}
+        next_token = ""
+        pages_fetched = 0
+        restart_from_head = False
+
+        for page in range(1, max(1, int(max_pages)) + 1):
+            pages_fetched = page
+            page_params = dict(base_params)
+            if next_token:
+                page_params["pagination_token"] = next_token
+            request_token = str(page_params.get("pagination_token") or "")
+            if request_token:
+                if request_token in requested_tokens:
+                    invalidate_cursor_state()
+                    raise PaginationCursorProtocolError(
+                        f"X {label} repeated pagination token before request",
+                        service="x",
+                    )
+                requested_tokens.add(request_token)
+
+            try:
+                result = request_func(path, page_params)
+            except ApiError as exc:
+                if (
+                    request_token
+                    and not recovered_invalid_cursor
+                    and api_error_is_invalid_pagination_cursor(exc)
+                ):
+                    invalidate_cursor_state()
+                    recovered_invalid_cursor = True
+                    base_params.pop("pagination_token", None)
+                    restart_from_head = True
+                    log.warning(
+                        "X %s rejected a pagination cursor; cleared the saved "
+                        "cursor and retrying once from the collection head",
+                        label,
+                    )
+                    break
+                raise
+
+            if not isinstance(result, dict):
+                raise ApiError(f"X {label} returned a malformed paginated response object", service="x")
+            page_data = result.get("data", [])
+            includes = result.get("includes", {})
+            meta = result.get("meta", {})
+            if not isinstance(page_data, list) or any(not isinstance(item, dict) for item in page_data):
+                raise ApiError(f"X {label} returned malformed paginated response data", service="x")
+            if not isinstance(includes, dict):
+                raise ApiError(f"X {label} returned malformed paginated response includes", service="x")
+            users = includes.get("users", [])
+            media_items = includes.get("media", [])
+            if not isinstance(users, list) or any(not isinstance(user, dict) for user in users):
+                raise ApiError(f"X {label} returned malformed paginated response users", service="x")
+            if not isinstance(media_items, list) or any(not isinstance(media, dict) for media in media_items):
+                raise ApiError(f"X {label} returned malformed paginated response media", service="x")
+            if not isinstance(meta, dict):
+                raise ApiError(f"X {label} returned malformed paginated response meta", service="x")
+            combined["data"].extend(page_data)
+
+            for user in users:
+                user_id = str(user.get("id", ""))
+                if user_id:
+                    users_by_id[user_id] = user
+
+            for media in media_items:
+                media_key = str(media.get("media_key", ""))
+                if media_key:
+                    media_by_key[media_key] = media
+
+            next_token = str(meta.get("next_token", "") or "")
+            log.info(
+                "Fetched %s page %d/%d items=%d next_token=%s",
+                label,
+                page,
+                max_pages,
+                len(page_data) if isinstance(page_data, list) else 0,
+                bool(next_token),
+            )
+            if next_token and next_token in requested_tokens:
+                invalidate_cursor_state()
+                raise PaginationCursorProtocolError(
+                    f"X {label} returned a repeated pagination token",
+                    service="x",
+                )
+            if not next_token:
+                break
+
+        if restart_from_head:
+            continue
+        break
 
     includes: dict[str, list[dict]] = {}
     if users_by_id:
@@ -3110,6 +3269,7 @@ def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, la
         "pages_fetched": pages_fetched,
         "truncated": bool(next_token),
         "next_token": next_token or None,
+        "invalid_cursor_recovered": recovered_invalid_cursor,
     }
     if next_token:
         log.warning(
@@ -3695,12 +3855,17 @@ def get_mentions(state: dict) -> list[dict]:
         params["pagination_token"] = resume_token
         log.info("Resuming mention pagination from saved cursor")
 
+    def clear_invalid_mention_cursor() -> None:
+        state["mention_pagination"] = {}
+        save_state(state, durable=True)
+
     result = x_paginated_get(
         lambda path, page_params: x_request("GET", path, params=page_params),
         f"/2/users/{MY_USER_ID}/mentions",
         params,
         max_pages=MENTIONS_MAX_PAGES_PER_CHECK,
         label="mentions",
+        on_invalid_cursor=clear_invalid_mention_cursor,
     )
 
     mentions = result.get("data", [])
@@ -3712,14 +3877,20 @@ def get_mentions(state: dict) -> list[dict]:
     if truncated:
         log.warning("Mention pagination was truncated; mention watermark will not advance this cycle")
         next_token = str(pagination.get("next_token") or "")
-        if next_token:
-            state["mention_pagination"] = {
-                "base_since_id": base_since_id,
-                "next_token": next_token,
-            }
-            save_state(state)
+        if not next_token:
+            raise ApiError(
+                "X mentions marked pagination truncated without a continuation token",
+                service="x",
+            )
+        continuation = {
+            "base_since_id": base_since_id,
+            "next_token": next_token,
+        }
+        state["mention_pagination"] = continuation
+        save_state(state)
         for mention in mentions:
             mention["_pagination_truncated"] = True
+            mention["_mention_pagination"] = copy.deepcopy(continuation)
     elif mention_pagination:
         state["mention_pagination"] = {}
         save_state(state)
@@ -3886,6 +4057,11 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
             params["pagination_token"] = resume_token
             log.info("Resuming hot-post reply pagination for post_id=%s", original_post_id)
 
+        def clear_invalid_hot_post_cursor() -> None:
+            pagination_tokens.pop(original_post_id, None)
+            state["hot_post_reply_pagination_tokens"] = dict(pagination_tokens)
+            save_state(state, durable=True)
+
         try:
             result = x_paginated_get(
                 x_quote_lookup_request,
@@ -3893,6 +4069,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                 params,
                 max_pages=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
                 label=f"hot-post replies for {original_post_id}",
+                on_invalid_cursor=clear_invalid_hot_post_cursor,
             )
         except ApiError:
             log.exception("Failed to fetch hot-post replies for post %s", original_post_id)
@@ -4034,7 +4211,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                     original_post_id,
                     raw_highest_id,
                 )
-        elif pagination_truncated:
+        if pagination_truncated:
             log.warning(
                 "Not updating hot-post reply since_id for post_id=%s because pagination was truncated",
                 original_post_id,
@@ -10090,6 +10267,28 @@ def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     return validated["proposed_reply"] == text
 
 
+def mention_pagination_provenance_is_valid(value: object) -> bool:
+    """Validate the exact mention continuation bound to a reply receipt."""
+    if not isinstance(value, dict):
+        return False
+    if set(value) != {"base_since_id", "next_token"}:
+        return False
+    base_since_id = value.get("base_since_id")
+    next_token = value.get("next_token")
+    if not isinstance(base_since_id, str):
+        return False
+    if base_since_id and not base_since_id.isdigit():
+        return False
+    if (
+        not isinstance(next_token, str)
+        or not next_token
+        or next_token != next_token.strip()
+        or any(character.isspace() for character in next_token)
+    ):
+        return False
+    return True
+
+
 def _conversational_reply_receipt_is_semantically_valid(
     data: dict,
     *,
@@ -10124,6 +10323,12 @@ def _conversational_reply_receipt_is_semantically_valid(
     source = str(data.get("candidate_source") or "")
     if source not in {"mention", "hot_post_reply", "quote_tweet"}:
         return False
+    if "mention_pagination" in data:
+        mention_pagination = data.get("mention_pagination")
+        if schema_version != 3 or source != "mention":
+            return False
+        if not mention_pagination_provenance_is_valid(mention_pagination):
+            return False
     text = data.get("reply_text")
     if not isinstance(text, str) or not text:
         return False
@@ -10382,6 +10587,40 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
             raise InvalidConfirmedReplyReceipt(
                 f"clarification thread {clarification['thread_id']} already has a different completed repair"
             )
+    mention_pagination_to_preserve: dict | None = None
+    if "mention_pagination" in receipt:
+        mention_pagination = receipt.get("mention_pagination")
+        if (
+            candidate_source != "mention"
+            or not mention_pagination_provenance_is_valid(mention_pagination)
+        ):
+            raise InvalidConfirmedReplyReceipt(
+                "Confirmed reply receipt has invalid mention pagination provenance"
+            )
+        base_since_id = str(mention_pagination["base_since_id"])
+        current_since_id = str(state.get("last_seen_mention_id") or "")
+        if current_since_id != base_since_id:
+            raise InvalidConfirmedReplyReceipt(
+                "Confirmed mention receipt pagination base does not match "
+                "the current mention watermark"
+            )
+        mention_pagination_to_preserve = copy.deepcopy(mention_pagination)
+    elif candidate_source == "mention":
+        # Receipts written by pre-provenance versions can still be reconciled
+        # safely when canonical state carries an exact continuation bound to
+        # the unchanged watermark. Preserving it favours harmless deduplication
+        # over skipping the unseen tail of a truncated result set.
+        active_pagination = state.get("mention_pagination")
+        current_since_id = str(state.get("last_seen_mention_id") or "")
+        if (
+            mention_pagination_provenance_is_valid(active_pagination)
+            and str(active_pagination["base_since_id"]) == current_since_id
+        ):
+            mention_pagination_to_preserve = copy.deepcopy(active_pagination)
+            log.warning(
+                "Preserving active mention pagination for a legacy confirmed "
+                "reply receipt without transaction-bound provenance"
+            )
     clear_pending_ai_reply(state, target_id, candidate_source)
 
     if candidate_source == "quote_tweet":
@@ -10419,7 +10658,16 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         state["last_reply_epoch"] = reply_epoch
 
     if candidate_source == "mention":
-        update_last_seen_mention_id(state, target_id)
+        if mention_pagination_to_preserve is not None:
+            state["mention_pagination"] = mention_pagination_to_preserve
+            log.info(
+                "Preserved mention pagination continuation after confirmed "
+                "reply target_id=%s base_since_id=%s",
+                target_id,
+                mention_pagination_to_preserve["base_since_id"] or None,
+            )
+        else:
+            update_last_seen_mention_id(state, target_id)
 
     cache_tweet(
         state,
@@ -11259,6 +11507,28 @@ def maybe_reply_to_mentions(state: dict) -> str:
             "reply_context": copy.deepcopy(reply_context),
             "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
         }
+        if candidate_source == "mention" and mention.get("_pagination_truncated"):
+            mention_pagination = mention.get("_mention_pagination")
+            if not mention_pagination_provenance_is_valid(mention_pagination):
+                raise RuntimeError(
+                    "Refusing to post a reply from a truncated mention batch "
+                    "without valid pagination provenance"
+                )
+            base_since_id = str(mention_pagination["base_since_id"])
+            current_since_id = str(state.get("last_seen_mention_id") or "")
+            active_pagination = state.get("mention_pagination")
+            if (
+                current_since_id != base_since_id
+                or not mention_pagination_provenance_is_valid(active_pagination)
+                or active_pagination != mention_pagination
+            ):
+                raise RuntimeError(
+                    "Refusing to post a reply whose mention pagination "
+                    "provenance no longer matches durable state"
+                )
+            receipt_template["mention_pagination"] = copy.deepcopy(
+                mention_pagination
+            )
         if clarification is not None:
             receipt_template["clarification_reply"] = {
                 key: clarification[key]
@@ -11543,12 +11813,20 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         params["pagination_token"] = pagination_tokens[post_id]
         log.info("Quote lookup for post_id=%s resuming with pagination_token=%s", post_id, pagination_tokens[post_id])
 
+    def clear_invalid_quote_lookup_cursor() -> None:
+        if state is None:
+            return
+        pagination_tokens.pop(post_id, None)
+        state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
+        save_state(state, durable=True)
+
     result = x_paginated_get(
         x_quote_lookup_request,
         f"/2/tweets/{post_id}/quote_tweets",
         params,
         max_pages=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
         label=f"quote tweets for {post_id}",
+        on_invalid_cursor=clear_invalid_quote_lookup_cursor,
     )
     pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
     if state is not None:

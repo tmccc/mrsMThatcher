@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-27T16:51:23+01:00",
+  "scope": "pagination_transactionality_repair",
+  "branch": "fix/pagination-transactionality-20260727T151500Z",
+  "base_commit": "051f70cb3f547cd93008de38da31b9e7788071b9",
+  "root_causes": {
+    "truncated_mention_receipt_omitted_cursor_provenance": true,
+    "confirmed_mention_receipt_advanced_cursor_base_watermark": true,
+    "invalid_saved_cursor_was_not_cleared": true,
+    "repeated_cursor_was_not_detected": true,
+    "hot_final_page_could_retain_obsolete_cursor": true
+  },
+  "implemented": {
+    "transaction_bound_mention_pagination": true,
+    "legacy_receipt_matching_cursor_preservation": true,
+    "strict_cursor_state_normalisation": true,
+    "structured_invalid_cursor_classification": true,
+    "single_head_retry": true,
+    "durable_clear_before_retry": true,
+    "query_and_since_id_preserved": true,
+    "repeated_token_detection_across_recovery": true,
+    "independent_hot_watermark_and_cursor_completion": true
+  },
+  "changed_files": [
+    "mrsMThatcher2.py",
+    "tests/test_integration_harness.py",
+    "tests/test_unit_helpers.py",
+    "pagination_transactionality_repair_report.md",
+    "pagination_transactionality_final_validation.json"
+  ],
+  "validation": {
+    "pagination_integration_tests_passed": 8,
+    "final_focused_unit_and_fail_safe_tests_passed": 566,
+    "full_suite_passed": 2461,
+    "full_suite_failures": 0,
+    "full_suite_errors": 0,
+    "full_suite_wall_seconds": 546.07,
+    "workers": 3,
+    "full_suite_preceded_final_additive_classifier_extension": true,
+    "directly_affected_suite_rerun_after_final_change": true,
+    "compilation_passed": true,
+    "diff_check_passed": true
+  },
+  "invariants": {
+    "production_head_unchanged": true,
+    "production_data_changed": false,
+    "service_changed": false,
+    "x_actions": 0,
+    "provider_calls": 0,
+    "pushes": 0,
+    "deployments": 0
+  },
+  "ready_for_separate_deployment_review": true
+}

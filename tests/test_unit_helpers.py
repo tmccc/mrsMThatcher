@@ -304,6 +304,14 @@ def unit_sending_reply_receipt(**kwargs: object) -> dict[str, object]:
     return receipt
 
 
+def unit_confirmed_v3_reply_receipt(**kwargs: object) -> dict[str, object]:
+    """Build the schema-v3 confirmed form of a unit reply receipt."""
+    receipt = unit_sending_reply_receipt(**kwargs)
+    receipt["lifecycle_state"] = "confirmed"
+    receipt["reply_post_id"] = str(kwargs.get("reply_post_id", "999"))
+    return receipt
+
+
 @pytest.fixture(autouse=True)
 def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Operational command tests model the supported post-bootstrap dispatch path.
@@ -413,6 +421,20 @@ def fake_xai_response(status_code: int, body: dict | str) -> bot.requests.Respon
         response._content = json.dumps(body).encode("utf-8")
         response.headers["Content-Type"] = "application/json"
     return response
+
+
+def invalid_pagination_cursor_error() -> bot.ApiError:
+    """Return a representative X invalid-pagination-token response."""
+    return bot.ApiError(
+        (
+            'X API error 400: {"errors":[{"parameters":'
+            '{"pagination_token":["expired-token"]},'
+            '"message":"The `pagination_token` query parameter value '
+            '[expired-token] is not valid"}]}'
+        ),
+        service="x",
+        status_code=400,
+    )
 
 
 def run_native_photo_mention_with_xai_responses(
@@ -6459,6 +6481,32 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    scenario["enable_pagination"] = True
+    scenario["mentions"] = [
+        {
+            "id": str(tweet_id),
+            "author_id": str(400 + tweet_id),
+            "conversation_id": str(tweet_id),
+            "text": "@a @b @MrsMThatcher",
+        }
+        for tweet_id in (204, 203, 202, 201)
+    ]
+    scenario["mentions"].extend(
+        [
+            {
+                "id": "200",
+                "author_id": "600",
+                "conversation_id": "200",
+                "text": "@MrsMThatcher Good sense still matters.",
+            },
+            {
+                "id": "150",
+                "author_id": "550",
+                "conversation_id": "150",
+                "text": "@a @b @MrsMThatcher",
+            },
+        ]
+    )
     server = FakeApiServer(scenario).start()
     try:
         fixed_epoch = 2_000_000_000
@@ -6479,6 +6527,8 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
         monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
         monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 5)
+        monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 1)
         monkeypatch.setattr(bot, "MY_USER_ID", "12345")
         monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
         monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
@@ -6522,25 +6572,48 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
 
         assert len(server.posts) == 1
         first_reply_id = "900000"
-        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "200"
 
         durable_after_failed_save = json.loads(state_file.read_text(encoding="utf-8"))
-        assert "100" not in durable_after_failed_save.get("replied_to_ids", [])
+        assert "200" not in durable_after_failed_save.get("replied_to_ids", [])
         assert durable_after_failed_save.get("last_seen_mention_id") == "99"
+        assert durable_after_failed_save.get("mention_pagination") == {
+            "base_since_id": "99",
+            "next_token": "5",
+        }
         assert durable_after_failed_save.get("daily_reply_count") == 0
         assert durable_after_failed_save.get("last_reply_epoch") == 0
         assert durable_after_failed_save.get("daily_replied_author_counts", {}) == {}
         assert first_reply_id not in durable_after_failed_save.get("own_auto_reply_ids", [])
+        receipt_status, receipt = bot.load_confirmed_reply_receipt()
+        assert receipt_status == "valid"
+        assert receipt is not None
+        assert receipt["mention_pagination"] == {
+            "base_since_id": "99",
+            "next_token": "5",
+        }
 
         monkeypatch.setattr(bot, "save_state", original_save_state)
         restarted_state = bot.load_state()
-        assert "100" not in restarted_state.get("replied_to_ids", [])
+        assert "200" not in restarted_state.get("replied_to_ids", [])
         assert restarted_state.get("last_seen_mention_id") == "99"
+        assert restarted_state["mention_pagination"] == {
+            "base_since_id": "99",
+            "next_token": "5",
+        }
 
         second_status = bot.maybe_reply_to_mentions(restarted_state)
 
         assert second_status == bot.NORMAL_CHECK_STATUS_CHECKED
-        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == ["100"]
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == ["200"]
+        mention_requests = [
+            request
+            for request in server.requests
+            if request["path"].endswith("/mentions")
+        ]
+        assert mention_requests[1]["query"]["since_id"] == ["99"]
+        assert mention_requests[1]["query"]["pagination_token"] == ["5"]
+        assert restarted_state["mention_pagination"] == {}
     finally:
         server.stop()
 
@@ -7393,6 +7466,195 @@ def test_conversational_reply_receipt_schema_v3_lifecycle_is_explicit() -> None:
     assert bot.confirmed_reply_receipt_is_semantically_valid(sending) is False
     assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
     assert bot.sending_reply_receipt_is_semantically_valid(confirmed) is False
+
+
+@pytest.mark.parametrize(
+    "pagination",
+    [
+        {"base_since_id": "", "next_token": "page-4"},
+        {"base_since_id": "99", "next_token": "page-4"},
+    ],
+)
+def test_schema_v3_mention_receipt_accepts_exact_pagination_provenance(
+    pagination: dict[str, str],
+) -> None:
+    sending = unit_sending_reply_receipt()
+    sending["mention_pagination"] = pagination
+    confirmed = {
+        **sending,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": "999",
+    }
+
+    assert bot.sending_reply_receipt_is_semantically_valid(sending) is True
+    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is True
+
+
+@pytest.mark.parametrize(
+    "pagination",
+    [
+        None,
+        [],
+        {},
+        {"base_since_id": "99"},
+        {"next_token": "page-4"},
+        {"base_since_id": "99", "next_token": ""},
+        {"base_since_id": "not-a-post-id", "next_token": "page-4"},
+        {"base_since_id": 99, "next_token": "page-4"},
+        {"base_since_id": "99", "next_token": 15},
+        {
+            "base_since_id": "99",
+            "next_token": "page-4",
+            "unexpected": "field",
+        },
+    ],
+)
+def test_schema_v3_mention_receipt_rejects_malformed_pagination_provenance(
+    pagination: object,
+) -> None:
+    sending = unit_sending_reply_receipt()
+    sending["mention_pagination"] = pagination
+
+    assert bot.sending_reply_receipt_is_semantically_valid(sending) is False
+
+
+@pytest.mark.parametrize("lane", ["hot_post_reply", "quote_tweet"])
+def test_schema_v3_nonmention_receipt_rejects_mention_pagination_provenance(
+    lane: str,
+) -> None:
+    sending = unit_sending_reply_receipt(lane=lane)
+    sending["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+
+    assert bot.sending_reply_receipt_is_semantically_valid(sending) is False
+
+
+def test_legacy_schema_v2_receipt_rejects_new_pagination_provenance() -> None:
+    receipt = unit_confirmed_reply_receipt()
+    receipt["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+
+
+def test_confirmed_mention_receipt_restores_pagination_without_advancing_watermark() -> None:
+    pagination = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+    receipt = unit_confirmed_v3_reply_receipt(target_id="100")
+    receipt["mention_pagination"] = pagination
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_pagination"] = {}
+
+    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert state["last_seen_mention_id"] == "99"
+    assert state["mention_pagination"] == pagination
+    assert state["replied_to_ids"].count("100") == 1
+    assert state["own_auto_reply_ids"].count("999") == 1
+
+
+def test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    receipt = unit_confirmed_v3_reply_receipt(
+        target_id="100",
+        reply_post_id="999",
+    )
+    receipt["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda *_args, **_kwargs: pytest.fail(
+            "confirmed receipt reconciliation must not repeat the X write"
+        ),
+    )
+
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert state["last_seen_mention_id"] == "99"
+    assert state["mention_pagination"] == {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+    assert state["replied_to_ids"] == ["100"]
+    assert state["own_auto_reply_ids"] == ["999"]
+
+
+def test_confirmed_mention_receipt_rejects_pagination_base_mismatch() -> None:
+    receipt = unit_confirmed_v3_reply_receipt(target_id="100")
+    receipt["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "98"
+
+    with pytest.raises(
+        bot.InvalidConfirmedReplyReceipt,
+        match="pagination base does not match",
+    ):
+        bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert state["last_seen_mention_id"] == "98"
+    assert state["mention_pagination"] == {}
+
+
+@pytest.mark.parametrize("schema_version", [2, 3])
+def test_legacy_mention_receipt_without_pagination_remains_valid_and_advances_watermark(
+    schema_version: int,
+) -> None:
+    if schema_version == 2:
+        receipt = unit_confirmed_reply_receipt(target_id="100")
+    else:
+        receipt = unit_confirmed_v3_reply_receipt(target_id="100")
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert state["last_seen_mention_id"] == "100"
+    assert state["mention_pagination"] == {}
+
+
+@pytest.mark.parametrize("schema_version", [2, 3])
+def test_legacy_mention_receipt_preserves_matching_active_pagination(
+    schema_version: int,
+) -> None:
+    if schema_version == 2:
+        receipt = unit_confirmed_reply_receipt(target_id="100")
+    else:
+        receipt = unit_confirmed_v3_reply_receipt(target_id="100")
+    pagination = {
+        "base_since_id": "99",
+        "next_token": "page-4",
+    }
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_pagination"] = pagination
+
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert state["last_seen_mention_id"] == "99"
+    assert state["mention_pagination"] == pagination
 
 
 def test_conversational_reply_receipt_is_durable_before_remote_write(
@@ -8277,6 +8539,388 @@ def test_parse_tweet_id_rejects_oversized_numeric_value() -> None:
     assert bot.parse_tweet_id("9" * 5_000, context="test tweet") is None
 
 
+def test_invalid_pagination_cursor_classifier_is_status_and_parameter_specific() -> None:
+    unrelated_bad_request = bot.ApiError(
+        'X API error 400: {"errors":[{"message":"Invalid query operator"}]}',
+        service="x",
+        status_code=400,
+    )
+    echoed_cursor_with_unrelated_error = bot.ApiError(
+        (
+            'X API error 400: {"errors":[{"parameters":'
+            '{"pagination_token":["saved-token"]},'
+            '"message":"Invalid query operator"}]}'
+        ),
+        service="x",
+        status_code=400,
+    )
+    matching_server_error = bot.ApiError(
+        str(invalid_pagination_cursor_error()),
+        service="x",
+        status_code=503,
+    )
+    top_level_cursor_error = bot.ApiError(
+        'X API error 400: {"message":"Invalid pagination token"}',
+        service="x",
+        status_code=400,
+    )
+
+    assert bot.api_error_is_invalid_pagination_cursor(
+        invalid_pagination_cursor_error()
+    ) is True
+    assert bot.api_error_is_invalid_pagination_cursor(top_level_cursor_error) is True
+    assert bot.api_error_is_invalid_pagination_cursor(unrelated_bad_request) is False
+    assert bot.api_error_is_invalid_pagination_cursor(
+        echoed_cursor_with_unrelated_error
+    ) is False
+    assert bot.api_error_is_invalid_pagination_cursor(matching_server_error) is False
+
+
+def test_paginated_get_invalid_saved_cursor_retries_once_from_head() -> None:
+    events: list[tuple[str, str | None]] = []
+
+    def clear_invalid_cursor() -> None:
+        events.append(("clear", None))
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        events.append(("request", str(token) if token is not None else None))
+        if token is not None:
+            raise invalid_pagination_cursor_error()
+        assert events[-2] == ("clear", None)
+        assert params["since_id"] == "99"
+        return {"data": [{"id": "100"}], "meta": {}}
+
+    result = bot.x_paginated_get(
+        request,
+        "/2/users/12345/mentions",
+        {
+            "max_results": 10,
+            "since_id": "99",
+            "pagination_token": "expired-token",
+        },
+        max_pages=3,
+        label="mentions",
+        on_invalid_cursor=clear_invalid_cursor,
+    )
+
+    assert [item["id"] for item in result["data"]] == ["100"]
+    assert result["_pagination"]["pages_fetched"] == 1
+    assert result["_pagination"]["truncated"] is False
+    assert result["_pagination"]["next_token"] is None
+    assert result["_pagination"]["invalid_cursor_recovered"] is True
+    assert events == [
+        ("request", "expired-token"),
+        ("clear", None),
+        ("request", None),
+    ]
+
+
+def test_paginated_get_invalid_cursor_retry_is_bounded() -> None:
+    events: list[tuple[str, str | None]] = []
+
+    def clear_invalid_cursor() -> None:
+        events.append(("clear", None))
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        events.append(("request", str(token) if token is not None else None))
+        raise invalid_pagination_cursor_error()
+
+    with pytest.raises(bot.ApiError):
+        bot.x_paginated_get(
+            request,
+            "/2/users/12345/mentions",
+            {"pagination_token": "expired-token"},
+            max_pages=3,
+            label="mentions",
+            on_invalid_cursor=clear_invalid_cursor,
+        )
+
+    assert events == [
+        ("request", "expired-token"),
+        ("clear", None),
+        ("request", None),
+    ]
+
+
+def test_paginated_get_does_not_request_rejected_token_again_after_head_retry() -> None:
+    events: list[tuple[str, str | None]] = []
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        token_text = str(token) if token is not None else None
+        events.append(("request", token_text))
+        if token_text == "expired-token":
+            raise invalid_pagination_cursor_error()
+        return {
+            "data": [{"id": "100"}],
+            "meta": {"next_token": "expired-token"},
+        }
+
+    with pytest.raises(bot.PaginationCursorProtocolError, match="(?i)repeated"):
+        bot.x_paginated_get(
+            request,
+            "/2/users/12345/mentions",
+            {"pagination_token": "expired-token"},
+            max_pages=3,
+            label="mentions",
+            on_invalid_cursor=lambda: events.append(("clear", None)),
+        )
+
+    assert events == [
+        ("request", "expired-token"),
+        ("clear", None),
+        ("request", None),
+    ]
+
+
+def test_paginated_get_does_not_retry_unrelated_bad_request() -> None:
+    events: list[str] = []
+    unrelated_bad_request = bot.ApiError(
+        'X API error 400: {"errors":[{"message":"Invalid query operator"}]}',
+        service="x",
+        status_code=400,
+    )
+
+    def request(_path: str, _params: dict) -> dict:
+        events.append("request")
+        raise unrelated_bad_request
+
+    with pytest.raises(bot.ApiError) as raised:
+        bot.x_paginated_get(
+            request,
+            "/2/users/12345/mentions",
+            {"pagination_token": "saved-token"},
+            max_pages=3,
+            label="mentions",
+            on_invalid_cursor=lambda: events.append("clear"),
+        )
+
+    assert raised.value is unrelated_bad_request
+    assert events == ["request"]
+
+
+def test_paginated_get_rejects_repeated_continuation_token_a_to_a() -> None:
+    events: list[tuple[str, str | None]] = []
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        token_text = str(token) if token is not None else None
+        events.append(("request", token_text))
+        return {
+            "data": [{"id": "100" if token is None else "101"}],
+            "meta": {"next_token": "A"},
+        }
+
+    with pytest.raises(bot.PaginationCursorProtocolError, match="(?i)repeated"):
+        bot.x_paginated_get(
+            request,
+            "/2/users/12345/mentions",
+            {},
+            max_pages=5,
+            label="mentions",
+            on_invalid_cursor=lambda: events.append(("clear", None)),
+        )
+
+    assert events == [
+        ("request", None),
+        ("request", "A"),
+        ("clear", None),
+    ]
+
+
+def test_paginated_get_rejects_repeated_continuation_token_a_to_b_to_a() -> None:
+    events: list[tuple[str, str | None]] = []
+    next_tokens = {
+        None: "A",
+        "A": "B",
+        "B": "A",
+    }
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        token_text = str(token) if token is not None else None
+        events.append(("request", token_text))
+        return {
+            "data": [{"id": str(100 + len(events))}],
+            "meta": {"next_token": next_tokens[token_text]},
+        }
+
+    with pytest.raises(bot.PaginationCursorProtocolError, match="(?i)repeated"):
+        bot.x_paginated_get(
+            request,
+            "/2/users/12345/mentions",
+            {},
+            max_pages=6,
+            label="mentions",
+            on_invalid_cursor=lambda: events.append(("clear", None)),
+        )
+
+    assert events == [
+        ("request", None),
+        ("request", "A"),
+        ("request", "B"),
+        ("clear", None),
+    ]
+
+
+def test_mentions_invalid_saved_cursor_clears_state_and_preserves_since_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "expired-token",
+    }
+    requests: list[dict] = []
+    saved_cursors: list[dict] = []
+
+    def request(_method: str, _path: str, *, params: dict) -> dict:
+        requests.append(dict(params))
+        if params.get("pagination_token"):
+            raise invalid_pagination_cursor_error()
+        return {"data": [], "meta": {}}
+
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "x_request", request)
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda current, **_kwargs: saved_cursors.append(
+            copy.deepcopy(current.get("mention_pagination"))
+        ),
+    )
+
+    assert bot.get_mentions(state) == []
+
+    assert requests[0]["pagination_token"] == "expired-token"
+    assert requests[0]["since_id"] == "99"
+    assert "pagination_token" not in requests[1]
+    assert requests[1]["since_id"] == "99"
+    assert state["mention_pagination"] == {}
+    assert saved_cursors[0] == {}
+
+
+def test_mentions_invalid_cursor_stays_cleared_when_head_retry_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "expired-token",
+    }
+    requests: list[dict] = []
+    saved_cursors: list[dict] = []
+
+    def request(_method: str, _path: str, *, params: dict) -> dict:
+        requests.append(dict(params))
+        if params.get("pagination_token"):
+            raise invalid_pagination_cursor_error()
+        raise bot.ApiError(
+            "X API error 503: temporary upstream failure",
+            service="x",
+            status_code=503,
+        )
+
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "x_request", request)
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda current, **_kwargs: saved_cursors.append(
+            copy.deepcopy(current.get("mention_pagination"))
+        ),
+    )
+
+    with pytest.raises(bot.ApiError, match="temporary upstream failure"):
+        bot.get_mentions(state)
+
+    assert requests[0]["pagination_token"] == "expired-token"
+    assert "pagination_token" not in requests[1]
+    assert requests[1]["since_id"] == "99"
+    assert state["mention_pagination"] == {}
+    assert saved_cursors == [{}]
+
+
+def test_hot_post_invalid_saved_cursor_clears_state_and_preserves_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["hot_post_reply_since_ids"] = {"700": "250"}
+    state["hot_post_reply_pagination_tokens"] = {
+        "700": "expired-token",
+    }
+    requests: list[dict] = []
+    saved_token_maps: list[dict] = []
+
+    def request(_path: str, params: dict) -> dict:
+        requests.append(dict(params))
+        if params.get("pagination_token"):
+            raise invalid_pagination_cursor_error()
+        return {"data": [], "meta": {}}
+
+    monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", True)
+    monkeypatch.setattr(bot, "HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS", 100)
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "load_extra_quote_watch_post_ids", lambda: ["700"])
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda current, **_kwargs: saved_token_maps.append(
+            copy.deepcopy(current.get("hot_post_reply_pagination_tokens"))
+        ),
+    )
+
+    assert bot.get_hot_post_reply_candidates(state) == []
+
+    assert requests[0]["pagination_token"] == "expired-token"
+    assert requests[0]["since_id"] == "250"
+    assert requests[0]["query"] == requests[1]["query"]
+    assert "pagination_token" not in requests[1]
+    assert requests[1]["since_id"] == "250"
+    assert state["hot_post_reply_pagination_tokens"] == {}
+    assert saved_token_maps[0] == {}
+
+
+def test_quote_lookup_invalid_saved_cursor_clears_state_and_retries_from_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["quote_lookup_pagination_tokens"] = {
+        "900": "expired-token",
+        "901": "other-token",
+    }
+    requests: list[dict] = []
+    saved_token_maps: list[dict] = []
+
+    def request(_path: str, params: dict) -> dict:
+        requests.append(dict(params))
+        if params.get("pagination_token") == "expired-token":
+            raise invalid_pagination_cursor_error()
+        return {"data": [], "meta": {}}
+
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda current, **_kwargs: saved_token_maps.append(
+            copy.deepcopy(current.get("quote_lookup_pagination_tokens"))
+        ),
+    )
+
+    assert bot.get_quote_tweets_for_post("900", state) == []
+
+    assert requests[0]["pagination_token"] == "expired-token"
+    assert "pagination_token" not in requests[1]
+    assert state["quote_lookup_pagination_tokens"] == {"901": "other-token"}
+    assert saved_token_maps[0] == {"901": "other-token"}
+
+
 def test_valid_tweets_sorted_by_id_deduplicates_paged_results() -> None:
     first = {"id": "20", "text": "same immutable post"}
     duplicate = {"id": "20", "text": "same immutable post"}
@@ -8989,6 +9633,43 @@ def test_load_state_normalises_optional_scalar_ids(tmp_path: Path) -> None:
     assert normalised["last_seen_mention_id"] == "123"
     assert normalised["last_main_post_id"] == "456"
     assert normalised["last_regular_image_filename"] == "789"
+
+
+def test_mention_pagination_state_canonicalises_legacy_empty_base(
+    tmp_path: Path,
+) -> None:
+    normalised = bot.normalise_mention_pagination(
+        {"next_token": "page-4"},
+        path=tmp_path / "bot_state.json",
+    )
+
+    assert normalised == {
+        "base_since_id": "",
+        "next_token": "page-4",
+    }
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"base_since_id": "99"},
+        {"base_since_id": [], "next_token": "page-4"},
+        {"base_since_id": "99", "next_token": {"nested": "bad"}},
+        {
+            "base_since_id": "99",
+            "next_token": "page-4",
+            "unexpected": True,
+        },
+    ],
+)
+def test_mention_pagination_state_rejects_malformed_cursor(
+    tmp_path: Path,
+    value: object,
+) -> None:
+    assert bot.normalise_mention_pagination(
+        value,
+        path=tmp_path / "bot_state.json",
+    ) is None
 
 
 def test_quote_tweet_missing_created_at_is_not_old_enough() -> None:
