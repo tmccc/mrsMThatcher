@@ -772,7 +772,18 @@ def validate_control_schema(
     schema = load_json_object(schema_path)
     try:
         from tools.priority0_registry import schema_validation_errors
-    except (ImportError, AttributeError) as exc:
+    except ModuleNotFoundError as package_exc:
+        # ``python3 tools/release_gate.py`` places ``tools/`` rather than the
+        # repository root on sys.path. Support that documented invocation
+        # without modifying sys.path or depending on the caller's environment.
+        try:
+            from priority0_registry import schema_validation_errors
+        except (ImportError, AttributeError) as sibling_exc:
+            raise ReleaseGateError(
+                "cannot load the Priority-0 schema validator: "
+                f"package import={package_exc}; sibling import={sibling_exc}"
+            ) from sibling_exc
+    except AttributeError as exc:
         raise ReleaseGateError(
             f"cannot load the Priority-0 schema validator: {exc}"
         ) from exc
@@ -1993,16 +2004,21 @@ def emit_outputs(
             "pushes": 0,
             "merges": 0,
         },
-        "procedural_note": (
-            "A pre-freeze measurement-only full-suite run overlapped edits and "
-            "used only Python-level egress denial; it is recorded as "
-            "non-authoritative. The result above is the sole frozen-candidate "
-            "whole-suite gate result."
-        ),
+        "procedural_notes": list(receipt.get("procedural_notes", [])),
     }
     write_atomic(
         output_dir / "priority0_consolidation_final_validation.json",
         canonical_json_bytes(final_validation),
+    )
+    procedural_notes = [
+        str(item)
+        for item in receipt.get("procedural_notes", [])
+        if isinstance(item, str) and item.strip()
+    ]
+    procedural_evidence = (
+        "\n".join(f"- {item}" for item in procedural_notes)
+        if procedural_notes
+        else "- No additional procedural exceptions were recorded."
     )
     consolidation_report = (
         "# Priority-0 consolidation candidate\n\n"
@@ -2054,12 +2070,8 @@ def emit_outputs(
         "- Provider requests by this task: 0\n"
         "- Deployments, merges and pushes by this task: 0\n\n"
         "## Procedural evidence\n\n"
-        "A measurement-only whole-suite run was started before the candidate "
-        "was frozen. It overlapped documentation and concurrent untracked-file "
-        "edits, used the repository's Python socket guard rather than an OS "
-        "network namespace, and did not collect the later Priority-0 tests. It "
-        "is therefore not release evidence. The release-gate result below is "
-        "the sole authoritative frozen-candidate whole-suite result.\n\n"
+        + procedural_evidence
+        + "\n\n"
         + markdown_report(semantic, receipt)
     )
     write_atomic(
@@ -2360,6 +2372,7 @@ def run_gate(args: argparse.Namespace) -> int:
             "service_after": service_after,
             "service_invariants_unchanged": service_unchanged,
             "candidate_unchanged_after_validation": True,
+            "procedural_notes": list(args.procedural_note),
         }
         inventory = emit_outputs(
             output_dir=output_dir,
@@ -2419,6 +2432,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--workers", type=int, default=4)
     run.add_argument("--full-suite", action="store_true")
     run.add_argument("--development-dry-run", action="store_true")
+    run.add_argument(
+        "--procedural-note",
+        action="append",
+        default=[],
+        help="record a non-semantic run-history note in the receipt and report",
+    )
     return parser
 
 

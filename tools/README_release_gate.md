@@ -48,6 +48,10 @@ python3 tools/release_gate.py run \
   --full-suite
 ```
 
+Repeat `--procedural-note "..."` when a run receipt must preserve an earlier
+preflight-only failure or another non-semantic execution fact. These notes do
+not enter the deterministic semantic attestation.
+
 The gate:
 
 1. holds an exclusive lock in the shared Git common directory;

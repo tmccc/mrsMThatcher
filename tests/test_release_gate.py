@@ -55,6 +55,32 @@ def _snapshot(**overrides: object) -> release_gate.CandidateSnapshot:
     return release_gate.CandidateSnapshot(**values)
 
 
+def test_documented_script_invocation_loads_sibling_schema_validator() -> None:
+    root = Path(__file__).resolve().parents[1]
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    program = (
+        "from pathlib import Path\n"
+        "import release_gate\n"
+        "document = release_gate.load_json_object(Path('../production_invariants.json'))\n"
+        "release_gate.validate_control_schema(\n"
+        "    document,\n"
+        "    Path('../production_invariants.schema.json'),\n"
+        "    label='production invariant registry',\n"
+        ")\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", program],
+        cwd=root / "tools",
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout
+
+
 def _invariant(
     invariant_id: str = "INV-REL-001",
     *,
@@ -780,6 +806,7 @@ def test_emit_outputs_includes_required_priority0_deliverables(
         "production_identity_before": {"repository_commit": "6" * 40},
         "production_identity_unchanged": True,
         "service_invariants_unchanged": True,
+        "procedural_notes": ["A preflight-only predecessor stopped before tests."],
     }
     output = tmp_path / "output"
     (output / "validation").mkdir(parents=True)
@@ -805,6 +832,11 @@ def test_emit_outputs_includes_required_priority0_deliverables(
     assert final["candidate_commit"] == "1" * 40
     assert final["unresolved_or_partial_invariant_ids"] == ["INV-REL-001"]
     assert final["task_actions"]["x_actions"] == 0
+    assert final["procedural_notes"] == [
+        "A preflight-only predecessor stopped before tests."
+    ]
+    report = (output / "priority0_consolidation_report.md").read_text()
+    assert "preflight-only predecessor stopped before tests" in report
     review = json.loads((output / "independent_review_manifest.json").read_text())
     assert review["changed_path_mapping"] == []
 
