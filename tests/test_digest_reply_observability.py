@@ -2,7 +2,7 @@ import json
 import subprocess
 import sys
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import historical_context_formatter as formatter
 import mrs_log_digest as digest
@@ -568,9 +568,13 @@ def test_ai_first_usage_log_format_is_counted_with_pending_context():
         "total_tokens": 2608,
         "sources_used": 0,
         "cost_in_usd_ticks": 40946500,
+        "costed_call_count": 1,
+        "uncosted_successful_call_count": 0,
     }
     assert report["xai_usage"]["events"][0]["lane"] == "mention"
     assert report["xai_usage"]["events"][0]["context_id"] == "123"
+    assert report["xai_usage"]["events"][0]["stage"] == "proposer"
+    assert report["xai_usage"]["events"][0]["model"] == "grok-4-1-fast-reasoning"
 
 
 def test_ai_first_event_without_strategy_version_is_not_mislabelled_v2():
@@ -694,6 +698,324 @@ def test_xai_usage_includes_image_tokens():
 
     assert item["image_tokens"] == 37
     assert digest.xai_usage_totals([item])["image_tokens"] == 37
+
+
+def test_conversational_ai_cost_is_attributed_by_candidate_outcome_and_stage():
+    records = []
+    ordinal = 0
+
+    def add(offset, source, message):
+        nonlocal ordinal
+        ordinal += 1
+        records.append(
+            digest.Record(
+                ts=datetime(2026, 7, 28, 12) + timedelta(seconds=offset),
+                level="INFO",
+                src=source,
+                line=ordinal,
+                msg=message,
+                path="mrsMThatcher.log",
+                ordinal=ordinal,
+            )
+        )
+
+    def consider(offset, target_id):
+        add(
+            offset,
+            "maybe_reply_to_mentions",
+            f"Considering mention id={target_id} author_id=456 text='fixture'",
+        )
+
+    def provider_call(offset, stage, ticks, tokens):
+        add(
+            offset,
+            "xai_structured_reply_call",
+            f"Calling AI-first reply stage={stage} model=grok-4.3",
+        )
+        add(
+            offset + 1,
+            "xai_structured_reply_call",
+            (
+                f"xAI reply stage={stage} usage={{'prompt_tokens': 10, "
+                f"'completion_tokens': 2, 'total_tokens': {tokens}, "
+                "'prompt_tokens_details': {'cached_tokens': 1}, "
+                "'completion_tokens_details': {'reasoning_tokens': 3}, "
+                f"'num_sources_used': 0, 'cost_in_usd_ticks': {ticks}}}"
+            ),
+        )
+
+    consider(0, "101")
+    provider_call(1, "proposer", 10_000_000, 100)
+    add(
+        3,
+        "log_event",
+        'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+        '"target_id":"101","status":"no_reply","mode":"no_reply",'
+        '"model_call_count":1,"reason":"not_warranted"}',
+    )
+
+    consider(10, "202")
+    provider_call(11, "proposer", 20_000_000, 200)
+    provider_call(13, "claim_auditor", 30_000_000, 300)
+    provider_call(15, "reviewer", 40_000_000, 400)
+    add(
+        17,
+        "log_event",
+        'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+        '"target_id":"202","status":"approved","mode":"opinion_or_principle",'
+        '"model_call_count":3}',
+    )
+    add(
+        18,
+        "log_event",
+        'EVENT {"event":"ai_reply_pipeline_outcome","lane":"mention",'
+        '"target_id":"202","reply_post_id":"900","status":"confirmed",'
+        '"mode":"opinion_or_principle","model_call_count":3}',
+    )
+
+    consider(30, "303")
+    provider_call(31, "proposer", 50_000_000, 500)
+    provider_call(33, "claim_auditor", 60_000_000, 600)
+    provider_call(35, "revision_proposer", 70_000_000, 700)
+    provider_call(37, "revision_claim_auditor", 80_000_000, 800)
+    provider_call(39, "revision_reviewer", 90_000_000, 900)
+    add(
+        41,
+        "log_event",
+        'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+        '"target_id":"303","status":"approved","mode":"opinion_or_principle",'
+        '"model_call_count":5}',
+    )
+    add(
+        42,
+        "log_event",
+        'EVENT {"event":"ai_reply_pipeline_outcome","lane":"mention",'
+        '"target_id":"303","status":"posting_failed_retryable",'
+        '"mode":"opinion_or_principle","model_call_count":5}',
+    )
+
+    report = digest.analyse(records)
+    summary = report["xai_usage"]["cost_summary"]
+    by_outcome = {row["outcome"]: row for row in summary["outcomes"]}
+    by_stage = {row["stage"]: row for row in summary["stages"]}
+
+    assert summary["coverage_complete"] is True
+    assert summary["candidate_count"] == 3
+    assert summary["published_candidate_count"] == 1
+    assert summary["known_cost_in_usd_ticks"] == 450_000_000
+    assert summary["per_reviewed_candidate"] == {
+        "ticks": 450_000_000,
+        "divisor": 3,
+    }
+    assert summary["effective_per_published_reply"] == {
+        "ticks": 450_000_000,
+        "divisor": 1,
+    }
+    assert by_outcome["deliberately_declined"]["known_cost_in_usd_ticks"] == 10_000_000
+    assert by_outcome["published"]["known_cost_in_usd_ticks"] == 90_000_000
+    assert by_outcome["posting_failed"]["known_cost_in_usd_ticks"] == 350_000_000
+    assert by_stage["proposer"]["known_cost_in_usd_ticks"] == 80_000_000
+    assert by_stage["claim_auditor"]["known_cost_in_usd_ticks"] == 90_000_000
+    assert by_stage["reviewer"]["known_cost_in_usd_ticks"] == 40_000_000
+
+    rendered = digest.render_markdown(report)
+    assert "Provider-reported cost: US$0.04500000" in rendered
+    assert "Mean provider cost per AI-reviewed candidate: **US$0.01500000**" in rendered
+    assert "Effective provider cost per published conversational reply" in rendered
+    assert "posting failed" in rendered
+    assert digest.render_markdown(report) == rendered
+
+
+def test_conversational_ai_missing_usage_and_cost_are_not_reported_as_zero():
+    records = [
+        digest.Record(
+            datetime(2026, 7, 28, 13), "INFO", "maybe_reply_to_mentions", 1,
+            "Considering mention id=404 author_id=456 text='fixture'",
+            "mrsMThatcher.log", 1,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 13, 0, 1), "INFO", "xai_structured_reply_call", 2,
+            "Calling AI-first reply stage=proposer model=grok-4.3",
+            "mrsMThatcher.log", 2,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 13, 0, 2), "INFO", "xai_structured_reply_call", 3,
+            "xAI reply stage=proposer usage={'total_tokens': 100, "
+            "'cost_in_usd_ticks': 10000000}",
+            "mrsMThatcher.log", 3,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 13, 0, 3), "INFO", "xai_structured_reply_call", 4,
+            "Calling AI-first reply stage=claim_auditor model=grok-4.3",
+            "mrsMThatcher.log", 4,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 13, 0, 4), "INFO", "xai_structured_reply_call", 5,
+            "Calling AI-first reply stage=reviewer model=grok-4.3",
+            "mrsMThatcher.log", 5,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 13, 0, 5), "INFO", "xai_structured_reply_call", 6,
+            "xAI reply stage=reviewer usage={'total_tokens': 200}",
+            "mrsMThatcher.log", 6,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 13, 0, 6), "INFO", "log_event", 7,
+            'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+            '"target_id":"404","status":"approved","mode":"courtesy",'
+            '"model_call_count":3}',
+            "mrsMThatcher.log", 7,
+        ),
+    ]
+
+    report = digest.analyse(records)
+    usage = report["xai_usage"]
+    summary = usage["cost_summary"]
+    stages = {row["stage"]: row for row in summary["stages"]}
+
+    assert usage["events"][1]["cost_in_usd_ticks"] is None
+    assert usage["totals"]["cost_in_usd_ticks"] == 10_000_000
+    assert usage["totals"]["costed_call_count"] == 1
+    assert usage["totals"]["uncosted_successful_call_count"] == 1
+    assert summary["coverage_complete"] is False
+    assert summary["per_reviewed_candidate"] is None
+    assert summary["effective_per_published_reply"] is None
+    assert stages["claim_auditor"]["call_starts_without_usage"] == 1
+    assert stages["reviewer"]["uncosted_successful_calls"] == 1
+
+    rendered = digest.render_markdown(report)
+    assert "Known provider-reported cost (lower bound): US$0.00100000" in rendered
+    assert "Exact per-candidate and effective-per-published-reply averages are unavailable" in rendered
+    assert "| unavailable | 0 | reviewer | grok-4.3 | unavailable |" in rendered
+
+
+def test_xai_stage_and_usd_helpers_are_deterministic():
+    assert (
+        digest.xai_usage_stage_from_msg(
+            "xAI reply stage=evidence usage={'cost_in_usd_ticks': 1}"
+        )
+        == "evidence"
+    )
+    assert (
+        digest.xai_usage_stage_from_msg(
+            "xAI usage={'cost_in_usd_ticks': 1}"
+        )
+        == "legacy_or_unavailable"
+    )
+    assert digest.format_usd_ticks(289_866_500) == "US$0.02898665"
+    assert digest.optional_int_usage_value(0) == 0
+    assert digest.optional_int_usage_value(10) == 10
+    assert digest.optional_int_usage_value(-1) is None
+    assert digest.optional_int_usage_value(1.5) is None
+    assert digest.optional_int_usage_value("10") is None
+    assert digest.xai_usage_context_from_pending(
+        {
+            "source": "hot_post_reply",
+            "hot_post_reply_id": "505",
+            "author_id": "606",
+        },
+        {},
+    ) == {
+        "lane": "hot-post",
+        "context_id": "505",
+        "author_id": "606",
+    }
+
+
+def test_candidate_event_without_in_window_usage_makes_cost_coverage_incomplete():
+    usage = [
+        {
+            "time": "2026-07-28 12:00:01",
+            "lane": "mention",
+            "context_id": "one",
+            "stage": "proposer",
+            "total_tokens": 100,
+            "cost_in_usd_ticks": 10_000_000,
+        }
+    ]
+    reply_events = [
+        event(
+            "reply_strategy_decision",
+            lane="mention",
+            target_id="one",
+            mode="no_reply",
+            model_call_count=1,
+        ),
+        event(
+            "reply_strategy_decision",
+            lane="mention",
+            target_id="two",
+            mode="courtesy",
+            model_call_count=1,
+        ),
+        event(
+            "reply_strategy_outcome",
+            lane="mention",
+            target_id="two",
+            status="posted",
+            mode="courtesy",
+            model_call_count=1,
+        ),
+    ]
+
+    summary = digest.xai_reply_cost_summary(usage, reply_events)
+    candidates = {
+        item["context_id"]: item for item in summary["candidates"]
+    }
+
+    assert summary["candidate_count"] == 2
+    assert summary["published_candidate_count"] == 1
+    assert summary["coverage_complete"] is False
+    assert summary["per_reviewed_candidate"] is None
+    assert summary["effective_per_published_reply"] is None
+    assert candidates["two"]["outcome"] == "published"
+    assert candidates["two"]["observed_successful_calls"] == 0
+    assert candidates["two"]["call_coverage"] == "successful_usage_missing"
+
+
+def test_repeated_pipeline_execution_for_one_target_is_reported_as_ambiguous():
+    usage = [
+        {
+            "time": "2026-07-28 12:00:01",
+            "lane": "mention",
+            "context_id": "repeat",
+            "stage": "proposer",
+            "total_tokens": 100,
+            "cost_in_usd_ticks": 10_000_000,
+        },
+        {
+            "time": "2026-07-28 12:01:01",
+            "lane": "mention",
+            "context_id": "repeat",
+            "stage": "proposer",
+            "total_tokens": 100,
+            "cost_in_usd_ticks": 10_000_000,
+        },
+    ]
+    reply_events = [
+        event(
+            "reply_strategy_failure",
+            lane="mention",
+            target_id="repeat",
+            model_call_count=1,
+        ),
+        event(
+            "reply_strategy_decision",
+            lane="mention",
+            target_id="repeat",
+            mode="no_reply",
+            model_call_count=1,
+        ),
+    ]
+
+    summary = digest.xai_reply_cost_summary(usage, reply_events)
+
+    assert summary["coverage_complete"] is False
+    assert summary["candidates"][0]["pipeline_execution_event_count"] == 2
+    assert (
+        summary["candidates"][0]["call_coverage"]
+        == "multiple_pipeline_executions"
+    )
 
 
 def test_403_target_eligibility_incident_is_not_labelled_as_5xx():

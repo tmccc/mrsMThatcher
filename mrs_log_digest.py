@@ -39,6 +39,7 @@ from collections import Counter
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -54,6 +55,8 @@ GENERATED_ANALYSIS_KIND = "images"
 GENERATED_AUDIT_SCHEMA_VERSION = 1
 GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
 RESUME_FINGERPRINT_TAIL_LIMIT = 128
+USD_TICKS_PER_DOLLAR = 10_000_000_000
+USD_DISPLAY_QUANTUM = Decimal("0.00000001")
 SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID = (
     "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
 )
@@ -2345,6 +2348,46 @@ def int_usage_value(value: Any) -> int:
         return 0
 
 
+def optional_int_usage_value(value: Any) -> Optional[int]:
+    """Return a genuine integer usage value without turning missing data into zero."""
+    if type(value) is not int or value < 0:
+        return None
+    return value
+
+
+def format_usd_ticks(ticks: int, *, divisor: int = 1) -> str:
+    """Render integer provider ticks as deterministic US dollars."""
+    if divisor <= 0:
+        raise ValueError("USD tick divisor must be positive")
+    amount = (
+        Decimal(int(ticks))
+        / Decimal(divisor)
+        / Decimal(USD_TICKS_PER_DOLLAR)
+    )
+    return f"US${amount.quantize(USD_DISPLAY_QUANTUM, rounding=ROUND_HALF_UP)}"
+
+
+def xai_usage_stage_from_msg(msg: str) -> str:
+    """Return the provider pipeline stage recorded on a usage line."""
+    match = re.match(r"^xAI reply stage=([^\s]+)\s+usage=", msg)
+    if match:
+        return match.group(1)
+    if "xAI usage=" in msg:
+        return "legacy_or_unavailable"
+    return "unavailable"
+
+
+def parse_xai_call_start(msg: str) -> Optional[Dict[str, str]]:
+    """Parse a structured provider call-start line."""
+    match = re.match(
+        r"^Calling AI-first reply stage=([^\s]+)\s+model=([^\s]+)",
+        msg,
+    )
+    if not match:
+        return None
+    return {"stage": match.group(1), "model": match.group(2)}
+
+
 def parse_xai_usage_from_msg(msg: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """Parse legacy and AI-first xAI usage messages."""
     marker = "xAI usage="
@@ -2374,8 +2417,10 @@ def xai_usage_context_from_pending(pending_mention: Dict[str, Any], pending_qt: 
             "author_id": pending_qt.get("author_id", ""),
         }
     if pending_mention:
+        source = str(pending_mention.get("source") or "mention")
+        lane = "hot-post" if source == "hot_post_reply" else "mention"
         return {
-            "lane": "mention",
+            "lane": lane,
             "context_id": pending_mention.get("mention_id") or pending_mention.get("hot_post_reply_id") or "",
             "author_id": pending_mention.get("author_id", ""),
         }
@@ -2391,6 +2436,8 @@ def summarize_xai_usage_event(
     record: Record,
     usage: Dict[str, Any],
     context: Dict[str, Any],
+    *,
+    model: str = "",
 ) -> Dict[str, Any]:
     """Summarise xAI usage event."""
     prompt_details = usage.get("prompt_tokens_details")
@@ -2404,6 +2451,8 @@ def summarize_xai_usage_event(
         "lane": context.get("lane", "unknown"),
         "context_id": context.get("context_id", ""),
         "author_id": context.get("author_id", ""),
+        "stage": xai_usage_stage_from_msg(record.msg),
+        "model": model,
         "prompt_tokens": int_usage_value(usage.get("prompt_tokens")),
         "cached_tokens": int_usage_value(prompt_details.get("cached_tokens")),
         "image_tokens": int_usage_value(prompt_details.get("image_tokens")),
@@ -2411,12 +2460,20 @@ def summarize_xai_usage_event(
         "completion_tokens": int_usage_value(usage.get("completion_tokens")),
         "total_tokens": int_usage_value(usage.get("total_tokens")),
         "num_sources_used": int_usage_value(usage.get("num_sources_used")),
-        "cost_in_usd_ticks": int_usage_value(usage.get("cost_in_usd_ticks")),
+        "cost_in_usd_ticks": optional_int_usage_value(
+            usage.get("cost_in_usd_ticks")
+        ),
     }
 
 
 def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
     """Return the xAI usage totals."""
+    reported_costs = [
+        value
+        for item in events
+        if (value := optional_int_usage_value(item.get("cost_in_usd_ticks")))
+        is not None
+    ]
     return {
         "successful_xai_calls": len(events),
         "prompt_tokens": sum(int_usage_value(item.get("prompt_tokens")) for item in events),
@@ -2426,7 +2483,307 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
         "completion_tokens": sum(int_usage_value(item.get("completion_tokens")) for item in events),
         "total_tokens": sum(int_usage_value(item.get("total_tokens")) for item in events),
         "sources_used": sum(int_usage_value(item.get("num_sources_used")) for item in events),
-        "cost_in_usd_ticks": sum(int_usage_value(item.get("cost_in_usd_ticks")) for item in events),
+        "cost_in_usd_ticks": sum(reported_costs),
+        "costed_call_count": len(reported_costs),
+        "uncosted_successful_call_count": len(events) - len(reported_costs),
+    }
+
+
+def normalise_reply_lane(value: Any) -> str:
+    """Return a stable conversational-reply lane label."""
+    lane = str(value or "unknown").strip().lower().replace("_", "-")
+    if lane == "hot-post-reply":
+        return "hot-post"
+    return lane or "unknown"
+
+
+def xai_reply_cost_summary(
+    usage_events: List[Dict[str, Any]],
+    reply_events: List[Dict[str, Any]],
+    call_attempts: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Attribute logged conversational provider cost without inventing missing spend."""
+    attempts = list(call_attempts or [])
+    decisions: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    outcomes: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    failures: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    execution_event_counts: Counter = Counter()
+    for item in reply_events:
+        target_id = str(item.get("target_id") or "")
+        if not target_id:
+            continue
+        key = (normalise_reply_lane(item.get("lane")), target_id)
+        kind = item.get("kind")
+        if kind == "reply_strategy_decision":
+            decisions[key] = item
+            execution_event_counts[key] += 1
+        elif kind == "reply_strategy_outcome":
+            outcomes[key] = item
+        elif kind == "reply_strategy_failure":
+            failures[key] = item
+            execution_event_counts[key] += 1
+
+    grouped_usage: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    unattributed_usage: List[Dict[str, Any]] = []
+    for item in usage_events:
+        lane = normalise_reply_lane(item.get("lane"))
+        context_id = str(item.get("context_id") or "")
+        if not context_id or lane == "unknown":
+            unattributed_usage.append(item)
+            continue
+        grouped_usage.setdefault((lane, context_id), []).append(item)
+
+    grouped_attempts: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    unattributed_attempts: List[Dict[str, Any]] = []
+    for item in attempts:
+        lane = normalise_reply_lane(item.get("lane"))
+        context_id = str(item.get("context_id") or "")
+        if not context_id or lane == "unknown":
+            unattributed_attempts.append(item)
+            continue
+        grouped_attempts.setdefault((lane, context_id), []).append(item)
+
+    event_keys_with_reported_calls = {
+        key
+        for mapping in (decisions, outcomes, failures)
+        for key, item in mapping.items()
+        if (optional_int_usage_value(item.get("model_call_count")) or 0) > 0
+    }
+
+    def candidate_first_time(key: Tuple[str, str]) -> str:
+        rows = (
+            grouped_usage.get(key, [])
+            + grouped_attempts.get(key, [])
+            + [
+                item
+                for item in (
+                    decisions.get(key),
+                    outcomes.get(key),
+                    failures.get(key),
+                )
+                if item is not None
+            ]
+        )
+        return min(
+            [str(item.get("time") or "") for item in rows] or [""]
+        )
+
+    candidate_keys = sorted(
+        set(grouped_usage)
+        | set(grouped_attempts)
+        | event_keys_with_reported_calls,
+        key=lambda key: (candidate_first_time(key), key),
+    )
+
+    candidates: List[Dict[str, Any]] = []
+    for key in candidate_keys:
+        lane, context_id = key
+        calls = grouped_usage.get(key, [])
+        candidate_attempts = grouped_attempts.get(key, [])
+        decision = decisions.get(key)
+        outcome = outcomes.get(key)
+        failure = failures.get(key)
+        outcome_status = str((outcome or {}).get("status") or "")
+        if outcome_status in {"confirmed", "posted"}:
+            disposition = "published"
+        elif outcome is not None and (
+            "fail" in outcome_status or outcome_status not in {"", "confirmed"}
+        ):
+            disposition = "posting_failed"
+        elif decision is not None and decision.get("mode") == "no_reply":
+            disposition = "deliberately_declined"
+        elif failure is not None:
+            disposition = "pipeline_failed"
+        elif decision is not None:
+            disposition = "approved_not_confirmed_in_window"
+        else:
+            disposition = "outcome_unavailable"
+
+        reported_call_count: Optional[int] = None
+        for source in (outcome, decision, failure):
+            if source is None:
+                continue
+            value = optional_int_usage_value(source.get("model_call_count"))
+            if value is not None:
+                reported_call_count = value
+                break
+
+        observed_call_count = len(calls)
+        started_call_count = len(candidate_attempts)
+        execution_event_count = execution_event_counts[key]
+        if execution_event_count > 1:
+            call_coverage = "multiple_pipeline_executions"
+        elif reported_call_count is None:
+            call_coverage = "reported_call_count_unavailable"
+        elif observed_call_count < reported_call_count:
+            call_coverage = "successful_usage_missing"
+        elif observed_call_count > reported_call_count:
+            call_coverage = "unexpected_extra_usage"
+        elif (
+            started_call_count
+            and (
+                started_call_count != reported_call_count
+                or any(
+                    attempt.get("usage_observed") is not True
+                    for attempt in candidate_attempts
+                )
+            )
+        ):
+            call_coverage = "call_start_usage_mismatch"
+        else:
+            call_coverage = "complete"
+
+        reported_costs = [
+            value
+            for item in calls
+            if (
+                value := optional_int_usage_value(
+                    item.get("cost_in_usd_ticks")
+                )
+            )
+            is not None
+        ]
+        stage_counts = Counter(
+            str(item.get("stage") or "unavailable") for item in calls
+        )
+        candidates.append(
+            {
+                "lane": lane,
+                "context_id": context_id,
+                "outcome": disposition,
+                "observed_successful_calls": observed_call_count,
+                "started_calls": started_call_count,
+                "reported_model_call_count": reported_call_count,
+                "pipeline_execution_event_count": execution_event_count,
+                "call_coverage": call_coverage,
+                "stages": dict(sorted(stage_counts.items())),
+                "total_tokens": sum(
+                    int_usage_value(item.get("total_tokens")) for item in calls
+                ),
+                "known_cost_in_usd_ticks": sum(reported_costs),
+                "costed_successful_calls": len(reported_costs),
+                "uncosted_successful_calls": observed_call_count
+                - len(reported_costs),
+            }
+        )
+
+    stage_keys = sorted(
+        {
+            str(item.get("stage") or "unavailable")
+            for item in usage_events + attempts
+        }
+    )
+    stages: List[Dict[str, Any]] = []
+    for stage in stage_keys:
+        stage_usage = [
+            item
+            for item in usage_events
+            if str(item.get("stage") or "unavailable") == stage
+        ]
+        stage_attempts = [
+            item
+            for item in attempts
+            if str(item.get("stage") or "unavailable") == stage
+        ]
+        reported_costs = [
+            value
+            for item in stage_usage
+            if (
+                value := optional_int_usage_value(
+                    item.get("cost_in_usd_ticks")
+                )
+            )
+            is not None
+        ]
+        stages.append(
+            {
+                "stage": stage,
+                "started_calls": len(stage_attempts),
+                "successful_usage_records": len(stage_usage),
+                "call_starts_without_usage": sum(
+                    1
+                    for item in stage_attempts
+                    if item.get("usage_observed") is not True
+                ),
+                "total_tokens": sum(
+                    int_usage_value(item.get("total_tokens"))
+                    for item in stage_usage
+                ),
+                "known_cost_in_usd_ticks": sum(reported_costs),
+                "uncosted_successful_calls": len(stage_usage)
+                - len(reported_costs),
+            }
+        )
+
+    outcome_rows: List[Dict[str, Any]] = []
+    for disposition in sorted(
+        {str(item.get("outcome") or "outcome_unavailable") for item in candidates}
+    ):
+        rows = [item for item in candidates if item["outcome"] == disposition]
+        outcome_rows.append(
+            {
+                "outcome": disposition,
+                "candidate_count": len(rows),
+                "observed_successful_calls": sum(
+                    item["observed_successful_calls"] for item in rows
+                ),
+                "total_tokens": sum(item["total_tokens"] for item in rows),
+                "known_cost_in_usd_ticks": sum(
+                    item["known_cost_in_usd_ticks"] for item in rows
+                ),
+                "uncosted_successful_calls": sum(
+                    item["uncosted_successful_calls"] for item in rows
+                ),
+            }
+        )
+
+    totals = xai_usage_totals(usage_events)
+    terminal_outcomes = {
+        "published",
+        "deliberately_declined",
+        "posting_failed",
+        "pipeline_failed",
+    }
+    coverage_reasons: List[str] = []
+    if unattributed_usage:
+        coverage_reasons.append("successful usage records lack candidate attribution")
+    if unattributed_attempts:
+        coverage_reasons.append("call starts lack candidate attribution")
+    if totals["uncosted_successful_call_count"]:
+        coverage_reasons.append("successful responses lack provider cost")
+    if any(item["call_coverage"] != "complete" for item in candidates):
+        coverage_reasons.append(
+            "one or more candidate call histories are incomplete or ambiguous"
+        )
+    if any(item["outcome"] not in terminal_outcomes for item in candidates):
+        coverage_reasons.append("one or more candidate outcomes are incomplete")
+    coverage_complete = bool(candidates) and not coverage_reasons
+    published_count = sum(
+        1 for item in candidates if item["outcome"] == "published"
+    )
+    total_known_ticks = totals["cost_in_usd_ticks"]
+    return {
+        "usd_ticks_per_dollar": USD_TICKS_PER_DOLLAR,
+        "coverage_complete": coverage_complete,
+        "coverage_reasons": coverage_reasons,
+        "candidate_count": len(candidates),
+        "published_candidate_count": published_count,
+        "unattributed_successful_call_count": len(unattributed_usage),
+        "unattributed_call_start_count": len(unattributed_attempts),
+        "known_cost_in_usd_ticks": total_known_ticks,
+        "per_reviewed_candidate": (
+            {"ticks": total_known_ticks, "divisor": len(candidates)}
+            if coverage_complete and candidates
+            else None
+        ),
+        "effective_per_published_reply": (
+            {"ticks": total_known_ticks, "divisor": published_count}
+            if coverage_complete and published_count
+            else None
+        ),
+        "candidates": candidates,
+        "outcomes": outcome_rows,
+        "stages": stages,
     }
 
 
@@ -3305,6 +3662,7 @@ def analyse(
     reply_media_context: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
     xai_usage_events: List[Dict[str, Any]] = []
+    xai_call_attempts: List[Dict[str, Any]] = []
     xai_usage_parse_errors: List[Dict[str, Any]] = []
     regular_image_usage_events: List[Dict[str, Any]] = []
     original_editorial_shadow_events: List[Dict[str, Any]] = []
@@ -3326,6 +3684,7 @@ def analyse(
     pending_qt: Dict[str, Any] = dict(initial_pending_qt or {})
     pending_confirmed_reply_receipt: Dict[str, Any] = {}
     active_xai_context: Optional[Dict[str, Any]] = dict(initial_active_xai_context or {}) or None
+    active_xai_call_attempt_index: Optional[int] = None
     last_created_post: Dict[str, Any] = {}
     pending_semantic_veto_event: Optional[Dict[str, Any]] = None
     pending_semantic_veto_ts: Optional[datetime] = None
@@ -3548,16 +3907,56 @@ def analyse(
 
         if r.src == "ask_grok_for_reply" and msg.startswith("Asking Grok for reply."):
             active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
-        if r.src == "xai_structured_reply_call" and msg.startswith("Calling AI-first reply stage="):
+        call_start = (
+            parse_xai_call_start(msg)
+            if r.src == "xai_structured_reply_call"
+            else None
+        )
+        if call_start is not None:
             active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
+            context = active_xai_context or unknown_xai_usage_context()
+            xai_call_attempts.append(
+                {
+                    "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    "lane": context.get("lane", "unknown"),
+                    "context_id": context.get("context_id", ""),
+                    "author_id": context.get("author_id", ""),
+                    "stage": call_start["stage"],
+                    "model": call_start["model"],
+                    "usage_observed": False,
+                }
+            )
+            active_xai_call_attempt_index = len(xai_call_attempts) - 1
 
         usage, usage_error = parse_xai_usage_from_msg(msg)
         if usage is not None:
+            model = ""
+            usage_stage = xai_usage_stage_from_msg(msg)
+            if active_xai_call_attempt_index is not None:
+                attempt = xai_call_attempts[active_xai_call_attempt_index]
+                if (
+                    attempt.get("stage") == usage_stage
+                    and normalise_reply_lane(attempt.get("lane"))
+                    == normalise_reply_lane(
+                        (active_xai_context or {}).get("lane")
+                    )
+                    and str(attempt.get("context_id") or "")
+                    == str(
+                        (active_xai_context or {}).get("context_id") or ""
+                    )
+                ):
+                    attempt["usage_observed"] = True
+                    attempt["usage_time"] = r.ts.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    model = str(attempt.get("model") or "")
+                    active_xai_call_attempt_index = None
             xai_usage_events.append(
                 summarize_xai_usage_event(
                     r,
                     usage,
                     active_xai_context or unknown_xai_usage_context(),
+                    model=model,
                 )
             )
             stats["xai_usage_successes"] += 1
@@ -5293,6 +5692,12 @@ def analyse(
         "xai_usage": {
             "events": xai_usage_events,
             "totals": xai_usage_totals(xai_usage_events),
+            "call_attempts": xai_call_attempts,
+            "cost_summary": xai_reply_cost_summary(
+                xai_usage_events,
+                events,
+                xai_call_attempts,
+            ),
             "parse_errors": xai_usage_parse_errors,
         },
         "resume_context": {
@@ -5784,10 +6189,197 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     xai_usage = report.get("xai_usage") or {}
     xai_events = xai_usage.get("events") or []
+    xai_call_attempts = xai_usage.get("call_attempts") or []
     xai_parse_errors = xai_usage.get("parse_errors") or []
-    if xai_events or xai_parse_errors:
-        out.append("## xAI usage")
-        if xai_events:
+    if xai_events or xai_call_attempts or xai_parse_errors:
+        out.append("## xAI usage and conversational reply cost")
+        if xai_events or xai_call_attempts:
+            totals = xai_usage.get("totals") or {}
+            cost_summary = xai_usage.get("cost_summary") or {}
+            known_ticks = int(
+                cost_summary.get(
+                    "known_cost_in_usd_ticks",
+                    totals.get("cost_in_usd_ticks", 0),
+                )
+                or 0
+            )
+            coverage_complete = cost_summary.get("coverage_complete") is True
+            cost_label = (
+                "Provider-reported cost"
+                if coverage_complete
+                else "Known provider-reported cost (lower bound)"
+            )
+            out.append(
+                f"**{cost_label}: {format_usd_ticks(known_ticks)} "
+                f"({known_ticks:,} ticks) across "
+                f"{totals.get('successful_xai_calls', 0)} successful logged calls.**"
+            )
+            out.append(
+                f"Cost-record coverage: **{totals.get('costed_call_count', 0)} / "
+                f"{totals.get('successful_xai_calls', 0)} successful calls**; "
+                f"AI-reviewed candidates observed: "
+                f"**{cost_summary.get('candidate_count', 0)}**; "
+                f"published conversational replies: "
+                f"**{cost_summary.get('published_candidate_count', 0)}**."
+            )
+            if coverage_complete:
+                per_candidate = cost_summary.get("per_reviewed_candidate")
+                effective = cost_summary.get("effective_per_published_reply")
+                if per_candidate:
+                    out.append(
+                        "Mean provider cost per AI-reviewed candidate: "
+                        f"**{format_usd_ticks(int(per_candidate['ticks']), divisor=int(per_candidate['divisor']))}**."
+                    )
+                if effective:
+                    out.append(
+                        "Effective provider cost per published conversational reply "
+                        "(including deliberately declined candidates): "
+                        f"**{format_usd_ticks(int(effective['ticks']), divisor=int(effective['divisor']))}**."
+                    )
+            else:
+                reasons = cost_summary.get("coverage_reasons") or [
+                    "coverage could not be proved complete"
+                ]
+                out.append(
+                    "Exact per-candidate and effective-per-published-reply averages "
+                    "are unavailable: "
+                    + "; ".join(str(reason) for reason in reasons)
+                    + "."
+                )
+            out.append(
+                "These figures cover successful provider responses present in the "
+                "selected logs; they are not invoice reconciliation and can omit "
+                "failed or ambiguous requests. Cached tokens are a subset of prompt "
+                "tokens. Deterministic historical-context replies do not make a "
+                "runtime conversational-AI call."
+            )
+            out.append("")
+
+            outcome_rows = cost_summary.get("outcomes") or []
+            if outcome_rows:
+                out.append("Cost by candidate outcome:")
+                out.append(
+                    md_table_row(
+                        [
+                            "outcome",
+                            "candidates",
+                            "successful calls",
+                            "total tokens",
+                            "known cost",
+                        ]
+                    )
+                )
+                out.append(md_table_row(["---"] * 5))
+                for item in outcome_rows:
+                    out.append(
+                        md_table_row(
+                            [
+                                str(item.get("outcome", "")).replace("_", " "),
+                                item.get("candidate_count", 0),
+                                item.get("observed_successful_calls", 0),
+                                item.get("total_tokens", 0),
+                                format_usd_ticks(
+                                    int(
+                                        item.get(
+                                            "known_cost_in_usd_ticks", 0
+                                        )
+                                        or 0
+                                    )
+                                ),
+                            ]
+                        )
+                    )
+                out.append("")
+
+            stage_rows = cost_summary.get("stages") or []
+            if stage_rows:
+                out.append("Cost by provider pipeline stage:")
+                out.append(
+                    md_table_row(
+                        [
+                            "stage",
+                            "calls started",
+                            "successful usage",
+                            "starts without usage",
+                            "total tokens",
+                            "known cost",
+                        ]
+                    )
+                )
+                out.append(md_table_row(["---"] * 6))
+                for item in stage_rows:
+                    out.append(
+                        md_table_row(
+                            [
+                                item.get("stage", ""),
+                                item.get("started_calls", 0),
+                                item.get("successful_usage_records", 0),
+                                item.get("call_starts_without_usage", 0),
+                                item.get("total_tokens", 0),
+                                format_usd_ticks(
+                                    int(
+                                        item.get(
+                                            "known_cost_in_usd_ticks", 0
+                                        )
+                                        or 0
+                                    )
+                                ),
+                            ]
+                        )
+                    )
+                out.append("")
+
+            candidate_rows = cost_summary.get("candidates") or []
+            if candidate_rows:
+                out.append("Per-candidate accounting:")
+                out.append(
+                    md_table_row(
+                        [
+                            "lane",
+                            "context_id",
+                            "outcome",
+                            "usage/reported calls",
+                            "coverage",
+                            "stages",
+                            "tokens",
+                            "known cost",
+                        ]
+                    )
+                )
+                out.append(md_table_row(["---"] * 8))
+                for item in candidate_rows:
+                    stage_text = ", ".join(
+                        f"{stage}×{count}"
+                        for stage, count in (
+                            item.get("stages") or {}
+                        ).items()
+                    )
+                    reported = item.get("reported_model_call_count")
+                    out.append(
+                        md_table_row(
+                            [
+                                item.get("lane", ""),
+                                item.get("context_id", ""),
+                                str(item.get("outcome", "")).replace("_", " "),
+                                f"{item.get('observed_successful_calls', 0)}/"
+                                f"{reported if reported is not None else 'unavailable'}",
+                                item.get("call_coverage", ""),
+                                stage_text,
+                                item.get("total_tokens", 0),
+                                format_usd_ticks(
+                                    int(
+                                        item.get(
+                                            "known_cost_in_usd_ticks", 0
+                                        )
+                                        or 0
+                                    )
+                                ),
+                            ]
+                        )
+                    )
+                out.append("")
+
+            out.append("Successful provider responses (detail):")
             out.append(md_table_row([
                 "time",
                 "lane",
@@ -5800,9 +6392,15 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 "sources",
                 "cost_ticks",
                 "image",
+                "stage",
+                "model",
+                "cost_usd",
             ]))
-            out.append(md_table_row(["---"] * 11))
+            out.append(md_table_row(["---"] * 14))
             for item in xai_events:
+                item_cost = optional_int_usage_value(
+                    item.get("cost_in_usd_ticks")
+                )
                 out.append(md_table_row([
                     item.get("time", ""),
                     item.get("lane", ""),
@@ -5813,11 +6411,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("completion_tokens", 0),
                     item.get("total_tokens", 0),
                     item.get("num_sources_used", 0),
-                    item.get("cost_in_usd_ticks", 0),
+                    item_cost if item_cost is not None else "unavailable",
                     item.get("image_tokens", 0),
+                    item.get("stage", "unavailable"),
+                    item.get("model", ""),
+                    (
+                        format_usd_ticks(item_cost)
+                        if item_cost is not None
+                        else "unavailable"
+                    ),
                 ]))
             out.append("")
-            totals = xai_usage.get("totals") or {}
             out.append("Totals:")
             out.append("```text")
             out.append(f"successful_xai_calls = {totals.get('successful_xai_calls', 0)}")
@@ -5829,6 +6433,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"total_tokens         = {totals.get('total_tokens', 0)}")
             out.append(f"sources_used         = {totals.get('sources_used', 0)}")
             out.append(f"cost_in_usd_ticks    = {totals.get('cost_in_usd_ticks', 0)}")
+            out.append(f"known_cost_usd       = {format_usd_ticks(int(totals.get('cost_in_usd_ticks', 0) or 0))}")
+            out.append(f"costed_calls         = {totals.get('costed_call_count', 0)}")
+            out.append(f"uncosted_calls       = {totals.get('uncosted_successful_call_count', 0)}")
             out.append("```")
             out.append("")
         if xai_parse_errors:
