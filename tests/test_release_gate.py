@@ -455,6 +455,21 @@ def test_validation_environment_does_not_inherit_credentials(
     assert "X_API_KEY" not in environment
     assert "HTTPS_PROXY" not in environment
     assert environment["HOME"] == str(tmp_path)
+    dependency_paths = [
+        Path(value) for value in environment["PYTHONPATH"].split(os.pathsep)
+    ]
+    assert any((path / "pytest").is_dir() for path in dependency_paths)
+    assert any(
+        (path / "xdist" / "plugin.py").is_file() for path in dependency_paths
+    )
+
+
+def test_validation_environment_fails_when_xdist_dependency_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(release_gate.site, "getusersitepackages", lambda: str(tmp_path))
+    with pytest.raises(release_gate.ReleaseGateError, match="pytest/xdist"):
+        release_gate.sanitized_validation_environment(tmp_path / "home")
 
 
 def test_deterministic_semantic_attestation_is_byte_identical() -> None:

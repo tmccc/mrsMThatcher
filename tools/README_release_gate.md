@@ -15,7 +15,9 @@ This must report Linux user, network, mount and PID namespaces with loopback
 available, external routes denied, a private `/proc`, and the production root
 bind-mounted read-only. The same containment encloses pytest and every
 descendant. A Python socket monkeypatch is not accepted as release-candidate
-isolation.
+isolation. Validation also uses a credential/proxy-free environment; the gate
+adds only the verified user-site directory containing the supported
+`pytest`/`pytest-xdist` installation.
 
 ## Development validation
 

@@ -33,6 +33,7 @@ import platform
 import re
 import shlex
 import shutil
+import site
 import socket
 import subprocess
 import sys
@@ -1130,11 +1131,24 @@ def sanitized_validation_environment(home: Path) -> dict[str, str]:
     path = os.pathsep.join(
         dict.fromkeys((executable_dir, "/usr/local/bin", "/usr/bin", "/bin"))
     )
+    user_sites = site.getusersitepackages()
+    candidates = [user_sites] if isinstance(user_sites, str) else list(user_sites)
+    dependency_paths = [
+        str(Path(value).resolve())
+        for value in candidates
+        if (Path(value) / "pytest").is_dir()
+        and (Path(value) / "xdist" / "plugin.py").is_file()
+    ]
+    if not dependency_paths:
+        raise ReleaseGateError(
+            "the supported pytest/xdist user-site dependency directory is unavailable"
+        )
     return {
         "HOME": str(home),
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PATH": path,
+        "PYTHONPATH": os.pathsep.join(sorted(set(dependency_paths))),
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
     }
