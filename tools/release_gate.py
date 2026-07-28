@@ -1133,9 +1133,12 @@ def sanitized_validation_environment(home: Path) -> dict[str, str]:
     )
     user_sites = site.getusersitepackages()
     candidates = [user_sites] if isinstance(user_sites, str) else list(user_sites)
+    candidates.extend(site.getsitepackages())
+    candidates.extend(sys.path)
     dependency_paths = [
         str(Path(value).resolve())
         for value in candidates
+        if value
         if (Path(value) / "pytest").is_dir()
         and (Path(value) / "xdist" / "plugin.py").is_file()
     ]

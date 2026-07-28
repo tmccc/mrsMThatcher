@@ -468,8 +468,30 @@ def test_validation_environment_fails_when_xdist_dependency_is_unavailable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setattr(release_gate.site, "getusersitepackages", lambda: str(tmp_path))
+    monkeypatch.setattr(release_gate.site, "getsitepackages", lambda: [])
+    monkeypatch.setattr(release_gate.sys, "path", [str(tmp_path)])
     with pytest.raises(release_gate.ReleaseGateError, match="pytest/xdist"):
         release_gate.sanitized_validation_environment(tmp_path / "home")
+
+
+def test_validation_environment_finds_dependencies_from_current_sys_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    dependency_path = tmp_path / "dependencies"
+    (dependency_path / "pytest").mkdir(parents=True)
+    (dependency_path / "xdist").mkdir()
+    (dependency_path / "xdist" / "plugin.py").write_text("", encoding="utf-8")
+    monkeypatch.setattr(
+        release_gate.site,
+        "getusersitepackages",
+        lambda: str(tmp_path / "missing-user-site"),
+    )
+    monkeypatch.setattr(release_gate.site, "getsitepackages", lambda: [])
+    monkeypatch.setattr(release_gate.sys, "path", [str(dependency_path)])
+
+    environment = release_gate.sanitized_validation_environment(tmp_path / "home")
+
+    assert environment["PYTHONPATH"] == str(dependency_path.resolve())
 
 
 def test_deterministic_semantic_attestation_is_byte_identical() -> None:
