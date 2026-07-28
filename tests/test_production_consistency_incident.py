@@ -1063,6 +1063,85 @@ def test_context_rate_limit_updates_shared_write_cooldown(
     assert saved
 
 
+@pytest.mark.parametrize(
+    ("parent_post_id", "message", "status", "path", "expected_state", "error_count"),
+    [
+        (
+            "800008",
+            "You attempted to reply to a Tweet that is deleted or not visible to you.",
+            403,
+            None,
+            "context_reply_failed_terminal",
+            0,
+        ),
+        (
+            "800009",
+            "This application is not permitted to perform that operation.",
+            403,
+            "/2/tweets",
+            "context_reply_failed_retryable",
+            1,
+        ),
+        (
+            "800010",
+            "endpoint not found",
+            404,
+            "/2/unsupported",
+            "context_reply_failed_retryable",
+            1,
+        ),
+    ],
+)
+def test_context_outbox_uses_endpoint_aware_terminal_classification(
+    monkeypatch: pytest.MonkeyPatch,
+    parent_post_id: str,
+    message: str,
+    status: int,
+    path: str | None,
+    expected_state: str,
+    error_count: int,
+) -> None:
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_post_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id="7" * 64,
+        quote_text="An endpoint-aware context attempt.",
+    )
+    runtime_state = bot.default_state()
+    monkeypatch.setattr(bot, "now_epoch", lambda: 9_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *_keys: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        lambda **_kwargs: {
+            "status": "failed",
+            "error": message,
+            "error_type": "ApiError",
+            "error_service": "x",
+            "error_status_code": status,
+            **(
+                {
+                    "error_request_method": "POST",
+                    "error_request_path": path,
+                }
+                if path is not None
+                else {}
+            ),
+        },
+    )
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_post_id,
+        runtime_state=runtime_state,
+    )
+
+    assert result[0]["context_reply_state"] == expected_state
+    assert len(runtime_state["x_write_error_epochs"]) == error_count
+
+
 def test_bootstrap_refuses_ambiguous_context_sending_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

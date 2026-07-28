@@ -1022,6 +1022,23 @@ def format_rank(value: Any, *, mean: bool = False) -> str:
     return f"{number:.2f}".rstrip("0").rstrip(".")
 
 
+def format_display_number(value: Any, *, decimal_places: int = 2) -> str:
+    """Format a numeric display value without changing its stored representation."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value)
+    raw = str(value)
+    try:
+        number = float(raw)
+    except (TypeError, ValueError):
+        return raw
+    if not math.isfinite(number):
+        return raw
+    rendered = f"{number:.{decimal_places}f}".rstrip("0").rstrip(".")
+    return "0" if rendered in {"", "-0"} else rendered
+
+
 def most_common_with_cutoff_ties(
     counts: Counter,
     *,
@@ -5130,7 +5147,7 @@ def analyse(
     if candidates:
         headline.insert(
             health_index,
-            f"{candidates} conversational candidates AI-reviewed; "
+            f"{plural_count(candidates, 'conversational candidate')} AI-reviewed; "
             f"{plural_count(posted_replies, 'reply', 'replies')} posted; "
             f"{declined} deliberately declined",
         )
@@ -6157,9 +6174,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 item.get("time", ""),
                 item.get("source", ""),
                 item.get("basename", ""),
-                item.get("score", ""),
+                format_display_number(item.get("score", "")),
                 item.get("origin_quote_match", ""),
-                item.get("origin_quote_boost", ""),
+                format_display_number(item.get("origin_quote_boost", "")),
                 item.get("made_with_ai", ""),
             ]))
         out.append("")
@@ -6862,8 +6879,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
     strategy = report.get("reply_strategy") or {}
     out.append("## Conversational reply strategy")
     out.append(
-        f"**{strategy.get('conversational_candidate_count', 0)} conversational candidates "
-        f"AI-reviewed; {strategy.get('confirmed_outcome_count', 0)} replies posted; "
+        f"**{plural_count(strategy.get('conversational_candidate_count', 0), 'conversational candidate')} "
+        f"AI-reviewed; {plural_count(strategy.get('confirmed_outcome_count', 0), 'reply', 'replies')} posted; "
         f"{strategy.get('deliberately_declined_count', 0)} deliberately declined.**"
     )
     out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))
@@ -6956,23 +6973,36 @@ def render_markdown(report: Dict[str, Any]) -> str:
         cols: List[str],
         *,
         column_labels: Optional[Dict[str, str]] = None,
+        value_formatters: Optional[Dict[str, Any]] = None,
     ) -> None:
         rows = by_kind.get(kind) or []
         if not rows:
             return
         out.append(f"## {title}")
         labels = column_labels or {}
+        formatters = value_formatters or {}
         out.append(md_table_row([labels.get(column, column) for column in cols]))
         out.append(md_table_row(["---"] * len(cols)))
         for ev in rows:
-            out.append(md_table_row([ev.get(c, "") for c in cols]))
+            out.append(md_table_row([
+                formatters[c](ev.get(c, "")) if c in formatters else ev.get(c, "")
+                for c in cols
+            ]))
         out.append("")
 
     section("quote_image_posted", "Quote/image posts", ["time", "post_id", "line_no", "quote_hash", "image_basename", "image_no", "image_score", "made_with_ai", "text"])
     section("daily_meme_posted", "Daily meme posts", ["time", "post_id", "file", "summary"])
     section("quote_selected", "Regular quote selections", ["time", "line_no", "quote_hash", "weight", "seasonal_boost"])
     section("matched_image_selected", "Matched image selections", ["time", "image", "image_no", "score", "components"])
-    section("regular_image_selected", "Regular image selection metadata", ["time", "source", "basename", "score", "origin_quote_hash", "origin_quote_match", "origin_quote_boost"])
+    section(
+        "regular_image_selected",
+        "Regular image selection metadata",
+        ["time", "source", "basename", "score", "origin_quote_hash", "origin_quote_match", "origin_quote_boost"],
+        value_formatters={
+            "score": format_display_number,
+            "origin_quote_boost": format_display_number,
+        },
+    )
     section("image_cycle_status", "Image cycle status", ["time", "used_count", "currently_eligible", "remaining_count", "seasonally_excluded", "stale_excluded", "cycle_reset"])
     section("quote_cycle_reset", "Quote cycle resets", ["time", "reason", "affected", "full_selectable", "full_hard_excluded"])
     section("mention_reply_posted", "Mention replies", ["time", "mention_id", "author_id", "incoming_text", "reply", "reply_post_id"])

@@ -174,5 +174,5 @@ def test_packet_correction_rejects_downgraded_evidence(evidence_documents):
     downgraded = copy.deepcopy(curated)
     source = downgraded["items"][QUOTE_ID]["sources"][0]
     source["claims_supported"].remove("wording")
-    with pytest.raises(RuntimeError, match="lacks reviewed primary evidence"):
+    with pytest.raises(RuntimeError, match="curated source is invalid"):
         validate_packet_corrections(corrections, packets, downgraded)

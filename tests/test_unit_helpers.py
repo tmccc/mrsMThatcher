@@ -1674,6 +1674,38 @@ def test_hard_mismatch_longer_phrase_uses_ceil_coverage() -> None:
     assert bot.hard_mismatch_phrase_matches_text("large military parade crowd", "Large military parade crowd")
 
 
+def test_phrase_match_requires_both_tokens_for_two_token_phrase() -> None:
+    assert not bot.phrase_matches_text(
+        "informal portrait",
+        "A formal portrait against a conference backdrop.",
+    )
+    assert not bot.phrase_matches_text(
+        "parliamentary setting",
+        "A domestic setting with patterned wallpaper.",
+    )
+    assert bot.phrase_matches_text(
+        "informal portrait",
+        "A warm informal portrait in a private room.",
+    )
+    assert bot.phrase_matches_text(
+        "parliamentary setting",
+        "The photograph shows a parliamentary setting.",
+    )
+
+
+def test_phrase_match_preserves_longer_phrase_partial_coverage() -> None:
+    phrase = "formal political conference address"
+
+    assert bot.phrase_matches_text(
+        phrase,
+        "A formal political address by the party leader.",
+    )
+    assert not bot.phrase_matches_text(
+        phrase,
+        "A formal address in a domestic room.",
+    )
+
+
 def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -11173,6 +11205,199 @@ def test_current_x_reply_not_permitted_403_is_terminal_not_transient() -> None:
         status_code=403,
     )
     assert bot.api_error_is_reply_not_allowed(unrelated_auth_error) is False
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [
+        (
+            bot.ApiError(
+                "X API error 404: target not found",
+                service="x",
+                status_code=404,
+                request_method="GET",
+                request_path="/2/tweets/123",
+            ),
+            bot.X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE,
+        ),
+        (
+            bot.ApiError(
+                "X API error 403: Tweet is unavailable",
+                service="x",
+                status_code=403,
+                request_method="GET",
+                request_path="/2/tweets/123",
+            ),
+            bot.X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE,
+        ),
+        (
+            bot.ApiError(
+                "X API error 403: Invalid or expired token",
+                service="x",
+                status_code=403,
+                request_method="GET",
+                request_path="/2/tweets/123",
+            ),
+            bot.X_API_ERROR_GLOBAL_DENIAL,
+        ),
+        (
+            bot.ApiError(
+                "X API error 404: endpoint not found",
+                service="x",
+                status_code=404,
+                request_method="GET",
+                request_path="/2/users/123/mentions",
+            ),
+            bot.X_API_ERROR_ENDPOINT_NOT_FOUND,
+        ),
+        (
+            bot.ApiError(
+                "X API error 403: You attempted to reply to a Tweet "
+                "that is deleted or not visible to you.",
+                service="x",
+                status_code=403,
+                request_method="POST",
+                request_path="/2/tweets",
+            ),
+            bot.X_API_ERROR_REPLY_TARGET_UNAVAILABLE,
+        ),
+    ],
+)
+def test_x_api_error_classifier_uses_endpoint_status_and_message(
+    error: bot.ApiError,
+    expected: str,
+) -> None:
+    assert bot.classify_x_api_error(error) == expected
+
+
+def test_x_request_preserves_method_and_path_on_http_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = SimpleNamespace(
+        status_code=404,
+        text='{"detail":"endpoint not found"}',
+        headers={},
+    )
+    monkeypatch.setattr(bot.requests, "request", lambda *_args, **_kwargs: response)
+
+    with pytest.raises(bot.ApiError) as caught:
+        bot.x_request("GET", "/2/unsupported")
+
+    assert caught.value.request_method == "GET"
+    assert caught.value.request_path == "/2/unsupported"
+    assert (
+        bot.classify_x_api_error(caught.value)
+        == bot.X_API_ERROR_ENDPOINT_NOT_FOUND
+    )
+
+
+def test_status_only_generic_403_and_404_are_not_target_terminal() -> None:
+    auth_error = bot.ApiError(
+        "X API error 403: operation forbidden",
+        service="x",
+        status_code=403,
+    )
+    missing_endpoint = bot.ApiError(
+        "X API error 404: endpoint not found",
+        service="x",
+        status_code=404,
+    )
+
+    assert not bot.api_error_is_permanent_target_failure(auth_error)
+    assert not bot.api_error_is_reply_not_allowed(auth_error)
+    assert not bot.api_error_is_permanent_target_failure(missing_endpoint)
+    assert not bot.api_error_is_reply_not_allowed(missing_endpoint)
+
+
+def test_parent_and_quoted_lookup_only_suppress_target_specific_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mention = {
+        "id": "200",
+        "author_id": "300",
+        "text": "A reply",
+        "referenced_tweets": [{"type": "replied_to", "id": "123"}],
+    }
+    unavailable = bot.ApiError(
+        "X API error 404: target not found",
+        service="x",
+        status_code=404,
+        request_method="GET",
+        request_path="/2/tweets/123",
+    )
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id_cached",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(unavailable),
+    )
+
+    assert bot.build_parent_chain(mention, {}) == []
+    quoted = {
+        **mention,
+        "referenced_tweets": [{"type": "quoted", "id": "123"}],
+    }
+    assert bot._quoted_post_for_reply_context(quoted, {}) == {
+        "post_id": "123",
+        "author_role": "unknown",
+        "text": "[Quoted post unavailable.]",
+    }
+
+    global_denial = bot.ApiError(
+        "X API error 403: Invalid or expired token",
+        service="x",
+        status_code=403,
+        request_method="GET",
+        request_path="/2/tweets/123",
+    )
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id_cached",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(global_denial),
+    )
+    with pytest.raises(bot.ApiError, match="expired token"):
+        bot.build_parent_chain(mention, {})
+    with pytest.raises(bot.ApiError, match="expired token"):
+        bot._quoted_post_for_reply_context(quoted, {})
+
+
+def test_deleted_reply_target_403_is_terminal_not_transient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_000)
+    deleted_target = bot.ApiError(
+        "X API error 403: You attempted to reply to a Tweet "
+        "that is deleted or not visible to you.",
+        service="x",
+        status_code=403,
+        request_method="POST",
+        request_path="/2/tweets",
+    )
+
+    assert bot.api_error_is_reply_not_allowed(deleted_target)
+    bot.record_api_error(state, deleted_target, "x", scope="write")
+
+    assert state["x_write_error_epochs"] == []
+    assert state["x_write_api_cooldown_until_epoch"] == 0
+
+
+def test_global_post_create_403_remains_in_transient_error_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_000)
+    global_denial = bot.ApiError(
+        "X API error 403: This application is not permitted to perform that operation.",
+        service="x",
+        status_code=403,
+        request_method="POST",
+        request_path="/2/tweets",
+    )
+
+    assert not bot.api_error_is_reply_not_allowed(global_denial)
+    bot.record_api_error(state, global_denial, "x", scope="write")
+
+    assert state["x_write_error_epochs"] == [1_000]
 
 
 def test_reply_not_permitted_403_does_not_enter_write_error_window(

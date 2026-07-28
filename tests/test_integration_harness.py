@@ -5035,7 +5035,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "generated_share     = 41.7%" in regular_image_usage_digest.stdout
     assert "origin_match_share  = 60.0%" in regular_image_usage_digest.stdout
     assert "Regular image selection metadata" in regular_image_usage_digest.stdout
-    assert f"| 2026-07-03 12:01:01 | generated | tg_{origin_hash}.png | 18.1 | true | 4.0 |  |" in regular_image_usage_digest.stdout
+    assert f"| 2026-07-03 12:01:01 | generated | tg_{origin_hash}.png | 18.1 | true | 4 |  |" in regular_image_usage_digest.stdout
 
     original_only_base = prepare_base_dir(tmp_path / "digest-regular-image-original-only")
     write_digest_log(
@@ -5670,8 +5670,8 @@ def test_digest_reports_regular_image_made_with_ai_from_create_post(tmp_path: Pa
     assert "made_with_ai_true   = 1" in digest.stdout
     assert "made_with_ai_false  = 1" in digest.stdout
     assert "made_with_ai_unknown = 0" in digest.stdout
-    assert "| 2026-07-08 12:00:02 | original | t01.jpg | 7.0 | false | 0.0 | false |" in digest.stdout
-    assert f"| 2026-07-08 12:01:02 | generated | tg_{origin_hash}.png | 12.0 | false | 0.0 | true |" in digest.stdout
+    assert "| 2026-07-08 12:00:02 | original | t01.jpg | 7 | false | 0 | false |" in digest.stdout
+    assert f"| 2026-07-08 12:01:02 | generated | tg_{origin_hash}.png | 12 | false | 0 | true |" in digest.stdout
     assert "| 2026-07-08 12:00:04 | 1001 | 1 |" in digest.stdout
     assert "| t01.jpg | 0 | 7.00 | false |" in digest.stdout
     assert "| 2026-07-08 12:01:04 | 1002 | 2 |" in digest.stdout

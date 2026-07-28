@@ -363,6 +363,80 @@ def test_reply_summary_classifies_declines_duplicates_and_posted_modes():
     assert summary["humour_reply_count"] == 0
 
 
+def test_conversational_strategy_reply_count_is_pluralised():
+    analysed = digest.analyse([
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"reply_strategy_decision","lane":"mention",'
+            '"target_id":"target-1","mode":"opinion_or_principle",'
+            '"factual_claim_made":false,"grounded":false}',
+        ),
+        record(
+            1,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"reply_strategy_outcome","status":"posted",'
+            '"lane":"mention","target_id":"target-1","reply_post_id":"reply-1",'
+            '"mode":"opinion_or_principle","factual_claim_made":false,'
+            '"grounded":false}',
+        ),
+    ])
+    assert (
+        "1 conversational candidate AI-reviewed; 1 reply posted"
+        in analysed["summary"]["headline"]
+    )
+    assert "1 conversational candidates" not in analysed["summary"]["headline"]
+
+    report = digest.analyse([])
+    report["reply_strategy"] = {
+        "conversational_candidate_count": 1,
+        "confirmed_outcome_count": 1,
+        "deliberately_declined_count": 0,
+    }
+    singular = digest.render_markdown(report)
+    assert "1 conversational candidate AI-reviewed; 1 reply posted" in singular
+    assert "1 conversational candidates" not in singular
+    assert "1 replies posted" not in singular
+
+    report["reply_strategy"]["conversational_candidate_count"] = 2
+    report["reply_strategy"]["confirmed_outcome_count"] = 2
+    plural = digest.render_markdown(report)
+    assert "2 conversational candidates AI-reviewed; 2 replies posted" in plural
+
+
+def test_regular_image_scores_are_formatted_without_mutating_report_values():
+    image_event = {
+        "kind": "regular_image_selected",
+        "time": "2026-07-27 04:00:00",
+        "source": "generated",
+        "basename": "fixture.png",
+        "score": "1.1111111111111112",
+        "origin_quote_hash": "a" * 64,
+        "origin_quote_match": "true",
+        "origin_quote_boost": "0.050000000000000003",
+        "made_with_ai": "true",
+    }
+    report = digest.analyse([])
+    report["events"] = [dict(image_event)]
+    report["regular_image_usage"] = {
+        "events": [dict(image_event)],
+        "summary": digest.regular_image_usage_summary([image_event]),
+    }
+
+    rendered = digest.render_markdown(report)
+
+    assert rendered.count("1.11") == 2
+    assert rendered.count("0.05") == 2
+    assert "1.1111111111111112" not in rendered
+    assert "0.050000000000000003" not in rendered
+    assert report["events"][0]["score"] == "1.1111111111111112"
+    assert report["events"][0]["origin_quote_boost"] == "0.050000000000000003"
+    assert report["regular_image_usage"]["events"][0]["score"] == "1.1111111111111112"
+    assert digest.render_markdown(report) == rendered
+
+
 def test_editorial_shadow_rank_distribution_is_robust_to_outliers():
     events = [
         {

@@ -6,8 +6,10 @@ it only after deterministic identity, passage-hash and source-role checks.
 """
 from __future__ import annotations
 
+import html
 import hashlib
 import re
+import unicodedata
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -66,10 +68,97 @@ _FETCH_POLICY_VERSIONS = {
     "historical-context-restricted-fetch-v5",
     "historical-context-restricted-fetch-v6",
 }
+_WORD_TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 
 
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _typography_normalised_tokens(value: Any) -> list[str]:
+    """Tokenise prose while changing typography, never lexical content."""
+    text = unicodedata.normalize("NFKC", html.unescape(str(value or "")))
+    return _WORD_TOKEN.findall(text.casefold())
+
+
+def _contains_complete_wording(
+    passage: Any,
+    packet: dict[str, Any],
+) -> bool:
+    """Return whether a passage contains one complete authorised packet wording."""
+    passage_tokens = _typography_normalised_tokens(passage)
+    for field in ("quote_text", "verified_text"):
+        wording_tokens = _typography_normalised_tokens(packet.get(field))
+        if not wording_tokens or len(wording_tokens) > len(passage_tokens):
+            continue
+        width = len(wording_tokens)
+        if any(
+            passage_tokens[index:index + width] == wording_tokens
+            for index in range(len(passage_tokens) - width + 1)
+        ):
+            return True
+    return False
+
+
+def _roles_and_claims_are_consistent(
+    roles: list[str],
+    claims: list[str],
+    quality: str,
+) -> bool:
+    """Require every role to be claim-scoped and every claim to have its role."""
+    if len(roles) != len(set(roles)) or len(claims) != len(set(claims)):
+        return False
+    role_set = set(roles)
+    claim_set = set(claims)
+    required_roles: set[str] = set()
+    if "wording" in claim_set:
+        required_roles.add("wording_verification")
+    if "attribution" in claim_set:
+        required_roles.add("attribution_support")
+    if "source_event" in claim_set:
+        required_roles.add("source_event_support")
+    if (
+        "date" in claim_set
+        and "source_event" not in claim_set
+        and quality != "reliable_secondary_evidence"
+    ):
+        required_roles.add("source_event_support")
+    if "historical_context" in claim_set:
+        required_roles.add("historical_context_support")
+    if quality == "secondary_recollection":
+        required_roles.add("secondary_recollection")
+
+    # The v3 schema has no date-only role.  A source_event_support role may
+    # therefore represent an explicit date claim.  Reliable secondary
+    # date-only corroboration (such as the reviewed Quislings anthology) need
+    # not acquire the broader and potentially misleading source-event role.
+    allowed_roles = set(required_roles)
+    if "date" in claim_set:
+        allowed_roles.add("source_event_support")
+    return required_roles <= role_set <= allowed_roles
+
+
+def curated_wording_coverage(
+    packet: dict[str, Any],
+    source: dict[str, Any],
+) -> str:
+    """Return claim coverage after verifying any exact-wording assertion."""
+    if "wording" not in source.get("claims_supported", []):
+        return "none"
+    match_kind = source.get("wording_match_kind")
+    if match_kind == "exact":
+        if not _contains_complete_wording(
+            source.get("exact_supporting_passage"),
+            packet,
+        ):
+            raise RuntimeError(
+                "historical-context curated exact wording does not match "
+                f"quotation: {packet.get('quote_id')}"
+            )
+        return "full"
+    if match_kind in {"historical_variant", "excerpt"}:
+        return "normalised"
+    return str(match_kind or "none")
 
 
 def curated_source_id(quote_id: str, source: dict[str, Any]) -> str:
@@ -224,6 +313,15 @@ def validate_curated_evidence(
                 or not claims
                 or not set(claims) <= _CLAIMS
                 or source.get("source_quality_class") not in _QUALITIES
+                or (
+                    isinstance(roles, list)
+                    and isinstance(claims, list)
+                    and not _roles_and_claims_are_consistent(
+                        roles,
+                        claims,
+                        str(source.get("source_quality_class") or ""),
+                    )
+                )
                 or source.get("wording_match_kind") not in _MATCH_KINDS
                 or not str(source.get("title") or "").strip()
                 or not str(source.get("stable_locator") or "").strip()
@@ -243,6 +341,7 @@ def validate_curated_evidence(
                 raise RuntimeError(
                     f"historical-context curated source is invalid: {quote_id}"
                 )
+            curated_wording_coverage(packet, source)
             if (
                 ("source_event" in claims and source.get("source_event") != packet["source_event"])
                 or ("date" in claims and source.get("source_date") != packet["date"])

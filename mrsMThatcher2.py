@@ -1617,12 +1617,18 @@ class ApiError(Exception):
         service: str,
         status_code: int | None = None,
         reset_epoch: int | None = None,
+        request_method: str | None = None,
+        request_path: str | None = None,
     ) -> None:
         """Initialise the API error."""
         super().__init__(message)
         self.service = service
         self.status_code = status_code
         self.reset_epoch = reset_epoch
+        self.request_method = (
+            str(request_method).upper() if request_method else None
+        )
+        self.request_path = str(request_path) if request_path else None
 
 
 class AmbiguousRemotePostOutcome(ApiError):
@@ -1650,29 +1656,125 @@ def require_remote_operation_unpaused(operation: str) -> None:
     )
 
 
-def api_error_is_reply_not_allowed(error: Exception) -> bool:
-    """
-    X can return 403 when the target post's conversation controls do not allow
-    this account to reply. This is not a transient API fault and should not
-    consume reply quota or trigger the circuit breaker.
-    """
-    status_code = getattr(error, "status_code", None)
-    message = str(error).lower()
+X_API_ERROR_REPLY_TARGET_RESTRICTED = "reply_target_restricted"
+X_API_ERROR_REPLY_TARGET_UNAVAILABLE = "reply_target_missing_or_inaccessible"
+X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE = "lookup_target_missing_or_inaccessible"
+X_API_ERROR_GLOBAL_DENIAL = "global_authentication_or_application_denial"
+X_API_ERROR_ENDPOINT_NOT_FOUND = "endpoint_or_unclassified_not_found"
+X_API_ERROR_OTHER = "other"
 
+
+def _x_error_request_path(error: Exception) -> str:
+    """Return the request path without query data or credentials."""
+    raw = str(getattr(error, "request_path", "") or "")
+    if not raw:
+        return ""
+    parsed = urlsplit(raw)
+    return parsed.path or raw.split("?", 1)[0]
+
+
+def _x_error_is_tweet_lookup(error: Exception) -> bool:
+    """Return whether the failed request was one exact post lookup."""
     return (
-        status_code == 403
-        and (
-            "reply to this conversation is not allowed" in message
-            or "not been mentioned or otherwise engaged by the author" in message
-            or "not allowed to reply" in message
-            or "only reply to or quote posts where you are mentioned or are the author" in message
-        )
+        str(getattr(error, "request_method", "") or "").upper() == "GET"
+        and re.fullmatch(r"/2/tweets/\d+", _x_error_request_path(error)) is not None
     )
+
+
+def _x_error_is_post_create(error: Exception) -> bool:
+    """Return whether the failed request was the X post-create endpoint."""
+    return (
+        str(getattr(error, "request_method", "") or "").upper() == "POST"
+        and _x_error_request_path(error) == "/2/tweets"
+    )
+
+
+def classify_x_api_error(error: Exception) -> str:
+    """Classify X failures using request context, status and bounded messages.
+
+    Status alone is deliberately insufficient: a 403 may be a target-specific
+    reply restriction or an application-wide denial, and a 404 may identify a
+    missing post or a missing/misconfigured endpoint.
+    """
+    if getattr(error, "service", None) != "x":
+        return X_API_ERROR_OTHER
+
+    status_code = getattr(error, "status_code", None)
+    message = str(error).casefold()
+    is_lookup = _x_error_is_tweet_lookup(error)
+    is_post_create = _x_error_is_post_create(error)
+
+    global_denial_markers = (
+        "invalid or expired token",
+        "could not authenticate you",
+        "authentication credentials",
+        "client forbidden",
+        "this application is not permitted",
+        "application is not permitted",
+        "unsupported authentication",
+    )
+    if status_code in {401, 403} and any(
+        marker in message for marker in global_denial_markers
+    ):
+        return X_API_ERROR_GLOBAL_DENIAL
+
+    reply_restriction_markers = (
+        "reply to this conversation is not allowed",
+        "not been mentioned or otherwise engaged by the author",
+        "not allowed to reply",
+        "only reply to or quote posts where you are mentioned or are the author",
+        "author has restricted who can reply",
+    )
+    target_unavailable_markers = (
+        "tweet that is deleted or not visible to you",
+        "post that is deleted or not visible to you",
+        "tweet is deleted or not visible",
+        "post is deleted or not visible",
+        "tweet is unavailable",
+        "post is unavailable",
+        "could not find tweet",
+        "could not find post",
+        "tweet not found",
+        "post not found",
+    )
+
+    if status_code == 403 and any(
+        marker in message for marker in reply_restriction_markers
+    ):
+        # Strong reply-specific messages remain classifiable for legacy errors
+        # which pre-date explicit request metadata.
+        if is_post_create or not getattr(error, "request_path", None):
+            return X_API_ERROR_REPLY_TARGET_RESTRICTED
+
+    if status_code in {403, 404} and any(
+        marker in message for marker in target_unavailable_markers
+    ):
+        if is_post_create or not getattr(error, "request_path", None):
+            return X_API_ERROR_REPLY_TARGET_UNAVAILABLE
+        if is_lookup:
+            return X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE
+
+    if status_code == 404:
+        if is_lookup:
+            return X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE
+        return X_API_ERROR_ENDPOINT_NOT_FOUND
+
+    if status_code == 403:
+        return X_API_ERROR_GLOBAL_DENIAL
+    return X_API_ERROR_OTHER
+
+
+def api_error_is_reply_not_allowed(error: Exception) -> bool:
+    """Return whether one reply target deterministically rejected the write."""
+    return classify_x_api_error(error) in {
+        X_API_ERROR_REPLY_TARGET_RESTRICTED,
+        X_API_ERROR_REPLY_TARGET_UNAVAILABLE,
+    }
 
 
 def api_error_is_permanent_target_failure(error: Exception) -> bool:
     """Return true for target-specific failures that should not trip breakers."""
-    return getattr(error, "status_code", None) in {403, 404}
+    return classify_x_api_error(error) == X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE
 
 
 # ---------------------------------------------------------------------
@@ -2932,8 +3034,18 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
     except requests.RequestException as e:
         log.exception("X request failed before receiving response")
         if ambiguous_write:
-            raise AmbiguousRemotePostOutcome(str(e), service="x") from e
-        raise ApiError(str(e), service="x") from e
+            raise AmbiguousRemotePostOutcome(
+                str(e),
+                service="x",
+                request_method=method,
+                request_path=path,
+            ) from e
+        raise ApiError(
+            str(e),
+            service="x",
+            request_method=method,
+            request_path=path,
+        ) from e
 
     log.debug("X response status: %s", response.status_code)
     log.debug(
@@ -2953,6 +3065,8 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
                 service="x",
                 status_code=response.status_code,
                 reset_epoch=reset_epoch,
+                request_method=method,
+                request_path=path,
             )
 
         raise ApiError(
@@ -2960,6 +3074,8 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
             service="x",
             status_code=response.status_code,
             reset_epoch=reset_epoch,
+            request_method=method,
+            request_path=path,
         )
 
     if not response.text:
@@ -2974,16 +3090,30 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
             raise AmbiguousRemotePostOutcome(
                 f"X may have accepted the write but returned a non-JSON response: {response.text[:500]}",
                 service="x",
+                request_method=method,
+                request_path=path,
             ) from e
-        raise ApiError(f"X API returned non-JSON response: {response.text[:500]}", service="x") from e
+        raise ApiError(
+            f"X API returned non-JSON response: {response.text[:500]}",
+            service="x",
+            request_method=method,
+            request_path=path,
+        ) from e
     if not isinstance(data, dict):
         message = f"X API response must be a JSON object, got {type(data).__name__}"
         if ambiguous_write:
             raise AmbiguousRemotePostOutcome(
                 f"X may have accepted the write but its response was not a JSON object: {type(data).__name__}",
                 service="x",
+                request_method=method,
+                request_path=path,
             )
-        raise ApiError(message, service="x")
+        raise ApiError(
+            message,
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
 
     log_json_debug("X response json", data)
     return data
@@ -3016,7 +3146,12 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
         )
     except requests.RequestException as e:
         log.exception("X bearer request failed before receiving response")
-        raise ApiError(str(e), service="x") from e
+        raise ApiError(
+            str(e),
+            service="x",
+            request_method=method,
+            request_path=path,
+        ) from e
 
     log.debug("X bearer response status: %s", response.status_code)
     log.debug(
@@ -3035,6 +3170,8 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
             service="x",
             status_code=response.status_code,
             reset_epoch=reset_epoch,
+            request_method=method,
+            request_path=path,
         )
 
     if not response.text:
@@ -3047,11 +3184,15 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
         raise ApiError(
             f"X bearer API returned non-JSON response: {response.text[:500]}",
             service="x",
+            request_method=method,
+            request_path=path,
         ) from e
     if not isinstance(data, dict):
         raise ApiError(
             f"X bearer API response must be a JSON object, got {type(data).__name__}",
             service="x",
+            request_method=method,
+            request_path=path,
         )
 
     log_json_debug("X bearer response json", data)
@@ -6531,13 +6672,15 @@ def _process_due_historical_context_obligations(
 
         status = str(result.get("status") or "")
         error_status_code = result.get("error_status_code")
+        error_request_method = result.get("error_request_method")
+        error_request_path = result.get("error_request_path")
+        failed_api_error = None
         if (
             status == "failed"
-            and runtime_state is not None
             and result.get("error_service") == "x"
             and type(error_status_code) is int
         ):
-            api_error = ApiError(
+            failed_api_error = ApiError(
                 str(result.get("error") or "historical-context X reply failed"),
                 service="x",
                 status_code=error_status_code,
@@ -6546,9 +6689,29 @@ def _process_due_historical_context_obligations(
                     if type(result.get("error_reset_epoch")) is int
                     else None
                 ),
+                # This worker's only X boundary is create_post(reply_to_id=...).
+                # Older result schemas do not preserve request metadata, so
+                # bind them to that known endpoint rather than guessing from
+                # status alone.
+                request_method=(
+                    error_request_method
+                    if isinstance(error_request_method, str)
+                    else "POST"
+                ),
+                request_path=(
+                    error_request_path
+                    if isinstance(error_request_path, str)
+                    else "/2/tweets"
+                ),
             )
+        if failed_api_error is not None and runtime_state is not None:
             try:
-                record_api_error(runtime_state, api_error, "x", scope="write")
+                record_api_error(
+                    runtime_state,
+                    failed_api_error,
+                    "x",
+                    scope="write",
+                )
                 save_state(runtime_state)
             except Exception:
                 log.critical(
@@ -6608,8 +6771,8 @@ def _process_due_historical_context_obligations(
                     error=str(result.get("error") or f"unexpected context status: {status}"),
                     failed_epoch=now_epoch(),
                     force_terminal=(
-                        type(error_status_code) is int
-                        and error_status_code in {403, 404}
+                        failed_api_error is not None
+                        and api_error_is_reply_not_allowed(failed_api_error)
                     ),
                 )
                 updated = store.get(parent_id)
@@ -6946,7 +7109,13 @@ def phrase_matches_text(phrase: str, text: str) -> bool:
     if not phrase_tokens:
         return False
     text_tokens = meaningful_tokens(text)
-    required = max(1, min(len(phrase_tokens), int(round(len(phrase_tokens) * 0.65))))
+    if len(phrase_tokens) <= 2:
+        required = len(phrase_tokens)
+    else:
+        required = max(
+            1,
+            min(len(phrase_tokens), int(round(len(phrase_tokens) * 0.65))),
+        )
     return len(phrase_tokens & text_tokens) >= required
 
 

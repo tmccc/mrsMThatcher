@@ -40,6 +40,7 @@ from historical_context_source_independent_review import (
 )
 from historical_context_source_curated_evidence import (
     CURATED_EVIDENCE_FILENAME,
+    curated_wording_coverage,
     validate_curated_evidence,
 )
 
@@ -1169,15 +1170,7 @@ def audit_packet(
                 if field not in source["claims_supported"]
             ],
             "claim_coverage": {
-                "wording": (
-                    "full"
-                    if source["wording_match_kind"] == "exact"
-                    else
-                    "normalised"
-                    if source["wording_match_kind"]
-                    in {"historical_variant", "excerpt"}
-                    else source["wording_match_kind"]
-                )
+                "wording": curated_wording_coverage(packet, source)
             },
             "action": "keep",
             "confidence_before": _clean(packet.get("research_confidence")),
