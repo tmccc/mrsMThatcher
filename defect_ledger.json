@@ -1,0 +1,2094 @@
+{
+  "$schema": "./defect_ledger.schema.json",
+  "schema_version": 1,
+  "ledger_id": "mrsMThatcher-current-master-defects",
+  "as_of": "2026-07-28",
+  "baseline": {
+    "current_master_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+    "current_master_tree": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
+    "observed_production_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+    "production_observed_at": "2026-07-28T23:40:14+01:00",
+    "production_observation_source": "Authoritative production_deployments/20260728T204234Z-production-hardening records plus a fresh read-only production Git, installed-file hash and process preflight. Production HEAD/origin match be882e81. Installed mrsMThatcher2.py SHA-256 is 0f72fd3d5e63995d150e90d5875abedd65a1ee14cfe3467f7a555771dd23e775 and wrapper SHA-256 is 524d28b24c76343147815c340f9d656f12d7ef2cba7cde18110a24e120e039dd, exactly matching that checkout; wrapper PID 3945677 and child PID 3945679 have run since 21:46:22 with NRestarts=0.",
+    "freshness_warning": "Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status."
+  },
+  "external_evidence": [
+    {
+      "id": "EXT-DEPLOY-FINAL-VALIDATION",
+      "classification": "external-production-record",
+      "repository_relative_path": "production_deployments/20260728T204234Z-production-hardening/final_validation.json",
+      "observed_absolute_path": "/disks/disk1/etc/mrsMThatcher/production_deployments/20260728T204234Z-production-hardening/final_validation.json",
+      "sha256": "bd2f8f8cae4ef355c2b2932375862e393688c6e176926bf1a8588ada783721af",
+      "availability": "external-untracked",
+      "explanation": "Observed in the ignored production checkout; this record is not tracked or present at the corresponding path in the canonical ledger worktree, so its absolute observation path and digest are recorded explicitly."
+    },
+    {
+      "id": "EXT-DEPLOY-REPORT",
+      "classification": "external-production-record",
+      "repository_relative_path": "production_deployments/20260728T204234Z-production-hardening/production_hardening_deployment_report.md",
+      "observed_absolute_path": "/disks/disk1/etc/mrsMThatcher/production_deployments/20260728T204234Z-production-hardening/production_hardening_deployment_report.md",
+      "sha256": "b17e62d55e0e8406b5d874ea3d28370284bcd1f37f9f51849c327113bb708977",
+      "availability": "external-untracked",
+      "explanation": "Observed in the ignored production checkout; this record is not tracked or present at the corresponding path in the canonical ledger worktree, so its absolute observation path and digest are recorded explicitly."
+    }
+  ],
+  "status_taxonomy": {
+    "active": "The defect is present on current master and its affected path or control is currently usable; no verified repair is recorded.",
+    "latent-disabled": "The unsafe implementation is present in the observed deployed or current-master path, but the affected optional feature or enforcement mode is documented as disabled; enabling it requires closure first.",
+    "repaired-not-deployed": "Current master contains a reviewed regression and repair, but the latest recorded production observation predates that repair.",
+    "deployed-unverified": "The repair is present in the observed production commit, but the recorded post-deployment evidence does not exercise enough of the defect-specific behavior to call the repair deployed-verified.",
+    "deployed-verified": "The repair is present in the observed production commit and post-deployment evidence verifies the relevant behavior, not merely commit ancestry.",
+    "assurance-weakness": "The record concerns test, fixture, review, release or containment evidence rather than a demonstrated bot-runtime misbehavior.",
+    "superseded": "This historical umbrella or formulation is retained for traceability but replaced by the more precise DEF records named in superseded_by."
+  },
+  "markdown": {
+    "title": "MrsMThatcher defect ledger",
+    "purpose": "Durable current-master inventory for the ten 28 July diagnosis findings and directly related established gaps.",
+    "source_of_truth": "defect_ledger.json",
+    "sort_key": "id",
+    "unknown_policy": "Render the literal word unknown and its recorded explanation; never infer a missing commit, deployment or test.",
+    "columns": [
+      "ID",
+      "Status",
+      "Severity",
+      "Finding",
+      "Invariants",
+      "Introduced",
+      "Fix",
+      "Deployment"
+    ]
+  },
+  "defects": [
+    {
+      "id": "DEF-0001",
+      "title": "Ordinary eligibility was not bound to the reviewed exact partition",
+      "source_class": "diagnosis-finding",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "ordinary-quotation-eligibility",
+      "status": "deployed-verified",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-ELIG-001",
+        "INV-ELIG-002",
+        "INV-ELIG-003",
+        "INV-ART-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "runtime_eligible_quote_manifest.json"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json"
+      ],
+      "runtime_lanes": [
+        "ordinary-post"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "The 2026-07-28 review reproduced the integrity failure against e5cd1ef3 fixtures.",
+        "explanation": "No complete production selection history proves or disproves that a drifted partition affected a live post."
+      },
+      "summary": "The deployed loader derived ordinary-post eligibility from completed packets and a predicate instead of consuming and cross-validating the complete reviewed runtime eligibility manifest and its inputs.",
+      "impact": "A coherently stale or drifted packet/manifest set could produce the wrong ordinary-post partition.",
+      "introduced": {
+        "first_bad_commit": "fe8f771318dfb477fefe06cddc3ec2de4b363672",
+        "last_known_good_commit": "23d5252b2e1e1dfd8524f586677dac7d872bfe94",
+        "affected_range": "inclusive:fe8f771318dfb477fefe06cddc3ec2de4b363672..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "exact",
+        "explanation": "Git blame and -S history place the packet-derived loader in fe8f7713; be882e81 replaces it with exact partition and source-hash validation."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-18",
+          "event": "Packet-derived ordinary eligibility entered the runtime.",
+          "commit": "fe8f771318dfb477fefe06cddc3ec2de4b363672",
+          "evidence": "Commit subject: Remove misattributed quotes and add offline selection audits."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Independent hardening review reproduced stale and coherently rehashed drift.",
+          "commit": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+          "evidence": "why_code_reviews_continue_to_find_major_problems.md and the new runtime eligibility tests."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Exact partition and input binding repair committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Harden production integrity and recovery paths."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed and verified against the production artifact generation.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "EXT-DEPLOY-FINAL-VALIDATION records successful runtime bootstrap and 611 eligible quotations; fresh installed-file hashes match be882e81."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Independent current-production review of ordinary eligibility, canonical packet integrity and runtime manifest relationships.",
+        "exclusions": "No production mutation or deployment.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Adversarial fixture mutation with both stale and coherently updated hashes.",
+        "reproducer": "Mutate a misattributed packet to Margaret Thatcher, update the packet status and then update the manifest source hash; the old runtime derived a changed partition.",
+        "source": "tests/test_runtime_ordinary_eligibility_integrity.py added by be882e81"
+      },
+      "tests": [
+        {
+          "path": "tests/test_runtime_ordinary_eligibility_integrity.py",
+          "nodeid": "test_coherently_rehashed_packet_mutation_still_requires_exact_partition",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_runtime_ordinary_eligibility_integrity.py",
+          "nodeid": "test_core_partition_drift_fails_before_ordinary_selection",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Validate the core corpus, source hashes, aliases and exact runtime eligibility partition while keeping context-only sidecars independent."
+      },
+      "deployment": {
+        "state": "deployed-verified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The deployment record identifies be882e81, the exact installed source hash matches its Git object, and post-deployment runtime bootstrap loaded 611 validated runtime-eligible quotations."
+      },
+      "residual_risk": "The repair still depends on several generated files being promoted as one generation; candidate freeze and generation attestation remain open under DEF-0014 and DEF-0015.",
+      "evidence": [
+        {
+          "type": "commit",
+          "reference": "be882e81:mrsMThatcher2.py",
+          "claim": "Adds exact runtime eligibility manifest and source-partition validation."
+        },
+        {
+          "type": "test",
+          "reference": "be882e81:tests/test_runtime_ordinary_eligibility_integrity.py",
+          "claim": "Covers stale, coherently rehashed, whitespace and partition drift."
+        },
+        {
+          "type": "runtime-observation",
+          "reference": "EXT-DEPLOY-FINAL-VALIDATION",
+          "claim": "Post-deployment runtime bootstrap exercised INV-ELIG-001 by loading 611 validated runtime-eligible quotations from the installed be882e81 generation."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0012",
+          "DEF-0014",
+          "DEF-0015"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0002",
+      "title": "Historical-context gate did not bind current rendered replies and correction bytes",
+      "source_class": "diagnosis-finding",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "historical-context-gate",
+      "status": "deployed-verified",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-HCTX-001",
+        "INV-ELIG-002",
+        "INV-ART-001",
+        "INV-TXN-HCTX-001"
+      ],
+      "components": [
+        "historical_context_reply_semantic_gate.py",
+        "historical_context_formatter.py",
+        "mrsMThatcher2.py"
+      ],
+      "affected_files": [
+        "historical_context_reply_semantic_gate.py",
+        "historical_context_formatter.py",
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "historical-context-reply"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "The review reproduced correction-byte and allowed-render drift against e5cd1ef3.",
+        "explanation": "The evidence establishes a reachable defect but does not establish whether a drifted allowed reply was published in production."
+      },
+      "summary": "The gate validated a reviewed ledger and blocked projection but did not re-render every allowed current reply with the deployed formatter options or require the correction sidecar bytes to match an authoritative audit hash.",
+      "impact": "A reply previously reviewed as safe could remain allowed after relevant rendering inputs or corrections changed.",
+      "introduced": {
+        "first_bad_commit": "f04a3c7243d2bf7e1e5d822875bd0fdf3d70b751",
+        "last_known_good_commit": "ff328350a21fb963bf8c9c3d40e02bdf29b842df",
+        "affected_range": "inclusive:f04a3c7243d2bf7e1e5d822875bd0fdf3d70b751..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "exact",
+        "explanation": "The gate was introduced by f04a3c72 without current-render or correction-byte binding; be882e81 adds both."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-22",
+          "event": "Ledger/projection semantic gate introduced.",
+          "commit": "f04a3c7243d2bf7e1e5d822875bd0fdf3d70b751",
+          "evidence": "Commit subject: Gate unresolved historical-context replies."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Review reproduced correction drift and allowed-render drift.",
+          "commit": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+          "evidence": "New adversarial semantic-gate regressions."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Current rendering and correction hash binding committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Gate now loads hash-bound corrections and reproduces reviewed allowed renderings."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed and the production historical-context gate loaded successfully.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "EXT-DEPLOY-FINAL-VALIDATION reports runtime bootstrap success, gate available and 13 blocked entries; installed source matches be882e81."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Independent review of historical-context semantic review, corrections, current formatter behavior and runtime options.",
+        "exclusions": "No public reply, provider request, production mutation or deployment.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Coherently rehash a changed correction sidecar and separately alter a reviewed allowed rendering.",
+        "reproducer": "Keep the ledger/projection valid while changing correction or formatter inputs; the old gate remained available.",
+        "source": "tests/test_historical_context_reply_semantic_gate.py added by be882e81"
+      },
+      "tests": [
+        {
+          "path": "tests/test_historical_context_reply_semantic_gate.py",
+          "nodeid": "test_gate_closes_on_coherently_rehashed_correction_drift",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_historical_context_reply_semantic_gate.py",
+          "nodeid": "test_gate_closes_when_a_reviewed_allowed_current_render_drifts",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_historical_context_reply_semantic_gate.py",
+          "nodeid": "test_bot_passes_live_context_formatter_options_to_the_gate",
+          "kind": "integration",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Bind correction bytes through the truth audit and reproduce every non-open reviewed reply under the actual runtime formatter options."
+      },
+      "deployment": {
+        "state": "deployed-verified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The deployment record identifies be882e81, installed source matches that commit, and post-deployment runtime bootstrap reported the historical-context gate available with 13 blocked entries."
+      },
+      "residual_risk": "The gate still relies on a relationship-heavy generated generation; immutable generation promotion and loaded-generation identity remain open.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "e5cd1ef3:historical_context_reply_semantic_gate.py:90-193",
+          "claim": "Validates ledger and projection but lacks current rendering reproduction."
+        },
+        {
+          "type": "commit",
+          "reference": "be882e81:historical_context_reply_semantic_gate.py",
+          "claim": "Adds correction-hash and current-render validation."
+        },
+        {
+          "type": "runtime-observation",
+          "reference": "EXT-DEPLOY-FINAL-VALIDATION",
+          "claim": "Post-deployment runtime bootstrap exercised INV-HCTX-001 by loading the historical-context gate with 13 blocked entries from the installed be882e81 generation."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0014",
+          "DEF-0015",
+          "DEF-0016"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0003",
+      "title": "Regular-post receipt could not reproduce cycle-reset histories exactly",
+      "source_class": "diagnosis-finding",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "confirmed-post-receipt-recovery",
+      "status": "deployed-unverified",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-HIST-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "tests/test_unit_helpers.py"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "tests/test_unit_helpers.py"
+      ],
+      "runtime_lanes": [
+        "ordinary-post-recovery"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "A schema-v1 replay reproducer retained stale pre-reset histories; deployment validation recorded receipt_replay_observed=false.",
+        "explanation": "No observed production replay exercised the defective cycle-reset case, so occurrence cannot be inferred."
+      },
+      "summary": "Schema-v1 regular-post receipts recorded the posted quote and image but not the authoritative after-state sets, so reconciliation was additive and could resurrect pre-reset history.",
+      "impact": "Remote at-most-once behavior was preserved, but future local quote/image cycle selection could be wrong after crash recovery.",
+      "introduced": {
+        "first_bad_commit": "9ae7e0f23b1b3d993006081252d9f0cddccbdc99",
+        "last_known_good_commit": "fb0e521a4ba9383f61590aec0b6050d13e175665",
+        "affected_range": "inclusive:9ae7e0f23b1b3d993006081252d9f0cddccbdc99..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "exact",
+        "explanation": "Git history places regular receipt recovery and its additive replay in 9ae7e0f2. The 27 July durability work increased reliance on that representation but did not introduce schema v1."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-06",
+          "event": "Regular quote/image receipt recovery introduced with additive history replay.",
+          "commit": "9ae7e0f23b1b3d993006081252d9f0cddccbdc99",
+          "evidence": "Commit subject: Harden quote image receipt recovery."
+        },
+        {
+          "date": "2026-07-27",
+          "event": "Confirmed-post durability repair made receipt/fallback recovery stricter without encoding exact cycle after-state.",
+          "commit": "acfc4f69ef9503c6bf842d0ab2897c919a455dbe",
+          "evidence": "Confirmed post fail-closed hardening retained schema_version 1."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Schema v2 authoritative history repair committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Receipt now stores quote_history_after and image_history_after."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed without a post-deployment receipt-replay exercise.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "EXT-DEPLOY-FINAL-VALIDATION identifies be882e81 and explicitly records receipt_replay_observed=false."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Crash/restart review of confirmed regular posts across quote and image cycle resets.",
+        "exclusions": "No X request, production receipt mutation or deployment.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Replay a confirmed receipt into state containing stale pre-reset history.",
+        "reproducer": "Apply schema-v1 receipt after a cycle reset; additive reconciliation retains stale quote and image entries.",
+        "source": "tests/test_unit_helpers.py regression added by be882e81"
+      },
+      "tests": [
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_regular_receipt_v2_restores_authoritative_post_cycle_histories",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_regular_receipt_v1_remains_backward_compatible",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Write schema-v2 receipts with validated authoritative post-transaction histories and retain explicit v1 compatibility."
+      },
+      "deployment": {
+        "state": "deployed-unverified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact be882e81 source is installed and the deployment suite included the receipt regressions, but EXT-DEPLOY-FINAL-VALIDATION records receipt_replay_observed=false; no post-deployment replay verified schema-v2 after-state restoration."
+      },
+      "residual_risk": "Legacy v1 receipts remain additive by design; deployment preflight must inspect and reconcile any extant v1 receipt before relying on exact v2 semantics.",
+      "evidence": [
+        {
+          "type": "commit",
+          "reference": "9ae7e0f:mrsMThatcher2.py",
+          "claim": "Introduced schema-v1 regular receipt recovery."
+        },
+        {
+          "type": "commit",
+          "reference": "be882e81:mrsMThatcher2.py",
+          "claim": "Adds schema-v2 authoritative histories."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": []
+      }
+    },
+    {
+      "id": "DEF-0004",
+      "title": "Launcher could hide a permanently failing child behind a healthy wrapper",
+      "source_class": "diagnosis-finding",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "launcher-supervision",
+      "status": "deployed-unverified",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-PROC-001",
+        "INV-PROC-002",
+        "INV-PROC-003"
+      ],
+      "components": [
+        "runMrsMThatcher2",
+        "deploy/systemd-user/mrsMThatcher.service",
+        "tests/test_integration_harness.py"
+      ],
+      "affected_files": [
+        "runMrsMThatcher2",
+        "deploy/systemd-user/mrsMThatcher.service",
+        "tests/test_integration_harness.py"
+      ],
+      "runtime_lanes": [
+        "cross-cutting-process-supervision"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "The old wrapper behavior was reproduced with fast-failing fake children; the current deployment has NRestarts=0.",
+        "explanation": "The review did not recover historical service evidence proving that a hidden permanent child failure occurred."
+      },
+      "summary": "The wrapper discarded child output and restarted every quick nonzero or clean exit forever. Effective crash-loop values were not validated after sourcing the environment file.",
+      "impact": "systemd could report an active wrapper while no stable Python child existed, with the child's diagnostic output lost.",
+      "introduced": {
+        "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
+        "last_known_good_commit": "39643a67d94288d018aac57c91f044e5e6aea264",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "exact",
+        "explanation": "The 5 July launcher introduced stdout/stderr redirection and unconditional restart; be882e81 removes redirection and adds validated fast-failure limits."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-05",
+          "event": "Restart-forever wrapper with child output redirected to /dev/null introduced.",
+          "commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
+          "evidence": "Git -S history for \"$BOT_SCRIPT\" >/dev/null 2>&1."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Independent runtime review found hidden crash-loop and env-file ordering defects.",
+          "commit": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+          "evidence": "Diagnosis and direct launcher subprocess reproductions."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Visible child output, effective-value validation and crash-loop breaker committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "runMrsMThatcher2 and launcher integration regressions."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Launcher repair deployed; stable operation observed without exercising the repaired fast-failure behavior.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Installed wrapper matches be882e81; EXT-DEPLOY-FINAL-VALIDATION records stable PIDs for 316 seconds, NRestarts=0, no startup errors and no tracebacks, but no installed-unit fast-failure exercise."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Read-only process topology, launcher behavior, systemd unit and environment ordering.",
+        "exclusions": "The live service was not stopped, signalled or restarted.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Repeated fast nonzero and clean-exit fake child subprocesses plus source/deployed-path inspection.",
+        "reproducer": "Run the old wrapper with a child that prints then immediately exits; output is discarded and the wrapper remains alive indefinitely.",
+        "source": "tests/test_integration_harness.py additions in be882e81"
+      },
+      "tests": [
+        {
+          "path": "tests/test_integration_harness.py",
+          "nodeid": "test_launcher_surfaces_child_output_and_exits_after_fast_failure_limit",
+          "kind": "integration",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_integration_harness.py",
+          "nodeid": "test_launcher_treats_repeated_fast_clean_exits_as_unhealthy",
+          "kind": "integration",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_integration_harness.py",
+          "nodeid": "test_launcher_validates_effective_settings_loaded_from_env_file",
+          "kind": "integration",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Surface child output, validate settings after env sourcing and exit the wrapper after bounded consecutive fast failures."
+      },
+      "deployment": {
+        "state": "deployed-unverified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The installed wrapper hash matches be882e81 and stable operation was observed, but no post-deployment synthetic fast failure or repeated clean exit exercised the repaired supervision behavior."
+      },
+      "residual_risk": "Tests invoke the wrapper directly, not the installed systemd unit. Loaded generation identity also remains absent under DEF-0015.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "e5cd1ef3:runMrsMThatcher2",
+          "claim": "Redirects child output and loops without a failure threshold."
+        },
+        {
+          "type": "runtime-observation",
+          "reference": "production preflight 2026-07-28T21:41:12+01:00",
+          "claim": "One wrapper and one child were running from production e5cd1ef3; unit-active alone could not prove child stability."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0015"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0005",
+      "title": "Runtime configuration and control accepted misleading unknown keys",
+      "source_class": "diagnosis-finding",
+      "defect_class": "historical-umbrella",
+      "diagnosis_finding": "runtime-configuration-and-control",
+      "status": "superseded",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-CONFIG-001",
+        "INV-PAUSE-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "mrsMThatcher.local.json",
+        "mrsMThatcher.control.json"
+      ],
+      "runtime_lanes": [
+        "cross-cutting-configuration-and-control"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "DEF-0006 and DEF-0007 reproduce the two distinct misleading-key behaviors.",
+        "explanation": "The umbrella has no independent incident evidence; occurrence is tracked, and remains unknown, in its child records."
+      },
+      "summary": "The diagnosis grouped local configuration and runtime-control key handling; this umbrella is retained but split into DEF-0006 and DEF-0007 because their introduction ranges, runtime effects and tests differ.",
+      "impact": "Without the split, one status could obscure whether a startup configuration typo or a live pause-control typo was repaired and deployed.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "unknown",
+        "confidence": "unknown",
+        "explanation": "There is no single introduction commit for the umbrella: local config begins at 36edf036 while control validation begins at 4a4afb4f."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-28",
+          "event": "Umbrella diagnosis finding recorded.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "why_code_reviews_continue_to_find_major_problems.md groups runtime configuration and control."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Umbrella superseded by atomic DEF-0006 and DEF-0007 records.",
+          "commit": "unknown",
+          "evidence": "Defect ledger modelling decision; no code commit is applicable."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Combined diagnosis summary of startup local configuration and live control-file safety keys.",
+        "exclusions": "Duplicate JSON-key handling is a separate current-master gap in DEF-0017.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Adversarial typo inputs in both configuration documents.",
+        "reproducer": "See DEF-0006 and DEF-0007.",
+        "source": "be882e81 regression additions"
+      },
+      "tests": [],
+      "fix": {
+        "state": "not-applicable",
+        "commit": "unknown",
+        "summary": "Tracked through the two superseding atomic records rather than one umbrella fix."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Deployment is tracked separately by DEF-0006 and DEF-0007."
+      },
+      "residual_risk": "None independent of the superseding records.",
+      "evidence": [
+        {
+          "type": "report",
+          "reference": "why_code_reviews_continue_to_find_major_problems.md#what-the-latest-review-actually-found",
+          "claim": "One table row groups two independently introduced defects."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "Unknown by construction for the umbrella; exact child commits are recorded in DEF-0006 and DEF-0007."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "Unknown by construction for the umbrella because DEF-0006 and DEF-0007 have different last-known-good histories."
+        },
+        {
+          "field": "introduced.affected_range",
+          "explanation": "No single affected range exists for the umbrella; the child records carry the exact or bounded ranges."
+        },
+        {
+          "field": "chronology[1].commit",
+          "explanation": "The supersession is a ledger modelling event, not a code change with an applicable commit."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "No umbrella code fix exists; child records carry be882e81."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [
+          "DEF-0006",
+          "DEF-0007"
+        ],
+        "related": [
+          "DEF-0017"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0006",
+      "title": "Unknown local configuration keys were ignored instead of rejecting the transaction",
+      "source_class": "diagnosis-finding-child",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "runtime-configuration-and-control",
+      "status": "deployed-unverified",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-CONFIG-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "mrsMThatcher.local.json"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "mrsMThatcher.local.json"
+      ],
+      "runtime_lanes": [
+        "startup-configuration"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "Adversarial config tests show an unknown key could coexist with supported changes on e5cd1ef3.",
+        "explanation": "No complete archive of production local-config inputs establishes whether an operator typo triggered the defect."
+      },
+      "summary": "apply_local_config ignored unsupported keys while applying supported peers, allowing a misspelled safety setting to appear accepted.",
+      "impact": "A local configuration typo could leave the intended safety behavior unchanged while other settings applied.",
+      "introduced": {
+        "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "bounded",
+        "explanation": "The behavior is present in the repository's initial bot commit; there is no earlier repository revision from which to establish a last-known-good implementation."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-01",
+          "event": "Initial local-config implementation included ignore-unknown behavior.",
+          "commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+          "evidence": "Git -S history for def apply_local_config."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Unknown-key atomicity regression and repair committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Unsupported keys now raise LocalConfigError before any proposal applies."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed but adversarial unknown-key rejection was not exercised post-deployment.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Installed source matches be882e81 and runtime bootstrap passed; deployment evidence contains no unknown-key trial."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Startup local-config allowlist and atomic application semantics.",
+        "exclusions": "Duplicate JSON object names are tracked in DEF-0017.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Supply one plausible unknown safety key alongside valid supported changes and inspect whether any change applies.",
+        "reproducer": "Use ENABLE_AUTO_REPLY instead of ENABLE_AUTO_REPLIES with valid schedule overrides.",
+        "source": "tests/test_unit_helpers.py:test_local_config_unknown_key_rejects_whole_transaction"
+      },
+      "tests": [
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_local_config_unknown_key_rejects_whole_transaction",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_integration_harness.py",
+          "nodeid": "test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls",
+          "kind": "integration",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Reject the complete local-config transaction on any unsupported key."
+      },
+      "deployment": {
+        "state": "deployed-unverified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact be882e81 source is installed and runtime bootstrap passed, but no post-deployment adversarial unknown local-config key was applied; atomic rejection is not operationally exercised."
+      },
+      "residual_risk": "Duplicate JSON keys remain last-wins on current master under DEF-0017.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "e5cd1ef3:mrsMThatcher2.py:873-900",
+          "claim": "Collects unsupported keys into an ignored list and continues."
+        },
+        {
+          "type": "commit",
+          "reference": "be882e81:mrsMThatcher2.py",
+          "claim": "Raises LocalConfigError on unsupported keys."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "The repository starts with the affected implementation; no earlier revision is available."
+        }
+      ],
+      "relations": {
+        "supersedes": [
+          "DEF-0005"
+        ],
+        "superseded_by": [],
+        "related": [
+          "DEF-0017"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0007",
+      "title": "Pause-like runtime-control typos validated without enforcing the intended pause",
+      "source_class": "diagnosis-finding-child",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "runtime-configuration-and-control",
+      "status": "deployed-unverified",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-PAUSE-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "mrsMThatcher.control.json"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "mrsMThatcher.control.json"
+      ],
+      "runtime_lanes": [
+        "cross-cutting-runtime-control"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "The review reproduced disable_alll validating while the global pause remained false.",
+        "explanation": "The available production control evidence does not establish that an operator used a misleading typo."
+      },
+      "summary": "The validator accepted arbitrary disable_*, pause_* and *_until keys, but lane enforcement checked a finite exact set.",
+      "impact": "A misspelled global pause could parse as valid without pausing remote operations.",
+      "introduced": {
+        "first_bad_commit": "4a4afb4fc8bc340adaaebe17a9570f2d0db85368",
+        "last_known_good_commit": "cbe4ca77440a74d7919dde915253882a7d1fccf8",
+        "affected_range": "inclusive:4a4afb4fc8bc340adaaebe17a9570f2d0db85368..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "exact",
+        "explanation": "The runtime-control validator was introduced by 4a4afb4f with prefix/suffix acceptance; be882e81 replaces it with explicit key sets."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-11",
+          "event": "Permissive runtime-control validation introduced.",
+          "commit": "4a4afb4fc8bc340adaaebe17a9570f2d0db85368",
+          "evidence": "Commit subject: Harden production safety and digest reporting."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Typos disable_alll, pause_quote_post and disable_all_until_typo reproduced.",
+          "commit": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+          "evidence": "New parameterized fail-closed regression."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Explicit control allowlist repair committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "CONTROL_ALLOWED_KEYS and documented generation metadata."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed; a valid global pause was acknowledged without exercising rejection of an unknown pause-like key.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Deployment acknowledged a valid global pause, restored original control bytes and observed an idle scheduler cycle without an X write; it did not submit an unknown pause-like key."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Live runtime-control validation, caching, fail-closed behavior and exact lane enforcement.",
+        "exclusions": "No live control-file write was performed.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Compare permissive validation names with exact names consumed by global_remote_writes_paused and lane_paused.",
+        "reproducer": "Load {\"disable_alll\": true}; the old validator accepts it but global pause remains false.",
+        "source": "tests/test_fail_safe_bootstrap_and_control.py:test_unknown_runtime_control_keys_fail_closed"
+      },
+      "tests": [
+        {
+          "path": "tests/test_fail_safe_bootstrap_and_control.py",
+          "nodeid": "test_unknown_runtime_control_keys_fail_closed",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_fail_safe_bootstrap_and_control.py",
+          "nodeid": "test_documented_runtime_control_metadata_remains_valid",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Use explicit boolean, time and metadata key allowlists; unknown keys fail closed."
+      },
+      "deployment": {
+        "state": "deployed-unverified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact be882e81 source is installed and a valid global pause was acknowledged, but no post-deployment unknown pause-like key exercised the repaired fail-closed rejection."
+      },
+      "residual_risk": "Operators must still use exact keys and observe a post-boundary acknowledgement; duplicate JSON keys remain open under DEF-0017.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "e5cd1ef3:mrsMThatcher2.py:1327-1342",
+          "claim": "Accepts suffix/prefix-shaped names not necessarily consumed by enforcement."
+        },
+        {
+          "type": "test",
+          "reference": "be882e81:tests/test_fail_safe_bootstrap_and_control.py:212-247",
+          "claim": "Requires unknown pause-like keys to fail closed."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [
+          "DEF-0005"
+        ],
+        "superseded_by": [],
+        "related": [
+          "DEF-0017"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0008",
+      "title": "HTTP timeouts were not one bounded total request budget",
+      "source_class": "diagnosis-finding",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "request-timeouts",
+      "status": "deployed-unverified",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-API-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "deploy/systemd-user/mrsMThatcher.service"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "deploy/systemd-user/mrsMThatcher.service"
+      ],
+      "runtime_lanes": [
+        "cross-cutting-http-clients"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "Boundary tests reproduce acceptance of scalar timeouts beyond the intended service budget.",
+        "explanation": "No production request trace proves that the excessive aggregate wait occurred."
+      },
+      "summary": "The runtime passed a scalar Requests timeout and accepted values larger than the service shutdown design budget.",
+      "impact": "Connect/read phases and multi-attempt create paths could outlive the assumed 180-second stop window.",
+      "introduced": {
+        "first_bad_commit": "b0c4f823dd1387a6dcb36f98c55fcd308935c7aa",
+        "last_known_good_commit": "a9c45073f013b83d2900fc32288ef0c61bcb2909",
+        "affected_range": "inclusive:b0c4f823dd1387a6dcb36f98c55fcd308935c7aa..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "bounded",
+        "explanation": "b0c4f823 introduced the configurable scalar timeout. Earlier requests existed, but the diagnosis specifically concerns the configured scalar budget and its upper bound."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-02",
+          "event": "Configurable scalar request timeout introduced.",
+          "commit": "b0c4f823dd1387a6dcb36f98c55fcd308935c7aa",
+          "evidence": "Commit subject: Validate runtime limits and quote errors."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Service-budget comparison and combined-timeout tests added with repair.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Adds MAX_REQUEST_TIMEOUT_SECONDS=60 and urllib3 Timeout(total=..., connect<=10)."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed without a post-deployment HTTP-budget exercise.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Installed source matches be882e81; EXT-DEPLOY-FINAL-VALIDATION records deployment_process_x_actions=0."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "X, bearer and media HTTP request budgets compared with systemd stop timeout and compatibility retry behavior.",
+        "exclusions": "No live endpoint request or service stop.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Boundary-value configuration tests and inspection of Requests timeout semantics.",
+        "reproducer": "Set MRS_REQUEST_TIMEOUT_SECONDS to 180 or 10000; the old parser accepted a finite positive value and passed it as a scalar.",
+        "source": "tests/test_unit_helpers.py timeout regressions"
+      },
+      "tests": [
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_request_timeout_rejects_values_beyond_service_shutdown_budget",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_x_request_uses_one_combined_connect_and_read_budget",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Cap the configured timeout at 60 seconds and pass one urllib3 total budget with a connect cap of 10 seconds."
+      },
+      "deployment": {
+        "state": "deployed-unverified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact be882e81 source is installed and the deployment suite covered timeout regressions, but deployment performed no X action and records no post-deployment request-budget exercise."
+      },
+      "residual_risk": "The bound is reasoned against the current 180-second service stop window; changes to retry counts or the unit timeout must re-evaluate INV-API-001.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "e5cd1ef3:mrsMThatcher2.py:1570-1590",
+          "claim": "Accepts any finite positive scalar and passes it directly to Requests."
+        },
+        {
+          "type": "commit",
+          "reference": "be882e81:mrsMThatcher2.py",
+          "claim": "Introduces total/connect budget object and an upper bound."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": []
+      }
+    },
+    {
+      "id": "DEF-0009",
+      "title": "Generated image pool accepted an in-directory unclassifiable basename",
+      "source_class": "diagnosis-finding",
+      "defect_class": "latent-runtime-defect",
+      "diagnosis_finding": "generated-image-classification",
+      "status": "deployed-unverified",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-ART-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "generated_review_approved_images"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "generated_review_approved_images"
+      ],
+      "runtime_lanes": [
+        "ordinary-post-generated-image-selection"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "The unsafe fallback was reproduced, while the observed affected deployment had ENABLE_GENERATED_IMAGE_POOL=false.",
+        "explanation": "The current observation excludes an active incident but does not establish the feature's complete historical activation state."
+      },
+      "summary": "When the optional generated pool was enabled, current_image_paths admitted any in-directory glob match without requiring a safe generated-image provenance classification.",
+      "impact": "An unclassifiable generated asset could enter selection through a fallback path. The source default keeps the pool disabled.",
+      "introduced": {
+        "first_bad_commit": "d10267286c49eeb428c8a5b4dfc81e885361ff8c",
+        "last_known_good_commit": "a4e06f18239fbee7f92773c4f7b958105abe17eb",
+        "affected_range": "inclusive:d10267286c49eeb428c8a5b4dfc81e885361ff8c..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "exact",
+        "explanation": "Git blame places the generated-pool append loop in d1026728; be882e81 routes selection through configured_generated_image_paths and fails closed."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-08",
+          "event": "Optional generated image pool admitted every in-directory glob match.",
+          "commit": "d10267286c49eeb428c8a5b4dfc81e885361ff8c",
+          "evidence": "Commit subject: Add generated image pool observability."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Unclassifiable reviewed_ai.png reproduction and fail-closed repair committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "test_generated_image_pool_fails_closed_on_unclassifiable_basename."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed while the optional generated pool remained disabled.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Installed source matches be882e81; EXT-DEPLOY-FINAL-VALIDATION records generated_image_pool_changed=false."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Generated-pool selection, path containment and provenance naming.",
+        "exclusions": "Feature activation and live selection were not performed.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Place a regular file with an unclassifiable basename inside the configured generated directory.",
+        "reproducer": "Enable the generated pool with generated/reviewed_ai.png; the old path appended it despite lacking a known identity form.",
+        "source": "tests/test_unit_helpers.py:test_generated_image_pool_fails_closed_on_unclassifiable_basename"
+      },
+      "tests": [
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_generated_image_pool_fails_closed_on_unclassifiable_basename",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Resolve generated files through the provenance classifier and abort selection on any unsafe or unclassifiable file."
+      },
+      "deployment": {
+        "state": "deployed-unverified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact be882e81 source is installed, but EXT-DEPLOY-FINAL-VALIDATION records generated_image_pool_changed=false and the pool remained disabled; post-deployment classification was not exercised."
+      },
+      "residual_risk": "Do not enable the pool on the observed production commit. After deployment, activation still requires an inventory and classification preflight.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "e5cd1ef3:mrsMThatcher2.py:5496-5527",
+          "claim": "Appends contained files without requiring a recognized basename."
+        },
+        {
+          "type": "code",
+          "reference": "be882e81:mrsMThatcher2.py:208",
+          "claim": "Feature remains disabled by default."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": []
+      }
+    },
+    {
+      "id": "DEF-0010",
+      "title": "Digest resume could lose an in-flight provider-call attempt",
+      "source_class": "diagnosis-finding",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "digest-accounting",
+      "status": "deployed-unverified",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-TXN-AUX-001"
+      ],
+      "components": [
+        "mrs_log_digest.py",
+        "tests/test_digest_safety_hardening.py",
+        "tests/test_digest_reply_observability.py"
+      ],
+      "affected_files": [
+        "mrs_log_digest.py",
+        "tests/test_digest_safety_hardening.py",
+        "tests/test_digest_reply_observability.py"
+      ],
+      "runtime_lanes": [
+        "offline-digest-analysis"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "A two-window resume test reproduces lost in-flight call attribution on e5cd1ef3.",
+        "explanation": "No authoritative comparison against every historical provider invoice establishes whether a report understated a real charge."
+      },
+      "summary": "Incremental digest state preserved active candidate context but not a provider call that began before the resume boundary and emitted usage after it.",
+      "impact": "The digest could lose call-start attribution, understate uncertainty and present cost coverage as complete when the event sequence was incomplete.",
+      "introduced": {
+        "first_bad_commit": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "last_known_good_commit": "39c659e6c37b93c5d1dfcf1fa077e5869c4bd0d9",
+        "affected_range": "inclusive:e5cd1ef336ed083c4e0ed4b35ec54830a94fec77..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "exact",
+        "explanation": "xai_reply_cost_summary and the incomplete resume representation were introduced together by e5cd1ef3 and repaired in its direct child be882e81."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-28",
+          "event": "Conversational AI cost report introduced without resumable in-flight call attempts.",
+          "commit": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+          "evidence": "Commit subject: Report conversational AI reply costs clearly."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Cross-window reproducer, unmatched-usage classification and resume repair committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Digest now persists last_active_xai_call_attempt."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Repair deployed without an operational two-window provider-call observation.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Installed digest source is be882e81; the deployment record contains no digest resume/cost event."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Incremental log-digest event attribution and provider cost coverage.",
+        "exclusions": "No provider request and no production digest-state mutation.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Split call-start and usage records across two digest invocations sharing a resume file.",
+        "reproducer": "First run ends after Calling AI-first reply; second begins with xAI usage and terminal decision.",
+        "source": "tests/test_digest_safety_hardening.py:test_resume_preserves_in_flight_provider_call_until_usage_arrives"
+      },
+      "tests": [
+        {
+          "path": "tests/test_digest_safety_hardening.py",
+          "nodeid": "test_resume_preserves_in_flight_provider_call_until_usage_arrives",
+          "kind": "integration",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_digest_reply_observability.py",
+          "nodeid": "test_conversational_usage_without_matching_call_start_is_incomplete",
+          "kind": "regression",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Persist and restore one active provider-call attempt and mark successful usage without a matching start as incomplete."
+      },
+      "deployment": {
+        "state": "deployed-unverified",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact be882e81 digest source is deployed and the complete suite covered resume accounting, but the deployment record contains no post-deployment two-window provider-call observation."
+      },
+      "residual_risk": "This repair models one active call attempt; future concurrent provider calls require an explicitly keyed resumable collection.",
+      "evidence": [
+        {
+          "type": "commit",
+          "reference": "e5cd1ef3:mrs_log_digest.py",
+          "claim": "Introduces cost summary without active call-attempt resume state."
+        },
+        {
+          "type": "commit",
+          "reference": "be882e81:mrs_log_digest.py",
+          "claim": "Adds call_start_matched and last_active_xai_call_attempt."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": []
+      }
+    },
+    {
+      "id": "DEF-0011",
+      "title": "Pytest collection lacked process-local production-path and network defaults",
+      "source_class": "diagnosis-finding",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "test-isolation",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-TEST-001",
+        "INV-TEST-002"
+      ],
+      "components": [
+        "tests/conftest.py",
+        "tests/test_pytest_safety_bootstrap.py"
+      ],
+      "affected_files": [
+        "tests/conftest.py",
+        "tests/test_pytest_safety_bootstrap.py"
+      ],
+      "runtime_lanes": [
+        "test-suite"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The record is explicitly a development-assurance control weakness and does not assert a production bot action.",
+        "explanation": "Unsafe inheritance was reproduced in test collection; that is an assurance failure, not a production incident."
+      },
+      "summary": "Before be882e81, suite safeguards did not install isolated paths, dead endpoints and a default-deny socket guard before test-module imports.",
+      "impact": "A collection-time import or poorly isolated test could inherit production paths, credentials or endpoint assumptions while the suite still passed.",
+      "introduced": {
+        "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "bounded",
+        "explanation": "The initial integration harness imports runtime code, and no earlier repository revision exists. The exact point at which an external production checkout became available is not recorded in Git."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-01",
+          "event": "Initial bot and integration tests entered without a pre-collection global isolation bootstrap.",
+          "commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+          "evidence": "Initial bot source and integration harness."
+        },
+        {
+          "date": "2026-07-27",
+          "event": "Earlier suite review explicitly recommended a suite-wide non-loopback guard.",
+          "commit": "370aee9b7c3ec1d3e7fdbb69ea6f3cc54b08dd23",
+          "evidence": "bot_and_test_suite_review_report.md#test-isolation-work-still-needed."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Pre-collection environment bootstrap and in-process socket guard committed.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "tests/conftest.py grew process-local defaults and socket interception."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-27",
+        "reviewed_revision": "f3feb9d7a329761126f07c2e09343d7be58a99d1",
+        "scope": "Test-suite isolation and safe serial/parallel execution.",
+        "exclusions": "No OS-level network namespace was available.",
+        "source": "bot_and_test_suite_review_report.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "method": "Inspect environment and imported runtime values captured during pytest collection, then directly exercise socket APIs.",
+        "reproducer": "Import mrsMThatcher2 during collection before per-test monkeypatches and inspect BASE_DIR, LOG_FILE and endpoints.",
+        "source": "tests/test_pytest_safety_bootstrap.py"
+      },
+      "tests": [
+        {
+          "path": "tests/test_pytest_safety_bootstrap.py",
+          "nodeid": "test_collection_import_uses_process_local_test_environment",
+          "kind": "safety-meta",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        },
+        {
+          "path": "tests/test_pytest_safety_bootstrap.py",
+          "nodeid": "test_default_network_policy_denies_loopback_and_non_loopback",
+          "kind": "safety-meta",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Install isolated runtime paths and dead endpoints at conftest import, then deny sockets by default in the pytest process."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "This is a development-assurance control, not a production deployment."
+      },
+      "residual_risk": "Python monkeypatching does not constrain arbitrary child processes; DEF-0013 remains open.",
+      "evidence": [
+        {
+          "type": "report",
+          "reference": "bot_and_test_suite_review_report.md#test-isolation-work-still-needed",
+          "claim": "The 27 July review recorded the missing suite-wide network guard."
+        },
+        {
+          "type": "test",
+          "reference": "be882e81:tests/test_pytest_safety_bootstrap.py",
+          "claim": "Tests collection-time paths and in-process socket denial."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier repository revision exists."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0013"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0012",
+      "title": "Integration and simulator fixtures did not model the complete production integrity generation",
+      "source_class": "diagnosis-finding",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "test-fixtures",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-TEST-004",
+        "INV-ART-001",
+        "INV-ELIG-001"
+      ],
+      "components": [
+        "tests/test_integration_harness.py",
+        "tests/test_simulate_regular_post_futures.py",
+        "tools/simulate_regular_post_futures.py"
+      ],
+      "affected_files": [
+        "tests/test_integration_harness.py",
+        "tests/test_simulate_regular_post_futures.py",
+        "tools/simulate_regular_post_futures.py"
+      ],
+      "runtime_lanes": [
+        "test-fixtures-and-simulators"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The strengthened loader broke incomplete test fixtures; no production runtime misbehavior is asserted.",
+        "explanation": "Fixture drift is classified as an assurance weakness rather than a production incident."
+      },
+      "summary": "Fixtures supplied only research_packets.json or other selected files and therefore configured away relationships among corpus manifest, research status and runtime eligibility manifest.",
+      "impact": "Selectors could pass tests against a partial model while production depended on a larger generated relationship.",
+      "introduced": {
+        "first_bad_commit": "fe8f771318dfb477fefe06cddc3ec2de4b363672",
+        "last_known_good_commit": "23d5252b2e1e1dfd8524f586677dac7d872bfe94",
+        "affected_range": "inclusive:fe8f771318dfb477fefe06cddc3ec2de4b363672..e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "confidence": "bounded",
+        "explanation": "The fixture existed earlier, but fe8f7713 made ordinary selection depend on research packets and attribution semantics while tests continued to construct only a subset. The exact point at which every omitted relationship became required is distributed across later artifact commits."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-18",
+          "event": "Production selection gained packet-derived eligibility while minimal fixtures remained partial.",
+          "commit": "fe8f771318dfb477fefe06cddc3ec2de4b363672",
+          "evidence": "Runtime and fixture histories diverged in represented integrity relationships."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Stronger production loader initially broke partial fixtures, exposing the assurance gap.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Fixture builders gained corpus_manifest, final_research_status and runtime_eligible_quote_manifest."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
+        "scope": "Production-shape parity of integration and regular-post future simulator assets.",
+        "exclusions": "The fixtures remain synthetic and do not attest a deployed generation.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "method": "Run strengthened loader against existing fixtures and inventory missing required files.",
+        "reproducer": "Use the pre-be882e81 write_minimal_asset_analysis fixture with the exact-partition loader; required manifest/status relationships are absent.",
+        "source": "be882e81 fixture changes"
+      },
+      "tests": [
+        {
+          "path": "tests/test_runtime_ordinary_eligibility_integrity.py",
+          "nodeid": "test_current_runtime_eligibility_manifest_validates_without_context_sidecars",
+          "kind": "integration",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "summary": "Expand current integration and simulator snapshots to include and validate core corpus/status/runtime eligibility relationships."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Fixture parity is a test-assurance concern."
+      },
+      "residual_risk": "Hand-built fixtures can drift again. A single builder-generated minimal generation and release-gate parity check are still required.",
+      "evidence": [
+        {
+          "type": "commit",
+          "reference": "be882e81:tests/test_integration_harness.py",
+          "claim": "Minimal asset setup now writes the complete core integrity set."
+        },
+        {
+          "type": "commit",
+          "reference": "be882e81:tests/test_simulate_regular_post_futures.py",
+          "claim": "Simulator snapshot now validates core corpus and runtime eligibility assets."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0001",
+          "DEF-0014"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0013",
+      "title": "Subprocess network egress is not denied at the operating-system boundary",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "related-current-master-test-containment",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-TEST-003"
+      ],
+      "components": [
+        "tests/conftest.py",
+        "subprocess-based integration tests"
+      ],
+      "affected_files": [
+        "tests/conftest.py",
+        "tests/test_*.py"
+      ],
+      "runtime_lanes": [
+        "test-subprocess-containment"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "This record documents an absent test-host containment layer; no production bot action is attributed to it.",
+        "explanation": "The assurance gap exists, but the ledger has no test-egress incident claim."
+      },
+      "summary": "Current master guards sockets in the pytest Python process and passes dead proxy defaults, but an arbitrary child can ignore Python monkeypatches and proxy variables.",
+      "impact": "A future subprocess test could reach external or live resources despite the parent suite's green network-safety tests.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "confidence": "unknown",
+        "explanation": "This is absence of an environmental control, not a code regression with a defensible first-bad commit."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-27",
+          "event": "Suite-wide network isolation recorded as unfinished work.",
+          "commit": "370aee9b7c3ec1d3e7fdbb69ea6f3cc54b08dd23",
+          "evidence": "Bot and test-suite review."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "In-process guard landed; OS-level subprocess gap explicitly remained.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Diagnosis Priority 2 item 16."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-27",
+        "reviewed_revision": "f3feb9d7a329761126f07c2e09343d7be58a99d1",
+        "scope": "Safe complete-suite execution including network/provider risk.",
+        "exclusions": "No network namespace or equivalent OS sandbox was installed.",
+        "source": "bot_and_test_suite_review_report.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "method": "Boundary analysis of the Python socket monkeypatch and inherited proxy environment.",
+        "reproducer": "A non-Python child or a Python child that replaces proxy settings does not inherit the parent's monkeypatched socket methods.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md#priority-2--improve-defect-detection"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Run critical CI in a network namespace or equivalent OS-level default-deny environment."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Development-assurance control; no production deployment applies."
+      },
+      "residual_risk": "Open until the release gate proves OS-level egress denial for parent and children.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "be882e81:tests/conftest.py",
+          "claim": "Monkeypatches socket functions only in the pytest process."
+        },
+        {
+          "type": "report",
+          "reference": "why_code_reviews_continue_to_find_major_problems.md:Priority 2 item 16",
+          "claim": "Explicitly states that child processes can bypass Python monkeypatching and proxy conventions."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "No Git commit can establish when the CI/host environment first lacked an OS egress boundary."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No audited environment with an OS-level subprocess egress boundary is known."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "No repair commit exists as of the ledger baseline."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0011"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0014",
+      "title": "Final validation is not bound to a frozen candidate tree and artifact inventory",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "related-current-master-release-attestation",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-001",
+        "INV-ART-001"
+      ],
+      "components": [
+        "release process",
+        "generated artifact inventory",
+        "collaborative worktree"
+      ],
+      "affected_files": [
+        "docs/historical_context_evidence_release_runbook.md",
+        "semantic_alignment_research/**/deployment_candidate/*.json"
+      ],
+      "runtime_lanes": [
+        "release-and-deployment"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The record identifies an absent release control and does not attribute a production failure to one release.",
+        "explanation": "Mutable-candidate exposure is an assurance weakness; no specific mixed-tree deployment incident is claimed here."
+      },
+      "summary": "The runbook is prose and complete-suite results are not yet cryptographically bound to a locked Git tree plus generated-artifact inventory.",
+      "impact": "A concurrent or later edit can make a green result cease to describe the candidate eventually committed or deployed.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "confidence": "unknown",
+        "explanation": "This is an absent release control spanning Git, collaboration and deployment; repository history does not identify one introducing commit."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-28",
+          "event": "Diagnosis identified mutable shared candidate files and prose-only release checks as an assurance gap.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Priority 0 item 3 and worktree/deployment complexity section."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "scope": "Review and release process, shared worktree mutability and candidate/deployment identity.",
+        "exclusions": "No executable release gate existed to exercise.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "method": "Compare validation timestamps and candidate mutations across collaborative work with the absence of a recorded tree attestation.",
+        "reproducer": "Edit a candidate after a suite completes; no existing committed gate invalidates the older result by tree hash.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md#worktree-and-deployment-complexity-obscured-the-current-truth"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Acquire an integration lock and attest the Git tree, generated inventory and deployed tree in one release-gate result."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Release assurance applies before deployment rather than being deployed itself."
+      },
+      "residual_risk": "Open until a final result is invalidated by any tree or artifact change and deployment verifies the same attestation.",
+      "evidence": [
+        {
+          "type": "report",
+          "reference": "why_code_reviews_continue_to_find_major_problems.md:Priority 0 item 3",
+          "claim": "Requires freeze and attestation of the candidate under test."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "No single repository commit introduced the missing cross-system release control."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No previously audited release process is known to have bound validation, artifacts and deployment to one frozen tree."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "No repair commit exists at be882e81."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0001",
+          "DEF-0002",
+          "DEF-0012",
+          "DEF-0015"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0015",
+      "title": "Process health does not expose the loaded commit and artifact generation identity",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "related-current-master-process-generation-identity",
+      "status": "active",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-PROC-004",
+        "INV-ART-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "runMrsMThatcher2",
+        "deploy/systemd-user/mrsMThatcher.service"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "runMrsMThatcher2",
+        "deploy/systemd-user/mrsMThatcher.service"
+      ],
+      "runtime_lanes": [
+        "cross-cutting-process-supervision"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "Fresh preflight matched current installed source and wrapper hashes, but the application still emits no loaded-generation identity.",
+        "explanation": "The present bytes match; historical disk/process generation mismatches cannot be ruled in or out from current health evidence."
+      },
+      "summary": "Current master improves crash-loop visibility but neither startup health nor the wrapper emits a cryptographically bound loaded Git tree and generated-artifact generation.",
+      "impact": "A service can run old imported code while disk files or symlinks point to a newer checkout, and an operator cannot prove the loaded generation from health evidence alone.",
+      "introduced": {
+        "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "confidence": "bounded",
+        "explanation": "The production wrapper dates to 2179d71 and has never carried generation identity. Earlier service/process arrangements were not audited for this property."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-05",
+          "event": "Production wrapper introduced without loaded generation identity.",
+          "commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
+          "evidence": "Launcher history."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Current diagnosis made loaded commit/hash generation a first-class process-health requirement.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Priority 2 item 15 and immutable deployment recommendations."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "scope": "Process layout, deployed symlinks, imported module paths and generation identity.",
+        "exclusions": "No process restart or new health endpoint was implemented.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "method": "Inspect startup logs, wrapper/unit definitions and live process paths for a bound commit/tree/generation identity.",
+        "reproducer": "Fast-forward files under a running imported Python process; disk Git identity changes while the child retains loaded modules.",
+        "source": "Read-only deployment preflight and diagnosis"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Emit and verify a build-time or release-attested Git tree plus generated generation at startup and health checks."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Fresh production preflight matched installed source and wrapper hashes to be882e81 and observed stable PIDs, but the running application still exposes no self-reported loaded tree or artifact-generation identity."
+      },
+      "residual_risk": "Active until one stable wrapper/child can be tied to the exact release attestation and complete artifact generation.",
+      "evidence": [
+        {
+          "type": "runtime-observation",
+          "reference": "production preflight 2026-07-28T21:41:12+01:00",
+          "claim": "Resolved wrapper and child paths but could not derive loaded module bytes from Git HEAD alone."
+        },
+        {
+          "type": "report",
+          "reference": "why_code_reviews_continue_to_find_major_problems.md:Priority 2 item 15",
+          "claim": "Defines loaded commit/hash generation as required process health evidence."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No audited implementation is known to have exposed this identity."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "No repair is present on current master."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0004",
+          "DEF-0014"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0016",
+      "title": "Semantic-veto manifest pins a multi-purpose formatter as its attribution predicate",
+      "source_class": "established-related",
+      "defect_class": "latent-runtime-defect",
+      "diagnosis_finding": "related-current-master-semantic-veto-dependency-boundary",
+      "status": "latent-disabled",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-VETO-001",
+        "INV-ART-001"
+      ],
+      "components": [
+        "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
+        "historical_context_formatter.py",
+        "mrsMThatcher2.py"
+      ],
+      "affected_files": [
+        "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
+        "historical_context_formatter.py",
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "ordinary-post-semantic-veto"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "The broad dependency pin is established, while production validation reports semantic_veto_enforcement_active=false.",
+        "explanation": "Disabled enforcement excludes a current enforcement incident but does not establish the complete history of manifest invalidations."
+      },
+      "summary": "The veto manifest's attribution_predicate source hash covers the whole multi-purpose formatter module rather than a narrow stable predicate dependency.",
+      "impact": "An unrelated formatter or loader edit invalidates a 22,157-pair review generation and encourages provenance-pin refreshes that do not represent adjudication changes.",
+      "introduced": {
+        "first_bad_commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
+        "last_known_good_commit": "b267a330983c5db2aec2c5722ce9e994b43bbeda",
+        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "confidence": "exact",
+        "explanation": "Git -S history for historical_context_formatter.py in the material veto manifest identifies 2220df1e as the first pin."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-19",
+          "event": "Material veto manifest began pinning historical_context_formatter.py as attribution_predicate.",
+          "commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
+          "evidence": "Commit subject: Fix adversarial review findings."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "Diagnosis recorded repeated shadow-manifest pin refreshes as a dependency-boundary smell.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "Generated artefacts act like code section."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-28",
+        "reviewed_revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "scope": "Generated artifact dependency relationships and semantic-veto mode.",
+        "exclusions": "Veto enforcement is unsupported; current runtime validation permits only disabled or shadow mode.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md"
+      },
+      "detection": {
+        "date": "2026-07-28",
+        "revision": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "method": "Inspect the manifest's source_file_hashes dependency and compare it with the formatter module's multiple unrelated responsibilities.",
+        "reproducer": "Change an unrelated formatter/loader function; the whole-file attribution_predicate hash changes even if every veto pair and attribution predicate result is unchanged.",
+        "source": "why_code_reviews_continue_to_find_major_problems.md#generated-artefacts-act-like-code-but-were-reviewed-like-data"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Extract and version a narrow attribution predicate dependency before any enforcement mode is designed."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Production be882e81 accepts only disabled or shadow veto mode; EXT-DEPLOY-FINAL-VALIDATION records semantic_veto_enforcement_active=false."
+      },
+      "residual_risk": "Do not promote semantic veto to enforcement until the dependency boundary, pair reconstruction and generation transaction satisfy INV-VETO-001 and INV-ART-001.",
+      "evidence": [
+        {
+          "type": "artifact",
+          "reference": "be882e81:semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
+          "claim": "source_file_hashes.attribution_predicate points to historical_context_formatter.py."
+        },
+        {
+          "type": "code",
+          "reference": "be882e81:mrsMThatcher2.py:735-738",
+          "claim": "Rejects any enabled veto mode other than shadow."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "No narrow predicate extraction exists on current master."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0002",
+          "DEF-0014"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0017",
+      "title": "Duplicate JSON object names remain last-wins in safety documents",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "related-current-master-duplicate-json-keys",
+      "status": "active",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-CONFIG-001",
+        "INV-PAUSE-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "mrsMThatcher2.py",
+        "runtime control",
+        "local config",
+        "state and receipts"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "mrsMThatcher.local.json",
+        "mrsMThatcher.control.json",
+        "bot_state.json",
+        "regular_post_receipt.json",
+        "meme_post_receipt.json",
+        "confirmed_reply_receipt.json",
+        "historical_context_reply_receipt.json"
+      ],
+      "runtime_lanes": [
+        "cross-cutting-json-safety-documents"
+      ],
+      "incident": {
+        "occurred": "unknown",
+        "evidence": "Default json.load behavior reproduces last-wins parsing and remains present at be882e81.",
+        "explanation": "No complete archive of production safety documents establishes whether a duplicate name altered live behavior."
+      },
+      "summary": "Safety-relevant JSON is parsed with the standard decoder, which accepts duplicate object names and keeps the last value.",
+      "impact": "A document can visually contain both safe and unsafe values for one setting; effective behavior depends on ordering rather than an unambiguous transaction.",
+      "introduced": {
+        "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "confidence": "bounded",
+        "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-01",
+          "event": "Initial safety-document parsers used the default duplicate-name behavior.",
+          "commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+          "evidence": "Initial bot source."
+        },
+        {
+          "date": "2026-07-27",
+          "event": "Independent bot/test review recorded duplicate JSON keys as an unresolved hardening gap.",
+          "commit": "370aee9b7c3ec1d3e7fdbb69ea6f3cc54b08dd23",
+          "evidence": "bot_and_test_suite_review_report.md:190."
+        },
+        {
+          "date": "2026-07-28",
+          "event": "be882e81 repaired unknown names but retained default JSON duplicate-name parsing.",
+          "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+          "evidence": "apply_local_config and load_control still call json.load without an object_pairs_hook."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-27",
+        "reviewed_revision": "f3feb9d7a329761126f07c2e09343d7be58a99d1",
+        "scope": "Bot and test-suite review of configuration and state hardening.",
+        "exclusions": "The review documented but did not implement strict duplicate-name decoding.",
+        "source": "bot_and_test_suite_review_report.md"
+      },
+      "detection": {
+        "date": "2026-07-27",
+        "revision": "f3feb9d7a329761126f07c2e09343d7be58a99d1",
+        "method": "Inspect safety-document parsing against Python json duplicate-name semantics.",
+        "reproducer": "Parse {\"disable_all\":true,\"disable_all\":false}; standard json.load returns disable_all false without reporting ambiguity.",
+        "source": "bot_and_test_suite_review_report.md:190"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Use a strict object_pairs_hook or equivalent parser that rejects duplicate names before schema validation for every safety document."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The defect exists in observed production be882e81 and current master; no repair deployment is applicable."
+      },
+      "residual_risk": "Active for control, local configuration and other state/receipt readers until one shared strict decoder is used and mutation-tested.",
+      "evidence": [
+        {
+          "type": "report",
+          "reference": "370aee9:bot_and_test_suite_review_report.md:190",
+          "claim": "Explicitly records duplicate JSON keys as last-wins in control/config/state/receipt files."
+        },
+        {
+          "type": "code",
+          "reference": "be882e81:mrsMThatcher2.py:866,1429",
+          "claim": "Local config and runtime control still use default json.load."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier repository implementation exists."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "No strict duplicate-name parser has been committed."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0005",
+          "DEF-0006",
+          "DEF-0007"
+        ]
+      }
+    }
+  ]
+}

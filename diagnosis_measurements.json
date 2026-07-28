@@ -1,0 +1,498 @@
+{
+  "schema_version": 1,
+  "measurement_kind": "recurring_review_diagnosis",
+  "generated_at": "2026-07-28T23:26:13+01:00",
+  "baseline": {
+    "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+    "tree": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
+    "committer_time": "2026-07-28T21:42:25+01:00",
+    "subject": "Harden production integrity and recovery paths"
+  },
+  "initial_import": {
+    "commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+    "tree": "c92acab4b525df48f0d320f14b98d11a70fcfd5a",
+    "committer_time": "2026-07-01T08:15:40+01:00",
+    "subject": "Initial bot source and integration harness"
+  },
+  "methodology": {
+    "post_initial_range": "36edf0369aae7ffe3b6b4b63089d26de71f59537..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+    "full_history_range": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+    "date_field": "committer_date",
+    "date_format": "YYYY-MM-DD",
+    "timezone": "Europe/London",
+    "default_merge_policy": "included",
+    "commit_path_filter": null,
+    "commit_generated_material_policy": "included",
+    "commit_generated_material_explanation": "Commit and daily counts include every reachable commit regardless of path, including runtime, tests, documentation, research, generated JSON, generated images and mixed commits.",
+    "line_count_definition": "newline-terminated physical lines from committed blobs using git show piped to wc -l",
+    "line_count_includes": [
+      "blank lines",
+      "comment lines"
+    ],
+    "line_count_excludes": [
+      "all paths other than the explicitly named Python blobs",
+      "generated artifacts",
+      "binary assets",
+      "reports",
+      "uncommitted worktree files"
+    ],
+    "net_growth_definition": "baseline_lines - initial_lines",
+    "gross_churn_definition": "additions + deletions from git diff --numstat",
+    "test_inventory_path_rule": "^tests/.*\\.py$",
+    "test_collection_generated_material_policy": "Tests that validate generated artifacts are included; generated artifacts are not counted as tests."
+  },
+  "history": {
+    "full_reachable": {
+      "commits_including_merges": 176,
+      "non_merge_commits": 175,
+      "active_commit_dates": 27
+    },
+    "post_initial": {
+      "commits_including_merges": 175,
+      "non_merge_commits": 174,
+      "merge_commits": 1,
+      "active_commit_dates": 26
+    },
+    "peak": {
+      "date": "2026-07-02",
+      "commits_including_merges": 21,
+      "non_merge_commits": 21
+    },
+    "daily_counts": [
+      {
+        "date": "2026-07-01",
+        "full_reachable": 1,
+        "post_initial": 0,
+        "post_initial_non_merge": 0
+      },
+      {
+        "date": "2026-07-02",
+        "full_reachable": 21,
+        "post_initial": 21,
+        "post_initial_non_merge": 21
+      },
+      {
+        "date": "2026-07-03",
+        "full_reachable": 8,
+        "post_initial": 8,
+        "post_initial_non_merge": 8
+      },
+      {
+        "date": "2026-07-04",
+        "full_reachable": 11,
+        "post_initial": 11,
+        "post_initial_non_merge": 11
+      },
+      {
+        "date": "2026-07-05",
+        "full_reachable": 3,
+        "post_initial": 3,
+        "post_initial_non_merge": 3
+      },
+      {
+        "date": "2026-07-06",
+        "full_reachable": 6,
+        "post_initial": 6,
+        "post_initial_non_merge": 6
+      },
+      {
+        "date": "2026-07-07",
+        "full_reachable": 3,
+        "post_initial": 3,
+        "post_initial_non_merge": 3
+      },
+      {
+        "date": "2026-07-08",
+        "full_reachable": 5,
+        "post_initial": 5,
+        "post_initial_non_merge": 5
+      },
+      {
+        "date": "2026-07-09",
+        "full_reachable": 4,
+        "post_initial": 4,
+        "post_initial_non_merge": 4
+      },
+      {
+        "date": "2026-07-10",
+        "full_reachable": 17,
+        "post_initial": 17,
+        "post_initial_non_merge": 17
+      },
+      {
+        "date": "2026-07-11",
+        "full_reachable": 6,
+        "post_initial": 6,
+        "post_initial_non_merge": 6
+      },
+      {
+        "date": "2026-07-12",
+        "full_reachable": 3,
+        "post_initial": 3,
+        "post_initial_non_merge": 3
+      },
+      {
+        "date": "2026-07-13",
+        "full_reachable": 2,
+        "post_initial": 2,
+        "post_initial_non_merge": 2
+      },
+      {
+        "date": "2026-07-14",
+        "full_reachable": 6,
+        "post_initial": 6,
+        "post_initial_non_merge": 6
+      },
+      {
+        "date": "2026-07-15",
+        "full_reachable": 7,
+        "post_initial": 7,
+        "post_initial_non_merge": 7
+      },
+      {
+        "date": "2026-07-16",
+        "full_reachable": 2,
+        "post_initial": 2,
+        "post_initial_non_merge": 2
+      },
+      {
+        "date": "2026-07-17",
+        "full_reachable": 3,
+        "post_initial": 3,
+        "post_initial_non_merge": 3
+      },
+      {
+        "date": "2026-07-18",
+        "full_reachable": 7,
+        "post_initial": 7,
+        "post_initial_non_merge": 7
+      },
+      {
+        "date": "2026-07-19",
+        "full_reachable": 10,
+        "post_initial": 10,
+        "post_initial_non_merge": 10
+      },
+      {
+        "date": "2026-07-20",
+        "full_reachable": 3,
+        "post_initial": 3,
+        "post_initial_non_merge": 3
+      },
+      {
+        "date": "2026-07-21",
+        "full_reachable": 9,
+        "post_initial": 9,
+        "post_initial_non_merge": 9
+      },
+      {
+        "date": "2026-07-22",
+        "full_reachable": 9,
+        "post_initial": 9,
+        "post_initial_non_merge": 8
+      },
+      {
+        "date": "2026-07-23",
+        "full_reachable": 0,
+        "post_initial": 0,
+        "post_initial_non_merge": 0
+      },
+      {
+        "date": "2026-07-24",
+        "full_reachable": 4,
+        "post_initial": 4,
+        "post_initial_non_merge": 4
+      },
+      {
+        "date": "2026-07-25",
+        "full_reachable": 7,
+        "post_initial": 7,
+        "post_initial_non_merge": 7
+      },
+      {
+        "date": "2026-07-26",
+        "full_reachable": 2,
+        "post_initial": 2,
+        "post_initial_non_merge": 2
+      },
+      {
+        "date": "2026-07-27",
+        "full_reachable": 14,
+        "post_initial": 14,
+        "post_initial_non_merge": 14
+      },
+      {
+        "date": "2026-07-28",
+        "full_reachable": 3,
+        "post_initial": 3,
+        "post_initial_non_merge": 3
+      }
+    ]
+  },
+  "recent_window": {
+    "start_inclusive": "2026-07-20T00:00:00+01:00",
+    "end_inclusive": "2026-07-28T23:59:59+01:00",
+    "commits_including_merges": 51,
+    "non_merge_commits": 50,
+    "merge_commits": 1,
+    "active_commit_dates": 8,
+    "path_churn": [
+      {
+        "path": "mrsMThatcher2.py",
+        "commits_touching_path": 14,
+        "additions": 4215,
+        "deletions": 1466,
+        "gross_churn": 5681
+      },
+      {
+        "path": "mrs_log_digest.py",
+        "commits_touching_path": 19,
+        "additions": 3324,
+        "deletions": 242,
+        "gross_churn": 3566
+      },
+      {
+        "path": "tests/test_unit_helpers.py",
+        "commits_touching_path": 17,
+        "additions": 5093,
+        "deletions": 800,
+        "gross_churn": 5893
+      },
+      {
+        "path": "tests/test_integration_harness.py",
+        "commits_touching_path": 9,
+        "additions": 563,
+        "deletions": 371,
+        "gross_churn": 934
+      }
+    ]
+  },
+  "selected_path_metrics": [
+    {
+      "path": "mrsMThatcher2.py",
+      "kind": "runtime_source",
+      "initial_lines": 4088,
+      "baseline_lines": 14028,
+      "additions": 11089,
+      "deletions": 1149,
+      "net_growth": 9940,
+      "gross_churn": 12238
+    },
+    {
+      "path": "mrs_log_digest.py",
+      "kind": "operational_source",
+      "initial_lines": 1368,
+      "baseline_lines": 8759,
+      "additions": 7598,
+      "deletions": 207,
+      "net_growth": 7391,
+      "gross_churn": 7805
+    },
+    {
+      "path": "tests/test_unit_helpers.py",
+      "kind": "test",
+      "initial_state": "absent",
+      "initial_lines": 0,
+      "baseline_lines": 12128,
+      "additions": 12128,
+      "deletions": 0,
+      "net_growth": 12128,
+      "gross_churn": 12128
+    },
+    {
+      "path": "tests/test_integration_harness.py",
+      "kind": "test",
+      "initial_lines": 1503,
+      "baseline_lines": 6356,
+      "additions": 5232,
+      "deletions": 379,
+      "net_growth": 4853,
+      "gross_churn": 5611
+    }
+  ],
+  "test_metrics": {
+    "tracked_python_inventory": {
+      "initial": {
+        "files": 3,
+        "physical_lines": 1808
+      },
+      "baseline": {
+        "files": 93,
+        "physical_lines": 54115
+      }
+    },
+    "two_largest_baseline_modules": {
+      "paths": [
+        {
+          "path": "tests/test_unit_helpers.py",
+          "physical_lines": 12128
+        },
+        {
+          "path": "tests/test_integration_harness.py",
+          "physical_lines": 6356
+        }
+      ],
+      "combined_physical_lines": 18484
+    },
+    "collection": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest --collect-only -q -p no:cacheprovider",
+      "collected": 2585,
+      "duration_seconds": 8.39,
+      "exit_code": 0
+    },
+    "complete_execution": {
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q -p no:cacheprovider -p xdist.plugin -n 4",
+      "workers": 4,
+      "passed": 2585,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 28,
+      "duration_seconds": 551.45,
+      "duration_display": "0:09:11",
+      "exit_code": 0
+    }
+  },
+  "generated_material_and_repository_inventory": {
+    "initial": {
+      "tracked_blobs": 26,
+      "blob_bytes": 399881
+    },
+    "baseline": {
+      "tracked_blobs": 1946,
+      "blob_bytes": 577012202
+    },
+    "unfiltered_initial_to_baseline_diff": {
+      "changed_paths": 1928,
+      "binary_paths": 271,
+      "text_additions": 5437018,
+      "text_deletions": 1774,
+      "text_gross_churn": 5438792
+    },
+    "interpretation": "The unfiltered repository measurements include generated research JSON and binary images. They are evidence of repository scale, not source-code growth. Selected source and test line metrics use only the explicitly named Python paths."
+  },
+  "finding_taxonomy": {
+    "group_count": 4,
+    "area_count": 10,
+    "groups": [
+      {
+        "name": "Runtime integrity",
+        "areas": [
+          "Ordinary quotation eligibility",
+          "Historical-context gate"
+        ]
+      },
+      {
+        "name": "Transaction and process safety",
+        "areas": [
+          "Confirmed-post receipt recovery",
+          "Launcher supervision",
+          "Runtime configuration and control",
+          "Request timeouts",
+          "Generated image classification"
+        ]
+      },
+      {
+        "name": "Observability",
+        "areas": [
+          "Digest accounting"
+        ]
+      },
+      {
+        "name": "Test assurance",
+        "areas": [
+          "Test isolation",
+          "Test fixtures"
+        ]
+      }
+    ]
+  },
+  "corrected_claims": [
+    {
+      "claim": "The post-initial range has 175 commits on 26 active dates.",
+      "status": "correct_with_scope",
+      "qualification": "This excludes the initial import and includes one merge. Full reachable history is 176 commits on 27 dates; post-initial non-merge history is 174 commits."
+    },
+    {
+      "claim": "mrsMThatcher2.py gained roughly 11000 lines.",
+      "status": "corrected",
+      "qualification": "There were 11089 additions and 1149 deletions; net physical-line growth was 9940."
+    },
+    {
+      "claim": "mrs_log_digest.py gained roughly 7600 lines.",
+      "status": "corrected",
+      "qualification": "There were 7598 additions and 207 deletions; net physical-line growth was 7391."
+    },
+    {
+      "claim": "The two largest test modules contain about 18500 lines.",
+      "status": "confirmed_and_made_exact",
+      "qualification": "The exact baseline total is 18484 physical lines."
+    },
+    {
+      "claim": "The complete 2585-test suite takes about 8.5 minutes with four workers.",
+      "status": "corrected",
+      "qualification": "The fresh measured run passed 2585 tests with 28 warnings in 551.45 seconds, or 9 minutes 11 seconds."
+    },
+    {
+      "claim": "The findings fall into four groups while the table lists ten areas.",
+      "status": "clarified",
+      "qualification": "The ten areas are now explicitly assigned to four named groups."
+    }
+  ],
+  "reproduction_commands": [
+    {
+      "id": "full_history_count",
+      "command": "git rev-list --count be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "result": 176
+    },
+    {
+      "id": "full_history_non_merge_count",
+      "command": "git rev-list --count --no-merges be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "result": 175
+    },
+    {
+      "id": "post_initial_count",
+      "command": "git rev-list --count 36edf0369aae7ffe3b6b4b63089d26de71f59537..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "result": 175
+    },
+    {
+      "id": "post_initial_non_merge_count",
+      "command": "git rev-list --count --no-merges 36edf0369aae7ffe3b6b4b63089d26de71f59537..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "result": 174
+    },
+    {
+      "id": "daily_counts",
+      "command": "git log --format=%cd --date=format:%F 36edf0369aae7ffe3b6b4b63089d26de71f59537..be882e8121a7b4348a57b61b1cf526401a36f5c0 | sort | uniq -c",
+      "result_reference": "history.daily_counts"
+    },
+    {
+      "id": "selected_path_line_counts",
+      "command": "git show COMMIT:PATH | wc -l",
+      "result_reference": "selected_path_metrics"
+    },
+    {
+      "id": "selected_path_numstat",
+      "command": "git diff --numstat 36edf0369aae7ffe3b6b4b63089d26de71f59537 be882e8121a7b4348a57b61b1cf526401a36f5c0 -- mrsMThatcher2.py mrs_log_digest.py tests/test_unit_helpers.py tests/test_integration_harness.py",
+      "result_reference": "selected_path_metrics"
+    },
+    {
+      "id": "test_collection",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest --collect-only -q -p no:cacheprovider",
+      "result_reference": "test_metrics.collection"
+    },
+    {
+      "id": "complete_test_execution",
+      "command": "PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q -p no:cacheprovider -p xdist.plugin -n 4",
+      "result_reference": "test_metrics.complete_execution"
+    },
+    {
+      "id": "repository_blob_inventory",
+      "command": "git ls-tree -rl COMMIT",
+      "result_reference": "generated_material_and_repository_inventory"
+    },
+    {
+      "id": "unfiltered_repository_numstat",
+      "command": "git diff --numstat 36edf0369aae7ffe3b6b4b63089d26de71f59537 be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "result_reference": "generated_material_and_repository_inventory.unfiltered_initial_to_baseline_diff"
+    }
+  ]
+}
