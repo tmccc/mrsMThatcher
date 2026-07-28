@@ -22,6 +22,15 @@ from historical_context_reply_semantic_gate import (
     HistoricalContextSemanticGate,
     load_historical_context_semantic_gate,
 )
+from historical_context_packet_corrections import (
+    PACKET_CORRECTIONS_FILENAME,
+    packet_correction_id,
+    validate_packet_corrections,
+)
+from historical_context_published_reply_semantic_review import build_review
+from historical_context_source_curated_evidence import (
+    CURATED_EVIDENCE_FILENAME,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,26 +54,36 @@ OPEN_INSUFFICIENT = (
 RESOLVED_104653 = (
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18"
 )
+RESOLVED_WORDING_CAVEAT = (
+    "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236"
+)
 
 
-def _copy_gate_inputs(destination: Path) -> None:
+def _copy_gate_inputs(
+    destination: Path,
+    *,
+    include_current_corpus: bool = False,
+) -> None:
     destination.mkdir(parents=True)
     copied_research = (
         destination
         / "semantic_alignment_research"
         / "quote_research_full_001"
     )
-    copied_research.mkdir(parents=True)
+    if include_current_corpus:
+        shutil.copytree(RESEARCH, copied_research)
+    else:
+        copied_research.mkdir(parents=True)
+        shutil.copy2(
+            RESEARCH / "historical_context_source_role_audit.json",
+            copied_research / "historical_context_source_role_audit.json",
+        )
     for name in (
         "historical_context_published_reply_semantic_review.json",
         "historical_context_evidence_truth_audit.json",
         "historical_context_mtf_primary_review.json",
     ):
         shutil.copy2(ROOT / name, destination / name)
-    shutil.copy2(
-        RESEARCH / "historical_context_source_role_audit.json",
-        copied_research / "historical_context_source_role_audit.json",
-    )
 
 
 def _gate(
@@ -239,6 +258,209 @@ def test_missing_corrupt_and_stale_gate_inputs_close_the_lane(tmp_path: Path):
     )
     assert ineligible.available is False
     assert "ineligible quote" in ineligible.reason
+
+
+def test_gate_closes_when_truth_declared_correction_sidecar_is_missing(
+    tmp_path: Path,
+):
+    copied = tmp_path / "missing-correction"
+    _copy_gate_inputs(copied, include_current_corpus=True)
+    (
+        copied
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+        / PACKET_CORRECTIONS_FILENAME
+    ).unlink()
+
+    gate = load_historical_context_semantic_gate(root=copied)
+
+    assert gate.available is False
+    assert gate.blocks(RESOLVED_104653) is True
+    assert "required historical-context packet corrections are missing" in gate.reason
+
+
+def test_gate_closes_on_coherently_rehashed_correction_drift(tmp_path: Path):
+    copied = tmp_path / "rehashed-correction"
+    _copy_gate_inputs(copied, include_current_corpus=True)
+    copied_research = (
+        copied
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+    )
+    corrections_path = copied_research / PACKET_CORRECTIONS_FILENAME
+    corrections = json.loads(corrections_path.read_text(encoding="utf-8"))
+    item = corrections["items"][REMEDIATED_PRIMARY]
+    item["corrected_value"] = (
+        "Thatcher argued for abandoning all clear objectives."
+    )
+    item["corrected_value_sha256"] = hashlib.sha256(
+        item["corrected_value"].encode("utf-8")
+    ).hexdigest()
+    item["correction_id"] = packet_correction_id(item)
+    packets = json.loads(
+        (copied_research / "research_packets.json").read_text(encoding="utf-8")
+    )["items"]
+    curated = json.loads(
+        (copied_research / CURATED_EVIDENCE_FILENAME).read_text(encoding="utf-8")
+    )
+    validate_packet_corrections(corrections, packets, curated)
+    corrections_path.write_text(
+        json.dumps(corrections, ensure_ascii=False, indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+    )
+
+    gate = load_historical_context_semantic_gate(root=copied)
+
+    assert gate.available is False
+    assert gate.blocks(REMEDIATED_PRIMARY) is True
+    assert "historical-context packet correction SHA-256 differs" in gate.reason
+
+
+def test_gate_rejects_present_corrections_omitted_from_authoritative_hashes(
+    tmp_path: Path,
+):
+    copied = tmp_path / "unbound-correction"
+    _copy_gate_inputs(copied, include_current_corpus=True)
+    copied_research = (
+        copied
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+    )
+    truth_path = copied / "historical_context_evidence_truth_audit.json"
+    truth = json.loads(truth_path.read_text(encoding="utf-8"))
+    truth["input_hashes"].pop(PACKET_CORRECTIONS_FILENAME)
+    truth_path.write_text(
+        json.dumps(truth, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    ledger_path = copied / LEDGER.name
+    review = build_review(
+        truth_path,
+        copied_research / "historical_context_source_role_audit.json",
+        copied / "historical_context_mtf_primary_review.json",
+        reference_root=copied,
+    )
+    ledger_path.write_text(
+        json.dumps(review, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    gate = load_historical_context_semantic_gate(
+        root=copied,
+        expected_ledger_sha256=hashlib.sha256(
+            ledger_path.read_bytes()
+        ).hexdigest(),
+    )
+
+    assert gate.available is False
+    assert (
+        "packet corrections lack an authoritative SHA-256 declaration"
+        in gate.reason
+    )
+
+    # A legacy corpus with neither a declaration nor a sidecar remains valid;
+    # only the present-but-unbound mismatch is rejected.
+    (copied_research / PACKET_CORRECTIONS_FILENAME).unlink()
+    packets, unresolved = load_and_validate_corpus(
+        copied_research,
+        require_source_role_audit=True,
+        require_packet_corrections_hash_binding=True,
+    )
+    assert len(packets) == 627
+    assert len(unresolved) == 5
+
+
+def test_gate_closes_when_a_reviewed_allowed_current_render_drifts(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    original = context_formatter.format_context_reply_public
+
+    def drifted(packet, **kwargs):
+        rendered = original(packet, **kwargs)
+        if packet["quote_id"] == REMEDIATED_PRIMARY and rendered is not None:
+            return {**rendered, "text": rendered["text"] + "\nDrifted text."}
+        return rendered
+
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        drifted,
+    )
+
+    gate = load_historical_context_semantic_gate(root=ROOT)
+
+    assert gate.available is False
+    assert gate.blocks(REMEDIATED_PRIMARY) is True
+    assert "semantic review current rendering differs" in gate.reason
+
+
+def test_gate_binds_the_actual_runtime_formatter_options():
+    packets, _unresolved = load_and_validate_corpus(
+        RESEARCH,
+        require_source_role_audit=True,
+    )
+    configured = context_formatter.format_context_reply_public(
+        packets[RESOLVED_WORDING_CAVEAT],
+        include_verification=False,
+    )
+    assert configured is not None
+    assert "independently verified" not in configured["text"]
+
+    gate = load_historical_context_semantic_gate(
+        root=ROOT,
+        formatter_options={
+            "maximum_length": 4000,
+            "include_meaning": True,
+            "include_source": True,
+            "include_verification": False,
+        },
+    )
+
+    assert gate.available is False
+    assert gate.blocks(RESOLVED_WORDING_CAVEAT) is True
+    assert "semantic review current rendering differs" in gate.reason
+
+
+def test_bot_passes_live_context_formatter_options_to_the_gate(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import historical_context_reply_semantic_gate as gate_module
+
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {
+            "enabled": True,
+            "maximum_length": 1200,
+            "include_meaning": False,
+            "include_source": True,
+            "include_verification": False,
+        },
+    )
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_SEMANTIC_GATE", None)
+    monkeypatch.setattr(
+        gate_module,
+        "load_historical_context_semantic_gate",
+        lambda **kwargs: calls.append(kwargs) or _gate(),
+    )
+
+    bot.initialise_historical_context_semantic_gate(
+        {
+            REMEDIATED_PRIMARY: {
+                "speaker": "Margaret Thatcher",
+                "verification_status": "exact",
+            }
+        }
+    )
+
+    assert calls[0]["formatter_options"] == {
+        "maximum_length": 1200,
+        "include_meaning": False,
+        "include_source": True,
+        "include_verification": False,
+    }
 
 
 @pytest.mark.parametrize(

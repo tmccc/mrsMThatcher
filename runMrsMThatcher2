@@ -4,7 +4,6 @@ set -euo pipefail
 WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
 ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
 BOT_SCRIPT=${MRS_BOT_SCRIPT:-/usr/local/bin/mrsMThatcher2.py}
-RESTART_SLEEP_SECONDS=${MRS_RESTART_SLEEP_SECONDS:-60}
 
 cd "$WORK_DIR"
 
@@ -17,12 +16,53 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# Derive and validate the final effective launcher settings only after the
+# environment file has loaded.  This prevents either an MRS_* setting or an
+# accidental similarly named shell variable in that file from bypassing the
+# crash-loop safety validation.
+RESTART_SLEEP_SECONDS=${MRS_RESTART_SLEEP_SECONDS:-60}
+FAST_FAILURE_WINDOW_SECONDS=${MRS_FAST_FAILURE_WINDOW_SECONDS:-30}
+MAX_CONSECUTIVE_FAST_FAILURES=${MRS_MAX_CONSECUTIVE_FAST_FAILURES:-5}
+
+if [[ ! "$RESTART_SLEEP_SECONDS" =~ ^([0-9]+([.][0-9]+)?|[.][0-9]+)$ ]]; then
+  echo "MRS_RESTART_SLEEP_SECONDS must be a non-negative number" >&2
+  exit 2
+fi
+if [[ ! "$FAST_FAILURE_WINDOW_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "MRS_FAST_FAILURE_WINDOW_SECONDS must be a positive integer" >&2
+  exit 2
+fi
+if [[ ! "$MAX_CONSECUTIVE_FAST_FAILURES" =~ ^[1-9][0-9]*$ ]]; then
+  echo "MRS_MAX_CONSECUTIVE_FAST_FAILURES must be a positive integer" >&2
+  exit 2
+fi
+
+consecutive_fast_failures=0
 while true; do
-  if "$BOT_SCRIPT" >/dev/null 2>&1; then
+  child_started_seconds=$SECONDS
+  if "$BOT_SCRIPT"; then
     rc=0
   else
     rc=$?
   fi
+  child_runtime_seconds=$((SECONDS - child_started_seconds))
+
+  if (( child_runtime_seconds < FAST_FAILURE_WINDOW_SECONDS )); then
+    ((consecutive_fast_failures += 1))
+  else
+    consecutive_fast_failures=0
+  fi
+
+  if (( consecutive_fast_failures >= MAX_CONSECUTIVE_FAST_FAILURES )); then
+    printf '%s MrsMThatcher exited rc=%s after %s seconds; fast failure limit %s/%s reached; exiting launcher for systemd restart\n' \
+      "$(date '+%F %T')" "$rc" "$child_runtime_seconds" \
+      "$consecutive_fast_failures" "$MAX_CONSECUTIVE_FAST_FAILURES" >&2
+    if (( rc == 0 )); then
+      exit 1
+    fi
+    exit "$rc"
+  fi
+
   printf '%s MrsMThatcher exited rc=%s; restarting in %s seconds\n' \
     "$(date '+%F %T')" "$rc" "$RESTART_SLEEP_SECONDS" >&2
   sleep "$RESTART_SLEEP_SECONDS"

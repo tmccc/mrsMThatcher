@@ -972,6 +972,28 @@ def test_generated_image_pool_rejects_paths_outside_generated_directory(
     assert bot.current_image_paths() == [str(original)]
 
 
+def test_generated_image_pool_fails_closed_on_unclassifiable_basename(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_dir = tmp_path / "images"
+    generated_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    generated_dir.mkdir()
+    original = image_dir / "t01.jpg"
+    unclassifiable = generated_dir / "reviewed_ai.png"
+    original.write_bytes(b"original")
+    unclassifiable.write_bytes(b"generated")
+
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
+
+    with pytest.raises(RuntimeError, match="unclassifiable"):
+        bot.current_image_paths()
+
+
 def test_generated_image_source_classification() -> None:
     quote_hash = "a" * 64
 
@@ -2583,6 +2605,78 @@ def valid_regular_receipt(**overrides: object) -> dict:
     return receipt
 
 
+def valid_regular_receipt_v2(**overrides: object) -> dict:
+    receipt = valid_regular_receipt(schema_version=2)
+    receipt["quote_history_after"] = [str(receipt["quote_hash"])]
+    receipt["image_history_after"] = [str(receipt["image_basename"])]
+    receipt.update(overrides)
+    return receipt
+
+
+def test_regular_receipt_v2_restores_authoritative_post_cycle_histories(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    posted_quote = bot.quote_text_hash("Good quote.")
+    stale_quote = "a" * 64
+    posted_image = "t01.jpg"
+    stale_image = "t02.jpg"
+    receipt = valid_regular_receipt_v2(
+        quote_history_after=[posted_quote],
+        image_history_after=[posted_image],
+    )
+    lines_used = {posted_quote, stale_quote}
+    images_used = {posted_image, stale_image}
+    state: dict = {}
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+
+    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+
+    assert lines_used == {posted_quote}
+    assert images_used == {posted_image}
+
+    # Reconciliation is idempotent and cannot restore the pre-reset histories.
+    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    assert lines_used == {posted_quote}
+    assert images_used == {posted_image}
+
+
+def test_regular_receipt_v1_remains_backward_compatible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = valid_regular_receipt()
+    lines_used = {"a" * 64}
+    images_used = {"t02.jpg"}
+    state: dict = {}
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+
+    assert bot.regular_post_receipt_is_semantically_valid(receipt)
+    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+
+    assert lines_used == {"a" * 64, str(receipt["quote_hash"])}
+    assert images_used == {"t02.jpg", str(receipt["image_basename"])}
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"quote_history_after": []},
+        {"quote_history_after": ["not-a-hash"]},
+        {"quote_history_after": ["a" * 64, "a" * 64]},
+        {"image_history_after": []},
+        {"image_history_after": ["../t01.jpg"]},
+        {"image_history_after": ["t01.jpg", "t01.jpg"]},
+    ],
+)
+def test_regular_receipt_v2_rejects_invalid_authoritative_histories(
+    patch: dict,
+) -> None:
+    receipt = valid_regular_receipt_v2(**patch)
+
+    assert bot.regular_post_receipt_is_semantically_valid(receipt) is False
+
+
 @pytest.mark.parametrize(
     ("image_basename", "initial_count", "expected_count"),
     [
@@ -3518,6 +3612,11 @@ def test_delayed_schedule_followed_by_regular_quote_produces_self_validating_rec
     bot.post_random_quote(lines_used, images_used, state)
 
     assert receipts
+    assert receipts[0]["schema_version"] == 2
+    assert receipts[0]["quote_history_after"] == [
+        bot.quote_text_hash("Good quote.")
+    ]
+    assert receipts[0]["image_history_after"] == ["t01.jpg"]
     assert receipts[0]["next_meme_schedule_mode"] == "delayed_recent_quote"
     assert receipts[0]["meme_anchor_quote_post_epoch"] == 0
     assert receipts[0]["meme_schedule_changed_by_quote"] is False
@@ -3659,6 +3758,7 @@ def test_receipt_writers_self_validate_before_durable_write(tmp_path: Path, monk
 
     valid_regular_forms = [
         valid_regular_receipt(),
+        valid_regular_receipt_v2(),
         valid_regular_receipt(
             next_meme_post_epoch=1_800_086_400,
             next_meme_schedule_mode="fallback",
@@ -3680,7 +3780,7 @@ def test_receipt_writers_self_validate_before_durable_write(tmp_path: Path, monk
         assert bot.load_regular_post_receipt()[0] == "valid"
         regular_receipt_file.unlink()
 
-    for bad_schema in [{}, {"schema_version": 2}, {"schema_version": "1"}]:
+    for bad_schema in [{}, {"schema_version": 3}, {"schema_version": "1"}]:
         receipt = valid_regular_receipt()
         receipt.update(bad_schema)
         if "schema_version" not in bad_schema:
@@ -9370,6 +9470,51 @@ def test_request_timeout_rejects_non_finite_values(
     assert bot.parse_request_timeout_seconds() == 60.0
 
 
+@pytest.mark.parametrize("raw_value", ["60.0001", "120", "180", "10000"])
+def test_request_timeout_rejects_values_beyond_service_shutdown_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    raw_value: str,
+) -> None:
+    monkeypatch.setenv("MRS_REQUEST_TIMEOUT_SECONDS", raw_value)
+
+    assert bot.parse_request_timeout_seconds() == 60.0
+
+
+def test_request_timeout_accepts_maximum_safe_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "MRS_REQUEST_TIMEOUT_SECONDS",
+        str(bot.MAX_REQUEST_TIMEOUT_SECONDS),
+    )
+
+    assert bot.parse_request_timeout_seconds() == bot.MAX_REQUEST_TIMEOUT_SECONDS
+
+
+def test_x_request_uses_one_combined_connect_and_read_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class EmptyResponse:
+        status_code = 204
+        headers: dict[str, str] = {}
+        text = ""
+
+    def fake_request(*args: object, **kwargs: object) -> EmptyResponse:
+        captured["timeout"] = kwargs["timeout"]
+        return EmptyResponse()
+
+    monkeypatch.setattr(bot, "REQUEST_TIMEOUT_SECONDS", 60.0)
+    monkeypatch.setattr(bot.requests, "request", fake_request)
+
+    assert bot.x_request("GET", "/2/test") == {}
+    timeout = captured["timeout"]
+
+    assert timeout.total == 60.0
+    assert timeout.connect_timeout == 10.0
+
+
 def test_parse_tweet_id_rejects_oversized_numeric_value() -> None:
     assert bot.parse_tweet_id("9" * 5_000, context="test tweet") is None
 
@@ -11823,6 +11968,31 @@ def test_local_config_valid_multi_key_override_applies_atomically(tmp_path: Path
     assert bot.MAX_MENTIONS_PER_CHECK == 10
 
 
+def test_local_config_unknown_key_rejects_whole_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {
+            "ENABLE_AUTO_REPLY": False,
+            "POST_SLEEP_MIN": 8000,
+            "POST_SLEEP_MAX": 8200,
+        },
+        initial={
+            "ENABLE_AUTO_REPLIES": True,
+            "POST_SLEEP_MIN": 7200,
+            "POST_SLEEP_MAX": 9000,
+        },
+        expect_error=True,
+    )
+
+    assert bot.ENABLE_AUTO_REPLIES is before["ENABLE_AUTO_REPLIES"] is True
+    assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
+    assert bot.POST_SLEEP_MAX == before["POST_SLEEP_MAX"] == 9000
+
+
 def test_local_config_coercion_failure_rejects_whole_transaction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     before = apply_local_config_for_test(
         tmp_path,
@@ -11861,16 +12031,17 @@ def test_local_config_mixed_valid_and_invalid_values_do_not_partially_commit(tmp
 
 def test_local_config_unsupported_key_cannot_override_arbitrary_globals(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     original_func = bot.log_json_debug
-    apply_local_config_for_test(
+    before = apply_local_config_for_test(
         tmp_path,
         monkeypatch,
         {"log_json_debug": None, "X_API_BASE_URL": "https://evil.invalid", "POST_SLEEP_MIN": 7300, "POST_SLEEP_MAX": 7400},
         initial={"POST_SLEEP_MIN": 7200, "POST_SLEEP_MAX": 9000},
+        expect_error=True,
     )
 
     assert bot.log_json_debug is original_func
-    assert bot.POST_SLEEP_MIN == 7300
-    assert bot.POST_SLEEP_MAX == 7400
+    assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
+    assert bot.POST_SLEEP_MAX == before["POST_SLEEP_MAX"] == 9000
     assert not hasattr(bot, "X_API_BASE_URL")
 
 

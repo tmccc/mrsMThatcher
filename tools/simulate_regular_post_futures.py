@@ -439,7 +439,11 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
     """Configure snapshot paths."""
     bot.LINES_FILE = snapshot / "mrsMThatcher.txt"
     bot.QUOTE_ANALYSIS_FILE = snapshot / "quote_analysis.json"
+    bot.HISTORICAL_CONTEXT_RESEARCH_DIR = snapshot
     bot.COMPLETED_QUOTE_RESEARCH_FILE = snapshot / "research_packets.json"
+    bot.RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE = (
+        snapshot / "runtime_eligible_quote_manifest.json"
+    )
     bot.IMAGE_ANALYSIS_FILE = snapshot / "image_analysis.json"
     bot.GENERATED_IMAGE_ANALYSIS_FILE = str(snapshot / "generated_image_analysis.json")
     bot.IMAGE_GLOB = str(snapshot / "images" / "t*")

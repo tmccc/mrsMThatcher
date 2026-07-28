@@ -29,6 +29,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 from requests_oauthlib import OAuth1
+from urllib3.util import Timeout
 
 
 SELF_TEST_REQUESTED = "--self-test" in sys.argv
@@ -223,6 +224,13 @@ GENERATED_IDENTITY_SHADOW_STRONG_PENALTY = 15.0
 QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
 HISTORICAL_CONTEXT_RESEARCH_DIR = BASE_DIR / "semantic_alignment_research" / "quote_research_full_001"
 COMPLETED_QUOTE_RESEARCH_FILE = HISTORICAL_CONTEXT_RESEARCH_DIR / "research_packets.json"
+RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE = (
+    BASE_DIR
+    / "semantic_alignment_research"
+    / "quote_attribution_cleanup_001"
+    / "deployment_candidate"
+    / "runtime_eligible_quote_manifest.json"
+)
 HISTORICAL_CONTEXT_REPLY_HISTORY_FILE = BASE_DIR / "historical_context_reply_history.json"
 HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE = BASE_DIR / "historical_context_reply_receipt.json"
 HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE = BASE_DIR / "historical_context_reply_outbox.json"
@@ -868,14 +876,15 @@ def apply_local_config() -> None:
             "the reviewed ai_first_reply_strategy configuration before activation"
         )
 
-    ignored: list[str] = []
     proposed: dict[str, object] = {}
     coercion_errors: list[str] = []
 
     for key, value in data.items():
         if key not in LOCAL_CONFIG_ALLOWED_KEYS or key not in globals():
-            ignored.append(str(key))
-            continue
+            raise LocalConfigError(
+                f"Unsupported local config key {key!r} in {LOCAL_CONFIG_FILE}; "
+                "refusing to ignore a possible safety-setting typo"
+            )
 
         try:
             coerced = _coerce_local_config_value(key, value, globals()[key])
@@ -885,9 +894,6 @@ def apply_local_config() -> None:
             continue
 
         proposed[key] = coerced
-
-    if ignored:
-        log.warning("Ignoring unsupported local config key(s): %s", ", ".join(sorted(ignored)))
 
     if coercion_errors:
         raise LocalConfigError(
@@ -1023,6 +1029,14 @@ def initialise_historical_context_semantic_gate(
     gate = load_historical_context_semantic_gate(
         root=BASE_DIR,
         eligible_quote_ids=eligible_quote_ids,
+        formatter_options={
+            "maximum_length": int(historical_context_reply["maximum_length"]),
+            "include_meaning": bool(historical_context_reply["include_meaning"]),
+            "include_source": bool(historical_context_reply["include_source"]),
+            "include_verification": bool(
+                historical_context_reply["include_verification"]
+            ),
+        },
     )
     _HISTORICAL_CONTEXT_SEMANTIC_GATE = gate
     if gate.available:
@@ -1291,6 +1305,30 @@ _CONTROL_CACHE: dict[str, object] = {
     "failure_signature": None,
 }
 
+CONTROL_BOOLEAN_KEYS = frozenset({
+    "disable_all",
+    "pause_all",
+    "disable_replies",
+    "pause_replies",
+    "disable_normal_replies",
+    "pause_normal_replies",
+    "disable_quote_replies",
+    "pause_quote_replies",
+    "disable_hot_post_replies",
+    "pause_hot_post_replies",
+    "disable_quote_posts",
+    "pause_quote_posts",
+    "disable_meme_posts",
+    "pause_meme_posts",
+})
+CONTROL_TIME_KEYS = frozenset(
+    f"{key}_until" for key in CONTROL_BOOLEAN_KEYS
+)
+CONTROL_METADATA_KEYS = frozenset({"generation"})
+CONTROL_ALLOWED_KEYS = (
+    CONTROL_BOOLEAN_KEYS | CONTROL_TIME_KEYS | CONTROL_METADATA_KEYS
+)
+
 
 def parse_control_time(value: object) -> int:
     """Parse a runtime-control timestamp into an epoch value."""
@@ -1330,15 +1368,23 @@ def validate_control_document(data: object) -> dict:
         raise ValueError("control document must be a JSON object")
     validated = dict(data)
     for key, value in data.items():
-        key_text = str(key)
-        if key_text.endswith("_until"):
+        if type(key) is not str or key not in CONTROL_ALLOWED_KEYS:
+            raise ValueError(
+                f"unsupported runtime-control key {key!r}; "
+                "refusing to ignore a possible safety-setting typo"
+            )
+        key_text = key
+        if key_text in CONTROL_TIME_KEYS:
             parse_control_time(value)
-        elif key_text.startswith(("disable_", "pause_")):
+        elif key_text in CONTROL_BOOLEAN_KEYS:
             if isinstance(value, bool):
                 continue
             if isinstance(value, str) and value.strip().lower() in {"1", "true", "yes", "on", "0", "false", "no", "off"}:
                 continue
             raise ValueError(f"{key_text} must be a boolean")
+        elif key_text == "generation":
+            if type(value) is not int or value < 0:
+                raise ValueError("generation must be a non-negative integer")
     return validated
 
 
@@ -1564,6 +1610,13 @@ XAI_BASE = normalise_base_url(os.getenv("XAI_API_BASE_URL", "https://api.x.ai/v1
 LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE = "I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X"
 
 
+# A confirmed-post transaction can make two sequential X create requests when
+# the made_with_ai compatibility fallback is needed.  Keep both total budgets,
+# plus local receipt persistence, inside the service's 180-second stop window.
+MAX_REQUEST_TIMEOUT_SECONDS = 60.0
+MAX_REQUEST_CONNECT_TIMEOUT_SECONDS = 10.0
+
+
 def parse_request_timeout_seconds() -> float:
     """Parse and validate the configured HTTP timeout."""
     raw = os.getenv("MRS_REQUEST_TIMEOUT_SECONDS", "60")
@@ -1573,7 +1626,11 @@ def parse_request_timeout_seconds() -> float:
         log.error("Invalid MRS_REQUEST_TIMEOUT_SECONDS=%r; using default 60", raw)
         return 60.0
 
-    if not math.isfinite(value) or value <= 0:
+    if (
+        not math.isfinite(value)
+        or value <= 0
+        or value > MAX_REQUEST_TIMEOUT_SECONDS
+    ):
         log.error("Invalid MRS_REQUEST_TIMEOUT_SECONDS=%r; using default 60", raw)
         return 60.0
 
@@ -1581,6 +1638,18 @@ def parse_request_timeout_seconds() -> float:
 
 
 REQUEST_TIMEOUT_SECONDS = parse_request_timeout_seconds()
+
+
+def request_timeout() -> Timeout:
+    """Return one combined Requests connect/read budget for an HTTP call."""
+    return Timeout(
+        total=REQUEST_TIMEOUT_SECONDS,
+        connect=min(
+            MAX_REQUEST_CONNECT_TIMEOUT_SECONDS,
+            REQUEST_TIMEOUT_SECONDS,
+        ),
+    )
+
 
 if (
     TEST_MODE
@@ -3028,7 +3097,7 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
             method,
             url,
             auth=AUTH,
-            timeout=REQUEST_TIMEOUT_SECONDS,
+            timeout=request_timeout(),
             **kwargs,
         )
     except requests.RequestException as e:
@@ -3141,7 +3210,7 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
             headers={
                 "Authorization": f"Bearer {X_BEARER_TOKEN}",
             },
-            timeout=REQUEST_TIMEOUT_SECONDS,
+            timeout=request_timeout(),
             **kwargs,
         )
     except requests.RequestException as e:
@@ -4592,7 +4661,7 @@ def upload_media_v1_1(image_path: str) -> str:
                 auth=AUTH,
                 files=files,
                 data=data,
-                timeout=REQUEST_TIMEOUT_SECONDS,
+                timeout=request_timeout(),
             )
         except requests.RequestException as e:
             log.exception("v1.1 media upload failed before receiving response")
@@ -5503,15 +5572,14 @@ def current_image_paths() -> list[str]:
 
     generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
     generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
-    generated_images = []
-    for path in sorted(glob(generated_glob)):
-        image_path = Path(path)
-        if not image_path.is_file():
-            continue
-        if not path_is_same_or_child(image_path, generated_dir):
-            log.warning("Skipping generated image outside configured generated image directory: %s", path)
-            continue
-        generated_images.append(path)
+    try:
+        configured_generated = configured_generated_image_paths()
+    except ValueError as exc:
+        raise RuntimeError(
+            "Generated image pool contains an unsafe or unclassifiable file; "
+            "refusing to select from the pool"
+        ) from exc
+    generated_images = [str(path) for path in configured_generated.values()]
     if not generated_images:
         log.warning("Generated image pool enabled but no generated images found matching %s", generated_glob)
         return result
@@ -5628,7 +5696,8 @@ def write_regular_post_receipt(receipt: dict) -> None:
 
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
-    if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
+    schema_version = data.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {1, 2}:
         return False
     post_id = str(data.get("post_id") or "")
     quote_hash = str(data.get("quote_hash") or "")
@@ -5653,6 +5722,30 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         return False
     if quote_text_hash(text) != quote_hash:
         return False
+    if schema_version == 2:
+        quote_history = data.get("quote_history_after")
+        image_history = data.get("image_history_after")
+        if (
+            not isinstance(quote_history, list)
+            or len(quote_history) > 10_000
+            or any(not isinstance(value, str) for value in quote_history)
+            or len(set(quote_history)) != len(quote_history)
+            or any(
+                re.fullmatch(r"[0-9a-f]{64}", value) is None
+                for value in quote_history
+            )
+            or quote_hash not in quote_history
+        ):
+            return False
+        if (
+            not isinstance(image_history, list)
+            or len(image_history) > 10_000
+            or any(not isinstance(value, str) for value in image_history)
+            or len(set(image_history)) != len(image_history)
+            or any(not valid_receipt_basename(value) for value in image_history)
+            or image_basename not in image_history
+        ):
+            return False
     next_meme_epoch = receipt_int(data.get("next_meme_post_epoch", 0), default=0)
     if next_meme_epoch is None:
         return False
@@ -5706,7 +5799,11 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
     except Exception:
         log.exception("Malformed regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
         return "invalid", None
-    if not isinstance(data, dict) or data.get("schema_version") != 1:
+    if (
+        not isinstance(data, dict)
+        or type(data.get("schema_version")) is not int
+        or data.get("schema_version") not in {1, 2}
+    ):
         log.critical("Invalid regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
         return "invalid", None
     required = ("post_id", "quote_hash", "image_basename", "quote_post_epoch", "next_quote_post_epoch")
@@ -5863,8 +5960,16 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
     next_quote_post_epoch = int(receipt["next_quote_post_epoch"])
     text = str(receipt.get("text") or "")
 
-    lines_used.add(quote_hash)
-    images_used.add(image_basename)
+    if receipt.get("schema_version") == 2:
+        lines_used.clear()
+        lines_used.update(str(value) for value in receipt["quote_history_after"])
+        images_used.clear()
+        images_used.update(str(value) for value in receipt["image_history_after"])
+    else:
+        # Schema v1 did not preserve cycle-boundary resets.  Retain its
+        # historical additive interpretation for backward compatibility.
+        lines_used.add(quote_hash)
+        images_used.add(image_basename)
     last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
     last_meme_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
     receipt_is_newest_main = quote_post_epoch >= max(last_quote_epoch, last_meme_epoch)
@@ -8257,34 +8362,125 @@ def load_quote_lines_and_analysis() -> tuple[list[str], dict | None, str]:
 
 
 def load_completed_research_quote_hashes() -> set[str]:
-    """Load production-canonical hashes from completed research packets."""
-    payload = load_json_object(COMPLETED_QUOTE_RESEARCH_FILE, label="completed quotation research")
-    if payload is None:
+    """Load the exact hash-bound ordinary-post eligibility partition."""
+    from historical_context_formatter import (
+        THATCHER_ATTRIBUTION_RULE_VERSION,
+        load_and_validate_corpus_core,
+        packet_is_attributed_to_margaret_thatcher,
+    )
+
+    packets, _unresolved = load_and_validate_corpus_core(
+        HISTORICAL_CONTEXT_RESEARCH_DIR
+    )
+    manifest = load_json_object(
+        RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE,
+        label="runtime eligible quotation manifest",
+    )
+    if manifest is None:
         raise RuntimeError(
-            f"Completed quotation research unavailable; refusing regular quote posting: {COMPLETED_QUOTE_RESEARCH_FILE}"
+            "Runtime eligible quotation manifest unavailable; refusing regular "
+            f"quote posting: {RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE}"
         )
-    items = payload.get("items") if isinstance(payload, dict) else None
-    if not isinstance(items, dict) or not items:
+
+    runtime_ids = manifest.get("runtime_eligible_quote_ids")
+    resolved_ids = manifest.get("resolved_manifest_quote_ids")
+    aliases = manifest.get("runtime_quote_aliases")
+    source_hashes = manifest.get("source_file_hashes")
+    declared_count = manifest.get("runtime_eligible_quote_count")
+    declared_source_count = manifest.get("source_record_count")
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("eligibility_rule_version")
+        != THATCHER_ATTRIBUTION_RULE_VERSION
+        or type(declared_count) is not int
+        or type(declared_source_count) is not int
+        or not isinstance(runtime_ids, list)
+        or not isinstance(resolved_ids, list)
+        or not isinstance(aliases, dict)
+        or not isinstance(source_hashes, dict)
+        or any(
+            not isinstance(value, str)
+            or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in runtime_ids
+        )
+        or any(
+            not isinstance(value, str)
+            or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in resolved_ids
+        )
+        or any(
+            not isinstance(key, str)
+            or re.fullmatch(r"[0-9a-f]{64}", key) is None
+            or not isinstance(value, str)
+            or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for key, value in aliases.items()
+        )
+    ):
         raise RuntimeError(
-            f"Completed quotation research is invalid; refusing regular quote posting: {COMPLETED_QUOTE_RESEARCH_FILE}"
+            "Runtime eligible quotation manifest structure is invalid; refusing "
+            "regular quote posting"
         )
-    result: set[str] = set()
-    from historical_context_formatter import packet_is_attributed_to_margaret_thatcher
-    for packet_id, packet in items.items():
-        if not isinstance(packet, dict):
-            raise RuntimeError(f"Completed quotation research packet is invalid: {packet_id}")
-        text = str(packet.get("quote_text") or "")
-        if not text or str(packet.get("quote_id") or packet_id) != str(packet_id):
-            raise RuntimeError(f"Completed quotation research packet identity is invalid: {packet_id}")
-        exact_id = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        if exact_id != str(packet_id):
-            raise RuntimeError(f"Completed quotation research packet text hash is invalid: {packet_id}")
-        if not packet_is_attributed_to_margaret_thatcher(packet):
-            continue
-        result.add(quote_text_hash(text))
-    if not result:
-        raise RuntimeError("Completed quotation research has no attribution-eligible packets")
-    return result
+    if (
+        declared_count <= 0
+        or len(runtime_ids) != declared_count
+        or len(set(runtime_ids)) != declared_count
+        or len(resolved_ids) != declared_count
+        or len(set(resolved_ids)) != declared_count
+        or not set(aliases).issubset(set(runtime_ids))
+        or sorted(aliases.get(value, value) for value in runtime_ids)
+        != resolved_ids
+    ):
+        raise RuntimeError(
+            "Runtime eligible quotation manifest counts or aliases are invalid; "
+            "refusing regular quote posting"
+        )
+
+    current_source_hash = file_sha256(LINES_FILE)
+    current_packets_hash = file_sha256(COMPLETED_QUOTE_RESEARCH_FILE)
+    if (
+        source_hashes.get("active_source") != current_source_hash
+        or source_hashes.get("completed_quote_research")
+        != current_packets_hash
+    ):
+        raise RuntimeError(
+            "Runtime eligible quotation manifest source hashes are stale; "
+            "refusing regular quote posting"
+        )
+
+    with LINES_FILE.open("r", encoding="utf-8") as handle:
+        current_source_ids = {
+            quote_text_hash(line.rstrip("\n"))
+            for line in handle
+            if line.strip()
+        }
+    if (
+        declared_source_count != len(current_source_ids)
+        or not set(runtime_ids).issubset(current_source_ids)
+    ):
+        raise RuntimeError(
+            "Runtime eligible quotation manifest does not match the active "
+            "quotation source"
+        )
+
+    eligible_packet_ids = {
+        str(quote_id)
+        for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    derived_runtime_ids = {
+        quote_text_hash(str(packet.get("quote_text") or ""))
+        for packet in packets.values()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    if (
+        set(resolved_ids) != eligible_packet_ids
+        or set(runtime_ids) != derived_runtime_ids
+    ):
+        raise RuntimeError(
+            "Runtime eligible quotation manifest differs from the validated "
+            "canonical attribution partition"
+        )
+    return derived_runtime_ids
 
 
 def completed_research_quote_hashes() -> set[str]:
@@ -9051,7 +9247,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         meme_schedule_fields = meme_schedule_fields_after_quote_post(state, quote_post_epoch, delay=meme_delay)
         meme_schedule_changed_by_quote = bool(meme_schedule_fields)
         receipt = {
-            "schema_version": 1,
+            "schema_version": 2,
             "post_id": str(posted_id),
             "quote_hash": quote_hash,
             "line_no": line_no,
@@ -9065,6 +9261,8 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             "next_meme_schedule_date": str(meme_schedule_fields.get("next_meme_schedule_date", state.get("next_meme_schedule_date", "")) or ""),
             "meme_anchor_quote_post_epoch": int(meme_schedule_fields.get("meme_anchor_quote_post_epoch", state.get("meme_anchor_quote_post_epoch", 0) or 0) or 0),
             "meme_schedule_changed_by_quote": meme_schedule_changed_by_quote,
+            "quote_history_after": sorted(set(lines_used) | {quote_hash}),
+            "image_history_after": sorted(set(images_used) | {image_basename}),
         }
         write_regular_post_receipt(receipt)
     except BaseException as receipt_exc:

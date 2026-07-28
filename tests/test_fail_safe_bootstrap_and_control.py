@@ -209,6 +209,42 @@ def test_control_invalid_without_prior_fails_closed(tmp_path, monkeypatch, paylo
     assert bot.lane_paused("disable_quote_posts") is True
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"disable_alll": True},
+        {"pause_quote_post": True},
+        {"disable_all_until_typo": 2_000_000_000},
+        {"unrelated": False},
+    ],
+)
+def test_unknown_runtime_control_keys_fail_closed(
+    tmp_path,
+    monkeypatch,
+    payload,
+):
+    path = tmp_path / "control.json"
+    path.write_text(json.dumps(payload))
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    assert bot.load_control()["disable_all"] is True
+    assert bot.global_remote_writes_paused() is True
+
+
+def test_documented_runtime_control_metadata_remains_valid(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text(json.dumps({"disable_all": False, "generation": 2}))
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    assert bot.load_control() == {"disable_all": False, "generation": 2}
+    assert bot.global_remote_writes_paused() is False
+
+
 def test_control_stat_and_read_failure_preserve_prior_valid(tmp_path, monkeypatch):
     path = tmp_path / "control.json"
     path.write_text(json.dumps({"disable_all": True}))

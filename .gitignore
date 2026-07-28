@@ -32,11 +32,13 @@ semantic_alignment_research/hybrid_reply_retrieval_*/index_history/
 semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/backups/
 semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_raw_responses/
 digest*.md
+digest*.md.lock
 !digest*_report.md
 .DS_Store
 ._*
 mrsMThatcher.env
 mrsMThatcher.local.json
+mrsMThatcher.control.json
 mrsMThatcher.lock
 extra_quote_watch_post_ids.txt
 tests.tgz
@@ -166,6 +168,8 @@ images.tar
 original_editorial_matching_backtest.json
 
 # Deployment and migration snapshots are retained locally, not versioned.
+production_deployments/
+production_incident_reviews/
 *.before_*
 *.pre-*
 mrsMThatcher.local.json.*

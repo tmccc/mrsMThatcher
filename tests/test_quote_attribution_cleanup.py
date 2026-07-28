@@ -10,6 +10,32 @@ import pytest
 import quote_attribution_cleanup as cleanup
 
 
+def _configure_runtime_eligibility_assets(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import mrsMThatcher2 as bot
+
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_RESEARCH_DIR",
+        cleanup.RESEARCH_RUN,
+    )
+    monkeypatch.setattr(
+        bot,
+        "COMPLETED_QUOTE_RESEARCH_FILE",
+        cleanup.RESEARCH_RUN / "research_packets.json",
+    )
+    monkeypatch.setattr(bot, "LINES_FILE", cleanup.ROOT / cleanup.SOURCE_NAME)
+    monkeypatch.setattr(
+        bot,
+        "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE",
+        cleanup.DEFAULT_RUN
+        / "deployment_candidate"
+        / "runtime_eligible_quote_manifest.json",
+    )
+    return bot
+
+
 def test_structured_attribution_partition_is_exact() -> None:
     rows = cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)
     assert len(rows) == 13
@@ -193,9 +219,7 @@ def test_production_regular_selector_has_completed_research_gate() -> None:
 def test_completed_research_gate_excludes_all_attribution_ineligible_source_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import mrsMThatcher2 as bot
-
-    monkeypatch.setattr(bot, "COMPLETED_QUOTE_RESEARCH_FILE", cleanup.RESEARCH_RUN / "research_packets.json")
+    bot = _configure_runtime_eligibility_assets(monkeypatch)
     completed = bot.completed_research_quote_hashes()
     source_hashes = {
         bot.quote_text_hash(row["text"])
@@ -214,30 +238,20 @@ def test_completed_research_gate_excludes_all_attribution_ineligible_source_cand
     assert unresolved | false_positive_ids == source_hashes - completed
 
 
-def test_test_mode_research_gate_still_requires_an_attribution_eligible_packet(
+def test_test_mode_research_gate_still_requires_complete_integrity_assets(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    import mrsMThatcher2 as bot
-
-    quote_text = "A synthetic attributed quotation."
-    quote_id = hashlib.sha256(quote_text.encode("utf-8")).hexdigest()
-    research_path = tmp_path / "research_packets.json"
-    packet = {
-        "quote_id": quote_id,
-        "quote_text": quote_text,
-        "speaker": "Margaret Thatcher",
-        "verification_status": "exact",
-    }
-    research_path.write_text(json.dumps({"items": {quote_id: packet}}), encoding="utf-8")
-    monkeypatch.setattr(bot, "COMPLETED_QUOTE_RESEARCH_FILE", research_path)
+    bot = _configure_runtime_eligibility_assets(monkeypatch)
     monkeypatch.setattr(bot, "TEST_MODE", True)
 
-    assert bot.completed_research_quote_hashes() == {bot.quote_text_hash(quote_text)}
-
-    packet["speaker"] = "Another speaker"
-    research_path.write_text(json.dumps({"items": {quote_id: packet}}), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="no attribution-eligible packets"):
+    assert len(bot.completed_research_quote_hashes()) == 611
+    monkeypatch.setattr(
+        bot,
+        "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE",
+        tmp_path / "missing-runtime-eligibility.json",
+    )
+    with pytest.raises(RuntimeError, match="manifest unavailable"):
         bot.completed_research_quote_hashes()
 
 

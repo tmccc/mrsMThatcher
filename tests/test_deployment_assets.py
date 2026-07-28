@@ -22,6 +22,8 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert "ExecStart=/usr/local/bin/runMrsMThatcher2" in main
     assert "Restart=on-failure" in main
     assert "KillMode=control-group" in main
+    assert "StandardOutput=journal" in main
+    assert "StandardError=journal" in main
     assert "MrsMThatcher project or wrapper unavailable after 120 seconds" in main
     assert "User=" not in main
 

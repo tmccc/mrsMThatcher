@@ -1145,6 +1145,9 @@ def save_resume_time(
         "last_known_latest_config": latest_config_clean,
         "last_known_generated_image_spacing": latest_generated_image_spacing,
         "last_active_xai_context": report.get("resume_context", {}).get("active_xai_context"),
+        "last_active_xai_call_attempt": report.get("resume_context", {}).get(
+            "active_xai_call_attempt"
+        ),
         "last_pending_mention": report.get("resume_context", {}).get("pending_mention"),
         "last_pending_qt": report.get("resume_context", {}).get("pending_qt"),
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -2432,12 +2435,32 @@ def unknown_xai_usage_context() -> Dict[str, Any]:
     return {"lane": "unknown", "context_id": "", "author_id": ""}
 
 
+def normalise_active_xai_call_attempt(value: Any) -> Optional[Dict[str, Any]]:
+    """Return safe resumable metadata for one provider call still awaiting usage."""
+    if not isinstance(value, dict) or value.get("usage_observed") is True:
+        return None
+    stage = str(value.get("stage") or "").strip()
+    model = str(value.get("model") or "").strip()
+    if not stage or not model:
+        return None
+    return {
+        "time": str(value.get("time") or ""),
+        "lane": normalise_reply_lane(value.get("lane")),
+        "context_id": str(value.get("context_id") or ""),
+        "author_id": str(value.get("author_id") or ""),
+        "stage": stage,
+        "model": model,
+        "usage_observed": False,
+    }
+
+
 def summarize_xai_usage_event(
     record: Record,
     usage: Dict[str, Any],
     context: Dict[str, Any],
     *,
     model: str = "",
+    call_start_matched: bool = False,
 ) -> Dict[str, Any]:
     """Summarise xAI usage event."""
     prompt_details = usage.get("prompt_tokens_details")
@@ -2453,6 +2476,7 @@ def summarize_xai_usage_event(
         "author_id": context.get("author_id", ""),
         "stage": xai_usage_stage_from_msg(record.msg),
         "model": model,
+        "call_start_matched": bool(call_start_matched),
         "prompt_tokens": int_usage_value(usage.get("prompt_tokens")),
         "cached_tokens": int_usage_value(prompt_details.get("cached_tokens")),
         "image_tokens": int_usage_value(prompt_details.get("image_tokens")),
@@ -2610,9 +2634,14 @@ def xai_reply_cost_summary(
 
         observed_call_count = len(calls)
         started_call_count = len(candidate_attempts)
+        unmatched_successful_call_count = sum(
+            item.get("call_start_matched") is not True for item in calls
+        )
         execution_event_count = execution_event_counts[key]
         if execution_event_count > 1:
             call_coverage = "multiple_pipeline_executions"
+        elif unmatched_successful_call_count:
+            call_coverage = "successful_usage_without_call_start"
         elif reported_call_count is None:
             call_coverage = "reported_call_count_unavailable"
         elif observed_call_count < reported_call_count:
@@ -2653,6 +2682,7 @@ def xai_reply_cost_summary(
                 "outcome": disposition,
                 "observed_successful_calls": observed_call_count,
                 "started_calls": started_call_count,
+                "unmatched_successful_calls": unmatched_successful_call_count,
                 "reported_model_call_count": reported_call_count,
                 "pipeline_execution_event_count": execution_event_count,
                 "call_coverage": call_coverage,
@@ -2749,6 +2779,12 @@ def xai_reply_cost_summary(
         coverage_reasons.append("successful usage records lack candidate attribution")
     if unattributed_attempts:
         coverage_reasons.append("call starts lack candidate attribution")
+    if any(
+        item.get("call_start_matched") is not True for item in usage_events
+    ):
+        coverage_reasons.append(
+            "one or more successful usage records lack a matching provider call start"
+        )
     if totals["uncosted_successful_call_count"]:
         coverage_reasons.append("successful responses lack provider cost")
     if any(item["call_coverage"] != "complete" for item in candidates):
@@ -2770,6 +2806,9 @@ def xai_reply_cost_summary(
         "published_candidate_count": published_count,
         "unattributed_successful_call_count": len(unattributed_usage),
         "unattributed_call_start_count": len(unattributed_attempts),
+        "unmatched_successful_call_count": sum(
+            item.get("call_start_matched") is not True for item in usage_events
+        ),
         "known_cost_in_usd_ticks": total_known_ticks,
         "per_reviewed_candidate": (
             {"ticks": total_known_ticks, "divisor": len(candidates)}
@@ -3644,6 +3683,7 @@ def analyse(
     max_text: int = 280,
     *,
     initial_active_xai_context: Optional[Dict[str, Any]] = None,
+    initial_active_xai_call_attempt: Optional[Dict[str, Any]] = None,
     initial_pending_mention: Optional[Dict[str, Any]] = None,
     initial_pending_qt: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -3662,7 +3702,12 @@ def analyse(
     reply_media_context: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
     xai_usage_events: List[Dict[str, Any]] = []
-    xai_call_attempts: List[Dict[str, Any]] = []
+    restored_xai_call_attempt = normalise_active_xai_call_attempt(
+        initial_active_xai_call_attempt
+    )
+    xai_call_attempts: List[Dict[str, Any]] = (
+        [restored_xai_call_attempt] if restored_xai_call_attempt else []
+    )
     xai_usage_parse_errors: List[Dict[str, Any]] = []
     regular_image_usage_events: List[Dict[str, Any]] = []
     original_editorial_shadow_events: List[Dict[str, Any]] = []
@@ -3684,7 +3729,9 @@ def analyse(
     pending_qt: Dict[str, Any] = dict(initial_pending_qt or {})
     pending_confirmed_reply_receipt: Dict[str, Any] = {}
     active_xai_context: Optional[Dict[str, Any]] = dict(initial_active_xai_context or {}) or None
-    active_xai_call_attempt_index: Optional[int] = None
+    active_xai_call_attempt_index: Optional[int] = (
+        0 if restored_xai_call_attempt else None
+    )
     last_created_post: Dict[str, Any] = {}
     pending_semantic_veto_event: Optional[Dict[str, Any]] = None
     pending_semantic_veto_ts: Optional[datetime] = None
@@ -3931,6 +3978,7 @@ def analyse(
         usage, usage_error = parse_xai_usage_from_msg(msg)
         if usage is not None:
             model = ""
+            call_start_matched = False
             usage_stage = xai_usage_stage_from_msg(msg)
             if active_xai_call_attempt_index is not None:
                 attempt = xai_call_attempts[active_xai_call_attempt_index]
@@ -3950,6 +3998,7 @@ def analyse(
                         "%Y-%m-%d %H:%M:%S"
                     )
                     model = str(attempt.get("model") or "")
+                    call_start_matched = True
                     active_xai_call_attempt_index = None
             xai_usage_events.append(
                 summarize_xai_usage_event(
@@ -3957,6 +4006,7 @@ def analyse(
                     usage,
                     active_xai_context or unknown_xai_usage_context(),
                     model=model,
+                    call_start_matched=call_start_matched,
                 )
             )
             stats["xai_usage_successes"] += 1
@@ -5702,6 +5752,15 @@ def analyse(
         },
         "resume_context": {
             "active_xai_context": active_xai_context,
+            "active_xai_call_attempt": (
+                dict(xai_call_attempts[active_xai_call_attempt_index])
+                if active_xai_call_attempt_index is not None
+                and xai_call_attempts[active_xai_call_attempt_index].get(
+                    "usage_observed"
+                )
+                is not True
+                else None
+            ),
             "pending_mention": pending_mention if active_xai_context else None,
             "pending_qt": pending_qt if active_xai_context else None,
         },
@@ -8534,11 +8593,16 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             records = filter_resume_boundary_records(records, since, resume_boundary_counts)
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     initial_active_xai_context = None
+    initial_active_xai_call_attempt = None
     initial_pending_mention = None
     initial_pending_qt = None
     if since_source == "saved resume state":
         if isinstance(resume_data.get("last_active_xai_context"), dict):
             initial_active_xai_context = resume_data.get("last_active_xai_context")
+        if isinstance(resume_data.get("last_active_xai_call_attempt"), dict):
+            initial_active_xai_call_attempt = resume_data.get(
+                "last_active_xai_call_attempt"
+            )
         if isinstance(resume_data.get("last_pending_mention"), dict):
             initial_pending_mention = dict(resume_data.get("last_pending_mention") or {})
             initial_pending_mention["considered_seq"] = -1
@@ -8549,6 +8613,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         records,
         max_text=args.max_text,
         initial_active_xai_context=initial_active_xai_context,
+        initial_active_xai_call_attempt=initial_active_xai_call_attempt,
         initial_pending_mention=initial_pending_mention,
         initial_pending_qt=initial_pending_qt,
     )

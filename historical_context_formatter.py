@@ -168,13 +168,10 @@ def durable_unlink(path: Path) -> None:
     finally: os.close(directory)
 
 
-def load_and_validate_corpus(
+def load_and_validate_corpus_core(
     research_dir: Path = DEFAULT_RESEARCH_DIR,
-    *,
-    require_source_role_audit: bool = False,
-    load_source_role_audit: bool = True,
 ) -> tuple[dict[str, Any], set[str]]:
-    """Load an immutable, internally declared research corpus partition safely."""
+    """Load and validate the canonical packet/manifest/status partition."""
     from semantic_alignment.quote_research_schema import TOP_LEVEL_FIELDS, validate_packet
 
     packets_path = research_dir / "research_packets.json"
@@ -229,12 +226,32 @@ def load_and_validate_corpus(
     if set(packets) & unresolved:
         raise RuntimeError("unresolved quote appears in completed packet collection")
     for quote_id, packet in packets.items():
-        if packet.get("quote_id") != quote_id or packet.get("quote_text") != manifest[quote_id].get("quote_text"):
+        if (
+            not isinstance(packet, dict)
+            or packet.get("quote_id") != quote_id
+            or not isinstance(packet.get("quote_text"), str)
+            or hashlib.sha256(packet["quote_text"].encode("utf-8")).hexdigest()
+            != quote_id
+            or packet.get("quote_text") != manifest[quote_id].get("quote_text")
+        ):
             raise RuntimeError(f"canonical quote identity mismatch: {quote_id}")
         try: validate_packet({field: packet[field] for field in TOP_LEVEL_FIELDS}, {"quote_id": quote_id, "quote_text": packet["quote_text"]})
         except (KeyError, ValueError) as exc: raise RuntimeError(f"completed packet is not schema-valid: {quote_id}: {exc}") from exc
         if packet.get("verification_status") not in VERIFICATION_LABELS:
             raise RuntimeError(f"unsupported verification status: {quote_id}")
+    return packets, unresolved
+
+
+def load_and_validate_corpus(
+    research_dir: Path = DEFAULT_RESEARCH_DIR,
+    *,
+    require_source_role_audit: bool = False,
+    load_source_role_audit: bool = True,
+    expected_packet_corrections_sha256: str | None = None,
+    require_packet_corrections_hash_binding: bool = False,
+) -> tuple[dict[str, Any], set[str]]:
+    """Load the canonical corpus and attach validated context-only sidecars."""
+    packets, unresolved = load_and_validate_corpus_core(research_dir)
     from historical_context_source_roles import validate_and_attach_audit
 
     eligible_ids = {
@@ -263,13 +280,44 @@ def load_and_validate_corpus(
     )
 
     corrections_path = research_dir / PACKET_CORRECTIONS_FILENAME
-    if corrections_path.exists():
+    try:
+        corrections_bytes = corrections_path.read_bytes()
+    except FileNotFoundError:
+        corrections_bytes = None
+    if (
+        require_packet_corrections_hash_binding
+        and corrections_bytes is not None
+        and expected_packet_corrections_sha256 is None
+    ):
+        raise RuntimeError(
+            "historical-context packet corrections lack an authoritative "
+            "SHA-256 declaration"
+        )
+    if expected_packet_corrections_sha256 is not None:
+        if not re.fullmatch(
+            r"[0-9a-f]{64}", str(expected_packet_corrections_sha256)
+        ):
+            raise RuntimeError(
+                "historical-context packet correction expected SHA-256 is invalid"
+            )
+        if corrections_bytes is None:
+            raise RuntimeError(
+                "required historical-context packet corrections are missing"
+            )
+        if (
+            hashlib.sha256(corrections_bytes).hexdigest()
+            != expected_packet_corrections_sha256
+        ):
+            raise RuntimeError(
+                "historical-context packet correction SHA-256 differs"
+            )
+    if corrections_bytes is not None:
         curated_path = research_dir / CURATED_EVIDENCE_FILENAME
         if not curated_path.exists():
             raise RuntimeError(
                 "historical-context packet corrections lack curated evidence"
             )
-        corrections = json.loads(corrections_path.read_text(encoding="utf-8"))
+        corrections = json.loads(corrections_bytes)
         curated_evidence = json.loads(curated_path.read_text(encoding="utf-8"))
         if not isinstance(corrections, dict) or not isinstance(
             curated_evidence, dict

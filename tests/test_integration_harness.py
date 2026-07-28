@@ -57,21 +57,108 @@ def write_minimal_asset_analysis(base_dir: Path) -> None:
             },
         },
     )
-    research_file = base_dir / "semantic_alignment_research/quote_research_full_001/research_packets.json"
+    research_dir = (
+        base_dir
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+    )
+    research_file = research_dir / "research_packets.json"
     research_file.parent.mkdir(parents=True, exist_ok=True)
+    packet = {
+        "quote_id": quote_hash,
+        "quote_text": quote_text,
+        "verification_status": "exact",
+        "verified_text": quote_text,
+        "text_variation_notes": "",
+        "speaker": "Margaret Thatcher",
+        "date": "1979-01-01",
+        "source_event": "Synthetic offline test fixture",
+        "stable_locator": "fixture:1",
+        "historical_context": "Synthetic context.",
+        "immediate_subject": "Synthetic subject.",
+        "intended_argument": "Synthetic argument.",
+        "literal_meaning": "Synthetic meaning.",
+        "broader_principle": "Synthetic principle.",
+        "mechanism": "Synthetic mechanism.",
+        "claimed_consequence": "Synthetic consequence.",
+        "entities": ["Margaret Thatcher"],
+        "editorial_guidance": {
+            "desired_first_impression": "Synthetic test fixture.",
+            "historical_requirements": [],
+            "must_be_visually_dominant": [],
+            "must_not_dominate": [],
+            "common_visual_mistakes": [],
+        },
+        "research_confidence": "high",
+        "unresolved_questions": [],
+        "sources": [
+            {
+                "title": "Synthetic offline source",
+                "url": "https://example.invalid/synthetic",
+                "source_type": "synthetic_test_fixture",
+                "supports": ["Synthetic test quotation."],
+            }
+        ],
+    }
     write_json(
         research_file,
         {
             "schema_version": 1,
-            "items": {
-                quote_hash: {
+            "items": {quote_hash: packet},
+        },
+    )
+    write_json(
+        research_dir / "corpus_manifest.json",
+        {
+            "record_count": 1,
+            "records": [
+                {
                     "quote_id": quote_hash,
                     "quote_text": quote_text,
-                    "research_confidence": "high",
-                    "verification_status": "exact",
-                    "speaker": "Margaret Thatcher",
                 }
+            ],
+        },
+    )
+    final_unresolved = research_dir / "final_unresolved"
+    final_unresolved.mkdir()
+    write_json(
+        final_unresolved / "final_research_status.json",
+        {
+            "completed_quotes": 1,
+            "corpus_hash": sha256_bytes(research_file.read_bytes()),
+            "total_manifest_quotes": 1,
+            "unresolved_quote_ids": [],
+            "unresolved_quotes": 0,
+        },
+    )
+    runtime_manifest = (
+        base_dir
+        / "semantic_alignment_research"
+        / "quote_attribution_cleanup_001"
+        / "deployment_candidate"
+        / "runtime_eligible_quote_manifest.json"
+    )
+    runtime_manifest.parent.mkdir(parents=True)
+    write_json(
+        runtime_manifest,
+        {
+            "eligibility_rule_version": (
+                "canonical-principal-speaker-v2-reject-misattributed"
+            ),
+            "resolved_manifest_quote_ids": [quote_hash],
+            "runtime_eligible_quote_count": 1,
+            "runtime_eligible_quote_ids": [quote_hash],
+            "runtime_quote_aliases": {},
+            "schema_version": 1,
+            "source_file_hashes": {
+                "active_source": sha256_bytes(
+                    (base_dir / "mrsMThatcher.txt").read_bytes()
+                ),
+                "completed_quote_research": sha256_bytes(
+                    research_file.read_bytes()
+                ),
             },
+            "source_record_count": 1,
         },
     )
     write_json(base_dir / "quote_analysis_overrides.json", {"quote_overrides": {}})
@@ -231,6 +318,15 @@ def run_bot_command(
 
 def run_bot_with_env(base_dir: Path, command: str = "--test-cycle", *, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     env = base_test_env()
+    # Unlike ``run_bot_command``, this helper deliberately exercises the
+    # application's endpoint defaults when an endpoint is not supplied by the
+    # caller.  The collection-time pytest safety bootstrap installs dead
+    # loopback endpoints in the parent process, so remove those inherited
+    # defaults here before applying the test-specific environment.
+    env.pop("X_API_BASE_URL", None)
+    env.pop("X_UPLOAD_BASE_URL", None)
+    env.pop("XAI_API_BASE_URL", None)
+    env.pop("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST", None)
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -2143,6 +2239,7 @@ def test_startup_self_test_does_not_rotate_backups_when_scheduler_epochs_are_cle
 def test_self_test_uses_separate_log_when_log_file_not_overridden(tmp_path: Path) -> None:
     base_dir = prepare_base_dir(tmp_path)
     env = base_test_env()
+    env.pop("MRS_LOG_FILE", None)
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -2201,6 +2298,8 @@ def test_launcher_restarts_after_child_exits_nonzero(tmp_path: Path) -> None:
             "MRS_ENV_FILE": str(env_file),
             "MRS_BOT_SCRIPT": str(fake_bot),
             "MRS_RESTART_SLEEP_SECONDS": "0.05",
+            "MRS_FAST_FAILURE_WINDOW_SECONDS": "10",
+            "MRS_MAX_CONSECUTIVE_FAST_FAILURES": "50",
             "MRS_FAKE_COUNT_FILE": str(count_file),
         }
     )
@@ -2227,6 +2326,103 @@ def test_launcher_restarts_after_child_exits_nonzero(tmp_path: Path) -> None:
             proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+
+def test_launcher_surfaces_child_output_and_exits_after_fast_failure_limit(
+    tmp_path: Path,
+) -> None:
+    work_dir = tmp_path / "launcher-work"
+    work_dir.mkdir()
+    env_file = tmp_path / "empty.env"
+    env_file.write_text("", encoding="utf-8")
+    count_file = tmp_path / "count.txt"
+    fake_bot = tmp_path / "fake-bot.sh"
+    fake_bot.write_text(
+        "#!/bin/bash\n"
+        "count=0\n"
+        "if [[ -f \"$MRS_FAKE_COUNT_FILE\" ]]; then count=$(cat \"$MRS_FAKE_COUNT_FILE\"); fi\n"
+        "count=$((count + 1))\n"
+        "echo \"$count\" > \"$MRS_FAKE_COUNT_FILE\"\n"
+        "echo \"child stdout $count\"\n"
+        "echo \"child stderr $count\" >&2\n"
+        "exit 7\n",
+        encoding="utf-8",
+    )
+    fake_bot.chmod(0o755)
+
+    env = base_test_env()
+    env.update(
+        {
+            "MRS_WORK_DIR": str(work_dir),
+            "MRS_ENV_FILE": str(env_file),
+            "MRS_BOT_SCRIPT": str(fake_bot),
+            "MRS_RESTART_SLEEP_SECONDS": "0.01",
+            "MRS_FAST_FAILURE_WINDOW_SECONDS": "10",
+            "MRS_MAX_CONSECUTIVE_FAST_FAILURES": "3",
+            "MRS_FAKE_COUNT_FILE": str(count_file),
+        }
+    )
+
+    result = subprocess.run(
+        [str(ROOT / "runMrsMThatcher2")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 7
+    assert count_file.read_text(encoding="utf-8").strip() == "3"
+    assert "child stdout 1" in result.stdout
+    assert "child stdout 3" in result.stdout
+    assert "child stderr 1" in result.stderr
+    assert "child stderr 3" in result.stderr
+    assert "fast failure limit 3/3 reached" in result.stderr
+    assert "exiting launcher for systemd restart" in result.stderr
+
+
+def test_launcher_treats_repeated_fast_clean_exits_as_unhealthy(
+    tmp_path: Path,
+) -> None:
+    work_dir = tmp_path / "launcher-work"
+    work_dir.mkdir()
+    env_file = tmp_path / "empty.env"
+    env_file.write_text("", encoding="utf-8")
+    fake_bot = tmp_path / "fake-bot.sh"
+    fake_bot.write_text(
+        "#!/bin/bash\n"
+        "echo \"unexpected clean exit\"\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_bot.chmod(0o755)
+    env = base_test_env()
+    env.update(
+        {
+            "MRS_WORK_DIR": str(work_dir),
+            "MRS_ENV_FILE": str(env_file),
+            "MRS_BOT_SCRIPT": str(fake_bot),
+            "MRS_RESTART_SLEEP_SECONDS": "0.01",
+            "MRS_FAST_FAILURE_WINDOW_SECONDS": "10",
+            "MRS_MAX_CONSECUTIVE_FAST_FAILURES": "2",
+        }
+    )
+
+    result = subprocess.run(
+        [str(ROOT / "runMrsMThatcher2")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stdout.count("unexpected clean exit") == 2
+    assert "fast failure limit 2/2 reached" in result.stderr
 
 
 def test_launcher_setup_failure_exits_before_starting_child(tmp_path: Path) -> None:
@@ -2264,17 +2460,75 @@ def test_launcher_setup_failure_exits_before_starting_child(tmp_path: Path) -> N
     assert not count_file.exists()
 
 
-def test_launcher_matches_master_on_promotion_branch() -> None:
-    branch = subprocess.check_output(
-        ["git", "branch", "--show-current"],
-        cwd=ROOT,
-        text=True,
-    ).strip()
-    if branch == "master":
-        pytest.skip("promotion-branch launcher parity check is not meaningful on master")
+@pytest.mark.parametrize(
+    ("env_line", "expected_error"),
+    [
+        (
+            "MRS_FAST_FAILURE_WINDOW_SECONDS=0\n",
+            "MRS_FAST_FAILURE_WINDOW_SECONDS must be a positive integer",
+        ),
+        (
+            "MRS_MAX_CONSECUTIVE_FAST_FAILURES=not-an-integer\n",
+            "MRS_MAX_CONSECUTIVE_FAST_FAILURES must be a positive integer",
+        ),
+        (
+            "MRS_RESTART_SLEEP_SECONDS=-1\n",
+            "MRS_RESTART_SLEEP_SECONDS must be a non-negative number",
+        ),
+    ],
+)
+def test_launcher_validates_effective_settings_loaded_from_env_file(
+    tmp_path: Path,
+    env_line: str,
+    expected_error: str,
+) -> None:
+    work_dir = tmp_path / "launcher-work"
+    work_dir.mkdir()
+    env_file = tmp_path / "launcher.env"
+    env_file.write_text(env_line, encoding="utf-8")
+    count_file = tmp_path / "count.txt"
+    fake_bot = tmp_path / "fake-bot.sh"
+    fake_bot.write_text(
+        "#!/bin/bash\n"
+        "echo started >> \"$MRS_FAKE_COUNT_FILE\"\n",
+        encoding="utf-8",
+    )
+    fake_bot.chmod(0o755)
+
+    env = base_test_env()
+    env.update(
+        {
+            "MRS_WORK_DIR": str(work_dir),
+            "MRS_ENV_FILE": str(env_file),
+            "MRS_BOT_SCRIPT": str(fake_bot),
+            "MRS_FAKE_COUNT_FILE": str(count_file),
+        }
+    )
+    for name in (
+        "MRS_RESTART_SLEEP_SECONDS",
+        "MRS_FAST_FAILURE_WINDOW_SECONDS",
+        "MRS_MAX_CONSECUTIVE_FAST_FAILURES",
+    ):
+        env.pop(name, None)
 
     result = subprocess.run(
-        ["git", "diff", "--exit-code", "master", "--", "runMrsMThatcher2"],
+        [str(ROOT / "runMrsMThatcher2")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert expected_error in result.stderr
+    assert not count_file.exists()
+
+
+def test_launcher_has_valid_shell_syntax() -> None:
+    result = subprocess.run(
+        ["bash", "-n", str(ROOT / "runMrsMThatcher2")],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -2282,7 +2536,7 @@ def test_launcher_matches_master_on_promotion_branch() -> None:
         check=False,
     )
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.returncode == 0, result.stderr
 
 
 def test_malformed_quote_tweet_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
@@ -2927,11 +3181,12 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
         result = run_cycle(base_dir, server)
         assert result.returncode != 0
         assert server.posts == []
-        assert "Ignoring unsupported local config key" in result.stdout
+        assert "Unsupported local config key" in result.stdout
+        assert "refusing to ignore a possible safety-setting typo" in result.stdout
         assert "Ignoring invalid local config override ENABLE_AUTO_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MAX_MENTIONS_PER_CHECK" in result.stdout
-        assert "Invalid local config" in result.stderr
+        assert "LocalConfigError: Unsupported local config key" in result.stderr
         assert (base_dir / "bot_state.json").read_bytes() == state_before
     finally:
         server.stop()

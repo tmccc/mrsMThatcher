@@ -20,6 +20,30 @@ from shadow_lifecycle import (
 
 ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "semantic_alignment_research" / "quote_research_full_001"
+RUNTIME_ELIGIBILITY_MANIFEST = (
+    ROOT
+    / "semantic_alignment_research"
+    / "quote_attribution_cleanup_001"
+    / "deployment_candidate"
+    / "runtime_eligible_quote_manifest.json"
+)
+
+
+def _configure_runtime_eligibility_assets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", RESEARCH)
+    monkeypatch.setattr(
+        bot,
+        "COMPLETED_QUOTE_RESEARCH_FILE",
+        RESEARCH / "research_packets.json",
+    )
+    monkeypatch.setattr(bot, "LINES_FILE", ROOT / "mrsMThatcher.txt")
+    monkeypatch.setattr(
+        bot,
+        "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE",
+        RUNTIME_ELIGIBILITY_MANIFEST,
+    )
 
 
 def test_lifecycle_register_has_the_four_evidence_led_states() -> None:
@@ -66,12 +90,10 @@ def test_uncertain_packet_remains_available_to_explicit_context_formatter() -> N
     assert "Verification: Exact wording not verified" in result["text"]
 
 
-def test_runtime_regular_post_gate_uses_all_610_attribution_eligible_quotes(
+def test_runtime_regular_post_gate_uses_all_611_attribution_eligible_quotes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        bot, "COMPLETED_QUOTE_RESEARCH_FILE", RESEARCH / "research_packets.json"
-    )
+    _configure_runtime_eligibility_assets(monkeypatch)
     eligible = bot.completed_research_quote_hashes()
     assert len(eligible) == 611
 
@@ -92,9 +114,7 @@ def test_exact_65_withdrawn_wording_exclusions_are_restored(
     )
     assert fixture["quote_count"] == len(restored) == 65
     assert restored <= source_ids
-    monkeypatch.setattr(
-        bot, "COMPLETED_QUOTE_RESEARCH_FILE", RESEARCH / "research_packets.json"
-    )
+    _configure_runtime_eligibility_assets(monkeypatch)
     assert restored <= bot.completed_research_quote_hashes()
 
     packets = json.loads((RESEARCH / "research_packets.json").read_text(encoding="utf-8"))["items"]
@@ -121,17 +141,12 @@ def test_exact_65_withdrawn_wording_exclusions_are_restored(
     ).items())) == fixture["research_confidence_counts"]
 
 
-def test_restored_610_quote_cycle_histories_do_not_false_exhaust_or_write_receipts(
+def test_restored_611_quote_cycle_histories_do_not_false_exhaust_or_write_receipts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(bot, "LINES_FILE", ROOT / "mrsMThatcher.txt")
+    _configure_runtime_eligibility_assets(monkeypatch)
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", ROOT / "quote_analysis.json")
-    monkeypatch.setattr(
-        bot,
-        "COMPLETED_QUOTE_RESEARCH_FILE",
-        ROOT / "semantic_alignment_research" / "quote_research_full_001" / "research_packets.json",
-    )
     eligible = bot.completed_research_quote_hashes()
     assert len(eligible) == 611
 

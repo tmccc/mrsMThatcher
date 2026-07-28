@@ -10,6 +10,7 @@ import pytest
 from historical_context_formatter import (
     format_context_reply_public,
     load_and_validate_corpus,
+    load_and_validate_corpus_core,
 )
 from historical_context_packet_corrections import (
     PACKET_CORRECTIONS_FILENAME,
@@ -134,6 +135,16 @@ def test_runtime_loader_applies_104653_correction_after_audit_attachment():
     assert "historical_context" not in packet["_source_role_audit"][
         "public_context_supported_fields"
     ]
+
+
+def test_core_loader_returns_validated_raw_corpus_without_context_sidecars():
+    packets, unresolved = load_and_validate_corpus_core(RESEARCH_DIR)
+
+    assert len(packets) == 627
+    assert len(unresolved) == 5
+    assert set(packets).isdisjoint(unresolved)
+    assert "_source_role_audit" not in packets[QUOTE_ID]
+    assert packets[QUOTE_ID]["intended_argument"] != CORRECTED_MEANING
 
 
 @pytest.mark.parametrize(

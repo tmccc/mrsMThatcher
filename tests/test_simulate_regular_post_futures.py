@@ -43,6 +43,28 @@ def build_simulator_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:
     (snapshot / "research_packets.json").symlink_to(
         ROOT / "semantic_alignment_research/quote_research_full_001/research_packets.json"
     )
+    (snapshot / "corpus_manifest.json").symlink_to(
+        ROOT
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+        / "corpus_manifest.json"
+    )
+    final_unresolved = snapshot / "final_unresolved"
+    final_unresolved.mkdir()
+    (final_unresolved / "final_research_status.json").symlink_to(
+        ROOT
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+        / "final_unresolved"
+        / "final_research_status.json"
+    )
+    (snapshot / "runtime_eligible_quote_manifest.json").symlink_to(
+        ROOT
+        / "semantic_alignment_research"
+        / "quote_attribution_cleanup_001"
+        / "deployment_candidate"
+        / "runtime_eligible_quote_manifest.json"
+    )
     (snapshot / "images").symlink_to(ROOT / "images", target_is_directory=True)
     (snapshot / "generated_images").symlink_to(
         ROOT / "generated_review_approved_images",
@@ -71,6 +93,8 @@ def simulator_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:
 def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
     touched = set(bot.LOCAL_CONFIG_ALLOWED_KEYS) | {
         "LINES_FILE", "QUOTE_ANALYSIS_FILE", "IMAGE_ANALYSIS_FILE", "GENERATED_IMAGE_ANALYSIS_FILE",
+        "HISTORICAL_CONTEXT_RESEARCH_DIR", "COMPLETED_QUOTE_RESEARCH_FILE",
+        "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE",
         "IMAGE_GLOB", "GENERATED_IMAGE_DIR", "GENERATED_IMAGE_GLOB", "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
         "GENERATED_IDENTITY_AUDIT_FILE", "STATE_FILE", "IMAGES_USED_FILE", "LINES_USED_FILE",
         "REGULAR_POST_RECEIPT_FILE", "MEME_POST_RECEIPT_FILE", "CONFIRMED_REPLY_RECEIPT_FILE", "LOCK_FILE",
@@ -81,6 +105,7 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
         "write_meme_post_receipt", "write_confirmed_reply_receipt", "remove_regular_post_receipt",
         "remove_meme_post_receipt", "remove_confirmed_reply_receipt", "atomic_write_json", "save_used_set",
         "save_quote_used_hashes", "save_image_used_basenames", "save_state",
+        "completed_research_quote_hashes",
     }
     original = {name: getattr(bot, name) for name in touched}
     request_names = ("request", "get", "post", "put", "patch", "delete")
@@ -88,6 +113,18 @@ def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
     rng_state = bot.random.getstate()
     try:
         sim.apply_snapshot_config(bot, snapshot)
+        bot.LINES_FILE = snapshot / "mrsMThatcher.txt"
+        bot.HISTORICAL_CONTEXT_RESEARCH_DIR = snapshot
+        bot.COMPLETED_QUOTE_RESEARCH_FILE = snapshot / "research_packets.json"
+        bot.RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE = (
+            snapshot / "runtime_eligible_quote_manifest.json"
+        )
+        validated_eligible_ids = frozenset(
+            bot.load_completed_research_quote_hashes()
+        )
+        bot.completed_research_quote_hashes = (
+            lambda: set(validated_eligible_ids)
+        )
         yield bot
     finally:
         for name, value in original.items():
@@ -136,7 +173,21 @@ def configure_real_selector(
         monkeypatch.setattr(bot, key, value)
     monkeypatch.setattr(bot, "LINES_FILE", snapshot / "mrsMThatcher.txt")
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", snapshot / "quote_analysis.json")
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", snapshot)
     monkeypatch.setattr(bot, "COMPLETED_QUOTE_RESEARCH_FILE", snapshot / "research_packets.json")
+    monkeypatch.setattr(
+        bot,
+        "RUNTIME_ELIGIBLE_QUOTE_MANIFEST_FILE",
+        snapshot / "runtime_eligible_quote_manifest.json",
+    )
+    validated_eligible_ids = frozenset(
+        bot.load_completed_research_quote_hashes()
+    )
+    monkeypatch.setattr(
+        bot,
+        "completed_research_quote_hashes",
+        lambda: set(validated_eligible_ids),
+    )
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", snapshot / "image_analysis.json")
     monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(snapshot / "generated_image_analysis.json"))
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(snapshot / "images" / "t*"))

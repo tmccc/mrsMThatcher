@@ -125,6 +125,93 @@ def test_successful_output_advances_resume_once(tmp_path, monkeypatch):
     assert len(calls) == 1 and (project / ".resume.json").exists()
 
 
+def test_resume_preserves_in_flight_provider_call_until_usage_arrives(tmp_path):
+    project, _names = pool(tmp_path, 2)
+    log = project / "mrsMThatcher.log"
+    state = project / ".resume.json"
+    first_json = project / "first.json"
+    second_json = project / "second.json"
+
+    def row(ts: datetime, source: str, message: str) -> str:
+        return (
+            f"{ts.strftime('%Y-%m-%d %H:%M:%S')} INFO     "
+            f"{source}:1 - {message}\n"
+        )
+
+    start = datetime(2026, 7, 28, 14)
+    log.write_text(
+        row(
+            start,
+            "maybe_reply_to_mentions",
+            "Considering mention id=505 author_id=606 text='fixture'",
+        )
+        + row(
+            start + timedelta(seconds=1),
+            "xai_structured_reply_call",
+            "Calling AI-first reply stage=proposer model=grok-4.3",
+        ),
+        encoding="utf-8",
+    )
+    common_args = [
+        "--project-dir", str(project),
+        "--state-file", state.name,
+        str(log),
+    ]
+
+    assert digest.main([
+        *common_args,
+        "--output", str(project / "first.md"),
+        "--json-output", str(first_json),
+    ]) == 0
+    saved = json.loads(state.read_text(encoding="utf-8"))
+    assert saved["last_active_xai_call_attempt"] == {
+        "time": "2026-07-28 14:00:01",
+        "lane": "mention",
+        "context_id": "505",
+        "author_id": "606",
+        "stage": "proposer",
+        "model": "grok-4.3",
+        "usage_observed": False,
+    }
+
+    with log.open("a", encoding="utf-8") as handle:
+        handle.write(
+            row(
+                start + timedelta(seconds=2),
+                "xai_structured_reply_call",
+                "xAI reply stage=proposer usage={'total_tokens': 100, "
+                "'cost_in_usd_ticks': 10000000}",
+            )
+            + row(
+                start + timedelta(seconds=3),
+                "log_event",
+                'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+                '"target_id":"505","status":"no_reply","mode":"no_reply",'
+                '"model_call_count":1,"reason":"not_warranted"}',
+            )
+        )
+
+    assert digest.main([
+        *common_args,
+        "--output", str(project / "second.md"),
+        "--json-output", str(second_json),
+    ]) == 0
+    report = json.loads(second_json.read_text(encoding="utf-8"))
+    usage = report["xai_usage"]
+
+    assert usage["events"][0]["call_start_matched"] is True
+    assert usage["events"][0]["model"] == "grok-4.3"
+    assert usage["call_attempts"][0]["usage_observed"] is True
+    assert usage["cost_summary"]["coverage_complete"] is True
+    assert usage["cost_summary"]["unmatched_successful_call_count"] == 0
+    assert (
+        json.loads(state.read_text(encoding="utf-8"))[
+            "last_active_xai_call_attempt"
+        ]
+        is None
+    )
+
+
 def test_invalid_persisted_resume_timestamp_warns_and_recovers(tmp_path, capsys):
     project, log = project_with_log(tmp_path)
     state = project / ".resume.json"

@@ -889,6 +889,52 @@ def test_conversational_ai_missing_usage_and_cost_are_not_reported_as_zero():
     assert "| unavailable | 0 | reviewer | grok-4.3 | unavailable |" in rendered
 
 
+def test_conversational_usage_without_matching_call_start_is_incomplete():
+    records = [
+        digest.Record(
+            datetime(2026, 7, 28, 14), "INFO", "maybe_reply_to_mentions", 1,
+            "Considering mention id=505 author_id=606 text='fixture'",
+            "mrsMThatcher.log", 1,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 14, 0, 1), "INFO", "ask_grok_for_reply", 2,
+            "Asking Grok for reply. context fixture",
+            "mrsMThatcher.log", 2,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 14, 0, 2), "INFO", "xai_structured_reply_call", 3,
+            "xAI reply stage=proposer usage={'total_tokens': 100, "
+            "'cost_in_usd_ticks': 10000000}",
+            "mrsMThatcher.log", 3,
+        ),
+        digest.Record(
+            datetime(2026, 7, 28, 14, 0, 3), "INFO", "log_event", 4,
+            'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+            '"target_id":"505","status":"no_reply","mode":"no_reply",'
+            '"model_call_count":1,"reason":"not_warranted"}',
+            "mrsMThatcher.log", 4,
+        ),
+    ]
+
+    report = digest.analyse(records)
+    usage_event = report["xai_usage"]["events"][0]
+    summary = report["xai_usage"]["cost_summary"]
+    candidate = summary["candidates"][0]
+
+    assert usage_event["call_start_matched"] is False
+    assert summary["coverage_complete"] is False
+    assert summary["unmatched_successful_call_count"] == 1
+    assert candidate["unmatched_successful_calls"] == 1
+    assert candidate["call_coverage"] == "successful_usage_without_call_start"
+    assert (
+        "one or more successful usage records lack a matching provider call start"
+        in summary["coverage_reasons"]
+    )
+    rendered = digest.render_markdown(report)
+    assert "successful_usage_without_call_start" in rendered
+    assert "Known provider-reported cost (lower bound)" in rendered
+
+
 def test_xai_stage_and_usd_helpers_are_deterministic():
     assert (
         digest.xai_usage_stage_from_msg(
