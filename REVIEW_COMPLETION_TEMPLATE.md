@@ -15,6 +15,8 @@ complete merely because a patch-specific test passes. Delete no section; write
 - Semantic-attestation SHA-256:
 - Worktree clean at start and end:
 - Candidate file hashes unchanged during review:
+- Ledger evidence cut-off and supplied-base equality:
+- Previous candidate identity, if this is a follow-up:
 
 ## Deployed and runtime identity
 
@@ -75,6 +77,8 @@ Additional failure boundaries injected:
 ### Focused validation
 
 - Exact commands:
+- Changed Python files compiled:
+- `git diff --check` result:
 - Passed/failed/skipped/error counts:
 - Output SHA-256 values:
 - Network-denial mechanism:
@@ -94,6 +98,11 @@ Additional failure boundaries injected:
 - Output SHA-256:
 - OS-level network isolation:
 - Candidate unchanged after suite:
+- Every skipped node/reason/invariant disposition reviewed:
+- Warning categories, fingerprints and counts reviewed:
+- Structured pytest sidecar SHA-256:
+- Undeclared project import violations:
+- Attested dependency origins and versions:
 
 ### Generated-artifact relationships
 
@@ -102,6 +111,9 @@ Additional failure boundaries injected:
 - Output hashes checked:
 - Counts and projections reproduced:
 - Relationship validators:
+- Direct companion hash/count/policy/generation checks:
+- Historical/build-time classifications and loader evidence:
+- Advisory pin classifications and code evidence:
 - Unreproduced or non-atomic relationships:
 
 ## Independent-review findings

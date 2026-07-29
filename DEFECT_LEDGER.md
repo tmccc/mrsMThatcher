@@ -7,39 +7,40 @@ characters unless the JSON value is the literal `unknown`. No status,
 chronology, test, fix, deployment claim, or residual-risk conclusion should be
 maintained independently in this file.
 
-Purpose: durable current-master inventory for the ten 28 July diagnosis
+Purpose: evidence-cut-off-bound inventory for the ten 28 July diagnosis
 findings and directly related established gaps.
 
-## Baseline
+## Identity and evidence boundary
 
-- Current master: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
-- Current master tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
-- Observed production: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
-- Production observation: `2026-07-28T23:40:14+01:00`
-- Observation source: the authoritative
-  `production_deployments/20260728T204234Z-production-hardening` validation and
-  deployment report, plus a fresh read-only Git, installed-file hash and
-  process preflight.
-- Installed SHA-256: `mrsMThatcher2.py`
-  `0f72fd3d5e63995d150e90d5875abedd65a1ee14cfe3467f7a555771dd23e775`;
-  wrapper
-  `524d28b24c76343147815c340f9d656f12d7ef2cba7cde18110a24e120e039dd`.
-  Both match the `be882e81` production checkout.
-- Process observation: wrapper PID 3945677 and child PID 3945679 have run
-  since 21:46:22 with `NRestarts=0`.
-- Freshness warning: production is mutable. Recheck the deployed commit, exact
-  installed hashes and loaded child before relying on any deployment status.
+- Production baseline commit: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
+- Production baseline tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
+- Ledger evidence cut-off commit: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
+- Ledger evidence cut-off tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
+- Evidence valid through: `2026-07-28`
+- Baseline/cut-off relationship: None: the initial evidence cut-off is the same commit and tree as the recorded production baseline.
+- Status-claim boundary: Every active, fixed, deployed and verified status in this ledger is an evidence claim valid only through this commit and tree. It does not describe a later candidate or later master without regeneration.
+- Candidate identity source: `external-release-attestation`; stored in ledger: `false`
+- Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
+- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger, avoiding a self-referential final-commit hash.
+- Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
+- Production observation time: `2026-07-28T23:40:14+01:00`
+- Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
+- Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
+- Post-merge regeneration required: `true`
+- Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation.
 
 ## Status taxonomy
 
-- `active`: the defect is present on current master and its affected path or
-  control is currently usable; no verified repair is recorded.
-- `latent-disabled`: the unsafe implementation is present in the observed
-  deployed or current-master path, but the affected optional feature or
-  enforcement mode is documented as disabled; enabling it requires closure
-  first.
-- `repaired-not-deployed`: current master contains a reviewed regression and
-  repair, but the latest recorded production observation predates that repair.
+- `active`: at the ledger evidence cut-off, the defect is present and its
+  affected path or control is usable; no verified repair is recorded.
+- `latent-disabled`: at the ledger evidence cut-off or recorded deployment
+  observation, the unsafe implementation is present but the affected optional
+  feature or enforcement mode is documented as disabled; enabling it requires
+  closure first.
+- `repaired-not-deployed`: the repair is present by the ledger evidence
+  cut-off, but the latest recorded production deployment observation predates
+  that repair.
 - `deployed-unverified`: the repair is present in the observed production
   commit, but recorded post-deployment evidence does not exercise enough
   defect-specific behavior to call it verified.
@@ -75,8 +76,9 @@ deployment.
 | Test isolation | `DEF-0011` |
 | Test fixtures | `DEF-0012` |
 
-`DEF-0013` through `DEF-0017` are directly related, established gaps that
-remain relevant at current master.
+`DEF-0013` through `DEF-0017` are directly related, established gaps recorded
+at the ledger evidence cut-off. Their status must be regenerated before this
+ledger is used against a later production baseline.
 
 ## Scope and incident classification
 
@@ -178,7 +180,7 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0014` | assurance-weakness | assurance | Final validation is not bound to a frozen candidate tree and artifact inventory | `INV-REL-001`, `INV-ART-001` | unknown | unfixed | not applicable |
 | `DEF-0015` | active | medium | Process health does not expose the loaded commit and artifact generation identity | `INV-PROC-004`, `INV-ART-001` | `2179d71e`, bounded | unfixed | observed in production `be882e81` |
 | `DEF-0016` | latent-disabled | medium | Semantic-veto manifest pins a multi-purpose formatter as its attribution predicate | `INV-VETO-001`, `INV-ART-001` | `2220df1e` | unfixed | enforcement unsupported; shadow only |
-| `DEF-0017` | active | high | Duplicate JSON object names remain last-wins in safety documents | `INV-CONFIG-001`, `INV-PAUSE-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | unfixed | observed in production `be882e81` |
+| `DEF-0017` | active | high | Duplicate JSON object names remain last-wins in safety documents | `INV-CONFIG-001`, `INV-PAUSE-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | unfixed | present in observed production and at evidence cut-off |
 
 ## Records
 
@@ -437,8 +439,9 @@ attested release.
 
 ### DEF-0015 — Loaded generation identity
 
-Current master improves liveness but startup and health evidence still do not
-identify the loaded Git tree and generated generation cryptographically.
+At the ledger evidence cut-off, liveness is improved but startup and health
+evidence still do not identify the loaded Git tree and generated generation
+cryptographically.
 
 The wrapper has lacked that identity since at least `2179d71e`; no earlier
 audited last-known-good version is known. A read-only production preflight
@@ -459,9 +462,9 @@ enforcement design.
 
 ### DEF-0017 — Duplicate JSON names
 
-Python's default JSON decoder keeps the final duplicate name. Current master
-still uses it for local config and control, and related state/receipt readers
-share the risk.
+Python's default JSON decoder keeps the final duplicate name. At the ledger
+evidence cut-off it is still used for local config and control, and related
+state/receipt readers share the risk.
 
 Chronology:
 
@@ -473,9 +476,10 @@ Chronology:
   rejection did not land.
 
 A minimal reproducer is
-`{"disable_all":true,"disable_all":false}`. This remains active in observed
-production and current master. Closure requires one shared strict decoder plus
-mutation tests for all safety documents.
+`{"disable_all":true,"disable_all":false}`. This remained active in the
+recorded production observation and at the ledger evidence cut-off. Closure
+requires one shared strict decoder plus mutation tests for all safety
+documents.
 
 ## Unknown-value policy
 

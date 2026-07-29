@@ -11,6 +11,8 @@ Obtain these files from the release-gate output directory:
 - `semantic_attestation.json`;
 - `release_gate_run_receipt.json`;
 - `release_gate_report.md`;
+- `priority0_followup_report.md`;
+- `priority0_followup_final_validation.json`;
 - `source_diagnosis_original.md`;
 - `attestation_sha256_inventory.json`.
 
@@ -56,12 +58,21 @@ restart or signal a service, contact a provider, or make an X action.
 5. Identify omitted failure boundaries, especially uncertain remote outcomes,
    crashes between durable transitions, concurrent workers, stale locks,
    pagination tails, cursor provenance and optional-work failures.
-6. Verify focused and complete-suite commands, the isolated content-bound
-   Python environment, OS-level network denial, user-service socket masking,
-   sealed output hashes and candidate-before/after identity.
+6. Verify the changed-Python compilation and whitespace gates, focused and
+   complete-suite commands, every structured skip and warning disposition, the
+   sanitised content-bound Python environment, OS-level network denial,
+   user-service socket masking, sealed output hashes and
+   candidate-before/after identity. Confirm no unrelated editable source tree
+   is present in the attested import roots or loaded-module origins.
 7. Reconcile the current defect ledger with Git history and deployment
-   evidence. Challenge unsupported `fixed`, `deployed` or `verified` claims.
-8. Complete `REVIEW_COMPLETION_TEMPLATE.md`, clearly identifying explicit
+   evidence. Verify that its evidence cut-off equals the supplied release base
+   and challenge unsupported or stale `fixed`, `deployed` or `verified`
+   claims.
+8. Reproduce every direct generated-artifact companion relationship and
+   independently challenge every advisory/historical classification. In
+   particular, verify from loaders—not labels—that the retained v3 shadow
+   audit is historical build evidence rather than a current runtime companion.
+9. Complete `REVIEW_COMPLETION_TEMPLATE.md`, clearly identifying explicit
    exclusions, residual risks and whether the evidence supports only a
    patch-local, subsystem-level or system-wide conclusion.
 

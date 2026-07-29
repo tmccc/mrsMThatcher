@@ -1,15 +1,51 @@
 {
   "$schema": "./defect_ledger.schema.json",
-  "schema_version": 1,
-  "ledger_id": "mrsMThatcher-current-master-defects",
+  "schema_version": 2,
+  "ledger_id": "mrsMThatcher-defect-evidence-ledger",
   "as_of": "2026-07-28",
-  "baseline": {
-    "current_master_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-    "current_master_tree": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
-    "observed_production_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-    "production_observed_at": "2026-07-28T23:40:14+01:00",
-    "production_observation_source": "Authoritative production_deployments/20260728T204234Z-production-hardening records plus a fresh read-only production Git, installed-file hash and process preflight. Production HEAD/origin match be882e81. Installed mrsMThatcher2.py SHA-256 is 0f72fd3d5e63995d150e90d5875abedd65a1ee14cfe3467f7a555771dd23e775 and wrapper SHA-256 is 524d28b24c76343147815c340f9d656f12d7ef2cba7cde18110a24e120e039dd, exactly matching that checkout; wrapper PID 3945677 and child PID 3945679 have run since 21:46:22 with NRestarts=0.",
-    "freshness_warning": "Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status."
+  "identity_scope": {
+    "production_baseline": {
+      "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "tree": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
+      "role": "Historical production and master state against which the defect records and invariant references were established."
+    },
+    "ledger_evidence_cutoff": {
+      "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "tree": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
+      "as_of": "2026-07-28",
+      "difference_from_production_baseline": "None: the initial evidence cut-off is the same commit and tree as the recorded production baseline.",
+      "meaning": "Every active, fixed, deployed and verified status in this ledger is an evidence claim valid only through this commit and tree. It does not describe a later candidate or later master without regeneration."
+    },
+    "candidate_under_review": {
+      "identity_source": "external-release-attestation",
+      "stored_in_ledger": false,
+      "required_attestation_fields": [
+        "base_commit",
+        "candidate_commit",
+        "candidate_tree"
+      ],
+      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger, avoiding a self-referential final-commit hash."
+    },
+    "production_deployment_observation": {
+      "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+      "repository_tree": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
+      "observed_at": "2026-07-28T23:40:14+01:00",
+      "source": "Authoritative production_deployments/20260728T204234Z-production-hardening records plus a fresh read-only production Git, installed-file hash and process preflight. Production HEAD/origin match be882e81. Installed mrsMThatcher2.py SHA-256 is 0f72fd3d5e63995d150e90d5875abedd65a1ee14cfe3467f7a555771dd23e775 and wrapper SHA-256 is 524d28b24c76343147815c340f9d656f12d7ef2cba7cde18110a24e120e039dd, exactly matching that checkout; wrapper PID 3945677 and child PID 3945679 have run since 21:46:22 with NRestarts=0.",
+      "loaded_process_identity_status": "installed-files-observed-process-commit-unattested",
+      "loaded_process_identity_explanation": "Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.",
+      "freshness_warning": "Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status."
+    },
+    "post_merge_regeneration": {
+      "required": true,
+      "release_base_must_equal_evidence_cutoff": true,
+      "triggers": [
+        "production-baseline-advanced",
+        "defect-status-changed",
+        "invariant-status-changed",
+        "deployment-evidence-changed"
+      ],
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation."
+    }
   },
   "external_evidence": [
     {
@@ -32,9 +68,9 @@
     }
   ],
   "status_taxonomy": {
-    "active": "The defect is present on current master and its affected path or control is currently usable; no verified repair is recorded.",
-    "latent-disabled": "The unsafe implementation is present in the observed deployed or current-master path, but the affected optional feature or enforcement mode is documented as disabled; enabling it requires closure first.",
-    "repaired-not-deployed": "Current master contains a reviewed regression and repair, but the latest recorded production observation predates that repair.",
+    "active": "At the ledger evidence cut-off, the defect is present and its affected path or control is usable; no verified repair is recorded.",
+    "latent-disabled": "At the ledger evidence cut-off or recorded deployment observation, the unsafe implementation is present but the affected optional feature or enforcement mode is documented as disabled; enabling it requires closure first.",
+    "repaired-not-deployed": "The repair is present by the ledger evidence cut-off, but the latest recorded production deployment observation predates that repair.",
     "deployed-unverified": "The repair is present in the observed production commit, but the recorded post-deployment evidence does not exercise enough of the defect-specific behavior to call the repair deployed-verified.",
     "deployed-verified": "The repair is present in the observed production commit and post-deployment evidence verifies the relevant behavior, not merely commit ancestry.",
     "assurance-weakness": "The record concerns test, fixture, review, release or containment evidence rather than a demonstrated bot-runtime misbehavior.",
@@ -42,7 +78,7 @@
   },
   "markdown": {
     "title": "MrsMThatcher defect ledger",
-    "purpose": "Durable current-master inventory for the ten 28 July diagnosis findings and directly related established gaps.",
+    "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related established gaps.",
     "source_of_truth": "defect_ledger.json",
     "sort_key": "id",
     "unknown_policy": "Render the literal word unknown and its recorded explanation; never infer a missing commit, deployment or test.",
@@ -645,7 +681,7 @@
         "date": "2026-07-28",
         "reviewed_revision": "e5cd1ef336ed083c4e0ed4b35ec54830a94fec77",
         "scope": "Combined diagnosis summary of startup local configuration and live control-file safety keys.",
-        "exclusions": "Duplicate JSON-key handling is a separate current-master gap in DEF-0017.",
+        "exclusions": "Duplicate JSON-key handling is a separate gap recorded at the same evidence cut-off in DEF-0017.",
         "source": "why_code_reviews_continue_to_find_major_problems.md"
       },
       "detection": {
@@ -803,7 +839,7 @@
         "observed_at": "2026-07-28T23:40:14+01:00",
         "evidence": "The exact be882e81 source is installed and runtime bootstrap passed, but no post-deployment adversarial unknown local-config key was applied; atomic rejection is not operationally exercised."
       },
-      "residual_risk": "Duplicate JSON keys remain last-wins on current master under DEF-0017.",
+      "residual_risk": "Duplicate JSON keys remain last-wins at the ledger evidence cut-off under DEF-0017.",
       "evidence": [
         {
           "type": "code",
@@ -1558,7 +1594,7 @@
         "evidence": "This record documents an absent test-host containment layer; no production bot action is attributed to it.",
         "explanation": "The assurance gap exists, but the ledger has no test-egress incident claim."
       },
-      "summary": "Current master guards sockets in the pytest Python process and passes dead proxy defaults, but an arbitrary child can ignore Python monkeypatches and proxy variables.",
+      "summary": "At the ledger evidence cut-off, pytest guards sockets in its Python process and passes dead proxy defaults, but an arbitrary child can ignore Python monkeypatches and proxy variables.",
       "impact": "A future subprocess test could reach external or live resources despite the parent suite's green network-safety tests.",
       "introduced": {
         "first_bad_commit": "unknown",
@@ -1777,7 +1813,7 @@
         "evidence": "Fresh preflight matched current installed source and wrapper hashes, but the application still emits no loaded-generation identity.",
         "explanation": "The present bytes match; historical disk/process generation mismatches cannot be ruled in or out from current health evidence."
       },
-      "summary": "Current master improves crash-loop visibility but neither startup health nor the wrapper emits a cryptographically bound loaded Git tree and generated-artifact generation.",
+      "summary": "At the ledger evidence cut-off, crash-loop visibility is improved but neither startup health nor the wrapper emits a cryptographically bound loaded Git tree and generated-artifact generation.",
       "impact": "A service can run old imported code while disk files or symlinks point to a newer checkout, and an operator cannot prove the loaded generation from health evidence alone.",
       "introduced": {
         "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
@@ -1846,7 +1882,7 @@
         },
         {
           "field": "fix.commit",
-          "explanation": "No repair is present on current master."
+          "explanation": "No repair is present at the ledger evidence cut-off."
         }
       ],
       "relations": {
@@ -1953,7 +1989,7 @@
       "unknowns": [
         {
           "field": "fix.commit",
-          "explanation": "No narrow predicate extraction exists on current master."
+          "explanation": "No narrow predicate extraction exists at the ledger evidence cut-off."
         }
       ],
       "relations": {
@@ -2055,7 +2091,7 @@
         "state": "not-applicable",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "The defect exists in observed production be882e81 and current master; no repair deployment is applicable."
+        "evidence": "The defect exists in the observed production commit and ledger evidence cut-off be882e81; no repair deployment is applicable."
       },
       "residual_risk": "Active for control, local configuration and other state/receipt readers until one shared strict decoder is used and mutation-tested.",
       "evidence": [

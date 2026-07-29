@@ -6,9 +6,11 @@ from __future__ import annotations
 import argparse
 import ast
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import subprocess
 import sys
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -76,6 +78,41 @@ def load_json_document(path: Path) -> Any:
     """Load a UTF-8 JSON document without accepting trailing content."""
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def sha256_file(path: Path) -> str:
+    """Return the SHA-256 of one file without following registry indirection."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def git_blob_sha256(
+    repository_root: Path, commit: str, relative: str
+) -> tuple[str | None, str | None]:
+    """Hash one historical Git blob without changing repository state."""
+    if HEX40.fullmatch(commit) is None:
+        return None, "historical commit is malformed"
+    path, path_error = _safe_repository_path(repository_root, relative)
+    if path_error or path is None:
+        return None, path_error or "historical path is invalid"
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository_root),
+            "show",
+            f"{commit}:{relative}",
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode:
+        return None, "historical Git blob is unavailable"
+    return hashlib.sha256(result.stdout).hexdigest(), None
 
 
 def _json_type_matches(value: Any, expected: str) -> bool:
@@ -380,6 +417,98 @@ def render_markdown(registry: Mapping[str, Any]) -> str:
         )
         lines.append(f"| `{status}` | {_markdown_escape(meaning)} |")
 
+    classifications = registry.get("generated_artifact_classifications", [])
+    lines.extend(
+        [
+            "",
+            "## Generated-artifact classifications",
+            "",
+            "| ID | Artifact | Classification | Runtime relationship required | Current companion | Bound manifest |",
+            "|---|---|---|---:|---:|---|",
+        ]
+    )
+    for record in classifications:
+        if not isinstance(record, Mapping):
+            continue
+        lines.append(
+            f"| `{record.get('id', '')}` | `{record.get('artifact', '')}` | "
+            f"`{record.get('classification', '')}` | "
+            f"{'yes' if record.get('runtime_relationship_required') else 'no'} | "
+            f"{'yes' if record.get('current_companion') else 'no'} | "
+            f"`{record.get('bound_artifact_sha256', '')}` |"
+        )
+    for record in classifications:
+        if not isinstance(record, Mapping):
+            continue
+        lines.append(
+            f"\n- **{record.get('id', '')} rationale:** {record.get('reason', '')}"
+        )
+        lines.append(
+            f"- Observed current bound-artifact SHA-256: "
+            f"`{record.get('observed_current_bound_artifact_sha256', '')}`"
+        )
+        lines.append(
+            f"- Historical build commit: `{record.get('bound_commit', '')}`"
+        )
+        lines.append(
+            f"- Policy version: `{record.get('policy_version', '')}`; "
+            f"owner: `{record.get('owner', '')}`"
+        )
+        for label, field in (
+            ("Builder evidence", "builder_evidence"),
+            ("Runtime-loader evidence", "runtime_loader_evidence"),
+        ):
+            for evidence in record.get(field, []):
+                if not isinstance(evidence, Mapping):
+                    continue
+                lines.append(
+                    f"- {label}: `{evidence.get('type', '')}` "
+                    f"`{evidence.get('reference', '')}` — "
+                    f"{evidence.get('claim', '')}"
+                )
+        for nodeid in record.get("validator_tests", []):
+            lines.append(f"- Validator: `{nodeid}`")
+
+    expected_skips = registry.get("expected_full_suite_skips", [])
+    lines.extend(
+        [
+            "",
+            "## Expected complete-suite skips under outer containment",
+            "",
+            "These declarations apply only when the complete suite is already nested "
+            "inside the release gate's successfully preflighted containment. Any "
+            "unlisted skip, reason mismatch, or skip outside that environment remains "
+            "unexplained.",
+            "",
+            "| Test node | Reason code | Invariants | Blocks qualification |",
+            "|---|---|---|---:|",
+        ]
+    )
+    for record in expected_skips:
+        if not isinstance(record, Mapping):
+            continue
+        invariant_ids = ", ".join(
+            f"`{value}`" for value in record.get("invariant_ids", [])
+        )
+        lines.append(
+            f"| `{record.get('node_id', '')}` | `{record.get('reason_code', '')}` | "
+            f"{invariant_ids} | "
+            f"{'yes' if record.get('prevents_release_qualification') else 'no'} |"
+        )
+    for record in expected_skips:
+        if not isinstance(record, Mapping):
+            continue
+        lines.append(
+            f"\n- **{record.get('node_id', '')} condition:** "
+            f"`{record.get('condition', '')}`"
+        )
+        lines.append(
+            f"- Allowed reason regex: `{record.get('reason_regex', '')}`"
+        )
+        lines.append(f"- Justification: {record.get('justification', '')}")
+        lines.append(
+            f"- Compensating evidence: {record.get('compensating_evidence', '')}"
+        )
     implementation_counts = {
         status: sum(
             isinstance(item, Mapping) and item.get("implementation_status") == status
@@ -872,6 +1001,226 @@ def validate_registry(
                     errors.append(
                         f"{invariant_id}: command {command_index} must be one line"
                     )
+
+    runtime_artifact_declarations = {
+        str(artifact)
+        for invariant in invariants
+        if isinstance(invariant, Mapping)
+        for artifact_set in [invariant.get("runtime_consumed_artifacts", {})]
+        if isinstance(artifact_set, Mapping)
+        for artifact in artifact_set.get("artifacts", [])
+        if isinstance(artifact, str)
+    }
+    classification_ids: set[str] = set()
+    for index, record in enumerate(
+        registry.get("generated_artifact_classifications", [])
+    ):
+        if not isinstance(record, Mapping):
+            continue
+        record_id = str(record.get("id") or f"index-{index}")
+        if record_id in classification_ids:
+            errors.append(
+                "generated_artifact_classifications: duplicate classification ID "
+                f"{record_id}"
+            )
+        classification_ids.add(record_id)
+        artifact = record.get("artifact")
+        artifact_relative = artifact if isinstance(artifact, str) else ""
+        artifact_path, artifact_error = _safe_repository_path(
+            repository_root, artifact_relative
+        )
+        if artifact_error:
+            errors.append(f"{record_id}: {artifact_error}")
+            artifact_path = None
+        elif artifact_path is None or not artifact_path.is_file():
+            errors.append(f"{record_id}: classified artifact does not exist: {artifact}")
+            artifact_path = None
+        elif sha256_file(artifact_path) != record.get("artifact_sha256"):
+            errors.append(f"{record_id}: classified artifact SHA-256 mismatch")
+
+        bound_artifact = record.get("bound_artifact")
+        bound_value = bound_artifact if isinstance(bound_artifact, str) else ""
+        bound_path, bound_error = _safe_repository_path(
+            repository_root, bound_value
+        )
+        if bound_error:
+            errors.append(f"{record_id}: {bound_error}")
+            bound_path = None
+        elif bound_path is None or not bound_path.is_file():
+            errors.append(
+                f"{record_id}: current bound artifact does not exist: "
+                f"{bound_artifact}"
+            )
+            bound_path = None
+        elif sha256_file(bound_path) != record.get(
+            "observed_current_bound_artifact_sha256"
+        ):
+            errors.append(
+                f"{record_id}: observed current bound-artifact SHA-256 mismatch"
+            )
+
+        bound_commit = record.get("bound_commit")
+        if isinstance(bound_commit, str):
+            historical_artifact_sha, historical_artifact_error = git_blob_sha256(
+                repository_root,
+                bound_commit,
+                artifact_relative,
+            )
+            if historical_artifact_error:
+                errors.append(
+                    f"{record_id}: historical classified artifact cannot be "
+                    f"verified: {historical_artifact_error}"
+                )
+            elif historical_artifact_sha != record.get("artifact_sha256"):
+                errors.append(
+                    f"{record_id}: classified artifact differs from its recorded "
+                    "historical commit"
+                )
+            historical_bound_sha, historical_bound_error = git_blob_sha256(
+                repository_root,
+                bound_commit,
+                bound_value,
+            )
+            if historical_bound_error:
+                errors.append(
+                    f"{record_id}: historical bound artifact cannot be verified: "
+                    f"{historical_bound_error}"
+                )
+            elif historical_bound_sha != record.get("bound_artifact_sha256"):
+                errors.append(
+                    f"{record_id}: bound artifact SHA-256 differs from its "
+                    "recorded historical commit"
+                )
+
+        if record.get("classification") == "historical_build_time":
+            if record.get("runtime_relationship_required") is not False:
+                errors.append(
+                    f"{record_id}: historical build-time evidence cannot require "
+                    "a runtime relationship"
+                )
+            if record.get("current_companion") is not False:
+                errors.append(
+                    f"{record_id}: historical build-time evidence cannot be a "
+                    "current companion"
+                )
+            if artifact_relative in runtime_artifact_declarations:
+                errors.append(
+                    f"{record_id}: historical build-time evidence is also declared "
+                    "runtime-consumed"
+                )
+            if record.get("bound_artifact_sha256") == record.get(
+                "observed_current_bound_artifact_sha256"
+            ):
+                errors.append(
+                    f"{record_id}: historical build-time evidence unexpectedly "
+                    "matches the current bound artifact"
+                )
+        elif record.get("classification") == "direct_companion":
+            if record.get("runtime_relationship_required") is not True:
+                errors.append(
+                    f"{record_id}: direct companion must require a runtime relationship"
+                )
+            if record.get("current_companion") is not True:
+                errors.append(
+                    f"{record_id}: direct companion must be marked current"
+                )
+            if artifact_relative not in runtime_artifact_declarations:
+                errors.append(
+                    f"{record_id}: direct companion is not declared runtime-consumed"
+                )
+
+        if artifact_path is not None:
+            try:
+                parsed_artifact = load_json_document(artifact_path)
+            except (OSError, json.JSONDecodeError) as exc:
+                errors.append(
+                    f"{record_id}: classified artifact is not valid JSON: {exc}"
+                )
+            else:
+                if not isinstance(parsed_artifact, Mapping):
+                    errors.append(
+                        f"{record_id}: classified artifact root is not an object"
+                    )
+                else:
+                    if parsed_artifact.get("manifest_sha256") != record.get(
+                        "bound_artifact_sha256"
+                    ):
+                        errors.append(
+                            f"{record_id}: artifact manifest_sha256 does not match "
+                            "its recorded historical binding"
+                        )
+                    if parsed_artifact.get("policy_version") != record.get(
+                        "policy_version"
+                    ):
+                        errors.append(
+                            f"{record_id}: artifact policy version does not match "
+                            "its classification"
+                        )
+
+        for evidence_field in ("builder_evidence", "runtime_loader_evidence"):
+            for evidence in record.get(evidence_field, []):
+                if not isinstance(evidence, Mapping):
+                    continue
+                if evidence.get("type") not in {"artifact", "code"}:
+                    continue
+                reference = evidence.get("reference")
+                reference_value = reference if isinstance(reference, str) else ""
+                path, path_error = _safe_repository_path(
+                    repository_root, reference_value
+                )
+                if path_error:
+                    errors.append(f"{record_id}: {path_error}")
+                elif path is None or not path.is_file():
+                    errors.append(
+                        f"{record_id}: evidence file does not exist: {reference}"
+                    )
+        for nodeid in record.get("validator_tests", []):
+            exists, reason = test_node_exists(repository_root, nodeid)
+            if not exists:
+                errors.append(f"{record_id}: {reason}")
+        for invariant_id in record.get("invariant_ids", []):
+            if invariant_id not in seen_ids:
+                errors.append(
+                    f"{record_id}: unknown invariant reference {invariant_id}"
+                )
+
+    skip_node_ids: set[str] = set()
+    for index, record in enumerate(registry.get("expected_full_suite_skips", [])):
+        if not isinstance(record, Mapping):
+            continue
+        nodeid = str(record.get("node_id") or f"index-{index}")
+        if nodeid in skip_node_ids:
+            errors.append(f"expected_full_suite_skips: duplicate test node {nodeid}")
+        skip_node_ids.add(nodeid)
+        exists, reason = test_node_exists(repository_root, nodeid)
+        if not exists:
+            errors.append(f"expected_full_suite_skips: {reason}")
+        for invariant_id in record.get("invariant_ids", []):
+            if invariant_id not in seen_ids:
+                errors.append(
+                    f"{nodeid}: unknown invariant reference {invariant_id}"
+                )
+        pattern = record.get("reason_regex")
+        if isinstance(pattern, str):
+            try:
+                re.compile(pattern)
+            except re.error as exc:
+                errors.append(f"{nodeid}: invalid skip-reason pattern: {exc}")
+            if not pattern.startswith("^") or not pattern.endswith("$"):
+                errors.append(
+                    f"{nodeid}: skip-reason pattern must be fully anchored"
+                )
+        justification = record.get("justification")
+        if (
+            record.get("prevents_release_qualification") is False
+            and (
+                not isinstance(justification, str)
+                or len(justification.strip()) < 40
+            )
+        ):
+            errors.append(
+                f"{nodeid}: non-blocking expected skip requires a narrow justification"
+            )
 
     for raw_path in registry.get("priority0_control_paths", []):
         path, path_error = _safe_repository_path(repository_root, raw_path)

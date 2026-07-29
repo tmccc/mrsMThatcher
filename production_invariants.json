@@ -1,7 +1,7 @@
 {
   "$schema": "production_invariants.schema.json",
   "registry_id": "mrsMThatcher-production-invariants",
-  "registry_version": 1,
+  "registry_version": 2,
   "baseline_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
   "reviewed_on": "2026-07-28",
   "scope": "Priority-0 production safety contracts for quotation eligibility and evidence, durable transactions, configuration and process control, test isolation, and release/deployment assurance. Status describes the current repository honestly; it is not a claim that partial or missing controls are accepted.",
@@ -23,6 +23,7 @@
     "tools/priority0_registry.py",
     "tests/test_priority0_registry.py",
     "tools/release_gate.py",
+    "tools/release_gate_pytest_plugin.py",
     "tests/test_release_gate.py",
     "tools/README_release_gate.md",
     "tools/defect_ledger.py",
@@ -34,6 +35,180 @@
     "INDEPENDENT_REVIEW_REQUEST.md",
     "why_code_reviews_continue_to_find_major_problems.md",
     "diagnosis_measurements.json"
+  ],
+  "generated_artifact_classifications": [
+    {
+      "id": "ARTIFACT-CLASS-V3-AUDIT-001",
+      "artifact": "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json",
+      "artifact_sha256": "510ab87194fc0d389e6ea40437c558e3cc9d48892eaae327ca5271578fa3d34c",
+      "classification": "historical_build_time",
+      "runtime_relationship_required": false,
+      "current_companion": false,
+      "owner": "quote_image_semantic_veto",
+      "bound_artifact": "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
+      "bound_artifact_sha256": "a9161f1a6da83d8327b51d7ef211fa88e5b28ed160b1093050733f120ddf579d",
+      "observed_current_bound_artifact_sha256": "6dd8eaf84bd913c359caf55bb213c79dbefaeeb5b0bbe4d9b0ad7f4414869d32",
+      "bound_commit": "25b427b4cb87a6b234bc93aca40fae5531c943ad",
+      "policy_version": "affirmative-material-contradiction-rules-v3-runtime-eligible-611-coverage-v3",
+      "builder_evidence": [
+        {
+          "type": "code",
+          "reference": "quote_attribution_cleanup.py",
+          "claim": "prepare_v3_shadow_manifest writes this audit and its checksum package as offline build evidence; it is not a runtime loader."
+        },
+        {
+          "type": "commit",
+          "reference": "25b427b4cb87a6b234bc93aca40fae5531c943ad",
+          "claim": "The audit's manifest_sha256 exactly identifies the v3 manifest committed with this historical build."
+        }
+      ],
+      "runtime_loader_evidence": [
+        {
+          "type": "code",
+          "reference": "mrsMThatcher2.py",
+          "claim": "Runtime configuration and initialisation pass only the configured semantic-veto manifest path to ShadowRuntime."
+        },
+        {
+          "type": "code",
+          "reference": "semantic_alignment/quote_image_semantic_veto.py",
+          "claim": "ShadowRuntime loads and validates the configured manifest and its source hashes without opening a sibling audit."
+        },
+        {
+          "type": "code",
+          "reference": "semantic_veto_shadow_health.py",
+          "claim": "The read-only health path receives and validates the configured manifest only."
+        }
+      ],
+      "validator_tests": [
+        "tests/test_priority0_registry.py::test_v3_shadow_audit_is_historical_not_runtime_consumed",
+        "tests/test_quote_image_semantic_veto_shadow.py::test_attribution_cleaned_v3_policy_is_strictly_validated",
+        "tests/test_semantic_veto_new_quote_adjudication.py::test_complete_manifest_build_is_byte_identical"
+      ],
+      "invariant_ids": [
+        "INV-ART-001",
+        "INV-VETO-001"
+      ],
+      "reason": "The audit remains immutable evidence for the manifest built at commit 25b427b; later reviewed transitions changed the configured manifest and supplied separate transition evidence. No runtime loader or configuration consumes this audit."
+    }
+  ],
+  "expected_full_suite_skips": [
+    {
+      "node_id": "tests/test_release_gate.py::test_host_filesystem_unix_socket_inventory_is_sorted_and_path_bound",
+      "reason_code": "outer_containment_blocks_pathname_unix_fixture",
+      "reason_regex": "^outer containment prohibits the pathname AF_UNIX fixture$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer release gate already denies pathname AF_UNIX creation and records that preflight result; the nested fixture cannot recreate a host pathname socket after containment is active.",
+      "compensating_evidence": "The outer release-gate preflight must report pathname_unix_socket_creation_denied=true before this skip is accepted."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_real_containment_denies_candidate_and_git_mutation",
+      "reason_code": "nested_user_namespace_unavailable",
+      "reason_regex": "^OS containment unavailable on this test host: unshare: write failed /proc/self/uid_map: Operation not permitted$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The complete suite is already running inside the outer user, mount, PID, network and seccomp containment whose read-only candidate and Git protections are recorded by gate preflight.",
+      "compensating_evidence": "The outer release-gate preflight must report candidate_root_read_only=true and git_common_root_read_only=true before this skip is accepted."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_containment_masks_host_unix_socket_and_allows_anonymous_ipc",
+      "reason_code": "outer_containment_blocks_pathname_unix_fixture",
+      "reason_regex": "^outer containment prohibits the pathname AF_UNIX fixture$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer containment has already masked inventoried host sockets and denies pathname AF_UNIX creation while retaining narrowly allowed anonymous IPC.",
+      "compensating_evidence": "The outer release-gate preflight must report inventoried_absolute_host_unix_sockets_masked=true, pathname_unix_socket_creation_denied=true and anonymous_unix_stream_socketpair_available=true."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[False]",
+      "reason_code": "outer_containment_blocks_pathname_unix_fixture",
+      "reason_regex": "^outer containment prohibits the pathname AF_UNIX fixture$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer containment has already denied pathname AF_UNIX access; recreating an uninventoried pathname socket inside it is intentionally impossible.",
+      "compensating_evidence": "The outer release-gate preflight must report pathname_unix_socket_creation_denied=true before this skip is accepted."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[True]",
+      "reason_code": "outer_containment_blocks_pathname_unix_fixture",
+      "reason_regex": "^outer containment prohibits the pathname AF_UNIX fixture$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer containment has already denied pathname AF_UNIX access; recreating an uninventoried abstract/pathname fixture inside it is intentionally impossible.",
+      "compensating_evidence": "The outer release-gate preflight must report pathname_unix_socket_creation_denied=true before this skip is accepted."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_containment_enforces_socket_family_allowlists",
+      "reason_code": "nested_containment_unavailable",
+      "reason_regex": "^OS containment unavailable on this test host$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer gate preflight independently exercises and records the socket-family and socketpair allowlists before the contained complete suite starts.",
+      "compensating_evidence": "The outer release-gate preflight must report socket_family_allowlist_enforced=true and socketpair_family_allowlist_enforced=true before this skip is accepted."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_containment_restores_sigint_default_before_exec",
+      "reason_code": "nested_containment_unavailable",
+      "reason_regex": "^OS containment unavailable on this test host$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer gate preflight has already executed the containment launcher and records that SIGINT disposition is restored before the contained command.",
+      "compensating_evidence": "The outer release-gate preflight must report sigint_default_restored=true before this skip is accepted."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_containment_makes_distinct_source_worktree_read_only",
+      "reason_code": "nested_containment_unavailable",
+      "reason_regex": "^OS containment unavailable on this test host$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer gate preflight records the candidate, Git common directory, production root and additional protected paths as read-only before the suite starts.",
+      "compensating_evidence": "The outer release-gate preflight must report candidate_root_read_only=true, git_common_root_read_only=true and production_root_read_only=true before this skip is accepted."
+    },
+    {
+      "node_id": "tests/test_release_gate.py::test_contained_validation_cannot_replace_bound_evidence_directory",
+      "reason_code": "nested_user_namespace_unavailable",
+      "reason_regex": "^OS containment unavailable: unshare: write failed /proc/self/uid_map: Operation not permitted$",
+      "condition": "inside_outer_release_gate_containment",
+      "invariant_ids": [
+        "INV-TEST-003",
+        "INV-REL-001"
+      ],
+      "prevents_release_qualification": false,
+      "justification": "The outer gate preflight binds and protects the attestation output parent before validation; nested namespace creation is deliberately unavailable after capability drop.",
+      "compensating_evidence": "The outer release-gate preflight must report additional_protected_paths_read_only=true before this skip is accepted."
+    }
   ],
   "invariants": [
     {
@@ -474,7 +649,10 @@
         "generated_image_analysis.json",
         "generated_review_approved_images/manifest.json",
         "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
-        "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json"
+        "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json",
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "tests/test_release_gate.py"
       ],
       "enforcement": {
         "files": [
@@ -509,10 +687,9 @@
         "artifacts": [
           "generated_image_analysis.json",
           "generated_review_approved_images/manifest.json",
-          "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
-          "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json"
+          "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json"
         ],
-        "explanation": "Runtime and preflight consume these generated inventories; the missing cross-artifact generation inventory is the recorded gap."
+        "explanation": "Runtime and preflight consume these generated inventories. The v3 shadow-manifest audit is separately classified as historical build-time evidence because no runtime loader reads it; the missing cross-artifact generation inventory remains the recorded gap."
       },
       "preconditions": [
         "Generated outputs are built deterministically from reviewed inputs.",
@@ -529,7 +706,7 @@
       "required_production_deployed_path_checks": {
         "status": "required",
         "checks": [
-          "Hash every deployed generated manifest and audit named by the candidate attestation and run strict offline loaders.",
+          "Hash every deployed runtime-consumed generated manifest named by the candidate attestation and run strict offline loaders; report historical build-time audits separately rather than treating them as runtime companions.",
           "If the generated pool is enabled, inventory every deployed generated basename and require exact safe provenance classification."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
@@ -548,17 +725,17 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0009",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         },
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0014",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         },
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0016",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -1306,7 +1483,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0017",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -1401,7 +1578,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0010",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -1505,12 +1682,12 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0006",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         },
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0017",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         },
         {
           "type": "operational",
@@ -1613,12 +1790,12 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0007",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         },
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0017",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -2079,7 +2256,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0015",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -2174,7 +2351,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0011",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -2264,7 +2441,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0011",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -2297,12 +2474,14 @@
       },
       "affected_paths": [
         "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
         "tools/README_release_gate.md",
         "tests/test_release_gate.py"
       ],
       "enforcement": {
         "files": [
           "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
           "tools/README_release_gate.md"
         ],
         "tests": [
@@ -2357,7 +2536,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0013",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -2476,7 +2655,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0012",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -2514,6 +2693,7 @@
         "tools/priority0_registry.py",
         "tests/test_priority0_registry.py",
         "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
         "tests/test_release_gate.py",
         "tools/README_release_gate.md",
         "tools/defect_ledger.py",
@@ -2536,6 +2716,7 @@
           "tools/priority0_registry.py",
           "tests/test_priority0_registry.py",
           "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
           "tests/test_release_gate.py",
           "tools/README_release_gate.md",
           "tools/defect_ledger.py",
@@ -2567,7 +2748,7 @@
         ]
       },
       "known_gaps": [
-        "The current Priority-0 candidate has no valid release attestation until the gate is invoked externally after the candidate is committed and frozen.",
+        "The registry cannot self-attest any candidate; an external frozen-candidate gate run must supply the exact commit, tree and candidate-specific attestation result.",
         "Production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch.",
         "The gate attests but deliberately does not deploy, restart, or verify an activated production tree.",
         "Independent review remains a separate human session whose investigative independence cannot be proved automatically.",
@@ -2621,7 +2802,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0014",
-          "claim": "Current-master defect or assurance record linked to this invariant."
+          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
         }
       ],
       "last_verified_commit": {
@@ -2636,7 +2817,7 @@
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "No acceptance is recorded. Open risk: the candidate is not attested until an external frozen-candidate gate succeeds; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004)."
+        "explanation": "No acceptance is recorded. Candidate-specific attestation status is supplied externally and cannot be inferred from this registry; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004)."
       }
     }
   ]

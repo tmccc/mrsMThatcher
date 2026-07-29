@@ -155,6 +155,8 @@ def _minimal_registry(tmp_path: Path) -> tuple[dict, dict]:
         if key != "invariants"
     }
     registry["priority0_control_paths"] = ["code.py"]
+    registry["generated_artifact_classifications"] = []
+    registry["expected_full_suite_skips"] = []
     registry["invariants"] = [invariant]
     return registry, schema
 
@@ -250,6 +252,182 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
     assert records["INV-PROC-004"]["accepted_residual_risk"]["status"] == (
         "unaccepted"
     )
+
+
+def test_v3_shadow_audit_is_historical_not_runtime_consumed() -> None:
+    registry, _schema = _load_real_documents()
+    audit_path = (
+        "semantic_alignment_research/quote_attribution_cleanup_001/"
+        "deployment_candidate/v3_shadow_manifest_audit.json"
+    )
+    manifest_path = (
+        "semantic_alignment_research/quote_attribution_cleanup_001/"
+        "deployment_candidate/material_veto_v3_shadow_manifest.json"
+    )
+    declarations = registry["generated_artifact_classifications"]
+
+    assert len(declarations) == 1
+    declaration = declarations[0]
+    assert declaration["id"] == "ARTIFACT-CLASS-V3-AUDIT-001"
+    assert declaration["artifact"] == audit_path
+    assert declaration["bound_artifact"] == manifest_path
+    assert declaration["classification"] == "historical_build_time"
+    assert declaration["runtime_relationship_required"] is False
+    assert declaration["current_companion"] is False
+    assert (
+        declaration["bound_artifact_sha256"]
+        != declaration["observed_current_bound_artifact_sha256"]
+    )
+
+    runtime_artifacts = {
+        artifact
+        for invariant in registry["invariants"]
+        for artifact in invariant["runtime_consumed_artifacts"]["artifacts"]
+    }
+    assert manifest_path in runtime_artifacts
+    assert audit_path not in runtime_artifacts
+
+
+def test_historical_artifact_classification_fails_if_declared_runtime(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    artifact = tmp_path / "historical_audit.json"
+    current = tmp_path / "current_manifest.json"
+    bound_sha = "a" * 64
+    current.write_text('{"current":true}\n', encoding="utf-8")
+    artifact.write_text(
+        json.dumps(
+            {
+                "manifest_sha256": bound_sha,
+                "policy_version": "policy-v3",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    registry["generated_artifact_classifications"] = [
+        {
+            "id": "ARTIFACT-CLASS-DEMO-001",
+            "artifact": "historical_audit.json",
+            "artifact_sha256": registry_tool.sha256_file(artifact),
+            "classification": "historical_build_time",
+            "runtime_relationship_required": False,
+            "current_companion": False,
+            "owner": "synthetic_contract",
+            "bound_artifact": "current_manifest.json",
+            "bound_artifact_sha256": bound_sha,
+            "observed_current_bound_artifact_sha256": (
+                registry_tool.sha256_file(current)
+            ),
+            "bound_commit": "1" * 40,
+            "policy_version": "policy-v3",
+            "builder_evidence": [
+                {
+                    "type": "code",
+                    "reference": "code.py",
+                    "claim": "Synthetic offline builder evidence.",
+                }
+            ],
+            "runtime_loader_evidence": [
+                {
+                    "type": "code",
+                    "reference": "code.py",
+                    "claim": "Synthetic loader inspection proves non-consumption.",
+                }
+            ],
+            "validator_tests": ["tests/test_sample.py::test_contract"],
+            "invariant_ids": ["INV-DEMO-001"],
+            "reason": "Synthetic historical evidence for validator coverage.",
+        }
+    ]
+    registry["invariants"][0]["runtime_consumed_artifacts"] = {
+        "status": "direct",
+        "artifacts": ["historical_audit.json"],
+        "explanation": "Deliberately incorrect direct declaration.",
+    }
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert any(
+        "historical build-time evidence is also declared runtime-consumed"
+        in error
+        for error in report.errors
+    )
+
+
+def test_expected_complete_suite_skips_are_exact_and_evidence_bound() -> None:
+    registry, _schema = _load_real_documents()
+    skips = registry["expected_full_suite_skips"]
+
+    assert len(skips) == 9
+    assert len({record["node_id"] for record in skips}) == 9
+    assert all(
+        record["condition"]
+        == "inside_outer_release_gate_containment"
+        for record in skips
+    )
+    assert all(record["prevents_release_qualification"] is False for record in skips)
+    assert all(record["reason_regex"].startswith("^") for record in skips)
+    assert all(record["reason_regex"].endswith("$") for record in skips)
+    assert all(record["compensating_evidence"].strip() for record in skips)
+    assert {
+        record["node_id"]
+        for record in skips
+        if record["reason_code"] == "outer_containment_blocks_pathname_unix_fixture"
+    } == {
+        "tests/test_release_gate.py::test_host_filesystem_unix_socket_inventory_is_sorted_and_path_bound",
+        "tests/test_release_gate.py::test_containment_masks_host_unix_socket_and_allows_anonymous_ipc",
+        "tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[False]",
+        "tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[True]",
+    }
+
+
+def test_skip_declarations_reject_duplicates_unknown_invariants_and_loose_reasons(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    record = {
+        "node_id": "tests/test_sample.py::test_contract",
+        "reason_code": "nested_containment_unavailable",
+        "reason_regex": "not anchored",
+        "condition": "inside_outer_release_gate_containment",
+        "invariant_ids": ["INV-UNKNOWN-001"],
+        "prevents_release_qualification": False,
+        "justification": "short",
+        "compensating_evidence": "Synthetic outer-preflight evidence.",
+    }
+    registry["expected_full_suite_skips"] = [record, copy.deepcopy(record)]
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    combined = "\n".join(report.errors)
+    assert "duplicate test node" in combined
+    assert "unknown invariant reference INV-UNKNOWN-001" in combined
+    assert "skip-reason pattern must be fully anchored" in combined
+    assert "requires a narrow justification" in combined
+
+
+def test_registry_candidate_attestation_wording_is_external_and_generic() -> None:
+    registry, _schema = _load_real_documents()
+    release = next(
+        item for item in registry["invariants"] if item["id"] == "INV-REL-001"
+    )
+    encoded = json.dumps(release, sort_keys=True)
+
+    assert "external frozen-candidate gate run" in encoded
+    assert "current Priority-0 candidate has no valid release attestation" not in encoded
+    assert "4ae2044" not in encoded
 
 
 def test_real_registry_is_valid_and_markdown_is_synchronised() -> None:

@@ -21,11 +21,16 @@ containment encloses pytest and every descendant. A Python socket monkeypatch
 is not accepted as release-candidate isolation.
 
 Validation uses a credential/proxy-free environment. The gate content-hashes
-the Python executable and every existing import root in the active validation
-environment, including resolved content behind package symlinks. It starts
-Python with `-I -S`, excludes the mutable implementation worktree from the
-toolchain, supplies only the attested roots plus the detached candidate, and
-checks the exact origins of pytest, xdist and the registry schema backend.
+the Python executable and standard-library roots, then resolves a
+marker-filtered transitive closure from explicitly declared validation
+distributions. Shared `site-packages` directories are import search roots only:
+the pytest evidence plugin accepts each loaded third-party module only when its
+resolved origin is an exact distribution-owned file or an exact top-level
+package directory used for legacy metadata without a file inventory. It does
+not trust arbitrary sibling packages or source-project roots inherited through
+`PYTHONPATH`, `sys.path`, editable-install `.pth` files or the invoking shell.
+Python starts with `-I -S`; the gate records and checks the exact origins of
+pytest, xdist, jsonschema and the other declared validation dependencies.
 The installed user-service unit directory is read-only. Before each contained
 command, the gate deterministically inventories absolute pathname-bound
 AF_UNIX endpoints visible in `/proc/net/unix`, verifies them with a
@@ -103,7 +108,9 @@ The gate:
    chronology) without registering a worktree or writing the source Git common
    directory; system and global Git config, init templates, hooks, filters and
    redirection variables are disabled;
-8. runs de-duplicated focused and relationship validation in that checkout,
+8. runs `py_compile` for every changed Python file and
+   `git diff --check <base>..<candidate>`, then runs de-duplicated focused and
+   relationship validation in that checkout,
    reverifying its Git state, relevant hashes and loader relationships after
    every command;
 9. runs the complete parallel suite once in the same route-isolated,
@@ -122,9 +129,15 @@ The gate:
 13. bind-mounts the original source worktree and its separate shared Git
     directory read-only, and verifies both detached and source identities
     again;
-14. rejects missing, malformed or count-inconsistent JUnit while retaining the
-    command's stdout and partial result in a failure receipt; and
-15. writes deterministic semantic evidence separately from volatile run
+14. rejects missing, malformed or count-inconsistent JUnit, enumerates every
+    skip with an invariant-backed disposition, aggregates warning identities
+    through a pytest hook, and rejects imports from undeclared source trees;
+15. validates direct manifest companions fail closed, while recording the
+    old v3 audit and checksum package honestly as historical build evidence
+    which current runtime loaders do not consume;
+16. binds defect status claims to the ledger evidence cut-off and refuses a
+    later release base until the ledger is regenerated; and
+17. writes deterministic semantic evidence separately from volatile run
     metadata.
 
 Outputs are written outside the candidate:
@@ -135,7 +148,15 @@ Outputs are written outside the candidate:
 - `independent_review_manifest.json`;
 - `source_diagnosis_original.md`;
 - `attestation_sha256_inventory.json`;
+- `priority0_followup_report.md`;
+- `priority0_followup_final_validation.json`;
 - focused/full command output and JUnit XML under `validation/`.
+
+Each pytest validation also has a deterministic
+`*.pytest-events.json` sidecar listing skipped node IDs and reasons, warning
+fingerprints/counts and undeclared project import origins. A declared skip is
+accepted only inside a successfully preflighted outer release containment and
+only when its exact node, reason and invariant mapping match the registry.
 
 If validation blocks after creating a new output directory, the gate writes a
 bounded `release_gate_failure_receipt.json` and hashes any completed partial
@@ -152,8 +173,10 @@ material. New output directories are claimed with
 inventories reject foreign, non-regular or uninventoried entries.
 
 The semantic attestation deliberately excludes timestamps, host identity,
-duration and raw test-output hashes. The run receipt binds raw output and JUnit
-hashes, and the final inventory hashes those evidence files. A conclusion is
-always labelled development-only, patch-local release candidate, or
-subsystem-level; the result is not deployment authorization. Activation-time
-deployed checks remain recorded as unmet.
+durations and raw pytest-output hashes. It does include the required
+compilation and whitespace-check combined-output hashes. The run receipt binds
+raw pytest output, JUnit and structured-event hashes, and the final inventory
+hashes those evidence files. A conclusion is always labelled
+development-only, patch-local release candidate, or subsystem-level; the
+result is not deployment authorization. Activation-time deployed checks remain
+recorded as unmet.

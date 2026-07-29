@@ -34,6 +34,9 @@ LOCAL_EVIDENCE_TYPES = frozenset({"code", "commit", "test"})
 SUMMARY_PATTERN = re.compile(
     r"(?ms)^## Summary\n.*?(?=^## [^\n]+\n|\Z)"
 )
+IDENTITY_SCOPE_PATTERN = re.compile(
+    r"(?ms)^## Identity and evidence boundary\n.*?(?=^## [^\n]+\n|\Z)"
+)
 SCOPE_PATTERN = re.compile(
     r"(?ms)^## Scope and incident classification\n.*?(?=^## [^\n]+\n|\Z)"
 )
@@ -409,10 +412,16 @@ def _known_commit_values(ledger: Mapping[str, Any]) -> set[str]:
         if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value):
             result.add(value)
 
-    baseline = ledger.get("baseline", {})
-    if isinstance(baseline, Mapping):
-        add(baseline.get("current_master_commit"))
-        add(baseline.get("observed_production_commit"))
+    identity_scope = ledger.get("identity_scope", {})
+    if isinstance(identity_scope, Mapping):
+        for section, field in (
+            ("production_baseline", "commit"),
+            ("ledger_evidence_cutoff", "commit"),
+            ("production_deployment_observation", "repository_commit"),
+        ):
+            record = identity_scope.get(section, {})
+            if isinstance(record, Mapping):
+                add(record.get(field))
     defects = ledger.get("defects", [])
     if not isinstance(defects, list):
         return result
@@ -513,14 +522,77 @@ def _deployment_cell(defect: Mapping[str, Any]) -> str:
         return "not applicable"
     if status == "active":
         evidence = str(deployment.get("evidence", "")).lower()
-        if "both observed production and current master" in evidence:
-            return "present in production and master"
+        if (
+            "observed production" in evidence
+            and "ledger evidence cut-off" in evidence
+        ):
+            return "present in observed production and at evidence cut-off"
         return f"observed in production `{observed}`"
     if status == "latent-disabled" and fix_state == "unfixed":
         return "enforcement unsupported; shadow only"
     if state == "not-applicable":
         return "not applicable"
     return f"{state}; observed `{observed}`"
+
+
+def render_identity_scope(ledger: Mapping[str, Any]) -> str:
+    """Render the non-self-referential ledger identity boundary."""
+    identity = ledger.get("identity_scope", {})
+    if not isinstance(identity, Mapping):
+        raise ValueError("ledger identity_scope must be an object")
+    baseline = identity.get("production_baseline", {})
+    cutoff = identity.get("ledger_evidence_cutoff", {})
+    candidate = identity.get("candidate_under_review", {})
+    deployment = identity.get("production_deployment_observation", {})
+    regeneration = identity.get("post_merge_regeneration", {})
+    if not all(
+        isinstance(item, Mapping)
+        for item in (baseline, cutoff, candidate, deployment, regeneration)
+    ):
+        raise ValueError("every ledger identity_scope section must be an object")
+    required_fields = candidate.get("required_attestation_fields", [])
+    triggers = regeneration.get("triggers", [])
+    return "\n".join(
+        [
+            "## Identity and evidence boundary",
+            "",
+            f"- Production baseline commit: `{baseline.get('commit', '')}`",
+            f"- Production baseline tree: `{baseline.get('tree', '')}`",
+            f"- Ledger evidence cut-off commit: `{cutoff.get('commit', '')}`",
+            f"- Ledger evidence cut-off tree: `{cutoff.get('tree', '')}`",
+            f"- Evidence valid through: `{cutoff.get('as_of', '')}`",
+            "- Baseline/cut-off relationship: "
+            + _markdown_escape(
+                cutoff.get("difference_from_production_baseline", "")
+            ),
+            "- Status-claim boundary: "
+            + _markdown_escape(cutoff.get("meaning", "")),
+            "- Candidate identity source: "
+            f"`{candidate.get('identity_source', '')}`; stored in ledger: "
+            f"`{str(candidate.get('stored_in_ledger', '')).lower()}`",
+            "- Candidate attestation fields: "
+            + ", ".join(f"`{item}`" for item in required_fields),
+            "- Candidate identity rule: "
+            + _markdown_escape(candidate.get("explanation", "")),
+            "- Observed production repository commit/tree: "
+            f"`{deployment.get('repository_commit', '')}` / "
+            f"`{deployment.get('repository_tree', '')}`",
+            f"- Production observation time: `{deployment.get('observed_at', '')}`",
+            "- Loaded-process identity: "
+            f"`{deployment.get('loaded_process_identity_status', '')}` — "
+            + _markdown_escape(
+                deployment.get("loaded_process_identity_explanation", "")
+            ),
+            "- Freshness warning: "
+            + _markdown_escape(deployment.get("freshness_warning", "")),
+            "- Post-merge regeneration required: "
+            f"`{str(regeneration.get('required', '')).lower()}`",
+            "- Regeneration triggers: "
+            + ", ".join(f"`{item}`" for item in triggers),
+            "- Regeneration rule: "
+            + _markdown_escape(regeneration.get("requirement", "")),
+        ]
+    ) + "\n"
 
 
 def render_summary(ledger: Mapping[str, Any]) -> str:
@@ -804,6 +876,11 @@ def _validate_markdown(
     except FileNotFoundError:
         return [f"defect ledger Markdown does not exist: {markdown_path}"]
     projections = (
+        (
+            "Identity and evidence boundary",
+            IDENTITY_SCOPE_PATTERN,
+            render_identity_scope(ledger),
+        ),
         ("Summary", SUMMARY_PATTERN, render_summary(ledger)),
         (
             "Scope and incident classification",
@@ -976,6 +1053,7 @@ def _semantic_errors(
     invariants: Mapping[str, Any],
     *,
     repository_root: Path,
+    release_base: str | None = None,
 ) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -1034,7 +1112,32 @@ def _semantic_errors(
             "production invariant registry contains duplicate IDs: "
             + ", ".join(sorted(duplicate_invariants))
         )
-    baseline = ledger.get("baseline", {})
+    identity_scope = ledger.get("identity_scope", {})
+    production_baseline = (
+        identity_scope.get("production_baseline", {})
+        if isinstance(identity_scope, Mapping)
+        else {}
+    )
+    evidence_cutoff = (
+        identity_scope.get("ledger_evidence_cutoff", {})
+        if isinstance(identity_scope, Mapping)
+        else {}
+    )
+    candidate_scope = (
+        identity_scope.get("candidate_under_review", {})
+        if isinstance(identity_scope, Mapping)
+        else {}
+    )
+    production_observation = (
+        identity_scope.get("production_deployment_observation", {})
+        if isinstance(identity_scope, Mapping)
+        else {}
+    )
+    regeneration = (
+        identity_scope.get("post_merge_regeneration", {})
+        if isinstance(identity_scope, Mapping)
+        else {}
+    )
     external_by_id, external_errors, external_warnings = (
         _external_evidence_checks(
             ledger,
@@ -1044,16 +1147,22 @@ def _semantic_errors(
     errors.extend(external_errors)
     warnings.extend(external_warnings)
     baseline_commit = (
-        str(baseline.get("current_master_commit", "unknown"))
-        if isinstance(baseline, Mapping)
+        str(production_baseline.get("commit", "unknown"))
+        if isinstance(production_baseline, Mapping)
         else "unknown"
     )
+    cutoff_commit = (
+        str(evidence_cutoff.get("commit", "unknown"))
+        if isinstance(evidence_cutoff, Mapping)
+        else "unknown"
+    )
+    inventory_commit = cutoff_commit
     inventory_result = _git(
         repository_root,
         "ls-tree",
         "-r",
         "--name-only",
-        baseline_commit,
+        inventory_commit,
     )
     baseline_inventory = (
         set(inventory_result.stdout.splitlines())
@@ -1063,20 +1172,49 @@ def _semantic_errors(
     runtime_result = _git(
         repository_root,
         "show",
-        f"{baseline_commit}:mrsMThatcher2.py",
+        f"{inventory_commit}:mrsMThatcher2.py",
     )
     runtime_source = (
         runtime_result.stdout if runtime_result.returncode == 0 else ""
     )
-    if isinstance(baseline, Mapping):
+    if isinstance(production_baseline, Mapping):
         registry_baseline = invariants.get("baseline_commit")
         if (
             isinstance(registry_baseline, str)
-            and baseline.get("current_master_commit") != registry_baseline
+            and production_baseline.get("commit") != registry_baseline
         ):
             errors.append(
-                "ledger current-master baseline does not match the production "
+                "ledger production baseline does not match the production "
                 "invariant registry baseline"
+            )
+    if isinstance(evidence_cutoff, Mapping):
+        if evidence_cutoff.get("as_of") != ledger.get("as_of"):
+            errors.append(
+                "ledger evidence cut-off date does not match top-level as_of"
+            )
+    if isinstance(candidate_scope, Mapping) and (
+        candidate_scope.get("identity_source")
+        != "external-release-attestation"
+        or candidate_scope.get("stored_in_ledger") is not False
+    ):
+        errors.append(
+            "candidate identity must remain external to the committed ledger"
+        )
+    if isinstance(regeneration, Mapping) and (
+        regeneration.get("required") is not True
+        or regeneration.get("release_base_must_equal_evidence_cutoff") is not True
+    ):
+        errors.append(
+            "post-merge regeneration and exact release-base comparison must "
+            "remain mandatory"
+        )
+    if release_base is not None:
+        if re.fullmatch(r"[0-9a-f]{40}", release_base) is None:
+            errors.append("supplied release base is not an exact 40-hex commit")
+        elif release_base != cutoff_commit:
+            errors.append(
+                "supplied release base differs from ledger evidence cut-off; "
+                "post-merge ledger regeneration is required before attestation"
             )
 
     defect_ids = [
@@ -1116,7 +1254,7 @@ def _semantic_errors(
             path_error = _affected_path_error(
                 repository_root,
                 str(affected_path),
-                baseline_commit=baseline_commit,
+                baseline_commit=inventory_commit,
                 baseline_inventory=baseline_inventory,
                 runtime_source=runtime_source,
             )
@@ -1444,9 +1582,32 @@ def _semantic_errors(
             result = _git(repository_root, "cat-file", "-e", f"{commit}^{{commit}}")
             if result.returncode != 0:
                 errors.append(f"ledger commit does not resolve in Git: {commit}")
-        if isinstance(baseline, Mapping):
-            current_commit = baseline.get("current_master_commit")
-            expected_tree = baseline.get("current_master_tree")
+        for label, record, commit_field, tree_field in (
+            (
+                "production baseline",
+                production_baseline,
+                "commit",
+                "tree",
+            ),
+            (
+                "ledger evidence cut-off",
+                evidence_cutoff,
+                "commit",
+                "tree",
+            ),
+            (
+                "production deployment observation",
+                production_observation,
+                "repository_commit",
+                "repository_tree",
+            ),
+        ):
+            if isinstance(record, Mapping):
+                current_commit = record.get(commit_field)
+                expected_tree = record.get(tree_field)
+            else:
+                current_commit = None
+                expected_tree = None
             if isinstance(current_commit, str) and current_commit != "unknown":
                 actual_tree = _git(
                     repository_root, "rev-parse", f"{current_commit}^{{tree}}"
@@ -1456,9 +1617,49 @@ def _semantic_errors(
                     and actual_tree.stdout.strip() != expected_tree
                 ):
                     errors.append(
-                        "baseline current_master_tree does not belong to "
-                        "current_master_commit"
+                        f"{label} tree does not belong to its recorded commit"
                     )
+        if (
+            isinstance(baseline_commit, str)
+            and isinstance(cutoff_commit, str)
+            and baseline_commit != "unknown"
+            and cutoff_commit != "unknown"
+        ):
+            baseline_to_cutoff = _git(
+                repository_root,
+                "merge-base",
+                "--is-ancestor",
+                baseline_commit,
+                cutoff_commit,
+            )
+            if baseline_to_cutoff.returncode != 0:
+                errors.append(
+                    "production baseline is not an ancestor of the ledger "
+                    "evidence cut-off"
+                )
+        observed_production_commit = (
+            production_observation.get("repository_commit")
+            if isinstance(production_observation, Mapping)
+            else None
+        )
+        if (
+            isinstance(observed_production_commit, str)
+            and observed_production_commit != "unknown"
+            and isinstance(cutoff_commit, str)
+            and cutoff_commit != "unknown"
+        ):
+            observation_to_cutoff = _git(
+                repository_root,
+                "merge-base",
+                "--is-ancestor",
+                observed_production_commit,
+                cutoff_commit,
+            )
+            if observation_to_cutoff.returncode != 0:
+                errors.append(
+                    "production deployment observation is newer than or "
+                    "unrelated to the ledger evidence cut-off"
+                )
         for defect in defects:
             if not isinstance(defect, Mapping):
                 continue
@@ -1479,11 +1680,7 @@ def _semantic_errors(
             range_match = INCLUSIVE_RANGE_PATTERN.fullmatch(affected_range)
             if range_match is not None:
                 range_start, range_end = range_match.groups()
-                current_commit = (
-                    baseline.get("current_master_commit")
-                    if isinstance(baseline, Mapping)
-                    else None
-                )
+                current_commit = cutoff_commit
                 if range_start != "unknown":
                     start_ancestor = _git(
                         repository_root,
@@ -1508,7 +1705,7 @@ def _semantic_errors(
                     if end_on_baseline.returncode != 0:
                         errors.append(
                             f"{defect_id}: affected-range last endpoint is "
-                            "outside the current-master baseline"
+                            "outside the ledger evidence cut-off"
                         )
                 if fix.get("state") == "fixed" and isinstance(fix_commit, str):
                     parent = _git(
@@ -1531,8 +1728,30 @@ def _semantic_errors(
                 ):
                     errors.append(
                         f"{defect_id}: unfixed record's inclusive affected "
-                        "range must end at current master"
+                        "range must end at the ledger evidence cut-off"
                     )
+            for claim_name, claim_commit in (
+                ("fix", fix_commit),
+                ("deployment", observed_commit),
+            ):
+                if (
+                    isinstance(claim_commit, str)
+                    and claim_commit != "unknown"
+                    and isinstance(cutoff_commit, str)
+                    and cutoff_commit != "unknown"
+                ):
+                    claim_at_cutoff = _git(
+                        repository_root,
+                        "merge-base",
+                        "--is-ancestor",
+                        claim_commit,
+                        cutoff_commit,
+                    )
+                    if claim_at_cutoff.returncode != 0:
+                        errors.append(
+                            f"{defect_id}: {claim_name} claim commit is outside "
+                            "the ledger evidence cut-off"
+                        )
             if (
                 isinstance(fix_commit, str)
                 and isinstance(observed_commit, str)
@@ -1569,6 +1788,7 @@ def validate_ledger(
     markdown_path: Path | None = None,
     diagnosis_path: Path | None = None,
     force_fallback_schema: bool = False,
+    release_base: str | None = None,
 ) -> ValidationReport:
     """Validate schema, evidence semantics, references, tests, Git, and Markdown."""
     backend, errors = schema_validation_errors(
@@ -1581,6 +1801,7 @@ def validate_ledger(
         schema,
         invariants,
         repository_root=repository_root,
+        release_base=release_base,
     )
     errors.extend(semantic_errors)
     if markdown_path is not None:
@@ -1623,6 +1844,13 @@ def _build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--no-markdown-check", action="store_true")
     validate.add_argument("--no-diagnosis-check", action="store_true")
     validate.add_argument("--force-fallback-schema", action="store_true")
+    validate.add_argument(
+        "--release-base",
+        help=(
+            "exact frozen release base; must equal the ledger evidence cut-off "
+            "or validation requires ledger regeneration"
+        ),
+    )
 
     render = subparsers.add_parser(
         "render",
@@ -1693,6 +1921,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(f"ERROR: {error}", file=sys.stderr)
                 return 1
             ledger_projections = (
+                (
+                    "Identity and evidence boundary",
+                    IDENTITY_SCOPE_PATTERN,
+                    render_identity_scope(ledger),
+                ),
                 ("Summary", SUMMARY_PATTERN, render_summary(ledger)),
                 (
                     "Scope and incident classification",
@@ -1780,6 +2013,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             markdown_path=markdown_path,
             diagnosis_path=diagnosis_path,
             force_fallback_schema=args.force_fallback_schema,
+            release_base=args.release_base,
         )
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"defect ledger input error: {type(exc).__name__}: {exc}", file=sys.stderr)

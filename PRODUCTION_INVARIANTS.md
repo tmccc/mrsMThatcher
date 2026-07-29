@@ -5,7 +5,7 @@
 
 Priority-0 production safety contracts for quotation eligibility and evidence, durable transactions, configuration and process control, test isolation, and release/deployment assurance. Status describes the current repository honestly; it is not a claim that partial or missing controls are accepted.
 
-- Registry: `mrsMThatcher-production-invariants` version `1`
+- Registry: `mrsMThatcher-production-invariants` version `2`
 - Production baseline: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
 - Reviewed: `2026-07-28`
 
@@ -22,6 +22,86 @@ Priority-0 production safety contracts for quotation eligibility and evidence, d
 | `verified` | Current automated tests exercise the stated contract and its principal fail-closed boundary. |
 | `partial` | Current evidence exercises part of the contract but omits a named boundary or independent mechanism. |
 | `unverified` | No current automated evidence establishes the stated contract. |
+
+## Generated-artifact classifications
+
+| ID | Artifact | Classification | Runtime relationship required | Current companion | Bound manifest |
+|---|---|---|---:|---:|---|
+| `ARTIFACT-CLASS-V3-AUDIT-001` | `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json` | `historical_build_time` | no | no | `a9161f1a6da83d8327b51d7ef211fa88e5b28ed160b1093050733f120ddf579d` |
+
+- **ARTIFACT-CLASS-V3-AUDIT-001 rationale:** The audit remains immutable evidence for the manifest built at commit 25b427b; later reviewed transitions changed the configured manifest and supplied separate transition evidence. No runtime loader or configuration consumes this audit.
+- Observed current bound-artifact SHA-256: `6dd8eaf84bd913c359caf55bb213c79dbefaeeb5b0bbe4d9b0ad7f4414869d32`
+- Historical build commit: `25b427b4cb87a6b234bc93aca40fae5531c943ad`
+- Policy version: `affirmative-material-contradiction-rules-v3-runtime-eligible-611-coverage-v3`; owner: `quote_image_semantic_veto`
+- Builder evidence: `code` `quote_attribution_cleanup.py` — prepare_v3_shadow_manifest writes this audit and its checksum package as offline build evidence; it is not a runtime loader.
+- Builder evidence: `commit` `25b427b4cb87a6b234bc93aca40fae5531c943ad` — The audit's manifest_sha256 exactly identifies the v3 manifest committed with this historical build.
+- Runtime-loader evidence: `code` `mrsMThatcher2.py` — Runtime configuration and initialisation pass only the configured semantic-veto manifest path to ShadowRuntime.
+- Runtime-loader evidence: `code` `semantic_alignment/quote_image_semantic_veto.py` — ShadowRuntime loads and validates the configured manifest and its source hashes without opening a sibling audit.
+- Runtime-loader evidence: `code` `semantic_veto_shadow_health.py` — The read-only health path receives and validates the configured manifest only.
+- Validator: `tests/test_priority0_registry.py::test_v3_shadow_audit_is_historical_not_runtime_consumed`
+- Validator: `tests/test_quote_image_semantic_veto_shadow.py::test_attribution_cleaned_v3_policy_is_strictly_validated`
+- Validator: `tests/test_semantic_veto_new_quote_adjudication.py::test_complete_manifest_build_is_byte_identical`
+
+## Expected complete-suite skips under outer containment
+
+These declarations apply only when the complete suite is already nested inside the release gate's successfully preflighted containment. Any unlisted skip, reason mismatch, or skip outside that environment remains unexplained.
+
+| Test node | Reason code | Invariants | Blocks qualification |
+|---|---|---|---:|
+| `tests/test_release_gate.py::test_host_filesystem_unix_socket_inventory_is_sorted_and_path_bound` | `outer_containment_blocks_pathname_unix_fixture` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_real_containment_denies_candidate_and_git_mutation` | `nested_user_namespace_unavailable` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_containment_masks_host_unix_socket_and_allows_anonymous_ipc` | `outer_containment_blocks_pathname_unix_fixture` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[False]` | `outer_containment_blocks_pathname_unix_fixture` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[True]` | `outer_containment_blocks_pathname_unix_fixture` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_containment_enforces_socket_family_allowlists` | `nested_containment_unavailable` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_containment_restores_sigint_default_before_exec` | `nested_containment_unavailable` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_containment_makes_distinct_source_worktree_read_only` | `nested_containment_unavailable` | `INV-TEST-003`, `INV-REL-001` | no |
+| `tests/test_release_gate.py::test_contained_validation_cannot_replace_bound_evidence_directory` | `nested_user_namespace_unavailable` | `INV-TEST-003`, `INV-REL-001` | no |
+
+- **tests/test_release_gate.py::test_host_filesystem_unix_socket_inventory_is_sorted_and_path_bound condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^outer containment prohibits the pathname AF_UNIX fixture$`
+- Justification: The outer release gate already denies pathname AF_UNIX creation and records that preflight result; the nested fixture cannot recreate a host pathname socket after containment is active.
+- Compensating evidence: The outer release-gate preflight must report pathname_unix_socket_creation_denied=true before this skip is accepted.
+
+- **tests/test_release_gate.py::test_real_containment_denies_candidate_and_git_mutation condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^OS containment unavailable on this test host: unshare: write failed /proc/self/uid_map: Operation not permitted$`
+- Justification: The complete suite is already running inside the outer user, mount, PID, network and seccomp containment whose read-only candidate and Git protections are recorded by gate preflight.
+- Compensating evidence: The outer release-gate preflight must report candidate_root_read_only=true and git_common_root_read_only=true before this skip is accepted.
+
+- **tests/test_release_gate.py::test_containment_masks_host_unix_socket_and_allows_anonymous_ipc condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^outer containment prohibits the pathname AF_UNIX fixture$`
+- Justification: The outer containment has already masked inventoried host sockets and denies pathname AF_UNIX creation while retaining narrowly allowed anonymous IPC.
+- Compensating evidence: The outer release-gate preflight must report inventoried_absolute_host_unix_sockets_masked=true, pathname_unix_socket_creation_denied=true and anonymous_unix_stream_socketpair_available=true.
+
+- **tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[False] condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^outer containment prohibits the pathname AF_UNIX fixture$`
+- Justification: The outer containment has already denied pathname AF_UNIX access; recreating an uninventoried pathname socket inside it is intentionally impossible.
+- Compensating evidence: The outer release-gate preflight must report pathname_unix_socket_creation_denied=true before this skip is accepted.
+
+- **tests/test_release_gate.py::test_containment_blocks_uninventoried_host_unix_socket[True] condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^outer containment prohibits the pathname AF_UNIX fixture$`
+- Justification: The outer containment has already denied pathname AF_UNIX access; recreating an uninventoried abstract/pathname fixture inside it is intentionally impossible.
+- Compensating evidence: The outer release-gate preflight must report pathname_unix_socket_creation_denied=true before this skip is accepted.
+
+- **tests/test_release_gate.py::test_containment_enforces_socket_family_allowlists condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^OS containment unavailable on this test host$`
+- Justification: The outer gate preflight independently exercises and records the socket-family and socketpair allowlists before the contained complete suite starts.
+- Compensating evidence: The outer release-gate preflight must report socket_family_allowlist_enforced=true and socketpair_family_allowlist_enforced=true before this skip is accepted.
+
+- **tests/test_release_gate.py::test_containment_restores_sigint_default_before_exec condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^OS containment unavailable on this test host$`
+- Justification: The outer gate preflight has already executed the containment launcher and records that SIGINT disposition is restored before the contained command.
+- Compensating evidence: The outer release-gate preflight must report sigint_default_restored=true before this skip is accepted.
+
+- **tests/test_release_gate.py::test_containment_makes_distinct_source_worktree_read_only condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^OS containment unavailable on this test host$`
+- Justification: The outer gate preflight records the candidate, Git common directory, production root and additional protected paths as read-only before the suite starts.
+- Compensating evidence: The outer release-gate preflight must report candidate_root_read_only=true, git_common_root_read_only=true and production_root_read_only=true before this skip is accepted.
+
+- **tests/test_release_gate.py::test_contained_validation_cannot_replace_bound_evidence_directory condition:** `inside_outer_release_gate_containment`
+- Allowed reason regex: `^OS containment unavailable: unshare: write failed /proc/self/uid_map: Operation not permitted$`
+- Justification: The outer gate preflight binds and protects the attestation output parent before validation; nested namespace creation is deliberately unavailable after capability drop.
+- Compensating evidence: The outer release-gate preflight must report additional_protected_paths_read_only=true before this skip is accepted.
 
 ## Current support summary
 
@@ -362,27 +442,26 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - Generated outputs are built deterministically from reviewed inputs.
 - The optional generated-image pool remains disabled unless its complete inventory classifies safely.
 
-**Runtime-consumed artifacts.** `direct` — Runtime and preflight consume these generated inventories; the missing cross-artifact generation inventory is the recorded gap.
+**Runtime-consumed artifacts.** `direct` — Runtime and preflight consume these generated inventories. The v3 shadow-manifest audit is separately classified as historical build-time evidence because no runtime loader reads it; the missing cross-artifact generation inventory remains the recorded gap.
 
 - `generated_image_analysis.json`
 - `generated_review_approved_images/manifest.json`
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json`
-- `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json`
 
 **Full-suite relevance.** `required` — Focused checks establish the local contract; the isolated complete suite is required to detect adjacent state-machine, configuration, and generated-artifact interactions.
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
-- Hash every deployed generated manifest and audit named by the candidate attestation and run strict offline loaders.
+- Hash every deployed runtime-consumed generated manifest named by the candidate attestation and run strict offline loaders; report historical build-time audits separately rather than treating them as runtime companions.
 - If the generated pool is enabled, inventory every deployed generated basename and require exact safe provenance classification.
 
 **Evidence references.**
 
 - `code` `semantic_quote_image_veto.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_quote_image_semantic_veto_shadow.py::test_manifest_compilation_is_deterministic` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0009` — Current-master defect or assurance record linked to this invariant.
-- `report` `defect_ledger.json#DEF-0014` — Current-master defect or assurance record linked to this invariant.
-- `report` `defect_ledger.json#DEF-0016` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0009` — Evidence-cut-off defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0014` — Evidence-cut-off defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0016` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
@@ -400,6 +479,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `generated_review_approved_images/manifest.json`
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json`
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_release_gate.py`
 
 **Enforcement files.**
 
@@ -957,7 +1039,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_followup_fail_safe_hardening.py::test_ambiguous_remote_post_blocks_process_when_marker_write_fails` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0017` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0017` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
@@ -1025,7 +1107,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `mrs_log_digest.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_digest_safety_hardening.py::test_resume_preserves_in_flight_provider_call_until_usage_arrives` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0010` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0010` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
@@ -1107,8 +1189,8 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0006` — Current-master defect or assurance record linked to this invariant.
-- `report` `defect_ledger.json#DEF-0017` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0006` — Evidence-cut-off defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0017` — Evidence-cut-off defect or assurance record linked to this invariant.
 - `operational` `/disks/disk1/etc/mrsMThatcher/mrsMThatcher.local.json (read-only inspection 2026-07-29)` — The current effective path-bearing override inventory resolves the generated pool/analysis, editorial analysis, generated identity audit, reply research corpus, and semantic-veto manifest beneath the production root.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
@@ -1180,8 +1262,8 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_unknown_runtime_control_keys_fail_closed` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0007` — Current-master defect or assurance record linked to this invariant.
-- `report` `defect_ledger.json#DEF-0017` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0007` — Evidence-cut-off defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0017` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
@@ -1523,7 +1605,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Evidence references.**
 
 - `code` `runMrsMThatcher2` — Primary recorded enforcement or assurance path for this invariant.
-- `report` `defect_ledger.json#DEF-0015` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0015` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `unknown` (`unknown`) — No implementation or automated verification exists.
 
@@ -1603,7 +1685,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `tests/conftest.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_pytest_safety_bootstrap.py::test_collection_import_uses_process_local_test_environment` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0011` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0011` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
@@ -1674,7 +1756,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `tests/conftest.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_pytest_safety_bootstrap.py::test_default_network_policy_denies_loopback_and_non_loopback` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0011` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0011` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
@@ -1741,7 +1823,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `tools/release_gate.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_release_gate.py::test_unavailable_os_level_network_denial_is_explicit` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0013` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0013` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `unknown` (`unknown`) — This self-describing registry cannot establish the commit externally validated by the release gate. The candidate attestation must supply the exact committed identity after freeze.
 
@@ -1752,12 +1834,14 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Affected paths.**
 
 - `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
 - `tools/README_release_gate.md`
 - `tests/test_release_gate.py`
 
 **Enforcement files.**
 
 - `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
 - `tools/README_release_gate.md`
 
 **Verification tests.**
@@ -1809,7 +1893,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `tests/fixtures/restored_regular_post_quote_ids.json` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_runtime_ordinary_eligibility_integrity.py::test_current_runtime_eligibility_manifest_validates_without_context_sidecars` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0012` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0012` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
@@ -1906,13 +1990,13 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `production_invariants.json` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_priority0_registry.py::test_real_registry_is_valid_and_markdown_is_synchronised` — Focused automated evidence for the principal recorded boundary.
-- `report` `defect_ledger.json#DEF-0014` — Current-master defect or assurance record linked to this invariant.
+- `report` `defect_ledger.json#DEF-0014` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `unknown` (`unknown`) — This self-describing registry cannot establish the commit externally frozen and validated by the release gate. The candidate attestation must supply that identity after freeze.
 
 **Last verified tree.** `unknown` (`unknown`) — This self-describing registry cannot establish the detached tree externally validated by the release gate. The candidate attestation must supply that identity after freeze.
 
-**Accepted residual risk.** `unaccepted` — No acceptance is recorded. Open risk: the candidate is not attested until an external frozen-candidate gate succeeds; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004).
+**Accepted residual risk.** `unaccepted` — No acceptance is recorded. Candidate-specific attestation status is supplied externally and cannot be inferred from this registry; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004).
 
 **Affected paths.**
 
@@ -1922,6 +2006,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tools/priority0_registry.py`
 - `tests/test_priority0_registry.py`
 - `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
 - `tests/test_release_gate.py`
 - `tools/README_release_gate.md`
 - `tools/defect_ledger.py`
@@ -1944,6 +2029,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tools/priority0_registry.py`
 - `tests/test_priority0_registry.py`
 - `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
 - `tests/test_release_gate.py`
 - `tools/README_release_gate.md`
 - `tools/defect_ledger.py`
@@ -1971,7 +2057,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Known gaps.**
 
-- The current Priority-0 candidate has no valid release attestation until the gate is invoked externally after the candidate is committed and frozen.
+- The registry cannot self-attest any candidate; an external frozen-candidate gate run must supply the exact commit, tree and candidate-specific attestation result.
 - Production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch.
 - The gate attests but deliberately does not deploy, restart, or verify an activated production tree.
 - Independent review remains a separate human session whose investigative independence cannot be proved automatically.
@@ -1985,6 +2071,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tools/priority0_registry.py`
 - `tests/test_priority0_registry.py`
 - `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
 - `tests/test_release_gate.py`
 - `tools/README_release_gate.md`
 - `tools/defect_ledger.py`

@@ -32,6 +32,7 @@ def _validate(
     *,
     markdown: bool = False,
     fallback: bool = True,
+    release_base: str | None = None,
 ) -> ledger_tool.ValidationReport:
     return ledger_tool.validate_ledger(
         ledger,
@@ -41,6 +42,7 @@ def _validate(
         markdown_path=MARKDOWN_PATH if markdown else None,
         diagnosis_path=DIAGNOSIS_PATH if markdown else None,
         force_fallback_schema=fallback,
+        release_base=release_base,
     )
 
 
@@ -57,6 +59,127 @@ def test_real_ledger_is_valid_and_markdown_summary_is_synchronized() -> None:
     assert report.schema_backend == "built-in-draft2020-subset"
     assert report.ok, "\n".join(report.errors)
     assert dict(report.status_counts)
+
+
+def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() -> None:
+    ledger, schema, invariants = _documents()
+    identity = ledger["identity_scope"]
+    baseline = identity["production_baseline"]
+    cutoff = identity["ledger_evidence_cutoff"]
+    candidate = identity["candidate_under_review"]
+    deployment = identity["production_deployment_observation"]
+    regeneration = identity["post_merge_regeneration"]
+
+    assert baseline["commit"] == cutoff["commit"]
+    assert baseline["tree"] == cutoff["tree"]
+    assert candidate["identity_source"] == "external-release-attestation"
+    assert candidate["stored_in_ledger"] is False
+    assert deployment["repository_commit"] == cutoff["commit"]
+    assert deployment["loaded_process_identity_status"].endswith("-unattested")
+    assert regeneration["required"] is True
+    assert regeneration["release_base_must_equal_evidence_cutoff"] is True
+
+    report = _validate(
+        ledger,
+        schema,
+        invariants,
+        release_base=cutoff["commit"],
+    )
+    assert report.ok, "\n".join(report.errors)
+
+
+def test_release_base_after_evidence_cutoff_requires_regeneration() -> None:
+    ledger, schema, invariants = _documents()
+    cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
+    candidate_head = ledger_tool._git(ROOT, "rev-parse", "HEAD").stdout.strip()
+    assert candidate_head != cutoff
+
+    report = _validate(
+        ledger,
+        schema,
+        invariants,
+        release_base=candidate_head,
+    )
+
+    assert not report.ok
+    assert any(
+        "release base differs from ledger evidence cut-off" in error
+        and "regeneration is required" in error
+        for error in report.errors
+    )
+
+
+def test_committed_candidate_identity_is_rejected_as_self_referential() -> None:
+    ledger, schema, invariants = _documents()
+    candidate = ledger["identity_scope"]["candidate_under_review"]
+    candidate["stored_in_ledger"] = True
+    candidate["candidate_commit"] = ledger_tool._git(
+        ROOT, "rev-parse", "HEAD"
+    ).stdout.strip()
+
+    report = _validate(ledger, schema, invariants)
+
+    assert not report.ok
+    combined = "\n".join(report.errors)
+    assert "stored_in_ledger" in combined or "additional property" in combined
+    assert "candidate identity must remain external" in combined
+
+
+def test_cutoff_tree_must_belong_to_cutoff_commit() -> None:
+    ledger, schema, invariants = _documents()
+    ledger["identity_scope"]["ledger_evidence_cutoff"]["tree"] = "0" * 40
+
+    report = _validate(ledger, schema, invariants)
+
+    assert not report.ok
+    assert any(
+        "ledger evidence cut-off tree does not belong" in error
+        for error in report.errors
+    )
+
+
+def test_fix_deployment_and_verification_claims_cannot_postdate_cutoff() -> None:
+    ledger, schema, invariants = _documents()
+    candidate_head = ledger_tool._git(ROOT, "rev-parse", "HEAD").stdout.strip()
+    cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
+    assert candidate_head != cutoff
+
+    fixed = copy.deepcopy(ledger)
+    fixed_defect = next(
+        item for item in fixed["defects"] if item["fix"]["state"] == "fixed"
+    )
+    fixed_defect["fix"]["commit"] = candidate_head
+    fixed_report = _validate(fixed, schema, invariants)
+    assert any(
+        "fix claim commit is outside the ledger evidence cut-off" in error
+        for error in fixed_report.errors
+    )
+
+    deployed = copy.deepcopy(ledger)
+    deployed_defect = next(
+        item
+        for item in deployed["defects"]
+        if item["deployment"]["state"] == "deployed-unverified"
+    )
+    deployed_defect["deployment"]["observed_commit"] = candidate_head
+    deployed_report = _validate(deployed, schema, invariants)
+    assert any(
+        "deployment claim commit is outside the ledger evidence cut-off" in error
+        for error in deployed_report.errors
+    )
+
+    verified = copy.deepcopy(ledger)
+    verified_defect = next(
+        item
+        for item in verified["defects"]
+        if item["deployment"]["state"] == "deployed-verified"
+    )
+    verified_defect["deployment"]["observed_commit"] = candidate_head
+    verified_report = _validate(verified, schema, invariants)
+    assert any(
+        "deployment claim commit is outside the ledger evidence cut-off" in error
+        for error in verified_report.errors
+    )
 
 
 def test_builtin_schema_fallback_rejects_unknown_fields() -> None:
@@ -255,6 +378,9 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     assert ledger_tool.render_scope(ledger) == ledger_tool.render_scope(
         copy.deepcopy(ledger)
     )
+    assert ledger_tool.render_identity_scope(
+        ledger
+    ) == ledger_tool.render_identity_scope(copy.deepcopy(ledger))
     assert ledger_tool.render_chronology(ledger) == ledger_tool.render_chronology(
         copy.deepcopy(ledger)
     )
@@ -295,6 +421,10 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     )
     assert result == 0
     updated = output.read_text(encoding="utf-8")
+    assert ledger_tool._section_block(
+        updated,
+        ledger_tool.IDENTITY_SCOPE_PATTERN,
+    ) == ledger_tool.render_identity_scope(ledger)
     assert ledger_tool._summary_block(updated) == first
     assert ledger_tool._section_block(
         updated,

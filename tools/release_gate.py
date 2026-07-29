@@ -28,6 +28,7 @@ import datetime as dt
 import fcntl
 import fnmatch
 import hashlib
+import importlib.machinery
 import importlib.metadata
 import importlib.util
 import json
@@ -42,11 +43,15 @@ import socket
 import stat
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
+
+from packaging.markers import default_environment
+from packaging.requirements import InvalidRequirement, Requirement
 
 
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
@@ -57,6 +62,66 @@ INCLUSIVE_COMMIT_RANGE = re.compile(
 INVARIANT_ID = re.compile(r"INV-[A-Z0-9]+(?:-[A-Z0-9]+)+\Z")
 RUNTIME_ENTRY_POINTS = ("mrsMThatcher2.py",)
 RUNTIME_LAUNCHERS = ("runMrsMThatcher2", "mrsMThatcher.service")
+DECLARED_VALIDATION_DISTRIBUTIONS = (
+    "attrs",
+    "bcrypt",
+    "beautifulsoup4",
+    "blinker",
+    "Brotli",
+    "chardet",
+    "colorama",
+    "defusedxml",
+    "fastapi",
+    "google-genai",
+    "html5lib",
+    "httpx",
+    "ImageHash",
+    "Jinja2",
+    "jsonpointer",
+    "jsonschema",
+    "lxml",
+    "numpy",
+    "onnxruntime",
+    "openai",
+    "packaging",
+    "Pillow",
+    "pyrsistent",
+    "PySocks",
+    "pytest",
+    "pytest-xdist",
+    "requests",
+    "requests-oauthlib",
+    "rich",
+    "six",
+    "soupsieve",
+    "tokenizers",
+    "tornado",
+    "tweepy",
+    "uvicorn",
+    "webencodings",
+)
+VALIDATION_MODULE_BINDINGS = (
+    "pytest",
+    "_pytest",
+    "xdist",
+    "jsonschema",
+    "numpy",
+    "PIL",
+    "requests",
+    "openai",
+    "tweepy",
+)
+VALIDATION_MODULE_DISTRIBUTIONS = {
+    "pytest": "pytest",
+    "_pytest": "pytest",
+    "xdist": "pytest-xdist",
+    "jsonschema": "jsonschema",
+    "numpy": "numpy",
+    "PIL": "pillow",
+    "requests": "requests",
+    "openai": "openai",
+    "tweepy": "tweepy",
+}
 NON_RUNTIME_PREFIXES = (
     "tests/",
     "tools/",
@@ -121,16 +186,159 @@ SOURCE_PIN_ALIASES = {
         "semantic_alignment_research/quote_research_full_001/research_packets.json"
     ),
 }
-ADVISORY_SOURCE_PIN_KEYS = {
-    (
-        "semantic_alignment_research/quote_attribution_cleanup_001/"
-        "deployment_candidate/runtime_eligible_quote_manifest.json",
-        "attribution_predicate",
-    ): (
-        "the runtime loader validates active_source and completed_quote_research "
-        "but does not consume this whole-formatter provenance pin"
+TRUTH_AUDIT_PATH = "historical_context_evidence_truth_audit.json"
+MTF_PRIMARY_REVIEW_PATH = "historical_context_mtf_primary_review.json"
+RUNTIME_ELIGIBILITY_PATH = (
+    "semantic_alignment_research/quote_attribution_cleanup_001/"
+    "deployment_candidate/runtime_eligible_quote_manifest.json"
+)
+V3_MANIFEST_PATH = (
+    "semantic_alignment_research/quote_attribution_cleanup_001/"
+    "deployment_candidate/material_veto_v3_shadow_manifest.json"
+)
+V3_HISTORICAL_AUDIT_PATH = (
+    "semantic_alignment_research/quote_attribution_cleanup_001/"
+    "deployment_candidate/v3_shadow_manifest_audit.json"
+)
+V3_HISTORICAL_CHECKSUMS_PATH = (
+    "semantic_alignment_research/quote_attribution_cleanup_001/"
+    "deployment_candidate/checksums.json"
+)
+
+_HISTORICAL_CONTEXT_BUILD_INPUT_PATHS: dict[str, str | None] = {
+    "corpus_manifest.json": (
+        "semantic_alignment_research/quote_research_full_001/"
+        "corpus_manifest.json"
+    ),
+    "historical_context_reply_history.json": None,
+    "historical_context_source_curated_evidence.json": (
+        "semantic_alignment_research/quote_research_full_001/"
+        "historical_context_source_curated_evidence.json"
+    ),
+    "historical_context_source_role_audit.json": (
+        "semantic_alignment_research/quote_research_full_001/"
+        "historical_context_source_role_audit.json"
+    ),
+    "mrsMThatcher.txt": "mrsMThatcher.txt",
+    "quote_analysis.json": "quote_analysis.json",
+    "research_packets.json": (
+        "semantic_alignment_research/quote_research_full_001/"
+        "research_packets.json"
     ),
 }
+
+ADVISORY_PIN_CLASSIFICATIONS: dict[
+    tuple[str, str, str], dict[str, Any]
+] = {}
+for _artifact in (TRUTH_AUDIT_PATH, MTF_PRIMARY_REVIEW_PATH):
+    for _pin, _resolved_path in _HISTORICAL_CONTEXT_BUILD_INPUT_PATHS.items():
+        if (
+            _artifact == TRUTH_AUDIT_PATH
+            and _pin == "historical_context_reply_history.json"
+        ):
+            continue
+        ADVISORY_PIN_CLASSIFICATIONS[(_artifact, "input_hashes", _pin)] = {
+            "owning_artifact": _artifact,
+            "field": "input_hashes",
+            "pin_name": _pin,
+            "owner_builder": (
+                "historical_context_evidence_truth_audit.py:build_audit"
+                if _artifact == TRUTH_AUDIT_PATH
+                else "historical_context_mtf_primary_review.py:build_review"
+            ),
+            "loader_or_builder": (
+                "historical_context_published_reply_semantic_review.py:"
+                "build_review"
+            ),
+            "runtime_reads_field": False,
+            "runtime_reads_relationship": False,
+            "runtime_mapping_name": (
+                "truth" if _artifact == TRUTH_AUDIT_PATH else "mtf"
+            ),
+            "runtime_absence_scopes": [
+                "historical_context_published_reply_semantic_review.py:"
+                "build_review"
+            ],
+            "code_evidence": [
+                "historical_context_published_reply_semantic_review.py:"
+                "555-715",
+                "historical_context_reply_semantic_gate.py:91-108",
+            ],
+            "validator": (
+                "tests/test_historical_context_reply_semantic_gate.py"
+            ),
+            "reason": (
+                "The stored hash is provenance for an offline source build. "
+                "Runtime rebuilds the published-reply review from the current "
+                "artifact records and reads only the truth-audit packet-"
+                "corrections pin; it does not use this pin for a decision."
+            ),
+            "resolved_path": _resolved_path,
+            "allow_missing": _resolved_path is None,
+        }
+
+ADVISORY_PIN_CLASSIFICATIONS[
+    (MTF_PRIMARY_REVIEW_PATH, "input_hashes", "historical_context_packet_corrections.json")
+] = {
+    "owning_artifact": MTF_PRIMARY_REVIEW_PATH,
+    "field": "input_hashes",
+    "pin_name": "historical_context_packet_corrections.json",
+    "owner_builder": "historical_context_mtf_primary_review.py:build_review",
+    "loader_or_builder": (
+        "historical_context_published_reply_semantic_review.py:build_review"
+    ),
+    "runtime_reads_field": False,
+    "runtime_reads_relationship": False,
+    "runtime_mapping_name": "mtf",
+    "runtime_absence_scopes": [
+        "historical_context_published_reply_semantic_review.py:build_review",
+    ],
+    "code_evidence": [
+        "historical_context_published_reply_semantic_review.py:555-715",
+        "historical_context_reply_semantic_gate.py:91-108",
+    ],
+    "validator": "tests/test_historical_context_reply_semantic_gate.py",
+    "reason": (
+        "The MTF review's correction hash is historical build provenance. "
+        "Runtime uses MTF review records, while the separately loaded truth "
+        "audit supplies the only packet-corrections pin used by the gate."
+    ),
+    "resolved_path": (
+        "semantic_alignment_research/quote_research_full_001/"
+        "historical_context_packet_corrections.json"
+    ),
+    "allow_missing": False,
+}
+
+ADVISORY_PIN_CLASSIFICATIONS[
+    (RUNTIME_ELIGIBILITY_PATH, "source_file_hashes", "attribution_predicate")
+] = {
+    "owning_artifact": RUNTIME_ELIGIBILITY_PATH,
+    "field": "source_file_hashes",
+    "pin_name": "attribution_predicate",
+    "owner_builder": "quote_attribution_cleanup.py:rebuild_runtime_eligible_manifest",
+    "loader_or_builder": "mrsMThatcher2.py:load_completed_research_quote_hashes",
+    "runtime_reads_field": True,
+    "runtime_reads_relationship": False,
+    "runtime_access_mode": "presence_and_shape_only",
+    "runtime_presence_scopes": [
+        "semantic_alignment/quote_image_semantic_veto.py:"
+        "_validate_attribution_cleaned_v3_manifest"
+    ],
+    "code_evidence": [
+        "mrsMThatcher2.py:8388-8475",
+        "semantic_alignment/quote_image_semantic_veto.py:620-730",
+    ],
+    "validator": "tests/test_runtime_ordinary_eligibility_integrity.py",
+    "reason": (
+        "The ordinary-eligibility loader validates active_source and "
+        "completed_quote_research, then derives attribution from current "
+        "packets. It does not read this whole-formatter provenance pin."
+    ),
+    "resolved_path": "historical_context_formatter.py",
+    "allow_missing": False,
+}
+
 REQUIRED_INPUT_PIN_KEYS = {
     (
         "historical_context_evidence_truth_audit.json",
@@ -140,6 +348,68 @@ REQUIRED_INPUT_PIN_KEYS = {
         "input and must fail closed when that binding is stale"
     ),
 }
+
+REQUIRED_EMBEDDED_PIN_RELATIONSHIPS = {
+    (
+        TRUTH_AUDIT_PATH,
+        "input_hashes",
+        "historical_context_reply_history.json",
+    ): {
+        "target_artifact": "historical_context_published_reply_semantic_review.json",
+        "target_pointer": "/input_evidence/published_history/sha256",
+        "reason": (
+            "runtime rebuilds and validates the published-reply review from "
+            "the truth audit, so the truth-audit history pin must equal the "
+            "hash embedded in the reviewed semantic projection; it is not "
+            "compared with mutable live history"
+        ),
+    }
+}
+
+DIRECT_COMPANION_RELATIONSHIPS: tuple[dict[str, str], ...] = ()
+HISTORICAL_BUILD_RELATIONSHIPS: tuple[dict[str, Any], ...] = (
+    {
+        "artifact": V3_HISTORICAL_AUDIT_PATH,
+        "bound_artifact": V3_MANIFEST_PATH,
+        "bound_field": "manifest_sha256",
+        "classification": "historical_build_evidence",
+        "owner_builder": "quote_attribution_cleanup.py:prepare_v3_shadow_manifest",
+        "loader_or_builder": "quote_attribution_cleanup.py:prepare_v3_shadow_manifest",
+        "runtime_reads_artifact": False,
+        "code_evidence": [
+            "mrsMThatcher2.py:725-747",
+            "mrsMThatcher2.py:972-987",
+            "semantic_alignment/quote_image_semantic_veto.py:819-905",
+            "semantic_veto_shadow_health.py:31-89",
+        ],
+        "validator": "tests/test_release_gate.py",
+        "reason": (
+            "The audit describes the historical prepare-v3-shadow build. "
+            "Runtime configuration, the shadow loader, and the health checker "
+            "consume only the configured manifest; the later 91-row "
+            "adjudication has separate deterministic transition evidence."
+        ),
+    },
+    {
+        "artifact": V3_HISTORICAL_CHECKSUMS_PATH,
+        "bound_artifact": V3_MANIFEST_PATH,
+        "bound_field": "material_veto_v3_shadow_manifest.json",
+        "classification": "historical_build_evidence",
+        "owner_builder": "quote_attribution_cleanup.py:prepare_v3_shadow_manifest",
+        "loader_or_builder": "quote_attribution_cleanup.py:prepare_v3_shadow_manifest",
+        "runtime_reads_artifact": False,
+        "code_evidence": [
+            "mrsMThatcher2.py:725-747",
+            "semantic_alignment/quote_image_semantic_veto.py:819-905",
+        ],
+        "validator": "tests/test_release_gate.py",
+        "reason": (
+            "The checksum inventory is the immutable inventory of the same "
+            "historical deployment-candidate build and is not a runtime "
+            "configuration or loader input."
+        ),
+    },
+)
 
 
 class ReleaseGateError(RuntimeError):
@@ -203,6 +473,11 @@ class ValidationResult:
     duration_seconds: float
     junit_sha256: str | None = None
     executed_command: tuple[str, ...] = ()
+    skipped_tests: tuple[Mapping[str, Any], ...] = ()
+    warning_summaries: tuple[Mapping[str, Any], ...] = ()
+    import_violations: tuple[Mapping[str, Any], ...] = ()
+    sys_path_violations: tuple[Mapping[str, Any], ...] = ()
+    pytest_events_sha256: str | None = None
 
     def semantic_dict(self) -> dict[str, Any]:
         """Return fields which are stable for identical validation results."""
@@ -221,6 +496,16 @@ class ValidationResult:
             "errors": self.errors,
             "skipped": self.skipped,
             "warnings": self.warnings,
+            "skipped_tests": [dict(item) for item in self.skipped_tests],
+            "warning_summaries": [
+                dict(item) for item in self.warning_summaries
+            ],
+            "import_violations": [
+                dict(item) for item in self.import_violations
+            ],
+            "sys_path_violations": [
+                dict(item) for item in self.sys_path_violations
+            ],
         }
 
     def receipt_dict(self) -> dict[str, Any]:
@@ -229,6 +514,7 @@ class ValidationResult:
         value["duration_seconds"] = round(self.duration_seconds, 6)
         value["output_sha256"] = self.output_sha256
         value["junit_sha256"] = self.junit_sha256
+        value["pytest_events_sha256"] = self.pytest_events_sha256
         value["executed_command"] = list(
             self.executed_command or self.command
         )
@@ -241,6 +527,9 @@ class ValidationToolchain:
 
     semantic_inventory_json: str
     python_paths: tuple[str, ...]
+    standard_library_roots: tuple[str, ...] = ()
+    allowed_distribution_files: tuple[str, ...] = ()
+    allowed_distribution_directories: tuple[str, ...] = ()
     protected_paths: tuple[str, ...] = ()
 
     def semantic_dict(self) -> dict[str, Any]:
@@ -1601,6 +1890,17 @@ def ledger_commit_identities(ledger: Mapping[str, Any]) -> tuple[str, ...]:
     if isinstance(baseline, Mapping):
         add(baseline.get("current_master_commit"))
         add(baseline.get("observed_production_commit"))
+    identity_scope = ledger.get("identity_scope", {})
+    if isinstance(identity_scope, Mapping):
+        for section_name in (
+            "production_baseline",
+            "ledger_evidence_cutoff",
+            "production_deployment_observation",
+        ):
+            section = identity_scope.get(section_name, {})
+            if isinstance(section, Mapping):
+                add(section.get("commit"))
+                add(section.get("repository_commit"))
     defects = ledger.get("defects", [])
     if not isinstance(defects, list):
         return tuple(sorted(commits))
@@ -1637,6 +1937,101 @@ def ledger_commit_identities(ledger: Mapping[str, Any]) -> tuple[str, ...]:
                 if isinstance(test, Mapping):
                     add(test.get("commit"))
     return tuple(sorted(commits))
+
+
+def ledger_evidence_cutoff_assessment(
+    repo: Path,
+    *,
+    ledger: Mapping[str, Any],
+    supplied_base_commit: str,
+) -> dict[str, Any]:
+    """Bind ledger truth to its explicit evidence cut-off and release base."""
+    scope = ledger.get("identity_scope")
+    if not isinstance(scope, Mapping):
+        return {
+            "valid_for_supplied_base": False,
+            "error": "ledger identity_scope is missing",
+            "supplied_base_commit": supplied_base_commit,
+        }
+    cutoff = scope.get("ledger_evidence_cutoff")
+    regeneration = scope.get("post_merge_regeneration")
+    if not isinstance(cutoff, Mapping) or not isinstance(
+        regeneration, Mapping
+    ):
+        return {
+            "valid_for_supplied_base": False,
+            "error": (
+                "ledger evidence cut-off or post-merge regeneration policy "
+                "is missing"
+            ),
+            "supplied_base_commit": supplied_base_commit,
+        }
+    cutoff_commit = str(cutoff.get("commit") or "")
+    cutoff_tree = str(cutoff.get("tree") or "")
+    if not HEX40.fullmatch(cutoff_commit) or not HEX40.fullmatch(cutoff_tree):
+        return {
+            "valid_for_supplied_base": False,
+            "error": "ledger evidence cut-off identity is malformed",
+            "supplied_base_commit": supplied_base_commit,
+            "evidence_cutoff_commit": cutoff_commit,
+            "evidence_cutoff_tree": cutoff_tree,
+        }
+    try:
+        actual_cutoff_tree = _git(
+            repo, "rev-parse", f"{cutoff_commit}^{{tree}}"
+        )
+    except ReleaseGateError as exc:
+        return {
+            "valid_for_supplied_base": False,
+            "error": f"ledger evidence cut-off commit is unavailable: {exc}",
+            "supplied_base_commit": supplied_base_commit,
+            "evidence_cutoff_commit": cutoff_commit,
+            "evidence_cutoff_tree": cutoff_tree,
+        }
+    tree_matches = actual_cutoff_tree == cutoff_tree
+    base_matches = supplied_base_commit == cutoff_commit
+    changed_since_cutoff: list[str] = []
+    if not base_matches:
+        with contextlib.suppress(ReleaseGateError):
+            changed_since_cutoff = list(
+                changed_paths(repo, cutoff_commit, supplied_base_commit)
+            )
+    require_exact = regeneration.get(
+        "release_base_must_equal_evidence_cutoff"
+    ) is True
+    valid = bool(tree_matches and (base_matches or not require_exact))
+    return {
+        "valid_for_supplied_base": valid,
+        "production_baseline": dict(
+            scope.get("production_baseline", {})
+            if isinstance(scope.get("production_baseline"), Mapping)
+            else {}
+        ),
+        "evidence_cutoff_commit": cutoff_commit,
+        "evidence_cutoff_tree": cutoff_tree,
+        "evidence_cutoff_tree_matches_git": tree_matches,
+        "supplied_base_commit": supplied_base_commit,
+        "supplied_base_equals_evidence_cutoff": base_matches,
+        "changed_paths_since_evidence_cutoff": changed_since_cutoff,
+        "post_merge_regeneration_required": regeneration.get("required")
+        is True,
+        "release_base_must_equal_evidence_cutoff": require_exact,
+        "difference_explanation": (
+            "The supplied release base exactly equals the ledger evidence "
+            "cut-off."
+            if base_matches
+            else (
+                "The supplied release base is newer or different; regenerate "
+                "the ledger before relying on fixed, deployed, verified, or "
+                "invariant-status claims."
+            )
+        ),
+        "candidate_identity_source": (
+            scope.get("candidate_under_review", {}).get("identity_source")
+            if isinstance(scope.get("candidate_under_review"), Mapping)
+            else None
+        ),
+    }
 
 
 def validate_control_schema(
@@ -1781,6 +2176,115 @@ def changed_paths(repo: Path, base: str, candidate: str) -> tuple[str, ...]:
         candidate,
     )
     return tuple(sorted(item for item in payload.split("\0") if item))
+
+
+def candidate_static_check_plan(
+    repo: Path, *, base: str, candidate: str
+) -> dict[str, Any]:
+    """Return deterministic compile and whitespace checks for one exact diff."""
+    present_python: list[str] = []
+    deleted_python: list[str] = []
+    for relative in changed_paths(repo, base, candidate):
+        if not relative.endswith(".py"):
+            continue
+        exists = _git_run(
+            repo,
+            ("cat-file", "-e", f"{candidate}:{relative}"),
+            check=False,
+        ).returncode == 0
+        (present_python if exists else deleted_python).append(relative)
+    compile_command: tuple[str, ...] | None = None
+    if present_python:
+        compile_command = (
+            sys.executable,
+            "-m",
+            "py_compile",
+            *sorted(present_python),
+        )
+    return {
+        "changed_python_files": sorted(present_python),
+        "deleted_python_files": sorted(deleted_python),
+        "compile_command": compile_command,
+        "compile_not_applicable_reason": (
+            ""
+            if compile_command
+            else "candidate diff contains no present changed Python files"
+        ),
+        "diff_check_command": (
+            "git",
+            "diff",
+            "--check",
+            f"{base}..{candidate}",
+        ),
+    }
+
+
+def candidate_lineage(
+    repo: Path, *, base: str, candidate: str
+) -> dict[str, Any]:
+    """Describe the immediate reviewed predecessor without hard-coding it."""
+    parent = _git(repo, "rev-parse", f"{candidate}^")
+    parent_tree = _git(repo, "rev-parse", f"{parent}^{{tree}}")
+    parent_is_base = parent == base
+    return {
+        "base_commit": base,
+        "previous_candidate_commit": None if parent_is_base else parent,
+        "previous_candidate_tree": None if parent_is_base else parent_tree,
+        "followup_candidate_commit": candidate,
+        "followup_candidate_tree": _git(
+            repo, "rev-parse", f"{candidate}^{{tree}}"
+        ),
+    }
+
+
+def candidate_static_validation(
+    plan: Mapping[str, Any],
+    results: Mapping[str, ValidationResult],
+) -> dict[str, Any]:
+    """Bind compile/whitespace evidence to the exact candidate diff."""
+    compile_result = results.get("py_compile")
+    diff_result = results.get("git_diff_check")
+
+    def result_record(
+        result: ValidationResult | None, *, applicable: bool
+    ) -> dict[str, Any]:
+        if not applicable:
+            return {
+                "applicable": False,
+                "passed": True,
+                "reason": str(
+                    plan.get("compile_not_applicable_reason") or ""
+                ),
+            }
+        if result is None:
+            return {
+                "applicable": True,
+                "passed": False,
+                "reason": "required check was not executed",
+            }
+        return {
+            "applicable": True,
+            "command": list(result.command),
+            "exit_status": result.exit_status,
+            "output_sha256": result.output_sha256,
+            "combined_stdout_stderr_sha256": result.output_sha256,
+            "passed": result.exit_status == 0,
+        }
+
+    compile_applicable = plan.get("compile_command") is not None
+    compile_record = result_record(
+        compile_result, applicable=compile_applicable
+    )
+    diff_record = result_record(diff_result, applicable=True)
+    return {
+        "changed_python_files": list(plan.get("changed_python_files", [])),
+        "deleted_python_files": list(plan.get("deleted_python_files", [])),
+        "py_compile": compile_record,
+        "git_diff_check": diff_record,
+        "all_passed": bool(
+            compile_record.get("passed") and diff_record.get("passed")
+        ),
+    }
 
 
 def path_matches(path: str, pattern: str) -> bool:
@@ -2622,20 +3126,270 @@ def _import_root_content_inventory(
     }
 
 
+def _validation_distribution_closure(
+    declared: Sequence[str],
+) -> tuple[tuple[importlib.metadata.Distribution, ...], dict[str, dict[str, Any]]]:
+    """Resolve the active, marker-filtered dependency closure deterministically."""
+    queue: list[tuple[str, str | None, bool]] = [
+        (name, None, True) for name in declared
+    ]
+    distributions: dict[str, importlib.metadata.Distribution] = {}
+    provenance: dict[str, dict[str, Any]] = {}
+    environment = default_environment()
+    environment["extra"] = ""
+    while queue:
+        requested, parent, direct = queue.pop(0)
+        try:
+            distribution = importlib.metadata.distribution(requested)
+        except importlib.metadata.PackageNotFoundError as exc:
+            raise ReleaseGateError(
+                f"required validation distribution is unavailable: {requested}"
+            ) from exc
+        canonical = _normalise_distribution_name(
+            distribution.metadata.get("Name") or requested
+        )
+        record = provenance.setdefault(
+            canonical,
+            {
+                "distribution": canonical,
+                "version": distribution.version,
+                "direct": False,
+                "required_by": set(),
+            },
+        )
+        if record["version"] != distribution.version:
+            raise ReleaseGateError(
+                f"ambiguous validation distribution version: {canonical}"
+            )
+        record["direct"] = bool(record["direct"] or direct)
+        if parent:
+            record["required_by"].add(parent)
+        if canonical in distributions:
+            continue
+        distributions[canonical] = distribution
+        for raw_requirement in distribution.requires or ():
+            try:
+                requirement = Requirement(raw_requirement)
+            except InvalidRequirement as exc:
+                raise ReleaseGateError(
+                    f"invalid Requires-Dist for {canonical}: {raw_requirement}"
+                ) from exc
+            if requirement.marker and not requirement.marker.evaluate(environment):
+                continue
+            dependency_name = _normalise_distribution_name(requirement.name)
+            try:
+                dependency = importlib.metadata.distribution(requirement.name)
+            except importlib.metadata.PackageNotFoundError as exc:
+                raise ReleaseGateError(
+                    f"validation dependency is unavailable: "
+                    f"{canonical} -> {requirement.name}"
+                ) from exc
+            if requirement.specifier and not requirement.specifier.contains(
+                dependency.version, prereleases=True
+            ):
+                raise ReleaseGateError(
+                    f"validation dependency version does not satisfy metadata: "
+                    f"{canonical} -> {raw_requirement} (installed "
+                    f"{dependency.version})"
+                )
+            queue.append((dependency_name, canonical, False))
+    normalised_provenance = {
+        name: {
+            **record,
+            "required_by": sorted(record["required_by"]),
+        }
+        for name, record in sorted(provenance.items())
+    }
+    return (
+        tuple(distributions[name] for name in sorted(distributions)),
+        normalised_provenance,
+    )
+
+
+def _distribution_import_inventory(
+    distributions: Sequence[importlib.metadata.Distribution],
+    provenance: Mapping[str, Mapping[str, Any]],
+) -> tuple[list[dict[str, Any]], tuple[Path, ...], tuple[Path, ...], tuple[Path, ...]]:
+    """Return content-bound owned import files/directories and search roots.
+
+    A shared ``site-packages`` directory remains only an import search root.
+    It is never an allowed module-origin root.  Module origins are authorised
+    against the exact owned files (or, only where package metadata exposes no
+    file list, the distribution's exact top-level package directory).
+    """
+    package_owners = importlib.metadata.packages_distributions()
+    records: list[dict[str, Any]] = []
+    allowed_files: set[Path] = set()
+    allowed_directories: set[Path] = set()
+    search_roots: set[Path] = set()
+    for distribution in distributions:
+        canonical = _normalise_distribution_name(
+            distribution.metadata.get("Name") or ""
+        )
+        root = Path(distribution.locate_file("")).resolve(strict=True)
+        if not root.is_dir() or _existing_path_has_symlink_component(root):
+            raise ReleaseGateError(
+                f"validation distribution root is not ordinary: {canonical}"
+            )
+        search_roots.add(root)
+        owned_records: list[dict[str, Any]] = []
+        files = list(distribution.files or ())
+        if files:
+            for entry in sorted(files, key=lambda item: str(item)):
+                source = Path(distribution.locate_file(entry))
+                try:
+                    resolved = source.resolve(strict=True)
+                    resolved.relative_to(root)
+                except (OSError, ValueError):
+                    # Console scripts and metadata-owned files outside the
+                    # import root are not Python import candidates.
+                    continue
+                if not resolved.is_file():
+                    continue
+                allowed_files.add(resolved)
+                owned_records.append(
+                    {
+                        "path": resolved.relative_to(root).as_posix(),
+                        "sha256": sha256_file(resolved),
+                        "size": resolved.stat().st_size,
+                    }
+                )
+        else:
+            fallback_owned_paths: set[Path] = set()
+            top_levels = sorted(
+                name
+                for name, owners in package_owners.items()
+                if canonical
+                in {
+                    _normalise_distribution_name(owner)
+                    for owner in owners
+                }
+            )
+            if not top_levels:
+                metadata_top_levels = [
+                    value.strip()
+                    for value in (
+                        distribution.read_text("top_level.txt") or ""
+                    ).splitlines()
+                    if value.strip()
+                ]
+                top_levels = sorted(
+                    {
+                        *metadata_top_levels,
+                        canonical.replace("-", "_"),
+                    }
+                )
+            if not top_levels:
+                raise ReleaseGateError(
+                    f"validation distribution has no owned import files: "
+                    f"{canonical}"
+                )
+            for top_level in top_levels:
+                spec = importlib.machinery.PathFinder.find_spec(
+                    top_level, [str(root)]
+                )
+                candidates: list[Path] = []
+                if spec is not None and spec.origin not in (None, "namespace"):
+                    candidates.append(Path(spec.origin))
+                if spec is not None and spec.submodule_search_locations:
+                    candidates.extend(
+                        Path(value) for value in spec.submodule_search_locations
+                    )
+                for candidate in candidates:
+                    resolved = candidate.resolve(strict=True)
+                    try:
+                        resolved.relative_to(root)
+                    except ValueError as exc:
+                        raise ReleaseGateError(
+                            f"validation package escapes its distribution root: "
+                            f"{canonical}:{top_level}"
+                        ) from exc
+                    if resolved.is_file():
+                        allowed_files.add(resolved)
+                        fallback_owned_paths.add(resolved)
+                    elif resolved.is_dir():
+                        allowed_directories.add(resolved)
+                        fallback_owned_paths.add(resolved)
+                    else:
+                        raise ReleaseGateError(
+                            f"validation package origin is unsupported: "
+                            f"{canonical}:{top_level}"
+                        )
+            fallback_paths = sorted(fallback_owned_paths, key=str)
+            owned_records = [
+                {
+                    "path": path.relative_to(root).as_posix(),
+                    **(
+                        {
+                            "sha256": sha256_file(path),
+                            "size": path.stat().st_size,
+                            "kind": "file",
+                        }
+                        if path.is_file()
+                        else {
+                            "content_sha256": _import_root_content_inventory(
+                                path
+                            )["content_sha256"],
+                            "kind": "directory",
+                        }
+                    ),
+                }
+                for path in fallback_paths
+                if path == root or root in path.parents
+            ]
+        if not owned_records:
+            raise ReleaseGateError(
+                f"validation distribution owns no usable import content: "
+                f"{canonical}"
+            )
+        records.append(
+            {
+                **dict(provenance[canonical]),
+                "installation_root": str(root),
+                "owned_import_entry_count": len(owned_records),
+                "owned_import_content_sha256": sha256_bytes(
+                    canonical_json_bytes(owned_records)
+                ),
+            }
+        )
+    return (
+        sorted(records, key=lambda row: row["distribution"]),
+        tuple(sorted(allowed_files, key=str)),
+        tuple(sorted(allowed_directories, key=str)),
+        tuple(sorted(search_roots, key=str)),
+    )
+
+
 def _validation_import_roots(
-    *, excluded_roots: Sequence[Path] = ()
-) -> tuple[Path, ...]:
-    """Return the exact existing import roots used by the validation Python."""
-    roots: list[Path] = []
+    *,
+    distribution_roots: Sequence[Path],
+    excluded_roots: Sequence[Path] = (),
+) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
+    """Return standard-library trust roots and distribution search roots."""
     excluded = tuple(Path(os.path.abspath(path)) for path in excluded_roots)
-    for raw in sys.path:
+    standard_library: list[Path] = []
+    for raw in (
+        sysconfig.get_path("stdlib"),
+        sysconfig.get_path("platstdlib"),
+        str(Path(sysconfig.get_path("stdlib")) / "lib-dynload"),
+    ):
         if not raw:
             continue
         path = Path(os.path.abspath(raw))
-        if not path.exists():
-            continue
+        if path.exists() and path not in standard_library:
+            standard_library.append(path)
+    search_roots: list[Path] = []
+    for path in distribution_roots:
+        path = Path(os.path.abspath(path))
+        if path not in search_roots:
+            search_roots.append(path)
+    roots = [*standard_library, *search_roots]
+    for path in roots:
         if any(path == root or root in path.parents for root in excluded):
-            continue
+            raise ReleaseGateError(
+                f"declared validation dependency is an excluded project root: "
+                f"{path}"
+            )
         if (
             (not path.is_dir() and not path.is_file())
             or _existing_path_has_symlink_component(path)
@@ -2643,16 +3397,18 @@ def _validation_import_roots(
             raise ReleaseGateError(
                 f"validation Python path is not an ordinary file/directory: {path}"
             )
-        if path not in roots:
-            roots.append(path)
-    if not roots:
-        raise ReleaseGateError("validation Python has no content-bound import roots")
-    return tuple(roots)
+    if not standard_library or not search_roots:
+        raise ReleaseGateError(
+            "validation Python lacks standard-library or dependency roots"
+        )
+    return tuple(standard_library), tuple(search_roots)
 
 
 def _module_binding(module_name: str, roots: Sequence[Path]) -> dict[str, Any]:
     """Bind one mandatory validation module to an attested import-root file."""
-    spec = importlib.util.find_spec(module_name)
+    spec = importlib.machinery.PathFinder.find_spec(
+        module_name, [str(root) for root in roots]
+    )
     if spec is None or spec.origin is None:
         raise ReleaseGateError(f"validation module is unavailable: {module_name}")
     origin = Path(os.path.abspath(spec.origin))
@@ -2695,40 +3451,61 @@ def _nested_identity_paths(value: Any) -> set[str]:
 def validation_toolchain_inventory(
     *, excluded_roots: Sequence[Path] = ()
 ) -> ValidationToolchain:
-    """Bind the executable and complete active import environment by content."""
+    """Bind only declared distributions and their active dependency closure."""
     executable = Path(sys.executable).resolve()
     seccomp_library = seccomp_library_path()
-    roots = _validation_import_roots(excluded_roots=excluded_roots)
-    root_records = [_import_root_content_inventory(root) for root in roots]
-    mandatory_distributions = []
-    for name in ("pytest", "pytest-xdist", "jsonschema"):
-        try:
-            distribution = importlib.metadata.distribution(name)
-        except importlib.metadata.PackageNotFoundError as exc:
-            raise ReleaseGateError(
-                f"required validation distribution is unavailable: {name}"
-            ) from exc
-        mandatory_distributions.append(
-            {
-                "distribution": _normalise_distribution_name(
-                    distribution.metadata.get("Name") or name
-                ),
-                "version": distribution.version,
-            }
-        )
+    distributions, provenance = _validation_distribution_closure(
+        DECLARED_VALIDATION_DISTRIBUTIONS
+    )
+    (
+        distribution_records,
+        allowed_files,
+        allowed_directories,
+        distribution_search_roots,
+    ) = _distribution_import_inventory(distributions, provenance)
+    standard_library_roots, distribution_search_roots = _validation_import_roots(
+        distribution_roots=distribution_search_roots,
+        excluded_roots=excluded_roots,
+    )
+    roots = (*standard_library_roots, *distribution_search_roots)
+    root_records = [
+        _import_root_content_inventory(root) for root in standard_library_roots
+    ]
     module_bindings = [
-        _module_binding(name, roots)
-        for name in ("pytest", "_pytest", "xdist", "jsonschema")
+        {
+            **_module_binding(name, roots),
+            "distribution": VALIDATION_MODULE_DISTRIBUTIONS[name],
+        }
+        for name in VALIDATION_MODULE_BINDINGS
     ]
     semantic = {
-        "schema_version": 2,
+        "schema_version": 4,
         "python": {
             "implementation": platform.python_implementation(),
             "version": platform.python_version(),
             "executable_sha256": sha256_file(executable),
         },
-        "distributions": mandatory_distributions,
-        "import_roots": root_records,
+        "declared_distributions": sorted(
+            _normalise_distribution_name(name)
+            for name in DECLARED_VALIDATION_DISTRIBUTIONS
+        ),
+        "distributions": distribution_records,
+        "standard_library_import_roots": root_records,
+        "distribution_search_roots": [
+            str(path) for path in distribution_search_roots
+        ],
+        "allowed_distribution_file_count": len(allowed_files),
+        "allowed_distribution_directory_count": len(allowed_directories),
+        "allowed_distribution_origins_sha256": sha256_bytes(
+            canonical_json_bytes(
+                {
+                    "files": [str(path) for path in allowed_files],
+                    "directories": [
+                        str(path) for path in allowed_directories
+                    ],
+                }
+            )
+        ),
         "module_distribution_bindings": module_bindings,
         "os_containment_dependencies": [
             {
@@ -2742,13 +3519,35 @@ def validation_toolchain_inventory(
             }
         ],
         "dependency_scope": (
-            "every existing sys.path import root is recursively content-bound; "
-            "isolated execution uses only these roots and the frozen candidate"
+            "standard-library roots are trusted by directory; installed "
+            "site-packages paths are search roots only. Every imported "
+            "third-party module must resolve to an exact file or exact "
+            "top-level directory owned by a declared distribution or its "
+            "marker-filtered dependency closure"
         ),
+        "environment_policy": {
+            "inherited_project_path_injection": "discarded",
+            "cleared_variables": [
+                "PYTHONHOME",
+                "PYTHONPATH",
+                "PYTHONSTARTUP",
+                "PYTHONUSERBASE",
+            ],
+            "candidate_added_by_isolated_bootstrap": True,
+        },
     }
     return ValidationToolchain(
         semantic_inventory_json=canonical_json_bytes(semantic).decode("utf-8"),
         python_paths=tuple(str(root) for root in roots),
+        standard_library_roots=tuple(
+            str(root) for root in standard_library_roots
+        ),
+        allowed_distribution_files=tuple(
+            str(path) for path in allowed_files
+        ),
+        allowed_distribution_directories=tuple(
+            str(path) for path in allowed_directories
+        ),
         protected_paths=tuple(
             sorted(
                 {
@@ -2763,6 +3562,55 @@ def validation_toolchain_inventory(
             )
         ),
     )
+
+
+def sanitised_validation_import_roots(
+    toolchain: Mapping[str, Any],
+) -> list[str]:
+    """Project all attested v4 validation roots into final validation.
+
+    Installed distribution directories are search roots rather than trusted
+    origins, but they are still part of the isolated interpreter's effective
+    import path.  Binding this projection to the toolchain schema prevents a
+    future schema change from silently emitting an empty assurance field.
+    """
+
+    if toolchain.get("schema_version") != 4:
+        raise ReleaseGateError(
+            "validation toolchain schema is not supported by final-validation "
+            "import-root reporting"
+        )
+    standard_library = toolchain.get("standard_library_import_roots")
+    distribution_search = toolchain.get("distribution_search_roots")
+    if not isinstance(standard_library, list) or not isinstance(
+        distribution_search, list
+    ):
+        raise ReleaseGateError(
+            "validation toolchain import-root inventories are malformed"
+        )
+    roots: set[str] = set()
+    for record in standard_library:
+        if not isinstance(record, Mapping):
+            raise ReleaseGateError(
+                "standard-library import-root inventory entry is malformed"
+            )
+        path = record.get("path")
+        if not isinstance(path, str) or not path:
+            raise ReleaseGateError(
+                "standard-library import-root inventory path is malformed"
+            )
+        roots.add(path)
+    for path in distribution_search:
+        if not isinstance(path, str) or not path:
+            raise ReleaseGateError(
+                "distribution search-root inventory path is malformed"
+            )
+        roots.add(path)
+    if not roots:
+        raise ReleaseGateError(
+            "validation toolchain import-root inventory is empty"
+        )
+    return sorted(roots)
 
 
 _ISOLATED_PYTHON_BOOTSTRAP = """\
@@ -2864,9 +3712,12 @@ def sanitized_validation_environment_for_toolchain(
         # content-bound roots instead of an uncontrolled user site.
         "PYTHONPATH": os.pathsep.join(toolchain.python_paths),
         "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPYCACHEPREFIX": str(home / "pycache"),
         "PYTHONNOUSERSITE": "1",
         "PYTHONSAFEPATH": "1",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_TERMINAL_PROMPT": "0",
     }
 
 
@@ -2974,6 +3825,276 @@ def _warning_count(output: bytes) -> int:
         return 0
 
 
+def _pytest_events_bytes(payload: bytes) -> dict[str, Any]:
+    """Validate one structured pytest sidecar produced by the gate plugin."""
+    try:
+        value = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise ReleaseGateError(
+            f"cannot parse structured pytest events: {exc}"
+        ) from exc
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        raise ReleaseGateError("structured pytest event root is invalid")
+    for key in (
+        "skips",
+        "warnings",
+        "import_violations",
+        "sys_path_violations",
+    ):
+        if not isinstance(value.get(key), list) or not all(
+            isinstance(item, dict) for item in value[key]
+        ):
+            raise ReleaseGateError(
+                f"structured pytest event field is invalid: {key}"
+            )
+    for record in value["skips"]:
+        if (
+            not isinstance(record.get("node_id"), str)
+            or not record["node_id"]
+            or not isinstance(record.get("phase"), str)
+            or not isinstance(record.get("reason"), str)
+            or type(record.get("expected_xfail")) is not bool
+        ):
+            raise ReleaseGateError("structured pytest skip record is invalid")
+    for record in value["warnings"]:
+        if (
+            not isinstance(record.get("category"), str)
+            or not record["category"]
+            or not isinstance(record.get("message"), str)
+            or not HEX64.fullmatch(
+                str(record.get("message_fingerprint") or "")
+            )
+            or not isinstance(record.get("node_id"), str)
+            or not isinstance(record.get("when"), str)
+            or (
+                record.get("source_location") is not None
+                and not isinstance(record.get("source_location"), dict)
+            )
+        ):
+            raise ReleaseGateError("structured pytest warning record is invalid")
+    for record in value["import_violations"]:
+        if not all(
+            isinstance(record.get(key), str) and record[key]
+            for key in ("module", "origin", "project_marker")
+        ):
+            raise ReleaseGateError(
+                "structured pytest import-violation record is invalid"
+            )
+    for record in value["sys_path_violations"]:
+        if not all(
+            isinstance(record.get(key), str) and record[key]
+            for key in ("path", "project_marker")
+        ):
+            raise ReleaseGateError(
+                "structured pytest sys.path-violation record is invalid"
+            )
+    return value
+
+
+def _warning_summaries(
+    warnings: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    """Aggregate deterministic warning identities without terminal parsing."""
+    grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for record in warnings:
+        location = record.get("source_location")
+        location_json = json.dumps(
+            location, sort_keys=True, separators=(",", ":")
+        )
+        key = (
+            str(record["category"]),
+            str(record["message_fingerprint"]),
+            location_json,
+        )
+        output = grouped.setdefault(
+            key,
+            {
+                "category": str(record["category"]),
+                "message_fingerprint": str(
+                    record["message_fingerprint"]
+                ),
+                "message_sample": str(record.get("message") or ""),
+                "source_location": location,
+                "occurrence_count": 0,
+                "node_ids": set(),
+            },
+        )
+        output["occurrence_count"] += 1
+        node_id = str(record.get("node_id") or "")
+        if node_id:
+            output["node_ids"].add(node_id)
+    result: list[dict[str, Any]] = []
+    for key in sorted(grouped):
+        record = grouped[key]
+        result.append(
+            {
+                **record,
+                "node_ids": sorted(record["node_ids"]),
+            }
+        )
+    return tuple(result)
+
+
+def _skip_invariant_ids(
+    node_id: str, invariants: Sequence[Mapping[str, Any]]
+) -> tuple[str, ...]:
+    """Map one skipped node to exact tests and affected test-path mappings."""
+    test_path = node_id.split("::", 1)[0]
+    identifiers: set[str] = set()
+    for invariant in invariants:
+        invariant_id = str(invariant.get("invariant_id") or "")
+        if not invariant_id:
+            continue
+        tests = (
+            invariant.get("focused_tests")
+            or invariant.get("enforcement", {}).get("tests", [])
+        )
+        if isinstance(tests, list) and any(
+            isinstance(value, str)
+            and (
+                value == node_id
+                or value.split("[", 1)[0] == node_id.split("[", 1)[0]
+            )
+            for value in tests
+        ):
+            identifiers.add(invariant_id)
+        if any(
+            path_matches(test_path, pattern)
+            for pattern in invariant_globs(invariant)
+        ):
+            identifiers.add(invariant_id)
+    return tuple(sorted(identifiers))
+
+
+def classify_skipped_tests(
+    skips: Sequence[Mapping[str, Any]],
+    *,
+    registry: Mapping[str, Any],
+    invariants: Sequence[Mapping[str, Any]],
+    outer_containment_active: bool,
+) -> tuple[dict[str, Any], ...]:
+    """Apply the registry's exact, fail-closed skip policy."""
+    policy = registry.get("expected_full_suite_skips", [])
+    if not isinstance(policy, list):
+        raise ReleaseGateError(
+            "registry expected_full_suite_skips must be an array"
+        )
+    result: list[dict[str, Any]] = []
+    for raw in skips:
+        node_id = str(raw.get("node_id") or "")
+        reason = str(raw.get("reason") or "")
+        matches: list[Mapping[str, Any]] = []
+        for expected in policy:
+            if not isinstance(expected, Mapping):
+                raise ReleaseGateError(
+                    "registry expected skip record is invalid"
+                )
+            if expected.get("node_id") != node_id:
+                continue
+            reason_pattern = expected.get("reason_regex")
+            if not isinstance(reason_pattern, str):
+                raise ReleaseGateError(
+                    f"expected skip reason is invalid: {node_id}"
+                )
+            try:
+                reason_matches = re.fullmatch(reason_pattern, reason) is not None
+            except re.error as exc:
+                raise ReleaseGateError(
+                    f"expected skip regex is invalid: {node_id}: {exc}"
+                ) from exc
+            if reason_matches:
+                matches.append(expected)
+        if len(matches) > 1:
+            raise ReleaseGateError(
+                f"skip matches more than one registry justification: {node_id}"
+            )
+        expected = matches[0] if matches else None
+        condition_met = bool(
+            expected
+            and (
+                expected.get("condition")
+                != "inside_outer_release_gate_containment"
+                or outer_containment_active
+            )
+        )
+        mapped_ids = _skip_invariant_ids(node_id, invariants)
+        declared_ids = (
+            tuple(sorted(str(item) for item in expected["invariant_ids"]))
+            if expected
+            and isinstance(expected.get("invariant_ids"), list)
+            else ()
+        )
+        policy_consistent = bool(
+            expected
+            and mapped_ids
+            and set(declared_ids).issubset(set(mapped_ids))
+            and declared_ids
+        )
+        is_expected = condition_met and policy_consistent
+        result.append(
+            {
+                "node_id": node_id,
+                "phase": str(raw.get("phase") or ""),
+                "reason": reason,
+                "invariant_ids": list(mapped_ids),
+                "expected": is_expected,
+                "justification": (
+                    str(expected.get("justification") or "")
+                    if is_expected
+                    else ""
+                ),
+                "compensating_evidence": (
+                    str(expected.get("compensating_evidence") or "")
+                    if is_expected
+                    else ""
+                ),
+                "prevents_release_qualification": not bool(
+                    is_expected
+                    and expected.get("prevents_release_qualification") is False
+                ),
+            }
+        )
+    return tuple(
+        sorted(
+            result,
+            key=lambda row: (
+                row["node_id"],
+                row["phase"],
+                row["reason"],
+            ),
+        )
+    )
+
+
+def classify_pytest_result(
+    result: ValidationResult,
+    *,
+    registry: Mapping[str, Any],
+    invariants: Sequence[Mapping[str, Any]],
+    outer_containment_active: bool,
+) -> ValidationResult:
+    """Attach registry-backed skip decisions and reject unsafe imports."""
+    classified = classify_skipped_tests(
+        result.skipped_tests,
+        registry=registry,
+        invariants=invariants,
+        outer_containment_active=outer_containment_active,
+    )
+    return dataclasses.replace(result, skipped_tests=classified)
+
+
+def pytest_result_blocks_release(result: ValidationResult) -> bool:
+    """Return whether structured pytest evidence blocks qualification."""
+    return bool(
+        result.import_violations
+        or result.sys_path_violations
+        or any(
+            item.get("prevents_release_qualification")
+            for item in result.skipped_tests
+        )
+    )
+
+
 def execute_validation(
     command: Sequence[str],
     *,
@@ -2989,6 +4110,7 @@ def execute_validation(
     blocked_unix_sockets: Sequence[Path] = (),
     toolchain: ValidationToolchain | None = None,
     env: Mapping[str, str] | None = None,
+    structured_pytest: bool = False,
 ) -> ValidationResult:
     """Execute one command using untrusted staging and FD-bound evidence output."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", label):
@@ -3031,6 +4153,8 @@ def execute_validation(
     home = home_directory.path
     junit_name = "result.junit.xml"
     junit = staging / junit_name
+    events_name = "result.pytest-events.json"
+    events_path = staging / events_name
     logical = tuple(command)
     actual = logical
     is_pytest = "pytest" in actual
@@ -3038,6 +4162,8 @@ def execute_validation(
         actual = (*actual, "-p", "no:cacheprovider")
     if is_pytest and not any(token.startswith("--junitxml") for token in actual):
         actual = (*actual, f"--junitxml={junit}")
+    if is_pytest and structured_pytest:
+        actual = (*actual, "-p", "tools.release_gate_pytest_plugin")
     if toolchain is not None:
         if candidate_root is None:
             raise ReleaseGateError(
@@ -3064,6 +4190,51 @@ def execute_validation(
         )
     execution_env = dict(env or {})
     execution_env["HOME"] = str(home)
+    execution_env["PYTHONPYCACHEPREFIX"] = str(home / "pycache")
+    if candidate_root is not None and toolchain is not None:
+        execution_env["PYTHONPATH"] = os.pathsep.join(
+            (str(candidate_root), *toolchain.python_paths)
+        )
+    if is_pytest and structured_pytest:
+        if candidate_root is None or toolchain is None:
+            raise ReleaseGateError(
+                "structured pytest capture requires candidate and toolchain"
+            )
+        import_policy_path = home / "release-gate-import-policy.json"
+        write_atomic_bound(
+            home_directory,
+            import_policy_path.name,
+            canonical_json_bytes(
+                {
+                    "schema_version": 1,
+                    "allowed_directory_roots": sorted(
+                        {
+                            str(candidate_root.resolve(strict=True)),
+                            *toolchain.standard_library_roots,
+                            *toolchain.allowed_distribution_directories,
+                        }
+                    ),
+                    "allowed_exact_files": list(
+                        toolchain.allowed_distribution_files
+                    ),
+                    "permitted_sys_path_roots": sorted(
+                        {
+                            str(candidate_root.resolve(strict=True)),
+                            *toolchain.python_paths,
+                        }
+                    ),
+                }
+            ),
+        )
+        execution_env[
+            "MRS_RELEASE_GATE_PYTEST_EVENTS"
+        ] = str(events_path)
+        execution_env[
+            "MRS_RELEASE_GATE_IMPORT_POLICY"
+        ] = str(import_policy_path)
+        execution_env[
+            "MRS_RELEASE_GATE_CANDIDATE_ROOT"
+        ] = str(candidate_root)
     try:
         assert_bound_directory(staging_bound)
         assert_bound_directory(home_directory)
@@ -3078,10 +4249,26 @@ def execute_validation(
             result.stdout,
         )
         junit_payload: bytes | None = None
+        events_payload: bytes | None = None
+        structured_events: dict[str, Any] = {
+            "skips": [],
+            "warnings": [],
+            "import_violations": [],
+            "sys_path_violations": [],
+        }
         try:
             if is_pytest:
                 junit_payload = read_regular_file_at(staging_fd, junit_name)
                 passed, failed, errors, skipped = _pytest_counts_bytes(junit_payload)
+                if structured_pytest:
+                    events_payload = read_regular_file_at(
+                        staging_fd, events_name
+                    )
+                    structured_events = _pytest_events_bytes(events_payload)
+                    if len(structured_events["skips"]) != skipped:
+                        raise ReleaseGateError(
+                            "structured pytest skip count differs from JUnit"
+                        )
                 if result.returncode == 0 and (failed or errors):
                     raise ReleaseGateError(
                         "pytest exit status is inconsistent with JUnit "
@@ -3103,10 +4290,15 @@ def execute_validation(
                 "failed": None,
                 "errors": None,
                 "skipped": None,
-                "warnings": _warning_count(result.stdout),
+                "warnings": (
+                    len(structured_events["warnings"])
+                    if events_payload is not None
+                    else _warning_count(result.stdout)
+                ),
                 "duration_seconds": round(duration, 6),
                 "output_sha256": sha256_bytes(result.stdout),
                 "junit_sha256": None,
+                "pytest_events_sha256": None,
                 "junit_capture_error": str(exc),
             }
             raise ValidationCaptureError(
@@ -3119,6 +4311,49 @@ def execute_validation(
                 f"{label}.junit.xml",
                 junit_payload,
             )
+        if events_payload is not None:
+            write_atomic_bound(
+                evidence_directory,
+                f"{label}.pytest-events.json",
+                events_payload,
+            )
+        warning_summaries = _warning_summaries(
+            structured_events["warnings"]
+        )
+        import_violations = tuple(
+            {
+                "module": item[0],
+                "origin": item[1],
+                "project_marker": item[2],
+            }
+            for item in sorted(
+                {
+                    (
+                        str(record["module"]),
+                        str(record["origin"]),
+                        str(record["project_marker"]),
+                    )
+                    for record in structured_events["import_violations"]
+                }
+            )
+        )
+        sys_path_violations = tuple(
+            {
+                "path": item[0],
+                "project_marker": item[1],
+            }
+            for item in sorted(
+                {
+                    (
+                        str(record["path"]),
+                        str(record["project_marker"]),
+                    )
+                    for record in structured_events[
+                        "sys_path_violations"
+                    ]
+                }
+            )
+        )
         return ValidationResult(
             command=logical,
             exit_status=result.returncode,
@@ -3126,7 +4361,14 @@ def execute_validation(
             failed=failed,
             errors=errors,
             skipped=skipped,
-            warnings=_warning_count(result.stdout),
+            warnings=(
+                sum(
+                    int(item["occurrence_count"])
+                    for item in warning_summaries
+                )
+                if events_payload is not None
+                else _warning_count(result.stdout)
+            ),
             output_sha256=sha256_bytes(result.stdout),
             duration_seconds=duration,
             junit_sha256=(
@@ -3135,6 +4377,17 @@ def execute_validation(
                 else None
             ),
             executed_command=actual,
+            skipped_tests=tuple(
+                dict(item) for item in structured_events["skips"]
+            ),
+            warning_summaries=warning_summaries,
+            import_violations=import_violations,
+            sys_path_violations=sys_path_violations,
+            pytest_events_sha256=(
+                sha256_bytes(events_payload)
+                if events_payload is not None
+                else None
+            ),
         )
     finally:
         os.close(staging_fd)
@@ -3149,7 +4402,7 @@ def validation_evidence_hashes(
     """Return the immutable evidence identity for completed validations."""
     evidence: dict[Path, str] = {}
     for label in labels:
-        for suffix in ("output.txt", "junit.xml"):
+        for suffix in ("output.txt", "junit.xml", "pytest-events.json"):
             path = output_dir / f"{label}.{suffix}"
             if path.is_file():
                 evidence[path.absolute()] = sha256_file(path)
@@ -3180,10 +4433,14 @@ def assert_validation_directory_exact(
         expected.add(f"{label}.output.txt")
         if result.junit_sha256 is not None:
             expected.add(f"{label}.junit.xml")
+        if result.pytest_events_sha256 is not None:
+            expected.add(f"{label}.pytest-events.json")
     if full is not None:
         expected.add("complete-suite.output.txt")
         if full.junit_sha256 is not None:
             expected.add("complete-suite.junit.xml")
+        if full.pytest_events_sha256 is not None:
+            expected.add("complete-suite.pytest-events.json")
     actual = set(bound_directory_entries(directory))
     if actual != expected:
         raise ReleaseGateError(
@@ -3678,6 +4935,29 @@ def _resolve_declared_pin_path(
     return next(iter(existing)).relative_to(repo.resolve()).as_posix(), None
 
 
+def _json_pointer_value(value: Any, pointer: str) -> tuple[bool, Any]:
+    """Resolve one RFC-6901-style object/list pointer without coercion."""
+    if pointer == "":
+        return True, value
+    if not pointer.startswith("/"):
+        return False, None
+    current = value
+    for encoded in pointer[1:].split("/"):
+        token = encoded.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, Mapping):
+            if token not in current:
+                return False, None
+            current = current[token]
+        elif isinstance(current, list) and token.isdigit():
+            index = int(token)
+            if index >= len(current):
+                return False, None
+            current = current[index]
+        else:
+            return False, None
+    return True, current
+
+
 def _declared_pin_records(
     repo: Path, relative: str, field: str, value: Any
 ) -> list[dict[str, Any]]:
@@ -3686,29 +4966,73 @@ def _declared_pin_records(
         return []
     output: list[dict[str, Any]] = []
     for pin_name, pin_value in sorted(value.items()):
+        embedded_relationship = REQUIRED_EMBEDDED_PIN_RELATIONSHIPS.get(
+            (relative, field, str(pin_name))
+        )
+        classification = ADVISORY_PIN_CLASSIFICATIONS.get(
+            (relative, field, str(pin_name))
+        )
         expected = (
             pin_value.get("sha256")
             if isinstance(pin_value, Mapping)
             else pin_value
         )
-        required = (
+        required = bool(embedded_relationship) or (
             (
                 field == "source_file_hashes"
-                and (relative, str(pin_name)) not in ADVISORY_SOURCE_PIN_KEYS
+                and classification is None
             )
             or (
                 field == "input_hashes"
                 and (relative, str(pin_name)) in REQUIRED_INPUT_PIN_KEYS
             )
         )
-        resolved, error = _resolve_declared_pin_path(
-            repo,
-            artifact_relative=relative,
-            pin_name=str(pin_name),
-            pin_value=pin_value,
-        )
-        actual = sha256_file(repo / resolved) if resolved else None
+        embedded_record: dict[str, Any] | None = None
+        if embedded_relationship is not None:
+            target_relative = str(
+                embedded_relationship["target_artifact"]
+            )
+            target_path = repo / target_relative
+            try:
+                target = json.loads(target_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                target = None
+            found, embedded_value = _json_pointer_value(
+                target,
+                str(embedded_relationship["target_pointer"]),
+            )
+            resolved, error = (
+                target_relative,
+                None if found else "embedded relationship target is missing",
+            )
+            actual = embedded_value if found else None
+            embedded_record = {
+                **embedded_relationship,
+                "target_value": actual,
+                "target_artifact_sha256": (
+                    sha256_file(target_path) if target_path.is_file() else None
+                ),
+            }
+        elif classification is not None and classification.get("resolved_path"):
+            declared = str(classification["resolved_path"])
+            candidate = repo / declared
+            if candidate.is_file() and not candidate.is_symlink():
+                resolved, error = declared, None
+            else:
+                resolved, error = None, "classified pin path is missing"
+        elif classification is not None and classification.get("allow_missing"):
+            resolved, error = None, "historical external input is not in candidate"
+        else:
+            resolved, error = _resolve_declared_pin_path(
+                repo,
+                artifact_relative=relative,
+                pin_name=str(pin_name),
+                pin_value=pin_value,
+            )
+        if embedded_relationship is None:
+            actual = sha256_file(repo / resolved) if resolved else None
         record = {
+            "artifact_path": relative,
             "field": field,
             "pin_name": str(pin_name),
             "expected_sha256": expected,
@@ -3723,15 +5047,17 @@ def _declared_pin_records(
             "runtime_relationship_required": required,
             "resolution_error": error,
         }
-        advisory_reason = ADVISORY_SOURCE_PIN_KEYS.get(
-            (relative, str(pin_name))
-        )
-        if advisory_reason:
-            record["advisory_reason"] = advisory_reason
+        if classification is not None:
+            record["advisory_classification"] = dict(classification)
+        if embedded_record is not None:
+            record["embedded_relationship"] = embedded_record
+            record["required_reason"] = str(
+                embedded_relationship["reason"]
+            )
         required_reason = REQUIRED_INPUT_PIN_KEYS.get(
             (relative, str(pin_name))
         )
-        if required_reason:
+        if required_reason and "required_reason" not in record:
             record["required_reason"] = required_reason
         output.append(record)
     return output
@@ -3802,6 +5128,612 @@ def _artifact_semantic_summary(repo: Path, relative: str) -> dict[str, Any]:
     return summary
 
 
+_DIRECT_COMPANION_COUNT_FIELDS = (
+    "quote_count",
+    "image_count",
+    "allow_count",
+    "veto_count",
+    "adjudicated_unknown_pair_count",
+    "not_adjudicated_pair_count",
+    "pair_count",
+    "resolved_pair_count",
+    "total_authorised_pair_count",
+)
+
+
+def validate_direct_manifest_companion(
+    *,
+    manifest: Mapping[str, Any],
+    manifest_sha256: str,
+    companion: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate a declared direct audit/manifest relationship fail-closed."""
+    errors: list[str] = []
+    if not HEX64.fullmatch(manifest_sha256):
+        errors.append("manifest SHA-256 is malformed")
+    if companion.get("manifest_sha256") != manifest_sha256:
+        errors.append("companion manifest_sha256 differs from manifest bytes")
+    for field in ("schema_version", "policy_version"):
+        if field not in manifest or field not in companion:
+            errors.append(f"companion identity is missing: {field}")
+            continue
+        if companion.get(field) != manifest.get(field):
+            errors.append(f"companion {field} differs from manifest")
+    for field in _DIRECT_COMPANION_COUNT_FIELDS:
+        manifest_value = manifest.get(field)
+        companion_value = companion.get(field)
+        if type(manifest_value) is not int or type(companion_value) is not int:
+            errors.append(f"companion count is missing or malformed: {field}")
+        elif companion_value != manifest_value:
+            errors.append(f"companion count differs from manifest: {field}")
+    if not errors:
+        quote_count = int(manifest["quote_count"])
+        image_count = int(manifest["image_count"])
+        allow_count = int(manifest["allow_count"])
+        veto_count = int(manifest["veto_count"])
+        unknown_count = int(manifest["adjudicated_unknown_pair_count"])
+        missing_count = int(manifest["not_adjudicated_pair_count"])
+        pair_count = int(manifest["pair_count"])
+        resolved_count = int(manifest["resolved_pair_count"])
+        total = int(manifest["total_authorised_pair_count"])
+        if min(
+            quote_count,
+            image_count,
+            allow_count,
+            veto_count,
+            unknown_count,
+            missing_count,
+            pair_count,
+            resolved_count,
+            total,
+        ) < 0:
+            errors.append("companion counts contain a negative value")
+        if pair_count != allow_count + veto_count:
+            errors.append("pair_count does not equal allow_count + veto_count")
+        if resolved_count != pair_count:
+            errors.append("resolved_pair_count does not equal pair_count")
+        if total != quote_count * image_count:
+            errors.append(
+                "total_authorised_pair_count does not equal quote_count × image_count"
+            )
+        if total != pair_count + unknown_count + missing_count:
+            errors.append(
+                "authorised-pair arithmetic does not reconcile"
+            )
+    generation_fields = [
+        field
+        for field in ("source_run_id", "generation_id")
+        if field in manifest or field in companion
+    ]
+    if not generation_fields:
+        errors.append("manifest and companion lack a generation identity")
+    for field in generation_fields:
+        if (
+            not isinstance(manifest.get(field), str)
+            or not manifest.get(field)
+            or companion.get(field) != manifest.get(field)
+        ):
+            errors.append(f"companion {field} differs from manifest")
+    return {
+        "valid": not errors,
+        "errors": sorted(set(errors)),
+        "manifest_sha256": manifest_sha256,
+        "companion_manifest_sha256": companion.get("manifest_sha256"),
+        "counts": {
+            field: {
+                "manifest": manifest.get(field),
+                "companion": companion.get(field),
+            }
+            for field in _DIRECT_COMPANION_COUNT_FIELDS
+        },
+    }
+
+
+def _json_object_file(repo: Path, relative: str) -> tuple[dict[str, Any], str]:
+    path = repo / relative
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ReleaseGateError(
+            f"cannot read relationship artifact {relative}: {exc}"
+        ) from exc
+    if not isinstance(value, dict):
+        raise ReleaseGateError(
+            f"relationship artifact is not an object: {relative}"
+        )
+    return value, sha256_file(path)
+
+
+def direct_companion_relationships(repo: Path) -> list[dict[str, Any]]:
+    """Validate every registry-defined direct companion pair."""
+    output: list[dict[str, Any]] = []
+    for definition in DIRECT_COMPANION_RELATIONSHIPS:
+        manifest_path = definition["manifest"]
+        companion_path = definition["companion"]
+        manifest, manifest_hash = _json_object_file(repo, manifest_path)
+        companion, companion_hash = _json_object_file(repo, companion_path)
+        validation = validate_direct_manifest_companion(
+            manifest=manifest,
+            manifest_sha256=manifest_hash,
+            companion=companion,
+        )
+        output.append(
+            {
+                **definition,
+                "companion_sha256": companion_hash,
+                "validation": validation,
+            }
+        )
+    return sorted(
+        output,
+        key=lambda row: (row["manifest"], row["companion"]),
+    )
+
+
+def _code_reference_exists(repo: Path, value: object) -> bool:
+    """Return whether a ``path[:locator]`` evidence reference is local."""
+    if not isinstance(value, str) or not value:
+        return False
+    relative = value.rsplit(":", 1)[0]
+    path = PurePosixPath(relative)
+    return (
+        not path.is_absolute()
+        and ".." not in path.parts
+        and (repo / path).is_file()
+    )
+
+
+def _classification_code_reference(
+    repo: Path, value: object
+) -> dict[str, Any] | None:
+    """Resolve an evidence locator to exact source bytes and line span."""
+    if not isinstance(value, str) or ":" not in value:
+        return None
+    relative, locator = value.split(":", 1)
+    path = PurePosixPath(relative)
+    source_path = repo / path
+    if (
+        not locator
+        or path.is_absolute()
+        or ".." in path.parts
+        or not source_path.is_file()
+        or source_path.suffix != ".py"
+    ):
+        return None
+    try:
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+    except (OSError, UnicodeDecodeError, SyntaxError):
+        return None
+    lines = source.splitlines(keepends=True)
+    start: int
+    end: int
+    if re.fullmatch(r"[1-9][0-9]*(?:-[1-9][0-9]*)?", locator):
+        first, _, last = locator.partition("-")
+        start = int(first)
+        end = int(last or first)
+        if start > end or end > len(lines):
+            return None
+    else:
+        components = locator.split(".")
+        candidates: list[ast.AST] = list(tree.body)
+        selected: ast.AST | None = None
+        for component in components:
+            selected = next(
+                (
+                    node
+                    for node in candidates
+                    if isinstance(
+                        node,
+                        (
+                            ast.FunctionDef,
+                            ast.AsyncFunctionDef,
+                            ast.ClassDef,
+                        ),
+                    )
+                    and node.name == component
+                ),
+                None,
+            )
+            if selected is None:
+                return None
+            candidates = list(getattr(selected, "body", ()))
+        start = int(getattr(selected, "lineno", 0))
+        end = int(getattr(selected, "end_lineno", 0))
+        if start <= 0 or end < start or end > len(lines):
+            return None
+    payload = "".join(lines[start - 1 : end]).encode("utf-8")
+    if not payload.strip():
+        return None
+    return {
+        "reference": value,
+        "path": relative,
+        "locator": locator,
+        "start_line": start,
+        "end_line": end,
+        "source_slice_sha256": sha256_bytes(payload),
+    }
+
+
+def _classification_scope_literals(
+    repo: Path, reference: object
+) -> set[str] | None:
+    """Return string literals in one exact AST symbol scope."""
+    resolved = _classification_code_reference(repo, reference)
+    if resolved is None or not isinstance(reference, str):
+        return None
+    relative, locator = reference.split(":", 1)
+    if re.fullmatch(r"[1-9][0-9]*(?:-[1-9][0-9]*)?", locator):
+        return None
+    try:
+        tree = ast.parse((repo / relative).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, SyntaxError):
+        return None
+    candidates: list[ast.AST] = list(tree.body)
+    selected: ast.AST | None = None
+    for component in locator.split("."):
+        selected = next(
+            (
+                node
+                for node in candidates
+                if isinstance(
+                    node,
+                    (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+                )
+                and node.name == component
+            ),
+            None,
+        )
+        if selected is None:
+            return None
+        candidates = list(getattr(selected, "body", ()))
+    return {
+        node.value
+        for node in ast.walk(selected)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+
+
+def _classification_mapping_accesses(
+    repo: Path, reference: object, mapping_name: str
+) -> tuple[set[str], bool] | None:
+    """Collect constant keys read from one named mapping in an AST scope."""
+    if not mapping_name:
+        return None
+    resolved = _classification_code_reference(repo, reference)
+    if resolved is None or not isinstance(reference, str):
+        return None
+    relative, locator = reference.split(":", 1)
+    if re.fullmatch(r"[1-9][0-9]*(?:-[1-9][0-9]*)?", locator):
+        return None
+    try:
+        tree = ast.parse((repo / relative).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, SyntaxError):
+        return None
+    candidates: list[ast.AST] = list(tree.body)
+    selected: ast.AST | None = None
+    for component in locator.split("."):
+        selected = next(
+            (
+                node
+                for node in candidates
+                if isinstance(
+                    node,
+                    (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+                )
+                and node.name == component
+            ),
+            None,
+        )
+        if selected is None:
+            return None
+        candidates = list(getattr(selected, "body", ()))
+
+    def rooted(node: ast.AST) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id == mapping_name
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            return rooted(node.func.value)
+        if isinstance(node, ast.Attribute):
+            return rooted(node.value)
+        if isinstance(node, ast.Subscript):
+            return rooted(node.value)
+        return False
+
+    keys: set[str] = set()
+    ambiguous = False
+    for node in ast.walk(selected):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            if not rooted(node.func.value):
+                continue
+            if node.func.attr == "get" and node.args:
+                key = node.args[0]
+                if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                    keys.add(key.value)
+                else:
+                    ambiguous = True
+            elif node.func.attr in {"items", "keys", "values", "__iter__"}:
+                ambiguous = True
+        elif isinstance(node, ast.Subscript) and rooted(node.value):
+            key = node.slice
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                keys.add(key.value)
+            else:
+                ambiguous = True
+        elif isinstance(node, ast.Call):
+            if any(
+                isinstance(argument, ast.Name)
+                and argument.id == mapping_name
+                for argument in node.args
+            ) or any(
+                isinstance(keyword.value, ast.Name)
+                and keyword.value.id == mapping_name
+                for keyword in node.keywords
+            ):
+                ambiguous = True
+        elif isinstance(node, (ast.For, ast.comprehension)) and rooted(
+            node.iter
+        ):
+            ambiguous = True
+    return keys, ambiguous
+
+
+def _classification_owning_pin_exists(
+    repo: Path, classification: Mapping[str, Any]
+) -> bool:
+    """Require the exact declared field/pin in the owning JSON artefact."""
+    artifact = classification.get("owning_artifact")
+    field = classification.get("field")
+    pin = classification.get("pin_name")
+    if not all(isinstance(value, str) and value for value in (artifact, field, pin)):
+        return False
+    path = repo / str(artifact)
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    found, value = _json_pointer_value(document, f"/{field}/{pin}")
+    return bool(
+        found
+        and (
+            isinstance(value, str)
+            and HEX64.fullmatch(value)
+            or isinstance(value, Mapping)
+            and isinstance(value.get("sha256"), str)
+            and HEX64.fullmatch(str(value["sha256"]))
+        )
+    )
+
+
+def historical_build_relationships(
+    repo: Path,
+    *,
+    runtime_bindings: Sequence[Mapping[str, Any]] = (),
+    unresolved_loader_literals: Sequence[str] = (),
+    runtime_artifact_paths: Sequence[str] = (),
+) -> list[dict[str, Any]]:
+    """Describe stale-but-honest build evidence which runtime never consumes."""
+    output: list[dict[str, Any]] = []
+    current_manifest, current_manifest_hash = _json_object_file(
+        repo, V3_MANIFEST_PATH
+    )
+    for definition in HISTORICAL_BUILD_RELATIONSHIPS:
+        artifact_path = str(definition["artifact"])
+        artifact, artifact_hash = _json_object_file(repo, artifact_path)
+        bound_field = str(definition["bound_field"])
+        if artifact_path == V3_HISTORICAL_AUDIT_PATH:
+            bound_hash = artifact.get(bound_field)
+            old_counts = {
+                field: artifact.get(field)
+                for field in _DIRECT_COMPANION_COUNT_FIELDS
+                if field in artifact
+            }
+        else:
+            bound_hash = artifact.get(bound_field)
+            old_counts = {}
+        if not isinstance(bound_hash, str) or not HEX64.fullmatch(bound_hash):
+            raise ReleaseGateError(
+                f"historical build relationship lacks a hash: {artifact_path}"
+            )
+        validator = str(definition.get("validator") or "")
+        runtime_binding_payload = json.dumps(
+            [
+                record
+                for record in runtime_bindings
+                if record.get("resolution") == "resolved_runtime"
+            ],
+            sort_keys=True,
+        )
+        runtime_consumption_violation = bool(
+            artifact_path in runtime_artifact_paths
+            or artifact_path in runtime_binding_payload
+            or PurePosixPath(artifact_path).name in runtime_binding_payload
+            or any(
+                artifact_path in literal
+                or PurePosixPath(artifact_path).name in literal
+                for literal in unresolved_loader_literals
+            )
+        )
+        resolved_evidence = [
+            _classification_code_reference(repo, reference)
+            for reference in (
+                definition.get("owner_builder"),
+                definition.get("loader_or_builder"),
+                *(
+                    definition.get("code_evidence")
+                    if isinstance(definition.get("code_evidence"), list)
+                    else ()
+                ),
+            )
+        ]
+        evidence_complete = bool(
+            definition.get("runtime_reads_artifact") is False
+            and all(resolved_evidence)
+            and isinstance(definition.get("code_evidence"), list)
+            and definition["code_evidence"]
+            and validator
+            and (repo / validator).is_file()
+            and definition.get("reason")
+            and not runtime_consumption_violation
+        )
+        output.append(
+            {
+                **definition,
+                "artifact_sha256": artifact_hash,
+                "bound_manifest_sha256": bound_hash,
+                "current_manifest_sha256": current_manifest_hash,
+                "current_companion": bound_hash == current_manifest_hash,
+                "historical_counts": old_counts,
+                "current_counts": {
+                    field: current_manifest.get(field)
+                    for field in _DIRECT_COMPANION_COUNT_FIELDS
+                },
+                "classification_evidence_complete": evidence_complete,
+                "resolved_evidence_locators": resolved_evidence,
+                "runtime_consumption_violation": (
+                    runtime_consumption_violation
+                ),
+            }
+        )
+    return sorted(output, key=lambda row: row["artifact"])
+
+
+def _advisory_classification_assessment(
+    repo: Path, record: Mapping[str, Any]
+) -> dict[str, Any]:
+    classification = record.get("advisory_classification")
+    if not isinstance(classification, Mapping):
+        return {"supported": False, "errors": ["classification is missing"]}
+    validator = classification.get("validator")
+    evidence = classification.get("code_evidence")
+    references = (
+        classification.get("owner_builder"),
+        classification.get("loader_or_builder"),
+        *(evidence if isinstance(evidence, list) else ()),
+    )
+    resolved_references = [
+        _classification_code_reference(repo, value) for value in references
+    ]
+    errors: list[str] = []
+    if not evidence:
+        errors.append("code evidence is missing")
+    if not all(resolved_references):
+        errors.append("one or more code evidence locators do not resolve")
+    if not _classification_owning_pin_exists(repo, classification):
+        errors.append("owning artifact field/pin is missing or malformed")
+    if (
+        classification.get("owning_artifact") != record.get("artifact_path")
+        or classification.get("field") != record.get("field")
+        or classification.get("pin_name") != record.get("pin_name")
+    ):
+        errors.append("classification identity differs from pin record")
+    if classification.get("runtime_reads_relationship") is not False:
+        errors.append("classification does not deny runtime relationship use")
+    absence_scopes = classification.get("runtime_absence_scopes", [])
+    presence_scopes = classification.get("runtime_presence_scopes", [])
+    scope_evidence: list[dict[str, Any]] = []
+    if classification.get("runtime_reads_field") is False:
+        if not isinstance(absence_scopes, list) or not absence_scopes:
+            errors.append("runtime absence scopes are missing")
+        else:
+            for scope in absence_scopes:
+                mapping_name = classification.get("runtime_mapping_name")
+                mapping_access = (
+                    _classification_mapping_accesses(
+                        repo, scope, str(mapping_name)
+                    )
+                    if isinstance(mapping_name, str)
+                    else None
+                )
+                if mapping_access is not None:
+                    literals, ambiguous_access = mapping_access
+                else:
+                    literals = _classification_scope_literals(repo, scope)
+                    ambiguous_access = False
+                scope_evidence.append(
+                    {
+                        "scope": scope,
+                        "string_literals_sha256": (
+                            sha256_bytes(
+                                canonical_json_bytes(sorted(literals))
+                            )
+                            if literals is not None
+                            else None
+                        ),
+                        "pin_literal_present": (
+                            classification.get("pin_name") in literals
+                            if literals is not None
+                            else None
+                        ),
+                        "mapping_name": mapping_name,
+                        "ambiguous_mapping_access": ambiguous_access,
+                    }
+                )
+                if literals is None:
+                    errors.append(f"runtime absence scope is invalid: {scope}")
+                elif ambiguous_access:
+                    errors.append(
+                        f"runtime scope has ambiguous mapping access: {scope}"
+                    )
+                elif classification.get("pin_name") in literals:
+                    errors.append(
+                        f"runtime scope consumes advisory pin: {scope}"
+                    )
+    else:
+        if (
+            classification.get("runtime_access_mode")
+            != "presence_and_shape_only"
+            or not isinstance(presence_scopes, list)
+            or not presence_scopes
+        ):
+            errors.append("runtime presence-only classification is incomplete")
+        else:
+            for scope in presence_scopes:
+                literals = _classification_scope_literals(repo, scope)
+                present = bool(
+                    literals is not None
+                    and classification.get("pin_name") in literals
+                )
+                scope_evidence.append(
+                    {
+                        "scope": scope,
+                        "pin_literal_present": present,
+                        "string_literals_sha256": (
+                            sha256_bytes(
+                                canonical_json_bytes(sorted(literals))
+                            )
+                            if literals is not None
+                            else None
+                        ),
+                    }
+                )
+                if not present:
+                    errors.append(
+                        f"runtime presence-only scope is unsupported: {scope}"
+                    )
+    if (
+        not isinstance(validator, str)
+        or not validator
+        or not (repo / validator).is_file()
+    ):
+        errors.append("classification validator is missing")
+    if not classification.get("reason"):
+        errors.append("classification reason is missing")
+    return {
+        "supported": not errors,
+        "errors": sorted(set(errors)),
+        "resolved_evidence_locators": resolved_references,
+        "runtime_scope_evidence": scope_evidence,
+    }
+
+
+def _advisory_classification_supported(
+    repo: Path, record: Mapping[str, Any]
+) -> bool:
+    """Compatibility predicate backed by the structured assessment."""
+    return bool(_advisory_classification_assessment(repo, record)["supported"])
+
+
 def relationship_inventory(
     repo: Path,
     snapshot: CandidateSnapshot,
@@ -3862,6 +5794,44 @@ def relationship_inventory(
         for record in pin_records
         if not record.get("runtime_relationship_required") and not record.get("match")
     ]
+    advisory_pin_records = [
+        {
+            **record,
+            "classification_assessment": (
+                _advisory_classification_assessment(repo, record)
+            ),
+        }
+        for record in pin_records
+        if not record.get("runtime_relationship_required")
+    ]
+    unsupported_advisory_classifications = [
+        record
+        for record in advisory_pin_records
+        if not record["classification_assessment"]["supported"]
+    ]
+    direct_companions = direct_companion_relationships(repo)
+    invalid_direct_companions = [
+        relationship
+        for relationship in direct_companions
+        if not relationship["validation"]["valid"]
+    ]
+    historical_relationships = (
+        historical_build_relationships(
+            repo,
+            runtime_bindings=bindings,
+            unresolved_loader_literals=unresolved,
+            runtime_artifact_paths=tuple(
+                snapshot.declared_artifact_hashes
+            ),
+        )
+        if (repo / "production_invariants.json").is_file()
+        else []
+    )
+    unsupported_historical_classifications = [
+        relationship
+        for relationship in historical_relationships
+        if not relationship["classification_evidence_complete"]
+    ]
     return {
         "discovery_method": (
             "AST runtime-import closure plus tracked JSON loader-literal resolution"
@@ -3886,7 +5856,26 @@ def relationship_inventory(
         "all_discovered_bindings_resolved": not bool(unresolved or ambiguous),
         "all_required_source_file_pins_valid": not bool(required_pin_failures),
         "required_source_file_pin_failures": required_pin_failures,
+        "direct_companion_relationships": direct_companions,
+        "invalid_direct_companion_relationships": invalid_direct_companions,
+        "all_direct_companion_relationships_valid": not bool(
+            invalid_direct_companions
+        ),
+        "historical_build_relationships": historical_relationships,
+        "unsupported_historical_build_classifications": (
+            unsupported_historical_classifications
+        ),
+        "all_historical_build_classifications_supported": not bool(
+            unsupported_historical_classifications
+        ),
+        "advisory_or_build_time_pin_records": advisory_pin_records,
         "advisory_or_build_time_pin_findings": advisory_pin_findings,
+        "unsupported_advisory_pin_classifications": (
+            unsupported_advisory_classifications
+        ),
+        "all_advisory_pin_classifications_supported": not bool(
+            unsupported_advisory_classifications
+        ),
     }
 
 
@@ -3969,6 +5958,9 @@ def deterministic_attestation(
     relationships: Mapping[str, Any],
     deployed_checks: Sequence[Mapping[str, Any]],
     scope: str,
+    static_checks: Mapping[str, Any],
+    ledger_evidence_cutoff: Mapping[str, Any],
+    lineage: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build the non-volatile semantic attestation."""
     network_semantic = {
@@ -4004,10 +5996,75 @@ def deterministic_attestation(
             "exit_status",
         )
     }
+    release_passed = bool(
+        network.get("available")
+        and network.get("subprocess_egress_denied")
+        and network.get("network_route_isolated")
+        and network.get("production_root_read_only")
+        and network.get("candidate_root_read_only")
+        and network.get("git_common_root_read_only")
+        and network.get("validation_dependency_roots_read_only")
+        and network.get("additional_protected_paths_read_only")
+        and network.get("installed_service_unit_read_only")
+        and network.get("loopback_inet_available")
+        and network.get("external_inet_routes_absent")
+        and network.get("inventoried_absolute_host_unix_sockets_masked")
+        and network.get("socket_family_allowlist_enforced")
+        and network.get("vsock_egress_denied")
+        and network.get("socket_family_high_bits_alias_denied")
+        and network.get("pathname_unix_socket_creation_denied")
+        and network.get("anonymous_unix_stream_socketpair_available")
+        and network.get("unix_nonstream_socketpair_denied")
+        and network.get("socketpair_family_allowlist_enforced")
+        and network.get("socketpair_family_high_bits_alias_denied")
+        and network.get(
+            "socketpair_type_flag_protocol_allowlist_enforced"
+        )
+        and network.get("sigint_default_restored")
+        and network.get("io_uring_setup_denied")
+        and network.get("effective_capabilities_dropped")
+        and network.get("no_new_privileges")
+        and network.get("read_only_remount_denied_after_capability_drop")
+        and relationships.get("all_claimed_runtime_bindings_resolved")
+        and relationships.get("all_discovered_bindings_resolved")
+        and relationships.get("all_validator_backed_classifications_valid")
+        and relationships.get("all_required_source_file_pins_valid")
+        and relationships.get("all_direct_companion_relationships_valid")
+        and relationships.get("all_historical_build_classifications_supported")
+        and relationships.get("all_advisory_pin_classifications_supported")
+        and static_checks.get("all_passed")
+        and ledger_evidence_cutoff.get("valid_for_supplied_base")
+        and full is not None
+        and full.exit_status == 0
+        and not pytest_result_blocks_release(full)
+        and all(
+            result.exit_status == 0
+            and not pytest_result_blocks_release(result)
+            for result in focused
+        )
+    )
+    candidate_status = {
+        "registry_self_attestation": False,
+        "registry_self_attestation_limitation": (
+            "The invariant registry defines the checks but cannot attest a "
+            "candidate by itself; candidate identity comes from this external "
+            "frozen-candidate gate invocation."
+        ),
+        "externally_attested_candidate": {
+            "commit": snapshot.commit,
+            "tree": snapshot.tree,
+            "valid_frozen_candidate_attestation": release_passed,
+        },
+        "production_activation_performed": False,
+        "deployed_path_verification_performed": False,
+        "loaded_process_identity_attested": False,
+        "independent_review_status": "pending_separate_read_only_session",
+    }
     return {
         "schema_version": 2,
         "candidate": snapshot.semantic_dict(),
         "base_commit": base,
+        "candidate_lineage": dict(lineage),
         "invariant_registry_sha256": registry_sha256,
         "defect_ledger_sha256": ledger_sha256,
         "invariant_registry_transition": dict(registry_transition),
@@ -4022,45 +6079,12 @@ def deterministic_attestation(
         "network_isolation": network_semantic,
         "validation_toolchain": dict(toolchain),
         "generated_artifact_attestation": relationships,
+        "candidate_static_validation": dict(static_checks),
+        "defect_ledger_evidence_cutoff": dict(ledger_evidence_cutoff),
+        "candidate_attestation_status": candidate_status,
         "unmet_deployed_checks": list(deployed_checks),
         "conclusion_scope": scope,
-        "release_candidate_validation_passed": bool(
-            network.get("available")
-            and network.get("subprocess_egress_denied")
-            and network.get("network_route_isolated")
-            and network.get("production_root_read_only")
-            and network.get("candidate_root_read_only")
-            and network.get("git_common_root_read_only")
-            and network.get("validation_dependency_roots_read_only")
-            and network.get("additional_protected_paths_read_only")
-            and network.get("installed_service_unit_read_only")
-            and network.get("loopback_inet_available")
-            and network.get("external_inet_routes_absent")
-            and network.get("inventoried_absolute_host_unix_sockets_masked")
-            and network.get("socket_family_allowlist_enforced")
-            and network.get("vsock_egress_denied")
-            and network.get("socket_family_high_bits_alias_denied")
-            and network.get("pathname_unix_socket_creation_denied")
-            and network.get("anonymous_unix_stream_socketpair_available")
-            and network.get("unix_nonstream_socketpair_denied")
-            and network.get("socketpair_family_allowlist_enforced")
-            and network.get("socketpair_family_high_bits_alias_denied")
-            and network.get(
-                "socketpair_type_flag_protocol_allowlist_enforced"
-            )
-            and network.get("sigint_default_restored")
-            and network.get("io_uring_setup_denied")
-            and network.get("effective_capabilities_dropped")
-            and network.get("no_new_privileges")
-            and network.get("read_only_remount_denied_after_capability_drop")
-            and relationships.get("all_claimed_runtime_bindings_resolved")
-            and relationships.get("all_discovered_bindings_resolved")
-            and relationships.get("all_validator_backed_classifications_valid")
-            and relationships.get("all_required_source_file_pins_valid")
-            and full is not None
-            and full.exit_status == 0
-            and all(result.exit_status == 0 for result in focused)
-        ),
+        "release_candidate_validation_passed": release_passed,
     }
 
 
@@ -4073,6 +6097,8 @@ def markdown_report(
     focused = semantic["focused_validation"]
     full = semantic["complete_suite_validation"]
     relationships = semantic["generated_artifact_attestation"]
+    candidate_status = semantic["candidate_attestation_status"]
+    attested = candidate_status["externally_attested_candidate"]
     lines = [
         "# Frozen candidate release-gate report",
         "",
@@ -4088,6 +6114,26 @@ def markdown_report(
         "",
         "This conclusion is limited to the scope above. It is not an "
         "unqualified claim about the whole system.",
+        "",
+        (
+            f"Candidate `{attested['commit']}/{attested['tree']}` has a valid "
+            "frozen-candidate attestation. Production activation, deployed-path "
+            "verification and loaded-process identity remain unattested."
+            if attested["valid_frozen_candidate_attestation"]
+            else (
+                f"Candidate `{attested['commit']}/{attested['tree']}` does not "
+                "have a qualifying frozen-candidate attestation from this run."
+            )
+        ),
+        "",
+        "## Candidate static checks",
+        "",
+        f"- Changed Python files: "
+        f"{len(semantic['candidate_static_validation']['changed_python_files'])}",
+        f"- Python compilation passed: "
+        f"{'yes' if semantic['candidate_static_validation']['py_compile']['passed'] else 'no'}",
+        f"- `git diff --check` passed: "
+        f"{'yes' if semantic['candidate_static_validation']['git_diff_check']['passed'] else 'no'}",
         "",
         "## Changed paths and invariant coverage",
         "",
@@ -4128,8 +6174,32 @@ def markdown_report(
                 f"- Warnings: {full['warnings']}",
                 f"- Exit status: {full['exit_status']}",
                 f"- Output SHA-256: `{full_receipt.get('output_sha256', 'unavailable')}`",
+                f"- Structured pytest evidence SHA-256: "
+                f"`{full_receipt.get('pytest_events_sha256', 'unavailable')}`",
             ]
         )
+        lines.extend(["", "### Enumerated skipped tests", ""])
+        if full.get("skipped_tests"):
+            for item in full["skipped_tests"]:
+                lines.append(
+                    f"- `{item['node_id']}` — {item['reason']} "
+                    f"(expected: {'yes' if item['expected'] else 'no'}; "
+                    f"release-blocking: "
+                    f"{'yes' if item['prevents_release_qualification'] else 'no'}; "
+                    f"invariants: {', '.join(item['invariant_ids']) or 'none'})"
+                )
+        else:
+            lines.append("- None.")
+        lines.extend(["", "### Warning summary", ""])
+        if full.get("warning_summaries"):
+            for item in full["warning_summaries"]:
+                lines.append(
+                    f"- `{item['category']}` / "
+                    f"`{item['message_fingerprint']}`: "
+                    f"{item['occurrence_count']}"
+                )
+        else:
+            lines.append("- None.")
     lines.extend(
         [
             "",
@@ -4145,8 +6215,25 @@ def markdown_report(
             f"{relationships.get('architecture_limit')}",
             f"- Ambiguous non-runtime literals: "
             f"{len(relationships.get('ambiguous_nonruntime_literals', []))}",
+            f"- Direct companion relationships valid: "
+            f"{'yes' if relationships.get('all_direct_companion_relationships_valid') else 'no'}",
+            f"- Historical/build-time classifications supported: "
+            f"{'yes' if relationships.get('all_historical_build_classifications_supported') else 'no'}",
+            f"- Advisory pin classifications supported: "
+            f"{'yes' if relationships.get('all_advisory_pin_classifications_supported') else 'no'}",
+            f"- Historical/build-time relationship records: "
+            f"{len(relationships.get('historical_build_relationships', []))}",
             f"- Activation-time deployed checks still unmet: "
             f"{len(semantic.get('unmet_deployed_checks', []))}",
+            "",
+            "## Defect-ledger evidence cut-off",
+            "",
+            f"- Evidence cut-off: "
+            f"`{semantic['defect_ledger_evidence_cutoff'].get('evidence_cutoff_commit', 'unavailable')}`",
+            f"- Supplied base: "
+            f"`{semantic['defect_ledger_evidence_cutoff'].get('supplied_base_commit', 'unavailable')}`",
+            f"- Valid for supplied base: "
+            f"{'yes' if semantic['defect_ledger_evidence_cutoff'].get('valid_for_supplied_base') else 'no'}",
             "",
             "## Independent review",
             "",
@@ -4157,6 +6244,33 @@ def markdown_report(
             "",
         ]
     )
+    historical = relationships.get("historical_build_relationships", [])
+    if historical:
+        lines.extend(
+            [
+                "### Historical/build-time relationship disposition",
+                "",
+                "| Artefact | Bound manifest | Current manifest | Runtime consumed |",
+                "|---|---|---|---:|",
+            ]
+        )
+        for item in historical:
+            lines.append(
+                f"| `{item['artifact']}` | "
+                f"`{item['bound_manifest_sha256']}` | "
+                f"`{item['current_manifest_sha256']}` | "
+                f"{'yes' if item.get('runtime_reads_artifact') else 'no'} |"
+            )
+            if item.get("historical_counts"):
+                lines.append(
+                    f"- `{item['artifact']}` historical counts: "
+                    f"`{json.dumps(item['historical_counts'], sort_keys=True)}`"
+                )
+                lines.append(
+                    f"- `{item['artifact']}` current manifest counts: "
+                    f"`{json.dumps(item['current_counts'], sort_keys=True)}`"
+                )
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -4261,8 +6375,11 @@ def emit_outputs(
         if isinstance(record, dict):
             status = str(record.get("current_status") or record.get("status") or "unknown")
             defect_status[status] = defect_status.get(status, 0) + 1
+    historical_relationships = semantic[
+        "generated_artifact_attestation"
+    ].get("historical_build_relationships", [])
     final_validation = {
-        "schema_version": 1,
+        "schema_version": 2,
         "source_diagnosis": {
             "path": source_diagnosis_path,
             "sha256": source_diagnosis_sha256,
@@ -4274,6 +6391,10 @@ def emit_outputs(
         "production_baseline": receipt.get("production_identity_before"),
         "candidate_commit": semantic["candidate"]["commit"],
         "candidate_tree": semantic["candidate"]["tree"],
+        "candidate_lineage": semantic["candidate_lineage"],
+        "candidate_attestation_status": semantic[
+            "candidate_attestation_status"
+        ],
         "base_commit": semantic["base_commit"],
         "changed_files": [
             record["path"] for record in semantic["changed_path_mapping"]
@@ -4294,6 +6415,9 @@ def emit_outputs(
             not in {"implemented", "enforced", "verified"}
         ],
         "focused_test_results": semantic["focused_validation"],
+        "candidate_static_validation": semantic[
+            "candidate_static_validation"
+        ],
         "complete_isolated_suite_result": semantic[
             "complete_suite_validation"
         ],
@@ -4310,6 +6434,32 @@ def emit_outputs(
         "semantic_attestation_sha256": sha256_bytes(semantic_bytes),
         "run_receipt_sha256": run_receipt_sha256,
         "independent_review_status": "pending_separate_read_only_session",
+        "defect_ledger_evidence_cutoff": semantic[
+            "defect_ledger_evidence_cutoff"
+        ],
+        "generated_artifact_relationships": {
+            "direct_companions_valid": semantic[
+                "generated_artifact_attestation"
+            ].get("all_direct_companion_relationships_valid"),
+            "historical_build_classifications_supported": semantic[
+                "generated_artifact_attestation"
+            ].get("all_historical_build_classifications_supported"),
+            "advisory_pin_classifications_supported": semantic[
+                "generated_artifact_attestation"
+            ].get("all_advisory_pin_classifications_supported"),
+            "historical_build_relationships": historical_relationships,
+        },
+        "complete_suite_skipped_tests": (
+            semantic["complete_suite_validation"] or {}
+        ).get("skipped_tests", []),
+        "complete_suite_warning_summary": (
+            semantic["complete_suite_validation"] or {}
+        ).get("warning_summaries", []),
+        "sanitised_validation_import_roots": (
+            sanitised_validation_import_roots(
+                semantic["validation_toolchain"]
+            )
+        ),
         "conclusion_scope": semantic["conclusion_scope"],
         "release_candidate_validation_passed": semantic[
             "release_candidate_validation_passed"
@@ -4333,6 +6483,18 @@ def emit_outputs(
             )
             not in {"implemented", "enforced", "verified"}
         ],
+        "candidate_specific_assurance_statement": (
+            f"Candidate {semantic['candidate']['commit']}/"
+            f"{semantic['candidate']['tree']} has a valid frozen-candidate "
+            "attestation. Production activation, deployed-path verification "
+            "and loaded-process identity remain unattested."
+            if semantic["release_candidate_validation_passed"]
+            else (
+                f"Candidate {semantic['candidate']['commit']}/"
+                f"{semantic['candidate']['tree']} does not have a qualifying "
+                "frozen-candidate attestation from this run."
+            )
+        ),
         "production_identity_unchanged": receipt.get(
             "production_identity_unchanged"
         ),
@@ -4351,7 +6513,7 @@ def emit_outputs(
         "procedural_notes": list(receipt.get("procedural_notes", [])),
     }
     write_expected(
-        "priority0_consolidation_final_validation.json",
+        "priority0_followup_final_validation.json",
         canonical_json_bytes(final_validation),
     )
     procedural_notes = [
@@ -4365,12 +6527,16 @@ def emit_outputs(
         else "- No additional procedural exceptions were recorded."
     )
     consolidation_report = (
-        "# Priority-0 consolidation candidate\n\n"
+        "# Priority-0 follow-up candidate\n\n"
         f"- Source diagnosis: `{source_diagnosis_path}`\n"
         f"- Source diagnosis SHA-256: `{source_diagnosis_sha256}`\n"
         f"- Production baseline: `{semantic['base_commit']}`\n"
         f"- Candidate commit: `{semantic['candidate']['commit']}`\n"
         f"- Candidate tree: `{semantic['candidate']['tree']}`\n"
+        f"- Previous candidate commit: "
+        f"`{semantic['candidate_lineage'].get('previous_candidate_commit') or 'none'}`\n"
+        f"- Previous candidate tree: "
+        f"`{semantic['candidate_lineage'].get('previous_candidate_tree') or 'none'}`\n"
         f"- Changed files: {len(semantic['changed_path_mapping'])}\n"
         f"- Invariants by severity: `{json.dumps(dict(sorted(invariant_severity.items())))}`\n"
         f"- Invariants by status: `{json.dumps(dict(sorted(invariant_status.items())))}`\n"
@@ -4419,7 +6585,7 @@ def emit_outputs(
         + markdown_report(semantic, receipt)
     )
     write_expected(
-        "priority0_consolidation_report.md",
+        "priority0_followup_report.md",
         consolidation_report.encode("utf-8"),
     )
     relationship_hash = sha256_bytes(
@@ -4429,6 +6595,7 @@ def emit_outputs(
         "schema_version": 1,
         "candidate_commit": semantic["candidate"]["commit"],
         "candidate_tree": semantic["candidate"]["tree"],
+        "candidate_lineage": semantic["candidate_lineage"],
         "base_commit": semantic["base_commit"],
         "final_diff_sha256": diff_hash,
         "invariant_registry_sha256": registry_sha256,
@@ -4447,7 +6614,16 @@ def emit_outputs(
         "semantic_attestation_sha256": sha256_bytes(semantic_bytes),
         "release_gate_run_receipt_sha256": run_receipt_sha256,
         "focused_validation": semantic["focused_validation"],
+        "candidate_static_validation": semantic[
+            "candidate_static_validation"
+        ],
         "complete_suite_validation": semantic["complete_suite_validation"],
+        "defect_ledger_evidence_cutoff": semantic[
+            "defect_ledger_evidence_cutoff"
+        ],
+        "candidate_attestation_status": semantic[
+            "candidate_attestation_status"
+        ],
         "changed_path_mapping": semantic["changed_path_mapping"],
         "unmet_deployed_checks": semantic.get("unmet_deployed_checks", []),
         "independent_review_status": "pending_separate_session",
@@ -4461,8 +6637,8 @@ def emit_outputs(
         "release_gate_run_receipt.json",
         "release_gate_report.md",
         "independent_review_manifest.json",
-        "priority0_consolidation_report.md",
-        "priority0_consolidation_final_validation.json",
+        "priority0_followup_report.md",
+        "priority0_followup_final_validation.json",
         packaged_diagnosis,
     )
     top_level_inventory = bound_regular_file_inventory(
@@ -4911,6 +7087,9 @@ def run_gate(args: argparse.Namespace) -> int:
             candidate=args.candidate,
             development=args.development_dry_run,
         )
+        lineage = candidate_lineage(
+            repo, base=base_commit, candidate=candidate_commit
+        )
         registry_bytes, registry_identity = stable_file_bytes(registry_path)
         ledger_bytes, ledger_identity = stable_file_bytes(ledger_path)
         measurements_bytes, measurements_identity = stable_file_bytes(
@@ -4984,7 +7163,21 @@ def run_gate(args: argparse.Namespace) -> int:
             runtime_paths=runtime_paths,
             generated_paths=generated_paths,
         )
-        commands = validation_commands(affected)
+        static_plan = candidate_static_check_plan(
+            repo, base=base_commit, candidate=candidate_commit
+        )
+        static_command_kinds: dict[tuple[str, ...], str] = {}
+        if static_plan["compile_command"] is not None:
+            static_command_kinds[
+                tuple(static_plan["compile_command"])
+            ] = "py_compile"
+        static_command_kinds[
+            tuple(static_plan["diff_check_command"])
+        ] = "git_diff_check"
+        commands = [
+            *static_command_kinds,
+            *validation_commands(affected),
+        ]
         mandatory_commands: list[tuple[str, ...]] = [
             (
                 sys.executable,
@@ -5000,6 +7193,8 @@ def run_gate(args: argparse.Namespace) -> int:
                     "tools/defect_ledger.py",
                     "validate",
                     "--json",
+                    "--release-base",
+                    base_commit,
                 )
             )
         relationships = relationship_inventory(
@@ -5017,6 +7212,11 @@ def run_gate(args: argparse.Namespace) -> int:
                 ]
             )
         )
+        ledger_cutoff = ledger_evidence_cutoff_assessment(
+            repo,
+            ledger=ledger,
+            supplied_base_commit=base_commit,
+        )
         if (
             not args.development_dry_run
             and (
@@ -5025,6 +7225,16 @@ def run_gate(args: argparse.Namespace) -> int:
                 or not relationships["all_discovered_bindings_resolved"]
                 or not relationships["all_validator_backed_classifications_valid"]
                 or not relationships["all_required_source_file_pins_valid"]
+                or not relationships[
+                    "all_direct_companion_relationships_valid"
+                ]
+                or not relationships[
+                    "all_historical_build_classifications_supported"
+                ]
+                or not relationships[
+                    "all_advisory_pin_classifications_supported"
+                ]
+                or not ledger_cutoff["valid_for_supplied_base"]
             )
         ):
             raise ReleaseGateError(
@@ -5041,6 +7251,7 @@ def run_gate(args: argparse.Namespace) -> int:
         )
         validation_root = validation_directory.path
         focused: list[ValidationResult] = []
+        static_results: dict[str, ValidationResult] = {}
         args._gate_partial_validation_results = []
         validation_env = sanitized_validation_environment_for_toolchain(
             scratch_root, toolchain_before
@@ -5148,6 +7359,7 @@ def run_gate(args: argparse.Namespace) -> int:
                         blocked_unix_sockets=blocked_control_sockets,
                         toolchain=toolchain_before,
                         env=validation_env,
+                        structured_pytest="pytest" in command,
                     )
                 except ValidationCaptureError as exc:
                     args._gate_partial_validation_results = [
@@ -5155,7 +7367,17 @@ def run_gate(args: argparse.Namespace) -> int:
                         exc.partial_result,
                     ]
                     raise
+                if "pytest" in command:
+                    validation_result = classify_pytest_result(
+                        validation_result,
+                        registry=registry,
+                        invariants=invariants,
+                        outer_containment_active=bool(network["available"]),
+                    )
                 focused.append(validation_result)
+                static_kind = static_command_kinds.get(tuple(command))
+                if static_kind is not None:
+                    static_results[static_kind] = validation_result
                 args._gate_partial_validation_results = [
                     item.receipt_dict() for item in focused
                 ]
@@ -5202,8 +7424,14 @@ def run_gate(args: argparse.Namespace) -> int:
                     declared_runtime_artifacts=declared_artifacts,
                 )
                 checkout_reverification_count += 1
-            if any(result.exit_status for result in focused):
-                raise ReleaseGateError("one or more focused validations failed")
+            if any(
+                result.exit_status or pytest_result_blocks_release(result)
+                for result in focused
+            ):
+                raise ReleaseGateError(
+                    "one or more focused validations failed or produced "
+                    "unqualified skips/imports"
+                )
 
             if args.full_suite:
                 if args.development_dry_run:
@@ -5225,6 +7453,7 @@ def run_gate(args: argparse.Namespace) -> int:
                         blocked_unix_sockets=blocked_control_sockets,
                         toolchain=toolchain_before,
                         env=validation_env,
+                        structured_pytest=True,
                     )
                 except ValidationCaptureError as exc:
                     args._gate_partial_validation_results = [
@@ -5232,6 +7461,12 @@ def run_gate(args: argparse.Namespace) -> int:
                         exc.partial_result,
                     ]
                     raise
+                full = classify_pytest_result(
+                    full,
+                    registry=registry,
+                    invariants=invariants,
+                    outer_containment_active=bool(network["available"]),
+                )
                 args._gate_partial_validation_results = [
                     *(item.receipt_dict() for item in focused),
                     full.receipt_dict(),
@@ -5279,11 +7514,21 @@ def run_gate(args: argparse.Namespace) -> int:
                     declared_runtime_artifacts=declared_artifacts,
                 )
                 checkout_reverification_count += 1
-                if full.exit_status:
-                    raise ReleaseGateError("complete isolated suite failed")
+                if full.exit_status or pytest_result_blocks_release(full):
+                    raise ReleaseGateError(
+                        "complete isolated suite failed or produced an "
+                        "unqualified skip/import"
+                    )
             validation_checkout_identity_verified = True
             detached_checkout_identity_verified = not args.development_dry_run
 
+        static_validation = candidate_static_validation(
+            static_plan, static_results
+        )
+        if not static_validation["all_passed"]:
+            raise ReleaseGateError(
+                "candidate compilation or whitespace validation failed"
+            )
         assert_validation_evidence_unchanged(sealed_evidence)
         assert_bound_directory(scratch_directory)
         assert_stable_file(
@@ -5356,22 +7601,35 @@ def run_gate(args: argparse.Namespace) -> int:
             full_result=full,
             affected=affected,
         )
+        attestation_inputs = {
+            "base": base_commit,
+            "snapshot": before,
+            "registry_sha256": sha256_bytes(registry_bytes),
+            "ledger_sha256": sha256_bytes(ledger_bytes),
+            "registry_transition": registry_transition,
+            "path_mapping": path_mapping,
+            "affected": affected,
+            "focused": focused,
+            "full": full,
+            "network": network,
+            "toolchain": toolchain_before.semantic_dict(),
+            "relationships": relationships,
+            "deployed_checks": unmet_deployed_checks(invariants),
+            "scope": scope,
+            "static_checks": static_validation,
+            "ledger_evidence_cutoff": ledger_cutoff,
+            "lineage": lineage,
+        }
         semantic = deterministic_attestation(
-            base=base_commit,
-            snapshot=before,
-            registry_sha256=sha256_bytes(registry_bytes),
-            ledger_sha256=sha256_bytes(ledger_bytes),
-            registry_transition=registry_transition,
-            path_mapping=path_mapping,
-            affected=affected,
-            focused=focused,
-            full=full,
-            network=network,
-            toolchain=toolchain_before.semantic_dict(),
-            relationships=relationships,
-            deployed_checks=unmet_deployed_checks(invariants),
-            scope=scope,
+            **attestation_inputs
         )
+        repeated_semantic = deterministic_attestation(**attestation_inputs)
+        if canonical_json_bytes(semantic) != canonical_json_bytes(
+            repeated_semantic
+        ):
+            raise ReleaseGateError(
+                "semantic attestation is not byte-identical on repeat"
+            )
         diff = _git_run(
             repo,
             ("diff", "--binary", base_commit, candidate_commit),
@@ -5406,6 +7664,7 @@ def run_gate(args: argparse.Namespace) -> int:
                 "metadata_identity_unchanged": True,
             },
             "focused_validation": [item.receipt_dict() for item in focused],
+            "candidate_static_validation": static_validation,
             "complete_suite_validation": (
                 None if full is None else full.receipt_dict()
             ),
@@ -5427,6 +7686,7 @@ def run_gate(args: argparse.Namespace) -> int:
             "candidate_unchanged_after_validation": (
                 candidate_unchanged_after_validation
             ),
+            "semantic_attestation_repeat_byte_identical": True,
             "detached_checkout_identity_verified": (
                 detached_checkout_identity_verified
             ),
@@ -5440,6 +7700,7 @@ def run_gate(args: argparse.Namespace) -> int:
             "defect_ledger_commit_identities": list(
                 required_ledger_commits
             ),
+            "defect_ledger_evidence_cutoff": ledger_cutoff,
         }
         assert_gate_output_authorized(output_dir, path_authorization)
         assert_bound_directory(scratch_directory)
@@ -5562,8 +7823,8 @@ def emit_failure_receipt(
             "release_gate_run_receipt.json",
             "release_gate_report.md",
             "independent_review_manifest.json",
-            "priority0_consolidation_report.md",
-            "priority0_consolidation_final_validation.json",
+            "priority0_followup_report.md",
+            "priority0_followup_final_validation.json",
             "attestation_sha256_inventory.json",
         }
         if any(path.name not in allowed for path in output_dir.iterdir()):
