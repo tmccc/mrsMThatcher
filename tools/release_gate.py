@@ -3913,6 +3913,7 @@ def run_gate(args: argparse.Namespace) -> int:
         )
         validation_root = validation_directory.path
         focused: list[ValidationResult] = []
+        args._gate_partial_validation_results = []
         validation_env = sanitized_validation_environment_for_toolchain(
             scratch_root, toolchain_before
         )
@@ -4005,6 +4006,9 @@ def run_gate(args: argparse.Namespace) -> int:
                         env=validation_env,
                     )
                 )
+                args._gate_partial_validation_results = [
+                    item.receipt_dict() for item in focused
+                ]
                 assert_validation_evidence_unchanged(sealed_evidence)
                 completed_labels.append(label)
                 sealed_evidence = validation_evidence_hashes(
@@ -4071,6 +4075,10 @@ def run_gate(args: argparse.Namespace) -> int:
                     toolchain=toolchain_before,
                     env=validation_env,
                 )
+                args._gate_partial_validation_results = [
+                    *(item.receipt_dict() for item in focused),
+                    full.receipt_dict(),
+                ]
                 assert_validation_evidence_unchanged(sealed_evidence)
                 completed_labels.append("complete-suite")
                 sealed_evidence = validation_evidence_hashes(
@@ -4394,6 +4402,17 @@ def emit_failure_receipt(
         ),
         "full_suite_requested": bool(getattr(args, "full_suite", False)),
         "error": str(exc),
+        "partial_validation_results": list(
+            getattr(args, "_gate_partial_validation_results", [])
+        ),
+        "failed_validations": [
+            item
+            for item in getattr(
+                args, "_gate_partial_validation_results", []
+            )
+            if isinstance(item, Mapping)
+            and int(item.get("exit_status", 0)) != 0
+        ],
         "partial_validation_file_hashes": _validation_hash_inventory(output_dir),
     }
     path = output_dir / "release_gate_failure_receipt.json"

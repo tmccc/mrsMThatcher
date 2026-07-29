@@ -109,7 +109,9 @@ Outputs are written outside the candidate:
 
 If validation blocks after creating a new output directory, the gate writes a
 bounded `release_gate_failure_receipt.json` and hashes any completed partial
-validation evidence. Output and scratch locations are validated against the
+validation evidence. The receipt includes each completed command/result and
+identifies failed validations directly rather than leaving diagnosis to hash
+inspection. Output and scratch locations are validated against the
 candidate, Git common directory, production and toolchain before receipt
 writing is authorised. The output root and validation-evidence directory are
 bound to device/inode identities; parent writes use directory descriptors and

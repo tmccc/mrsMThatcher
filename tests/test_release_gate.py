@@ -1356,6 +1356,16 @@ def test_failed_gate_preserves_bounded_failure_receipt(tmp_path: Path) -> None:
         candidate="b" * 40,
         development_dry_run=False,
         full_suite=True,
+        _gate_partial_validation_results=[
+            {
+                "command": ["python3", "-m", "pytest", "-q", "tests/test_x.py"],
+                "exit_status": 1,
+                "passed": 0,
+                "failed": 1,
+                "errors": 0,
+                "skipped": 0,
+            }
+        ],
     )
     parent_stat = output.parent.stat()
     output_stat = output.stat()
@@ -1375,6 +1385,16 @@ def test_failed_gate_preserves_bounded_failure_receipt(tmp_path: Path) -> None:
     receipt = json.loads(path.read_text(encoding="utf-8"))
     assert receipt["status"] == "blocked"
     assert receipt["error"] == "focused validation failed"
+    assert receipt["failed_validations"] == [
+        {
+            "command": ["python3", "-m", "pytest", "-q", "tests/test_x.py"],
+            "exit_status": 1,
+            "passed": 0,
+            "failed": 1,
+            "errors": 0,
+            "skipped": 0,
+        }
+    ]
     assert receipt["partial_validation_file_hashes"] == {
         "validation/focused-001.output.txt": release_gate.sha256_file(evidence)
     }

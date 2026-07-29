@@ -277,6 +277,10 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
 
     output = tmp_path / "rendered.md"
     output.write_text(MARKDOWN_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    diagnosis_output = tmp_path / "diagnosis.md"
+    diagnosis_output.write_text(
+        DIAGNOSIS_PATH.read_text(encoding="utf-8"), encoding="utf-8"
+    )
     result = ledger_tool.main(
         [
             "render",
@@ -284,6 +288,8 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
             str(ROOT),
             "--output",
             str(output),
+            "--diagnosis",
+            str(diagnosis_output),
             "--write",
         ]
     )
@@ -299,3 +305,7 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
         ledger_tool.CHRONOLOGY_PATTERN,
     ) == ledger_tool.render_chronology(ledger)
     assert "## Records" in updated
+    assert ledger_tool._section_block(
+        diagnosis_output.read_text(encoding="utf-8"),
+        ledger_tool.DIAGNOSIS_PATTERN,
+    ) == ledger_tool.render_diagnosis_chronology(ledger)
