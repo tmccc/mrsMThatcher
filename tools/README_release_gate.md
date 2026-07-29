@@ -68,27 +68,33 @@ not enter the deterministic semantic attestation.
 The gate:
 
 1. holds an exclusive lock in the shared Git common directory;
-2. rejects modified/untracked files and non-default Git index flags;
-3. maps the exact base-to-candidate diff to the invariant registry;
-4. rejects uncovered code/control paths (unmapped documentation and non-code
+2. accepts the invariant registry and defect ledger only as tracked,
+   non-symlink files inside the candidate, captures their bytes once and
+   rejects any later identity change;
+3. rejects modified/untracked files and non-default Git index flags;
+4. maps the exact base-to-candidate diff to the invariant registry;
+5. rejects uncovered code/control paths (unmapped documentation and non-code
    data are the only documented exceptions);
-5. records every registry artifact declaration (including absent ephemeral
+6. records every registry artifact declaration (including absent ephemeral
    state), discovered runtime/generated-artifact hashes, recomputed source-file
    pins, schema and policy hashes;
-6. creates a clean detached checkout of the exact commit;
-7. runs de-duplicated focused and relationship validation in that checkout,
+7. creates a clean detached checkout of the exact commit;
+8. runs de-duplicated focused and relationship validation in that checkout,
    reverifying its Git state, relevant hashes and loader relationships after
    every command;
-8. runs the complete parallel suite once in the same route-isolated,
+9. runs the complete parallel suite once in the same route-isolated,
    immutable-candidate/toolchain, production-read-only, PID-isolated
    containment;
-9. seals each completed command's output and JUnit evidence read-only against
-   later commands and rechecks all earlier evidence hashes;
-10. preserves and rechecks the exact authoritative diagnosis bytes and
+10. stages untrusted JUnit output outside the attestation, mounts the
+    identity-bound attestation output read-only inside validation, and copies
+    verified ordinary files into it through pre-opened directory descriptors;
+11. seals each completed command's output and JUnit evidence read-only against
+    later commands and rechecks all earlier evidence hashes;
+12. preserves and rechecks the exact authoritative diagnosis bytes and
     installed service-unit identity;
-11. verifies both the detached checkout and source worktree identities again;
+13. verifies both the detached checkout and source worktree identities again;
     and
-12. writes deterministic semantic evidence separately from volatile run
+14. writes deterministic semantic evidence separately from volatile run
     metadata.
 
 Outputs are written outside the candidate:
@@ -105,8 +111,11 @@ If validation blocks after creating a new output directory, the gate writes a
 bounded `release_gate_failure_receipt.json` and hashes any completed partial
 validation evidence. Output and scratch locations are validated against the
 candidate, Git common directory, production and toolchain before receipt
-writing is authorised. It never writes this receipt into an unvalidated path
-or into a pre-existing output directory containing unrelated material.
+writing is authorised. The output root and validation-evidence directory are
+bound to device/inode identities; parent writes use directory descriptors and
+do not follow replaced descendant paths. It never writes this receipt into an
+unvalidated path or into a pre-existing output directory containing unrelated
+material.
 
 The semantic attestation deliberately excludes timestamps, host identity,
 duration and raw test-output hashes. The run receipt binds raw output and JUnit

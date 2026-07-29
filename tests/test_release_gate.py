@@ -1226,29 +1226,23 @@ def test_emit_outputs_includes_required_priority0_deliverables(
 ) -> None:
     registry_path = tmp_path / "production_invariants.json"
     ledger_path = tmp_path / "defect_ledger.json"
-    registry_path.write_text(
-        json.dumps(
+    registry = {
+        "invariants": [
             {
-                "invariants": [
-                    {
-                        "id": "INV-REL-001",
-                        "criticality": "critical",
-                        "implementation_status": "partial",
-                        "affected_paths": ["tools/release_gate.py"],
-                        "enforcement": {
-                            "commands": [{"command": "python3 -m pytest -q"}]
-                        },
-                        "known_gaps": ["independent review pending"],
-                    }
-                ]
+                "id": "INV-REL-001",
+                "criticality": "critical",
+                "implementation_status": "partial",
+                "affected_paths": ["tools/release_gate.py"],
+                "enforcement": {
+                    "commands": [{"command": "python3 -m pytest -q"}]
+                },
+                "known_gaps": ["independent review pending"],
             }
-        ),
-        encoding="utf-8",
-    )
-    ledger_path.write_text(
-        json.dumps({"defects": [{"id": "DEF-001", "status": "verified"}]}),
-        encoding="utf-8",
-    )
+        ]
+    }
+    ledger = {"defects": [{"id": "DEF-001", "status": "verified"}]}
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
     (tmp_path / "why_code_reviews_continue_to_find_major_problems.md").write_text(
         "# Diagnosis\n", encoding="utf-8"
     )
@@ -1291,12 +1285,26 @@ def test_emit_outputs_includes_required_priority0_deliverables(
     )
     diagnosis_bytes = b"# Original diagnosis\n"
     diagnosis_sha256 = release_gate.sha256_bytes(diagnosis_bytes)
+    registry_sha256 = release_gate.sha256_file(registry_path)
+    ledger_sha256 = release_gate.sha256_file(ledger_path)
+    # Emission must use the generation captured by the caller rather than
+    # rereading these mutable paths after validation.
+    registry_path.write_text('{"invariants":[]}\n', encoding="utf-8")
+    ledger_path.write_text('{"defects":[]}\n', encoding="utf-8")
     inventory = release_gate.emit_outputs(
         output_dir=output,
+        output_directory=release_gate.bind_existing_directory(output),
         semantic=semantic,
         receipt=receipt,
-        registry_path=registry_path,
-        ledger_path=ledger_path,
+        registry=registry,
+        ledger=ledger,
+        registry_sha256=registry_sha256,
+        ledger_sha256=ledger_sha256,
+        measurements={},
+        measurements_sha256=None,
+        corrected_diagnosis_sha256=release_gate.sha256_file(
+            tmp_path / "why_code_reviews_continue_to_find_major_problems.md"
+        ),
         diff_hash="a" * 64,
         source_diagnosis_path="/evidence/diagnosis.md",
         source_diagnosis_sha256=diagnosis_sha256,
@@ -1320,6 +1328,8 @@ def test_emit_outputs_includes_required_priority0_deliverables(
     assert "preflight-only predecessor stopped before tests" in report
     review = json.loads((output / "independent_review_manifest.json").read_text())
     assert review["changed_path_mapping"] == []
+    assert review["invariant_registry_sha256"] == registry_sha256
+    assert review["defect_ledger_sha256"] == ledger_sha256
     assert review["source_diagnosis"] == {
         "path": "/evidence/diagnosis.md",
         "sha256": diagnosis_sha256,
@@ -1601,3 +1611,221 @@ def test_source_diagnosis_stable_read_detects_identity_or_content_drift(
         release_gate.assert_stable_file(
             source, expected_bytes=payload, expected_identity=identity
         )
+
+
+def test_candidate_control_path_requires_tracked_candidate_file(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    controls = repo / "controls"
+    controls.mkdir()
+    tracked = controls / "registry.json"
+    tracked.write_text("{}\n", encoding="utf-8")
+    external = tmp_path / "external.json"
+    external.write_text("{}\n", encoding="utf-8")
+    linked = controls / "linked.json"
+    linked.symlink_to(external)
+    _run(["git", "add", "controls"], repo)
+    _run(["git", "commit", "-qm", "add control fixture"], repo)
+
+    assert release_gate.candidate_control_path(
+        repo, "controls/registry.json", label="registry"
+    ) == tracked.resolve()
+    with pytest.raises(release_gate.ReleaseGateError, match="relative candidate"):
+        release_gate.candidate_control_path(
+            repo, str(external), label="registry"
+        )
+    with pytest.raises(release_gate.ReleaseGateError, match="relative candidate"):
+        release_gate.candidate_control_path(
+            repo, "../external.json", label="registry"
+        )
+    untracked = repo / "untracked.json"
+    untracked.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(release_gate.ReleaseGateError, match="not tracked"):
+        release_gate.candidate_control_path(
+            repo, "untracked.json", label="registry"
+        )
+    with pytest.raises(release_gate.ReleaseGateError, match="symbolic link"):
+        release_gate.candidate_control_path(
+            repo, "controls/linked.json", label="registry"
+        )
+
+
+def test_materialized_output_identity_rejects_removal_and_replacement(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    production = tmp_path / "production"
+    production.mkdir()
+    output = tmp_path / "attestation"
+    _resolved, _scratch, authorization = release_gate.validate_gate_paths(
+        repo=repo,
+        output_argument=output,
+        scratch_argument=tmp_path,
+        production_root=production,
+        dependency_roots=(),
+    )
+    authorization = release_gate.materialize_gate_output(authorization)
+    release_gate.assert_gate_output_authorized(output, authorization)
+
+    moved = tmp_path / "attestation-original"
+    output.rename(moved)
+    with pytest.raises(release_gate.ReleaseGateError, match="disappeared"):
+        release_gate.assert_gate_output_authorized(output, authorization)
+
+    output.mkdir()
+    with pytest.raises(release_gate.ReleaseGateError, match="identity changed"):
+        release_gate.assert_gate_output_authorized(output, authorization)
+    output.rmdir()
+    output.symlink_to(tmp_path / "missing-target", target_is_directory=True)
+    with pytest.raises(release_gate.ReleaseGateError, match="became unsafe"):
+        release_gate.assert_gate_output_authorized(output, authorization)
+
+
+def test_bound_directory_write_does_not_follow_replaced_path(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "evidence"
+    directory.mkdir()
+    bound = release_gate.bind_existing_directory(directory)
+    moved = tmp_path / "evidence-original"
+    directory.rename(moved)
+    redirected = tmp_path / "redirected"
+    redirected.mkdir()
+    directory.symlink_to(redirected, target_is_directory=True)
+
+    with pytest.raises(release_gate.ReleaseGateError, match="identity changed"):
+        release_gate.write_atomic_bound(bound, "result.txt", b"forbidden")
+    assert not (redirected / "result.txt").exists()
+
+
+def test_execute_validation_rejects_staging_path_replacement_before_publish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    output = tmp_path / "output"
+    output.mkdir()
+    evidence = output / "validation"
+    evidence.mkdir()
+    evidence_bound = release_gate.bind_existing_directory(evidence)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    def replace_staging(
+        args: object, **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        values = [str(value) for value in args]  # type: ignore[arg-type]
+        junit_argument = next(
+            value for value in values if value.startswith("--junitxml=")
+        )
+        junit = Path(junit_argument.split("=", 1)[1])
+        staging = junit.parent
+        moved = workspace / f"{staging.name}-moved"
+        staging.rename(moved)
+        staging.symlink_to(output, target_is_directory=True)
+        return subprocess.CompletedProcess(values, 0, b"candidate output\n")
+
+    monkeypatch.setattr(release_gate, "_run", replace_staging)
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="bound output directory identity changed"
+    ):
+        release_gate.execute_validation(
+            (sys.executable, "-m", "pytest", "-q"),
+            cwd=candidate,
+            evidence_directory=evidence_bound,
+            workspace_root=workspace,
+            label="focused-001",
+            network_isolated=False,
+            env={"PATH": os.environ.get("PATH", "")},
+        )
+    assert not (evidence / "focused-001.output.txt").exists()
+    assert not (output / "result.junit.xml").exists()
+
+
+def test_contained_validation_cannot_replace_bound_evidence_directory(
+    tmp_path: Path,
+) -> None:
+    candidate = _git_repo(tmp_path)
+    production = tmp_path / "production"
+    production.mkdir()
+    output = tmp_path / "attestation"
+    output.mkdir()
+    evidence = output / "validation"
+    evidence.mkdir()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    preflight = release_gate.containment_preflight(
+        cwd=candidate,
+        production_root=production,
+        candidate_root=candidate,
+        additional_read_only_paths=(output,),
+    )
+    if not preflight["available"]:
+        pytest.skip(f"OS containment unavailable: {preflight['reason']}")
+    script = (
+        "import os, pathlib, sys\n"
+        "source=pathlib.Path(sys.argv[1])\n"
+        "target=source.parent/'hijacked'\n"
+        "try:\n"
+        " os.rename(source,target)\n"
+        "except OSError:\n"
+        " print('rename denied')\n"
+        "else:\n"
+        " print('rename unexpectedly succeeded')\n"
+        " raise SystemExit(91)\n"
+    )
+    result = release_gate.execute_validation(
+        (sys.executable, "-c", script, str(evidence)),
+        cwd=candidate,
+        evidence_directory=release_gate.bind_existing_directory(evidence),
+        workspace_root=workspace,
+        label="focused-001",
+        network_isolated=True,
+        production_root=production,
+        candidate_root=candidate,
+        additional_read_only_paths=(output,),
+        env={"PATH": os.environ.get("PATH", "")},
+    )
+    assert result.exit_status == 0
+    assert evidence.is_dir() and not evidence.is_symlink()
+    assert not (output / "hijacked").exists()
+    assert (evidence / "focused-001.output.txt").read_text(
+        encoding="utf-8"
+    ) == "rename denied\n"
+
+
+def test_main_converts_filesystem_failure_to_bounded_gate_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: list[release_gate.ReleaseGateError] = []
+
+    def fail(_args: argparse.Namespace) -> int:
+        raise PermissionError("denied")
+
+    def record(
+        _args: argparse.Namespace, error: release_gate.ReleaseGateError
+    ) -> None:
+        captured.append(error)
+
+    monkeypatch.setattr(release_gate, "run_gate", fail)
+    monkeypatch.setattr(release_gate, "emit_failure_receipt", record)
+    result = release_gate.main(
+        [
+            "run",
+            "--repo",
+            str(tmp_path),
+            "--base",
+            "a" * 40,
+            "--output-dir",
+            str(tmp_path / "output"),
+            "--source-diagnosis-path",
+            str(tmp_path / "diagnosis.md"),
+            "--source-diagnosis-sha256",
+            "b" * 64,
+            "--development-dry-run",
+        ]
+    )
+    assert result == 2
+    assert len(captured) == 1
+    assert "PermissionError: denied" in str(captured[0])

@@ -34,9 +34,11 @@ import os
 import platform
 import pwd
 import re
+import secrets
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -246,6 +248,15 @@ class GatePathAuthorization:
     output_inode: int | None
 
 
+@dataclasses.dataclass(frozen=True)
+class BoundDirectory:
+    """A non-symlink directory bound to one device/inode identity."""
+
+    path: Path
+    device: int
+    inode: int
+
+
 def canonical_json_bytes(value: Any) -> bytes:
     """Return deterministic pretty JSON bytes with a trailing newline."""
     return (
@@ -347,6 +358,215 @@ def write_atomic(path: Path, payload: bytes, mode: int = 0o600) -> None:
     finally:
         with contextlib.suppress(FileNotFoundError):
             temporary.unlink()
+
+
+def bind_existing_directory(path: Path) -> BoundDirectory:
+    """Bind one ordinary directory without following its final component."""
+    absolute = path.absolute()
+    before = absolute.lstat()
+    if absolute.is_symlink() or not stat.S_ISDIR(before.st_mode):
+        raise ReleaseGateError(f"required output is not an ordinary directory: {path}")
+    descriptor = os.open(
+        absolute,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        opened = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+        raise ReleaseGateError(f"output directory changed while binding: {path}")
+    return BoundDirectory(
+        path=absolute,
+        device=before.st_dev,
+        inode=before.st_ino,
+    )
+
+
+def materialize_bound_subdirectory(
+    parent: BoundDirectory, name: str
+) -> BoundDirectory:
+    """Create one private child using only an identity-bound parent dirfd."""
+    if (
+        not name
+        or name in {".", ".."}
+        or "/" in name
+        or "\x00" in name
+        or any(ord(character) < 32 for character in name)
+    ):
+        raise ReleaseGateError(f"unsafe bound subdirectory name: {name!r}")
+    assert_bound_directory(parent)
+    parent_fd = os.open(
+        parent.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    child_fd: int | None = None
+    try:
+        opened_parent = os.fstat(parent_fd)
+        if (opened_parent.st_dev, opened_parent.st_ino) != (
+            parent.device,
+            parent.inode,
+        ):
+            raise ReleaseGateError(
+                f"bound parent changed before creating {name}"
+            )
+        os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+        child_fd = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=parent_fd,
+        )
+        os.fchmod(child_fd, 0o700)
+        child_stat = os.fstat(child_fd)
+        os.fsync(child_fd)
+        os.fsync(parent_fd)
+    except OSError as exc:
+        raise ReleaseGateError(
+            f"cannot create identity-bound subdirectory {parent.path / name}: {exc}"
+        ) from exc
+    finally:
+        if child_fd is not None:
+            os.close(child_fd)
+        os.close(parent_fd)
+    child = BoundDirectory(
+        path=parent.path / name,
+        device=child_stat.st_dev,
+        inode=child_stat.st_ino,
+    )
+    assert_bound_directory(child)
+    return child
+
+
+def assert_bound_directory(directory: BoundDirectory) -> None:
+    """Reject replacement or symlinking of an identity-bound directory."""
+    try:
+        current = directory.path.lstat()
+    except OSError as exc:
+        raise ReleaseGateError(
+            f"bound output directory is unavailable: {directory.path}"
+        ) from exc
+    if (
+        directory.path.is_symlink()
+        or not stat.S_ISDIR(current.st_mode)
+        or current.st_dev != directory.device
+        or current.st_ino != directory.inode
+    ):
+        raise ReleaseGateError(
+            f"bound output directory identity changed: {directory.path}"
+        )
+
+
+def write_atomic_bound(
+    directory: BoundDirectory,
+    name: str,
+    payload: bytes,
+    mode: int = 0o600,
+) -> None:
+    """Atomically write one basename through an identity-checked directory FD."""
+    if (
+        not name
+        or name in {".", ".."}
+        or "/" in name
+        or "\x00" in name
+        or any(ord(character) < 32 for character in name)
+    ):
+        raise ReleaseGateError(f"unsafe bound output basename: {name!r}")
+    assert_bound_directory(directory)
+    descriptor = os.open(
+        directory.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    temporary_name = f".{name}.{os.getpid()}.{secrets.token_hex(8)}"
+    temporary_fd: int | None = None
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (
+            directory.device,
+            directory.inode,
+        ):
+            raise ReleaseGateError(
+                f"bound output directory changed before write: {directory.path}"
+            )
+        temporary_fd = os.open(
+            temporary_name,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0),
+            mode,
+            dir_fd=descriptor,
+        )
+        os.fchmod(temporary_fd, mode)
+        view = memoryview(payload)
+        while view:
+            written = os.write(temporary_fd, view)
+            if written <= 0:
+                raise ReleaseGateError(
+                    f"short write to identity-bound output {directory.path / name}"
+                )
+            view = view[written:]
+        os.fsync(temporary_fd)
+        os.close(temporary_fd)
+        temporary_fd = None
+        os.rename(
+            temporary_name,
+            name,
+            src_dir_fd=descriptor,
+            dst_dir_fd=descriptor,
+        )
+        os.fsync(descriptor)
+    except OSError as exc:
+        raise ReleaseGateError(
+            f"cannot write identity-bound output {directory.path / name}: {exc}"
+        ) from exc
+    finally:
+        if temporary_fd is not None:
+            os.close(temporary_fd)
+        with contextlib.suppress(OSError):
+            os.unlink(temporary_name, dir_fd=descriptor)
+        os.close(descriptor)
+    assert_bound_directory(directory)
+
+
+def read_regular_file_at(directory_fd: int, name: str) -> bytes:
+    """Read one ordinary non-symlink child through an already-open directory."""
+    try:
+        before = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+    except OSError as exc:
+        raise ReleaseGateError(f"required validation result is missing: {name}") from exc
+    if not stat.S_ISREG(before.st_mode):
+        raise ReleaseGateError(f"validation result is not an ordinary file: {name}")
+    descriptor = os.open(
+        name,
+        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+        dir_fd=directory_fd,
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ReleaseGateError(f"validation result changed while opening: {name}")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    if (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+    ) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+    ):
+        raise ReleaseGateError(f"validation result changed while reading: {name}")
+    return b"".join(chunks)
 
 
 def _run(
@@ -1041,11 +1261,20 @@ def assert_candidate_checkout_unchanged(
 def load_json_object(path: Path) -> dict[str, Any]:
     """Read one JSON object."""
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        payload = path.read_bytes()
+    except OSError as exc:
         raise ReleaseGateError(f"cannot read JSON object {path}: {exc}") from exc
+    return json_object_bytes(payload, label=str(path))
+
+
+def json_object_bytes(payload: bytes, *, label: str) -> dict[str, Any]:
+    """Parse one captured JSON object without rereading a mutable path."""
+    try:
+        value = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ReleaseGateError(f"cannot read JSON object {label}: {exc}") from exc
     if not isinstance(value, dict):
-        raise ReleaseGateError(f"JSON root must be an object: {path}")
+        raise ReleaseGateError(f"JSON root must be an object: {label}")
     return value
 
 
@@ -1947,6 +2176,20 @@ def _pytest_counts(junit_path: Path) -> tuple[int, int, int, int]:
     return tests - failures - errors - skipped, failures, errors, skipped
 
 
+def _pytest_counts_bytes(payload: bytes) -> tuple[int, int, int, int]:
+    """Read aggregate counts from captured, non-symlink JUnit bytes."""
+    try:
+        root = ET.fromstring(payload)
+    except ET.ParseError as exc:
+        raise ReleaseGateError(f"cannot parse pytest JUnit result: {exc}") from exc
+    suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+    tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
+    failures = sum(int(suite.attrib.get("failures", "0")) for suite in suites)
+    errors = sum(int(suite.attrib.get("errors", "0")) for suite in suites)
+    skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
+    return tests - failures - errors - skipped, failures, errors, skipped
+
+
 def _warning_count(output: bytes) -> int:
     """Extract pytest's terminal warnings count conservatively."""
     text = output.decode("utf-8", "replace")
@@ -1958,7 +2201,8 @@ def execute_validation(
     command: Sequence[str],
     *,
     cwd: Path,
-    output_dir: Path,
+    evidence_directory: BoundDirectory,
+    workspace_root: Path,
     label: str,
     network_isolated: bool,
     production_root: Path | None = None,
@@ -1969,9 +2213,35 @@ def execute_validation(
     toolchain: ValidationToolchain | None = None,
     env: Mapping[str, str] | None = None,
 ) -> ValidationResult:
-    """Execute and capture one validation command."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    junit = output_dir / f"{label}.junit.xml"
+    """Execute one command using untrusted staging and FD-bound evidence output."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", label):
+        raise ReleaseGateError(f"unsafe validation label: {label!r}")
+    assert_bound_directory(evidence_directory)
+    workspace_root = workspace_root.resolve(strict=True)
+    if not workspace_root.is_dir() or workspace_root.is_symlink():
+        raise ReleaseGateError("validation workspace root is not an ordinary directory")
+    protected_evidence = tuple(
+        Path(path).resolve(strict=True) for path in additional_read_only_paths
+    )
+    if network_isolated and not any(
+        _path_is_within(evidence_directory.path.resolve(strict=True), path)
+        for path in protected_evidence
+    ):
+        raise ReleaseGateError(
+            "identity-bound validation evidence is not read-only in containment"
+        )
+    staging = Path(
+        tempfile.mkdtemp(prefix=f"mrs-{label}-", dir=workspace_root)
+    )
+    staging_bound = bind_existing_directory(staging)
+    staging_fd = os.open(
+        staging,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    home = staging / "home"
+    home.mkdir(mode=0o700)
+    junit_name = "result.junit.xml"
+    junit = staging / junit_name
     logical = tuple(command)
     actual = logical
     is_pytest = "pytest" in actual
@@ -2003,34 +2273,56 @@ def execute_validation(
             additional_read_only_paths=additional_read_only_paths,
             blocked_unix_sockets=blocked_unix_sockets,
         )
-    started = time.monotonic()
-    result = _run(actual, cwd=cwd, check=False, env=env)
-    duration = time.monotonic() - started
-    output_path = output_dir / f"{label}.output.txt"
-    write_atomic(output_path, result.stdout)
-    if is_pytest:
-        if not junit.is_file():
-            raise ReleaseGateError(
-                f"pytest validation did not emit required JUnit evidence: {label}"
+    execution_env = dict(env or {})
+    execution_env["HOME"] = str(home)
+    try:
+        started = time.monotonic()
+        result = _run(actual, cwd=cwd, check=False, env=execution_env)
+        duration = time.monotonic() - started
+        assert_bound_directory(staging_bound)
+        junit_payload: bytes | None = None
+        if is_pytest:
+            junit_payload = read_regular_file_at(staging_fd, junit_name)
+            passed, failed, errors, skipped = _pytest_counts_bytes(junit_payload)
+        else:
+            passed, failed, errors, skipped = (
+                (1, 0, 0, 0)
+                if result.returncode == 0
+                else (0, 1, 0, 0)
             )
-        passed, failed, errors, skipped = _pytest_counts(junit)
-    else:
-        passed, failed, errors, skipped = (
-            (1, 0, 0, 0) if result.returncode == 0 else (0, 1, 0, 0)
+        write_atomic_bound(
+            evidence_directory,
+            f"{label}.output.txt",
+            result.stdout,
         )
-    return ValidationResult(
-        command=logical,
-        exit_status=result.returncode,
-        passed=passed,
-        failed=failed,
-        errors=errors,
-        skipped=skipped,
-        warnings=_warning_count(result.stdout),
-        output_sha256=sha256_bytes(result.stdout),
-        duration_seconds=duration,
-        junit_sha256=sha256_file(junit) if junit.exists() else None,
-        executed_command=actual,
-    )
+        if junit_payload is not None:
+            write_atomic_bound(
+                evidence_directory,
+                f"{label}.junit.xml",
+                junit_payload,
+            )
+        return ValidationResult(
+            command=logical,
+            exit_status=result.returncode,
+            passed=passed,
+            failed=failed,
+            errors=errors,
+            skipped=skipped,
+            warnings=_warning_count(result.stdout),
+            output_sha256=sha256_bytes(result.stdout),
+            duration_seconds=duration,
+            junit_sha256=(
+                sha256_bytes(junit_payload)
+                if junit_payload is not None
+                else None
+            ),
+            executed_command=actual,
+        )
+    finally:
+        os.close(staging_fd)
+        with contextlib.suppress(ReleaseGateError):
+            assert_bound_directory(staging_bound)
+            shutil.rmtree(staging)
 
 
 def validation_evidence_hashes(
@@ -2940,45 +3232,45 @@ def _validation_hash_inventory(output_dir: Path) -> dict[str, str]:
 def emit_outputs(
     *,
     output_dir: Path,
+    output_directory: BoundDirectory,
     semantic: dict[str, Any],
     receipt: dict[str, Any],
-    registry_path: Path,
-    ledger_path: Path,
+    registry: Mapping[str, Any],
+    ledger: Mapping[str, Any],
+    registry_sha256: str,
+    ledger_sha256: str,
+    measurements: Mapping[str, Any],
+    measurements_sha256: str | None,
+    corrected_diagnosis_sha256: str,
     diff_hash: str,
     source_diagnosis_path: str,
     source_diagnosis_sha256: str,
     source_diagnosis_bytes: bytes,
 ) -> dict[str, str]:
-    """Write semantic/run/report/review artefacts and a final hash inventory."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    os.chmod(output_dir, 0o700)
+    """Write outputs solely from captured evidence through a bound directory."""
+    if output_dir.absolute() != output_directory.path:
+        raise ReleaseGateError("emission output differs from bound output")
+    assert_bound_directory(output_directory)
     semantic_bytes = canonical_json_bytes(semantic)
     if sha256_bytes(source_diagnosis_bytes) != source_diagnosis_sha256:
         raise ReleaseGateError("captured source diagnosis hash is inconsistent")
     packaged_diagnosis = "source_diagnosis_original.md"
-    write_atomic(
-        output_dir / packaged_diagnosis,
-        source_diagnosis_bytes,
+    write_atomic_bound(output_directory, packaged_diagnosis, source_diagnosis_bytes)
+    write_atomic_bound(
+        output_directory, "semantic_attestation.json", semantic_bytes
     )
-    write_atomic(output_dir / "semantic_attestation.json", semantic_bytes)
-    write_atomic(
-        output_dir / "release_gate_run_receipt.json",
+    write_atomic_bound(
+        output_directory,
+        "release_gate_run_receipt.json",
         canonical_json_bytes(receipt),
     )
     run_receipt_sha256 = sha256_file(
         output_dir / "release_gate_run_receipt.json"
     )
-    write_atomic(
-        output_dir / "release_gate_report.md",
+    write_atomic_bound(
+        output_directory,
+        "release_gate_report.md",
         markdown_report(semantic, receipt).encode("utf-8"),
-    )
-    registry = load_json_object(registry_path)
-    ledger = load_json_object(ledger_path)
-    measurements_path = registry_path.parent / "diagnosis_measurements.json"
-    measurements = (
-        load_json_object(measurements_path)
-        if measurements_path.is_file()
-        else {}
     )
     invariant_records = registry_invariants(registry)
     defect_records = ledger.get("defects", ledger.get("records", []))
@@ -3011,9 +3303,7 @@ def emit_outputs(
             "packaged_sha256": source_diagnosis_sha256,
         },
         "corrected_measurements": measurements.get("corrected_claims", []),
-        "diagnosis_measurements_sha256": (
-            sha256_file(measurements_path) if measurements_path.is_file() else None
-        ),
+        "diagnosis_measurements_sha256": measurements_sha256,
         "production_baseline": receipt.get("production_identity_before"),
         "candidate_commit": semantic["candidate"]["commit"],
         "candidate_tree": semantic["candidate"]["tree"],
@@ -3093,8 +3383,9 @@ def emit_outputs(
         },
         "procedural_notes": list(receipt.get("procedural_notes", [])),
     }
-    write_atomic(
-        output_dir / "priority0_consolidation_final_validation.json",
+    write_atomic_bound(
+        output_directory,
+        "priority0_consolidation_final_validation.json",
         canonical_json_bytes(final_validation),
     )
     procedural_notes = [
@@ -3161,8 +3452,9 @@ def emit_outputs(
         + "\n\n"
         + markdown_report(semantic, receipt)
     )
-    write_atomic(
-        output_dir / "priority0_consolidation_report.md",
+    write_atomic_bound(
+        output_directory,
+        "priority0_consolidation_report.md",
         consolidation_report.encode("utf-8"),
     )
     relationship_hash = sha256_bytes(
@@ -3174,8 +3466,8 @@ def emit_outputs(
         "candidate_tree": semantic["candidate"]["tree"],
         "base_commit": semantic["base_commit"],
         "final_diff_sha256": diff_hash,
-        "invariant_registry_sha256": sha256_file(registry_path),
-        "defect_ledger_sha256": sha256_file(ledger_path),
+        "invariant_registry_sha256": registry_sha256,
+        "defect_ledger_sha256": ledger_sha256,
         "generated_artifact_inventory_sha256": relationship_hash,
         "source_diagnosis": {
             "path": source_diagnosis_path,
@@ -3185,10 +3477,7 @@ def emit_outputs(
         },
         "corrected_candidate_diagnosis": {
             "path": "why_code_reviews_continue_to_find_major_problems.md",
-            "sha256": sha256_file(
-                registry_path.parent
-                / "why_code_reviews_continue_to_find_major_problems.md"
-            ),
+            "sha256": corrected_diagnosis_sha256,
         },
         "semantic_attestation_sha256": sha256_bytes(semantic_bytes),
         "release_gate_run_receipt_sha256": run_receipt_sha256,
@@ -3198,8 +3487,9 @@ def emit_outputs(
         "unmet_deployed_checks": semantic.get("unmet_deployed_checks", []),
         "independent_review_status": "pending_separate_session",
     }
-    write_atomic(
-        output_dir / "independent_review_manifest.json",
+    write_atomic_bound(
+        output_directory,
+        "independent_review_manifest.json",
         canonical_json_bytes(review_manifest),
     )
     names = (
@@ -3213,8 +3503,9 @@ def emit_outputs(
     )
     inventory = _hash_inventory(output_dir, names)
     inventory.update(_validation_hash_inventory(output_dir))
-    write_atomic(
-        output_dir / "attestation_sha256_inventory.json",
+    write_atomic_bound(
+        output_directory,
+        "attestation_sha256_inventory.json",
         canonical_json_bytes({"schema_version": 1, "files": inventory}),
     )
     inventory["attestation_sha256_inventory.json"] = sha256_file(
@@ -3226,6 +3517,44 @@ def emit_outputs(
 def _path_is_within(path: Path, root: Path) -> bool:
     """Return whether an absolute path equals or descends from another."""
     return path == root or root in path.parents
+
+
+def candidate_control_path(repo: Path, value: str, *, label: str) -> Path:
+    """Resolve one tracked, non-symlinked control file inside the candidate."""
+    relative = PurePosixPath(value)
+    if (
+        relative.is_absolute()
+        or not relative.parts
+        or ".." in relative.parts
+        or any(ord(character) < 32 for character in value)
+    ):
+        raise ReleaseGateError(f"{label} must be a relative candidate path")
+    path = repo.joinpath(*relative.parts).absolute()
+    if _existing_path_has_symlink_component(path):
+        raise ReleaseGateError(f"{label} must not contain a symbolic link")
+    try:
+        resolved = path.resolve(strict=True)
+        tracked_relative = resolved.relative_to(repo.resolve(strict=True)).as_posix()
+    except (OSError, ValueError) as exc:
+        raise ReleaseGateError(f"{label} escapes or is missing from candidate") from exc
+    if not resolved.is_file():
+        raise ReleaseGateError(f"{label} is not a candidate file")
+    tracked = _run(
+        (
+            "git",
+            "-C",
+            str(repo),
+            "ls-files",
+            "--error-unmatch",
+            "--",
+            tracked_relative,
+        ),
+        cwd=repo,
+        check=False,
+    )
+    if tracked.returncode:
+        raise ReleaseGateError(f"{label} is not tracked by the candidate")
+    return resolved
 
 
 def _existing_path_has_symlink_component(path: Path) -> bool:
@@ -3304,6 +3633,58 @@ def validate_gate_paths(
     return output, scratch, authorization
 
 
+def materialize_gate_output(
+    authorization: GatePathAuthorization,
+) -> GatePathAuthorization:
+    """Create and inode-bind an authorised output before any gate evidence write."""
+    output = authorization.output_dir
+    assert_gate_output_authorized(output, authorization)
+    parent_fd = os.open(
+        authorization.output_parent,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    output_fd: int | None = None
+    try:
+        parent_stat = os.fstat(parent_fd)
+        if (parent_stat.st_dev, parent_stat.st_ino) != (
+            authorization.output_parent_device,
+            authorization.output_parent_inode,
+        ):
+            raise ReleaseGateError("attestation output parent identity changed")
+        if not authorization.output_existed:
+            try:
+                os.mkdir(output.name, mode=0o700, dir_fd=parent_fd)
+            except OSError as exc:
+                raise ReleaseGateError(
+                    f"cannot create authorised attestation output: {exc}"
+                ) from exc
+        output_fd = os.open(
+            output.name,
+            os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=parent_fd,
+        )
+        os.fchmod(output_fd, 0o700)
+        output_stat = os.fstat(output_fd)
+        os.fsync(output_fd)
+        os.fsync(parent_fd)
+    except OSError as exc:
+        raise ReleaseGateError(
+            f"cannot bind authorised attestation output: {exc}"
+        ) from exc
+    finally:
+        if output_fd is not None:
+            os.close(output_fd)
+        os.close(parent_fd)
+    materialized = dataclasses.replace(
+        authorization,
+        output_existed=True,
+        output_device=output_stat.st_dev,
+        output_inode=output_stat.st_ino,
+    )
+    assert_gate_output_authorized(output, materialized)
+    return materialized
+
+
 def assert_gate_output_authorized(
     output_dir: Path, authorization: GatePathAuthorization
 ) -> None:
@@ -3319,18 +3700,23 @@ def assert_gate_output_authorized(
         or parent_stat.st_ino != authorization.output_parent_inode
     ):
         raise ReleaseGateError("attestation output parent identity changed")
-    if output.exists():
-        if not output.is_dir() or output.is_symlink():
-            raise ReleaseGateError("authorised attestation output became unsafe")
+    try:
+        output_stat = output.lstat()
+    except FileNotFoundError:
         if authorization.output_existed:
-            output_stat = output.stat()
-            if (
-                output_stat.st_dev != authorization.output_device
-                or output_stat.st_ino != authorization.output_inode
-            ):
-                raise ReleaseGateError(
-                    "authorised attestation output identity changed"
-                )
+            raise ReleaseGateError(
+                "authorised attestation output disappeared"
+            )
+        return
+    if output.is_symlink() or not stat.S_ISDIR(output_stat.st_mode):
+        raise ReleaseGateError("authorised attestation output became unsafe")
+    if authorization.output_existed and (
+        output_stat.st_dev != authorization.output_device
+        or output_stat.st_ino != authorization.output_inode
+    ):
+        raise ReleaseGateError(
+            "authorised attestation output identity changed"
+        )
 
 
 def run_gate(args: argparse.Namespace) -> int:
@@ -3356,9 +3742,16 @@ def run_gate(args: argparse.Namespace) -> int:
         production_root=production_root,
         dependency_roots=dependency_roots,
     )
+    path_authorization = materialize_gate_output(path_authorization)
     args._gate_path_authorization = path_authorization
-    registry_path = repo / args.registry
-    ledger_path = repo / args.ledger
+    output_directory = bind_existing_directory(output_dir)
+    if (
+        output_directory.device != path_authorization.output_device
+        or output_directory.inode != path_authorization.output_inode
+    ):
+        raise ReleaseGateError(
+            "materialized output differs from its authorised identity"
+        )
     if not HEX64.fullmatch(args.source_diagnosis_sha256):
         raise ReleaseGateError("source diagnosis SHA-256 is malformed")
     diagnosis_source = Path(args.source_diagnosis_path).absolute()
@@ -3369,16 +3762,39 @@ def run_gate(args: argparse.Namespace) -> int:
         )
     started_at = dt.datetime.now(dt.timezone.utc)
     with integration_lock(repo):
+        registry_path = candidate_control_path(
+            repo, args.registry, label="invariant registry"
+        )
+        ledger_path = candidate_control_path(
+            repo, args.ledger, label="defect ledger"
+        )
+        measurements_path = candidate_control_path(
+            repo, "diagnosis_measurements.json", label="diagnosis measurements"
+        )
+        corrected_diagnosis_path = candidate_control_path(
+            repo,
+            "why_code_reviews_continue_to_find_major_problems.md",
+            label="corrected diagnosis",
+        )
         base_commit, candidate_commit = resolve_release_identities(
             repo,
             base=args.base,
             candidate=args.candidate,
             development=args.development_dry_run,
         )
-        registry_bytes = registry_path.read_bytes()
-        ledger_bytes = ledger_path.read_bytes()
-        registry = load_json_object(registry_path)
-        ledger = load_json_object(ledger_path)
+        registry_bytes, registry_identity = stable_file_bytes(registry_path)
+        ledger_bytes, ledger_identity = stable_file_bytes(ledger_path)
+        measurements_bytes, measurements_identity = stable_file_bytes(
+            measurements_path
+        )
+        corrected_diagnosis_bytes, corrected_diagnosis_identity = (
+            stable_file_bytes(corrected_diagnosis_path)
+        )
+        registry = json_object_bytes(registry_bytes, label=str(registry_path))
+        ledger = json_object_bytes(ledger_bytes, label=str(ledger_path))
+        measurements = json_object_bytes(
+            measurements_bytes, label=str(measurements_path)
+        )
         validate_control_schema(
             registry,
             repo / "production_invariants.schema.json",
@@ -3424,6 +3840,11 @@ def run_gate(args: argparse.Namespace) -> int:
         )
         immutable_evidence_paths = (
             diagnosis_source,
+            registry_path,
+            ledger_path,
+            measurements_path,
+            corrected_diagnosis_path,
+            output_dir,
             *unit_protection_paths,
         )
         blocked_control_sockets = service_control_socket_paths()
@@ -3487,12 +3908,13 @@ def run_gate(args: argparse.Namespace) -> int:
                 )
             )
 
-        validation_root = output_dir / "validation"
-        validation_home = output_dir / "validation-home"
-        validation_home.mkdir(parents=True, exist_ok=True)
+        validation_directory = materialize_bound_subdirectory(
+            output_directory, "validation"
+        )
+        validation_root = validation_directory.path
         focused: list[ValidationResult] = []
         validation_env = sanitized_validation_environment_for_toolchain(
-            validation_home, toolchain_before
+            scratch_root, toolchain_before
         )
         full: ValidationResult | None = None
         checkout_context: contextlib.AbstractContextManager[Path]
@@ -3570,16 +3992,14 @@ def run_gate(args: argparse.Namespace) -> int:
                     execute_validation(
                         command,
                         cwd=checkout,
-                        output_dir=validation_root,
+                        evidence_directory=validation_directory,
+                        workspace_root=scratch_root,
                         label=label,
                         network_isolated=bool(network["available"]),
                         production_root=production_root,
                         candidate_root=checkout,
                         dependency_roots=dependency_roots,
-                        additional_read_only_paths=(
-                            *immutable_evidence_paths,
-                            *sealed_evidence,
-                        ),
+                        additional_read_only_paths=immutable_evidence_paths,
                         blocked_unix_sockets=blocked_control_sockets,
                         toolchain=toolchain_before,
                         env=validation_env,
@@ -3599,6 +4019,27 @@ def run_gate(args: argparse.Namespace) -> int:
                 assert_gate_output_authorized(
                     output_dir, path_authorization
                 )
+                assert_bound_directory(output_directory)
+                assert_bound_directory(validation_directory)
+                for path, payload, identity in (
+                    (registry_path, registry_bytes, registry_identity),
+                    (ledger_path, ledger_bytes, ledger_identity),
+                    (
+                        measurements_path,
+                        measurements_bytes,
+                        measurements_identity,
+                    ),
+                    (
+                        corrected_diagnosis_path,
+                        corrected_diagnosis_bytes,
+                        corrected_diagnosis_identity,
+                    ),
+                ):
+                    assert_stable_file(
+                        path,
+                        expected_bytes=payload,
+                        expected_identity=identity,
+                    )
                 assert_candidate_checkout_unchanged(
                     checkout,
                     expected_snapshot=checkout_before,
@@ -3618,16 +4059,14 @@ def run_gate(args: argparse.Namespace) -> int:
                 full = execute_validation(
                     full_suite_command(args.workers),
                     cwd=checkout,
-                    output_dir=validation_root,
+                    evidence_directory=validation_directory,
+                    workspace_root=scratch_root,
                     label="complete-suite",
                     network_isolated=True,
                     production_root=production_root,
                     candidate_root=checkout,
                     dependency_roots=dependency_roots,
-                    additional_read_only_paths=(
-                        *immutable_evidence_paths,
-                        *sealed_evidence,
-                    ),
+                    additional_read_only_paths=immutable_evidence_paths,
                     blocked_unix_sockets=blocked_control_sockets,
                     toolchain=toolchain_before,
                     env=validation_env,
@@ -3646,6 +4085,27 @@ def run_gate(args: argparse.Namespace) -> int:
                 assert_gate_output_authorized(
                     output_dir, path_authorization
                 )
+                assert_bound_directory(output_directory)
+                assert_bound_directory(validation_directory)
+                for path, payload, identity in (
+                    (registry_path, registry_bytes, registry_identity),
+                    (ledger_path, ledger_bytes, ledger_identity),
+                    (
+                        measurements_path,
+                        measurements_bytes,
+                        measurements_identity,
+                    ),
+                    (
+                        corrected_diagnosis_path,
+                        corrected_diagnosis_bytes,
+                        corrected_diagnosis_identity,
+                    ),
+                ):
+                    assert_stable_file(
+                        path,
+                        expected_bytes=payload,
+                        expected_identity=identity,
+                    )
                 assert_candidate_checkout_unchanged(
                     checkout,
                     expected_snapshot=checkout_before,
@@ -3665,6 +4125,25 @@ def run_gate(args: argparse.Namespace) -> int:
             expected_bytes=diagnosis_bytes,
             expected_identity=diagnosis_identity,
         )
+        for path, payload, identity in (
+            (registry_path, registry_bytes, registry_identity),
+            (ledger_path, ledger_bytes, ledger_identity),
+            (
+                measurements_path,
+                measurements_bytes,
+                measurements_identity,
+            ),
+            (
+                corrected_diagnosis_path,
+                corrected_diagnosis_bytes,
+                corrected_diagnosis_identity,
+            ),
+        ):
+            assert_stable_file(
+                path,
+                expected_bytes=payload,
+                expected_identity=identity,
+            )
         toolchain_after = validation_toolchain_inventory(excluded_roots=(repo,))
         if toolchain_before != toolchain_after:
             raise ReleaseGateError(
@@ -3790,6 +4269,8 @@ def run_gate(args: argparse.Namespace) -> int:
             "procedural_notes": list(args.procedural_note),
         }
         assert_gate_output_authorized(output_dir, path_authorization)
+        assert_bound_directory(output_directory)
+        assert_bound_directory(validation_directory)
         assert_validation_evidence_unchanged(sealed_evidence)
         assert_stable_file(
             diagnosis_source,
@@ -3798,10 +4279,18 @@ def run_gate(args: argparse.Namespace) -> int:
         )
         inventory = emit_outputs(
             output_dir=output_dir,
+            output_directory=output_directory,
             semantic=semantic,
             receipt=receipt,
-            registry_path=registry_path,
-            ledger_path=ledger_path,
+            registry=registry,
+            ledger=ledger,
+            registry_sha256=sha256_bytes(registry_bytes),
+            ledger_sha256=sha256_bytes(ledger_bytes),
+            measurements=measurements,
+            measurements_sha256=sha256_bytes(measurements_bytes),
+            corrected_diagnosis_sha256=sha256_bytes(
+                corrected_diagnosis_bytes
+            ),
             diff_hash=sha256_bytes(diff),
             source_diagnosis_path=args.source_diagnosis_path,
             source_diagnosis_sha256=args.source_diagnosis_sha256,
@@ -3892,7 +4381,6 @@ def emit_failure_receipt(
         }
         if any(path.name not in allowed for path in output_dir.iterdir()):
             return None
-    output_dir.mkdir(parents=True, exist_ok=True)
     receipt = {
         "schema_version": 1,
         "status": "blocked",
@@ -3909,7 +4397,11 @@ def emit_failure_receipt(
         "partial_validation_file_hashes": _validation_hash_inventory(output_dir),
     }
     path = output_dir / "release_gate_failure_receipt.json"
-    write_atomic(path, canonical_json_bytes(receipt))
+    write_atomic_bound(
+        bind_existing_directory(output_dir),
+        path.name,
+        canonical_json_bytes(receipt),
+    )
     return path
 
 
@@ -3955,7 +4447,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "run":
             return run_gate(args)
         parser.error(f"unknown command: {args.command}")
-    except ReleaseGateError as exc:
+    except (ReleaseGateError, OSError) as raw_exc:
+        exc = (
+            raw_exc
+            if isinstance(raw_exc, ReleaseGateError)
+            else ReleaseGateError(
+                f"release-gate filesystem operation failed: "
+                f"{type(raw_exc).__name__}: {raw_exc}"
+            )
+        )
         with contextlib.suppress(OSError, ReleaseGateError):
             emit_failure_receipt(args, exc)
         print(f"release gate blocked: {exc}", file=sys.stderr)
