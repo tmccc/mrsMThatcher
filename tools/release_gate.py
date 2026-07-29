@@ -2963,7 +2963,7 @@ def assert_validation_directory_exact(
 def detached_candidate_worktree(
     repo: Path, commit: str, scratch_root: Path | BoundDirectory
 ) -> Iterator[Path]:
-    """Create an independent shallow checkout without mutating shared Git metadata."""
+    """Create an independent full-history checkout without shared Git writes."""
     scratch_directory = (
         scratch_root
         if isinstance(scratch_root, BoundDirectory)
@@ -3023,7 +3023,6 @@ def detached_candidate_worktree(
                 "fetch",
                 "--quiet",
                 "--no-tags",
-                "--depth=1",
                 str(repo),
                 commit,
             ),

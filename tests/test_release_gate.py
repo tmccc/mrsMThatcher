@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import errno
 import hashlib
 import json
 import multiprocessing
@@ -754,7 +755,12 @@ def test_containment_denies_all_host_unix_socket_connections(
 ) -> None:
     repo = _git_repo(tmp_path)
     socket_path = tmp_path / "harmless-host-control.sock"
-    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    except PermissionError as exc:
+        if exc.errno == errno.EPERM:
+            pytest.skip("outer release-gate containment already denies AF_UNIX")
+        raise
     try:
         listener.bind(str(socket_path))
         listener.listen(1)
@@ -1104,6 +1110,10 @@ def test_markdown_report_qualifies_conclusion_scope() -> None:
 
 def test_detached_candidate_worktree_is_exact_and_removed(tmp_path: Path) -> None:
     repo = _git_repo(tmp_path)
+    parent = _run(["git", "rev-parse", "HEAD"], repo)
+    (repo / "history.py").write_text("VALUE = 1\n", encoding="utf-8")
+    _run(["git", "add", "history.py"], repo)
+    _run(["git", "commit", "-qm", "history fixture"], repo)
     commit = _run(["git", "rev-parse", "HEAD"], repo)
     scratch = tmp_path / "scratch"
     scratch.mkdir()
@@ -1112,6 +1122,14 @@ def test_detached_candidate_worktree_is_exact_and_removed(tmp_path: Path) -> Non
     worktrees_before = _run(["git", "worktree", "list", "--porcelain"], repo)
     with release_gate.detached_candidate_worktree(repo, commit, scratch) as checkout:
         assert _run(["git", "rev-parse", "HEAD"], checkout) == commit
+        assert _run(["git", "rev-parse", "HEAD^"], checkout) == parent
+        assert (
+            _run(
+                ["git", "merge-base", "--is-ancestor", parent, commit],
+                checkout,
+            )
+            == ""
+        )
         assert _run(["git", "status", "--porcelain"], checkout) == ""
         assert release_gate.git_common_dir(checkout) != common
         assert _run(["git", "worktree", "list", "--porcelain"], repo) == (
