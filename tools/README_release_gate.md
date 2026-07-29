@@ -84,11 +84,11 @@ The gate:
 6. records every registry artifact declaration (including absent ephemeral
    state), discovered runtime/generated-artifact hashes, recomputed source-file
    pins, schema and policy hashes;
-7. creates an independent full reachable-history checkout of the exact commit
-   (so chronology validators can inspect recorded commits) without registering
-   a worktree or writing the source Git common directory; system and global Git
-   config, init templates, hooks, filters and redirection variables are
-   disabled;
+7. creates an independent checkout of the exact candidate plus every
+   commit identity referenced by the defect ledger (including side-branch
+   chronology) without registering a worktree or writing the source Git common
+   directory; system and global Git config, init templates, hooks, filters and
+   redirection variables are disabled;
 8. runs de-duplicated focused and relationship validation in that checkout,
    reverifying its Git state, relevant hashes and loader relationships after
    every command;

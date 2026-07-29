@@ -1144,6 +1144,76 @@ def test_detached_candidate_worktree_is_exact_and_removed(tmp_path: Path) -> Non
     assert release_gate.recursive_metadata_identity(common) == common_before
 
 
+def test_detached_candidate_fetches_ledger_commit_from_side_branch(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    main_branch = _run(["git", "branch", "--show-current"], repo)
+    _run(["git", "checkout", "-qb", "ledger-history"], repo)
+    (repo / "side.py").write_text("SIDE = 1\n", encoding="utf-8")
+    _run(["git", "add", "side.py"], repo)
+    _run(["git", "commit", "-qm", "side-only ledger commit"], repo)
+    side_commit = _run(["git", "rev-parse", "HEAD"], repo)
+    _run(["git", "checkout", "-q", main_branch], repo)
+    (repo / "candidate.py").write_text("CANDIDATE = 1\n", encoding="utf-8")
+    _run(["git", "add", "candidate.py"], repo)
+    _run(["git", "commit", "-qm", "candidate commit"], repo)
+    candidate = _run(["git", "rev-parse", "HEAD"], repo)
+    assert (
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", side_commit, candidate],
+            cwd=repo,
+            check=False,
+        ).returncode
+        != 0
+    )
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    common = release_gate.git_common_dir(repo)
+    common_before = release_gate.recursive_metadata_identity(common)
+    with release_gate.detached_candidate_worktree(
+        repo,
+        candidate,
+        scratch,
+        required_commits=(side_commit,),
+    ) as checkout:
+        assert _run(["git", "rev-parse", "HEAD"], checkout) == candidate
+        assert (
+            _run(["git", "cat-file", "-t", f"{side_commit}^{{commit}}"], checkout)
+            == "commit"
+        )
+        assert _run(["git", "status", "--porcelain"], checkout) == ""
+    assert release_gate.recursive_metadata_identity(common) == common_before
+
+
+def test_ledger_commit_identities_cover_all_commit_bearing_fields() -> None:
+    commits = [f"{index:040x}" for index in range(1, 12)]
+    ledger = {
+        "baseline": {
+            "current_master_commit": commits[0],
+            "observed_production_commit": commits[1],
+        },
+        "defects": [
+            {
+                "introduced": {
+                    "first_bad_commit": commits[2],
+                    "last_known_good_commit": commits[3],
+                    "affected_range": (
+                        f"inclusive:{commits[4]}..{commits[5]}"
+                    ),
+                },
+                "chronology": [{"commit": commits[6]}],
+                "first_review_scope": {"reviewed_revision": commits[7]},
+                "detection": {"revision": commits[8]},
+                "fix": {"commit": commits[9]},
+                "deployment": {"observed_commit": commits[10]},
+                "tests": [{"commit": commits[5]}],
+            }
+        ],
+    }
+    assert release_gate.ledger_commit_identities(ledger) == tuple(commits)
+
+
 def test_detached_candidate_reverification_rejects_tracked_mutation(
     tmp_path: Path,
 ) -> None:

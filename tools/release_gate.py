@@ -51,6 +51,9 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+INCLUSIVE_COMMIT_RANGE = re.compile(
+    r"inclusive:(unknown|[0-9a-f]{40})\.\.([0-9a-f]{40})\Z"
+)
 INVARIANT_ID = re.compile(r"INV-[A-Z0-9]+(?:-[A-Z0-9]+)+\Z")
 RUNTIME_ENTRY_POINTS = ("mrsMThatcher2.py",)
 RUNTIME_LAUNCHERS = ("runMrsMThatcher2", "mrsMThatcher.service")
@@ -1585,6 +1588,56 @@ def json_object_bytes(payload: bytes, *, label: str) -> dict[str, Any]:
     return value
 
 
+def ledger_commit_identities(ledger: Mapping[str, Any]) -> tuple[str, ...]:
+    """Extract every Git commit identity required by the ledger schema."""
+    commits: set[str] = set()
+
+    def add(value: Any) -> None:
+        if isinstance(value, str) and HEX40.fullmatch(value):
+            commits.add(value)
+
+    baseline = ledger.get("baseline", {})
+    if isinstance(baseline, Mapping):
+        add(baseline.get("current_master_commit"))
+        add(baseline.get("observed_production_commit"))
+    defects = ledger.get("defects", [])
+    if not isinstance(defects, list):
+        return tuple(sorted(commits))
+    for defect in defects:
+        if not isinstance(defect, Mapping):
+            continue
+        introduced = defect.get("introduced", {})
+        if isinstance(introduced, Mapping):
+            add(introduced.get("first_bad_commit"))
+            add(introduced.get("last_known_good_commit"))
+            affected_range = introduced.get("affected_range")
+            if isinstance(affected_range, str):
+                match = INCLUSIVE_COMMIT_RANGE.fullmatch(affected_range)
+                if match is not None:
+                    add(match.group(1))
+                    add(match.group(2))
+        chronology = defect.get("chronology", [])
+        if isinstance(chronology, list):
+            for event in chronology:
+                if isinstance(event, Mapping):
+                    add(event.get("commit"))
+        for key, field in (
+            ("first_review_scope", "reviewed_revision"),
+            ("detection", "revision"),
+            ("fix", "commit"),
+            ("deployment", "observed_commit"),
+        ):
+            item = defect.get(key, {})
+            if isinstance(item, Mapping):
+                add(item.get(field))
+        tests = defect.get("tests", [])
+        if isinstance(tests, list):
+            for test in tests:
+                if isinstance(test, Mapping):
+                    add(test.get("commit"))
+    return tuple(sorted(commits))
+
+
 def validate_control_schema(
     document: Mapping[str, Any], schema_path: Path, *, label: str
 ) -> None:
@@ -2961,9 +3014,26 @@ def assert_validation_directory_exact(
 
 @contextlib.contextmanager
 def detached_candidate_worktree(
-    repo: Path, commit: str, scratch_root: Path | BoundDirectory
+    repo: Path,
+    commit: str,
+    scratch_root: Path | BoundDirectory,
+    *,
+    required_commits: Iterable[str] = (),
 ) -> Iterator[Path]:
-    """Create an independent full-history checkout without shared Git writes."""
+    """Create an independent ledger-complete checkout without shared Git writes."""
+    required = tuple(sorted(set(required_commits)))
+    requested_commits = tuple(dict.fromkeys((commit, *required)))
+    for identity in requested_commits:
+        if not HEX40.fullmatch(identity):
+            raise ReleaseGateError(
+                f"malformed commit required by detached validation: {identity}"
+            )
+        if _git_run(
+            repo, ("cat-file", "-e", f"{identity}^{{commit}}"), check=False
+        ).returncode:
+            raise ReleaseGateError(
+                f"commit required by detached validation is unavailable: {identity}"
+            )
     scratch_directory = (
         scratch_root
         if isinstance(scratch_root, BoundDirectory)
@@ -3024,7 +3094,7 @@ def detached_candidate_worktree(
                 "--quiet",
                 "--no-tags",
                 str(repo),
-                commit,
+                *requested_commits,
             ),
             cwd=checkout,
             env=environment,
@@ -4635,6 +4705,7 @@ def run_gate(args: argparse.Namespace) -> int:
         )
         registry = json_object_bytes(registry_bytes, label=str(registry_path))
         ledger = json_object_bytes(ledger_bytes, label=str(ledger_path))
+        required_ledger_commits = ledger_commit_identities(ledger)
         measurements = json_object_bytes(
             measurements_bytes, label=str(measurements_path)
         )
@@ -4764,7 +4835,10 @@ def run_gate(args: argparse.Namespace) -> int:
             checkout_context = contextlib.nullcontext(repo)
         else:
             checkout_context = detached_candidate_worktree(
-                repo, candidate_commit, scratch_directory
+                repo,
+                candidate_commit,
+                scratch_directory,
+                required_commits=required_ledger_commits,
             )
         checkout_reverification_count = 0
         detached_checkout_identity_verified = False
@@ -5138,6 +5212,9 @@ def run_gate(args: argparse.Namespace) -> int:
                 checkout_reverification_count
             ),
             "procedural_notes": list(args.procedural_note),
+            "defect_ledger_commit_identities": list(
+                required_ledger_commits
+            ),
         }
         assert_gate_output_authorized(output_dir, path_authorization)
         assert_bound_directory(scratch_directory)
