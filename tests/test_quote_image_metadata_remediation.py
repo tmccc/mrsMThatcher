@@ -562,9 +562,34 @@ def test_first_and_second_prompts_are_independently_worded() -> None:
     assert "another judge's decision" in second
 
 
-def test_residual_batch_items_have_single_pair_max_token_recovery() -> None:
+def test_residual_batch_items_have_single_pair_max_token_recovery(
+    tmp_path: Path,
+) -> None:
+    checkout_run = tmp_path / "checkout-bound-contracts"
+    checkout_run.mkdir()
+    (checkout_run / "quote_contracts_v3.jsonl").write_bytes(
+        (RUN / "quote_contracts_v3.jsonl").read_bytes()
+    )
+    production_root = Path("/disks/disk1/etc/mrsMThatcher")
+    rebound_images = []
+    for source in rem.jsonl(RUN / "image_contracts_v3.jsonl"):
+        row = copy.deepcopy(source)
+        relative = Path(row["path"]).relative_to(production_root)
+        candidate_path = rem.ROOT / relative
+        assert candidate_path.is_file()
+        row["path"] = str(candidate_path)
+        rebound_images.append(row)
+    (checkout_run / "image_contracts_v3.jsonl").write_text(
+        "".join(
+            json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+            for row in rebound_images
+        ),
+        encoding="utf-8",
+    )
     residual = list(rem.jsonl(RUN / "residual_ai_queue.jsonl"))[:2]
-    items = rem.group_residual_requests(RUN, residual, second_pass=False)
+    items = rem.group_residual_requests(
+        checkout_run, residual, second_pass=False
+    )
     assert items
     for item in items:
         assert item["expected_pair_ids"] == item["pair_ids"]

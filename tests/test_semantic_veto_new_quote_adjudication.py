@@ -12,6 +12,48 @@ import pytest
 import semantic_veto_new_quote_adjudication as target
 
 
+@pytest.fixture(autouse=True)
+def _bind_image_contracts_to_candidate_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep focused evidence tests independent of the production checkout."""
+    production_root = Path("/disks/disk1/etc/mrsMThatcher")
+    rows: list[dict[str, object]] = []
+    for source in target.jsonl(target.IMAGE_CONTRACTS_PATH):
+        row = copy.deepcopy(source)
+        try:
+            relative = Path(str(row["path"])).relative_to(production_root)
+        except ValueError as exc:
+            raise AssertionError("image contract path is outside the reviewed root") from exc
+        candidate_path = target.ROOT / relative
+        assert candidate_path.is_file()
+        row["path"] = str(candidate_path)
+        rows.append(row)
+
+    rebound_path = tmp_path / "image_contracts_v3.checkout-bound.jsonl"
+    rebound_path.write_text(
+        "".join(
+            json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n"
+            for row in rows
+        ),
+        encoding="utf-8",
+    )
+    original_loader = target.load_image_contracts
+
+    def load_checkout_bound_contracts(
+        path: Path = target.IMAGE_CONTRACTS_PATH,
+    ) -> dict[str, dict[str, object]]:
+        selected = (
+            rebound_path
+            if Path(path) == target.IMAGE_CONTRACTS_PATH
+            else Path(path)
+        )
+        return original_loader(selected)
+
+    monkeypatch.setattr(target, "load_image_contracts", load_checkout_bound_contracts)
+
+
 def _isolated_adjudication_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
