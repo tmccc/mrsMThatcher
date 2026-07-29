@@ -28,6 +28,11 @@ First verify every commit, tree, diff and file hash in
 `independent_review_manifest.json`. Stop and report an identity failure if the
 package, candidate or deployed path differs.
 
+The manifest separately binds the authoritative source diagnosis used to start
+the consolidation and the corrected diagnosis in the candidate. Verify both
+path/hash records and review the evidence-backed corrections rather than
+assuming that either document describes current-master truth unaided.
+
 ## Review task
 
 Perform a read-only review. Do not modify the candidate or production, deploy,

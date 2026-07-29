@@ -134,14 +134,14 @@
       "id": "INV-ELIG-002",
       "category": "eligibility_evidence",
       "title": "Exact ordinary runtime eligibility closure",
-      "statement": "Ordinary posting may select only the exact runtime eligibility manifest whose policy version, source hashes, resolved IDs, runtime IDs, authorized aliases, counts, and derived attribution partition all agree.",
-      "failure_if_violated": "A stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle.",
+      "statement": "Ordinary posting may select only after the runtime has validated the manifest's active-source and completed-research hashes and has recomputed exact resolved IDs, runtime IDs, authorised aliases, counts, and the attribution partition from the current code and packets. The manifest's attribution_predicate hash is not enforced by the runtime and must not be represented as a validated runtime pin.",
+      "failure_if_violated": "A stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle; treating the ignored attribution_predicate hash as validated would also produce a false release-assurance claim.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "The production loader recomputes source hashes and the attribution-derived partition and requires exact manifest equality before exposing eligible runtime hashes.",
+      "status_rationale": "The production loader validates active_source and completed_quote_research, recomputes the attribution-derived partition with the current formatter code, and requires exact manifest equality before exposing eligible runtime hashes. This implemented runtime property deliberately does not claim that the stored attribution_predicate hash is enforced; that field is stale at the reviewed baseline and the loader does not inspect it.",
       "verification": {
         "status": "verified",
-        "rationale": "Current tests cover stale packet hashes, coherently rehashed speaker changes, aliases, exact partition equality, and the production manifest."
+        "rationale": "Current tests cover the stated runtime property: stale active-source/packet hashes, coherently rehashed speaker changes, aliases, exact partition equality, and the production manifest. They do not turn the separately disclosed attribution_predicate metadata into an enforced pin."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -166,7 +166,7 @@
         ]
       },
       "known_gaps": [],
-      "rationale": "Exact ordinary runtime eligibility closure is explicit because a stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle.",
+      "rationale": "Exact ordinary runtime eligibility closure is explicit because a stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle, while an ignored provenance hash can overstate what the release actually proved.",
       "owner_subsystem": "ordinary_quote_eligibility",
       "runtime_consumed_artifacts": {
         "status": "direct",
@@ -175,7 +175,12 @@
           "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json",
           "semantic_alignment_research/quote_research_full_001/research_packets.json"
         ],
-        "explanation": "Ordinary selection consumes the active source and exact runtime manifest, then derives the packet partition for comparison."
+        "frozen_candidate_required_artifacts": [
+          "mrsMThatcher.txt",
+          "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json",
+          "semantic_alignment_research/quote_research_full_001/research_packets.json"
+        ],
+        "explanation": "Ordinary selection consumes the active source and exact runtime manifest, validates the active_source and completed_quote_research hashes, then derives the packet partition from current code for comparison. The manifest's attribution_predicate entry is present but is not consumed as a runtime hash check."
       },
       "preconditions": [
         "The active quotation source, packet file, and runtime eligibility manifest belong to the same candidate tree.",
@@ -193,7 +198,8 @@
         "status": "required",
         "checks": [
           "Hash the deployed mrsMThatcher.txt, research_packets.json, and runtime_eligible_quote_manifest.json and run the exact ordinary-eligibility loader without posting.",
-          "Compare the deployed runtime ID set and authorized aliases with the attribution-derived canonical partition."
+          "Compare the deployed runtime ID set and authorized aliases with the attribution-derived canonical partition.",
+          "Report the manifest attribution_predicate hash separately as an ignored advisory field, compare it with historical_context_formatter.py, and do not count a mismatch as an enforced runtime-pin validation."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -221,7 +227,7 @@
       },
       "accepted_residual_risk": {
         "status": "none",
-        "explanation": "No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs."
+        "explanation": "No residual is accepted inside the narrowly stated runtime selection property. The stale, ignored attribution_predicate field is an adjacent release-assurance gap disclosed in the status rationale and mandatory deployed-path checks, not part of the hashes the runtime claims to enforce."
       }
     },
     {
@@ -320,7 +326,7 @@
       "id": "INV-HCTX-001",
       "category": "eligibility_evidence",
       "title": "Historical-context evidence and current-render closure",
-      "statement": "The optional context lane is available only when the canonical corpus, source-role audit, truth audit, declared correction sidecar, review ledger, projection, and every currently allowed reply rendered with the deployed formatter options reproduce the reviewed hashes.",
+      "statement": "The optional context lane is available only when the canonical corpus, source-role audit and every hash-bound source-role input, truth audit, MTF primary review, declared correction and curated-evidence sidecars, semantic-review ledger, and every currently allowed reply rendered with the effective formatter options reproduce the reviewed state. The public-projection review is a build-time review artefact, not a file opened by the runtime gate.",
       "failure_if_violated": "A changed correction or runtime formatter option could publish wording that was never semantically reviewed while an old ledger still appears valid.",
       "criticality": "critical",
       "implementation_status": "implemented",
@@ -365,12 +371,39 @@
         "status": "direct",
         "artifacts": [
           "historical_context_evidence_truth_audit.json",
-          "historical_context_public_projection_review.json",
+          "historical_context_mtf_primary_review.json",
           "historical_context_published_reply_semantic_review.json",
+          "semantic_alignment_research/quote_research_full_001/corpus_manifest.json",
+          "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json",
+          "semantic_alignment_research/quote_research_full_001/grounding_sources.json",
           "semantic_alignment_research/quote_research_full_001/historical_context_packet_corrections.json",
-          "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json"
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_research.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
+          "semantic_alignment_research/quote_research_full_001/research_packets.json"
         ],
-        "explanation": "The optional context gate reads these evidence, correction, projection, and review artifacts before enabling the lane."
+        "frozen_candidate_required_artifacts": [
+          "historical_context_evidence_truth_audit.json",
+          "historical_context_mtf_primary_review.json",
+          "historical_context_published_reply_semantic_review.json",
+          "semantic_alignment_research/quote_research_full_001/corpus_manifest.json",
+          "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json",
+          "semantic_alignment_research/quote_research_full_001/grounding_sources.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_packet_corrections.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_research.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json",
+          "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
+          "semantic_alignment_research/quote_research_full_001/research_packets.json"
+        ],
+        "explanation": "The runtime semantic gate directly opens the truth, MTF, source-role, correction, curated-evidence and semantic-review documents; corpus loading and deterministic source-role-audit reproduction also read or hash the listed canonical inputs. historical_context_public_projection_review.json remains relevant to generation/review but is not a direct runtime loader input."
       },
       "preconditions": [
         "The effective deployed formatter options are known before gate initialization.",
@@ -387,7 +420,9 @@
       "required_production_deployed_path_checks": {
         "status": "required",
         "checks": [
-          "Load the deployed semantic gate using effective mrsMThatcher.local.json formatter options and require every evidence/correction/review hash and allowed render to reproduce."
+          "Load the deployed semantic gate using effective mrsMThatcher.local.json formatter options and require every directly loaded evidence/correction/review hash and allowed render to reproduce.",
+          "Verify deterministic source-role-audit reproduction against research_packets.json, grounding_sources.json, corpus_manifest.json, final_unresolved/final_research_status.json, and every optional source-role input declared by the current audit.",
+          "Record historical_context_public_projection_review.json as build-time review provenance only; do not claim that the runtime gate opened it."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -1388,14 +1423,14 @@
       "id": "INV-CONFIG-001",
       "category": "configuration_process",
       "title": "Local configuration is allowlisted, atomic, and unambiguous",
-      "statement": "A present local configuration must be a readable JSON object with no duplicate names, containing only supported keys and valid types/ranges; all overrides apply atomically, and no local key may replace runtime paths, credentials, or service endpoints.",
-      "failure_if_violated": "A typo, duplicate name, or partially valid safety configuration can be silently misread while operators believe the intended restriction is active.",
+      "statement": "A present local configuration must be a readable JSON object containing only allowlisted top-level keys and valid types/ranges; the complete proposed top-level snapshot is validated before any override is applied. Allowlisted path-bearing scalar keys and the path fields inside ai_first_reply_strategy and quote_image_semantic_veto may replace their defaults. Nested configuration objects are replaced as complete top-level values rather than deep-merged.",
+      "failure_if_violated": "A typo, duplicate name, partially valid safety configuration, or misunderstood whole-object/path override can be silently misread while operators believe the intended restriction or path binding is active.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "Configuration loading rejects unknown keys, validates a proposed deep-merged snapshot before applying it, and separately rejects unsafe domain overrides. Standard JSON decoding still accepts duplicate object names with last-wins behavior.",
+      "status_rationale": "Configuration loading rejects unknown top-level keys and validates a proposed shallow top-level replacement snapshot before applying it atomically. It deliberately allows GENERATED_IMAGE_DIR, GENERATED_IMAGE_ANALYSIS_FILE, ORIGINAL_EDITORIAL_ANALYSIS_FILE, GENERATED_IDENTITY_AUDIT_FILE, ai_first_reply_strategy.research_corpus_path, and quote_image_semantic_veto.manifest_path. Standard JSON decoding still accepts duplicate object names with last-wins behavior, and path-bearing values are not constrained to the production root.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover absent, malformed, unreadable, unknown, mixed-validity, unsafe-domain, and complete example configurations, but not duplicate-name rejection."
+        "rationale": "Tests cover absent, malformed, unreadable, unknown, mixed-validity, prohibited base/API overrides, and complete example configurations. They do not reject duplicate names or prove containment of every allowlisted path-bearing value."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -1421,7 +1456,8 @@
         ]
       },
       "known_gaps": [
-        "The local configuration decoder does not yet reject duplicate object names before validation."
+        "The local configuration decoder does not yet reject duplicate object names before validation.",
+        "Allowlisted path-bearing overrides are checked for type/non-emptiness by their owning validators but are not uniformly constrained to, or inventory-bound against, the production root."
       ],
       "rationale": "Local configuration is allowlisted, atomic, and unambiguous is explicit because a typo, duplicate name, or partially valid safety configuration can be silently misread while operators believe the intended restriction is active.",
       "owner_subsystem": "runtime_configuration",
@@ -1434,7 +1470,8 @@
       },
       "preconditions": [
         "The local override is optional, but if present it must be readable before bootstrap continues.",
-        "Supported defaults are validated together with proposed overrides before any global is changed."
+        "Supported defaults are validated together with proposed shallow top-level replacements before any global is changed.",
+        "Operators treat each nested ai_first_reply_strategy, historical_context_reply, or quote_image_semantic_veto value as a complete replacement object, not a deep-merge fragment."
       ],
       "failure_mode": {
         "mode": "mixed",
@@ -1448,7 +1485,9 @@
         "status": "required",
         "checks": [
           "Parse the deployed mrsMThatcher.local.json through production bootstrap validation before restart and record every effective override.",
-          "Do not treat duplicate-key safety as closed until the shared strict JSON decoder exists."
+          "Inventory every effective path-bearing override and resolve relative values against /disks/disk1/etc/mrsMThatcher before activation.",
+          "At the 2026-07-29 read-only inspection, require the current resolved inventory to be: generated_review_approved_images/, generated_image_analysis.json, original_image_editorial_analysis_experiment_v1.json, generated_image_identity_dependence_audit.json, semantic_alignment_research/quote_research_full_001/, and semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json, all beneath /disks/disk1/etc/mrsMThatcher.",
+          "Do not treat duplicate-key or general path-containment safety as closed until those controls exist."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -1472,6 +1511,11 @@
           "type": "report",
           "reference": "defect_ledger.json#DEF-0017",
           "claim": "Current-master defect or assurance record linked to this invariant."
+        },
+        {
+          "type": "operational",
+          "reference": "/disks/disk1/etc/mrsMThatcher/mrsMThatcher.local.json (read-only inspection 2026-07-29)",
+          "claim": "The current effective path-bearing override inventory resolves the generated pool/analysis, editorial analysis, generated identity audit, reply research corpus, and semantic-veto manifest beneath the production root."
         }
       ],
       "last_verified_commit": {
@@ -1486,7 +1530,7 @@
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "No acceptance is recorded. Open risk: The local configuration decoder does not yet reject duplicate object names before validation."
+        "explanation": "No acceptance is recorded. Open risks: the local configuration decoder does not reject duplicate object names, and allowlisted path-bearing values are not uniformly constrained to the production root."
       }
     },
     {
@@ -1873,15 +1917,15 @@
     {
       "id": "INV-PROC-003",
       "category": "configuration_process",
-      "title": "Launcher exposes failures and bounds crash loops",
-      "statement": "The tracked launcher must validate its final environment-derived settings before starting the child, stream child stdout/stderr to the service journal, distinguish expected long-running restarts from repeated fast exits, and exit non-zero after a bounded fast-failure threshold so systemd observes failure.",
-      "failure_if_violated": "A permanently failing child can restart forever behind a healthy-looking wrapper with no actionable diagnostic output.",
+      "title": "Launcher exposes failures and bounds repeated fast exits",
+      "statement": "The tracked launcher must validate its final environment-derived settings before starting the child, stream child stdout/stderr to the service journal, and exit non-zero after a bounded number of consecutive child exits shorter than FAST_FAILURE_WINDOW_SECONDS. With the current default and deployed configuration, only consecutive exits under 30 seconds are bounded; an exit after 30 seconds or more resets the counter.",
+      "failure_if_violated": "A rapidly failing child can restart forever behind a healthy-looking wrapper with no actionable diagnostic output; even with the present fast-exit guard, a child that repeatedly survives for at least 30 seconds can still restart indefinitely.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "The launcher validates effective values after sourcing the env file, leaves child output attached, counts fast clean and non-zero exits, and exits at the configured threshold.",
+      "status_rationale": "The launcher validates effective values after sourcing the env file, leaves child output attached, counts clean and non-zero exits shorter than the configured window, and exits at the configured fast-failure threshold. This implemented property is explicitly limited to fast exits; it does not claim to bound every crash loop.",
       "verification": {
         "status": "verified",
-        "rationale": "Subprocess integration tests exercise normal restarts, stdout/stderr visibility, fast non-zero and clean exits, setup failures, env-file overrides, and shell syntax."
+        "rationale": "Subprocess integration tests exercise normal restarts, stdout/stderr visibility, fast non-zero and clean exits, setup failures, env-file overrides, and shell syntax. They verify the stated fast-exit boundary, not a bound on repeated exits after 30 seconds or more."
       },
       "affected_paths": [
         "runMrsMThatcher2",
@@ -1906,7 +1950,7 @@
         ]
       },
       "known_gaps": [],
-      "rationale": "Launcher exposes failures and bounds crash loops is explicit because a permanently failing child can restart forever behind a healthy-looking wrapper with no actionable diagnostic output.",
+      "rationale": "Launcher diagnostics and a bounded fast-exit loop are explicit because a rapidly failing child must not remain hidden behind a healthy-looking wrapper. The narrower contract avoids claiming that the current launcher bounds every possible crash loop.",
       "owner_subsystem": "launcher_supervision",
       "runtime_consumed_artifacts": {
         "status": "indirect",
@@ -1931,7 +1975,9 @@
       "required_production_deployed_path_checks": {
         "status": "required",
         "checks": [
-          "Hash the deployed runMrsMThatcher2 and systemd unit, validate effective env-file crash-loop values, and inspect the journal for visible child output and stable-child evidence."
+          "Hash the deployed runMrsMThatcher2 and systemd unit, validate effective env-file crash-loop values, and inspect the journal for visible child output and stable-child evidence.",
+          "Record that the current effective FAST_FAILURE_WINDOW_SECONDS is 30 and treat only repeated exits below that boundary as covered by the bounded-failure guarantee.",
+          "Do not infer a bounded overall restart count from this launcher when child runtimes repeatedly meet or exceed 30 seconds."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -1959,7 +2005,7 @@
       },
       "accepted_residual_risk": {
         "status": "none",
-        "explanation": "No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs."
+        "explanation": "No residual is accepted inside the stated fast-exit guarantee. Indefinitely repeated exits at or above the 30-second window are explicitly outside that narrow guarantee and remain disclosed in the invariant statement and deployed-path checks."
       }
     },
     {
@@ -2240,14 +2286,14 @@
       "id": "INV-TEST-003",
       "category": "test_deployment",
       "title": "Frozen-candidate tests deny subprocess egress at the OS boundary",
-      "statement": "Release validation must run pytest and every descendant inside a loopback-only operating-system network namespace, prove external routing is unavailable before tests start, and fail closed when the namespace cannot be established.",
+      "statement": "An external release-gate process must run pytest and every descendant for an exact committed candidate inside a loopback-only operating-system network namespace, prove external routing is unavailable before tests start, and fail closed when the namespace cannot be established. Running the same commands directly in the mutable implementation worktree does not satisfy this invariant.",
       "failure_if_violated": "An arbitrary child binary can ignore Python monkeypatches and proxy variables and contact external or live resources during an apparently offline suite.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "The frozen-candidate release gate performs an explicit namespace preflight and wraps focused and complete-suite commands so the isolation applies to descendants.",
+      "status_rationale": "The candidate release-gate implementation provides an explicit namespace preflight and wraps focused and complete-suite commands so isolation applies to descendants. The implemented mechanism is candidate-specific only when that gate is launched externally against a frozen commit; ordinary in-worktree pytest remains outside this boundary.",
       "verification": {
         "status": "verified",
-        "rationale": "Release-gate tests prove unavailable isolation is explicit, the preflight checks the namespace, and argument-preserving wrapping does not reintroduce a shell escape."
+        "rationale": "Release-gate unit tests verify the mechanism: unavailable isolation is explicit, the preflight checks the namespace, and argument-preserving wrapping does not reintroduce a shell escape. A production attestation for any particular candidate still requires the external frozen-candidate execution."
       },
       "affected_paths": [
         "tools/release_gate.py",
@@ -2281,7 +2327,8 @@
       },
       "preconditions": [
         "The host supports the release gate's loopback-only network namespace mechanism.",
-        "Focused and full-suite commands execute through the gate's argument-preserving namespace wrapper."
+        "Focused and full-suite commands execute through the externally launched gate's argument-preserving namespace wrapper.",
+        "The gate validates a detached checkout of an exact committed candidate rather than the mutable implementation worktree."
       ],
       "failure_mode": {
         "mode": "fail_closed",
@@ -2316,16 +2363,16 @@
       "last_verified_commit": {
         "status": "unknown",
         "value": null,
-        "explanation": "The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified commit can honestly be named."
+        "explanation": "This self-describing registry cannot establish the commit externally validated by the release gate. The candidate attestation must supply the exact committed identity after freeze."
       },
       "last_verified_tree": {
         "status": "unknown",
         "value": null,
-        "explanation": "The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified Git tree can honestly be named."
+        "explanation": "This self-describing registry cannot establish the detached tree externally validated by the release gate. The candidate attestation must supply that tree after freeze."
       },
       "accepted_residual_risk": {
         "status": "none",
-        "explanation": "No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs."
+        "explanation": "No weaker substitute is accepted inside this invariant: mutable-worktree pytest and Python-only monkeypatching do not satisfy it. Candidate-specific satisfaction remains conditional on the required external OS-contained frozen-candidate run."
       }
     },
     {
@@ -2442,11 +2489,11 @@
       "id": "INV-REL-001",
       "category": "test_deployment",
       "title": "Frozen, attested, executable release gate",
-      "statement": "Final validation must run against an integration-locked Git tree; the committed candidate, generated-artifact inventory, test result, reviewed diff, defect ledger, independent-review request/result, production base, deployed tree, restart, and rollback record must all bind to that exact identity, with no unreviewed candidate mutation or live-checkout state mixed into the release.",
+      "statement": "Final validation must be launched externally against an integration-locked exact committed candidate in an isolated checkout; the generated-artifact inventory, test result, reviewed diff, defect ledger, independent-review request/result, production base, deployed tree, restart, and rollback record must all bind to that identity, with no unreviewed candidate mutation or mutable implementation-worktree state mixed into the release. The registry and an in-worktree test run cannot self-attest this property.",
       "failure_if_violated": "Tests can describe a different tree from the one committed or deployed, generated files can be stale, and on-disk production can advance independently of the running process.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The executable gate now holds a shared-Git integration lock, requires a clean exact commit, maps its diff to invariants, validates generated relationships, runs focused checks and the full suite in a detached isolated worktree, and emits hash-bound attestations. It deliberately does not deploy, restart, or prove loaded process identity.",
+      "status_rationale": "The executable gate is designed to hold a shared-Git integration lock, require a clean exact commit, map its diff to invariants, validate generated relationships, run focused checks and the full suite in a detached isolated worktree, and emit hash-bound attestations. Those controls are candidate-specific only when a separate external invocation validates the frozen commit. The gate deliberately does not deploy, restart, or prove loaded process identity.",
       "verification": {
         "status": "partial",
         "rationale": "Release-gate tests cover lock contention, tree drift, exact detached checkout, network isolation, mapping, semantic attestation determinism, and scope wording; no test performs an immutable production activation or proves loaded process identity."
@@ -2511,6 +2558,7 @@
         ]
       },
       "known_gaps": [
+        "The current Priority-0 candidate has no valid release attestation until the gate is invoked externally after the candidate is committed and frozen.",
         "Production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch.",
         "The gate attests but deliberately does not deploy, restart, or verify an activated production tree.",
         "Independent review remains a separate human session whose investigative independence cannot be proved automatically.",
@@ -2531,7 +2579,8 @@
       "preconditions": [
         "The candidate is a clean committed tree with an explicit base commit.",
         "The shared Git integration lock is held throughout candidate validation.",
-        "Attestation output is outside the candidate worktree and independent review occurs in a separate session."
+        "Attestation output is outside the candidate worktree and independent review occurs in a separate session.",
+        "The gate is launched from outside the candidate's mutable implementation context and checks out the exact committed tree it validates."
       ],
       "failure_mode": {
         "mode": "fail_closed",
@@ -2569,16 +2618,16 @@
       "last_verified_commit": {
         "status": "unknown",
         "value": null,
-        "explanation": "The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified commit can honestly be named."
+        "explanation": "This self-describing registry cannot establish the commit externally frozen and validated by the release gate. The candidate attestation must supply that identity after freeze."
       },
       "last_verified_tree": {
         "status": "unknown",
         "value": null,
-        "explanation": "The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified Git tree can honestly be named."
+        "explanation": "This self-describing registry cannot establish the detached tree externally validated by the release gate. The candidate attestation must supply that identity after freeze."
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "No acceptance is recorded. Open risk: Production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch. The gate attests but deliberately does not deploy, restart, or verify an activated production tree. Independent review remains a separate human session whose investigative independence cannot be proved automatically. Loaded process identity is not attested; see INV-PROC-004."
+        "explanation": "No acceptance is recorded. Open risk: the candidate is not attested until an external frozen-candidate gate succeeds; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004)."
       }
     }
   ]

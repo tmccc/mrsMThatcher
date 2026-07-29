@@ -352,6 +352,13 @@
             "minLength": 1
           }
         },
+        "frozen_candidate_required_artifacts": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/repositoryPath"
+          }
+        },
         "explanation": {
           "type": "string",
           "minLength": 1

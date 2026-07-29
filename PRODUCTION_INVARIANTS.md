@@ -114,26 +114,26 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-ELIG-002: Exact ordinary runtime eligibility closure
 
-**Invariant.** Ordinary posting may select only the exact runtime eligibility manifest whose policy version, source hashes, resolved IDs, runtime IDs, authorized aliases, counts, and derived attribution partition all agree.
+**Invariant.** Ordinary posting may select only after the runtime has validated the manifest's active-source and completed-research hashes and has recomputed exact resolved IDs, runtime IDs, authorised aliases, counts, and the attribution partition from the current code and packets. The manifest's attribution_predicate hash is not enforced by the runtime and must not be represented as a validated runtime pin.
 
-**Rationale.** Exact ordinary runtime eligibility closure is explicit because a stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle.
+**Rationale.** Exact ordinary runtime eligibility closure is explicit because a stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle, while an ignored provenance hash can overstate what the release actually proved.
 
 **Owner subsystem.** `ordinary_quote_eligibility`
 
-**Failure consequence.** A stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle.
+**Failure consequence.** A stale or coherently rehashed subset could admit an ineligible quotation or remove an eligible quotation from the ordinary cycle; treating the ignored attribution_predicate hash as validated would also produce a false release-assurance claim.
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The production loader recomputes source hashes and the attribution-derived partition and requires exact manifest equality before exposing eligible runtime hashes.
+**Status.** `implemented` — The production loader validates active_source and completed_quote_research, recomputes the attribution-derived partition with the current formatter code, and requires exact manifest equality before exposing eligible runtime hashes. This implemented runtime property deliberately does not claim that the stored attribution_predicate hash is enforced; that field is stale at the reviewed baseline and the loader does not inspect it.
 
-**Verification.** `verified` — Current tests cover stale packet hashes, coherently rehashed speaker changes, aliases, exact partition equality, and the production manifest.
+**Verification.** `verified` — Current tests cover the stated runtime property: stale active-source/packet hashes, coherently rehashed speaker changes, aliases, exact partition equality, and the production manifest. They do not turn the separately disclosed attribution_predicate metadata into an enforced pin.
 
 **Preconditions.**
 
 - The active quotation source, packet file, and runtime eligibility manifest belong to the same candidate tree.
 - Only explicitly recorded runtime-to-canonical aliases may differ from raw packet identities.
 
-**Runtime-consumed artifacts.** `direct` — Ordinary selection consumes the active source and exact runtime manifest, then derives the packet partition for comparison.
+**Runtime-consumed artifacts.** `direct` — Ordinary selection consumes the active source and exact runtime manifest, validates the active_source and completed_quote_research hashes, then derives the packet partition from current code for comparison. The manifest's attribution_predicate entry is present but is not consumed as a runtime hash check.
 
 - `mrsMThatcher.txt`
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json`
@@ -145,6 +145,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - Hash the deployed mrsMThatcher.txt, research_packets.json, and runtime_eligible_quote_manifest.json and run the exact ordinary-eligibility loader without posting.
 - Compare the deployed runtime ID set and authorized aliases with the attribution-derived canonical partition.
+- Report the manifest attribution_predicate hash separately as an ignored advisory field, compare it with historical_context_formatter.py, and do not count a mismatch as an enforced runtime-pin validation.
 
 **Evidence references.**
 
@@ -155,7 +156,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `none` — No residual is accepted inside the narrowly stated runtime selection property. The stale, ignored attribution_predicate field is an adjacent release-assurance gap disclosed in the status rationale and mandatory deployed-path checks, not part of the hashes the runtime claims to enforce.
 
 **Affected paths.**
 
@@ -252,7 +253,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-HCTX-001: Historical-context evidence and current-render closure
 
-**Invariant.** The optional context lane is available only when the canonical corpus, source-role audit, truth audit, declared correction sidecar, review ledger, projection, and every currently allowed reply rendered with the deployed formatter options reproduce the reviewed hashes.
+**Invariant.** The optional context lane is available only when the canonical corpus, source-role audit and every hash-bound source-role input, truth audit, MTF primary review, declared correction and curated-evidence sidecars, semantic-review ledger, and every currently allowed reply rendered with the effective formatter options reproduce the reviewed state. The public-projection review is a build-time review artefact, not a file opened by the runtime gate.
 
 **Rationale.** Historical-context evidence and current-render closure is explicit because a changed correction or runtime formatter option could publish wording that was never semantically reviewed while an old ledger still appears valid.
 
@@ -271,19 +272,31 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - The effective deployed formatter options are known before gate initialization.
 - Every declared correction and evidence artifact is present with its authoritative hash.
 
-**Runtime-consumed artifacts.** `direct` — The optional context gate reads these evidence, correction, projection, and review artifacts before enabling the lane.
+**Runtime-consumed artifacts.** `direct` — The runtime semantic gate directly opens the truth, MTF, source-role, correction, curated-evidence and semantic-review documents; corpus loading and deterministic source-role-audit reproduction also read or hash the listed canonical inputs. historical_context_public_projection_review.json remains relevant to generation/review but is not a direct runtime loader input.
 
 - `historical_context_evidence_truth_audit.json`
-- `historical_context_public_projection_review.json`
+- `historical_context_mtf_primary_review.json`
 - `historical_context_published_reply_semantic_review.json`
+- `semantic_alignment_research/quote_research_full_001/corpus_manifest.json`
+- `semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json`
+- `semantic_alignment_research/quote_research_full_001/grounding_sources.json`
 - `semantic_alignment_research/quote_research_full_001/historical_context_packet_corrections.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_research.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json`
 - `semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json`
+- `semantic_alignment_research/quote_research_full_001/research_packets.json`
 
 **Full-suite relevance.** `required` — Focused checks establish the local contract; the isolated complete suite is required to detect adjacent state-machine, configuration, and generated-artifact interactions.
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
-- Load the deployed semantic gate using effective mrsMThatcher.local.json formatter options and require every evidence/correction/review hash and allowed render to reproduce.
+- Load the deployed semantic gate using effective mrsMThatcher.local.json formatter options and require every directly loaded evidence/correction/review hash and allowed render to reproduce.
+- Verify deterministic source-role-audit reproduction against research_packets.json, grounding_sources.json, corpus_manifest.json, final_unresolved/final_research_status.json, and every optional source-role input declared by the current audit.
+- Record historical_context_public_projection_review.json as build-time review provenance only; do not claim that the runtime gate opened it.
 
 **Evidence references.**
 
@@ -1052,29 +1065,30 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 | `INV-API-001` | Bounded requests and conservative write outcomes | `implemented` | `verified` | `critical` |
 | `INV-PROC-001` | Import safety and explicit production bootstrap | `implemented` | `verified` | `critical` |
 | `INV-PROC-002` | Single process owns recovery and posting | `implemented` | `verified` | `critical` |
-| `INV-PROC-003` | Launcher exposes failures and bounds crash loops | `implemented` | `verified` | `critical` |
+| `INV-PROC-003` | Launcher exposes failures and bounds repeated fast exits | `implemented` | `verified` | `critical` |
 | `INV-PROC-004` | Runtime health attests loaded release identity | `missing` | `unverified` | `critical` |
 
 ### INV-CONFIG-001: Local configuration is allowlisted, atomic, and unambiguous
 
-**Invariant.** A present local configuration must be a readable JSON object with no duplicate names, containing only supported keys and valid types/ranges; all overrides apply atomically, and no local key may replace runtime paths, credentials, or service endpoints.
+**Invariant.** A present local configuration must be a readable JSON object containing only allowlisted top-level keys and valid types/ranges; the complete proposed top-level snapshot is validated before any override is applied. Allowlisted path-bearing scalar keys and the path fields inside ai_first_reply_strategy and quote_image_semantic_veto may replace their defaults. Nested configuration objects are replaced as complete top-level values rather than deep-merged.
 
 **Rationale.** Local configuration is allowlisted, atomic, and unambiguous is explicit because a typo, duplicate name, or partially valid safety configuration can be silently misread while operators believe the intended restriction is active.
 
 **Owner subsystem.** `runtime_configuration`
 
-**Failure consequence.** A typo, duplicate name, or partially valid safety configuration can be silently misread while operators believe the intended restriction is active.
+**Failure consequence.** A typo, duplicate name, partially valid safety configuration, or misunderstood whole-object/path override can be silently misread while operators believe the intended restriction or path binding is active.
 
 **Failure mode.** `mixed` — Known parse, key, type, and range failures close bootstrap, but duplicate object names are still accepted last-wins and remain an open gap.
 
-**Status.** `partial` — Configuration loading rejects unknown keys, validates a proposed deep-merged snapshot before applying it, and separately rejects unsafe domain overrides. Standard JSON decoding still accepts duplicate object names with last-wins behavior.
+**Status.** `partial` — Configuration loading rejects unknown top-level keys and validates a proposed shallow top-level replacement snapshot before applying it atomically. It deliberately allows GENERATED_IMAGE_DIR, GENERATED_IMAGE_ANALYSIS_FILE, ORIGINAL_EDITORIAL_ANALYSIS_FILE, GENERATED_IDENTITY_AUDIT_FILE, ai_first_reply_strategy.research_corpus_path, and quote_image_semantic_veto.manifest_path. Standard JSON decoding still accepts duplicate object names with last-wins behavior, and path-bearing values are not constrained to the production root.
 
-**Verification.** `partial` — Tests cover absent, malformed, unreadable, unknown, mixed-validity, unsafe-domain, and complete example configurations, but not duplicate-name rejection.
+**Verification.** `partial` — Tests cover absent, malformed, unreadable, unknown, mixed-validity, prohibited base/API overrides, and complete example configurations. They do not reject duplicate names or prove containment of every allowlisted path-bearing value.
 
 **Preconditions.**
 
 - The local override is optional, but if present it must be readable before bootstrap continues.
-- Supported defaults are validated together with proposed overrides before any global is changed.
+- Supported defaults are validated together with proposed shallow top-level replacements before any global is changed.
+- Operators treat each nested ai_first_reply_strategy, historical_context_reply, or quote_image_semantic_veto value as a complete replacement object, not a deep-merge fragment.
 
 **Runtime-consumed artifacts.** `direct` — The production bootstrap directly reads the optional local override document.
 
@@ -1085,7 +1099,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
 - Parse the deployed mrsMThatcher.local.json through production bootstrap validation before restart and record every effective override.
-- Do not treat duplicate-key safety as closed until the shared strict JSON decoder exists.
+- Inventory every effective path-bearing override and resolve relative values against /disks/disk1/etc/mrsMThatcher before activation.
+- At the 2026-07-29 read-only inspection, require the current resolved inventory to be: generated_review_approved_images/, generated_image_analysis.json, original_image_editorial_analysis_experiment_v1.json, generated_image_identity_dependence_audit.json, semantic_alignment_research/quote_research_full_001/, and semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json, all beneath /disks/disk1/etc/mrsMThatcher.
+- Do not treat duplicate-key or general path-containment safety as closed until those controls exist.
 
 **Evidence references.**
 
@@ -1093,12 +1109,13 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed` — Focused automated evidence for the principal recorded boundary.
 - `report` `defect_ledger.json#DEF-0006` — Current-master defect or assurance record linked to this invariant.
 - `report` `defect_ledger.json#DEF-0017` — Current-master defect or assurance record linked to this invariant.
+- `operational` `/disks/disk1/etc/mrsMThatcher/mrsMThatcher.local.json (read-only inspection 2026-07-29)` — The current effective path-bearing override inventory resolves the generated pool/analysis, editorial analysis, generated identity audit, reply research corpus, and semantic-veto manifest beneath the production root.
 
 **Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
 
 **Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
 
-**Accepted residual risk.** `unaccepted` — No acceptance is recorded. Open risk: The local configuration decoder does not yet reject duplicate object names before validation.
+**Accepted residual risk.** `unaccepted` — No acceptance is recorded. Open risks: the local configuration decoder does not reject duplicate object names, and allowlisted path-bearing values are not uniformly constrained to the production root.
 
 **Affected paths.**
 
@@ -1125,6 +1142,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Known gaps.**
 
 - The local configuration decoder does not yet reject duplicate object names before validation.
+- Allowlisted path-bearing overrides are checked for type/non-emptiness by their owning validators but are not uniformly constrained to, or inventory-bound against, the production root.
 
 ### INV-PAUSE-001: Runtime pause and control state fail closed and unambiguously
 
@@ -1401,21 +1419,21 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - None recorded for this contract.
 
-### INV-PROC-003: Launcher exposes failures and bounds crash loops
+### INV-PROC-003: Launcher exposes failures and bounds repeated fast exits
 
-**Invariant.** The tracked launcher must validate its final environment-derived settings before starting the child, stream child stdout/stderr to the service journal, distinguish expected long-running restarts from repeated fast exits, and exit non-zero after a bounded fast-failure threshold so systemd observes failure.
+**Invariant.** The tracked launcher must validate its final environment-derived settings before starting the child, stream child stdout/stderr to the service journal, and exit non-zero after a bounded number of consecutive child exits shorter than FAST_FAILURE_WINDOW_SECONDS. With the current default and deployed configuration, only consecutive exits under 30 seconds are bounded; an exit after 30 seconds or more resets the counter.
 
-**Rationale.** Launcher exposes failures and bounds crash loops is explicit because a permanently failing child can restart forever behind a healthy-looking wrapper with no actionable diagnostic output.
+**Rationale.** Launcher diagnostics and a bounded fast-exit loop are explicit because a rapidly failing child must not remain hidden behind a healthy-looking wrapper. The narrower contract avoids claiming that the current launcher bounds every possible crash loop.
 
 **Owner subsystem.** `launcher_supervision`
 
-**Failure consequence.** A permanently failing child can restart forever behind a healthy-looking wrapper with no actionable diagnostic output.
+**Failure consequence.** A rapidly failing child can restart forever behind a healthy-looking wrapper with no actionable diagnostic output; even with the present fast-exit guard, a child that repeatedly survives for at least 30 seconds can still restart indefinitely.
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The launcher validates effective values after sourcing the env file, leaves child output attached, counts fast clean and non-zero exits, and exits at the configured threshold.
+**Status.** `implemented` — The launcher validates effective values after sourcing the env file, leaves child output attached, counts clean and non-zero exits shorter than the configured window, and exits at the configured fast-failure threshold. This implemented property is explicitly limited to fast exits; it does not claim to bound every crash loop.
 
-**Verification.** `verified` — Subprocess integration tests exercise normal restarts, stdout/stderr visibility, fast non-zero and clean exits, setup failures, env-file overrides, and shell syntax.
+**Verification.** `verified` — Subprocess integration tests exercise normal restarts, stdout/stderr visibility, fast non-zero and clean exits, setup failures, env-file overrides, and shell syntax. They verify the stated fast-exit boundary, not a bound on repeated exits after 30 seconds or more.
 
 **Preconditions.**
 
@@ -1432,6 +1450,8 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
 - Hash the deployed runMrsMThatcher2 and systemd unit, validate effective env-file crash-loop values, and inspect the journal for visible child output and stable-child evidence.
+- Record that the current effective FAST_FAILURE_WINDOW_SECONDS is 30 and treat only repeated exits below that boundary as covered by the bounded-failure guarantee.
+- Do not infer a bounded overall restart count from this launcher when child runtimes repeatedly meet or exceed 30 seconds.
 
 **Evidence references.**
 
@@ -1442,7 +1462,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `none` — No residual is accepted inside the stated fast-exit guarantee. Indefinitely repeated exits at or above the 30-second window are explicitly outside that narrow guarantee and remain disclosed in the invariant statement and deployed-path checks.
 
 **Affected paths.**
 
@@ -1687,7 +1707,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TEST-003: Frozen-candidate tests deny subprocess egress at the OS boundary
 
-**Invariant.** Release validation must run pytest and every descendant inside a loopback-only operating-system network namespace, prove external routing is unavailable before tests start, and fail closed when the namespace cannot be established.
+**Invariant.** An external release-gate process must run pytest and every descendant for an exact committed candidate inside a loopback-only operating-system network namespace, prove external routing is unavailable before tests start, and fail closed when the namespace cannot be established. Running the same commands directly in the mutable implementation worktree does not satisfy this invariant.
 
 **Rationale.** Frozen-candidate tests deny subprocess egress at the OS boundary is explicit because an arbitrary child binary can ignore Python monkeypatches and proxy variables and contact external or live resources during an apparently offline suite.
 
@@ -1697,14 +1717,15 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The frozen-candidate release gate performs an explicit namespace preflight and wraps focused and complete-suite commands so the isolation applies to descendants.
+**Status.** `implemented` — The candidate release-gate implementation provides an explicit namespace preflight and wraps focused and complete-suite commands so isolation applies to descendants. The implemented mechanism is candidate-specific only when that gate is launched externally against a frozen commit; ordinary in-worktree pytest remains outside this boundary.
 
-**Verification.** `verified` — Release-gate tests prove unavailable isolation is explicit, the preflight checks the namespace, and argument-preserving wrapping does not reintroduce a shell escape.
+**Verification.** `verified` — Release-gate unit tests verify the mechanism: unavailable isolation is explicit, the preflight checks the namespace, and argument-preserving wrapping does not reintroduce a shell escape. A production attestation for any particular candidate still requires the external frozen-candidate execution.
 
 **Preconditions.**
 
 - The host supports the release gate's loopback-only network namespace mechanism.
-- Focused and full-suite commands execute through the gate's argument-preserving namespace wrapper.
+- Focused and full-suite commands execute through the externally launched gate's argument-preserving namespace wrapper.
+- The gate validates a detached checkout of an exact committed candidate rather than the mutable implementation worktree.
 
 **Runtime-consumed artifacts.** `none` — This is a release-validation containment control and does not consume production runtime artifacts.
 
@@ -1722,11 +1743,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_release_gate.py::test_unavailable_os_level_network_denial_is_explicit` — Focused automated evidence for the principal recorded boundary.
 - `report` `defect_ledger.json#DEF-0013` — Current-master defect or assurance record linked to this invariant.
 
-**Last verified commit.** `unknown` (`unknown`) — The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified commit can honestly be named.
+**Last verified commit.** `unknown` (`unknown`) — This self-describing registry cannot establish the commit externally validated by the release gate. The candidate attestation must supply the exact committed identity after freeze.
 
-**Last verified tree.** `unknown` (`unknown`) — The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified Git tree can honestly be named.
+**Last verified tree.** `unknown` (`unknown`) — This self-describing registry cannot establish the detached tree externally validated by the release gate. The candidate attestation must supply that tree after freeze.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `none` — No weaker substitute is accepted inside this invariant: mutable-worktree pytest and Python-only monkeypatching do not satisfy it. Candidate-specific satisfaction remains conditional on the required external OS-contained frozen-candidate run.
 
 **Affected paths.**
 
@@ -1837,7 +1858,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-REL-001: Frozen, attested, executable release gate
 
-**Invariant.** Final validation must run against an integration-locked Git tree; the committed candidate, generated-artifact inventory, test result, reviewed diff, defect ledger, independent-review request/result, production base, deployed tree, restart, and rollback record must all bind to that exact identity, with no unreviewed candidate mutation or live-checkout state mixed into the release.
+**Invariant.** Final validation must be launched externally against an integration-locked exact committed candidate in an isolated checkout; the generated-artifact inventory, test result, reviewed diff, defect ledger, independent-review request/result, production base, deployed tree, restart, and rollback record must all bind to that identity, with no unreviewed candidate mutation or mutable implementation-worktree state mixed into the release. The registry and an in-worktree test run cannot self-attest this property.
 
 **Rationale.** Frozen, attested, executable release gate is explicit because tests can describe a different tree from the one committed or deployed, generated files can be stale, and on-disk production can advance independently of the running process.
 
@@ -1847,7 +1868,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `partial` — The executable gate now holds a shared-Git integration lock, requires a clean exact commit, maps its diff to invariants, validates generated relationships, runs focused checks and the full suite in a detached isolated worktree, and emits hash-bound attestations. It deliberately does not deploy, restart, or prove loaded process identity.
+**Status.** `partial` — The executable gate is designed to hold a shared-Git integration lock, require a clean exact commit, map its diff to invariants, validate generated relationships, run focused checks and the full suite in a detached isolated worktree, and emit hash-bound attestations. Those controls are candidate-specific only when a separate external invocation validates the frozen commit. The gate deliberately does not deploy, restart, or prove loaded process identity.
 
 **Verification.** `partial` — Release-gate tests cover lock contention, tree drift, exact detached checkout, network isolation, mapping, semantic attestation determinism, and scope wording; no test performs an immutable production activation or proves loaded process identity.
 
@@ -1856,6 +1877,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - The candidate is a clean committed tree with an explicit base commit.
 - The shared Git integration lock is held throughout candidate validation.
 - Attestation output is outside the candidate worktree and independent review occurs in a separate session.
+- The gate is launched from outside the candidate's mutable implementation context and checks out the exact committed tree it validates.
 
 **Runtime-consumed artifacts.** `indirect` — The gate emits these release artifacts outside the candidate; deployment consumption and loaded-process binding remain incomplete.
 
@@ -1877,11 +1899,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_priority0_registry.py::test_real_registry_is_valid_and_markdown_is_synchronised` — Focused automated evidence for the principal recorded boundary.
 - `report` `defect_ledger.json#DEF-0014` — Current-master defect or assurance record linked to this invariant.
 
-**Last verified commit.** `unknown` (`unknown`) — The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified commit can honestly be named.
+**Last verified commit.** `unknown` (`unknown`) — This self-describing registry cannot establish the commit externally frozen and validated by the release gate. The candidate attestation must supply that identity after freeze.
 
-**Last verified tree.** `unknown` (`unknown`) — The cited Priority-0 implementation and tests are uncommitted in this worktree, so no verified Git tree can honestly be named.
+**Last verified tree.** `unknown` (`unknown`) — This self-describing registry cannot establish the detached tree externally validated by the release gate. The candidate attestation must supply that identity after freeze.
 
-**Accepted residual risk.** `unaccepted` — No acceptance is recorded. Open risk: Production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch. The gate attests but deliberately does not deploy, restart, or verify an activated production tree. Independent review remains a separate human session whose investigative independence cannot be proved automatically. Loaded process identity is not attested; see INV-PROC-004.
+**Accepted residual risk.** `unaccepted` — No acceptance is recorded. Open risk: the candidate is not attested until an external frozen-candidate gate succeeds; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004).
 
 **Affected paths.**
 
@@ -1940,6 +1962,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Known gaps.**
 
+- The current Priority-0 candidate has no valid release attestation until the gate is invoked externally after the candidate is committed and frozen.
 - Production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch.
 - The gate attests but deliberately does not deploy, restart, or verify an activated production tree.
 - Independent review remains a separate human session whose investigative independence cannot be proved automatically.

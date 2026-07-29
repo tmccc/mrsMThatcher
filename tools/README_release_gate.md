@@ -12,12 +12,19 @@ python3 tools/release_gate.py network-preflight \
 ```
 
 This must report Linux user, network, mount and PID namespaces with loopback
-available, external routes denied, a private `/proc`, and the production root
-bind-mounted read-only. The same containment encloses pytest and every
-descendant. A Python socket monkeypatch is not accepted as release-candidate
-isolation. Validation also uses a credential/proxy-free environment; the gate
-adds only the verified user-site directory containing the supported
-`pytest`/`pytest-xdist` installation.
+available, external routes denied, and a private `/proc`. The production root,
+candidate checkout, shared Git metadata and every resolved validation-
+dependency root are bind-mounted read-only before all effective capabilities
+are dropped and `no_new_privs` is set. The preflight proves that neither a
+normal write nor a remount to read-write succeeds after that drop. The same
+containment encloses pytest and every descendant. A Python socket monkeypatch
+is not accepted as release-candidate isolation.
+
+Validation uses a credential/proxy-free environment. The gate content-hashes
+the Python executable and the complete active dependency closure of
+`pytest`/`pytest-xdist`, binds module origins to their owning distributions,
+and supplies only those attested import roots. The toolchain identity is
+recomputed after validation.
 
 ## Development validation
 
@@ -57,17 +64,22 @@ not enter the deterministic semantic attestation.
 The gate:
 
 1. holds an exclusive lock in the shared Git common directory;
-2. rejects modified and untracked candidate files;
+2. rejects modified/untracked files and non-default Git index flags;
 3. maps the exact base-to-candidate diff to the invariant registry;
 4. rejects uncovered code/control paths (unmapped documentation and non-code
    data are the only documented exceptions);
-5. records discovered and registry-declared runtime/generated-artifact,
-   schema and policy hashes;
+5. records every registry artifact declaration (including absent ephemeral
+   state), discovered runtime/generated-artifact hashes, recomputed source-file
+   pins, schema and policy hashes;
 6. creates a clean detached checkout of the exact commit;
-7. runs de-duplicated focused and relationship validation in that checkout;
+7. runs de-duplicated focused and relationship validation in that checkout,
+   reverifying its Git state, relevant hashes and loader relationships after
+   every command;
 8. runs the complete parallel suite once in the same route-isolated,
-   production-read-only, PID-isolated containment;
-9. verifies the candidate tree and all relevant hashes again; and
+   immutable-candidate/toolchain, production-read-only, PID-isolated
+   containment;
+9. verifies both the detached checkout and source worktree identities again;
+   and
 10. writes deterministic semantic evidence separately from volatile run
     metadata.
 
@@ -79,6 +91,11 @@ Outputs are written outside the candidate:
 - `independent_review_manifest.json`;
 - `attestation_sha256_inventory.json`;
 - focused/full command output and JUnit XML under `validation/`.
+
+If validation blocks after creating a new output directory, the gate writes a
+bounded `release_gate_failure_receipt.json` and hashes any completed partial
+validation evidence. It never writes this receipt into the candidate or into a
+pre-existing output directory containing unrelated material.
 
 The semantic attestation deliberately excludes timestamps, host identity,
 duration and raw test-output hashes. The run receipt binds raw output and JUnit

@@ -27,13 +27,14 @@ import datetime as dt
 import fcntl
 import fnmatch
 import hashlib
+import importlib.metadata
+import importlib.util
 import json
 import os
 import platform
 import re
 import shlex
 import shutil
-import site
 import socket
 import subprocess
 import sys
@@ -75,6 +76,9 @@ PRIORITY0_CONTROL_PATHS = frozenset(
         "production_invariants.schema.json",
     }
 )
+INVARIANT_REGISTRY_DEFINITION_PATHS = frozenset(
+    {"production_invariants.json", "production_invariants.schema.json"}
+)
 UNMAPPED_DOCUMENTED_EXCEPTIONS = (
     "documentation",
     "non-code-data",
@@ -89,6 +93,37 @@ GENERATED_NAME_HINTS = (
     "corrections",
     "curated_evidence",
 )
+RUNTIME_LOADER_ROOTS = {
+    "historical_context_source_independent_review.py": (
+        "semantic_alignment_research/quote_research_full_001",
+    ),
+    "historical_context_source_roles.py": (
+        "semantic_alignment_research/quote_research_full_001",
+    ),
+}
+VALIDATOR_BACKED_OFFLINE_LITERALS = {
+    (
+        "semantic_alignment/quote_image_semantic_veto.py",
+        "run_manifest.json",
+    ): "tests/test_quote_image_semantic_veto_shadow.py",
+}
+SOURCE_PIN_ALIASES = {
+    "active_source": "mrsMThatcher.txt",
+    "attribution_predicate": "historical_context_formatter.py",
+    "completed_quote_research": (
+        "semantic_alignment_research/quote_research_full_001/research_packets.json"
+    ),
+}
+ADVISORY_SOURCE_PIN_KEYS = {
+    (
+        "semantic_alignment_research/quote_attribution_cleanup_001/"
+        "deployment_candidate/runtime_eligible_quote_manifest.json",
+        "attribution_predicate",
+    ): (
+        "the runtime loader validates active_source and completed_quote_research "
+        "but does not consume this whole-formatter provenance pin"
+    ),
+}
 
 
 class ReleaseGateError(RuntimeError):
@@ -103,6 +138,7 @@ class CandidateSnapshot:
     tree: str
     status_porcelain_v2: str
     untracked_files: tuple[str, ...]
+    index_flagged_files: tuple[str, ...]
     submodule_status: tuple[str, ...]
     runtime_hashes: tuple[tuple[str, str], ...]
     generated_hashes: tuple[tuple[str, str], ...]
@@ -116,6 +152,7 @@ class CandidateSnapshot:
             "tree": self.tree,
             "worktree_clean": not bool(self.status_porcelain_v2),
             "untracked_files": list(self.untracked_files),
+            "index_flagged_files": list(self.index_flagged_files),
             "submodule_status": list(self.submodule_status),
             "runtime_hashes": dict(self.runtime_hashes),
             "generated_artifact_hashes": dict(self.generated_hashes),
@@ -140,6 +177,7 @@ class ValidationResult:
     output_sha256: str
     duration_seconds: float
     junit_sha256: str | None = None
+    executed_command: tuple[str, ...] = ()
 
     def semantic_dict(self) -> dict[str, Any]:
         """Return fields which are stable for identical validation results."""
@@ -166,7 +204,22 @@ class ValidationResult:
         value["duration_seconds"] = round(self.duration_seconds, 6)
         value["output_sha256"] = self.output_sha256
         value["junit_sha256"] = self.junit_sha256
+        value["executed_command"] = list(
+            self.executed_command or self.command
+        )
         return value
+
+
+@dataclasses.dataclass(frozen=True)
+class ValidationToolchain:
+    """Content-bound Python/pytest toolchain used by isolated validation."""
+
+    semantic_inventory_json: str
+    python_paths: tuple[str, ...]
+
+    def semantic_dict(self) -> dict[str, Any]:
+        """Return the deterministic toolchain identity."""
+        return json.loads(self.semantic_inventory_json)
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -392,6 +445,19 @@ def git_status(repo: Path) -> tuple[str, tuple[str, ...]]:
     return status, tuple(sorted(untracked))
 
 
+def git_index_flagged_files(repo: Path) -> tuple[str, ...]:
+    """Return tracked paths hidden by non-default index worktree flags."""
+    payload = _git(repo, "ls-files", "-v", "-z")
+    flagged: list[str] = []
+    for entry in payload.split("\0"):
+        if not entry:
+            continue
+        marker, separator, _path = entry.partition(" ")
+        if not separator or marker != "H":
+            flagged.append(entry)
+    return tuple(sorted(flagged))
+
+
 def tracked_files(repo: Path) -> tuple[str, ...]:
     """Return sorted tracked paths at HEAD."""
     payload = _git(repo, "ls-tree", "-r", "--name-only", "-z", "HEAD")
@@ -399,19 +465,59 @@ def tracked_files(repo: Path) -> tuple[str, ...]:
     return tuple(sorted(item for item in payload.split("\0") if item))
 
 
-def _local_import_candidates(path: Path) -> set[str]:
-    """Extract absolute module names from all Python import statements."""
+def _module_file_candidates(repo: Path, module_parts: Sequence[str]) -> set[str]:
+    """Resolve one local module name and its package initializers."""
+    if not module_parts or any(not part.isidentifier() for part in module_parts):
+        return set()
+    candidates: set[str] = set()
+    for index in range(1, len(module_parts) + 1):
+        package_init = repo.joinpath(*module_parts[:index], "__init__.py")
+        if package_init.is_file():
+            candidates.add(package_init.relative_to(repo).as_posix())
+    plain = repo.joinpath(*module_parts).with_suffix(".py")
+    if plain.is_file():
+        candidates.add(plain.relative_to(repo).as_posix())
+    package = repo.joinpath(*module_parts, "__init__.py")
+    if package.is_file():
+        candidates.add(package.relative_to(repo).as_posix())
+    return candidates
+
+
+def _local_import_candidates(repo: Path, relative: str) -> set[str]:
+    """Resolve absolute and relative local imports from one Python module."""
+    path = repo / relative
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError) as exc:
         raise ReleaseGateError(f"cannot inspect imports in {path}: {exc}") from exc
-    names: set[str] = set()
+    relative_path = PurePosixPath(relative)
+    package_parts = list(relative_path.parent.parts)
+    candidates: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            names.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.add(node.module)
-    return names
+            for alias in node.names:
+                candidates.update(
+                    _module_file_candidates(repo, alias.name.split("."))
+                )
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                ascend = node.level - 1
+                if ascend > len(package_parts):
+                    continue
+                base_parts = package_parts[: len(package_parts) - ascend]
+            else:
+                base_parts = []
+            if node.module:
+                base_parts = [*base_parts, *node.module.split(".")]
+            candidates.update(_module_file_candidates(repo, base_parts))
+            for alias in node.names:
+                if alias.name != "*":
+                    candidates.update(
+                        _module_file_candidates(
+                            repo, [*base_parts, *alias.name.split(".")]
+                        )
+                    )
+    return candidates
 
 
 def discover_runtime_python_files(repo: Path) -> tuple[str, ...]:
@@ -426,19 +532,9 @@ def discover_runtime_python_files(repo: Path) -> tuple[str, ...]:
         if not path.is_file():
             raise ReleaseGateError(f"runtime entry/import is missing: {relative}")
         discovered.add(relative)
-        for module in sorted(_local_import_candidates(path)):
-            module_path = Path(*module.split("."))
-            plain = repo / module_path.with_suffix(".py")
-            package = repo / module_path / "__init__.py"
-            candidate: Path | None = None
-            if plain.is_file():
-                candidate = plain
-            elif package.is_file():
-                candidate = package
-            if candidate is not None:
-                rel = candidate.relative_to(repo).as_posix()
-                if rel not in discovered:
-                    queue.append(rel)
+        for candidate in sorted(_local_import_candidates(repo, relative)):
+            if candidate not in discovered:
+                queue.append(candidate)
     return tuple(sorted(discovered))
 
 
@@ -638,44 +734,149 @@ def discover_generated_artifacts(
                     }
                 )
             elif len(generated) > 1:
-                bindings.append(
-                    {
-                        "loader": loader,
-                        "literal": literal,
-                        "candidate_paths": generated,
-                        "resolution": "ambiguous_not_claimed_runtime",
-                    }
+                rooted = [
+                    f"{root}/{literal}"
+                    for root in RUNTIME_LOADER_ROOTS.get(loader, ())
+                    if f"{root}/{literal}" in generated
+                ]
+                validator = VALIDATOR_BACKED_OFFLINE_LITERALS.get(
+                    (loader, literal)
                 )
+                if len(rooted) == 1:
+                    artifacts.add(rooted[0])
+                    bindings.append(
+                        {
+                            "loader": loader,
+                            "literal": literal,
+                            "resolved_path": rooted[0],
+                            "resolution": "loader_runtime_root",
+                        }
+                    )
+                elif (
+                    validator
+                    and validator in tracked
+                    and (repo / validator).is_file()
+                ):
+                    bindings.append(
+                        {
+                            "loader": loader,
+                            "literal": literal,
+                            "candidate_paths": generated,
+                            "resolution": "validator_backed_offline_literal",
+                            "validator": validator,
+                        }
+                    )
+                else:
+                    bindings.append(
+                        {
+                            "loader": loader,
+                            "literal": literal,
+                            "candidate_paths": generated,
+                            "resolution": "ambiguous_not_claimed_runtime",
+                        }
+                    )
             elif any(hint in basename.lower() for hint in GENERATED_NAME_HINTS):
                 unresolved.append(f"{loader}: {literal}")
     return tuple(sorted(artifacts)), bindings, sorted(set(unresolved))
 
 
-def registry_declared_runtime_artifacts(
+def registry_runtime_artifact_inventory(
     repo: Path, invariants: Sequence[Mapping[str, Any]]
-) -> tuple[str, ...]:
-    """Return existing tracked artifacts explicitly declared by the registry."""
+) -> tuple[tuple[str, ...], list[dict[str, Any]]]:
+    """Classify every registry artifact declaration without conflating state.
+
+    ``status: direct`` says that a runtime lane consumes a path; it does not
+    imply that an ephemeral receipt, log, or optional control file must exist
+    in a clean release candidate.  Immutable candidate inputs are therefore
+    identified explicitly by ``frozen_candidate_required_artifacts``.
+    """
     tracked = set(tracked_files(repo))
     declared: set[str] = set()
+    inventory: list[dict[str, Any]] = []
     for record in invariants:
+        invariant_id = str(record.get("invariant_id") or record.get("id") or "")
         section = record.get("runtime_consumed_artifacts")
         values = section.get("artifacts", []) if isinstance(section, Mapping) else []
+        status = section.get("status") if isinstance(section, Mapping) else None
+        required_values = (
+            section.get("frozen_candidate_required_artifacts", [])
+            if isinstance(section, Mapping)
+            else []
+        )
         if not isinstance(values, list):
             raise ReleaseGateError(
-                f"{record.get('invariant_id')}: runtime artifacts must be a list"
+                f"{invariant_id}: runtime artifacts must be a list"
+            )
+        if not isinstance(required_values, list) or not all(
+            isinstance(value, str) for value in required_values
+        ):
+            raise ReleaseGateError(
+                f"{invariant_id}: frozen candidate artifacts must be strings"
+            )
+        required = set(required_values)
+        unknown_required = required.difference(
+            value for value in values if isinstance(value, str)
+        )
+        if unknown_required:
+            raise ReleaseGateError(
+                f"{invariant_id}: frozen candidate artifact is not declared: "
+                + ", ".join(sorted(unknown_required))
             )
         for value in values:
             if not isinstance(value, str):
                 raise ReleaseGateError(
-                    f"{record.get('invariant_id')}: runtime artifact must be a string"
+                    f"{invariant_id}: runtime artifact must be a string"
                 )
             path = PurePosixPath(value)
             if path.is_absolute() or ".." in path.parts:
+                if value in required:
+                    raise ReleaseGateError(
+                        f"{invariant_id}: required frozen artifact path is unsafe: "
+                        f"{value}"
+                    )
+                inventory.append(
+                    {
+                        "invariant_id": invariant_id,
+                        "path": value,
+                        "runtime_status": status,
+                        "frozen_candidate_required": False,
+                        "disposition": "external_or_descriptive",
+                    }
+                )
                 continue
             relative = path.as_posix()
             if relative in tracked and (repo / relative).is_file():
                 declared.add(relative)
-    return tuple(sorted(declared))
+                disposition = "tracked_candidate_file"
+            elif value in required:
+                raise ReleaseGateError(
+                    f"{invariant_id}: required frozen runtime artifact is missing "
+                    f"or untracked: {relative}"
+                )
+            elif (repo / relative).exists():
+                disposition = "untracked_or_nonfile_runtime_state"
+            else:
+                disposition = "production_only_or_ephemeral_absent"
+            inventory.append(
+                {
+                    "invariant_id": invariant_id,
+                    "path": relative,
+                    "runtime_status": status,
+                    "frozen_candidate_required": value in required,
+                    "disposition": disposition,
+                }
+            )
+    return tuple(sorted(declared)), sorted(
+        inventory, key=lambda item: (item["invariant_id"], item["path"])
+    )
+
+
+def registry_declared_runtime_artifacts(
+    repo: Path, invariants: Sequence[Mapping[str, Any]]
+) -> tuple[str, ...]:
+    """Return tracked artifacts explicitly declared by the registry."""
+    declared, _inventory = registry_runtime_artifact_inventory(repo, invariants)
+    return declared
 
 
 def discover_policy_files(repo: Path) -> tuple[str, ...]:
@@ -724,6 +925,7 @@ def take_snapshot(
         tree=tree,
         status_porcelain_v2=status,
         untracked_files=untracked,
+        index_flagged_files=git_index_flagged_files(repo),
         submodule_status=submodules,
         runtime_hashes=hash_paths(repo, runtime_paths),
         generated_hashes=hash_paths(repo, generated),
@@ -743,6 +945,11 @@ def require_frozen(snapshot: CandidateSnapshot, *, development: bool) -> None:
         raise ReleaseGateError(
             "release candidate is dirty; exact committed candidate required"
         )
+    if snapshot.index_flagged_files and not development:
+        raise ReleaseGateError(
+            "release candidate uses assume-unchanged, skip-worktree, or "
+            "another non-default Git index flag"
+        )
     if any(line.startswith(("-", "+", "U")) for line in snapshot.submodule_status):
         raise ReleaseGateError("submodule state is not frozen at recorded commits")
 
@@ -753,6 +960,25 @@ def assert_snapshot_equal(
     """Fail when the candidate or relevant file identities changed."""
     if before != after:
         raise ReleaseGateError("candidate changed while validation was running")
+
+
+def assert_candidate_checkout_unchanged(
+    checkout: Path,
+    *,
+    expected_snapshot: CandidateSnapshot,
+    expected_bindings: Sequence[Mapping[str, Any]],
+    expected_unresolved: Sequence[str],
+    declared_runtime_artifacts: Sequence[str],
+) -> None:
+    """Reverify the detached checkout and its loader relationships."""
+    current, bindings, unresolved = take_snapshot(
+        checkout, declared_runtime_artifacts
+    )
+    assert_snapshot_equal(expected_snapshot, current)
+    if list(expected_bindings) != bindings or list(expected_unresolved) != unresolved:
+        raise ReleaseGateError(
+            "candidate generated-artifact discovery changed during validation"
+        )
 
 
 def load_json_object(path: Path) -> dict[str, Any]:
@@ -813,6 +1039,69 @@ def registry_invariants(registry: Mapping[str, Any]) -> list[dict[str, Any]]:
         copied["invariant_id"] = invariant_id
         output.append(copied)
     return output
+
+
+def registry_record_transition(
+    repo: Path,
+    *,
+    base_commit: str,
+    candidate_registry: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compare invariant records so removal/renaming cannot evade mapping."""
+    candidate_records = registry_invariants(candidate_registry)
+    candidate_by_id = {
+        record["invariant_id"]: record for record in candidate_records
+    }
+    result = _run(
+        (
+            "git",
+            "-C",
+            str(repo),
+            "show",
+            f"{base_commit}:production_invariants.json",
+        ),
+        cwd=repo,
+        check=False,
+    )
+    if result.returncode:
+        return {
+            "base_registry_present": False,
+            "added_invariant_ids": sorted(candidate_by_id),
+            "removed_invariant_ids": [],
+            "changed_invariant_ids": [],
+            "unchanged_invariant_ids": [],
+        }
+    try:
+        base_value = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ReleaseGateError(
+            f"base invariant registry is malformed: {exc}"
+        ) from exc
+    if not isinstance(base_value, dict):
+        raise ReleaseGateError("base invariant registry root is not an object")
+    base_by_id = {
+        record["invariant_id"]: record for record in registry_invariants(base_value)
+    }
+    removed = sorted(set(base_by_id).difference(candidate_by_id))
+    if removed:
+        raise ReleaseGateError(
+            "candidate removes or renames invariant records without an explicit "
+            "migration: " + ", ".join(removed)
+        )
+    common = set(base_by_id).intersection(candidate_by_id)
+    changed = sorted(
+        invariant_id
+        for invariant_id in common
+        if canonical_json_bytes(base_by_id[invariant_id])
+        != canonical_json_bytes(candidate_by_id[invariant_id])
+    )
+    return {
+        "base_registry_present": True,
+        "added_invariant_ids": sorted(set(candidate_by_id).difference(base_by_id)),
+        "removed_invariant_ids": removed,
+        "changed_invariant_ids": changed,
+        "unchanged_invariant_ids": sorted(common.difference(changed)),
+    }
 
 
 def invariant_globs(record: Mapping[str, Any]) -> list[str]:
@@ -909,11 +1198,20 @@ def map_changed_paths(
     uncovered_runtime: list[str] = []
     affected_by_id: dict[str, dict[str, Any]] = {}
     for path in paths:
-        identifiers = sorted(
-            record["invariant_id"]
-            for record in invariants
-            if any(path_matches(path, pattern) for pattern in invariant_globs(record))
-        )
+        if path in INVARIANT_REGISTRY_DEFINITION_PATHS:
+            # These files define the meaning and accepted representation of
+            # every invariant. Their modification therefore affects the whole
+            # registry without granting a broad wildcard to unrelated paths.
+            identifiers = sorted(record["invariant_id"] for record in invariants)
+        else:
+            identifiers = sorted(
+                record["invariant_id"]
+                for record in invariants
+                if any(
+                    path_matches(path, pattern)
+                    for pattern in invariant_globs(record)
+                )
+            )
         category = classify_changed_path(path, runtime_paths, generated_paths)
         mapped.append(
             {"path": path, "category": category, "invariant_ids": identifiers}
@@ -1002,9 +1300,14 @@ def validation_commands(records: Sequence[Mapping[str, Any]]) -> list[tuple[str,
 
 
 def containment_namespace_command(
-    command: Sequence[str], *, production_root: Path | None = None
+    command: Sequence[str],
+    *,
+    production_root: Path | None = None,
+    candidate_root: Path | None = None,
+    git_common_root: Path | None = None,
+    dependency_roots: Sequence[Path] = (),
 ) -> tuple[str, ...]:
-    """Wrap a command in network/mount namespaces with production read-only."""
+    """Wrap a command with network isolation and read-only protected roots."""
     prefix: tuple[str, ...] = (
         "unshare",
         "--user",
@@ -1017,22 +1320,31 @@ def containment_namespace_command(
         "sh",
         "-c",
     )
-    if production_root is None:
-        return (
-            *prefix,
-            'mount --make-rprivate / && ip link set lo up && exec "$@"',
-            "release-gate-containment",
-            *command,
+    roots = tuple(
+        dict.fromkeys(
+            str(path.resolve())
+            for path in (
+                production_root,
+                candidate_root,
+                git_common_root,
+                *dependency_roots,
+            )
+            if path is not None
         )
+    )
     return (
         *prefix,
         (
-            'mount --make-rprivate / && mount --bind "$1" "$1" && '
-            'mount -o remount,bind,ro "$1" && ip link set lo up && '
-            'shift && exec "$@"'
+            'mount --make-rprivate / && while [ "$1" != "--" ]; do '
+            'mount --bind "$1" "$1" && '
+            'mount -o remount,bind,ro "$1" || exit 75; shift; done && '
+            'shift && ip link set lo up && exec setpriv '
+            '--bounding-set=-all --inh-caps=-all --ambient-caps=-all '
+            '--securebits=+noroot,+noroot_locked --no-new-privs -- "$@"'
         ),
         "release-gate-containment",
-        str(production_root),
+        *roots,
+        "--",
         *command,
     )
 
@@ -1043,10 +1355,14 @@ def network_namespace_command(command: Sequence[str]) -> tuple[str, ...]:
 
 
 def containment_preflight(
-    *, cwd: Path, production_root: Path | None = None
+    *,
+    cwd: Path,
+    production_root: Path | None = None,
+    candidate_root: Path | None = None,
+    dependency_roots: Sequence[Path] = (),
 ) -> dict[str, Any]:
-    """Prove route isolation, loopback operation and production write denial."""
-    required = ("unshare", "ip", "mount", "sh")
+    """Prove route isolation and protected-root write denial."""
+    required = ("unshare", "ip", "mount", "setpriv", "sh")
     if any(shutil.which(name) is None for name in required):
         return {
             "available": False,
@@ -1060,13 +1376,29 @@ def containment_preflight(
             "mechanism": "user-network-and-mount-namespace",
             "reason": "production root is missing",
         }
-    probe_name = f".mrs-release-gate-readonly-probe-{os.getpid()}"
-    probe_path = None if root is None else root / probe_name
-    if probe_path is not None and probe_path.exists():
+    candidate = candidate_root.resolve() if candidate_root is not None else None
+    common = git_common_dir(candidate) if candidate is not None else None
+    dependencies = tuple(Path(path).resolve() for path in dependency_roots)
+    if any(not path.is_dir() for path in dependencies):
         return {
             "available": False,
             "mechanism": "user-network-and-mount-namespace",
-            "reason": "production write-denial probe path already exists",
+            "reason": "validation dependency root is missing",
+        }
+    protected_roots = tuple(
+        dict.fromkeys(
+            path
+            for path in (root, candidate, common, *dependencies)
+            if path is not None
+        )
+    )
+    probe_name = f".mrs-release-gate-readonly-probe-{os.getpid()}"
+    probe_paths = tuple(path / probe_name for path in protected_roots)
+    if any(path.exists() for path in probe_paths):
+        return {
+            "available": False,
+            "mechanism": "user-network-and-mount-namespace",
+            "reason": "write-denial probe path already exists",
         }
     script = (
         "import pathlib,socket,subprocess,sys\n"
@@ -1086,20 +1418,32 @@ def containment_preflight(
         " pass\n"
         "else:\n"
         " sys.exit(71)\n"
-        "if len(sys.argv) > 1:\n"
+        "status=pathlib.Path('/proc/self/status').read_text()\n"
+        "if 'CapEff:\\t0000000000000000' not in status: sys.exit(76)\n"
+        "if 'NoNewPrivs:\\t1' not in status: sys.exit(77)\n"
+        "for value in sys.argv[1:]:\n"
+        " p=pathlib.Path(value)\n"
         " try:\n"
-        "  pathlib.Path(sys.argv[1]).write_bytes(b'forbidden')\n"
+        "  (p / %r).write_bytes(b'forbidden')\n"
         " except OSError:\n"
         "  pass\n"
         " else:\n"
         "  sys.exit(74)\n"
-    )
-    probe_args: tuple[str, ...] = (
-        (str(probe_path),) if probe_path is not None else ()
-    )
+        " r=subprocess.run(('mount','-o','remount,bind,rw',str(p)),"
+        "stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n"
+        " if r.returncode == 0: sys.exit(78)\n"
+    ) % probe_name
     command = containment_namespace_command(
-        (sys.executable, "-c", script, *probe_args),
+        (
+            sys.executable,
+            "-c",
+            script,
+            *(str(path) for path in protected_roots),
+        ),
         production_root=root,
+        candidate_root=candidate,
+        git_common_root=common,
+        dependency_roots=dependencies,
     )
     result = _run(command, cwd=cwd, check=False, timeout=10)
     available = result.returncode == 0
@@ -1112,6 +1456,14 @@ def containment_preflight(
         "subprocess_egress_denied": available,
         "network_route_isolated": available,
         "production_root_read_only": available if root is not None else None,
+        "candidate_root_read_only": available if candidate is not None else None,
+        "git_common_root_read_only": available if common is not None else None,
+        "validation_dependency_roots_read_only": (
+            available if dependencies else None
+        ),
+        "effective_capabilities_dropped": available,
+        "no_new_privileges": available,
+        "read_only_remount_denied_after_capability_drop": available,
         "exit_status": result.returncode,
         "output_sha256": sha256_bytes(result.stdout),
         "reason": "" if result.returncode == 0 else result.stdout.decode(
@@ -1127,31 +1479,233 @@ def network_preflight(*, cwd: Path) -> dict[str, Any]:
 
 def sanitized_validation_environment(home: Path) -> dict[str, str]:
     """Build a credential/proxy-free deterministic validation environment."""
+    return sanitized_validation_environment_for_toolchain(
+        home, validation_toolchain_inventory()
+    )
+
+
+def _distribution_content_inventory(distribution_name: str) -> dict[str, Any]:
+    """Hash every installed regular file declared by one distribution."""
+    try:
+        distribution = importlib.metadata.distribution(distribution_name)
+    except importlib.metadata.PackageNotFoundError as exc:
+        raise ReleaseGateError(
+            f"required validation distribution is unavailable: {distribution_name}"
+        ) from exc
+    records: list[dict[str, Any]] = []
+    for entry in sorted(distribution.files or (), key=lambda value: str(value)):
+        path = Path(distribution.locate_file(entry))
+        if not path.is_file() or path.suffix in {".pyc", ".pyo"}:
+            continue
+        records.append(
+            {
+                "path": str(entry),
+                "sha256": sha256_file(path),
+                "size": path.stat().st_size,
+            }
+        )
+    if not records:
+        normalised = _normalise_distribution_name(distribution_name)
+        modules = sorted(
+            module
+            for module, distributions in importlib.metadata.packages_distributions().items()
+            if any(
+                _normalise_distribution_name(value) == normalised
+                for value in distributions or ()
+            )
+        )
+        for module in modules:
+            spec = importlib.util.find_spec(module)
+            if spec is None or spec.origin is None:
+                continue
+            origin = Path(spec.origin).resolve()
+            candidates = (
+                sorted(origin.parent.rglob("*"))
+                if spec.submodule_search_locations
+                else [origin]
+            )
+            for path in candidates:
+                if (
+                    path.is_file()
+                    and path.suffix not in {".pyc", ".pyo"}
+                    and "__pycache__" not in path.parts
+                ):
+                    relative = (
+                        f"{module}/"
+                        + path.relative_to(origin.parent).as_posix()
+                    )
+                    records.append(
+                        {
+                            "path": relative,
+                            "sha256": sha256_file(path),
+                            "size": path.stat().st_size,
+                        }
+                    )
+        for metadata_name in ("METADATA", "PKG-INFO", "entry_points.txt"):
+            payload = distribution.read_text(metadata_name)
+            if payload is not None:
+                encoded = payload.encode("utf-8")
+                records.append(
+                    {
+                        "path": f"metadata:{metadata_name}",
+                        "sha256": sha256_bytes(encoded),
+                        "size": len(encoded),
+                    }
+                )
+    if not records:
+        raise ReleaseGateError(
+            f"validation distribution has no hashable files: {distribution_name}"
+        )
+    payload = canonical_json_bytes(records)
+    return {
+        "distribution": distribution_name,
+        "version": distribution.version,
+        "file_count": len(records),
+        "content_sha256": sha256_bytes(payload),
+    }
+
+
+def _normalise_distribution_name(value: str) -> str:
+    """Return the importlib-compatible canonical comparison form."""
+    return re.sub(r"[-_.]+", "-", value).lower()
+
+
+def _runtime_distribution_requirements(distribution_name: str) -> set[str]:
+    """Return non-extra dependencies active in the current Python environment."""
+    try:
+        from packaging.requirements import InvalidRequirement, Requirement
+    except ImportError as exc:
+        raise ReleaseGateError(
+            "packaging is required to attest validation dependencies"
+        ) from exc
+    distribution = importlib.metadata.distribution(distribution_name)
+    result: set[str] = set()
+    for raw in distribution.requires or ():
+        try:
+            requirement = Requirement(raw)
+        except InvalidRequirement as exc:
+            raise ReleaseGateError(
+                f"cannot parse {distribution_name} dependency {raw!r}: {exc}"
+            ) from exc
+        if requirement.marker and not requirement.marker.evaluate({"extra": ""}):
+            continue
+        result.add(_normalise_distribution_name(requirement.name))
+    return result
+
+
+def _validation_distribution_closure() -> tuple[str, ...]:
+    """Resolve the transitive installed distributions used by pytest/xdist."""
+    pending = ["pytest", "pytest-xdist"]
+    resolved: set[str] = set()
+    while pending:
+        name = _normalise_distribution_name(pending.pop())
+        if name in resolved:
+            continue
+        try:
+            distribution = importlib.metadata.distribution(name)
+        except importlib.metadata.PackageNotFoundError as exc:
+            raise ReleaseGateError(
+                f"required validation dependency is unavailable: {name}"
+            ) from exc
+        canonical = _normalise_distribution_name(
+            distribution.metadata.get("Name") or name
+        )
+        resolved.add(canonical)
+        pending.extend(
+            dependency
+            for dependency in _runtime_distribution_requirements(canonical)
+            if dependency not in resolved
+        )
+    return tuple(sorted(resolved))
+
+
+def validation_toolchain_inventory() -> ValidationToolchain:
+    """Build a content-bound identity for Python, pytest, and pytest-xdist."""
+    executable = Path(sys.executable).resolve()
+    distribution_names = _validation_distribution_closure()
+    packages = tuple(
+        _distribution_content_inventory(name) for name in distribution_names
+    )
+    module_bindings: list[dict[str, Any]] = []
+    for module_name, distribution_name in (
+        ("pytest", "pytest"),
+        ("_pytest", "pytest"),
+        ("xdist", "pytest-xdist"),
+    ):
+        spec = importlib.util.find_spec(module_name)
+        if spec is None or spec.origin is None:
+            raise ReleaseGateError(
+                f"validation module is unavailable: {module_name}"
+            )
+        distribution = importlib.metadata.distribution(distribution_name)
+        root = Path(distribution.locate_file("")).resolve()
+        origin = Path(spec.origin).resolve()
+        try:
+            relative = origin.relative_to(root).as_posix()
+        except ValueError as exc:
+            raise ReleaseGateError(
+                f"{module_name} origin is outside {distribution_name}"
+            ) from exc
+        declared_files = {str(item) for item in distribution.files or ()}
+        if relative not in declared_files:
+            raise ReleaseGateError(
+                f"{module_name} origin is not owned by {distribution_name}: "
+                f"{relative}"
+            )
+        module_bindings.append(
+            {
+                "module": module_name,
+                "distribution": distribution_name,
+                "origin": relative,
+                "origin_sha256": sha256_file(origin),
+            }
+        )
+    semantic = {
+        "schema_version": 1,
+        "python": {
+            "implementation": platform.python_implementation(),
+            "version": platform.python_version(),
+            "executable_sha256": sha256_file(executable),
+        },
+        "distributions": list(packages),
+        "module_distribution_bindings": module_bindings,
+        "dependency_scope": (
+            "recursive installed requirements active for the current interpreter; "
+            "optional extras excluded"
+        ),
+    }
+    roots = tuple(
+        sorted(
+            {
+                str(
+                    Path(
+                        importlib.metadata.distribution(name).locate_file("")
+                    ).resolve()
+                )
+                for name in distribution_names
+            }
+        )
+    )
+    return ValidationToolchain(
+        semantic_inventory_json=canonical_json_bytes(semantic).decode("utf-8"),
+        python_paths=roots,
+    )
+
+
+def sanitized_validation_environment_for_toolchain(
+    home: Path, toolchain: ValidationToolchain
+) -> dict[str, str]:
+    """Build an environment using only the already-attested dependency roots."""
     executable_dir = str(Path(sys.executable).resolve().parent)
     path = os.pathsep.join(
         dict.fromkeys((executable_dir, "/usr/local/bin", "/usr/bin", "/bin"))
     )
-    user_sites = site.getusersitepackages()
-    candidates = [user_sites] if isinstance(user_sites, str) else list(user_sites)
-    candidates.extend(site.getsitepackages())
-    candidates.extend(sys.path)
-    dependency_paths = [
-        str(Path(value).resolve())
-        for value in candidates
-        if value
-        if (Path(value) / "pytest").is_dir()
-        and (Path(value) / "xdist" / "plugin.py").is_file()
-    ]
-    if not dependency_paths:
-        raise ReleaseGateError(
-            "the supported pytest/xdist user-site dependency directory is unavailable"
-        )
     return {
         "HOME": str(home),
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PATH": path,
-        "PYTHONPATH": os.pathsep.join(sorted(set(dependency_paths))),
+        "PYTHONPATH": os.pathsep.join(toolchain.python_paths),
         "PYTHONDONTWRITEBYTECODE": "1",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
     }
@@ -1186,18 +1740,31 @@ def execute_validation(
     label: str,
     network_isolated: bool,
     production_root: Path | None = None,
+    candidate_root: Path | None = None,
+    dependency_roots: Sequence[Path] = (),
     env: Mapping[str, str] | None = None,
 ) -> ValidationResult:
     """Execute and capture one validation command."""
     output_dir.mkdir(parents=True, exist_ok=True)
     junit = output_dir / f"{label}.junit.xml"
-    actual = tuple(command)
+    logical = tuple(command)
+    actual = logical
     is_pytest = "pytest" in actual
+    if is_pytest and "no:cacheprovider" not in actual:
+        actual = (*actual, "-p", "no:cacheprovider")
     if is_pytest and not any(token.startswith("--junitxml") for token in actual):
         actual = (*actual, f"--junitxml={junit}")
     if network_isolated:
         actual = containment_namespace_command(
-            actual, production_root=production_root
+            actual,
+            production_root=production_root,
+            candidate_root=candidate_root,
+            git_common_root=(
+                git_common_dir(candidate_root)
+                if candidate_root is not None
+                else None
+            ),
+            dependency_roots=dependency_roots,
         )
     started = time.monotonic()
     result = _run(actual, cwd=cwd, check=False, env=env)
@@ -1215,7 +1782,7 @@ def execute_validation(
             (1, 0, 0, 0) if result.returncode == 0 else (0, 1, 0, 0)
         )
     return ValidationResult(
-        command=actual,
+        command=logical,
         exit_status=result.returncode,
         passed=passed,
         failed=failed,
@@ -1225,6 +1792,7 @@ def execute_validation(
         output_sha256=sha256_bytes(result.stdout),
         duration_seconds=duration,
         junit_sha256=sha256_file(junit) if junit.exists() else None,
+        executed_command=actual,
     )
 
 
@@ -1534,6 +2102,111 @@ def service_invariants_equal(
     )
 
 
+def _resolve_declared_pin_path(
+    repo: Path,
+    *,
+    artifact_relative: str,
+    pin_name: str,
+    pin_value: Any,
+) -> tuple[str | None, str | None]:
+    """Resolve one present-architecture hash pin conservatively."""
+    declared_path: str | None = None
+    repository_root_bound = False
+    if isinstance(pin_value, Mapping):
+        candidate = pin_value.get("path")
+        if isinstance(candidate, str):
+            declared_path = candidate
+            repository_root_bound = True
+    elif isinstance(pin_value, str):
+        alias = SOURCE_PIN_ALIASES.get(pin_name)
+        declared_path = alias or pin_name
+        repository_root_bound = alias is not None
+    if not declared_path:
+        return None, "pin does not declare a path"
+    path = PurePosixPath(declared_path)
+    if path.is_absolute() or ".." in path.parts:
+        return None, "pin path is absolute or escapes the candidate"
+    preferred = (
+        repo / path
+        if repository_root_bound
+        else (repo / artifact_relative).parent / path
+    )
+    candidates: list[Path] = [preferred]
+    if not preferred.is_file() and not repository_root_bound:
+        candidates.append(repo / path)
+    existing = {
+        candidate.resolve() for candidate in candidates if candidate.is_file()
+    }
+    if not existing and not repository_root_bound:
+        suffix = path.as_posix()
+        try:
+            repository_files = tracked_files(repo)
+        except ReleaseGateError:
+            repository_files = ()
+        existing = {
+            (repo / relative).resolve()
+            for relative in repository_files
+            if relative == suffix or relative.endswith(f"/{suffix}")
+            if (repo / relative).is_file()
+        }
+    if len(existing) != 1:
+        return (
+            None,
+            "pin path is missing"
+            if not existing
+            else "pin path resolves ambiguously",
+        )
+    return next(iter(existing)).relative_to(repo.resolve()).as_posix(), None
+
+
+def _declared_pin_records(
+    repo: Path, relative: str, field: str, value: Any
+) -> list[dict[str, Any]]:
+    """Recompute path/hash pin records and preserve advisory mismatches."""
+    if not isinstance(value, Mapping):
+        return []
+    output: list[dict[str, Any]] = []
+    for pin_name, pin_value in sorted(value.items()):
+        expected = (
+            pin_value.get("sha256")
+            if isinstance(pin_value, Mapping)
+            else pin_value
+        )
+        required = (
+            field == "source_file_hashes"
+            and (relative, str(pin_name)) not in ADVISORY_SOURCE_PIN_KEYS
+        )
+        resolved, error = _resolve_declared_pin_path(
+            repo,
+            artifact_relative=relative,
+            pin_name=str(pin_name),
+            pin_value=pin_value,
+        )
+        actual = sha256_file(repo / resolved) if resolved else None
+        record = {
+            "field": field,
+            "pin_name": str(pin_name),
+            "expected_sha256": expected,
+            "resolved_path": resolved,
+            "actual_sha256": actual,
+            "match": bool(
+                resolved
+                and isinstance(expected, str)
+                and HEX64.fullmatch(expected)
+                and actual == expected
+            ),
+            "runtime_relationship_required": required,
+            "resolution_error": error,
+        }
+        advisory_reason = ADVISORY_SOURCE_PIN_KEYS.get(
+            (relative, str(pin_name))
+        )
+        if advisory_reason:
+            record["advisory_reason"] = advisory_reason
+        output.append(record)
+    return output
+
+
 def _artifact_semantic_summary(repo: Path, relative: str) -> dict[str, Any]:
     """Extract bounded schema/policy/count/hash metadata from one JSON file."""
     path = repo / relative
@@ -1572,6 +2245,7 @@ def _artifact_semantic_summary(repo: Path, relative: str) -> dict[str, Any]:
             lowered in {
                 "input_hashes",
                 "source_hashes",
+                "source_file_hashes",
                 "source_code_hashes",
                 "source_code_sha256",
                 "generator_sha256",
@@ -1588,6 +2262,13 @@ def _artifact_semantic_summary(repo: Path, relative: str) -> dict[str, Any]:
     summary["schema_policy_versions"] = versions
     summary["semantic_counts"] = counts
     summary["declared_input_and_source_pins"] = pins
+    verified: list[dict[str, Any]] = []
+    for field in ("source_file_hashes", "input_hashes"):
+        if field in value:
+            verified.extend(
+                _declared_pin_records(repo, relative, field, value[field])
+            )
+    summary["recomputed_declared_pins"] = verified
     return summary
 
 
@@ -1613,10 +2294,43 @@ def relationship_inventory(
         for item in bindings
         if item.get("resolution") == "ambiguous_not_claimed_runtime"
     ]
+    validator_backed = [
+        dict(item)
+        for item in bindings
+        if item.get("resolution") == "validator_backed_offline_literal"
+    ]
+    validator_paths = {
+        shlex.split(command)[-1] for command in existing_validators
+    }
+    invalid_validator_backed = [
+        item
+        for item in validator_backed
+        if item.get("validator") not in validator_paths
+        or not (repo / str(item.get("validator") or "")).is_file()
+    ]
     artifact_hashes = dict(snapshot.generated_hashes)
     artifact_hashes.update(snapshot.declared_artifact_hashes)
     json_artifacts = [
         relative for relative in artifact_hashes if relative.endswith(".json")
+    ]
+    semantics = [
+        _artifact_semantic_summary(repo, relative)
+        for relative in sorted(json_artifacts)
+    ]
+    pin_records = [
+        record
+        for summary in semantics
+        for record in summary.get("recomputed_declared_pins", [])
+    ]
+    required_pin_failures = [
+        record
+        for record in pin_records
+        if record.get("runtime_relationship_required") and not record.get("match")
+    ]
+    advisory_pin_findings = [
+        record
+        for record in pin_records
+        if not record.get("runtime_relationship_required") and not record.get("match")
     ]
     return {
         "discovery_method": (
@@ -1624,10 +2338,7 @@ def relationship_inventory(
         ),
         "runtime_loader_bindings": list(bindings),
         "artifact_hashes": dict(sorted(artifact_hashes.items())),
-        "artifact_semantics": [
-            _artifact_semantic_summary(repo, relative)
-            for relative in sorted(json_artifacts)
-        ],
+        "artifact_semantics": semantics,
         "schema_policy_hashes": dict(snapshot.policy_hashes),
         "relationship_validators": existing_validators,
         "unresolved_loader_literals": list(unresolved),
@@ -1636,8 +2347,16 @@ def relationship_inventory(
             "the present architecture has no single atomic generation identity"
         ),
         "ambiguous_nonruntime_literals": ambiguous,
+        "validator_backed_offline_literals": validator_backed,
+        "invalid_validator_backed_classifications": invalid_validator_backed,
+        "all_validator_backed_classifications_valid": not bool(
+            invalid_validator_backed
+        ),
         "all_claimed_runtime_bindings_resolved": not bool(unresolved),
         "all_discovered_bindings_resolved": not bool(unresolved or ambiguous),
+        "all_required_source_file_pins_valid": not bool(required_pin_failures),
+        "required_source_file_pin_failures": required_pin_failures,
+        "advisory_or_build_time_pin_findings": advisory_pin_findings,
     }
 
 
@@ -1710,11 +2429,13 @@ def deterministic_attestation(
     snapshot: CandidateSnapshot,
     registry_sha256: str,
     ledger_sha256: str,
+    registry_transition: Mapping[str, Any],
     path_mapping: Sequence[Mapping[str, Any]],
     affected: Sequence[Mapping[str, Any]],
     focused: Sequence[ValidationResult],
     full: ValidationResult | None,
     network: Mapping[str, Any],
+    toolchain: Mapping[str, Any],
     relationships: Mapping[str, Any],
     deployed_checks: Sequence[Mapping[str, Any]],
     scope: str,
@@ -1728,6 +2449,12 @@ def deterministic_attestation(
             "subprocess_egress_denied",
             "network_route_isolated",
             "production_root_read_only",
+            "candidate_root_read_only",
+            "git_common_root_read_only",
+            "validation_dependency_roots_read_only",
+            "effective_capabilities_dropped",
+            "no_new_privileges",
+            "read_only_remount_denied_after_capability_drop",
             "exit_status",
         )
     }
@@ -1737,6 +2464,7 @@ def deterministic_attestation(
         "base_commit": base,
         "invariant_registry_sha256": registry_sha256,
         "defect_ledger_sha256": ledger_sha256,
+        "invariant_registry_transition": dict(registry_transition),
         "changed_path_mapping": list(path_mapping),
         "affected_invariant_ids": [
             record["invariant_id"] for record in affected
@@ -1746,6 +2474,7 @@ def deterministic_attestation(
             None if full is None else full.semantic_dict()
         ),
         "network_isolation": network_semantic,
+        "validation_toolchain": dict(toolchain),
         "generated_artifact_attestation": relationships,
         "unmet_deployed_checks": list(deployed_checks),
         "conclusion_scope": scope,
@@ -1753,6 +2482,16 @@ def deterministic_attestation(
             network.get("available")
             and network.get("network_route_isolated")
             and network.get("production_root_read_only")
+            and network.get("candidate_root_read_only")
+            and network.get("git_common_root_read_only")
+            and network.get("validation_dependency_roots_read_only")
+            and network.get("effective_capabilities_dropped")
+            and network.get("no_new_privileges")
+            and network.get("read_only_remount_denied_after_capability_drop")
+            and relationships.get("all_claimed_runtime_bindings_resolved")
+            and relationships.get("all_discovered_bindings_resolved")
+            and relationships.get("all_validator_backed_classifications_valid")
+            and relationships.get("all_required_source_file_pins_valid")
             and full is not None
             and full.exit_status == 0
             and all(result.exit_status == 0 for result in focused)
@@ -2107,6 +2846,17 @@ def emit_outputs(
         "invariant_registry_sha256": sha256_file(registry_path),
         "defect_ledger_sha256": sha256_file(ledger_path),
         "generated_artifact_inventory_sha256": relationship_hash,
+        "source_diagnosis": {
+            "path": source_diagnosis_path,
+            "sha256": source_diagnosis_sha256,
+        },
+        "corrected_candidate_diagnosis": {
+            "path": "why_code_reviews_continue_to_find_major_problems.md",
+            "sha256": sha256_file(
+                registry_path.parent
+                / "why_code_reviews_continue_to_find_major_problems.md"
+            ),
+        },
         "semantic_attestation_sha256": sha256_bytes(semantic_bytes),
         "release_gate_run_receipt_sha256": run_receipt_sha256,
         "focused_validation": semantic["focused_validation"],
@@ -2196,7 +2946,15 @@ def run_gate(args: argparse.Namespace) -> int:
             label="defect ledger",
         )
         invariants = registry_invariants(registry)
-        declared_artifacts = registry_declared_runtime_artifacts(repo, invariants)
+        registry_transition = registry_record_transition(
+            repo,
+            base_commit=base_commit,
+            candidate_registry=registry,
+        )
+        (
+            declared_artifacts,
+            declared_artifact_inventory,
+        ) = registry_runtime_artifact_inventory(repo, invariants)
         before, bindings, unresolved = take_snapshot(repo, declared_artifacts)
         require_frozen(before, development=args.development_dry_run)
         if before.commit != candidate_commit:
@@ -2237,6 +2995,9 @@ def run_gate(args: argparse.Namespace) -> int:
         relationships = relationship_inventory(
             repo, before, bindings, unresolved
         )
+        relationships["registry_runtime_artifact_declarations"] = (
+            declared_artifact_inventory
+        )
         commands = list(
             dict.fromkeys(
                 [
@@ -2246,25 +3007,36 @@ def run_gate(args: argparse.Namespace) -> int:
                 ]
             )
         )
-        network = containment_preflight(
-            cwd=repo, production_root=production_root
-        )
-        if not network["available"] and not args.development_dry_run:
-            raise ReleaseGateError(
-                "OS network/mount containment is unavailable; "
-                "release-candidate validation is blocked"
+        if (
+            not args.development_dry_run
+            and (
+                unresolved
+                or not relationships["all_claimed_runtime_bindings_resolved"]
+                or not relationships["all_discovered_bindings_resolved"]
+                or not relationships["all_validator_backed_classifications_valid"]
+                or not relationships["all_required_source_file_pins_valid"]
             )
-        if unresolved and not args.development_dry_run:
+        ):
             raise ReleaseGateError(
-                "generated-artifact loader bindings are incomplete: "
-                + "; ".join(unresolved)
+                "generated-artifact relationships are incomplete or stale: "
+                + (
+                    "; ".join(unresolved)
+                    if unresolved
+                    else "inspect generated-artifact attestation"
+                )
             )
 
         validation_root = output_dir / "validation"
         validation_home = output_dir / "validation-home"
         validation_home.mkdir(parents=True, exist_ok=True)
         focused: list[ValidationResult] = []
-        validation_env = sanitized_validation_environment(validation_home)
+        toolchain_before = validation_toolchain_inventory()
+        dependency_roots = tuple(
+            Path(path) for path in toolchain_before.python_paths
+        )
+        validation_env = sanitized_validation_environment_for_toolchain(
+            validation_home, toolchain_before
+        )
         full: ValidationResult | None = None
         checkout_context: contextlib.AbstractContextManager[Path]
         if args.development_dry_run:
@@ -2273,7 +3045,58 @@ def run_gate(args: argparse.Namespace) -> int:
             checkout_context = detached_candidate_worktree(
                 repo, candidate_commit, scratch_root
             )
+        checkout_reverification_count = 0
+        detached_checkout_identity_verified = False
+        validation_checkout_identity_verified = False
+        network: dict[str, Any] = {
+            "available": False,
+            "reason": "containment preflight not executed",
+        }
         with checkout_context as checkout:
+            checkout_before, checkout_bindings, checkout_unresolved = take_snapshot(
+                checkout, declared_artifacts
+            )
+            require_frozen(
+                checkout_before, development=args.development_dry_run
+            )
+            assert_snapshot_equal(before, checkout_before)
+            if (
+                bindings != checkout_bindings
+                or unresolved != checkout_unresolved
+            ):
+                raise ReleaseGateError(
+                    "isolated candidate loader relationships differ from "
+                    "the frozen source worktree"
+                )
+            network = containment_preflight(
+                cwd=checkout,
+                production_root=production_root,
+                candidate_root=checkout,
+                dependency_roots=dependency_roots,
+            )
+            if not network["available"] and not args.development_dry_run:
+                raise ReleaseGateError(
+                    "OS network/mount containment is unavailable; "
+                    "release-candidate validation is blocked"
+                )
+            if not args.development_dry_run and not all(
+                network.get(field) is True
+                for field in (
+                    "subprocess_egress_denied",
+                    "network_route_isolated",
+                    "production_root_read_only",
+                    "candidate_root_read_only",
+                    "git_common_root_read_only",
+                    "validation_dependency_roots_read_only",
+                    "effective_capabilities_dropped",
+                    "no_new_privileges",
+                    "read_only_remount_denied_after_capability_drop",
+                )
+            ):
+                raise ReleaseGateError(
+                    "release containment did not prove immutable candidate, "
+                    "Git metadata, production, and subprocess no-egress"
+                )
             for index, command in enumerate(commands, start=1):
                 focused.append(
                     execute_validation(
@@ -2283,9 +3106,19 @@ def run_gate(args: argparse.Namespace) -> int:
                         label=f"focused-{index:03d}",
                         network_isolated=bool(network["available"]),
                         production_root=production_root,
+                        candidate_root=checkout,
+                        dependency_roots=dependency_roots,
                         env=validation_env,
                     )
                 )
+                assert_candidate_checkout_unchanged(
+                    checkout,
+                    expected_snapshot=checkout_before,
+                    expected_bindings=checkout_bindings,
+                    expected_unresolved=checkout_unresolved,
+                    declared_runtime_artifacts=declared_artifacts,
+                )
+                checkout_reverification_count += 1
             if any(result.exit_status for result in focused):
                 raise ReleaseGateError("one or more focused validations failed")
 
@@ -2301,10 +3134,28 @@ def run_gate(args: argparse.Namespace) -> int:
                     label="complete-suite",
                     network_isolated=True,
                     production_root=production_root,
+                    candidate_root=checkout,
+                    dependency_roots=dependency_roots,
                     env=validation_env,
                 )
+                assert_candidate_checkout_unchanged(
+                    checkout,
+                    expected_snapshot=checkout_before,
+                    expected_bindings=checkout_bindings,
+                    expected_unresolved=checkout_unresolved,
+                    declared_runtime_artifacts=declared_artifacts,
+                )
+                checkout_reverification_count += 1
                 if full.exit_status:
                     raise ReleaseGateError("complete isolated suite failed")
+            validation_checkout_identity_verified = True
+            detached_checkout_identity_verified = not args.development_dry_run
+
+        toolchain_after = validation_toolchain_inventory()
+        if toolchain_before != toolchain_after:
+            raise ReleaseGateError(
+                "validation Python/pytest toolchain changed while tests were running"
+            )
 
         after, after_bindings, after_unresolved = take_snapshot(
             repo, declared_artifacts
@@ -2328,6 +3179,18 @@ def run_gate(args: argparse.Namespace) -> int:
             raise ReleaseGateError(
                 "service identity or restart state changed during validation"
             )
+        expected_reverification_count = len(focused) + (1 if full else 0)
+        candidate_unchanged_after_validation = (
+            validation_checkout_identity_verified
+            and checkout_reverification_count == expected_reverification_count
+            and before == after
+            and bindings == after_bindings
+            and unresolved == after_unresolved
+        )
+        if not candidate_unchanged_after_validation:
+            raise ReleaseGateError(
+                "candidate identity was not fully reverified after validation"
+            )
         scope = conclusion_scope(
             development=args.development_dry_run,
             full_suite=args.full_suite,
@@ -2339,11 +3202,13 @@ def run_gate(args: argparse.Namespace) -> int:
             snapshot=before,
             registry_sha256=sha256_bytes(registry_bytes),
             ledger_sha256=sha256_bytes(ledger_bytes),
+            registry_transition=registry_transition,
             path_mapping=path_mapping,
             affected=affected,
             focused=focused,
             full=full,
             network=network,
+            toolchain=toolchain_before.semantic_dict(),
             relationships=relationships,
             deployed_checks=unmet_deployed_checks(invariants),
             scope=scope,
@@ -2382,13 +3247,29 @@ def run_gate(args: argparse.Namespace) -> int:
                 None if full is None else full.receipt_dict()
             ),
             "network_preflight": network,
+            "validation_toolchain": {
+                "semantic_identity": toolchain_before.semantic_dict(),
+                "python_paths": list(toolchain_before.python_paths),
+                "unchanged_after_validation": toolchain_before == toolchain_after,
+            },
             "production_identity_before": production_before,
             "production_identity_after": production_after,
             "production_identity_unchanged": production_unchanged,
             "service_before": service_before,
             "service_after": service_after,
             "service_invariants_unchanged": service_unchanged,
-            "candidate_unchanged_after_validation": True,
+            "candidate_unchanged_after_validation": (
+                candidate_unchanged_after_validation
+            ),
+            "detached_checkout_identity_verified": (
+                detached_checkout_identity_verified
+            ),
+            "validation_checkout_identity_verified": (
+                validation_checkout_identity_verified
+            ),
+            "detached_checkout_reverification_count": (
+                checkout_reverification_count
+            ),
             "procedural_notes": list(args.procedural_note),
         }
         inventory = emit_outputs(
@@ -2458,18 +3339,65 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def emit_failure_receipt(
+    args: argparse.Namespace, exc: ReleaseGateError
+) -> Path | None:
+    """Preserve bounded evidence for a failed run without masking the failure."""
+    if getattr(args, "command", None) != "run" or not getattr(
+        args, "output_dir", None
+    ):
+        return None
+    repo = Path(args.repo).resolve()
+    output_dir = Path(args.output_dir).resolve()
+    try:
+        output_dir.relative_to(repo)
+    except ValueError:
+        pass
+    else:
+        return None
+    if output_dir.exists():
+        allowed = {"validation", "validation-home"}
+        if any(path.name not in allowed for path in output_dir.iterdir()):
+            return None
+    output_dir.mkdir(parents=True, exist_ok=True)
+    receipt = {
+        "schema_version": 1,
+        "status": "blocked",
+        "recorded_at_utc": dt.datetime.now(dt.timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "base_argument": str(getattr(args, "base", "")),
+        "candidate_argument": str(getattr(args, "candidate", "") or ""),
+        "development_dry_run": bool(
+            getattr(args, "development_dry_run", False)
+        ),
+        "full_suite_requested": bool(getattr(args, "full_suite", False)),
+        "error": str(exc),
+        "partial_validation_file_hashes": _validation_hash_inventory(output_dir),
+    }
+    path = output_dir / "release_gate_failure_receipt.json"
+    write_atomic(path, canonical_json_bytes(receipt))
+    return path
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Command-line entry point."""
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         if args.command == "network-preflight":
+            repo = Path(args.repo).resolve()
+            toolchain = validation_toolchain_inventory()
             result = containment_preflight(
-                cwd=Path(args.repo).resolve(),
+                cwd=repo,
                 production_root=(
                     Path(args.production_root).resolve()
                     if args.production_root
                     else None
+                ),
+                candidate_root=repo,
+                dependency_roots=tuple(
+                    Path(path) for path in toolchain.python_paths
                 ),
             )
             print(json.dumps(result, sort_keys=True, indent=2))
@@ -2478,6 +3406,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return run_gate(args)
         parser.error(f"unknown command: {args.command}")
     except ReleaseGateError as exc:
+        with contextlib.suppress(OSError, ReleaseGateError):
+            emit_failure_receipt(args, exc)
         print(f"release gate blocked: {exc}", file=sys.stderr)
         return 2
     return 2
