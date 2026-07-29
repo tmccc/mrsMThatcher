@@ -28,7 +28,11 @@ toolchain, supplies only the attested roots plus the detached candidate, and
 checks the exact origins of pytest, xdist and the registry schema backend.
 The installed user-service unit directory is read-only and the user D-Bus and
 systemd-private sockets are masked inside validation. The complete toolchain
-identity is recomputed after validation.
+identity is recomputed after validation. A content-bound libseccomp filter is
+installed before candidate code executes: AF_UNIX `socket` and `socketpair`
+creation and `io_uring_setup` are denied, so host-control pathname sockets
+cannot bypass the network namespace. Validation stdin is always `/dev/null`;
+no caller-supplied descriptor is inherited as standard input.
 
 ## Development validation
 
@@ -67,7 +71,9 @@ not enter the deterministic semantic attestation.
 
 The gate:
 
-1. holds an exclusive lock in the shared Git common directory;
+1. holds an exclusive advisory lock on the shared Git directory inode without
+   creating or truncating a lock file, then proves the shared Git metadata
+   inventory did not change;
 2. accepts the invariant registry and defect ledger only as tracked,
    non-symlink files inside the candidate, captures their bytes once and
    rejects any later identity change;
@@ -78,23 +84,32 @@ The gate:
 6. records every registry artifact declaration (including absent ephemeral
    state), discovered runtime/generated-artifact hashes, recomputed source-file
    pins, schema and policy hashes;
-7. creates a clean detached checkout of the exact commit;
+7. creates an independent shallow checkout of the exact commit without
+   registering a worktree or writing the source Git common directory; system
+   and global Git config, init templates, hooks, filters and redirection
+   variables are disabled;
 8. runs de-duplicated focused and relationship validation in that checkout,
    reverifying its Git state, relevant hashes and loader relationships after
    every command;
 9. runs the complete parallel suite once in the same route-isolated,
    immutable-candidate/toolchain, production-read-only, PID-isolated
    containment;
-10. stages untrusted JUnit output outside the attestation, mounts the
+10. creates staging through an identity-bound scratch-directory descriptor,
+    stages untrusted JUnit output outside the attestation, mounts the
     identity-bound attestation output read-only inside validation, and copies
     verified ordinary files into it through pre-opened directory descriptors;
 11. seals each completed command's output and JUnit evidence read-only against
-    later commands and rechecks all earlier evidence hashes;
+    later commands, then requires final FD-bound validation and generated-output
+    inventories to match hashes derived from the originally captured evidence
+    and exact generated payload bytes rather than trusting a first reread;
 12. preserves and rechecks the exact authoritative diagnosis bytes and
     installed service-unit identity;
-13. verifies both the detached checkout and source worktree identities again;
-    and
-14. writes deterministic semantic evidence separately from volatile run
+13. bind-mounts the original source worktree and its separate shared Git
+    directory read-only, and verifies both detached and source identities
+    again;
+14. rejects missing, malformed or count-inconsistent JUnit while retaining the
+    command's stdout and partial result in a failure receipt; and
+15. writes deterministic semantic evidence separately from volatile run
     metadata.
 
 Outputs are written outside the candidate:
@@ -117,7 +132,9 @@ writing is authorised. The output root and validation-evidence directory are
 bound to device/inode identities; parent writes use directory descriptors and
 do not follow replaced descendant paths. It never writes this receipt into an
 unvalidated path or into a pre-existing output directory containing unrelated
-material.
+material. New output directories are claimed with
+`renameat2(RENAME_NOREPLACE)`, and the final top-level and validation
+inventories reject foreign, non-regular or uninventoried entries.
 
 The semantic attestation deliberately excludes timestamps, host identity,
 duration and raw test-output hashes. The run receipt binds raw output and JUnit

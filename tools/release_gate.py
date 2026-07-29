@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import ast
 import contextlib
+import ctypes
 import dataclasses
 import datetime as dt
 import fcntl
@@ -142,6 +143,14 @@ class ReleaseGateError(RuntimeError):
     """A release-gate precondition or validation failed."""
 
 
+class ValidationCaptureError(ReleaseGateError):
+    """A command ran, but its structured validation evidence was incomplete."""
+
+    def __init__(self, message: str, partial_result: Mapping[str, Any]) -> None:
+        super().__init__(message)
+        self.partial_result = dict(partial_result)
+
+
 @dataclasses.dataclass(frozen=True)
 class CandidateSnapshot:
     """Stable Git and file identity of one candidate worktree."""
@@ -237,7 +246,7 @@ class ValidationToolchain:
 
 @dataclasses.dataclass(frozen=True)
 class GatePathAuthorization:
-    """Identity-bound permission for the gate's private output directory."""
+    """Identity-bound permission for gate output and scratch directories."""
 
     output_dir: Path
     output_parent: Path
@@ -246,6 +255,9 @@ class GatePathAuthorization:
     output_existed: bool
     output_device: int | None
     output_inode: int | None
+    scratch_dir: Path | None = None
+    scratch_device: int | None = None
+    scratch_inode: int | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -383,10 +395,10 @@ def bind_existing_directory(path: Path) -> BoundDirectory:
     )
 
 
-def materialize_bound_subdirectory(
-    parent: BoundDirectory, name: str
+def materialize_bound_subdirectory_at(
+    parent: BoundDirectory, parent_fd: int, name: str
 ) -> BoundDirectory:
-    """Create one private child using only an identity-bound parent dirfd."""
+    """Create one private child through an already-open bound parent dirfd."""
     if (
         not name
         or name in {".", ".."}
@@ -395,11 +407,6 @@ def materialize_bound_subdirectory(
         or any(ord(character) < 32 for character in name)
     ):
         raise ReleaseGateError(f"unsafe bound subdirectory name: {name!r}")
-    assert_bound_directory(parent)
-    parent_fd = os.open(
-        parent.path,
-        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
-    )
     child_fd: int | None = None
     try:
         opened_parent = os.fstat(parent_fd)
@@ -427,7 +434,6 @@ def materialize_bound_subdirectory(
     finally:
         if child_fd is not None:
             os.close(child_fd)
-        os.close(parent_fd)
     child = BoundDirectory(
         path=parent.path / name,
         device=child_stat.st_dev,
@@ -435,6 +441,54 @@ def materialize_bound_subdirectory(
     )
     assert_bound_directory(child)
     return child
+
+
+def materialize_bound_subdirectory(
+    parent: BoundDirectory, name: str
+) -> BoundDirectory:
+    """Create one private child using only an identity-bound parent dirfd."""
+    assert_bound_directory(parent)
+    parent_fd = os.open(
+        parent.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        return materialize_bound_subdirectory_at(parent, parent_fd, name)
+    finally:
+        os.close(parent_fd)
+
+
+def materialize_bound_temporary_subdirectory(
+    parent: BoundDirectory, prefix: str
+) -> BoundDirectory:
+    """Create one unpredictable private child through a bound parent dirfd."""
+    if (
+        not prefix
+        or "/" in prefix
+        or "\x00" in prefix
+        or any(ord(character) < 32 for character in prefix)
+    ):
+        raise ReleaseGateError(f"unsafe temporary-directory prefix: {prefix!r}")
+    assert_bound_directory(parent)
+    parent_fd = os.open(
+        parent.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        for _attempt in range(16):
+            name = f"{prefix}{secrets.token_hex(12)}"
+            try:
+                return materialize_bound_subdirectory_at(
+                    parent, parent_fd, name
+                )
+            except ReleaseGateError as exc:
+                if "File exists" not in str(exc):
+                    raise
+        raise ReleaseGateError(
+            f"cannot allocate identity-bound temporary directory under {parent.path}"
+        )
+    finally:
+        os.close(parent_fd)
 
 
 def assert_bound_directory(directory: BoundDirectory) -> None:
@@ -454,6 +508,145 @@ def assert_bound_directory(directory: BoundDirectory) -> None:
         raise ReleaseGateError(
             f"bound output directory identity changed: {directory.path}"
         )
+
+
+def bound_directory_entries(directory: BoundDirectory) -> tuple[str, ...]:
+    """List direct entries through an identity-checked directory descriptor."""
+    assert_bound_directory(directory)
+    descriptor = os.open(
+        directory.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (
+            directory.device,
+            directory.inode,
+        ):
+            raise ReleaseGateError(
+                f"bound output directory changed before listing: {directory.path}"
+            )
+        return tuple(sorted(os.listdir(descriptor)))
+    finally:
+        os.close(descriptor)
+
+
+def bound_regular_file_inventory(
+    directory: BoundDirectory,
+    *,
+    expected_names: Iterable[str] | None = None,
+    allowed_directories: Iterable[str] = (),
+) -> dict[str, str]:
+    """Hash an exact set of direct ordinary files through a bound dirfd."""
+    actual = bound_directory_entries(directory)
+    expected_files = (
+        actual
+        if expected_names is None
+        else tuple(sorted(set(expected_names)))
+    )
+    expected_directories = tuple(sorted(set(allowed_directories)))
+    expected_entries = tuple(
+        sorted((*expected_files, *expected_directories))
+    )
+    if actual != expected_entries:
+        raise ReleaseGateError(
+            f"bound file inventory differs for {directory.path}: "
+            + ", ".join(
+                sorted(set(actual).symmetric_difference(expected_entries))
+            )
+        )
+    descriptor = os.open(
+        directory.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (
+            directory.device,
+            directory.inode,
+        ):
+            raise ReleaseGateError(
+                f"bound file inventory directory changed: {directory.path}"
+            )
+        inventory: dict[str, str] = {}
+        for name in expected_directories:
+            identity = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISDIR(identity.st_mode):
+                raise ReleaseGateError(
+                    f"bound inventory entry is not a directory: "
+                    f"{directory.path / name}"
+                )
+        for name in expected_files:
+            identity = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISREG(identity.st_mode):
+                raise ReleaseGateError(
+                    f"bound inventory entry is not a regular file: "
+                    f"{directory.path / name}"
+                )
+            inventory[name] = sha256_bytes(
+                read_regular_file_at(descriptor, name)
+            )
+        return inventory
+    except OSError as exc:
+        raise ReleaseGateError(
+            f"cannot hash bound file inventory {directory.path}: {exc}"
+        ) from exc
+    finally:
+        os.close(descriptor)
+
+
+def require_expected_inventory(
+    *,
+    actual: Mapping[str, str],
+    expected: Mapping[str, str],
+    label: str,
+) -> None:
+    """Require an FD-bound inventory to match hashes captured before emission."""
+    expected_sorted = dict(sorted(expected.items()))
+    actual_sorted = dict(sorted(actual.items()))
+    if actual_sorted == expected_sorted:
+        return
+    names = sorted(set(actual_sorted).union(expected_sorted))
+    differences = [
+        name
+        for name in names
+        if actual_sorted.get(name) != expected_sorted.get(name)
+    ]
+    raise ReleaseGateError(
+        f"{label} differs from its pre-emission expected hashes: "
+        + ", ".join(differences)
+    )
+
+
+def bound_regular_file_sha256(
+    directory: BoundDirectory, name: str
+) -> str:
+    """Hash one direct ordinary file through an identity-bound directory."""
+    if (
+        not name
+        or name in {".", ".."}
+        or "/" in name
+        or "\x00" in name
+        or any(ord(character) < 32 for character in name)
+    ):
+        raise ReleaseGateError(f"unsafe bound input basename: {name!r}")
+    assert_bound_directory(directory)
+    descriptor = os.open(
+        directory.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (
+            directory.device,
+            directory.inode,
+        ):
+            raise ReleaseGateError(
+                f"bound input directory changed: {directory.path}"
+            )
+        return sha256_bytes(read_regular_file_at(descriptor, name))
+    finally:
+        os.close(descriptor)
 
 
 def write_atomic_bound(
@@ -536,22 +729,37 @@ def read_regular_file_at(directory_fd: int, name: str) -> bytes:
         raise ReleaseGateError(f"required validation result is missing: {name}") from exc
     if not stat.S_ISREG(before.st_mode):
         raise ReleaseGateError(f"validation result is not an ordinary file: {name}")
-    descriptor = os.open(
-        name,
-        os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
-        dir_fd=directory_fd,
-    )
     try:
-        opened = os.fstat(descriptor)
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=directory_fd,
+        )
+    except OSError as exc:
+        raise ReleaseGateError(
+            f"cannot open validation result safely: {name}: {exc}"
+        ) from exc
+    try:
+        try:
+            opened = os.fstat(descriptor)
+        except OSError as exc:
+            raise ReleaseGateError(
+                f"cannot inspect validation result: {name}: {exc}"
+            ) from exc
         if (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
             raise ReleaseGateError(f"validation result changed while opening: {name}")
         chunks: list[bytes] = []
-        while True:
-            chunk = os.read(descriptor, 1024 * 1024)
-            if not chunk:
-                break
-            chunks.append(chunk)
-        after = os.fstat(descriptor)
+        try:
+            while True:
+                chunk = os.read(descriptor, 1024 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            after = os.fstat(descriptor)
+        except OSError as exc:
+            raise ReleaseGateError(
+                f"cannot read validation result safely: {name}: {exc}"
+            ) from exc
     finally:
         os.close(descriptor)
     if (
@@ -582,6 +790,7 @@ def _run(
         list(args),
         cwd=cwd,
         env=None if env is None else dict(env),
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         check=False,
@@ -596,30 +805,62 @@ def _run(
     return result
 
 
+def sanitized_git_environment() -> dict[str, str]:
+    """Return a Git environment with inherited redirection/config disabled."""
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("GIT_")
+    }
+    environment.update(
+        {
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+        }
+    )
+    return environment
+
+
+def _git_run(
+    repo: Path, args: Sequence[str], *, check: bool = True
+) -> subprocess.CompletedProcess[bytes]:
+    """Run one source/candidate Git query under the sanitized read-only policy."""
+    return _run(
+        (
+            "git",
+            "--no-optional-locks",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.untrackedCache=false",
+            "-C",
+            str(repo),
+            *args,
+        ),
+        cwd=repo,
+        check=check,
+        env=sanitized_git_environment(),
+    )
+
+
 def _git(repo: Path, *args: str, check: bool = True) -> str:
-    """Run Git and decode its standard output."""
-    result = _run(("git", "-C", str(repo), *args), cwd=repo, check=check)
+    """Run a read-only Git query without optional index/metadata refreshes."""
+    result = _git_run(repo, args, check=check)
     return result.stdout.decode("utf-8", "surrogateescape").rstrip("\n")
 
 
 def _git_readonly(repo: Path, *args: str, check: bool = True) -> str:
     """Run Git with optional index writes disabled for production inspection."""
-    environment = dict(os.environ)
-    environment["GIT_OPTIONAL_LOCKS"] = "0"
-    result = _run(
-        ("git", "--no-optional-locks", "-C", str(repo), *args),
-        cwd=repo,
-        check=check,
-        env=environment,
-    )
-    return result.stdout.decode("utf-8", "surrogateescape").rstrip("\n")
+    return _git(repo, *args, check=check)
 
 
 def resolve_commit(repo: Path, revision: str, *, label: str) -> str:
     """Resolve one revision once and require a full commit object identity."""
-    result = _run(
-        ("git", "-C", str(repo), "rev-parse", "--verify", f"{revision}^{{commit}}"),
-        cwd=repo,
+    result = _git_run(
+        repo,
+        ("rev-parse", "--verify", f"{revision}^{{commit}}"),
         check=False,
     )
     resolved = result.stdout.decode("ascii", "replace").strip()
@@ -653,17 +894,9 @@ def resolve_release_identities(
         raise ReleaseGateError(
             f"HEAD {head} differs from requested candidate {candidate_commit}"
         )
-    ancestry = _run(
-        (
-            "git",
-            "-C",
-            str(repo),
-            "merge-base",
-            "--is-ancestor",
-            base_commit,
-            candidate_commit,
-        ),
-        cwd=repo,
+    ancestry = _git_run(
+        repo,
+        ("merge-base", "--is-ancestor", base_commit, candidate_commit),
         check=False,
     )
     if ancestry.returncode:
@@ -680,26 +913,100 @@ def git_common_dir(repo: Path) -> Path:
     return path.resolve()
 
 
+def recursive_metadata_identity(root: Path) -> dict[str, Any]:
+    """Bind a directory tree without reading or changing file contents.
+
+    Device/inode, mode, size and nanosecond change times make an in-place
+    same-size rewrite observable while keeping this check inexpensive enough
+    for a large Git object database.
+    """
+    resolved = root.resolve(strict=True)
+    root_stat = resolved.lstat()
+    if resolved.is_symlink() or not stat.S_ISDIR(root_stat.st_mode):
+        raise ReleaseGateError(f"metadata identity root is not a directory: {root}")
+    entries: list[dict[str, Any]] = []
+    pending = [resolved]
+    while pending:
+        directory = pending.pop()
+        try:
+            children = sorted(os.scandir(directory), key=lambda item: item.name)
+        except OSError as exc:
+            raise ReleaseGateError(
+                f"cannot inventory metadata identity root {resolved}: {exc}"
+            ) from exc
+        for child in children:
+            path = Path(child.path)
+            relative = path.relative_to(resolved).as_posix()
+            try:
+                identity = child.stat(follow_symlinks=False)
+            except OSError as exc:
+                raise ReleaseGateError(
+                    f"cannot inventory metadata identity entry {path}: {exc}"
+                ) from exc
+            if stat.S_ISDIR(identity.st_mode):
+                kind = "directory"
+                pending.append(path)
+                target = None
+            elif stat.S_ISREG(identity.st_mode):
+                kind = "file"
+                target = None
+            elif stat.S_ISLNK(identity.st_mode):
+                kind = "symlink"
+                try:
+                    target = os.readlink(path)
+                except OSError as exc:
+                    raise ReleaseGateError(
+                        f"cannot read metadata identity symlink {path}: {exc}"
+                    ) from exc
+            else:
+                kind = "other"
+                target = None
+            record: dict[str, Any] = {
+                "path": relative,
+                "kind": kind,
+                "device": identity.st_dev,
+                "inode": identity.st_ino,
+                "mode": identity.st_mode,
+                "size": identity.st_size,
+                "mtime_ns": identity.st_mtime_ns,
+                "ctime_ns": identity.st_ctime_ns,
+            }
+            if target is not None:
+                record["target"] = target
+            entries.append(record)
+    payload = canonical_json_bytes(
+        {
+            "root_device": root_stat.st_dev,
+            "root_inode": root_stat.st_ino,
+            "entries": sorted(entries, key=lambda item: item["path"]),
+        }
+    )
+    return {
+        "root": str(resolved),
+        "root_device": root_stat.st_dev,
+        "root_inode": root_stat.st_ino,
+        "entry_count": len(entries),
+        "metadata_sha256": sha256_bytes(payload),
+    }
+
+
 @contextlib.contextmanager
 def integration_lock(repo: Path, *, blocking: bool = False) -> Iterator[Path]:
-    """Hold the repository-wide integration lock in the shared Git directory."""
-    lock_path = git_common_dir(repo) / "mrsMThatcher.release-gate.lock"
-    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    """Lock the shared Git directory inode without writing Git metadata."""
+    common = git_common_dir(repo)
+    descriptor = os.open(
+        common,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
     try:
         operation = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
         try:
             fcntl.flock(descriptor, operation)
         except BlockingIOError as exc:
             raise ReleaseGateError(
-                f"integration lock is already held: {lock_path}"
+                f"integration lock is already held: {common}"
             ) from exc
-        os.ftruncate(descriptor, 0)
-        os.write(
-            descriptor,
-            f"pid={os.getpid()} repo={repo.resolve()}\n".encode("utf-8"),
-        )
-        os.fsync(descriptor)
-        yield lock_path
+        yield common
     finally:
         with contextlib.suppress(OSError):
             fcntl.flock(descriptor, fcntl.LOCK_UN)
@@ -1338,15 +1645,9 @@ def registry_record_transition(
     candidate_by_id = {
         record["invariant_id"]: record for record in candidate_records
     }
-    result = _run(
-        (
-            "git",
-            "-C",
-            str(repo),
-            "show",
-            f"{base_commit}:production_invariants.json",
-        ),
-        cwd=repo,
+    result = _git_run(
+        repo,
+        ("show", f"{base_commit}:production_invariants.json"),
         check=False,
     )
     if result.returncode:
@@ -1409,9 +1710,9 @@ def invariant_globs(record: Mapping[str, Any]) -> list[str]:
 def changed_paths(repo: Path, base: str, candidate: str) -> tuple[str, ...]:
     """List changed paths between explicit base and candidate commits."""
     for revision, label in ((base, "base"), (candidate, "candidate")):
-        result = _run(
-            ("git", "-C", str(repo), "cat-file", "-e", f"{revision}^{{commit}}"),
-            cwd=repo,
+        result = _git_run(
+            repo,
+            ("cat-file", "-e", f"{revision}^{{commit}}"),
             check=False,
         )
         if result.returncode:
@@ -1585,6 +1886,103 @@ def validation_commands(records: Sequence[Mapping[str, Any]]) -> list[tuple[str,
     return commands
 
 
+def seccomp_library_path() -> Path:
+    """Resolve the host libseccomp implementation used by containment."""
+    machine = platform.machine()
+    candidates = (
+        Path(f"/lib/{machine}-linux-gnu/libseccomp.so.2"),
+        Path(f"/usr/lib/{machine}-linux-gnu/libseccomp.so.2"),
+        Path("/lib64/libseccomp.so.2"),
+        Path("/usr/lib64/libseccomp.so.2"),
+        Path("/lib/libseccomp.so.2"),
+        Path("/usr/lib/libseccomp.so.2"),
+    )
+    resolved = {
+        candidate.resolve(strict=True)
+        for candidate in candidates
+        if candidate.exists()
+    }
+    ordinary = sorted(
+        path for path in resolved if path.is_file() and not path.is_symlink()
+    )
+    if not ordinary:
+        raise ReleaseGateError(
+            "libseccomp.so.2 is required for pathname-socket containment"
+        )
+    return ordinary[0]
+
+
+_SECCOMP_EXEC_BOOTSTRAP = """\
+import ctypes, errno, os, socket, sys
+
+class ScmpArgCmp(ctypes.Structure):
+    _fields_ = [
+        ("arg", ctypes.c_uint),
+        ("op", ctypes.c_int),
+        ("datum_a", ctypes.c_uint64),
+        ("datum_b", ctypes.c_uint64),
+    ]
+
+library_path, *command = sys.argv[1:]
+if not command:
+    raise SystemExit("missing contained command")
+library = ctypes.CDLL(library_path, use_errno=True)
+library.seccomp_init.argtypes = [ctypes.c_uint32]
+library.seccomp_init.restype = ctypes.c_void_p
+library.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]
+library.seccomp_syscall_resolve_name.restype = ctypes.c_int
+library.seccomp_rule_add_array.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_uint32,
+    ctypes.c_int,
+    ctypes.c_uint,
+    ctypes.POINTER(ScmpArgCmp),
+]
+library.seccomp_rule_add_array.restype = ctypes.c_int
+library.seccomp_load.argtypes = [ctypes.c_void_p]
+library.seccomp_load.restype = ctypes.c_int
+library.seccomp_release.argtypes = [ctypes.c_void_p]
+context = library.seccomp_init(0x7fff0000)
+if not context:
+    raise SystemExit("seccomp_init failed")
+try:
+    action = 0x00050000 | errno.EPERM
+    for syscall_name in (b"socket", b"socketpair"):
+        syscall_number = library.seccomp_syscall_resolve_name(syscall_name)
+        if syscall_number < 0:
+            raise SystemExit(
+                syscall_name.decode() + " syscall is unavailable to seccomp"
+            )
+        comparison = ScmpArgCmp(0, 7, 0xffffffff, socket.AF_UNIX)
+        result = library.seccomp_rule_add_array(
+            context, action, syscall_number, 1, ctypes.byref(comparison)
+        )
+        if result != 0:
+            raise SystemExit(
+                "seccomp_rule_add_array failed for "
+                + syscall_name.decode()
+                + ": "
+                + str(result)
+            )
+    syscall_number = library.seccomp_syscall_resolve_name(b"io_uring_setup")
+    if syscall_number < 0:
+        raise SystemExit("io_uring_setup syscall is unavailable to seccomp")
+    result = library.seccomp_rule_add_array(
+        context, action, syscall_number, 0, None
+    )
+    if result != 0:
+        raise SystemExit(
+            "seccomp_rule_add_array failed for io_uring_setup: " + str(result)
+        )
+    result = library.seccomp_load(context)
+    if result != 0:
+        raise SystemExit("seccomp_load failed: " + str(result))
+finally:
+    library.seccomp_release(context)
+os.execvpe(command[0], command, os.environ)
+"""
+
+
 def containment_namespace_command(
     command: Sequence[str],
     *,
@@ -1596,6 +1994,16 @@ def containment_namespace_command(
     blocked_unix_sockets: Sequence[Path] = (),
 ) -> tuple[str, ...]:
     """Wrap a command with network isolation and read-only protected roots."""
+    seccomp_library = seccomp_library_path()
+    secured_command = (
+        sys.executable,
+        "-I",
+        "-S",
+        "-c",
+        _SECCOMP_EXEC_BOOTSTRAP,
+        str(seccomp_library),
+        *command,
+    )
     prefix: tuple[str, ...] = (
         "unshare",
         "--user",
@@ -1642,7 +2050,7 @@ def containment_namespace_command(
         "--block-sockets",
         *sockets,
         "--",
-        *command,
+        *secured_command,
     )
 
 
@@ -1714,7 +2122,7 @@ def containment_preflight(
             "reason": "write-denial probe path already exists",
         }
     script = (
-        "import pathlib,socket,subprocess,sys\n"
+        "import ctypes,errno,pathlib,socket,subprocess,sys\n"
         "names={name for _,name in socket.if_nameindex()}\n"
         "if names != {'lo'}: sys.exit(72)\n"
         "for family in ('-4','-6'):\n"
@@ -1731,11 +2139,24 @@ def containment_preflight(
         " pass\n"
         "else:\n"
         " sys.exit(71)\n"
+        "try:\n"
+        " socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+        "except OSError as exc:\n"
+        " if exc.errno != errno.EPERM: sys.exit(83)\n"
+        "else:\n"
+        " sys.exit(80)\n"
+        "try:\n"
+        " socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+        "except OSError as exc:\n"
+        " if exc.errno != errno.EPERM: sys.exit(84)\n"
+        "else:\n"
+        " sys.exit(81)\n"
         "status=pathlib.Path('/proc/self/status').read_text()\n"
         "if 'CapEff:\\t0000000000000000' not in status: sys.exit(76)\n"
         "if 'NoNewPrivs:\\t1' not in status: sys.exit(77)\n"
         "values=sys.argv[1:]\n"
         "separator=values.index('--sockets')\n"
+        "library_separator=values.index('--seccomp-library')\n"
         "for value in values[:separator]:\n"
         " p=pathlib.Path(value)\n"
         " try:\n"
@@ -1747,14 +2168,29 @@ def containment_preflight(
         " r=subprocess.run(('mount','-o','remount,bind,rw',str(p)),"
         "stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n"
         " if r.returncode == 0: sys.exit(78)\n"
-        "for value in values[separator+1:]:\n"
-        " u=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
-        " try:\n"
-        "  u.connect(value)\n"
-        " except OSError:\n"
-        "  pass\n"
-        " else:\n"
-        "  u.close(); sys.exit(79)\n"
+        "seccomp=ctypes.CDLL(values[library_separator+1])\n"
+        "seccomp.seccomp_syscall_resolve_name.argtypes=[ctypes.c_char_p]\n"
+        "seccomp.seccomp_syscall_resolve_name.restype=ctypes.c_int\n"
+        "libc=ctypes.CDLL(None,use_errno=True)\n"
+        "libc.syscall.restype=ctypes.c_long\n"
+        "high_family=socket.AF_UNIX | (1 << 32)\n"
+        "number=seccomp.seccomp_syscall_resolve_name(b'socket')\n"
+        "ctypes.set_errno(0)\n"
+        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
+        "socket.SOCK_STREAM,0) != -1 "
+        "or ctypes.get_errno() != errno.EPERM:\n"
+        " sys.exit(85)\n"
+        "number=seccomp.seccomp_syscall_resolve_name(b'socketpair')\n"
+        "pair=(ctypes.c_int*2)()\n"
+        "ctypes.set_errno(0)\n"
+        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
+        "socket.SOCK_STREAM,0,pair) != -1 "
+        "or ctypes.get_errno() != errno.EPERM:\n"
+        " sys.exit(86)\n"
+        "number=seccomp.seccomp_syscall_resolve_name(b'io_uring_setup')\n"
+        "ctypes.set_errno(0)\n"
+        "if libc.syscall(number,2,0) != -1 or ctypes.get_errno() != errno.EPERM:\n"
+        " sys.exit(82)\n"
     ) % probe_name
     command = containment_namespace_command(
         (
@@ -1764,6 +2200,8 @@ def containment_preflight(
             *(str(path) for path in protected_roots),
             "--sockets",
             *(str(path) for path in sockets),
+            "--seccomp-library",
+            str(seccomp_library_path()),
         ),
         production_root=root,
         candidate_root=candidate,
@@ -1794,6 +2232,10 @@ def containment_preflight(
         "user_service_control_sockets_blocked": (
             available
         ),
+        "pathname_unix_socket_creation_denied": available,
+        "unix_socketpair_creation_denied": available,
+        "unix_socket_high_bits_alias_denied": available,
+        "io_uring_setup_denied": available,
         "blocked_unix_socket_paths": [str(path) for path in sockets],
         "effective_capabilities_dropped": available,
         "no_new_privileges": available,
@@ -2002,6 +2444,7 @@ def validation_toolchain_inventory(
 ) -> ValidationToolchain:
     """Bind the executable and complete active import environment by content."""
     executable = Path(sys.executable).resolve()
+    seccomp_library = seccomp_library_path()
     roots = _validation_import_roots(excluded_roots=excluded_roots)
     root_records = [_import_root_content_inventory(root) for root in roots]
     mandatory_distributions = []
@@ -2034,6 +2477,16 @@ def validation_toolchain_inventory(
         "distributions": mandatory_distributions,
         "import_roots": root_records,
         "module_distribution_bindings": module_bindings,
+        "os_containment_dependencies": [
+            {
+                "path": str(seccomp_library),
+                "sha256": sha256_file(seccomp_library),
+                "purpose": (
+                    "deny AF_UNIX socket/socketpair and io_uring setup "
+                    "before candidate execution"
+                ),
+            }
+        ],
         "dependency_scope": (
             "every existing sys.path import root is recursively content-bound; "
             "isolated execution uses only these roots and the frozen candidate"
@@ -2051,6 +2504,7 @@ def validation_toolchain_inventory(
                         for record in root_records
                         for path in record.get("resolved_external_paths", [])
                     ),
+                    str(seccomp_library),
                 }
             )
         ),
@@ -2182,19 +2636,88 @@ def _pytest_counts_bytes(payload: bytes) -> tuple[int, int, int, int]:
         root = ET.fromstring(payload)
     except ET.ParseError as exc:
         raise ReleaseGateError(f"cannot parse pytest JUnit result: {exc}") from exc
+    if root.tag not in {"testsuite", "testsuites"}:
+        raise ReleaseGateError(
+            f"cannot parse pytest JUnit result: unexpected root {root.tag!r}"
+        )
     suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
-    tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
-    failures = sum(int(suite.attrib.get("failures", "0")) for suite in suites)
-    errors = sum(int(suite.attrib.get("errors", "0")) for suite in suites)
-    skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
-    return tests - failures - errors - skipped, failures, errors, skipped
+    if not suites:
+        raise ReleaseGateError(
+            "cannot parse pytest JUnit result: no test suites present"
+        )
+    required_counts = {"tests", "failures", "errors", "skipped"}
+    for suite in suites:
+        missing = required_counts - set(suite.attrib)
+        if missing:
+            raise ReleaseGateError(
+                "cannot parse pytest JUnit result: missing counts "
+                + ", ".join(sorted(missing))
+            )
+    try:
+        tests = sum(int(suite.attrib.get("tests", "0")) for suite in suites)
+        failures = sum(int(suite.attrib.get("failures", "0")) for suite in suites)
+        errors = sum(int(suite.attrib.get("errors", "0")) for suite in suites)
+        skipped = sum(int(suite.attrib.get("skipped", "0")) for suite in suites)
+    except (TypeError, ValueError) as exc:
+        raise ReleaseGateError(
+            f"cannot parse pytest JUnit result counts: {exc}"
+        ) from exc
+    if min(tests, failures, errors, skipped) < 0:
+        raise ReleaseGateError("cannot parse pytest JUnit result: negative counts")
+    if failures + errors + skipped > tests:
+        raise ReleaseGateError(
+            "cannot parse pytest JUnit result: component counts exceed tests"
+        )
+    if tests <= 0:
+        raise ReleaseGateError(
+            "cannot parse pytest JUnit result: no executed tests"
+        )
+    testcase_count = 0
+    observed_failures = 0
+    observed_errors = 0
+    observed_skipped = 0
+    for suite in suites:
+        testcases = list(suite.findall("testcase"))
+        testcase_count += len(testcases)
+        for testcase in testcases:
+            observed_failures += int(testcase.find("failure") is not None)
+            observed_errors += int(testcase.find("error") is not None)
+            observed_skipped += int(testcase.find("skipped") is not None)
+    if testcase_count != tests:
+        raise ReleaseGateError(
+            "cannot parse pytest JUnit result: testcase count differs from tests"
+        )
+    if (
+        observed_failures,
+        observed_errors,
+        observed_skipped,
+    ) != (
+        failures,
+        errors,
+        skipped,
+    ):
+        raise ReleaseGateError(
+            "cannot parse pytest JUnit result: testcase outcomes differ "
+            "from suite counts"
+        )
+    passed = tests - failures - errors - skipped
+    if passed <= 0:
+        raise ReleaseGateError(
+            "cannot accept pytest JUnit result: no test passed"
+        )
+    return passed, failures, errors, skipped
 
 
 def _warning_count(output: bytes) -> int:
     """Extract pytest's terminal warnings count conservatively."""
     text = output.decode("utf-8", "replace")
-    matches = re.findall(r"(\d+)\s+warnings?\b", text)
-    return int(matches[-1]) if matches else 0
+    matches = re.findall(r"(?<!\d)(\d{1,9})\s+warnings?\b", text)
+    if not matches:
+        return 0
+    try:
+        return int(matches[-1])
+    except ValueError:
+        return 0
 
 
 def execute_validation(
@@ -2202,7 +2725,7 @@ def execute_validation(
     *,
     cwd: Path,
     evidence_directory: BoundDirectory,
-    workspace_root: Path,
+    workspace_root: Path | BoundDirectory,
     label: str,
     network_isolated: bool,
     production_root: Path | None = None,
@@ -2217,9 +2740,12 @@ def execute_validation(
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", label):
         raise ReleaseGateError(f"unsafe validation label: {label!r}")
     assert_bound_directory(evidence_directory)
-    workspace_root = workspace_root.resolve(strict=True)
-    if not workspace_root.is_dir() or workspace_root.is_symlink():
-        raise ReleaseGateError("validation workspace root is not an ordinary directory")
+    workspace_directory = (
+        workspace_root
+        if isinstance(workspace_root, BoundDirectory)
+        else bind_existing_directory(workspace_root.resolve(strict=True))
+    )
+    assert_bound_directory(workspace_directory)
     protected_evidence = tuple(
         Path(path).resolve(strict=True) for path in additional_read_only_paths
     )
@@ -2230,16 +2756,25 @@ def execute_validation(
         raise ReleaseGateError(
             "identity-bound validation evidence is not read-only in containment"
         )
-    staging = Path(
-        tempfile.mkdtemp(prefix=f"mrs-{label}-", dir=workspace_root)
+    staging_bound = materialize_bound_temporary_subdirectory(
+        workspace_directory, f"mrs-{label}-"
     )
-    staging_bound = bind_existing_directory(staging)
+    staging = staging_bound.path
     staging_fd = os.open(
         staging,
         os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
     )
-    home = staging / "home"
-    home.mkdir(mode=0o700)
+    try:
+        home_directory = materialize_bound_subdirectory_at(
+            staging_bound, staging_fd, "home"
+        )
+    except BaseException:
+        os.close(staging_fd)
+        with contextlib.suppress(ReleaseGateError, OSError):
+            assert_bound_directory(staging_bound)
+            shutil.rmtree(staging)
+        raise
+    home = home_directory.path
     junit_name = "result.junit.xml"
     junit = staging / junit_name
     logical = tuple(command)
@@ -2276,25 +2811,54 @@ def execute_validation(
     execution_env = dict(env or {})
     execution_env["HOME"] = str(home)
     try:
+        assert_bound_directory(staging_bound)
+        assert_bound_directory(home_directory)
         started = time.monotonic()
         result = _run(actual, cwd=cwd, check=False, env=execution_env)
         duration = time.monotonic() - started
         assert_bound_directory(staging_bound)
-        junit_payload: bytes | None = None
-        if is_pytest:
-            junit_payload = read_regular_file_at(staging_fd, junit_name)
-            passed, failed, errors, skipped = _pytest_counts_bytes(junit_payload)
-        else:
-            passed, failed, errors, skipped = (
-                (1, 0, 0, 0)
-                if result.returncode == 0
-                else (0, 1, 0, 0)
-            )
+        assert_bound_directory(home_directory)
         write_atomic_bound(
             evidence_directory,
             f"{label}.output.txt",
             result.stdout,
         )
+        junit_payload: bytes | None = None
+        try:
+            if is_pytest:
+                junit_payload = read_regular_file_at(staging_fd, junit_name)
+                passed, failed, errors, skipped = _pytest_counts_bytes(junit_payload)
+                if result.returncode == 0 and (failed or errors):
+                    raise ReleaseGateError(
+                        "pytest exit status is inconsistent with JUnit "
+                        "failures or errors"
+                    )
+            else:
+                passed, failed, errors, skipped = (
+                    (1, 0, 0, 0)
+                    if result.returncode == 0
+                    else (0, 1, 0, 0)
+                )
+        except ReleaseGateError as exc:
+            partial_result = {
+                "label": label,
+                "command": list(logical),
+                "executed_command": list(actual),
+                "exit_status": result.returncode,
+                "passed": None,
+                "failed": None,
+                "errors": None,
+                "skipped": None,
+                "warnings": _warning_count(result.stdout),
+                "duration_seconds": round(duration, 6),
+                "output_sha256": sha256_bytes(result.stdout),
+                "junit_sha256": None,
+                "junit_capture_error": str(exc),
+            }
+            raise ValidationCaptureError(
+                f"validation evidence capture failed for {label}: {exc}",
+                partial_result,
+            ) from exc
         if junit_payload is not None:
             write_atomic_bound(
                 evidence_directory,
@@ -2320,7 +2884,7 @@ def execute_validation(
         )
     finally:
         os.close(staging_fd)
-        with contextlib.suppress(ReleaseGateError):
+        with contextlib.suppress(ReleaseGateError, OSError):
             assert_bound_directory(staging_bound)
             shutil.rmtree(staging)
 
@@ -2349,52 +2913,147 @@ def assert_validation_evidence_unchanged(
             )
 
 
+def assert_validation_directory_exact(
+    directory: BoundDirectory,
+    *,
+    focused: Sequence[ValidationResult],
+    full: ValidationResult | None,
+) -> None:
+    """Reject untracked or non-regular validation evidence before emission."""
+    expected: set[str] = set()
+    for index, result in enumerate(focused, start=1):
+        label = f"focused-{index:03d}"
+        expected.add(f"{label}.output.txt")
+        if result.junit_sha256 is not None:
+            expected.add(f"{label}.junit.xml")
+    if full is not None:
+        expected.add("complete-suite.output.txt")
+        if full.junit_sha256 is not None:
+            expected.add("complete-suite.junit.xml")
+    actual = set(bound_directory_entries(directory))
+    if actual != expected:
+        raise ReleaseGateError(
+            "validation evidence directory contains unexpected entries: "
+            + ", ".join(sorted(actual.symmetric_difference(expected)))
+        )
+    descriptor = os.open(
+        directory.path,
+        os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino) != (
+            directory.device,
+            directory.inode,
+        ):
+            raise ReleaseGateError(
+                "validation evidence directory changed before final inspection"
+            )
+        for name in sorted(expected):
+            identity = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISREG(identity.st_mode):
+                raise ReleaseGateError(
+                    f"validation evidence is not a regular file: {name}"
+                )
+    finally:
+        os.close(descriptor)
+
+
 @contextlib.contextmanager
 def detached_candidate_worktree(
-    repo: Path, commit: str, scratch_root: Path
+    repo: Path, commit: str, scratch_root: Path | BoundDirectory
 ) -> Iterator[Path]:
-    """Create and remove a detached clean worktree for one frozen commit."""
-    scratch_root.mkdir(parents=True, exist_ok=True)
-    container = Path(
-        tempfile.mkdtemp(prefix="mrs-release-gate-", dir=scratch_root)
+    """Create an independent shallow checkout without mutating shared Git metadata."""
+    scratch_directory = (
+        scratch_root
+        if isinstance(scratch_root, BoundDirectory)
+        else bind_existing_directory(scratch_root.resolve(strict=True))
     )
+    container_directory = materialize_bound_temporary_subdirectory(
+        scratch_directory, "mrs-release-gate-"
+    )
+    container = container_directory.path
     checkout = container / "candidate"
-    registered = False
+    git_home = materialize_bound_subdirectory(container_directory, "git-home")
+    git_config = materialize_bound_subdirectory(
+        container_directory, "git-config"
+    )
+    git_template = materialize_bound_subdirectory(
+        container_directory, "git-template"
+    )
+    environment = sanitized_git_environment()
+    for key in ("HOME", "XDG_CONFIG_HOME", "XDG_CONFIG_DIRS"):
+        environment.pop(key, None)
+    environment.update(
+        {
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+            "GIT_TEMPLATE_DIR": str(git_template.path),
+            "HOME": str(git_home.path),
+            "XDG_CONFIG_HOME": str(git_config.path),
+        }
+    )
     try:
+        assert_bound_directory(container_directory)
+        _run(
+            (
+                "git",
+                "init",
+                "--quiet",
+                f"--template={git_template.path}",
+                str(checkout),
+            ),
+            cwd=container,
+            env=environment,
+        )
+        assert_bound_directory(container_directory)
         _run(
             (
                 "git",
                 "-C",
-                str(repo),
-                "worktree",
-                "add",
-                "--detach",
                 str(checkout),
+                "-c",
+                "protocol.file.allow=always",
+                "-c",
+                "gc.auto=0",
+                "-c",
+                "fetch.writeCommitGraph=false",
+                "fetch",
+                "--quiet",
+                "--no-tags",
+                "--depth=1",
+                str(repo),
                 commit,
             ),
-            cwd=repo,
+            cwd=checkout,
+            env=environment,
         )
-        registered = True
+        assert_bound_directory(container_directory)
+        _run(
+            (
+                "git",
+                "-C",
+                str(checkout),
+                "-c",
+                "gc.auto=0",
+                "checkout",
+                "--quiet",
+                "--detach",
+                commit,
+            ),
+            cwd=checkout,
+            env=environment,
+        )
         status, untracked = git_status(checkout)
         if status or untracked or _git(checkout, "rev-parse", "HEAD") != commit:
             raise ReleaseGateError("isolated candidate checkout is not clean and exact")
         yield checkout
     finally:
-        if registered:
-            _run(
-                (
-                    "git",
-                    "-C",
-                    str(repo),
-                    "worktree",
-                    "remove",
-                    "--force",
-                    str(checkout),
-                ),
-                cwd=repo,
-                check=False,
-            )
-        shutil.rmtree(container, ignore_errors=True)
+        with contextlib.suppress(ReleaseGateError, OSError):
+            assert_bound_directory(container_directory)
+            shutil.rmtree(container)
 
 
 def full_suite_command(workers: int) -> tuple[str, ...]:
@@ -3061,6 +3720,10 @@ def deterministic_attestation(
             "additional_protected_paths_read_only",
             "installed_service_unit_read_only",
             "user_service_control_sockets_blocked",
+            "pathname_unix_socket_creation_denied",
+            "unix_socketpair_creation_denied",
+            "unix_socket_high_bits_alias_denied",
+            "io_uring_setup_denied",
             "effective_capabilities_dropped",
             "no_new_privileges",
             "read_only_remount_denied_after_capability_drop",
@@ -3098,6 +3761,10 @@ def deterministic_attestation(
             and network.get("additional_protected_paths_read_only")
             and network.get("installed_service_unit_read_only")
             and network.get("user_service_control_sockets_blocked")
+            and network.get("pathname_unix_socket_creation_denied")
+            and network.get("unix_socketpair_creation_denied")
+            and network.get("unix_socket_high_bits_alias_denied")
+            and network.get("io_uring_setup_denied")
             and network.get("effective_capabilities_dropped")
             and network.get("no_new_privileges")
             and network.get("read_only_remount_denied_after_capability_drop")
@@ -3208,24 +3875,17 @@ def markdown_report(
     return "\n".join(lines)
 
 
-def _hash_inventory(output_dir: Path, names: Sequence[str]) -> dict[str, str]:
-    """Hash existing attestation outputs by basename."""
-    return {
-        name: sha256_file(output_dir / name)
-        for name in names
-        if (output_dir / name).is_file()
-    }
-
-
 def _validation_hash_inventory(output_dir: Path) -> dict[str, str]:
     """Hash every focused/full validation output relative to the output root."""
     validation = output_dir / "validation"
-    if not validation.is_dir():
+    try:
+        bound = bind_existing_directory(validation)
+        direct = bound_regular_file_inventory(bound)
+    except (OSError, ReleaseGateError):
         return {}
     return {
-        path.relative_to(output_dir).as_posix(): sha256_file(path)
-        for path in sorted(validation.rglob("*"))
-        if path.is_file()
+        f"validation/{name}": digest
+        for name, digest in sorted(direct.items())
     }
 
 
@@ -3233,6 +3893,7 @@ def emit_outputs(
     *,
     output_dir: Path,
     output_directory: BoundDirectory,
+    validation_directory: BoundDirectory,
     semantic: dict[str, Any],
     receipt: dict[str, Any],
     registry: Mapping[str, Any],
@@ -3246,29 +3907,50 @@ def emit_outputs(
     source_diagnosis_path: str,
     source_diagnosis_sha256: str,
     source_diagnosis_bytes: bytes,
+    expected_validation_hashes: Mapping[str, str],
 ) -> dict[str, str]:
     """Write outputs solely from captured evidence through a bound directory."""
     if output_dir.absolute() != output_directory.path:
         raise ReleaseGateError("emission output differs from bound output")
     assert_bound_directory(output_directory)
+    if bound_directory_entries(output_directory) != ("validation",):
+        raise ReleaseGateError(
+            "attestation output contains unexpected pre-emission entries"
+        )
+    assert_bound_directory(validation_directory)
+    if validation_directory.path.parent != output_directory.path:
+        raise ReleaseGateError(
+            "validation evidence directory is outside attestation output"
+        )
+    validation_inventory = bound_regular_file_inventory(
+        validation_directory,
+        expected_names=expected_validation_hashes,
+    )
+    require_expected_inventory(
+        actual=validation_inventory,
+        expected=expected_validation_hashes,
+        label="validation evidence",
+    )
     semantic_bytes = canonical_json_bytes(semantic)
     if sha256_bytes(source_diagnosis_bytes) != source_diagnosis_sha256:
         raise ReleaseGateError("captured source diagnosis hash is inconsistent")
+    expected_top_level_hashes: dict[str, str] = {}
+
+    def write_expected(name: str, payload: bytes) -> None:
+        if name in expected_top_level_hashes:
+            raise ReleaseGateError(
+                f"attestation output was generated more than once: {name}"
+            )
+        write_atomic_bound(output_directory, name, payload)
+        expected_top_level_hashes[name] = sha256_bytes(payload)
+
     packaged_diagnosis = "source_diagnosis_original.md"
-    write_atomic_bound(output_directory, packaged_diagnosis, source_diagnosis_bytes)
-    write_atomic_bound(
-        output_directory, "semantic_attestation.json", semantic_bytes
-    )
-    write_atomic_bound(
-        output_directory,
-        "release_gate_run_receipt.json",
-        canonical_json_bytes(receipt),
-    )
-    run_receipt_sha256 = sha256_file(
-        output_dir / "release_gate_run_receipt.json"
-    )
-    write_atomic_bound(
-        output_directory,
+    write_expected(packaged_diagnosis, source_diagnosis_bytes)
+    write_expected("semantic_attestation.json", semantic_bytes)
+    receipt_bytes = canonical_json_bytes(receipt)
+    write_expected("release_gate_run_receipt.json", receipt_bytes)
+    run_receipt_sha256 = sha256_bytes(receipt_bytes)
+    write_expected(
         "release_gate_report.md",
         markdown_report(semantic, receipt).encode("utf-8"),
     )
@@ -3383,8 +4065,7 @@ def emit_outputs(
         },
         "procedural_notes": list(receipt.get("procedural_notes", [])),
     }
-    write_atomic_bound(
-        output_directory,
+    write_expected(
         "priority0_consolidation_final_validation.json",
         canonical_json_bytes(final_validation),
     )
@@ -3452,8 +4133,7 @@ def emit_outputs(
         + "\n\n"
         + markdown_report(semantic, receipt)
     )
-    write_atomic_bound(
-        output_directory,
+    write_expected(
         "priority0_consolidation_report.md",
         consolidation_report.encode("utf-8"),
     )
@@ -3487,8 +4167,7 @@ def emit_outputs(
         "unmet_deployed_checks": semantic.get("unmet_deployed_checks", []),
         "independent_review_status": "pending_separate_session",
     }
-    write_atomic_bound(
-        output_directory,
+    write_expected(
         "independent_review_manifest.json",
         canonical_json_bytes(review_manifest),
     )
@@ -3501,16 +4180,73 @@ def emit_outputs(
         "priority0_consolidation_final_validation.json",
         packaged_diagnosis,
     )
-    inventory = _hash_inventory(output_dir, names)
-    inventory.update(_validation_hash_inventory(output_dir))
+    top_level_inventory = bound_regular_file_inventory(
+        output_directory,
+        expected_names=names,
+        allowed_directories=("validation",),
+    )
+    require_expected_inventory(
+        actual=top_level_inventory,
+        expected=expected_top_level_hashes,
+        label="generated attestation output",
+    )
+    inventory = dict(top_level_inventory)
+    inventory.update(
+        {
+            f"validation/{name}": digest
+            for name, digest in sorted(validation_inventory.items())
+        }
+    )
+    inventory_payload = canonical_json_bytes(
+        {"schema_version": 1, "files": inventory}
+    )
+    expected_inventory_sha256 = sha256_bytes(inventory_payload)
     write_atomic_bound(
         output_directory,
         "attestation_sha256_inventory.json",
-        canonical_json_bytes({"schema_version": 1, "files": inventory}),
+        inventory_payload,
     )
-    inventory["attestation_sha256_inventory.json"] = sha256_file(
-        output_dir / "attestation_sha256_inventory.json"
+    expected_entries = {
+        "validation",
+        "attestation_sha256_inventory.json",
+        *names,
+    }
+    actual_entries = set(bound_directory_entries(output_directory))
+    if actual_entries != expected_entries:
+        raise ReleaseGateError(
+            "attestation output contains uninventoried top-level entries: "
+            + ", ".join(sorted(actual_entries.symmetric_difference(expected_entries)))
+        )
+    reverified_top = bound_regular_file_inventory(
+        output_directory,
+        expected_names=(
+            "attestation_sha256_inventory.json",
+            *names,
+        ),
+        allowed_directories=("validation",),
     )
+    inventory_file_sha256 = reverified_top.pop(
+        "attestation_sha256_inventory.json"
+    )
+    if inventory_file_sha256 != expected_inventory_sha256:
+        raise ReleaseGateError(
+            "attestation hash inventory differs from generated bytes"
+        )
+    require_expected_inventory(
+        actual=reverified_top,
+        expected=expected_top_level_hashes,
+        label="generated attestation output after inventory publication",
+    )
+    reverified_validation = bound_regular_file_inventory(
+        validation_directory,
+        expected_names=expected_validation_hashes,
+    )
+    require_expected_inventory(
+        actual=reverified_validation,
+        expected=expected_validation_hashes,
+        label="validation evidence after inventory publication",
+    )
+    inventory["attestation_sha256_inventory.json"] = inventory_file_sha256
     return inventory
 
 
@@ -3539,17 +4275,9 @@ def candidate_control_path(repo: Path, value: str, *, label: str) -> Path:
         raise ReleaseGateError(f"{label} escapes or is missing from candidate") from exc
     if not resolved.is_file():
         raise ReleaseGateError(f"{label} is not a candidate file")
-    tracked = _run(
-        (
-            "git",
-            "-C",
-            str(repo),
-            "ls-files",
-            "--error-unmatch",
-            "--",
-            tracked_relative,
-        ),
-        cwd=repo,
+    tracked = _git_run(
+        repo,
+        ("ls-files", "--error-unmatch", "--", tracked_relative),
         check=False,
     )
     if tracked.returncode:
@@ -3621,6 +4349,7 @@ def validate_gate_paths(
         raise ReleaseGateError("scratch root must not be inside attestation output")
     parent_stat = output_parent.stat()
     output_stat = output.stat() if output.exists() else None
+    scratch_stat = scratch.stat()
     authorization = GatePathAuthorization(
         output_dir=output,
         output_parent=output_parent,
@@ -3629,8 +4358,71 @@ def validate_gate_paths(
         output_existed=output_stat is not None,
         output_device=output_stat.st_dev if output_stat else None,
         output_inode=output_stat.st_ino if output_stat else None,
+        scratch_dir=scratch,
+        scratch_device=scratch_stat.st_dev,
+        scratch_inode=scratch_stat.st_ino,
     )
     return output, scratch, authorization
+
+
+def bind_authorized_scratch(
+    authorization: GatePathAuthorization,
+) -> BoundDirectory:
+    """Rebind the exact scratch directory authorised during path preflight."""
+    if (
+        authorization.scratch_dir is None
+        or authorization.scratch_device is None
+        or authorization.scratch_inode is None
+    ):
+        raise ReleaseGateError("scratch directory identity was not authorised")
+    try:
+        bound = bind_existing_directory(authorization.scratch_dir)
+    except (OSError, ReleaseGateError) as exc:
+        raise ReleaseGateError(
+            "authorised scratch directory identity changed"
+        ) from exc
+    if (
+        bound.device != authorization.scratch_device
+        or bound.inode != authorization.scratch_inode
+    ):
+        raise ReleaseGateError("authorised scratch directory identity changed")
+    return bound
+
+
+def rename_noreplace_at(
+    source_directory_fd: int,
+    source_name: str,
+    destination_directory_fd: int,
+    destination_name: str,
+) -> None:
+    """Atomically rename a basename while refusing an existing destination."""
+    library = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(library, "renameat2", None)
+    if renameat2 is None:
+        raise ReleaseGateError(
+            "renameat2(RENAME_NOREPLACE) is required for output materialization"
+        )
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    result = renameat2(
+        source_directory_fd,
+        os.fsencode(source_name),
+        destination_directory_fd,
+        os.fsencode(destination_name),
+        1,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        raise ReleaseGateError(
+            "cannot atomically claim authorised attestation output: "
+            + os.strerror(error_number)
+        )
 
 
 def materialize_gate_output(
@@ -3644,6 +4436,7 @@ def materialize_gate_output(
         os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
     )
     output_fd: int | None = None
+    temporary_name: str | None = None
     try:
         parent_stat = os.fstat(parent_fd)
         if (parent_stat.st_dev, parent_stat.st_ino) != (
@@ -3652,19 +4445,62 @@ def materialize_gate_output(
         ):
             raise ReleaseGateError("attestation output parent identity changed")
         if not authorization.output_existed:
+            temporary_name = (
+                f".mrs-release-gate-output-{os.getpid()}-"
+                f"{secrets.token_hex(12)}"
+            )
             try:
-                os.mkdir(output.name, mode=0o700, dir_fd=parent_fd)
+                os.mkdir(temporary_name, mode=0o700, dir_fd=parent_fd)
+                output_fd = os.open(
+                    temporary_name,
+                    os.O_RDONLY
+                    | os.O_DIRECTORY
+                    | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=parent_fd,
+                )
+                rename_noreplace_at(
+                    parent_fd,
+                    temporary_name,
+                    parent_fd,
+                    output.name,
+                )
+                temporary_name = None
             except OSError as exc:
                 raise ReleaseGateError(
                     f"cannot create authorised attestation output: {exc}"
                 ) from exc
-        output_fd = os.open(
-            output.name,
-            os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
-            dir_fd=parent_fd,
-        )
-        os.fchmod(output_fd, 0o700)
+        else:
+            output_fd = os.open(
+                output.name,
+                os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_fd,
+            )
         output_stat = os.fstat(output_fd)
+        if authorization.output_existed and (
+            output_stat.st_dev != authorization.output_device
+            or output_stat.st_ino != authorization.output_inode
+        ):
+            raise ReleaseGateError(
+                "authorised attestation output identity changed while binding"
+            )
+        path_stat = os.stat(
+            output.name, dir_fd=parent_fd, follow_symlinks=False
+        )
+        if (
+            not stat.S_ISDIR(path_stat.st_mode)
+            or path_stat.st_dev != output_stat.st_dev
+            or path_stat.st_ino != output_stat.st_ino
+        ):
+            raise ReleaseGateError(
+                "authorised attestation output changed while materializing"
+            )
+        unexpected = sorted(os.listdir(output_fd))
+        if unexpected:
+            raise ReleaseGateError(
+                "authorised attestation output is no longer empty: "
+                + ", ".join(unexpected[:10])
+            )
+        os.fchmod(output_fd, 0o700)
         os.fsync(output_fd)
         os.fsync(parent_fd)
     except OSError as exc:
@@ -3674,6 +4510,9 @@ def materialize_gate_output(
     finally:
         if output_fd is not None:
             os.close(output_fd)
+        if temporary_name is not None:
+            with contextlib.suppress(OSError):
+                os.rmdir(temporary_name, dir_fd=parent_fd)
         os.close(parent_fd)
     materialized = dataclasses.replace(
         authorization,
@@ -3744,6 +4583,7 @@ def run_gate(args: argparse.Namespace) -> int:
     )
     path_authorization = materialize_gate_output(path_authorization)
     args._gate_path_authorization = path_authorization
+    scratch_directory = bind_authorized_scratch(path_authorization)
     output_directory = bind_existing_directory(output_dir)
     if (
         output_directory.device != path_authorization.output_device
@@ -3762,6 +4602,10 @@ def run_gate(args: argparse.Namespace) -> int:
         )
     started_at = dt.datetime.now(dt.timezone.utc)
     with integration_lock(repo):
+        common_directory = git_common_dir(repo)
+        git_common_identity_before = recursive_metadata_identity(
+            common_directory
+        )
         registry_path = candidate_control_path(
             repo, args.registry, label="invariant registry"
         )
@@ -3839,11 +4683,9 @@ def run_gate(args: argparse.Namespace) -> int:
             dict.fromkeys(path.parent for path in unit_paths)
         )
         immutable_evidence_paths = (
+            repo,
+            common_directory,
             diagnosis_source,
-            registry_path,
-            ledger_path,
-            measurements_path,
-            corrected_diagnosis_path,
             output_dir,
             *unit_protection_paths,
         )
@@ -3923,7 +4765,7 @@ def run_gate(args: argparse.Namespace) -> int:
             checkout_context = contextlib.nullcontext(repo)
         else:
             checkout_context = detached_candidate_worktree(
-                repo, candidate_commit, scratch_root
+                repo, candidate_commit, scratch_directory
             )
         checkout_reverification_count = 0
         detached_checkout_identity_verified = False
@@ -3976,6 +4818,10 @@ def run_gate(args: argparse.Namespace) -> int:
                     "additional_protected_paths_read_only",
                     "installed_service_unit_read_only",
                     "user_service_control_sockets_blocked",
+                    "pathname_unix_socket_creation_denied",
+                    "unix_socketpair_creation_denied",
+                    "unix_socket_high_bits_alias_denied",
+                    "io_uring_setup_denied",
                     "effective_capabilities_dropped",
                     "no_new_privileges",
                     "read_only_remount_denied_after_capability_drop",
@@ -3989,12 +4835,12 @@ def run_gate(args: argparse.Namespace) -> int:
             sealed_evidence: dict[Path, str] = {}
             for index, command in enumerate(commands, start=1):
                 label = f"focused-{index:03d}"
-                focused.append(
-                    execute_validation(
+                try:
+                    validation_result = execute_validation(
                         command,
                         cwd=checkout,
                         evidence_directory=validation_directory,
-                        workspace_root=scratch_root,
+                        workspace_root=scratch_directory,
                         label=label,
                         network_isolated=bool(network["available"]),
                         production_root=production_root,
@@ -4005,7 +4851,13 @@ def run_gate(args: argparse.Namespace) -> int:
                         toolchain=toolchain_before,
                         env=validation_env,
                     )
-                )
+                except ValidationCaptureError as exc:
+                    args._gate_partial_validation_results = [
+                        *(item.receipt_dict() for item in focused),
+                        exc.partial_result,
+                    ]
+                    raise
+                focused.append(validation_result)
                 args._gate_partial_validation_results = [
                     item.receipt_dict() for item in focused
                 ]
@@ -4060,21 +4912,28 @@ def run_gate(args: argparse.Namespace) -> int:
                     raise ReleaseGateError(
                         "complete release suite requires an exact committed candidate"
                     )
-                full = execute_validation(
-                    full_suite_command(args.workers),
-                    cwd=checkout,
-                    evidence_directory=validation_directory,
-                    workspace_root=scratch_root,
-                    label="complete-suite",
-                    network_isolated=True,
-                    production_root=production_root,
-                    candidate_root=checkout,
-                    dependency_roots=dependency_roots,
-                    additional_read_only_paths=immutable_evidence_paths,
-                    blocked_unix_sockets=blocked_control_sockets,
-                    toolchain=toolchain_before,
-                    env=validation_env,
-                )
+                try:
+                    full = execute_validation(
+                        full_suite_command(args.workers),
+                        cwd=checkout,
+                        evidence_directory=validation_directory,
+                        workspace_root=scratch_directory,
+                        label="complete-suite",
+                        network_isolated=True,
+                        production_root=production_root,
+                        candidate_root=checkout,
+                        dependency_roots=dependency_roots,
+                        additional_read_only_paths=immutable_evidence_paths,
+                        blocked_unix_sockets=blocked_control_sockets,
+                        toolchain=toolchain_before,
+                        env=validation_env,
+                    )
+                except ValidationCaptureError as exc:
+                    args._gate_partial_validation_results = [
+                        *(item.receipt_dict() for item in focused),
+                        exc.partial_result,
+                    ]
+                    raise
                 args._gate_partial_validation_results = [
                     *(item.receipt_dict() for item in focused),
                     full.receipt_dict(),
@@ -4128,6 +4987,7 @@ def run_gate(args: argparse.Namespace) -> int:
             detached_checkout_identity_verified = not args.development_dry_run
 
         assert_validation_evidence_unchanged(sealed_evidence)
+        assert_bound_directory(scratch_directory)
         assert_stable_file(
             diagnosis_source,
             expected_bytes=diagnosis_bytes,
@@ -4214,18 +5074,17 @@ def run_gate(args: argparse.Namespace) -> int:
             deployed_checks=unmet_deployed_checks(invariants),
             scope=scope,
         )
-        diff = _run(
-            (
-                "git",
-                "-C",
-                str(repo),
-                "diff",
-                "--binary",
-                base_commit,
-                candidate_commit,
-            ),
-            cwd=repo,
+        diff = _git_run(
+            repo,
+            ("diff", "--binary", base_commit, candidate_commit),
         ).stdout
+        git_common_identity_after = recursive_metadata_identity(
+            common_directory
+        )
+        if git_common_identity_before != git_common_identity_after:
+            raise ReleaseGateError(
+                "shared Git metadata changed while validation was running"
+            )
         receipt = {
             "schema_version": 1,
             "started_at_utc": started_at.isoformat().replace("+00:00", "Z"),
@@ -4240,9 +5099,14 @@ def run_gate(args: argparse.Namespace) -> int:
             },
             "repository": str(repo),
             "output_directory": str(output_dir),
-            "integration_lock": str(
-                git_common_dir(repo) / "mrsMThatcher.release-gate.lock"
-            ),
+            "integration_lock": {
+                "path": str(common_directory),
+                "mechanism": "exclusive-read-only-directory-flock",
+                "git_metadata_write": False,
+                "metadata_identity_before": git_common_identity_before,
+                "metadata_identity_after": git_common_identity_after,
+                "metadata_identity_unchanged": True,
+            },
             "focused_validation": [item.receipt_dict() for item in focused],
             "complete_suite_validation": (
                 None if full is None else full.receipt_dict()
@@ -4277,8 +5141,14 @@ def run_gate(args: argparse.Namespace) -> int:
             "procedural_notes": list(args.procedural_note),
         }
         assert_gate_output_authorized(output_dir, path_authorization)
+        assert_bound_directory(scratch_directory)
         assert_bound_directory(output_directory)
         assert_bound_directory(validation_directory)
+        assert_validation_directory_exact(
+            validation_directory,
+            focused=focused,
+            full=full,
+        )
         assert_validation_evidence_unchanged(sealed_evidence)
         assert_stable_file(
             diagnosis_source,
@@ -4288,6 +5158,7 @@ def run_gate(args: argparse.Namespace) -> int:
         inventory = emit_outputs(
             output_dir=output_dir,
             output_directory=output_directory,
+            validation_directory=validation_directory,
             semantic=semantic,
             receipt=receipt,
             registry=registry,
@@ -4303,6 +5174,13 @@ def run_gate(args: argparse.Namespace) -> int:
             source_diagnosis_path=args.source_diagnosis_path,
             source_diagnosis_sha256=args.source_diagnosis_sha256,
             source_diagnosis_bytes=diagnosis_bytes,
+            expected_validation_hashes={
+                path.name: digest
+                for path, digest in sorted(
+                    sealed_evidence.items(),
+                    key=lambda item: item[0].name,
+                )
+            },
         )
         print(json.dumps({"output_dir": str(output_dir), "files": inventory}, indent=2))
         return 0
@@ -4411,7 +5289,10 @@ def emit_failure_receipt(
                 args, "_gate_partial_validation_results", []
             )
             if isinstance(item, Mapping)
-            and int(item.get("exit_status", 0)) != 0
+            and (
+                int(item.get("exit_status", 0)) != 0
+                or bool(item.get("junit_capture_error"))
+            )
         ],
         "partial_validation_file_hashes": _validation_hash_inventory(output_dir),
     }

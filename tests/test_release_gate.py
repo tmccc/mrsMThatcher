@@ -8,6 +8,7 @@ import hashlib
 import json
 import multiprocessing
 import os
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -364,10 +365,15 @@ def test_registry_enforcement_command_and_environment_prefix_are_shell_free() ->
 
 def test_integration_lock_contention_fails_closed(tmp_path: Path) -> None:
     repo = _git_repo(tmp_path)
+    common = release_gate.git_common_dir(repo)
+    before = release_gate.recursive_metadata_identity(common)
     with release_gate.integration_lock(repo):
+        assert release_gate.recursive_metadata_identity(common) == before
         with pytest.raises(release_gate.ReleaseGateError, match="already held"):
             with release_gate.integration_lock(repo):
                 raise AssertionError("unreachable")
+    assert release_gate.recursive_metadata_identity(common) == before
+    assert not (common / "mrsMThatcher.release-gate.lock").exists()
 
 
 def test_runtime_python_discovery_follows_local_imports(tmp_path: Path) -> None:
@@ -669,6 +675,20 @@ def test_namespace_wrapper_preserves_arguments_without_shell_interpolation() -> 
     )
 
 
+def test_command_runner_never_inherits_stdin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(["true"], 0, b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    release_gate._run(("true",), cwd=tmp_path)
+    assert observed["stdin"] is subprocess.DEVNULL
+
+
 def test_containment_wrapper_binds_production_root_read_only(tmp_path: Path) -> None:
     dependency = tmp_path / "dependencies"
     dependency.mkdir()
@@ -714,6 +734,10 @@ def test_real_containment_denies_candidate_and_git_mutation(
     assert result["validation_dependency_roots_read_only"] is True
     assert result["additional_protected_paths_read_only"] is True
     assert result["user_service_control_sockets_blocked"] is True
+    assert result["pathname_unix_socket_creation_denied"] is True
+    assert result["unix_socketpair_creation_denied"] is True
+    assert result["unix_socket_high_bits_alias_denied"] is True
+    assert result["io_uring_setup_denied"] is True
     assert result["blocked_unix_socket_paths"] == [
         str(path) for path in sockets
     ]
@@ -723,6 +747,76 @@ def test_real_containment_denies_candidate_and_git_mutation(
     assert not any(repo.glob(".mrs-release-gate-readonly-probe-*"))
     assert not any(production.glob(".mrs-release-gate-readonly-probe-*"))
     assert not any(dependency.glob(".mrs-release-gate-readonly-probe-*"))
+
+
+def test_containment_denies_all_host_unix_socket_connections(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    socket_path = tmp_path / "harmless-host-control.sock"
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        listener.bind(str(socket_path))
+        listener.listen(1)
+        listener.settimeout(0.2)
+        script = (
+            "import errno,socket,sys\n"
+            "try:\n"
+            " client=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+            "except OSError as exc:\n"
+            " if exc.errno != errno.EPERM: raise SystemExit(92)\n"
+            " try:\n"
+            "  socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+            " except OSError as pair_exc:\n"
+            "  raise SystemExit(0 if pair_exc.errno == errno.EPERM else 93)\n"
+            " raise SystemExit(94)\n"
+            "client.connect(sys.argv[1])\n"
+            "raise SystemExit(91)\n"
+        )
+        command = release_gate.containment_namespace_command(
+            (sys.executable, "-c", script, str(socket_path)),
+            candidate_root=repo,
+        )
+        result = release_gate._run(
+            command, cwd=repo, check=False, timeout=10
+        )
+        if result.returncode in {1, 75} and b"Operation not permitted" in result.stdout:
+            pytest.skip("OS containment unavailable on this test host")
+        assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
+        with pytest.raises(TimeoutError):
+            listener.accept()
+    finally:
+        listener.close()
+        socket_path.unlink(missing_ok=True)
+
+
+def test_containment_makes_distinct_source_worktree_read_only(
+    tmp_path: Path,
+) -> None:
+    candidate = _git_repo(tmp_path)
+    source = tmp_path / "source-worktree"
+    source.mkdir()
+    protected = source / "tools.py"
+    protected.write_text("VALUE = 1\n", encoding="utf-8")
+    script = (
+        "import errno,os,sys\n"
+        "try:\n"
+        " descriptor=os.open(sys.argv[1],os.O_WRONLY)\n"
+        "except OSError as exc:\n"
+        " raise SystemExit(0 if exc.errno in {errno.EROFS,errno.EACCES} else 92)\n"
+        "os.close(descriptor)\n"
+        "raise SystemExit(91)\n"
+    )
+    command = release_gate.containment_namespace_command(
+        (sys.executable, "-c", script, str(protected)),
+        candidate_root=candidate,
+        additional_read_only_paths=(source,),
+    )
+    result = release_gate._run(command, cwd=candidate, check=False, timeout=10)
+    if result.returncode in {1, 75} and b"Operation not permitted" in result.stdout:
+        pytest.skip("OS containment unavailable on this test host")
+    assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
+    assert protected.read_text(encoding="utf-8") == "VALUE = 1\n"
 
 
 def test_validation_environment_does_not_inherit_credentials(
@@ -780,6 +874,13 @@ def test_validation_toolchain_is_versioned_and_content_bound() -> None:
     } == {"pytest", "_pytest", "xdist", "jsonschema"}
     assert toolchain.python_paths
     assert set(toolchain.python_paths) <= set(toolchain.protected_paths)
+    containment = semantic["os_containment_dependencies"]
+    assert len(containment) == 1
+    assert containment[0]["purpose"].startswith("deny AF_UNIX")
+    seccomp_path = release_gate.seccomp_library_path()
+    assert containment[0]["path"] == str(seccomp_path)
+    assert containment[0]["sha256"] == release_gate.sha256_file(seccomp_path)
+    assert str(seccomp_path) in toolchain.protected_paths
 
 
 def test_deterministic_semantic_attestation_is_byte_identical() -> None:
@@ -822,6 +923,10 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
             "additional_protected_paths_read_only": True,
             "installed_service_unit_read_only": True,
             "user_service_control_sockets_blocked": True,
+            "pathname_unix_socket_creation_denied": True,
+            "unix_socketpair_creation_denied": True,
+            "unix_socket_high_bits_alias_denied": True,
+            "io_uring_setup_denied": True,
             "effective_capabilities_dropped": True,
             "no_new_privileges": True,
             "read_only_remount_denied_after_capability_drop": True,
@@ -881,6 +986,34 @@ def test_validation_result_binds_output_and_junit_hashes() -> None:
     assert "output_sha256" not in result.semantic_dict()
     assert result.receipt_dict()["output_sha256"] == "a" * 64
     assert result.receipt_dict()["junit_sha256"] == "b" * 64
+
+
+def test_warning_count_ignores_unbounded_candidate_controlled_integer() -> None:
+    assert release_gate._warning_count(b"12 warnings") == 12
+    assert release_gate._warning_count(b"9" * 5000 + b" warnings") == 0
+
+
+def test_pytest_junit_counts_require_real_reconciled_testcases() -> None:
+    payload = (
+        b'<testsuite tests="3" failures="1" errors="0" skipped="1">'
+        b'<testcase name="passed"/>'
+        b'<testcase name="failed"><failure/></testcase>'
+        b'<testcase name="skipped"><skipped/></testcase>'
+        b"</testsuite>"
+    )
+    assert release_gate._pytest_counts_bytes(payload) == (1, 1, 0, 1)
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="testcase outcomes differ"
+    ):
+        release_gate._pytest_counts_bytes(
+            payload.replace(b'failures="1"', b'failures="0"')
+        )
+    with pytest.raises(release_gate.ReleaseGateError, match="no test passed"):
+        release_gate._pytest_counts_bytes(
+            b'<testsuite tests="1" failures="0" errors="0" skipped="1">'
+            b'<testcase name="skipped"><skipped/></testcase>'
+            b"</testsuite>"
+        )
 
 
 @pytest.mark.parametrize(
@@ -973,14 +1106,24 @@ def test_detached_candidate_worktree_is_exact_and_removed(tmp_path: Path) -> Non
     repo = _git_repo(tmp_path)
     commit = _run(["git", "rev-parse", "HEAD"], repo)
     scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    common = release_gate.git_common_dir(repo)
+    common_before = release_gate.recursive_metadata_identity(common)
+    worktrees_before = _run(["git", "worktree", "list", "--porcelain"], repo)
     with release_gate.detached_candidate_worktree(repo, commit, scratch) as checkout:
         assert _run(["git", "rev-parse", "HEAD"], checkout) == commit
         assert _run(["git", "status", "--porcelain"], checkout) == ""
+        assert release_gate.git_common_dir(checkout) != common
+        assert _run(["git", "worktree", "list", "--porcelain"], repo) == (
+            worktrees_before
+        )
+        assert release_gate.recursive_metadata_identity(common) == common_before
         remembered = checkout
     assert not remembered.exists()
-    assert remembered.as_posix() not in _run(
-        ["git", "worktree", "list", "--porcelain"], repo
+    assert _run(["git", "worktree", "list", "--porcelain"], repo) == (
+        worktrees_before
     )
+    assert release_gate.recursive_metadata_identity(common) == common_before
 
 
 def test_detached_candidate_reverification_rejects_tracked_mutation(
@@ -988,8 +1131,10 @@ def test_detached_candidate_reverification_rejects_tracked_mutation(
 ) -> None:
     repo = _git_repo(tmp_path)
     commit = _run(["git", "rev-parse", "HEAD"], repo)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
     with release_gate.detached_candidate_worktree(
-        repo, commit, tmp_path / "scratch"
+        repo, commit, scratch
     ) as checkout:
         before, bindings, unresolved = release_gate.take_snapshot(checkout)
         release_gate.assert_candidate_checkout_unchanged(
@@ -1013,6 +1158,77 @@ def test_detached_candidate_reverification_rejects_tracked_mutation(
             )
 
 
+def test_detached_checkout_ignores_inherited_git_hooks_and_filters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _git_repo(tmp_path)
+    (repo / ".gitattributes").write_text(
+        "*.py filter=release-gate-evil\n", encoding="utf-8"
+    )
+    _run(["git", "add", ".gitattributes"], repo)
+    _run(["git", "commit", "-qm", "filter fixture"], repo)
+    commit = _run(["git", "rev-parse", "HEAD"], repo)
+    marker = tmp_path / "git-config-executed"
+    filter_program = tmp_path / "filter.sh"
+    filter_program.write_text(
+        f"#!/bin/sh\nprintf hit >> {marker}\ncat\n",
+        encoding="utf-8",
+    )
+    filter_program.chmod(0o700)
+    template = tmp_path / "template"
+    hooks = template / "hooks"
+    hooks.mkdir(parents=True)
+    post_checkout = hooks / "post-checkout"
+    post_checkout.write_text(
+        f"#!/bin/sh\nprintf hook >> {marker}\n", encoding="utf-8"
+    )
+    post_checkout.chmod(0o700)
+    global_config = tmp_path / "malicious.gitconfig"
+    global_config.write_text(
+        "[init]\n"
+        f"\ttemplateDir = {template}\n"
+        '[filter "release-gate-evil"]\n'
+        f"\tsmudge = {filter_program}\n"
+        f"\tclean = {filter_program}\n"
+        "\trequired = true\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
+    monkeypatch.setenv("GIT_TEMPLATE_DIR", str(template))
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "wrong-git-dir"))
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    with release_gate.detached_candidate_worktree(
+        repo, commit, scratch
+    ) as checkout:
+        assert release_gate._git(checkout, "rev-parse", "HEAD") == commit
+        assert (checkout / ".gitattributes").is_file()
+    assert not marker.exists()
+
+
+def test_independent_checkout_does_not_mutate_linked_source_common_dir(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    linked = tmp_path / "linked-source"
+    _run(["git", "worktree", "add", "--detach", str(linked), "HEAD"], repo)
+    commit = _run(["git", "rev-parse", "HEAD"], linked)
+    common = release_gate.git_common_dir(linked)
+    before = release_gate.recursive_metadata_identity(common)
+    worktrees_before = _run(["git", "worktree", "list", "--porcelain"], repo)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    with release_gate.detached_candidate_worktree(
+        linked, commit, scratch
+    ) as checkout:
+        assert release_gate._git(checkout, "rev-parse", "HEAD") == commit
+        assert release_gate.recursive_metadata_identity(common) == before
+    assert release_gate.recursive_metadata_identity(common) == before
+    assert _run(["git", "worktree", "list", "--porcelain"], repo) == (
+        worktrees_before
+    )
+
+
 def test_changed_paths_are_bound_to_explicit_base(tmp_path: Path) -> None:
     repo = _git_repo(tmp_path)
     base = _run(["git", "rev-parse", "HEAD"], repo)
@@ -1020,6 +1236,23 @@ def test_changed_paths_are_bound_to_explicit_base(tmp_path: Path) -> None:
     _run(["git", "add", "helper.py"], repo)
     _run(["git", "commit", "-qm", "change"], repo)
     candidate = _run(["git", "rev-parse", "HEAD"], repo)
+    assert release_gate.changed_paths(repo, base, candidate) == ("helper.py",)
+
+
+def test_changed_paths_ignores_hostile_inherited_git_redirection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _git_repo(tmp_path)
+    base = _run(["git", "rev-parse", "HEAD"], repo)
+    (repo / "helper.py").write_text("VALUE = 2\n", encoding="utf-8")
+    _run(["git", "add", "helper.py"], repo)
+    _run(["git", "commit", "-qm", "change"], repo)
+    candidate = _run(["git", "rev-parse", "HEAD"], repo)
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "wrong-git-dir"))
+    monkeypatch.setenv("GIT_OBJECT_DIRECTORY", str(tmp_path / "wrong-objects"))
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.fsmonitor")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "/bin/false")
     assert release_gate.changed_paths(repo, base, candidate) == ("helper.py",)
 
 
@@ -1294,6 +1527,9 @@ def test_emit_outputs_includes_required_priority0_deliverables(
     inventory = release_gate.emit_outputs(
         output_dir=output,
         output_directory=release_gate.bind_existing_directory(output),
+        validation_directory=release_gate.bind_existing_directory(
+            output / "validation"
+        ),
         semantic=semantic,
         receipt=receipt,
         registry=registry,
@@ -1309,6 +1545,11 @@ def test_emit_outputs_includes_required_priority0_deliverables(
         source_diagnosis_path="/evidence/diagnosis.md",
         source_diagnosis_sha256=diagnosis_sha256,
         source_diagnosis_bytes=diagnosis_bytes,
+        expected_validation_hashes={
+            "focused-001.output.txt": release_gate.sha256_file(
+                output / "validation" / "focused-001.output.txt"
+            )
+        },
     )
     assert "priority0_consolidation_report.md" in inventory
     assert "priority0_consolidation_final_validation.json" in inventory
@@ -1339,6 +1580,26 @@ def test_emit_outputs_includes_required_priority0_deliverables(
     assert review["corrected_candidate_diagnosis"]["path"] == (
         "why_code_reviews_continue_to_find_major_problems.md"
     )
+    actual_files = {
+        path.relative_to(output).as_posix()
+        for path in output.rglob("*")
+        if path.is_file()
+    }
+    assert set(inventory) == actual_files
+    assert all(
+        release_gate.sha256_file(output / relative) == digest
+        for relative, digest in inventory.items()
+    )
+    inventory_document = json.loads(
+        (output / "attestation_sha256_inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert inventory_document["files"] == {
+        key: value
+        for key, value in inventory.items()
+        if key != "attestation_sha256_inventory.json"
+    }
 
 
 def test_failed_gate_preserves_bounded_failure_receipt(tmp_path: Path) -> None:
@@ -1364,6 +1625,16 @@ def test_failed_gate_preserves_bounded_failure_receipt(tmp_path: Path) -> None:
                 "failed": 1,
                 "errors": 0,
                 "skipped": 0,
+            },
+            {
+                "label": "focused-002",
+                "command": ["python3", "-m", "pytest", "-q", "tests/test_y.py"],
+                "exit_status": 0,
+                "passed": None,
+                "failed": None,
+                "errors": None,
+                "skipped": None,
+                "junit_capture_error": "missing JUnit",
             }
         ],
     )
@@ -1393,7 +1664,17 @@ def test_failed_gate_preserves_bounded_failure_receipt(tmp_path: Path) -> None:
             "failed": 1,
             "errors": 0,
             "skipped": 0,
-        }
+        },
+        {
+            "label": "focused-002",
+            "command": ["python3", "-m", "pytest", "-q", "tests/test_y.py"],
+            "exit_status": 0,
+            "passed": None,
+            "failed": None,
+            "errors": None,
+            "skipped": None,
+            "junit_capture_error": "missing JUnit",
+        },
     ]
     assert receipt["partial_validation_file_hashes"] == {
         "validation/focused-001.output.txt": release_gate.sha256_file(evidence)
@@ -1555,6 +1836,24 @@ def test_validation_evidence_hashes_detect_later_mutation(
         release_gate.assert_validation_evidence_unchanged(evidence)
 
 
+@pytest.mark.parametrize(
+    "label",
+    ("validation evidence", "generated attestation output"),
+)
+def test_pre_emission_expected_inventory_rejects_replacement(
+    label: str,
+) -> None:
+    with pytest.raises(
+        release_gate.ReleaseGateError,
+        match="pre-emission expected hashes",
+    ):
+        release_gate.require_expected_inventory(
+            actual={"result.json": "a" * 64},
+            expected={"result.json": "b" * 64},
+            label=label,
+        )
+
+
 def test_gate_paths_reject_protected_overlap_and_allow_sibling_output(
     tmp_path: Path,
 ) -> None:
@@ -1613,6 +1912,38 @@ def test_gate_paths_reject_protected_overlap_and_allow_sibling_output(
             production_root=production,
             dependency_roots=(dependency,),
         )
+
+
+def test_authorized_scratch_rejects_replacement_and_dirfd_creation_does_not_redirect(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    production = tmp_path / "production"
+    production.mkdir()
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    output = tmp_path / "attestation"
+    _resolved, _scratch, authorization = release_gate.validate_gate_paths(
+        repo=repo,
+        output_argument=output,
+        scratch_argument=scratch,
+        production_root=production,
+        dependency_roots=(),
+    )
+    bound = release_gate.bind_authorized_scratch(authorization)
+    moved = tmp_path / "scratch-original"
+    scratch.rename(moved)
+    scratch.symlink_to(production, target_is_directory=True)
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="scratch directory identity"
+    ):
+        release_gate.bind_authorized_scratch(authorization)
+    with pytest.raises(release_gate.ReleaseGateError):
+        release_gate.materialize_bound_temporary_subdirectory(
+            bound, "validation-"
+        )
+    assert not any(production.iterdir())
+    assert not any(moved.iterdir())
 
 
 def test_source_diagnosis_stable_read_detects_identity_or_content_drift(
@@ -1702,6 +2033,169 @@ def test_materialized_output_identity_rejects_removal_and_replacement(
         release_gate.assert_gate_output_authorized(output, authorization)
 
 
+def test_materialized_output_rechecks_identity_and_emptiness_through_fd(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    production = tmp_path / "production"
+    production.mkdir()
+    output = tmp_path / "attestation"
+    output.mkdir()
+    _resolved, _scratch, authorization = release_gate.validate_gate_paths(
+        repo=repo,
+        output_argument=output,
+        scratch_argument=tmp_path,
+        production_root=production,
+        dependency_roots=(),
+    )
+    (output / "foreign.txt").write_text("injected\n", encoding="utf-8")
+    mode_before = output.stat().st_mode
+    with pytest.raises(release_gate.ReleaseGateError, match="no longer empty"):
+        release_gate.materialize_gate_output(authorization)
+    assert output.stat().st_mode == mode_before
+    assert (output / "foreign.txt").read_text(encoding="utf-8") == "injected\n"
+
+    (output / "foreign.txt").unlink()
+    original = tmp_path / "original-attestation"
+    output.rename(original)
+    output.mkdir()
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="identity changed"
+    ):
+        release_gate.materialize_gate_output(authorization)
+
+
+def test_materialized_output_does_not_replace_concurrent_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _git_repo(tmp_path)
+    production = tmp_path / "production"
+    production.mkdir()
+    output = tmp_path / "attestation"
+    _resolved, _scratch, authorization = release_gate.validate_gate_paths(
+        repo=repo,
+        output_argument=output,
+        scratch_argument=tmp_path,
+        production_root=production,
+        dependency_roots=(),
+    )
+    original = release_gate.rename_noreplace_at
+    competitor_identity: tuple[int, int] | None = None
+
+    def race(
+        source_fd: int, source: str, destination_fd: int, destination: str
+    ) -> None:
+        nonlocal competitor_identity
+        output.mkdir()
+        identity = output.stat()
+        competitor_identity = (identity.st_dev, identity.st_ino)
+        original(source_fd, source, destination_fd, destination)
+
+    monkeypatch.setattr(release_gate, "rename_noreplace_at", race)
+    with pytest.raises(release_gate.ReleaseGateError, match="exists"):
+        release_gate.materialize_gate_output(authorization)
+    assert output.is_dir()
+    current = output.stat()
+    assert competitor_identity == (current.st_dev, current.st_ino)
+    assert not any(
+        path.name.startswith(".mrs-release-gate-output-")
+        for path in tmp_path.iterdir()
+    )
+
+
+def test_materialized_existing_output_rejects_open_time_identity_swap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _git_repo(tmp_path)
+    production = tmp_path / "production"
+    production.mkdir()
+    output = tmp_path / "attestation"
+    output.mkdir(mode=0o750)
+    _resolved, _scratch, authorization = release_gate.validate_gate_paths(
+        repo=repo,
+        output_argument=output,
+        scratch_argument=tmp_path,
+        production_root=production,
+        dependency_roots=(),
+    )
+    original_open = os.open
+    moved = tmp_path / "attestation-original"
+    replacement_identity: tuple[int, int, int] | None = None
+    raced = False
+
+    def swap_before_child_open(
+        path: object,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal raced, replacement_identity
+        if path == output.name and dir_fd is not None and not raced:
+            raced = True
+            output.rename(moved)
+            output.mkdir(mode=0o711)
+            identity = output.stat()
+            replacement_identity = (
+                identity.st_dev,
+                identity.st_ino,
+                identity.st_mode,
+            )
+        if dir_fd is None:
+            return original_open(path, flags, mode)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", swap_before_child_open)
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="identity changed while binding"
+    ):
+        release_gate.materialize_gate_output(authorization)
+    current = output.stat()
+    assert replacement_identity == (
+        current.st_dev,
+        current.st_ino,
+        current.st_mode,
+    )
+
+
+def test_validation_directory_rejects_foreign_and_nonregular_entries(
+    tmp_path: Path,
+) -> None:
+    validation = tmp_path / "validation"
+    validation.mkdir()
+    output = validation / "focused-001.output.txt"
+    output.write_text("ok\n", encoding="utf-8")
+    result = release_gate.ValidationResult(
+        command=("python3", "-m", "compileall"),
+        exit_status=0,
+        passed=1,
+        failed=0,
+        errors=0,
+        skipped=0,
+        warnings=0,
+        output_sha256=release_gate.sha256_file(output),
+        duration_seconds=0,
+    )
+    bound = release_gate.bind_existing_directory(validation)
+    release_gate.assert_validation_directory_exact(
+        bound, focused=(result,), full=None
+    )
+    (validation / "foreign.txt").write_text("unexpected\n", encoding="utf-8")
+    with pytest.raises(release_gate.ReleaseGateError, match="unexpected entries"):
+        release_gate.assert_validation_directory_exact(
+            bound, focused=(result,), full=None
+        )
+    (validation / "foreign.txt").unlink()
+    output.unlink()
+    output.symlink_to(tmp_path / "missing")
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="not a regular file"
+    ):
+        release_gate.assert_validation_directory_exact(
+            bound, focused=(result,), full=None
+        )
+
+
 def test_bound_directory_write_does_not_follow_replaced_path(
     tmp_path: Path,
 ) -> None:
@@ -1761,6 +2255,123 @@ def test_execute_validation_rejects_staging_path_replacement_before_publish(
         )
     assert not (evidence / "focused-001.output.txt").exists()
     assert not (output / "result.junit.xml").exists()
+
+
+def test_validation_home_creation_uses_bound_staging_descriptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    redirected = tmp_path / "redirected"
+    redirected.mkdir()
+    original = release_gate.materialize_bound_subdirectory_at
+    moved_staging: Path | None = None
+
+    def replace_staging(
+        parent: release_gate.BoundDirectory, parent_fd: int, name: str
+    ) -> release_gate.BoundDirectory:
+        nonlocal moved_staging
+        if name != "home":
+            return original(parent, parent_fd, name)
+        moved = workspace / f"{parent.path.name}-moved"
+        parent.path.rename(moved)
+        parent.path.symlink_to(redirected, target_is_directory=True)
+        moved_staging = moved
+        return original(parent, parent_fd, name)
+
+    monkeypatch.setattr(
+        release_gate, "materialize_bound_subdirectory_at", replace_staging
+    )
+    with pytest.raises(release_gate.ReleaseGateError):
+        release_gate.execute_validation(
+            (sys.executable, "-m", "pytest", "-q"),
+            cwd=candidate,
+            evidence_directory=release_gate.bind_existing_directory(evidence),
+            workspace_root=workspace,
+            label="focused-001",
+            network_isolated=False,
+            env={"PATH": os.environ.get("PATH", "")},
+        )
+    assert not (redirected / "home").exists()
+    assert moved_staging is not None
+    assert (moved_staging / "home").is_dir()
+    assert not any(evidence.iterdir())
+
+
+@pytest.mark.parametrize(
+    ("junit_payload", "exit_status"),
+    [
+        (None, 7),
+        (b"<not-junit>", 7),
+        (b"<unexpected/>", 0),
+        (b"<testsuites/>", 0),
+        (b"<testsuite/>", 0),
+        (
+            b'<testsuite tests="x" failures="0" errors="0" skipped="0"/>',
+            0,
+        ),
+        (
+            b'<testsuite tests="-1" failures="0" errors="0" skipped="0"/>',
+            0,
+        ),
+        (
+            b'<testsuite tests="1" failures="1" errors="1" skipped="0"/>',
+            0,
+        ),
+        (
+            b'<testsuite tests="1" failures="1" errors="0" skipped="0"/>',
+            0,
+        ),
+    ],
+)
+def test_validation_crash_preserves_stdout_when_junit_is_missing_or_malformed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    junit_payload: bytes | None,
+    exit_status: int,
+) -> None:
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+
+    def crash(
+        args: object, **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        values = [str(value) for value in args]  # type: ignore[arg-type]
+        if junit_payload is not None:
+            junit_argument = next(
+                value for value in values if value.startswith("--junitxml=")
+            )
+            Path(junit_argument.split("=", 1)[1]).write_bytes(junit_payload)
+        return subprocess.CompletedProcess(
+            values, exit_status, b"lost-marker\n"
+        )
+
+    monkeypatch.setattr(release_gate, "_run", crash)
+    with pytest.raises(release_gate.ValidationCaptureError) as captured:
+        release_gate.execute_validation(
+            (sys.executable, "-m", "pytest", "-q"),
+            cwd=candidate,
+            evidence_directory=release_gate.bind_existing_directory(evidence),
+            workspace_root=workspace,
+            label="focused-001",
+            network_isolated=False,
+            env={"PATH": os.environ.get("PATH", "")},
+        )
+    partial = captured.value.partial_result
+    assert partial["label"] == "focused-001"
+    assert partial["exit_status"] == exit_status
+    assert partial["junit_capture_error"]
+    assert partial["output_sha256"] == release_gate.sha256_bytes(b"lost-marker\n")
+    assert (evidence / "focused-001.output.txt").read_bytes() == b"lost-marker\n"
+    assert not (evidence / "focused-001.junit.xml").exists()
 
 
 def test_contained_validation_cannot_replace_bound_evidence_directory(
