@@ -15,6 +15,11 @@ import subprocess
 import sys
 from typing import Any, Iterable, Mapping, Sequence
 
+try:
+    from tools import strict_json
+except ModuleNotFoundError:  # Support ``python3 tools/defect_ledger.py``.
+    import strict_json  # type: ignore[no-redef]
+
 
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LEDGER = Path("defect_ledger.json")
@@ -90,18 +95,9 @@ class ValidationReport:
 
 
 def load_json_document(path: Path) -> Any:
-    """Load one UTF-8 JSON document, rejecting duplicate object names."""
+    """Load one strict UTF-8 JSON document."""
 
-    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError(f"duplicate JSON object name {key!r}")
-            result[key] = value
-        return result
-
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle, object_pairs_hook=reject_duplicates)
+    return strict_json.load(path)
 
 
 def _path_label(parts: Sequence[Any]) -> str:
@@ -2020,7 +2016,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+        print(strict_json.canonical_dumps(report.to_dict()))
     else:
         print(f"schema backend: {report.schema_backend}")
         print(f"defect ledger valid: {'yes' if report.ok else 'no'}")

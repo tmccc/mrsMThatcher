@@ -5,7 +5,7 @@ implementation transcript. It does not state an expected conclusion.
 
 ## Inputs
 
-Obtain these files from the release-gate output directory:
+Obtain these files from the external release-assurance output directory:
 
 - `independent_review_manifest.json`;
 - `semantic_attestation.json`;
@@ -15,6 +15,8 @@ Obtain these files from the release-gate output directory:
 - `priority0_followup_final_validation.json`;
 - `source_diagnosis_original.md`;
 - `attestation_sha256_inventory.json`.
+- `release_assurance_bootstrap_manifest.json`;
+- the external assurance repository commit/tree and source inventory.
 
 Obtain these files from the exact candidate commit:
 
@@ -30,6 +32,12 @@ Obtain these files from the exact candidate commit:
 First verify every commit, tree, diff and file hash in
 `independent_review_manifest.json`. Stop and report an identity failure if the
 package, candidate or deployed path differs.
+
+Treat application-owned `tools/release_gate.py`, its registry and its pytest
+plugin as untrusted candidate input. The authoritative semantic attestation
+must be produced by the separately committed external assurance bootstrap
+without importing candidate gate code. The bootstrap itself remains pending
+independent approval of its exact commit and tree.
 
 The manifest separately binds and packages byte-for-byte the authoritative
 source diagnosis used to start the consolidation, and binds the corrected
@@ -58,10 +66,11 @@ restart or signal a service, contact a provider, or make an X action.
 5. Identify omitted failure boundaries, especially uncertain remote outcomes,
    crashes between durable transitions, concurrent workers, stale locks,
    pagination tails, cursor provenance and optional-work failures.
-6. Verify the changed-Python compilation and whitespace gates, focused and
+6. Verify the external bootstrap's trusted validation-ID policy, private-root
+   containment, private declared Python distribution closure, resource limits,
+   changed-Python compilation and whitespace gates, focused and
    complete-suite commands, every structured skip and warning disposition, the
-   sanitised content-bound Python environment, OS-level network denial,
-   user-service socket masking, sealed output hashes and
+   content-bound Python environment, OS-level network denial, sealed output hashes and
    candidate-before/after identity. Confirm no unrelated editable source tree
    is present in the attested import roots or loaded-module origins.
 7. Reconcile the current defect ledger with Git history and deployment

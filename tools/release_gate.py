@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Attest a frozen mrsMThatcher release candidate without deploying it.
+"""Run candidate-owned advisory checks without deploying.
 
 The tool has two deliberately different modes:
 
 ``run``
-    Requires a clean committed candidate, holds a repository-wide integration
-    lock, executes invariant-selected focused checks and (when requested) the
-    complete suite in a detached clean worktree, and emits attestations.
+    Runs only with ``--development-dry-run``. Candidate-owned code cannot
+    qualify the candidate which supplies it; authoritative validation belongs
+    to a separately committed, hash-pinned external assurance gate.
 
 ``network-preflight``
     Verifies that the OS can place the test process and all descendants in a
     network namespace with loopback available and external routing absent.
 
-The semantic attestation contains no timestamps, host names, paths to temporary
-directories, or durations.  Those volatile details belong in the run receipt.
-Nothing in this module deploys, mutates runtime state, or contacts a provider.
+The deterministic advisory output contains no timestamps, host names, paths to
+temporary directories, or durations. Those volatile details belong in the run
+receipt. Nothing in this module deploys, mutates runtime state, or contacts a
+provider.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ import contextlib
 import ctypes
 import dataclasses
 import datetime as dt
+import enum
 import fcntl
 import fnmatch
 import hashlib
@@ -52,6 +54,11 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 
 from packaging.markers import default_environment
 from packaging.requirements import InvalidRequirement, Requirement
+
+try:
+    from tools import strict_json
+except ModuleNotFoundError:  # Support ``python3 tools/release_gate.py``.
+    import strict_json  # type: ignore[no-redef]
 
 
 HEX40 = re.compile(r"[0-9a-f]{40}\Z")
@@ -425,6 +432,123 @@ class ValidationCaptureError(ReleaseGateError):
         self.partial_result = dict(partial_result)
 
 
+class ArtifactResolution(str, enum.Enum):
+    """Defined resolution outcomes emitted by generated-artifact discovery."""
+
+    STATIC_PATH_COMPOSITION = "static_path_composition"
+    LOADER_RUNTIME_ROOT = "loader_runtime_root"
+    UNIQUE_TRACKED_BASENAME = "unique_tracked_basename"
+    VALIDATOR_BACKED_OFFLINE_LITERAL = "validator_backed_offline_literal"
+    AMBIGUOUS_NOT_CLAIMED_RUNTIME = "ambiguous_not_claimed_runtime"
+
+
+RUNTIME_ARTIFACT_RESOLUTIONS = frozenset(
+    {
+        ArtifactResolution.STATIC_PATH_COMPOSITION,
+        ArtifactResolution.LOADER_RUNTIME_ROOT,
+        ArtifactResolution.UNIQUE_TRACKED_BASENAME,
+    }
+)
+
+
+def _normalise_relative_artifact_path(value: str, *, label: str) -> str:
+    path = PurePosixPath(value)
+    if not value or path.is_absolute() or ".." in path.parts or path.as_posix() != value:
+        raise ReleaseGateError(f"{label} is not a normalized relative path: {value!r}")
+    return value
+
+
+@dataclasses.dataclass(frozen=True)
+class ArtifactBinding:
+    """One typed relationship between a runtime loader and a JSON artefact."""
+
+    loader: str
+    literal: str
+    resolution: ArtifactResolution
+    resolved_path: str | None = None
+    candidate_paths: tuple[str, ...] = ()
+    validator: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.resolved_path is not None:
+            _normalise_relative_artifact_path(
+                self.resolved_path, label="resolved artefact path"
+            )
+        for path in self.candidate_paths:
+            _normalise_relative_artifact_path(path, label="candidate artefact path")
+        if self.resolution in RUNTIME_ARTIFACT_RESOLUTIONS:
+            if self.resolved_path is None:
+                raise ReleaseGateError(
+                    f"{self.resolution.value} binding lacks resolved_path"
+                )
+        elif self.resolved_path is not None:
+            raise ReleaseGateError(
+                f"{self.resolution.value} cannot carry a resolved_path"
+            )
+        if (
+            self.resolution
+            is ArtifactResolution.VALIDATOR_BACKED_OFFLINE_LITERAL
+            and (not self.validator or not self.candidate_paths)
+        ):
+            raise ReleaseGateError(
+                "validator-backed offline binding lacks validator or candidates"
+            )
+        if (
+            self.resolution
+            is ArtifactResolution.AMBIGUOUS_NOT_CLAIMED_RUNTIME
+            and not self.candidate_paths
+        ):
+            raise ReleaseGateError("ambiguous binding lacks candidate paths")
+
+    @property
+    def runtime_consumed(self) -> bool:
+        """Any valid resolved path denotes runtime consumption."""
+
+        return self.resolved_path is not None
+
+    def to_dict(self) -> dict[str, Any]:
+        value: dict[str, Any] = {
+            "loader": self.loader,
+            "literal": self.literal,
+            "resolution": self.resolution.value,
+        }
+        if self.resolved_path is not None:
+            value["resolved_path"] = self.resolved_path
+        if self.candidate_paths:
+            value["candidate_paths"] = list(self.candidate_paths)
+        if self.validator is not None:
+            value["validator"] = self.validator
+        return value
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "ArtifactBinding":
+        try:
+            resolution = ArtifactResolution(str(value["resolution"]))
+        except (KeyError, ValueError) as exc:
+            raise ReleaseGateError(
+                f"unknown artifact binding resolution: {value.get('resolution')!r}"
+            ) from exc
+        candidates = value.get("candidate_paths", ())
+        if not isinstance(candidates, (list, tuple)) or not all(
+            isinstance(item, str) for item in candidates
+        ):
+            raise ReleaseGateError("artifact candidate_paths must be strings")
+        resolved = value.get("resolved_path")
+        validator = value.get("validator")
+        if resolved is not None and not isinstance(resolved, str):
+            raise ReleaseGateError("artifact resolved_path must be a string")
+        if validator is not None and not isinstance(validator, str):
+            raise ReleaseGateError("artifact validator must be a string")
+        return cls(
+            loader=str(value.get("loader") or ""),
+            literal=str(value.get("literal") or ""),
+            resolution=resolution,
+            resolved_path=resolved,
+            candidate_paths=tuple(sorted(set(candidates))),
+            validator=validator,
+        )
+
+
 @dataclasses.dataclass(frozen=True)
 class CandidateSnapshot:
     """Stable Git and file identity of one candidate worktree."""
@@ -534,7 +658,15 @@ class ValidationToolchain:
 
     def semantic_dict(self) -> dict[str, Any]:
         """Return the deterministic toolchain identity."""
-        return json.loads(self.semantic_inventory_json)
+        value = strict_json.loads(
+            self.semantic_inventory_json,
+            source="validation toolchain semantic inventory",
+        )
+        if not isinstance(value, dict):
+            raise ReleaseGateError(
+                "validation toolchain semantic inventory is not an object"
+            )
+        return value
 
 
 @dataclasses.dataclass(frozen=True)
@@ -564,9 +696,10 @@ class BoundDirectory:
 
 def canonical_json_bytes(value: Any) -> bytes:
     """Return deterministic pretty JSON bytes with a trailing newline."""
-    return (
-        json.dumps(value, sort_keys=True, ensure_ascii=False, indent=2) + "\n"
-    ).encode("utf-8")
+    try:
+        return strict_json.canonical_json_bytes(value)
+    except strict_json.StrictJSONError as exc:
+        raise ReleaseGateError(f"cannot serialize strict JSON: {exc}") from exc
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -1547,7 +1680,7 @@ def _static_json_paths(path: Path) -> set[str]:
 
 def discover_generated_artifacts(
     repo: Path, runtime_files: Sequence[str]
-) -> tuple[tuple[str, ...], list[dict[str, Any]], list[str]]:
+) -> tuple[tuple[str, ...], list[ArtifactBinding], list[str]]:
     """Discover tracked generated JSON referenced by runtime loader literals.
 
     A basename is accepted only when it resolves to exactly one tracked file,
@@ -1561,7 +1694,7 @@ def discover_generated_artifacts(
         if relative.endswith(".json"):
             by_name.setdefault(PurePosixPath(relative).name, []).append(relative)
     artifacts: set[str] = set()
-    bindings: list[dict[str, Any]] = []
+    bindings: list[ArtifactBinding] = []
     unresolved: list[str] = []
     for loader in runtime_files:
         loader_path = repo / loader
@@ -1574,12 +1707,12 @@ def discover_generated_artifacts(
                     exact
                 )
                 bindings.append(
-                    {
-                        "loader": loader,
-                        "literal": exact,
-                        "resolved_path": exact,
-                        "resolution": "static_path_composition",
-                    }
+                    ArtifactBinding(
+                        loader=loader,
+                        literal=exact,
+                        resolved_path=exact,
+                        resolution=ArtifactResolution.STATIC_PATH_COMPOSITION,
+                    )
                 )
         for literal in sorted(_json_literals(loader_path)):
             if literal in exact_paths and literal in tracked:
@@ -1603,12 +1736,12 @@ def discover_generated_artifacts(
             if len(generated) == 1:
                 artifacts.add(generated[0])
                 bindings.append(
-                    {
-                        "loader": loader,
-                        "literal": basename,
-                        "resolved_path": generated[0],
-                        "resolution": "unique_tracked_basename",
-                    }
+                    ArtifactBinding(
+                        loader=loader,
+                        literal=basename,
+                        resolved_path=generated[0],
+                        resolution=ArtifactResolution.UNIQUE_TRACKED_BASENAME,
+                    )
                 )
             elif len(generated) > 1:
                 rooted = [
@@ -1622,12 +1755,12 @@ def discover_generated_artifacts(
                 if len(rooted) == 1:
                     artifacts.add(rooted[0])
                     bindings.append(
-                        {
-                            "loader": loader,
-                            "literal": literal,
-                            "resolved_path": rooted[0],
-                            "resolution": "loader_runtime_root",
-                        }
+                        ArtifactBinding(
+                            loader=loader,
+                            literal=literal,
+                            resolved_path=rooted[0],
+                            resolution=ArtifactResolution.LOADER_RUNTIME_ROOT,
+                        )
                     )
                 elif (
                     validator
@@ -1635,26 +1768,43 @@ def discover_generated_artifacts(
                     and (repo / validator).is_file()
                 ):
                     bindings.append(
-                        {
-                            "loader": loader,
-                            "literal": literal,
-                            "candidate_paths": generated,
-                            "resolution": "validator_backed_offline_literal",
-                            "validator": validator,
-                        }
+                        ArtifactBinding(
+                            loader=loader,
+                            literal=literal,
+                            candidate_paths=tuple(sorted(generated)),
+                            resolution=(
+                                ArtifactResolution.VALIDATOR_BACKED_OFFLINE_LITERAL
+                            ),
+                            validator=validator,
+                        )
                     )
                 else:
                     bindings.append(
-                        {
-                            "loader": loader,
-                            "literal": literal,
-                            "candidate_paths": generated,
-                            "resolution": "ambiguous_not_claimed_runtime",
-                        }
+                        ArtifactBinding(
+                            loader=loader,
+                            literal=literal,
+                            candidate_paths=tuple(sorted(generated)),
+                            resolution=(
+                                ArtifactResolution.AMBIGUOUS_NOT_CLAIMED_RUNTIME
+                            ),
+                        )
                     )
             elif any(hint in basename.lower() for hint in GENERATED_NAME_HINTS):
                 unresolved.append(f"{loader}: {literal}")
-    return tuple(sorted(artifacts)), bindings, sorted(set(unresolved))
+    return (
+        tuple(sorted(artifacts)),
+        sorted(
+            bindings,
+            key=lambda item: (
+                item.loader,
+                item.literal,
+                item.resolution.value,
+                item.resolved_path or "",
+                item.candidate_paths,
+            ),
+        ),
+        sorted(set(unresolved)),
+    )
 
 
 def registry_runtime_artifact_inventory(
@@ -1781,7 +1931,7 @@ def hash_paths(repo: Path, paths: Iterable[str]) -> tuple[tuple[str, str], ...]:
 
 def take_snapshot(
     repo: Path, declared_runtime_artifacts: Sequence[str] = ()
-) -> tuple[CandidateSnapshot, list[dict[str, Any]], list[str]]:
+) -> tuple[CandidateSnapshot, list[ArtifactBinding], list[str]]:
     """Capture candidate Git identity and relevant file inventories."""
     commit = _git(repo, "rev-parse", "HEAD")
     tree = _git(repo, "rev-parse", "HEAD^{tree}")
@@ -1843,7 +1993,7 @@ def assert_candidate_checkout_unchanged(
     checkout: Path,
     *,
     expected_snapshot: CandidateSnapshot,
-    expected_bindings: Sequence[Mapping[str, Any]],
+    expected_bindings: Sequence[ArtifactBinding],
     expected_unresolved: Sequence[str],
     declared_runtime_artifacts: Sequence[str],
 ) -> None:
@@ -1870,8 +2020,8 @@ def load_json_object(path: Path) -> dict[str, Any]:
 def json_object_bytes(payload: bytes, *, label: str) -> dict[str, Any]:
     """Parse one captured JSON object without rereading a mutable path."""
     try:
-        value = json.loads(payload)
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        value = strict_json.loads(payload, source=label)
+    except strict_json.StrictJSONError as exc:
         raise ReleaseGateError(f"cannot read JSON object {label}: {exc}") from exc
     if not isinstance(value, dict):
         raise ReleaseGateError(f"JSON root must be an object: {label}")
@@ -2108,8 +2258,11 @@ def registry_record_transition(
             "unchanged_invariant_ids": [],
         }
     try:
-        base_value = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
+        base_value = strict_json.loads(
+            result.stdout,
+            source=f"{base_commit}:production_invariants.json",
+        )
+    except strict_json.StrictJSONError as exc:
         raise ReleaseGateError(
             f"base invariant registry is malformed: {exc}"
         ) from exc
@@ -2378,23 +2531,11 @@ def map_changed_paths(
         severity = str(
             record.get("severity") or record.get("criticality") or ""
         ).lower()
-        commands = record.get("validation_commands")
-        if commands is None and isinstance(record.get("enforcement"), dict):
-            commands = record["enforcement"].get("commands")
+        validations = record.get("validations")
+        if validations is None and isinstance(record.get("enforcement"), dict):
+            validations = record["enforcement"].get("validations")
         if severity == "critical" and (
-            not isinstance(commands, list)
-            or not any(
-                (
-                    isinstance(command, str)
-                    and command.strip()
-                )
-                or (
-                    isinstance(command, dict)
-                    and isinstance(command.get("command"), str)
-                    and command["command"].strip()
-                )
-                for command in commands
-            )
+            not isinstance(validations, list) or not validations
         ):
             raise ReleaseGateError(
                 f"affected critical invariant lacks executable validation: "
@@ -2403,45 +2544,112 @@ def map_changed_paths(
     return mapped, uncovered_runtime, affected
 
 
-def validation_commands(records: Sequence[Mapping[str, Any]]) -> list[tuple[str, ...]]:
-    """Return deterministic, de-duplicated shell-free focused commands."""
-    seen: set[tuple[str, ...]] = set()
-    commands: list[tuple[str, ...]] = []
+VALIDATION_IDS = frozenset({"pytest", "registry_validate"})
+TEST_SELECTOR = re.compile(
+    r"tests/[A-Za-z0-9_./-]+\.py"
+    r"(?:::[A-Za-z_][A-Za-z0-9_]*(?:\[[A-Za-z0-9_.:/=-]+\])?)*\Z"
+)
+
+
+@dataclasses.dataclass(frozen=True)
+class ValidationRequest:
+    """Candidate-proposed validation identity and bounded test selectors."""
+
+    validation_id: str
+    selectors: tuple[str, ...]
+    invariant_id: str
+
+    def development_command(self) -> tuple[str, ...]:
+        """Construct the fixed advisory-development argv for this request."""
+
+        if self.validation_id == "pytest":
+            return (sys.executable, "-m", "pytest", "-q", *self.selectors)
+        if self.validation_id == "registry_validate":
+            return (
+                sys.executable,
+                "tools/priority0_registry.py",
+                "validate",
+                "--json",
+            )
+        raise ReleaseGateError(f"unknown validation ID: {self.validation_id}")
+
+
+def validation_requests(
+    records: Sequence[Mapping[str, Any]],
+) -> list[ValidationRequest]:
+    """Return deterministic requests without accepting candidate-authored argv."""
+
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    requests: list[ValidationRequest] = []
     for record in records:
-        values = record.get("validation_commands")
+        invariant_id = str(record.get("invariant_id") or record.get("id") or "")
+        values = record.get("validations")
         if values is None and isinstance(record.get("enforcement"), dict):
-            values = record["enforcement"].get("commands", [])
+            values = record["enforcement"].get("validations", [])
         if values is None:
             values = []
         if not isinstance(values, list):
             raise ReleaseGateError(
-                f"{record.get('invariant_id')}: validation_commands must be a list"
+                f"{invariant_id}: validations must be a list"
             )
         for value in values:
-            if isinstance(value, dict):
-                value = value.get("command")
-            if not isinstance(value, str) or not value.strip():
-                continue
-            raw_tokens = tuple(shlex.split(value))
-            assignments: list[str] = []
-            remaining = list(raw_tokens)
-            while remaining and re.fullmatch(
-                r"[A-Za-z_][A-Za-z0-9_]*=.*", remaining[0]
-            ):
-                assignments.append(remaining.pop(0))
-            tokens = tuple(
-                (["env", *assignments] if assignments else []) + remaining
-            )
-            if not tokens or any(
-                token in {"|", "||", "&&", ";", ">", ">>", "<"} for token in tokens
+            if not isinstance(value, Mapping):
+                raise ReleaseGateError(
+                    f"{invariant_id}: validation request must be an object"
+                )
+            validation_id = value.get("validation_id")
+            selectors = value.get("selectors")
+            if validation_id not in VALIDATION_IDS:
+                raise ReleaseGateError(
+                    f"{invariant_id}: unknown validation ID: {validation_id!r}"
+                )
+            if not isinstance(selectors, list) or not all(
+                isinstance(selector, str) for selector in selectors
             ):
                 raise ReleaseGateError(
-                    f"unsafe validation command in {record.get('invariant_id')}: {value}"
+                    f"{invariant_id}: validation selectors must be strings"
                 )
-            if tokens not in seen:
-                seen.add(tokens)
-                commands.append(tokens)
-    return commands
+            if validation_id == "pytest":
+                if not selectors:
+                    raise ReleaseGateError(
+                        f"{invariant_id}: pytest validation has no selectors"
+                    )
+                for selector in selectors:
+                    if (
+                        not TEST_SELECTOR.fullmatch(selector)
+                        or ".." in PurePosixPath(selector.split("::", 1)[0]).parts
+                        or any(character in selector for character in "*?[]{}")
+                    ):
+                        raise ReleaseGateError(
+                            f"{invariant_id}: unsafe pytest selector: {selector!r}"
+                        )
+            elif selectors:
+                raise ReleaseGateError(
+                    f"{invariant_id}: {validation_id} does not accept selectors"
+                )
+            key = (str(validation_id), tuple(selectors))
+            if key in seen:
+                continue
+            seen.add(key)
+            requests.append(
+                ValidationRequest(
+                    validation_id=str(validation_id),
+                    selectors=tuple(selectors),
+                    invariant_id=invariant_id,
+                )
+            )
+    return requests
+
+
+def validation_commands(records: Sequence[Mapping[str, Any]]) -> list[tuple[str, ...]]:
+    """Return fixed advisory-development argv for structured requests.
+
+    The application-owned helper is not an authority for release qualification.
+    An external assurance policy must independently approve every validation ID
+    and construct its executable argv.
+    """
+
+    return [request.development_command() for request in validation_requests(records)]
 
 
 def seccomp_library_path() -> Path:
@@ -3615,10 +3823,21 @@ def sanitised_validation_import_roots(
 
 _ISOLATED_PYTHON_BOOTSTRAP = """\
 import hashlib, importlib.util, json, pathlib, runpy, sys
+def strict_loads(payload, label):
+    def pairs(values):
+        result = {}
+        for key, value in values:
+            if key in result:
+                raise SystemExit(label + ": duplicate JSON object name " + repr(key))
+            result[key] = value
+        return result
+    def constant(value):
+        raise SystemExit(label + ": non-finite JSON number " + repr(value))
+    return json.loads(payload, object_pairs_hook=pairs, parse_constant=constant)
 roots_json, candidate_root, bindings_json, *arguments = sys.argv[1:]
-roots = json.loads(roots_json)
+roots = strict_loads(roots_json, "isolated import roots")
 sys.path[:] = [*roots, candidate_root]
-bindings = json.loads(bindings_json)
+bindings = strict_loads(bindings_json, "isolated module bindings")
 for binding in bindings:
     spec = importlib.util.find_spec(binding["module"])
     if spec is None or spec.origin is None:
@@ -3671,10 +3890,9 @@ def isolated_python_validation_command(
     ):
         return tuple(command)
     python_arguments = values[1:]
-    bindings_json = json.dumps(
+    bindings_json = strict_json.canonical_dumps(
         toolchain.semantic_dict()["module_distribution_bindings"],
-        sort_keys=True,
-        separators=(",", ":"),
+        indent=None,
     )
     return (
         *prefix,
@@ -3683,10 +3901,9 @@ def isolated_python_validation_command(
         "-S",
         "-c",
         _ISOLATED_PYTHON_BOOTSTRAP,
-        json.dumps(
+        strict_json.canonical_dumps(
             list(toolchain.python_paths),
-            sort_keys=False,
-            separators=(",", ":"),
+            indent=None,
         ),
         str(candidate_root),
         bindings_json,
@@ -3828,8 +4045,8 @@ def _warning_count(output: bytes) -> int:
 def _pytest_events_bytes(payload: bytes) -> dict[str, Any]:
     """Validate one structured pytest sidecar produced by the gate plugin."""
     try:
-        value = json.loads(payload)
-    except json.JSONDecodeError as exc:
+        value = strict_json.loads(payload, source="structured pytest events")
+    except strict_json.StrictJSONError as exc:
         raise ReleaseGateError(
             f"cannot parse structured pytest events: {exc}"
         ) from exc
@@ -3898,9 +4115,7 @@ def _warning_summaries(
     grouped: dict[tuple[str, str, str], dict[str, Any]] = {}
     for record in warnings:
         location = record.get("source_location")
-        location_json = json.dumps(
-            location, sort_keys=True, separators=(",", ":")
-        )
+        location_json = strict_json.canonical_dumps(location, indent=None)
         key = (
             str(record["category"]),
             str(record["message_fingerprint"]),
@@ -4695,8 +4910,8 @@ def deployed_identity(
     local_config_path = root / "mrsMThatcher.local.json"
     if local_config_path.is_file():
         try:
-            local_config = json.loads(local_config_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            local_config = strict_json.load(local_config_path)
+        except (OSError, strict_json.StrictJSONError) as exc:
             value["production_local_config_parse_error"] = (
                 f"{type(exc).__name__}: {exc}"
             )
@@ -4994,8 +5209,8 @@ def _declared_pin_records(
             )
             target_path = repo / target_relative
             try:
-                target = json.loads(target_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+                target = strict_json.load(target_path)
+            except (OSError, strict_json.StrictJSONError):
                 target = None
             found, embedded_value = _json_pointer_value(
                 target,
@@ -5068,8 +5283,8 @@ def _artifact_semantic_summary(repo: Path, relative: str) -> dict[str, Any]:
     path = repo / relative
     summary: dict[str, Any] = {"path": relative, "sha256": sha256_file(path)}
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        value = strict_json.load(path)
+    except (OSError, strict_json.StrictJSONError) as exc:
         summary["parse_error"] = f"{type(exc).__name__}: {exc}"
         return summary
     if not isinstance(value, dict):
@@ -5232,8 +5447,8 @@ def validate_direct_manifest_companion(
 def _json_object_file(repo: Path, relative: str) -> tuple[dict[str, Any], str]:
     path = repo / relative
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        value = strict_json.load(path)
+    except (OSError, strict_json.StrictJSONError) as exc:
         raise ReleaseGateError(
             f"cannot read relationship artifact {relative}: {exc}"
         ) from exc
@@ -5489,8 +5704,8 @@ def _classification_owning_pin_exists(
         return False
     path = repo / str(artifact)
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        document = strict_json.load(path)
+    except (OSError, strict_json.StrictJSONError):
         return False
     found, value = _json_pointer_value(document, f"/{field}/{pin}")
     return bool(
@@ -5508,11 +5723,45 @@ def _classification_owning_pin_exists(
 def historical_build_relationships(
     repo: Path,
     *,
-    runtime_bindings: Sequence[Mapping[str, Any]] = (),
+    runtime_bindings: Sequence[ArtifactBinding | Mapping[str, Any]] = (),
     unresolved_loader_literals: Sequence[str] = (),
     runtime_artifact_paths: Sequence[str] = (),
 ) -> list[dict[str, Any]]:
     """Describe stale-but-honest build evidence which runtime never consumes."""
+    typed_bindings = tuple(
+        item
+        if isinstance(item, ArtifactBinding)
+        else ArtifactBinding.from_mapping(item)
+        for item in runtime_bindings
+    )
+    binding_runtime_paths = frozenset(
+        item.resolved_path
+        for item in typed_bindings
+        if item.runtime_consumed and item.resolved_path is not None
+    )
+    declared_runtime_paths: set[str] = set()
+    for item in runtime_artifact_paths:
+        if not isinstance(item, str):
+            raise ReleaseGateError(
+                "runtime artifact path inventory must contain strings, not "
+                f"{type(item).__name__}"
+            )
+        declared_runtime_paths.add(
+            _normalise_relative_artifact_path(
+                item, label="runtime artifact inventory path"
+            )
+        )
+    unresolved_literals: set[str] = set()
+    for record in unresolved_loader_literals:
+        if not isinstance(record, str):
+            raise ReleaseGateError("unresolved loader literal must be a string")
+        _loader, separator, literal = record.partition(": ")
+        if not separator or not literal:
+            raise ReleaseGateError(
+                f"unresolved loader literal has invalid shape: {record!r}"
+            )
+        unresolved_literals.add(literal)
+
     output: list[dict[str, Any]] = []
     current_manifest, current_manifest_hash = _json_object_file(
         repo, V3_MANIFEST_PATH
@@ -5536,22 +5785,14 @@ def historical_build_relationships(
                 f"historical build relationship lacks a hash: {artifact_path}"
             )
         validator = str(definition.get("validator") or "")
-        runtime_binding_payload = json.dumps(
-            [
-                record
-                for record in runtime_bindings
-                if record.get("resolution") == "resolved_runtime"
-            ],
-            sort_keys=True,
-        )
+        artifact_basename = PurePosixPath(artifact_path).name
         runtime_consumption_violation = bool(
-            artifact_path in runtime_artifact_paths
-            or artifact_path in runtime_binding_payload
-            or PurePosixPath(artifact_path).name in runtime_binding_payload
+            artifact_path in declared_runtime_paths
+            or artifact_path in binding_runtime_paths
             or any(
-                artifact_path in literal
-                or PurePosixPath(artifact_path).name in literal
-                for literal in unresolved_loader_literals
+                literal == artifact_path
+                or PurePosixPath(literal).name == artifact_basename
+                for literal in unresolved_literals
             )
         )
         resolved_evidence = [
@@ -5737,33 +5978,39 @@ def _advisory_classification_supported(
 def relationship_inventory(
     repo: Path,
     snapshot: CandidateSnapshot,
-    bindings: Sequence[Mapping[str, Any]],
+    bindings: Sequence[ArtifactBinding | Mapping[str, Any]],
     unresolved: Sequence[str],
 ) -> dict[str, Any]:
     """Describe present generated-artifact bindings and their validators."""
+    typed_bindings = [
+        item
+        if isinstance(item, ArtifactBinding)
+        else ArtifactBinding.from_mapping(item)
+        for item in bindings
+    ]
     validators = [
-        "python3 -m pytest -q tests/test_historical_context_reply_semantic_gate.py",
-        "python3 -m pytest -q tests/test_historical_context_reply.py",
-        "python3 -m pytest -q tests/test_quote_image_semantic_veto_shadow.py",
+        "tests/test_historical_context_reply_semantic_gate.py",
+        "tests/test_historical_context_reply.py",
+        "tests/test_quote_image_semantic_veto_shadow.py",
     ]
     existing_validators = [
         value
         for value in validators
-        if (repo / shlex.split(value)[-1]).exists()
+        if (repo / value).exists()
     ]
     ambiguous = [
-        dict(item)
-        for item in bindings
-        if item.get("resolution") == "ambiguous_not_claimed_runtime"
+        item.to_dict()
+        for item in typed_bindings
+        if item.resolution
+        is ArtifactResolution.AMBIGUOUS_NOT_CLAIMED_RUNTIME
     ]
     validator_backed = [
-        dict(item)
-        for item in bindings
-        if item.get("resolution") == "validator_backed_offline_literal"
+        item.to_dict()
+        for item in typed_bindings
+        if item.resolution
+        is ArtifactResolution.VALIDATOR_BACKED_OFFLINE_LITERAL
     ]
-    validator_paths = {
-        shlex.split(command)[-1] for command in existing_validators
-    }
+    validator_paths = set(existing_validators)
     invalid_validator_backed = [
         item
         for item in validator_backed
@@ -5815,13 +6062,20 @@ def relationship_inventory(
         for relationship in direct_companions
         if not relationship["validation"]["valid"]
     ]
+    direct_companion_status = (
+        "not_applicable"
+        if not direct_companions
+        else "invalid"
+        if invalid_direct_companions
+        else "valid"
+    )
     historical_relationships = (
         historical_build_relationships(
             repo,
             runtime_bindings=bindings,
             unresolved_loader_literals=unresolved,
             runtime_artifact_paths=tuple(
-                snapshot.declared_artifact_hashes
+                path for path, _sha256 in snapshot.declared_artifact_hashes
             ),
         )
         if (repo / "production_invariants.json").is_file()
@@ -5836,7 +6090,7 @@ def relationship_inventory(
         "discovery_method": (
             "AST runtime-import closure plus tracked JSON loader-literal resolution"
         ),
-        "runtime_loader_bindings": list(bindings),
+        "runtime_loader_bindings": [item.to_dict() for item in typed_bindings],
         "artifact_hashes": dict(sorted(artifact_hashes.items())),
         "artifact_semantics": semantics,
         "schema_policy_hashes": dict(snapshot.policy_hashes),
@@ -5857,9 +6111,13 @@ def relationship_inventory(
         "all_required_source_file_pins_valid": not bool(required_pin_failures),
         "required_source_file_pin_failures": required_pin_failures,
         "direct_companion_relationships": direct_companions,
+        "direct_companion_relationship_count": len(direct_companions),
+        "direct_companion_validation_status": direct_companion_status,
         "invalid_direct_companion_relationships": invalid_direct_companions,
-        "all_direct_companion_relationships_valid": not bool(
-            invalid_direct_companions
+        "all_direct_companion_relationships_valid": (
+            None
+            if not direct_companions
+            else not bool(invalid_direct_companions)
         ),
         "historical_build_relationships": historical_relationships,
         "unsupported_historical_build_classifications": (
@@ -5882,13 +6140,18 @@ def relationship_inventory(
 def relationship_validation_commands(
     relationships: Mapping[str, Any],
 ) -> list[tuple[str, ...]]:
-    """Parse recorded relationship validators through the shell-free parser."""
+    """Construct a fixed advisory pytest argv from bounded validator selectors."""
     values = relationships.get("relationship_validators", [])
     return validation_commands(
         [
             {
                 "invariant_id": "INV-ART-RELATIONSHIPS",
-                "validation_commands": values,
+                "validations": [
+                    {
+                        "validation_id": "pytest",
+                        "selectors": values,
+                    }
+                ],
             }
         ]
     )
@@ -5996,7 +6259,7 @@ def deterministic_attestation(
             "exit_status",
         )
     }
-    release_passed = bool(
+    candidate_checks_passed = bool(
         network.get("available")
         and network.get("subprocess_egress_denied")
         and network.get("network_route_isolated")
@@ -6029,7 +6292,8 @@ def deterministic_attestation(
         and relationships.get("all_discovered_bindings_resolved")
         and relationships.get("all_validator_backed_classifications_valid")
         and relationships.get("all_required_source_file_pins_valid")
-        and relationships.get("all_direct_companion_relationships_valid")
+        and relationships.get("direct_companion_validation_status")
+        in {"valid", "not_applicable"}
         and relationships.get("all_historical_build_classifications_supported")
         and relationships.get("all_advisory_pin_classifications_supported")
         and static_checks.get("all_passed")
@@ -6046,22 +6310,23 @@ def deterministic_attestation(
     candidate_status = {
         "registry_self_attestation": False,
         "registry_self_attestation_limitation": (
-            "The invariant registry defines the checks but cannot attest a "
-            "candidate by itself; candidate identity comes from this external "
-            "frozen-candidate gate invocation."
+            "The application candidate owns this helper, registry and pytest "
+            "plugin. Its result is advisory and cannot qualify the candidate."
         ),
-        "externally_attested_candidate": {
+        "candidate_owned_advisory_result": {
             "commit": snapshot.commit,
             "tree": snapshot.tree,
-            "valid_frozen_candidate_attestation": release_passed,
+            "validation_checks_passed": candidate_checks_passed,
         },
+        "external_release_assurance_required": True,
+        "authoritative_release_attestation": False,
         "production_activation_performed": False,
         "deployed_path_verification_performed": False,
         "loaded_process_identity_attested": False,
         "independent_review_status": "pending_separate_read_only_session",
     }
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "candidate": snapshot.semantic_dict(),
         "base_commit": base,
         "candidate_lineage": dict(lineage),
@@ -6083,8 +6348,11 @@ def deterministic_attestation(
         "defect_ledger_evidence_cutoff": dict(ledger_evidence_cutoff),
         "candidate_attestation_status": candidate_status,
         "unmet_deployed_checks": list(deployed_checks),
-        "conclusion_scope": scope,
-        "release_candidate_validation_passed": release_passed,
+        "requested_conclusion_scope": scope,
+        "conclusion_scope": "candidate-owned advisory",
+        "candidate_owned_advisory_validation_passed": candidate_checks_passed,
+        "release_candidate_validation_passed": False,
+        "authoritative_release_attestation": False,
     }
 
 
@@ -6098,7 +6366,13 @@ def markdown_report(
     full = semantic["complete_suite_validation"]
     relationships = semantic["generated_artifact_attestation"]
     candidate_status = semantic["candidate_attestation_status"]
-    attested = candidate_status["externally_attested_candidate"]
+    advisory = candidate_status.get("candidate_owned_advisory_result") or {
+        "commit": candidate["commit"],
+        "tree": candidate["tree"],
+        "validation_checks_passed": bool(
+            semantic.get("candidate_owned_advisory_validation_passed")
+        ),
+    }
     lines = [
         "# Frozen candidate release-gate report",
         "",
@@ -6106,8 +6380,9 @@ def markdown_report(
         f"- Candidate tree: `{candidate['tree']}`",
         f"- Base commit: `{semantic['base_commit']}`",
         f"- Conclusion scope: **{semantic['conclusion_scope']}**",
-        f"- Qualified release-candidate validation passed: **"
-        f"{'yes' if semantic['release_candidate_validation_passed'] else 'no'}**",
+        f"- Candidate-owned advisory checks passed: **"
+        f"{'yes' if advisory['validation_checks_passed'] else 'no'}**",
+        "- Authoritative release attestation: **no**",
         f"- Network isolation: `{semantic['network_isolation']['mechanism']}`",
         f"- Candidate unchanged after validation: **"
         f"{'yes' if receipt.get('candidate_unchanged_after_validation') else 'no'}**",
@@ -6116,14 +6391,14 @@ def markdown_report(
         "unqualified claim about the whole system.",
         "",
         (
-            f"Candidate `{attested['commit']}/{attested['tree']}` has a valid "
-            "frozen-candidate attestation. Production activation, deployed-path "
-            "verification and loaded-process identity remain unattested."
-            if attested["valid_frozen_candidate_attestation"]
-            else (
-                f"Candidate `{attested['commit']}/{attested['tree']}` does not "
-                "have a qualifying frozen-candidate attestation from this run."
-            )
+            f"Candidate `{advisory['commit']}/{advisory['tree']}` was checked by "
+            "candidate-owned code. This evidence is advisory; a separately "
+            "committed, hash-pinned external assurance gate must decide release "
+            "qualification."
+        ),
+        (
+            "Production activation, deployed-path verification and loaded-process "
+            "identity remain unattested."
         ),
         "",
         "## Candidate static checks",
@@ -6215,8 +6490,10 @@ def markdown_report(
             f"{relationships.get('architecture_limit')}",
             f"- Ambiguous non-runtime literals: "
             f"{len(relationships.get('ambiguous_nonruntime_literals', []))}",
-            f"- Direct companion relationships valid: "
-            f"{'yes' if relationships.get('all_direct_companion_relationships_valid') else 'no'}",
+            f"- Direct companion relationship count: "
+            f"{relationships.get('direct_companion_relationship_count', 0)}",
+            f"- Direct companion validation status: "
+            f"{str(relationships.get('direct_companion_validation_status', 'unknown')).replace('_', ' ')}",
             f"- Historical/build-time classifications supported: "
             f"{'yes' if relationships.get('all_historical_build_classifications_supported') else 'no'}",
             f"- Advisory pin classifications supported: "
@@ -6438,6 +6715,12 @@ def emit_outputs(
             "defect_ledger_evidence_cutoff"
         ],
         "generated_artifact_relationships": {
+            "direct_companion_count": semantic[
+                "generated_artifact_attestation"
+            ].get("direct_companion_relationship_count"),
+            "direct_companion_validation_status": semantic[
+                "generated_artifact_attestation"
+            ].get("direct_companion_validation_status"),
             "direct_companions_valid": semantic[
                 "generated_artifact_attestation"
             ].get("all_direct_companion_relationships_valid"),
@@ -6485,15 +6768,11 @@ def emit_outputs(
         ],
         "candidate_specific_assurance_statement": (
             f"Candidate {semantic['candidate']['commit']}/"
-            f"{semantic['candidate']['tree']} has a valid frozen-candidate "
-            "attestation. Production activation, deployed-path verification "
-            "and loaded-process identity remain unattested."
-            if semantic["release_candidate_validation_passed"]
-            else (
-                f"Candidate {semantic['candidate']['commit']}/"
-                f"{semantic['candidate']['tree']} does not have a qualifying "
-                "frozen-candidate attestation from this run."
-            )
+            f"{semantic['candidate']['tree']} has candidate-owned advisory "
+            "validation evidence only. A separately committed, hash-pinned "
+            "external release-assurance gate must decide qualification. "
+            "Production activation, deployed-path verification and "
+            "loaded-process identity remain unattested."
         ),
         "production_identity_unchanged": receipt.get(
             "production_identity_unchanged"
@@ -7020,17 +7299,24 @@ def assert_gate_output_authorized(
 
 
 def run_gate(args: argparse.Namespace) -> int:
-    """Run focused and optional complete validation for one frozen candidate."""
+    """Run non-authoritative development checks for one candidate.
+
+    Production-style release qualification must be performed by the separately
+    versioned release-assurance repository. Candidate-owned source cannot be
+    its own trust root.
+    """
+
+    if not args.development_dry_run:
+        raise ReleaseGateError(
+            "candidate-owned release gate is non-authoritative; use the "
+            "hash-pinned external release-assurance bootstrap"
+        )
     repo = Path(args.repo).resolve(strict=True)
     production_root = (
         Path(args.production_root).resolve(strict=True)
         if args.production_root
         else None
     )
-    if not args.development_dry_run and production_root is None:
-        raise ReleaseGateError(
-            "non-development validation requires an explicit production root"
-        )
     toolchain_before = validation_toolchain_inventory(excluded_roots=(repo,))
     dependency_roots = tuple(
         Path(path) for path in toolchain_before.protected_paths
@@ -7225,9 +7511,8 @@ def run_gate(args: argparse.Namespace) -> int:
                 or not relationships["all_discovered_bindings_resolved"]
                 or not relationships["all_validator_backed_classifications_valid"]
                 or not relationships["all_required_source_file_pins_valid"]
-                or not relationships[
-                    "all_direct_companion_relationships_valid"
-                ]
+                or relationships["direct_companion_validation_status"]
+                not in {"valid", "not_applicable"}
                 or not relationships[
                     "all_historical_build_classifications_supported"
                 ]
@@ -7744,14 +8029,20 @@ def run_gate(args: argparse.Namespace) -> int:
                 )
             },
         )
-        print(json.dumps({"output_dir": str(output_dir), "files": inventory}, indent=2))
+        print(
+            strict_json.canonical_dumps(
+                {"output_dir": str(output_dir), "files": inventory}
+            )
+        )
         return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser."""
     parser = argparse.ArgumentParser(
-        description="Read-only frozen-candidate release gate"
+        description=(
+            "Non-authoritative application-side release-assurance development helper"
+        )
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     network = subparsers.add_parser(
@@ -7766,7 +8057,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = subparsers.add_parser(
         "run",
-        help="attest one exact committed candidate without deployment",
+        help="run advisory development checks; never issue release attestation",
     )
     run.add_argument("--repo", default=".")
     run.add_argument("--base", required=True)
@@ -7904,7 +8195,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             result["installed_service_unit_read_only"] = bool(unit_paths) and (
                 result.get("additional_protected_paths_read_only") is True
             )
-            print(json.dumps(result, sort_keys=True, indent=2))
+            print(strict_json.canonical_dumps(result))
             return 0 if result["available"] else 2
         if args.command == "run":
             return run_gate(args)

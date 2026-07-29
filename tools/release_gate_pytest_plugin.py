@@ -1,9 +1,10 @@
-"""Structured pytest evidence for the frozen-candidate release gate.
+"""Structured pytest evidence for candidate-owned advisory validation.
 
 The plugin is loaded explicitly by :mod:`tools.release_gate`; normal project
 pytest runs do not load it.  Under xdist each worker returns its observations
 through ``workeroutput`` and the controller writes one deterministic JSON
-document at session end.
+document at session end. An authoritative external assurance gate must use its
+own pinned evidence plugin rather than trusting this candidate-owned module.
 """
 
 from __future__ import annotations
@@ -18,6 +19,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+try:
+    from tools import strict_json
+except ModuleNotFoundError:  # Support explicit loading from ``tools/``.
+    import strict_json  # type: ignore[no-redef]
 
 
 EVENTS_PATH_ENV = "MRS_RELEASE_GATE_PYTEST_EVENTS"
@@ -196,8 +202,8 @@ def _import_policy() -> dict[str, object]:
     }
     try:
         policy_path = Path(raw_policy_path).resolve(strict=True)
-        raw = json.loads(policy_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        raw = strict_json.load(policy_path)
+    except (OSError, strict_json.StrictJSONError):
         _POLICY_CACHE = (raw_policy_path, empty)
         return empty
     if not isinstance(raw, dict) or raw.get("schema_version") != 1:
@@ -357,9 +363,7 @@ def pytest_testnodedown(node: Any, error: object | None) -> None:
 
 def _write_events(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    encoded = (
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    ).encode("utf-8")
+    encoded = strict_json.canonical_json_bytes(payload)
     descriptor, temporary = tempfile.mkstemp(
         prefix=f".{path.name}.", dir=path.parent
     )

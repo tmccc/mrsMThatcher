@@ -5,7 +5,10 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from tools import priority0_registry as registry_tool
+from tools import strict_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +43,12 @@ EXPECTED_INVARIANT_IDS = (
     "INV-TEST-003",
     "INV-TEST-004",
     "INV-REL-001",
+    "INV-REL-JSON-001",
+    "INV-REL-TRUST-001",
+    "INV-REL-SANDBOX-001",
+    "INV-REL-IMPORT-001",
+    "INV-REL-CMD-001",
+    "INV-REL-ART-001",
 )
 
 EXPLICIT_ASSURANCE_FIELDS = {
@@ -59,8 +68,8 @@ EXPLICIT_ASSURANCE_FIELDS = {
 
 def _load_real_documents() -> tuple[dict, dict]:
     return (
-        json.loads(REGISTRY_PATH.read_text(encoding="utf-8")),
-        json.loads(SCHEMA_PATH.read_text(encoding="utf-8")),
+        strict_json.load(REGISTRY_PATH),
+        strict_json.load(SCHEMA_PATH),
     )
 
 
@@ -140,9 +149,10 @@ def _minimal_registry(tmp_path: Path) -> tuple[dict, dict]:
             "tests": [
                 "tests/test_sample.py::test_contract"
             ],
-            "commands": [
+            "validations": [
                 {
-                    "command": "python3 -m pytest -q tests/test_sample.py",
+                    "validation_id": "pytest",
+                    "selectors": ["tests/test_sample.py"],
                     "purpose": "Exercise the synthetic contract."
                 }
             ]
@@ -159,6 +169,21 @@ def _minimal_registry(tmp_path: Path) -> tuple[dict, dict]:
     registry["expected_full_suite_skips"] = []
     registry["invariants"] = [invariant]
     return registry, schema
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"invariants":[],"invariants":[]}',
+        '{"outer":{"id":"one","id":"two"}}',
+        '{"value":NaN}',
+    ],
+)
+def test_registry_control_json_is_strict(tmp_path: Path, payload: str) -> None:
+    path = tmp_path / "registry.json"
+    path.write_text(payload, encoding="utf-8")
+    with pytest.raises(strict_json.StrictJSONError):
+        registry_tool.load_json_document(path)
 
 
 def test_registry_uses_the_agreed_stable_ids() -> None:
@@ -248,7 +273,17 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         invariant_id
         for invariant_id, invariant in records.items()
         if invariant["last_verified_commit"]["status"] == "unknown"
-    } == {"INV-PROC-004", "INV-REL-001", "INV-TEST-003"}
+    } == {
+        "INV-PROC-004",
+        "INV-REL-001",
+        "INV-REL-ART-001",
+        "INV-REL-CMD-001",
+        "INV-REL-IMPORT-001",
+        "INV-REL-JSON-001",
+        "INV-REL-SANDBOX-001",
+        "INV-REL-TRUST-001",
+        "INV-TEST-003",
+    }
     assert records["INV-PROC-004"]["accepted_residual_risk"]["status"] == (
         "unaccepted"
     )
@@ -446,11 +481,17 @@ def test_real_registry_is_valid_and_markdown_is_synchronised() -> None:
     assert set(report.partial) == {
         "INV-ART-001",
         "INV-CONFIG-001",
-        "INV-PAUSE-001",
-        "INV-REL-001",
-        "INV-TEST-004",
-        "INV-TXN-RECEIPT-001",
-    }
+            "INV-PAUSE-001",
+            "INV-REL-001",
+            "INV-REL-ART-001",
+            "INV-REL-CMD-001",
+            "INV-REL-IMPORT-001",
+            "INV-REL-JSON-001",
+            "INV-REL-SANDBOX-001",
+            "INV-REL-TRUST-001",
+            "INV-TEST-004",
+            "INV-TXN-RECEIPT-001",
+        }
 
 
 def test_builtin_schema_fallback_accepts_valid_registry(tmp_path: Path) -> None:
@@ -487,7 +528,7 @@ def test_schema_rejects_unknown_fields_with_jsonschema_and_fallback(
         )
 
 
-def test_validator_rejects_duplicate_ids_missing_files_tests_and_commands(
+def test_validator_rejects_duplicate_ids_missing_files_tests_and_validations(
     tmp_path: Path,
 ) -> None:
     registry, schema = _minimal_registry(tmp_path)
@@ -497,7 +538,7 @@ def test_validator_rejects_duplicate_ids_missing_files_tests_and_commands(
     duplicate["enforcement"]["tests"] = [
         "tests/test_sample.py::test_missing"
     ]
-    duplicate["enforcement"]["commands"] = []
+    duplicate["enforcement"]["validations"] = []
     registry["invariants"].append(duplicate)
 
     report = registry_tool.validate_registry(
@@ -511,7 +552,7 @@ def test_validator_rejects_duplicate_ids_missing_files_tests_and_commands(
     assert "duplicate invariant ID INV-DEMO-001" in combined
     assert "referenced file does not exist: missing.py" in combined
     assert "test node does not exist" in combined
-    assert "critical invariant must name a command" in combined
+    assert "critical invariant must name a validation" in combined
 
 
 def test_validator_rejects_unmapped_control_paths_and_globs(

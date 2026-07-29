@@ -2,7 +2,7 @@
   "$schema": "./defect_ledger.schema.json",
   "schema_version": 2,
   "ledger_id": "mrsMThatcher-defect-evidence-ledger",
-  "as_of": "2026-07-28",
+  "as_of": "2026-07-29",
   "identity_scope": {
     "production_baseline": {
       "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -10,11 +10,11 @@
       "role": "Historical production and master state against which the defect records and invariant references were established."
     },
     "ledger_evidence_cutoff": {
-      "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-      "tree": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
-      "as_of": "2026-07-28",
-      "difference_from_production_baseline": "None: the initial evidence cut-off is the same commit and tree as the recorded production baseline.",
-      "meaning": "Every active, fixed, deployed and verified status in this ledger is an evidence claim valid only through this commit and tree. It does not describe a later candidate or later master without regeneration."
+      "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+      "tree": "84d8f63e7e2020858592d080fa6ddc5c058714df",
+      "as_of": "2026-07-29",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline only to the independently reviewed Priority-0 follow-up candidate. It records assurance defects in that candidate; it does not claim that candidate was merged, deployed or loaded.",
+      "meaning": "Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash."
     },
     "candidate_under_review": {
       "identity_source": "external-release-attestation",
@@ -78,7 +78,7 @@
   },
   "markdown": {
     "title": "MrsMThatcher defect ledger",
-    "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related established gaps.",
+      "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related runtime and release-assurance gaps.",
     "source_of_truth": "defect_ledger.json",
     "sort_key": "id",
     "unknown_policy": "Render the literal word unknown and its recorded explanation; never infer a missing commit, deployment or test.",
@@ -1599,7 +1599,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:unknown..305ac6b137542bcb147bf214f7aefb3f16a166dc",
         "confidence": "unknown",
         "explanation": "This is absence of an environmental control, not a code regression with a defensible first-bad commit."
       },
@@ -1712,7 +1712,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:unknown..305ac6b137542bcb147bf214f7aefb3f16a166dc",
         "confidence": "unknown",
         "explanation": "This is an absent release control spanning Git, collaboration and deployment; repository history does not identify one introducing commit."
       },
@@ -1818,7 +1818,7 @@
       "introduced": {
         "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..305ac6b137542bcb147bf214f7aefb3f16a166dc",
         "confidence": "bounded",
         "explanation": "The production wrapper dates to 2179d71 and has never carried generation identity. Earlier service/process arrangements were not audited for this property."
       },
@@ -1929,7 +1929,7 @@
       "introduced": {
         "first_bad_commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
         "last_known_good_commit": "b267a330983c5db2aec2c5722ce9e994b43bbeda",
-        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..305ac6b137542bcb147bf214f7aefb3f16a166dc",
         "confidence": "exact",
         "explanation": "Git -S history for historical_context_formatter.py in the material veto manifest identifies 2220df1e as the first pin."
       },
@@ -2043,7 +2043,7 @@
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..305ac6b137542bcb147bf214f7aefb3f16a166dc",
         "confidence": "bounded",
         "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
       },
@@ -2123,6 +2123,583 @@
           "DEF-0005",
           "DEF-0006",
           "DEF-0007"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0018",
+      "title": "Priority-0 release-control JSON accepts ambiguous duplicate object names",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "priority0-release-control-strict-json",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-JSON-001"
+      ],
+      "components": [
+        "tools/release_gate.py",
+        "tools/priority0_registry.py",
+        "tools/defect_ledger.py"
+      ],
+      "affected_files": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "defect_ledger.json",
+        "defect_ledger.schema.json",
+        "tools/release_gate.py",
+        "tools/priority0_registry.py",
+        "tools/defect_ledger.py"
+      ],
+      "runtime_lanes": [
+        "release-control-input-parsing"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The independent review used synthetic duplicated names; no production document or runtime incident is alleged.",
+        "explanation": "This is a release-assurance parser weakness, distinct from DEF-0017's still-open production runtime parser defect."
+      },
+      "summary": "The candidate registry parser accepted a duplicate name with ordinary last-key-wins JSON semantics while the defect-ledger parser behaved differently.",
+      "impact": "An untrusted candidate control document could visually contain conflicting policy while the gate silently used only the last value.",
+      "introduced": {
+        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "confidence": "bounded",
+        "explanation": "The release-control parser first exists in the Priority-0 candidate lineage and the independent review reproduced the weakness at 305ac6b."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-29",
+          "event": "Independent source review reproduced asymmetric duplicate-name handling in Priority-0 control documents.",
+          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "evidence": "Independent review package a5aea17cce49455f784ffed1c0f9896137991f1476e12fbef68b59ac1b64c978."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-29",
+        "reviewed_revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "scope": "Priority-0 release-control parsers and candidate assurance boundaries.",
+        "exclusions": "Production runtime JSON consumers were not changed by this review.",
+        "source": "Priority-0 independent review package"
+      },
+      "detection": {
+        "date": "2026-07-29",
+        "revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "method": "Parse synthetic top-level and nested duplicate names through each Priority-0 loader.",
+        "reproducer": "A production-invariant object containing the same property twice is accepted and the last value wins.",
+        "source": "independent_review_blocker_reproductions.json"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Use one strict decoder for every release-control and evidence input, rejecting duplicate names and non-finite numbers."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "observed_at": "2026-07-29T00:00:00+00:00",
+        "evidence": "This is a candidate assurance control and has not been merged or deployed."
+      },
+      "residual_risk": "Open at the ledger evidence cut-off; DEF-0017 separately tracks production runtime JSON parsing.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "305ac6b:tools/priority0_registry.py",
+          "claim": "The reviewed candidate used ordinary JSON decoding for registry input."
+        },
+        {
+          "type": "report",
+          "reference": "independent_review_blocker_reproductions.json",
+          "claim": "Synthetic duplicate-name behaviour was reproduced without production data."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The remediation candidate commit is supplied by an external attestation after this evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0017"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0019",
+      "title": "Candidate-owned gate can certify the candidate which supplies it",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "priority0-external-trust-separation",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-TRUST-001"
+      ],
+      "components": [
+        "tools/release_gate.py",
+        "production_invariants.json",
+        "tools/release_gate_pytest_plugin.py"
+      ],
+      "affected_files": [
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "production_invariants.json"
+      ],
+      "runtime_lanes": [
+        "release-attestation-trust-root"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "No release or deployment used the reviewed candidate as an approved external trust root.",
+        "explanation": "The weakness concerns who controls the certifying implementation, not bot runtime behaviour."
+      },
+      "summary": "The application candidate owns the gate, registry and pytest evidence plugin that issue its release result.",
+      "impact": "Candidate code can influence the policy, evidence collection and Boolean used to qualify that same candidate.",
+      "introduced": {
+        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "confidence": "exact",
+        "explanation": "The self-certifying gate was introduced in the Priority-0 candidate lineage and remains candidate-owned at 305ac6b."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-29",
+          "event": "Independent review identified candidate-controlled policy, execution and evidence as one trust domain.",
+          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "evidence": "Independent review package a5aea17cce49455f784ffed1c0f9896137991f1476e12fbef68b59ac1b64c978."
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-29",
+        "reviewed_revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "scope": "Release-gate trust root and authority separation.",
+        "exclusions": "No external assurance repository yet existed to review.",
+        "source": "Priority-0 independent review package"
+      },
+      "detection": {
+        "date": "2026-07-29",
+        "revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "method": "Trace the source of the gate, policy, plugin and final attestation Boolean.",
+        "reproducer": "Invoke candidate-owned tools/release_gate.py and observe it emits its own qualifying result.",
+        "source": "Priority-0 independent review package"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Move authoritative policy, execution and evidence collection to a separately committed, hash-pinned external assurance repository."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "observed_at": "2026-07-29T00:00:00+00:00",
+        "evidence": "The gate is release tooling and no production activation is claimed."
+      },
+      "residual_risk": "Open until an independently reviewed external bootstrap gate rejects candidate-owned authority.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "305ac6b:tools/release_gate.py",
+          "claim": "The candidate-owned CLI executes validation and emits the final release result."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The external assurance bootstrap commit is intentionally not embedded in this ledger."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0014"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0020",
+      "title": "Validation containment exposes unrelated host-user files",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "priority0-private-root-containment",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-SANDBOX-001"
+      ],
+      "components": [
+        "tools/release_gate.py",
+        "validation namespace"
+      ],
+      "affected_files": [
+        "tools/release_gate.py"
+      ],
+      "runtime_lanes": [
+        "release-validation-containment"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "Only a synthetic host-side canary was used.",
+        "explanation": "No actual unrelated file or production secret was read or modified."
+      },
+      "summary": "The selected-path namespace blocks network access and protects named roots, but retains the host root filesystem and unrelated user paths.",
+      "impact": "Candidate validation can read or alter files outside the candidate and output roots despite an apparently contained run.",
+      "introduced": {
+        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "confidence": "bounded",
+        "explanation": "The containment design exists only in the Priority-0 candidate lineage and is reproduced at 305ac6b."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-29",
+          "event": "A disposable validation command could read and modify a synthetic host canary outside protected roots.",
+          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "evidence": "independent_review_blocker_reproductions.json"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-29",
+        "reviewed_revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "scope": "Filesystem, process and network containment of validation commands.",
+        "exclusions": "Only synthetic canaries were inspected.",
+        "source": "Priority-0 independent review package"
+      },
+      "detection": {
+        "date": "2026-07-29",
+        "revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "method": "Run read/write canaries outside the candidate and output roots.",
+        "reproducer": "A contained command accesses a synthetic host path which was never mounted as a declared input.",
+        "source": "independent_review_blocker_reproductions.json"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Use a private-root sandbox with only read-only candidate/gate inputs and one bounded writable output."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "observed_at": "2026-07-29T00:00:00+00:00",
+        "evidence": "Development assurance control; no production deployment applies."
+      },
+      "residual_risk": "Open until private-root canaries prove host filesystem non-visibility and non-mutability.",
+      "evidence": [
+        {
+          "type": "report",
+          "reference": "independent_review_blocker_reproductions.json",
+          "claim": "Synthetic host-canary access crossed the selected-path containment boundary."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The external assurance bootstrap fix is not part of the evidence-cut-off candidate."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0013"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0021",
+      "title": "Validation descendants can import undeclared host distributions",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "priority0-descendant-import-isolation",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-IMPORT-001"
+      ],
+      "components": [
+        "tools/release_gate.py",
+        "pytest workers",
+        "Python subprocesses"
+      ],
+      "affected_files": [
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py"
+      ],
+      "runtime_lanes": [
+        "release-validation-python-environment"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The reproduction imported a synthetic undeclared sibling package.",
+        "explanation": "No real unrelated project package was imported or modified."
+      },
+      "summary": "Sanitising PYTHONPATH does not remove shared site-packages and source roots from the interpreter's filesystem or default import configuration.",
+      "impact": "Controller, xdist worker or child process can execute undeclared code absent from the attested dependency inventory.",
+      "introduced": {
+        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "confidence": "bounded",
+        "explanation": "The private validation environment was introduced with the candidate gate but still binds shared distribution roots at 305ac6b."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-29",
+          "event": "An undeclared synthetic package remained importable by a candidate Python child.",
+          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "evidence": "independent_review_blocker_reproductions.json"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-29",
+        "reviewed_revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "scope": "Python dependency closure and import origins for controller, worker and subprocess descendants.",
+        "exclusions": "No production Python environment was changed.",
+        "source": "Priority-0 independent review package"
+      },
+      "detection": {
+        "date": "2026-07-29",
+        "revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "method": "Place a synthetic undeclared package on a shared host import root and import it from a child.",
+        "reproducer": "A child launched with the validation interpreter imports a package outside the declared dependency closure.",
+        "source": "independent_review_blocker_reproductions.json"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Materialise a private interpreter environment containing only the standard library and declared distribution file closure."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "observed_at": "2026-07-29T00:00:00+00:00",
+        "evidence": "Development assurance control; no production deployment applies."
+      },
+      "residual_risk": "Open until controller, worker and subprocess imports are confined by filesystem construction, not environment convention.",
+      "evidence": [
+        {
+          "type": "report",
+          "reference": "independent_review_blocker_reproductions.json",
+          "claim": "A synthetic undeclared sibling distribution remained importable."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The external assurance bootstrap fix is not part of the evidence-cut-off candidate."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0013",
+          "DEF-0020"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0022",
+      "title": "Candidate registry can author arbitrary validation commands",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "priority0-trusted-validation-id-policy",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-CMD-001"
+      ],
+      "components": [
+        "production_invariants.json",
+        "tools/release_gate.py"
+      ],
+      "affected_files": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "tools/release_gate.py"
+      ],
+      "runtime_lanes": [
+        "release-validation-command-policy"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "Only a synthetic shell command writing a canary was used.",
+        "explanation": "No real host project or production path was targeted."
+      },
+      "summary": "The untrusted candidate registry supplies free-form command strings and the gate accepts a shell interpreter with dynamic -c code.",
+      "impact": "A candidate can choose arbitrary executable behaviour while presenting it as required invariant validation.",
+      "introduced": {
+        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "confidence": "exact",
+        "explanation": "Free-form invariant commands are part of the introduced Priority-0 registry and gate."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-29",
+          "event": "The gate accepted sh -c with synthetic dynamic code.",
+          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "evidence": "independent_review_blocker_reproductions.json"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-29",
+        "reviewed_revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "scope": "Candidate-controlled invariant validation command execution.",
+        "exclusions": "No production command was run.",
+        "source": "Priority-0 independent review package"
+      },
+      "detection": {
+        "date": "2026-07-29",
+        "revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "method": "Submit a free-form shell validation command to the candidate parser.",
+        "reproducer": "sh -c with a synthetic canary write is accepted as a validation command.",
+        "source": "independent_review_blocker_reproductions.json"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "External policy must own stable validation IDs and construct argv with shell disabled; candidate inputs may supply only bounded selectors."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "observed_at": "2026-07-29T00:00:00+00:00",
+        "evidence": "Development assurance control; no production deployment applies."
+      },
+      "residual_risk": "Open until free-form commands are absent from candidate control documents and external policy owns every executable template.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "305ac6b:production_invariants.json",
+          "claim": "Invariant enforcement contains candidate-authored command strings."
+        },
+        {
+          "type": "report",
+          "reference": "independent_review_blocker_reproductions.json",
+          "claim": "A dynamic shell command was accepted."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The remediation candidate commit is supplied externally after this evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0019",
+          "DEF-0020"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0023",
+      "title": "Runtime artefact-consumption detector misses real loader bindings",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "priority0-runtime-consumption-detector",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-ART-001"
+      ],
+      "components": [
+        "tools/release_gate.py",
+        "generated artefact relationship inventory"
+      ],
+      "affected_files": [
+        "tools/release_gate.py"
+      ],
+      "runtime_lanes": [
+        "release-generated-artifact-attestation"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The finding was reproduced against synthetic and current candidate binding records.",
+        "explanation": "It invalidates an assurance conclusion but does not establish a production runtime incident."
+      },
+      "summary": "The detector checks an impossible resolution label and compares path strings with (path, hash) tuples.",
+      "impact": "A runtime-consumed artefact can be misclassified as historical or advisory, allowing a stale relationship to escape required validation.",
+      "introduced": {
+        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "confidence": "exact",
+        "explanation": "Both incorrect comparisons are present in the Priority-0 candidate implementation."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-29",
+          "event": "Independent review reproduced missed static_path_composition consumption and the string-versus-tuple mismatch.",
+          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "evidence": "independent_review_blocker_reproductions.json"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-29",
+        "reviewed_revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "scope": "Generated-artifact discovery, runtime-consumption classification and companion validation.",
+        "exclusions": "No canonical artefact was regenerated or changed.",
+        "source": "Priority-0 independent review package"
+      },
+      "detection": {
+        "date": "2026-07-29",
+        "revision": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "method": "Feed the emitted static_path_composition vocabulary and typed hash inventory through historical/runtime classification.",
+        "reproducer": "A binding with a real resolved_path is not recognised, and membership fails when the path set contains tuples.",
+        "source": "independent_review_blocker_reproductions.json"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Use typed resolution records, treat every valid resolved_path as runtime consumption and compare normalised set[str] paths."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "observed_at": "2026-07-29T00:00:00+00:00",
+        "evidence": "Release assurance only; no production deployment applies."
+      },
+      "residual_risk": "Open at the evidence cut-off until typed discovery and direct-companion zero-state semantics are externally validated.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "305ac6b:tools/release_gate.py",
+          "claim": "Historical/runtime classification tests resolved_runtime and compares strings against tuple-valued inventory."
+        },
+        {
+          "type": "report",
+          "reference": "independent_review_blocker_reproductions.json",
+          "claim": "Both defects were reproduced without changing canonical artefacts."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The remediation candidate commit is supplied externally after this evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0014"
         ]
       }
     }

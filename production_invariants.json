@@ -34,7 +34,9 @@
     "REVIEW_COMPLETION_TEMPLATE.md",
     "INDEPENDENT_REVIEW_REQUEST.md",
     "why_code_reviews_continue_to_find_major_problems.md",
-    "diagnosis_measurements.json"
+    "diagnosis_measurements.json",
+    "tools/strict_json.py",
+    "independent_review_blocker_reproductions.json"
   ],
   "generated_artifact_classifications": [
     {
@@ -240,9 +242,12 @@
           "tests/test_runtime_ordinary_eligibility_integrity.py::test_coherently_rehashed_whitespace_drift_cannot_break_raw_quote_identity",
           "tests/test_runtime_ordinary_eligibility_integrity.py::test_core_partition_drift_fails_before_ordinary_selection"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_runtime_ordinary_eligibility_integrity.py"
+            ],
             "purpose": "Exercise canonical identity, partition, and coherent-rehash rejection."
           }
         ]
@@ -333,9 +338,13 @@
           "tests/test_runtime_ordinary_eligibility_integrity.py::test_current_runtime_eligibility_manifest_validates_without_context_sidecars",
           "tests/test_runtime_ordinary_eligibility_integrity.py::test_coherently_rehashed_packet_mutation_still_requires_exact_partition"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py tests/test_quote_attribution_cleanup.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_runtime_ordinary_eligibility_integrity.py",
+              "tests/test_quote_attribution_cleanup.py"
+            ],
             "purpose": "Validate the exact production partition and attribution-cleanup contract."
           }
         ]
@@ -432,9 +441,13 @@
           "tests/test_historical_context_packet_corrections.py::test_core_loader_returns_validated_raw_corpus_without_context_sidecars",
           "tests/test_production_consistency_incident.py::test_context_semantic_block_does_not_remove_ordinary_quote_eligibility"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_historical_context_packet_corrections.py::test_core_loader_returns_validated_raw_corpus_without_context_sidecars tests/test_production_consistency_incident.py::test_context_semantic_block_does_not_remove_ordinary_quote_eligibility",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_historical_context_packet_corrections.py::test_core_loader_returns_validated_raw_corpus_without_context_sidecars",
+              "tests/test_production_consistency_incident.py::test_context_semantic_block_does_not_remove_ordinary_quote_eligibility"
+            ],
             "purpose": "Prove the ordinary lane remains available and unchanged when context-only policy is absent or blocking."
           }
         ]
@@ -532,9 +545,13 @@
           "tests/test_historical_context_reply_semantic_gate.py::test_gate_binds_the_actual_runtime_formatter_options",
           "tests/test_historical_context_reply_semantic_gate.py::test_bot_passes_live_context_formatter_options_to_the_gate"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_historical_context_reply_semantic_gate.py tests/test_historical_context_packet_corrections.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_historical_context_reply_semantic_gate.py",
+              "tests/test_historical_context_packet_corrections.py"
+            ],
             "purpose": "Revalidate the complete context evidence and deployed-render dependency closure."
           }
         ]
@@ -669,9 +686,14 @@
           "tests/test_quote_image_semantic_veto_shadow.py::test_shadow_status_rejects_manifest_with_missing_recorded_sources",
           "tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_quote_image_semantic_veto_shadow.py tests/test_runtime_ordinary_eligibility_integrity.py tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_quote_image_semantic_veto_shadow.py",
+              "tests/test_runtime_ordinary_eligibility_integrity.py",
+              "tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename"
+            ],
             "purpose": "Check deterministic/fresh generated evidence and fail-closed generated-image provenance while exposing the absent cross-artifact transaction."
           }
         ]
@@ -782,9 +804,12 @@
           "tests/test_quote_image_semantic_veto_shadow.py::test_missing_corrupt_and_stale_manifests_fail_open",
           "tests/test_quote_image_semantic_veto_shadow.py::test_selected_image_identical_with_shadow_on_and_off"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_quote_image_semantic_veto_shadow.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_quote_image_semantic_veto_shadow.py"
+            ],
             "purpose": "Prove shadow configuration, freshness handling, RNG isolation, and production-selection equivalence."
           }
         ]
@@ -873,9 +898,14 @@
           "tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post",
           "tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories",
+              "tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post",
+              "tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost"
+            ],
             "purpose": "Exercise the regular-post receipt's exact after-state and at-most-once replay."
           }
         ]
@@ -965,9 +995,14 @@
           "tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post",
           "tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt",
+              "tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post",
+              "tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation"
+            ],
             "purpose": "Exercise meme receipt durability, mutual exclusion, and at-most-once replay."
           }
         ]
@@ -1057,9 +1092,14 @@
           "tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation",
           "tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write",
+              "tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation",
+              "tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent"
+            ],
             "purpose": "Exercise reply receipt ordering, global ambiguity blocking, and idempotent recovery."
           }
         ]
@@ -1150,9 +1190,13 @@
           "tests/test_historical_context_reply.py::test_confirmed_receipt_write_failure_leaves_sending_barrier",
           "tests/test_historical_context_reply_semantic_gate.py::test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_historical_context_reply.py tests/test_historical_context_reply_semantic_gate.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_historical_context_reply.py",
+              "tests/test_historical_context_reply_semantic_gate.py"
+            ],
             "purpose": "Exercise context reply durability, ambiguity preservation, and gate-independent reconciliation."
           }
         ]
@@ -1243,9 +1287,14 @@
           "tests/test_unit_helpers.py::test_image_history_preserves_missing_basenames_and_reuses_when_file_reappears",
           "tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_used_history_bad_json_with_legacy_pickle_fails_closed tests/test_unit_helpers.py::test_image_history_preserves_missing_basenames_and_reuses_when_file_reappears tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_unit_helpers.py::test_used_history_bad_json_with_legacy_pickle_fails_closed",
+              "tests/test_unit_helpers.py::test_image_history_preserves_missing_basenames_and_reuses_when_file_reappears",
+              "tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories"
+            ],
             "purpose": "Exercise non-lossy history validation, preservation, and exact recovery."
           }
         ]
@@ -1336,9 +1385,14 @@
           "tests/test_integration_harness.py::test_mentions_truncated_pagination_resumes_on_next_check",
           "tests/test_unit_helpers.py::test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_mentions_truncated_pagination_does_not_advance_watermark tests/test_integration_harness.py::test_mentions_truncated_pagination_resumes_on_next_check tests/test_unit_helpers.py::test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_integration_harness.py::test_mentions_truncated_pagination_does_not_advance_watermark",
+              "tests/test_integration_harness.py::test_mentions_truncated_pagination_resumes_on_next_check",
+              "tests/test_unit_helpers.py::test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x"
+            ],
             "purpose": "Exercise pagination truncation, durable resume, and receipt-bound recovery."
           }
         ]
@@ -1427,9 +1481,14 @@
           "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
           "tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_followup_fail_safe_hardening.py tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_followup_fail_safe_hardening.py",
+              "tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal",
+              "tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation"
+            ],
             "purpose": "Exercise the cross-lane ambiguity barrier, receipt compatibility, and safe retirement order."
           }
         ]
@@ -1527,9 +1586,13 @@
           "tests/test_digest_safety_hardening.py::test_resume_preserves_in_flight_provider_call_until_usage_arrives",
           "tests/test_digest_reply_observability.py::test_conversational_usage_without_matching_call_start_is_incomplete"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_digest_safety_hardening.py::test_resume_preserves_in_flight_provider_call_until_usage_arrives tests/test_digest_reply_observability.py::test_conversational_usage_without_matching_call_start_is_incomplete",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_digest_safety_hardening.py::test_resume_preserves_in_flight_provider_call_until_usage_arrives",
+              "tests/test_digest_reply_observability.py::test_conversational_usage_without_matching_call_start_is_incomplete"
+            ],
             "purpose": "Exercise resumable provider-call accounting and conservative unmatched-usage reporting."
           }
         ]
@@ -1625,9 +1688,14 @@
           "tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls",
           "tests/test_deployment_assets.py::test_local_config_example_is_accepted_as_one_atomic_override"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py tests/test_deployment_assets.py tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_fail_safe_bootstrap_and_control.py",
+              "tests/test_deployment_assets.py",
+              "tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls"
+            ],
             "purpose": "Exercise fail-closed, atomic, allowlisted local configuration."
           }
         ]
@@ -1737,9 +1805,12 @@
           "tests/test_fail_safe_bootstrap_and_control.py::test_control_malformed_preserves_prior_pause_and_repair_recovers",
           "tests/test_fail_safe_bootstrap_and_control.py::test_global_pause_is_rechecked_at_remote_boundaries"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_fail_safe_bootstrap_and_control.py"
+            ],
             "purpose": "Exercise runtime-control allowlisting, failure preservation, and boundary rechecks."
           }
         ]
@@ -1842,9 +1913,14 @@
           "tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget",
           "tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget",
+              "tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget",
+              "tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post"
+            ],
             "purpose": "Exercise bounded total request time and non-retry of ambiguous writes."
           }
         ]
@@ -1936,9 +2012,13 @@
           "tests/test_fail_safe_bootstrap_and_control.py::test_failed_bootstrap_leaves_operational_guard_closed",
           "tests/test_logging_isolation.py::test_plain_import_does_not_open_production_log"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py tests/test_logging_isolation.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_fail_safe_bootstrap_and_control.py",
+              "tests/test_logging_isolation.py"
+            ],
             "purpose": "Exercise import safety and the explicit bootstrap guard."
           }
         ]
@@ -2028,9 +2108,14 @@
           "tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation",
           "tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir",
+              "tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation",
+              "tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock"
+            ],
             "purpose": "Exercise singleton ownership and lock-before-recovery ordering."
           }
         ]
@@ -2119,9 +2204,15 @@
           "tests/test_integration_harness.py::test_launcher_treats_repeated_fast_clean_exits_as_unhealthy",
           "tests/test_integration_harness.py::test_launcher_validates_effective_settings_loaded_from_env_file"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_launcher_surfaces_child_output_and_exits_after_fast_failure_limit tests/test_integration_harness.py::test_launcher_treats_repeated_fast_clean_exits_as_unhealthy tests/test_integration_harness.py::test_launcher_validates_effective_settings_loaded_from_env_file tests/test_integration_harness.py::test_launcher_has_valid_shell_syntax",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_integration_harness.py::test_launcher_surfaces_child_output_and_exits_after_fast_failure_limit",
+              "tests/test_integration_harness.py::test_launcher_treats_repeated_fast_clean_exits_as_unhealthy",
+              "tests/test_integration_harness.py::test_launcher_validates_effective_settings_loaded_from_env_file",
+              "tests/test_integration_harness.py::test_launcher_has_valid_shell_syntax"
+            ],
             "purpose": "Exercise launcher diagnostics, effective configuration, and crash-loop termination."
           }
         ]
@@ -2211,9 +2302,10 @@
           "why_code_reviews_continue_to_find_major_problems.md"
         ],
         "tests": [],
-        "commands": [
+        "validations": [
           {
-            "command": "python3 tools/priority0_registry.py validate --json",
+            "validation_id": "registry_validate",
+            "selectors": [],
             "purpose": "Report this unsupported health-attestation contract explicitly until runtime implementation and tests exist."
           }
         ]
@@ -2305,9 +2397,14 @@
           "tests/test_logging_isolation.py::test_plain_import_does_not_open_production_log",
           "tests/test_integration_harness.py::test_test_mode_refuses_production_base_dir"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_pytest_safety_bootstrap.py::test_collection_import_uses_process_local_test_environment tests/test_logging_isolation.py tests/test_integration_harness.py::test_test_mode_refuses_production_base_dir",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_pytest_safety_bootstrap.py::test_collection_import_uses_process_local_test_environment",
+              "tests/test_logging_isolation.py",
+              "tests/test_integration_harness.py::test_test_mode_refuses_production_base_dir"
+            ],
             "purpose": "Exercise collection-time isolation and production path/log refusal."
           }
         ]
@@ -2395,9 +2492,12 @@
           "tests/test_pytest_safety_bootstrap.py::test_default_network_policy_denies_loopback_and_non_loopback",
           "tests/test_pytest_safety_bootstrap.py::test_loopback_opt_in_allows_only_local_fake_server"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_pytest_safety_bootstrap.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_pytest_safety_bootstrap.py"
+            ],
             "purpose": "Exercise Python-process default-deny network behavior and explicit loopback-only opt-in."
           }
         ]
@@ -2489,9 +2589,14 @@
           "tests/test_release_gate.py::test_subprocess_egress_preflight_uses_namespace",
           "tests/test_release_gate.py::test_namespace_wrapper_preserves_arguments_without_shell_interpolation"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_release_gate.py::test_unavailable_os_level_network_denial_is_explicit tests/test_release_gate.py::test_subprocess_egress_preflight_uses_namespace tests/test_release_gate.py::test_namespace_wrapper_preserves_arguments_without_shell_interpolation",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_release_gate.py::test_unavailable_os_level_network_denial_is_explicit",
+              "tests/test_release_gate.py::test_subprocess_egress_preflight_uses_namespace",
+              "tests/test_release_gate.py::test_namespace_wrapper_preserves_arguments_without_shell_interpolation"
+            ],
             "purpose": "Exercise fail-closed OS isolation and descendant-safe command wrapping."
           }
         ]
@@ -2603,9 +2708,18 @@
           "tests/test_quote_image_metadata_remediation.py::test_paid_judgement_reuse_is_limited_to_byte_identical_semantic_inputs",
           "tests/test_semantic_veto_new_quote_adjudication.py::test_complete_manifest_build_is_byte_identical"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py tests/test_historical_context_packet_corrections.py tests/test_simulate_regular_post_futures.py tests/test_production_consistency_incident.py tests/test_image_quote_shortlist_rerank.py tests/test_quote_image_metadata_remediation.py tests/test_semantic_veto_new_quote_adjudication.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_runtime_ordinary_eligibility_integrity.py",
+              "tests/test_historical_context_packet_corrections.py",
+              "tests/test_simulate_regular_post_futures.py",
+              "tests/test_production_consistency_incident.py",
+              "tests/test_image_quote_shortlist_rerank.py",
+              "tests/test_quote_image_metadata_remediation.py",
+              "tests/test_semantic_veto_new_quote_adjudication.py"
+            ],
             "purpose": "Exercise current production-shaped fixtures and representative adversarial transaction/evidence boundaries."
           }
         ]
@@ -2736,13 +2850,19 @@
           "tests/test_release_gate.py::test_deterministic_semantic_attestation_is_byte_identical",
           "tests/test_release_gate.py::test_detached_candidate_worktree_is_exact_and_removed"
         ],
-        "commands": [
+        "validations": [
           {
-            "command": "python3 tools/priority0_registry.py validate --json",
+            "validation_id": "registry_validate",
+            "selectors": [],
             "purpose": "Validate the canonical invariant and Priority-0 control-document closure while unresolved release gaps remain explicit."
           },
           {
-            "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_priority0_registry.py tests/test_release_gate.py tests/test_defect_ledger.py",
+            "validation_id": "pytest",
+            "selectors": [
+              "tests/test_priority0_registry.py",
+              "tests/test_release_gate.py",
+              "tests/test_defect_ledger.py"
+            ],
             "purpose": "Exercise registry/ledger synchronization and executable release-gate behavior."
           }
         ]
@@ -2818,6 +2938,625 @@
       "accepted_residual_risk": {
         "status": "unaccepted",
         "explanation": "No acceptance is recorded. Candidate-specific attestation status is supplied externally and cannot be inferred from this registry; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004)."
+      }
+    },
+    {
+      "accepted_residual_risk": {
+        "explanation": "No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.",
+        "status": "unaccepted"
+      },
+      "affected_paths": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "PRODUCTION_INVARIANTS.md",
+        "tools/priority0_registry.py",
+        "tools/strict_json.py",
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "tests/test_priority0_registry.py",
+        "tests/test_release_gate.py",
+        "independent_review_blocker_reproductions.json"
+      ],
+      "category": "test_deployment",
+      "criticality": "critical",
+      "enforcement": {
+        "files": [
+          "production_invariants.json",
+          "production_invariants.schema.json",
+          "PRODUCTION_INVARIANTS.md",
+          "tools/priority0_registry.py",
+          "tools/strict_json.py",
+          "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_release_gate.py"
+        ],
+        "tests": [
+          "tests/test_release_gate.py::test_strict_json_rejects_duplicate_names_and_nonfinite_numbers"
+        ],
+        "validations": [
+          {
+            "purpose": "Exercise the application-side compatibility boundary without granting candidate-owned release authority.",
+            "selectors": [
+              "tests/test_release_gate.py::test_strict_json_rejects_duplicate_names_and_nonfinite_numbers"
+            ],
+            "validation_id": "pytest"
+          }
+        ]
+      },
+      "evidence_references": [
+        {
+          "claim": "Application-side implementation of the recorded compatibility boundary.",
+          "reference": "production_invariants.json",
+          "type": "code"
+        },
+        {
+          "claim": "Focused regression evidence for the recorded boundary.",
+          "reference": "tests/test_release_gate.py::test_strict_json_rejects_duplicate_names_and_nonfinite_numbers",
+          "type": "test"
+        }
+      ],
+      "failure_if_violated": "Last-key-wins or non-standard numbers can alter the policy meaning seen by different validators.",
+      "failure_mode": {
+        "explanation": "Release qualification is refused when the external assurance boundary cannot prove this property.",
+        "mode": "fail_closed"
+      },
+      "full_suite_relevance": {
+        "explanation": "Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.",
+        "status": "required"
+      },
+      "id": "INV-REL-JSON-001",
+      "implementation_status": "partial",
+      "known_gaps": [
+        "The external assurance repository must independently use and test its own strict parser."
+      ],
+      "last_verified_commit": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate identity.",
+        "status": "unknown",
+        "value": null
+      },
+      "last_verified_tree": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate tree.",
+        "status": "unknown",
+        "value": null
+      },
+      "owner_subsystem": "release_assurance",
+      "preconditions": [
+        "The application candidate is treated as untrusted input.",
+        "The external assurance policy and runner come from a separately committed repository."
+      ],
+      "rationale": "Last-key-wins or non-standard numbers can alter the policy meaning seen by different validators.",
+      "required_production_deployed_path_checks": {
+        "checks": [],
+        "explanation": "This task records release assurance only and performs no production activation.",
+        "status": "not_applicable"
+      },
+      "runtime_consumed_artifacts": {
+        "artifacts": [],
+        "explanation": "This release-control contract does not add a bot runtime artefact.",
+        "status": "none"
+      },
+      "statement": "Every release-control and evidence JSON input must reject duplicate object names and non-finite numbers before schema or policy evaluation, and canonical output must reject non-finite values.",
+      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.",
+      "title": "Strict release-control JSON",
+      "verification": {
+        "rationale": "Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.",
+        "status": "partial"
+      }
+    },
+    {
+      "accepted_residual_risk": {
+        "explanation": "No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.",
+        "status": "unaccepted"
+      },
+      "affected_paths": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "PRODUCTION_INVARIANTS.md",
+        "tools/priority0_registry.py",
+        "tools/strict_json.py",
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "tests/test_priority0_registry.py",
+        "tests/test_release_gate.py"
+      ],
+      "category": "test_deployment",
+      "criticality": "critical",
+      "enforcement": {
+        "files": [
+          "production_invariants.json",
+          "production_invariants.schema.json",
+          "PRODUCTION_INVARIANTS.md",
+          "tools/priority0_registry.py",
+          "tools/strict_json.py",
+          "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_release_gate.py"
+        ],
+        "tests": [
+          "tests/test_release_gate.py::test_candidate_gate_cannot_issue_authoritative_attestation"
+        ],
+        "validations": [
+          {
+            "purpose": "Exercise the application-side compatibility boundary without granting candidate-owned release authority.",
+            "selectors": [
+              "tests/test_release_gate.py::test_candidate_gate_cannot_issue_authoritative_attestation"
+            ],
+            "validation_id": "pytest"
+          }
+        ]
+      },
+      "evidence_references": [
+        {
+          "claim": "Application-side implementation of the recorded compatibility boundary.",
+          "reference": "production_invariants.json",
+          "type": "code"
+        },
+        {
+          "claim": "Focused regression evidence for the recorded boundary.",
+          "reference": "tests/test_release_gate.py::test_candidate_gate_cannot_issue_authoritative_attestation",
+          "type": "test"
+        }
+      ],
+      "failure_if_violated": "A candidate that supplies its own certifier can weaken the checks that supposedly approve it.",
+      "failure_mode": {
+        "explanation": "Release qualification is refused when the external assurance boundary cannot prove this property.",
+        "mode": "fail_closed"
+      },
+      "full_suite_relevance": {
+        "explanation": "Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.",
+        "status": "required"
+      },
+      "id": "INV-REL-TRUST-001",
+      "implementation_status": "partial",
+      "known_gaps": [
+        "The external bootstrap candidate remains pending independent review and is not yet a trusted root."
+      ],
+      "last_verified_commit": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate identity.",
+        "status": "unknown",
+        "value": null
+      },
+      "last_verified_tree": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate tree.",
+        "status": "unknown",
+        "value": null
+      },
+      "owner_subsystem": "release_assurance",
+      "preconditions": [
+        "The application candidate is treated as untrusted input.",
+        "The external assurance policy and runner come from a separately committed repository."
+      ],
+      "rationale": "A candidate that supplies its own certifier can weaken the checks that supposedly approve it.",
+      "required_production_deployed_path_checks": {
+        "checks": [],
+        "explanation": "This task records release assurance only and performs no production activation.",
+        "status": "not_applicable"
+      },
+      "runtime_consumed_artifacts": {
+        "artifacts": [],
+        "explanation": "This release-control contract does not add a bot runtime artefact.",
+        "status": "none"
+      },
+      "statement": "Candidate-owned code, registries, plugins and reports are advisory inputs only; only a separately committed and hash-pinned external runner may issue release qualification.",
+      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.",
+      "title": "External release-assurance trust separation",
+      "verification": {
+        "rationale": "Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.",
+        "status": "partial"
+      }
+    },
+    {
+      "accepted_residual_risk": {
+        "explanation": "No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.",
+        "status": "unaccepted"
+      },
+      "affected_paths": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "PRODUCTION_INVARIANTS.md",
+        "tools/priority0_registry.py",
+        "tools/strict_json.py",
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "tests/test_priority0_registry.py",
+        "tests/test_release_gate.py"
+      ],
+      "category": "test_deployment",
+      "criticality": "critical",
+      "enforcement": {
+        "files": [
+          "production_invariants.json",
+          "production_invariants.schema.json",
+          "PRODUCTION_INVARIANTS.md",
+          "tools/priority0_registry.py",
+          "tools/strict_json.py",
+          "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_release_gate.py"
+        ],
+        "tests": [
+          "tests/test_release_gate.py::test_candidate_gate_refuses_non_development_release_run"
+        ],
+        "validations": [
+          {
+            "purpose": "Exercise the application-side compatibility boundary without granting candidate-owned release authority.",
+            "selectors": [
+              "tests/test_release_gate.py::test_candidate_gate_refuses_non_development_release_run"
+            ],
+            "validation_id": "pytest"
+          }
+        ]
+      },
+      "evidence_references": [
+        {
+          "claim": "Application-side implementation of the recorded compatibility boundary.",
+          "reference": "production_invariants.json",
+          "type": "code"
+        },
+        {
+          "claim": "Focused regression evidence for the recorded boundary.",
+          "reference": "tests/test_release_gate.py::test_candidate_gate_refuses_non_development_release_run",
+          "type": "test"
+        }
+      ],
+      "failure_if_violated": "Selected-path read-only mounts do not prevent candidate code from reading or altering unrelated host-user files.",
+      "failure_mode": {
+        "explanation": "Release qualification is refused when the external assurance boundary cannot prove this property.",
+        "mode": "fail_closed"
+      },
+      "full_suite_relevance": {
+        "explanation": "Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.",
+        "status": "required"
+      },
+      "id": "INV-REL-SANDBOX-001",
+      "implementation_status": "partial",
+      "known_gaps": [
+        "Private-root containment is supplied by the external bootstrap and remains outside this application repository."
+      ],
+      "last_verified_commit": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate identity.",
+        "status": "unknown",
+        "value": null
+      },
+      "last_verified_tree": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate tree.",
+        "status": "unknown",
+        "value": null
+      },
+      "owner_subsystem": "release_assurance",
+      "preconditions": [
+        "The application candidate is treated as untrusted input.",
+        "The external assurance policy and runner come from a separately committed repository."
+      ],
+      "rationale": "Selected-path read-only mounts do not prevent candidate code from reading or altering unrelated host-user files.",
+      "required_production_deployed_path_checks": {
+        "checks": [],
+        "explanation": "This task records release assurance only and performs no production activation.",
+        "status": "not_applicable"
+      },
+      "runtime_consumed_artifacts": {
+        "artifacts": [],
+        "explanation": "This release-control contract does not add a bot runtime artefact.",
+        "status": "none"
+      },
+      "statement": "Authoritative validation must execute in a private-root sandbox with only read-only candidate and gate inputs plus one bounded writable output, and no visibility of production or unrelated host-user data.",
+      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.",
+      "title": "Private-root validation containment",
+      "verification": {
+        "rationale": "Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.",
+        "status": "partial"
+      }
+    },
+    {
+      "accepted_residual_risk": {
+        "explanation": "No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.",
+        "status": "unaccepted"
+      },
+      "affected_paths": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "PRODUCTION_INVARIANTS.md",
+        "tools/priority0_registry.py",
+        "tools/strict_json.py",
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "tests/test_priority0_registry.py",
+        "tests/test_release_gate.py"
+      ],
+      "category": "test_deployment",
+      "criticality": "critical",
+      "enforcement": {
+        "files": [
+          "production_invariants.json",
+          "production_invariants.schema.json",
+          "PRODUCTION_INVARIANTS.md",
+          "tools/priority0_registry.py",
+          "tools/strict_json.py",
+          "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_release_gate.py"
+        ],
+        "tests": [
+          "tests/test_release_gate.py::test_unrelated_project_path_is_excluded_from_isolated_validation"
+        ],
+        "validations": [
+          {
+            "purpose": "Exercise the application-side compatibility boundary without granting candidate-owned release authority.",
+            "selectors": [
+              "tests/test_release_gate.py::test_unrelated_project_path_is_excluded_from_isolated_validation"
+            ],
+            "validation_id": "pytest"
+          }
+        ]
+      },
+      "evidence_references": [
+        {
+          "claim": "Application-side implementation of the recorded compatibility boundary.",
+          "reference": "production_invariants.json",
+          "type": "code"
+        },
+        {
+          "claim": "Focused regression evidence for the recorded boundary.",
+          "reference": "tests/test_release_gate.py::test_unrelated_project_path_is_excluded_from_isolated_validation",
+          "type": "test"
+        }
+      ],
+      "failure_if_violated": "Sanitising PYTHONPATH while mounting shared site-packages still exposes undeclared packages to descendants.",
+      "failure_mode": {
+        "explanation": "Release qualification is refused when the external assurance boundary cannot prove this property.",
+        "mode": "fail_closed"
+      },
+      "full_suite_relevance": {
+        "explanation": "Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.",
+        "status": "required"
+      },
+      "id": "INV-REL-IMPORT-001",
+      "implementation_status": "partial",
+      "known_gaps": [
+        "The application helper inventories host distributions; physical private-environment isolation belongs to the external bootstrap."
+      ],
+      "last_verified_commit": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate identity.",
+        "status": "unknown",
+        "value": null
+      },
+      "last_verified_tree": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate tree.",
+        "status": "unknown",
+        "value": null
+      },
+      "owner_subsystem": "release_assurance",
+      "preconditions": [
+        "The application candidate is treated as untrusted input.",
+        "The external assurance policy and runner come from a separately committed repository."
+      ],
+      "rationale": "Sanitising PYTHONPATH while mounting shared site-packages still exposes undeclared packages to descendants.",
+      "required_production_deployed_path_checks": {
+        "checks": [],
+        "explanation": "This task records release assurance only and performs no production activation.",
+        "status": "not_applicable"
+      },
+      "runtime_consumed_artifacts": {
+        "artifacts": [],
+        "explanation": "This release-control contract does not add a bot runtime artefact.",
+        "status": "none"
+      },
+      "statement": "The controller, xdist workers and all Python descendants must import only from a private declared distribution closure, standard library, external plugin and candidate source.",
+      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.",
+      "title": "Descendant Python import isolation",
+      "verification": {
+        "rationale": "Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.",
+        "status": "partial"
+      }
+    },
+    {
+      "accepted_residual_risk": {
+        "explanation": "No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.",
+        "status": "unaccepted"
+      },
+      "affected_paths": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "PRODUCTION_INVARIANTS.md",
+        "tools/priority0_registry.py",
+        "tools/strict_json.py",
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "tests/test_priority0_registry.py",
+        "tests/test_release_gate.py"
+      ],
+      "category": "test_deployment",
+      "criticality": "critical",
+      "enforcement": {
+        "files": [
+          "production_invariants.json",
+          "production_invariants.schema.json",
+          "PRODUCTION_INVARIANTS.md",
+          "tools/priority0_registry.py",
+          "tools/strict_json.py",
+          "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_release_gate.py"
+        ],
+        "tests": [
+          "tests/test_release_gate.py::test_validation_requests_reject_shell_and_unsafe_selectors"
+        ],
+        "validations": [
+          {
+            "purpose": "Exercise the application-side compatibility boundary without granting candidate-owned release authority.",
+            "selectors": [
+              "tests/test_release_gate.py::test_validation_requests_reject_shell_and_unsafe_selectors"
+            ],
+            "validation_id": "pytest"
+          }
+        ]
+      },
+      "evidence_references": [
+        {
+          "claim": "Application-side implementation of the recorded compatibility boundary.",
+          "reference": "production_invariants.json",
+          "type": "code"
+        },
+        {
+          "claim": "Focused regression evidence for the recorded boundary.",
+          "reference": "tests/test_release_gate.py::test_validation_requests_reject_shell_and_unsafe_selectors",
+          "type": "test"
+        }
+      ],
+      "failure_if_violated": "A candidate-authored shell command can execute arbitrary code despite shell=False in the controller.",
+      "failure_mode": {
+        "explanation": "Release qualification is refused when the external assurance boundary cannot prove this property.",
+        "mode": "fail_closed"
+      },
+      "full_suite_relevance": {
+        "explanation": "Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.",
+        "status": "required"
+      },
+      "id": "INV-REL-CMD-001",
+      "implementation_status": "partial",
+      "known_gaps": [
+        "External command templates and overrides remain subject to independent review of the external bootstrap."
+      ],
+      "last_verified_commit": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate identity.",
+        "status": "unknown",
+        "value": null
+      },
+      "last_verified_tree": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate tree.",
+        "status": "unknown",
+        "value": null
+      },
+      "owner_subsystem": "release_assurance",
+      "preconditions": [
+        "The application candidate is treated as untrusted input.",
+        "The external assurance policy and runner come from a separately committed repository."
+      ],
+      "rationale": "A candidate-authored shell command can execute arbitrary code despite shell=False in the controller.",
+      "required_production_deployed_path_checks": {
+        "checks": [],
+        "explanation": "This task records release assurance only and performs no production activation.",
+        "status": "not_applicable"
+      },
+      "runtime_consumed_artifacts": {
+        "artifacts": [],
+        "explanation": "This release-control contract does not add a bot runtime artefact.",
+        "status": "none"
+      },
+      "statement": "Candidate controls may propose only known validation IDs and bounded test selectors; executable argv and environment are owned by external policy and never supplied as free-form candidate strings.",
+      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.",
+      "title": "Trusted validation-ID command policy",
+      "verification": {
+        "rationale": "Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.",
+        "status": "partial"
+      }
+    },
+    {
+      "accepted_residual_risk": {
+        "explanation": "No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.",
+        "status": "unaccepted"
+      },
+      "affected_paths": [
+        "production_invariants.json",
+        "production_invariants.schema.json",
+        "PRODUCTION_INVARIANTS.md",
+        "tools/priority0_registry.py",
+        "tools/strict_json.py",
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py",
+        "tests/test_priority0_registry.py",
+        "tests/test_release_gate.py"
+      ],
+      "category": "test_deployment",
+      "criticality": "critical",
+      "enforcement": {
+        "files": [
+          "production_invariants.json",
+          "production_invariants.schema.json",
+          "PRODUCTION_INVARIANTS.md",
+          "tools/priority0_registry.py",
+          "tools/strict_json.py",
+          "tools/release_gate.py",
+          "tools/release_gate_pytest_plugin.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_release_gate.py"
+        ],
+        "tests": [
+          "tests/test_release_gate.py::test_artifact_binding_resolution_is_typed_and_runtime"
+        ],
+        "validations": [
+          {
+            "purpose": "Exercise the application-side compatibility boundary without granting candidate-owned release authority.",
+            "selectors": [
+              "tests/test_release_gate.py::test_artifact_binding_resolution_is_typed_and_runtime"
+            ],
+            "validation_id": "pytest"
+          }
+        ]
+      },
+      "evidence_references": [
+        {
+          "claim": "Application-side implementation of the recorded compatibility boundary.",
+          "reference": "production_invariants.json",
+          "type": "code"
+        },
+        {
+          "claim": "Focused regression evidence for the recorded boundary.",
+          "reference": "tests/test_release_gate.py::test_artifact_binding_resolution_is_typed_and_runtime",
+          "type": "test"
+        }
+      ],
+      "failure_if_violated": "An impossible resolution name or path/hash tuple mismatch can misclassify a runtime-consumed artefact as historical.",
+      "failure_mode": {
+        "explanation": "Release qualification is refused when the external assurance boundary cannot prove this property.",
+        "mode": "fail_closed"
+      },
+      "full_suite_relevance": {
+        "explanation": "Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.",
+        "status": "required"
+      },
+      "id": "INV-REL-ART-001",
+      "implementation_status": "partial",
+      "known_gaps": [
+        "The external assurance bootstrap must independently reproduce the loader-to-artefact classification."
+      ],
+      "last_verified_commit": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate identity.",
+        "status": "unknown",
+        "value": null
+      },
+      "last_verified_tree": {
+        "explanation": "Candidate-owned metadata cannot establish the authoritative external gate tree.",
+        "status": "unknown",
+        "value": null
+      },
+      "owner_subsystem": "release_assurance",
+      "preconditions": [
+        "The application candidate is treated as untrusted input.",
+        "The external assurance policy and runner come from a separately committed repository."
+      ],
+      "rationale": "An impossible resolution name or path/hash tuple mismatch can misclassify a runtime-consumed artefact as historical.",
+      "required_production_deployed_path_checks": {
+        "checks": [],
+        "explanation": "This task records release assurance only and performs no production activation.",
+        "status": "not_applicable"
+      },
+      "runtime_consumed_artifacts": {
+        "artifacts": [],
+        "explanation": "This release-control contract does not add a bot runtime artefact.",
+        "status": "none"
+      },
+      "statement": "Generated artefact discovery uses the defined resolution vocabulary and normalized path sets; every valid resolved_path is runtime consumption and advisory classification fails closed on ambiguity.",
+      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.",
+      "title": "Typed runtime artefact-consumption detection",
+      "verification": {
+        "rationale": "Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.",
+        "status": "partial"
       }
     }
   ]

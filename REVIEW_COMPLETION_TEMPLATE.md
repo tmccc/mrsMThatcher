@@ -13,6 +13,9 @@ complete merely because a patch-specific test passes. Delete no section; write
 - Invariant-registry SHA-256:
 - Defect-ledger SHA-256:
 - Semantic-attestation SHA-256:
+- External assurance bootstrap commit and Git tree:
+- External trusted-policy SHA-256:
+- External assurance source inventory SHA-256:
 - Worktree clean at start and end:
 - Candidate file hashes unchanged during review:
 - Ledger evidence cut-off and supplied-base equality:
@@ -82,7 +85,10 @@ Additional failure boundaries injected:
 - Passed/failed/skipped/error counts:
 - Output SHA-256 values:
 - Network-denial mechanism:
-- Live path isolation:
+- Private-root filesystem isolation:
+- Private Python dependency closure and descendant import-origin result:
+- Trusted validation IDs/selectors executed:
+- Resource limits and termination result:
 
 ### Complete isolated suite
 

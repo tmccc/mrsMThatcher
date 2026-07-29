@@ -1,0 +1,58 @@
+{
+  "document_kind": "priority0_release_assurance_blocker_reproductions",
+  "schema_version": 1,
+  "source_application_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+  "source_application_tree": "84d8f63e7e2020858592d080fa6ddc5c058714df",
+  "fixture_hashes": {
+    "duplicate_ledger.json": "1d668028dcd01b6fed55aca299d0b1c8f65ab433e216dbea779c035c5feebacc",
+    "duplicate_registry.json": "1d668028dcd01b6fed55aca299d0b1c8f65ab433e216dbea779c035c5feebacc"
+  },
+  "findings": {
+    "duplicate_ledger_object_name": {
+      "error_class": "ValueError",
+      "error_mentions_key_without_value": true,
+      "reproduced_as_rejected": true
+    },
+    "duplicate_registry_object_name": {
+      "observed_last_key_wins_value": "second",
+      "reproduced": true
+    },
+    "static_path_runtime_consumption_missed": {
+      "actual_resolution": "static_path_composition",
+      "observed_runtime_consumption_violation": false,
+      "reproduced": true,
+      "resolved_path": "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json"
+    },
+    "string_tuple_runtime_path_mismatch": {
+      "observed_runtime_consumption_violation": false,
+      "reproduced": true,
+      "runtime_path_element_type": "tuple[path,sha256]"
+    },
+    "shell_dynamic_code_accepted": {
+      "executed": false,
+      "parsed_argv": [
+        [
+          "sh",
+          "-c",
+          "printf owned > /synthetic-host-path"
+        ]
+      ],
+      "reproduced": true
+    },
+    "undeclared_shared_import_available": {
+      "exit_status": 0,
+      "output_sha256": "ebc091666c4ea1253a2eeace7694267932c9acf90b5b6fbced5756066b7b21d0",
+      "reproduced": true,
+      "shared_root": "/disks/disk1/research/mrsMThatcher-private/priority0-release-assurance-remediation/20260729T165027Z/reproductions/shared-site-packages"
+    },
+    "selected_path_containment_exposes_host_canary": {
+      "canary_path": "/disks/disk1/research/mrsMThatcher-private/priority0-release-assurance-remediation/20260729T165027Z/reproductions/host_canary.txt",
+      "canary_sha256_before": "41ee3e8bfb1d06bd04f984906ad74b15f1db1c541661b6e3c0c1c58ec2e3328e",
+      "canary_sha256_after": "a7166c33ed9c303dc91e985c98860cfb87ae19df18abbf57e7df14c600c5f8db",
+      "exit_status": 0,
+      "output_sha256": "fa786b8034275ff0c8c67d7aef37091f737de62e519ce1f35aec0ce0e45175dc",
+      "reproduced": true
+    }
+  },
+  "remediation_results": null
+}

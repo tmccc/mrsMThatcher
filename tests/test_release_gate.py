@@ -19,6 +19,7 @@ import pytest
 
 from tools import release_gate
 from tools import release_gate_pytest_plugin
+from tools import strict_json
 
 
 def _pathname_unix_socket_or_skip(kind: int) -> socket.socket:
@@ -99,22 +100,60 @@ def test_documented_script_invocation_loads_sibling_schema_validator() -> None:
     assert result.returncode == 0, result.stdout
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"schema_version":1,"schema_version":2}',
+        '{"outer":{"policy":"first","policy":"second"}}',
+        '{"value":NaN}',
+        '{"value":Infinity}',
+        '{"value":-Infinity}',
+    ],
+)
+def test_strict_json_rejects_duplicate_names_and_nonfinite_numbers(
+    tmp_path: Path, payload: str
+) -> None:
+    path = tmp_path / "release-control.json"
+    path.write_text(payload, encoding="utf-8")
+    with pytest.raises(strict_json.StrictJSONError) as error:
+        strict_json.load(path)
+    assert str(path) in str(error.value)
+    assert "first" not in str(error.value)
+    assert "second" not in str(error.value)
+    with pytest.raises(release_gate.ReleaseGateError):
+        release_gate.json_object_bytes(
+            payload.encode("utf-8"), label="synthetic release control"
+        )
+
+
+def test_strict_json_canonical_output_rejects_nonfinite_values() -> None:
+    with pytest.raises(strict_json.StrictJSONError):
+        strict_json.canonical_json_bytes({"value": float("nan")})
+    with pytest.raises(release_gate.ReleaseGateError):
+        release_gate.canonical_json_bytes({"value": float("inf")})
+
+
 def _invariant(
     invariant_id: str = "INV-REL-001",
     *,
     paths: list[str] | None = None,
     severity: str = "critical",
-    commands: list[str] | None = None,
+    validations: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     return {
         "invariant_id": invariant_id,
         "severity": severity,
         "owner_subsystem": "release",
         "affected_paths": paths or ["tools/release_gate.py"],
-        "validation_commands": (
-            ["python3 -m pytest -q tests/test_release_gate.py"]
-            if commands is None
-            else commands
+        "validations": (
+            [
+                {
+                    "validation_id": "pytest",
+                    "selectors": ["tests/test_release_gate.py"],
+                }
+            ]
+            if validations is None
+            else validations
         ),
     }
 
@@ -343,50 +382,51 @@ def test_affected_critical_invariant_requires_executable_validation() -> None:
     with pytest.raises(release_gate.ReleaseGateError, match="lacks executable"):
         release_gate.map_changed_paths(
             ["mrsMThatcher2.py"],
-            [_invariant(paths=["mrsMThatcher2.py"], commands=[])],
+            [_invariant(paths=["mrsMThatcher2.py"], validations=[])],
             runtime_paths={"mrsMThatcher2.py"},
             generated_paths=set(),
         )
 
 
-def test_shell_control_in_validation_command_is_rejected() -> None:
-    with pytest.raises(release_gate.ReleaseGateError, match="unsafe"):
-        release_gate.validation_commands(
-            [_invariant(commands=["python3 -m pytest ; curl example.invalid"])]
-        )
+def test_validation_requests_reject_shell_and_unsafe_selectors() -> None:
+    for unsafe in (
+        {"validation_id": "sh", "selectors": []},
+        {"validation_id": "pytest", "selectors": ["../../outside.py"]},
+        {"validation_id": "pytest", "selectors": ["tests/test_*.py"]},
+    ):
+        with pytest.raises(release_gate.ReleaseGateError):
+            release_gate.validation_commands(
+                [_invariant(validations=[unsafe])]
+            )
 
 
 def test_duplicate_validation_commands_are_suppressed_deterministically() -> None:
     records = [
-        _invariant("INV-REL-001", commands=["python3 -m pytest -q tests/test_release_gate.py"]),
-        _invariant("INV-TEST-001", commands=["python3 -m pytest -q tests/test_release_gate.py"]),
+        _invariant("INV-REL-001"),
+        _invariant("INV-TEST-001"),
     ]
     assert release_gate.validation_commands(records) == [
-        ("python3", "-m", "pytest", "-q", "tests/test_release_gate.py")
+        (sys.executable, "-m", "pytest", "-q", "tests/test_release_gate.py")
     ]
 
 
-def test_registry_enforcement_command_and_environment_prefix_are_shell_free() -> None:
+def test_registry_validation_request_constructs_only_fixed_argv() -> None:
     record = {
         "id": "INV-TEST-002",
         "criticality": "critical",
         "affected_paths": ["tests/conftest.py"],
         "enforcement": {
-            "commands": [
+            "validations": [
                 {
-                    "command": (
-                        "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "
-                        "python3 -m pytest -q tests/test_release_gate.py"
-                    )
+                    "validation_id": "pytest",
+                    "selectors": ["tests/test_release_gate.py"],
                 }
             ]
         },
     }
     assert release_gate.validation_commands([record]) == [
         (
-            "env",
-            "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
-            "python3",
+            sys.executable,
             "-m",
             "pytest",
             "-q",
@@ -485,7 +525,7 @@ def test_dynamic_runtime_root_resolves_ambiguous_loader_literal(
     assert generated == (
         "semantic_alignment_research/quote_research_full_001/research_packets.json",
     )
-    assert bindings == [
+    assert [item.to_dict() for item in bindings] == [
         {
             "loader": "helper.py",
             "literal": "research_packets.json",
@@ -529,8 +569,11 @@ def test_validator_backed_offline_ambiguity_is_classified_not_selected(
     )
 
     assert generated == ()
-    assert bindings[0]["resolution"] == "validator_backed_offline_literal"
-    assert bindings[0]["validator"] == "tests/test_helper.py"
+    assert (
+        bindings[0].resolution
+        is release_gate.ArtifactResolution.VALIDATOR_BACKED_OFFLINE_LITERAL
+    )
+    assert bindings[0].validator == "tests/test_helper.py"
     assert unresolved == []
 
 
@@ -542,9 +585,9 @@ def test_existing_generated_binding_is_content_hashed(tmp_path: Path) -> None:
     )
     assert generated == ("runtime_manifest.json",)
     assert not unresolved
-    assert bindings[0]["resolution"] in {
-        "static_path_composition",
-        "unique_tracked_basename",
+    assert bindings[0].resolution in {
+        release_gate.ArtifactResolution.STATIC_PATH_COMPOSITION,
+        release_gate.ArtifactResolution.UNIQUE_TRACKED_BASENAME,
     }
     digest = release_gate.hash_paths(repo, generated)
     assert digest == (
@@ -1184,6 +1227,28 @@ def test_plugin_rejects_undeclared_module_beside_declared_dependency(
     )
 
 
+def test_plugin_import_policy_rejects_duplicate_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        '{"schema_version":1,"allowed_exact_files":[],'
+        '"allowed_exact_files":["/synthetic/escape"],'
+        '"allowed_directory_roots":[],"permitted_sys_path_roots":[]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(
+        release_gate_pytest_plugin.IMPORT_POLICY_ENV, str(policy)
+    )
+    monkeypatch.setattr(release_gate_pytest_plugin, "_POLICY_CACHE", None)
+
+    parsed = release_gate_pytest_plugin._import_policy()
+
+    assert parsed["allowed_exact_files"] == frozenset()
+    assert parsed["allowed_directory_roots"] == ()
+    assert parsed["permitted_sys_path_roots"] == frozenset()
+
+
 def test_deterministic_semantic_attestation_is_byte_identical() -> None:
     result = release_gate.ValidationResult(
         command=("python3", "-m", "pytest"),
@@ -1255,6 +1320,8 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
             "all_discovered_bindings_resolved": True,
             "all_validator_backed_classifications_valid": True,
             "all_required_source_file_pins_valid": True,
+            "direct_companion_relationship_count": 1,
+            "direct_companion_validation_status": "valid",
             "all_direct_companion_relationships_valid": True,
             "all_historical_build_classifications_supported": True,
             "all_advisory_pin_classifications_supported": True,
@@ -1288,8 +1355,10 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
         },
     }
     attestation = release_gate.deterministic_attestation(**values)
-    assert attestation["schema_version"] == 2
-    assert attestation["release_candidate_validation_passed"] is True
+    assert attestation["schema_version"] == 3
+    assert attestation["release_candidate_validation_passed"] is False
+    assert attestation["candidate_owned_advisory_validation_passed"] is True
+    assert attestation["authoritative_release_attestation"] is False
     assert attestation["network_isolation"][
         "inventoried_absolute_host_unix_sockets_masked"
     ] is True
@@ -1304,32 +1373,30 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
     assert b"123.456" not in first
     assert b'"output_sha256": "cccc' in first
     assert attestation["candidate_attestation_status"][
-        "externally_attested_candidate"
-    ]["valid_frozen_candidate_attestation"] is True
+        "candidate_owned_advisory_result"
+    ]["validation_checks_passed"] is True
     values["network"] = {
         **values["network"],
         "anonymous_unix_stream_socketpair_available": False,
     }
     assert (
         release_gate.deterministic_attestation(**values)[
-            "release_candidate_validation_passed"
+            "candidate_owned_advisory_validation_passed"
         ]
         is False
     )
-    values["network"] = {
-        **values["network"],
-        "anonymous_unix_stream_socketpair_available": True,
-    }
-    values["relationships"] = {
-        **values["relationships"],
-        "all_required_source_file_pins_valid": False,
-    }
-    assert (
-        release_gate.deterministic_attestation(**values)[
-            "release_candidate_validation_passed"
-        ]
-        is False
-    )
+
+
+def test_candidate_gate_cannot_issue_authoritative_attestation() -> None:
+    test_deterministic_semantic_attestation_is_byte_identical()
+
+
+def test_candidate_gate_refuses_non_development_release_run() -> None:
+    with pytest.raises(
+        release_gate.ReleaseGateError,
+        match="candidate-owned release gate is non-authoritative",
+    ):
+        release_gate.run_gate(argparse.Namespace(development_dry_run=False))
 
 
 def test_validation_result_binds_output_and_junit_hashes() -> None:
@@ -1772,7 +1839,14 @@ def test_generated_relationship_inventory_reports_architecture_limit(
     inventory = release_gate.relationship_inventory(
         tmp_path,
         _snapshot(),
-        [{"loader": "mrsMThatcher2.py", "resolved_path": "runtime_manifest.json"}],
+        [
+            {
+                "loader": "mrsMThatcher2.py",
+                "literal": "runtime_manifest.json",
+                "resolution": "static_path_composition",
+                "resolved_path": "runtime_manifest.json",
+            }
+        ],
         ["loader.py: unknown_manifest.json"],
     )
     assert inventory["all_discovered_bindings_resolved"] is False
@@ -1780,12 +1854,12 @@ def test_generated_relationship_inventory_reports_architecture_limit(
     commands = release_gate.relationship_validation_commands(
         {
             "relationship_validators": [
-                "python3 -m pytest -q tests/test_relationship.py"
+                "tests/test_relationship.py"
             ]
         }
     )
     assert commands == (
-        [("python3", "-m", "pytest", "-q", "tests/test_relationship.py")]
+        [(sys.executable, "-m", "pytest", "-q", "tests/test_relationship.py")]
     )
 
 
@@ -1929,7 +2003,12 @@ def test_emit_outputs_includes_required_priority0_deliverables(
                 "implementation_status": "partial",
                 "affected_paths": ["tools/release_gate.py"],
                 "enforcement": {
-                    "commands": [{"command": "python3 -m pytest -q"}]
+                    "validations": [
+                        {
+                            "validation_id": "pytest",
+                            "selectors": ["tests/test_release_gate.py"],
+                        }
+                    ]
                 },
                 "known_gaps": ["independent review pending"],
             }
@@ -3128,8 +3207,10 @@ def test_historical_audit_becomes_unsupported_if_runtime_binding_uses_it() -> No
         root,
         runtime_bindings=[
             {
-                "resolution": "resolved_runtime",
-                "candidate_paths": [release_gate.V3_HISTORICAL_AUDIT_PATH],
+                "loader": "mrsMThatcher2.py",
+                "literal": "v3_shadow_manifest_audit.json",
+                "resolution": "static_path_composition",
+                "resolved_path": release_gate.V3_HISTORICAL_AUDIT_PATH,
             }
         ],
     )
@@ -3140,6 +3221,54 @@ def test_historical_audit_becomes_unsupported_if_runtime_binding_uses_it() -> No
     )
     assert audit["runtime_consumption_violation"] is True
     assert audit["classification_evidence_complete"] is False
+
+
+def test_artifact_binding_resolution_is_typed_and_runtime() -> None:
+    for resolution in (
+        release_gate.ArtifactResolution.STATIC_PATH_COMPOSITION,
+        release_gate.ArtifactResolution.LOADER_RUNTIME_ROOT,
+        release_gate.ArtifactResolution.UNIQUE_TRACKED_BASENAME,
+    ):
+        binding = release_gate.ArtifactBinding(
+            loader="loader.py",
+            literal="manifest.json",
+            resolution=resolution,
+            resolved_path="data/manifest.json",
+        )
+        assert binding.runtime_consumed is True
+        assert binding.to_dict()["resolution"] == resolution.value
+
+    with pytest.raises(release_gate.ReleaseGateError, match="unknown"):
+        release_gate.ArtifactBinding.from_mapping(
+            {
+                "loader": "loader.py",
+                "literal": "manifest.json",
+                "resolution": "resolved_runtime",
+                "resolved_path": "data/manifest.json",
+            }
+        )
+
+
+def test_runtime_artifact_tuple_inventory_is_rejected() -> None:
+    root = Path(__file__).resolve().parents[1]
+    with pytest.raises(release_gate.ReleaseGateError, match="contain strings"):
+        release_gate.historical_build_relationships(
+            root,
+            runtime_artifact_paths=[
+                (release_gate.V3_HISTORICAL_AUDIT_PATH, "0" * 64)
+            ],
+        )
+
+
+def test_zero_direct_companion_relationships_are_not_applicable() -> None:
+    root = Path(__file__).resolve().parents[1]
+    snapshot, bindings, unresolved = release_gate.take_snapshot(root)
+    relationships = release_gate.relationship_inventory(
+        root, snapshot, bindings, unresolved
+    )
+    assert relationships["direct_companion_relationship_count"] == 0
+    assert relationships["direct_companion_validation_status"] == "not_applicable"
+    assert relationships["all_direct_companion_relationships_valid"] is None
 
 
 def test_required_embedded_history_pin_rejects_mismatch(
@@ -3565,7 +3694,7 @@ def test_unrelated_project_path_is_excluded_from_isolated_validation(
 
 def test_ledger_evidence_cutoff_must_equal_supplied_release_base() -> None:
     root = Path(__file__).resolve().parents[1]
-    ledger = json.loads((root / "defect_ledger.json").read_text())
+    ledger = strict_json.load(root / "defect_ledger.json")
     cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
     valid = release_gate.ledger_evidence_cutoff_assessment(
         root, ledger=ledger, supplied_base_commit=cutoff
@@ -3574,7 +3703,9 @@ def test_ledger_evidence_cutoff_must_equal_supplied_release_base() -> None:
     stale = release_gate.ledger_evidence_cutoff_assessment(
         root,
         ledger=ledger,
-        supplied_base_commit=_run(["git", "rev-parse", "HEAD"], root),
+        supplied_base_commit=ledger["identity_scope"]["production_baseline"][
+            "commit"
+        ],
     )
     assert stale["valid_for_supplied_base"] is False
     assert stale["post_merge_regeneration_required"] is True
@@ -3623,7 +3754,7 @@ def test_advisory_pin_requires_code_level_classification_evidence() -> None:
     assert history_pin["match"] is True
 
 
-def test_candidate_attestation_wording_separates_activation() -> None:
+def test_candidate_report_labels_candidate_owned_output_advisory() -> None:
     candidate = "1" * 40
     tree = "2" * 40
     semantic = {
@@ -3664,9 +3795,8 @@ def test_candidate_attestation_wording_separates_activation() -> None:
     report = release_gate.markdown_report(
         semantic, {"candidate_unchanged_after_validation": True}
     )
-    assert (
-        f"Candidate `{candidate}/{tree}` has a valid frozen-candidate "
-        "attestation."
-    ) in report
+    assert f"Candidate `{candidate}/{tree}` was checked by candidate-owned code." in report
+    assert "This evidence is advisory" in report
+    assert "valid frozen-candidate attestation" not in report
     assert "Production activation, deployed-path verification and loaded-process identity remain unattested." in report
     assert "no valid release attestation until" not in report

@@ -14,6 +14,11 @@ import subprocess
 import sys
 from typing import Any, Iterable, Mapping, Sequence
 
+try:
+    from tools import strict_json
+except ModuleNotFoundError:  # Support ``python3 tools/priority0_registry.py``.
+    import strict_json  # type: ignore[no-redef]
+
 
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REGISTRY = Path("production_invariants.json")
@@ -29,6 +34,11 @@ CATEGORY_TITLES = {
 IMPLEMENTATION_STATUSES = ("implemented", "partial", "missing")
 VERIFICATION_STATUSES = ("verified", "partial", "unverified")
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
+VALIDATION_IDS = frozenset({"pytest", "registry_validate"})
+TEST_SELECTOR = re.compile(
+    r"^tests/[A-Za-z0-9_./-]+\.py"
+    r"(?:::[A-Za-z_][A-Za-z0-9_]*(?:\[[A-Za-z0-9_.:/=-]+\])?)*$"
+)
 
 
 @dataclass(frozen=True)
@@ -75,9 +85,9 @@ class ValidationReport:
 
 
 def load_json_document(path: Path) -> Any:
-    """Load a UTF-8 JSON document without accepting trailing content."""
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+    """Load one strict UTF-8 JSON document."""
+
+    return strict_json.load(path)
 
 
 def sha256_file(path: Path) -> str:
@@ -797,12 +807,19 @@ def render_markdown(registry: Mapping[str, Any]) -> str:
                     lines.append(f"- `{nodeid}`")
             else:
                 lines.append("- None recorded.")
-            lines.extend(["", "**Commands.**", ""])
-            commands = enforcement.get("commands", []) if isinstance(enforcement, Mapping) else []
-            for command in commands:
-                if isinstance(command, Mapping):
+            lines.extend(["", "**Validation requests.**", ""])
+            validations = (
+                enforcement.get("validations", [])
+                if isinstance(enforcement, Mapping)
+                else []
+            )
+            for validation in validations:
+                if isinstance(validation, Mapping):
+                    selectors = validation.get("selectors", [])
                     lines.append(
-                        f"- `{command.get('command', '')}` — {command.get('purpose', '')}"
+                        f"- `{validation.get('validation_id', '')}`"
+                        f"{' — ' + ', '.join(f'`{item}`' for item in selectors) if selectors else ''}"
+                        f" — {validation.get('purpose', '')}"
                     )
             lines.extend(["", "**Known gaps.**", ""])
             gaps = item.get("known_gaps", [])
@@ -827,7 +844,7 @@ def validate_registry(
     markdown_path: Path | None = None,
     force_fallback_schema: bool = False,
 ) -> ValidationReport:
-    """Validate schema, IDs, evidence paths, test nodes, commands, and Markdown."""
+    """Validate schema, IDs, evidence, test nodes, requests, and Markdown."""
     backend, errors = schema_validation_errors(
         registry,
         schema,
@@ -856,7 +873,7 @@ def validate_registry(
         tests = invariant.get("enforcement", {}).get("tests", []) if isinstance(
             invariant.get("enforcement"), Mapping
         ) else []
-        commands = invariant.get("enforcement", {}).get("commands", []) if isinstance(
+        validations = invariant.get("enforcement", {}).get("validations", []) if isinstance(
             invariant.get("enforcement"), Mapping
         ) else []
         if status in {"partial", "missing"} and not gaps:
@@ -875,8 +892,8 @@ def validate_registry(
             errors.append(f"{invariant_id}: verified invariant must name a test")
         if status == "implemented" and not tests:
             errors.append(f"{invariant_id}: implemented invariant must name a test")
-        if invariant.get("criticality") == "critical" and not commands:
-            errors.append(f"{invariant_id}: critical invariant must name a command")
+        if invariant.get("criticality") == "critical" and not validations:
+            errors.append(f"{invariant_id}: critical invariant must name a validation")
 
         artifacts = invariant.get("runtime_consumed_artifacts", {})
         if isinstance(artifacts, Mapping):
@@ -989,17 +1006,47 @@ def validate_registry(
                 exists, reason = test_node_exists(repository_root, nodeid)
                 if not exists:
                     errors.append(f"{invariant_id}: {reason}")
-            for command_index, command in enumerate(enforcement.get("commands", [])):
-                if not isinstance(command, Mapping):
+            for validation_index, validation in enumerate(
+                enforcement.get("validations", [])
+            ):
+                if not isinstance(validation, Mapping):
                     continue
-                text = command.get("command")
-                if not isinstance(text, str) or not text.strip():
+                validation_id = validation.get("validation_id")
+                selectors = validation.get("selectors")
+                if validation_id not in VALIDATION_IDS:
                     errors.append(
-                        f"{invariant_id}: command {command_index} is empty"
+                        f"{invariant_id}: validation {validation_index} has unknown ID"
                     )
-                elif "\n" in text or "\r" in text:
+                    continue
+                if not isinstance(selectors, list) or not all(
+                    isinstance(selector, str) for selector in selectors
+                ):
                     errors.append(
-                        f"{invariant_id}: command {command_index} must be one line"
+                        f"{invariant_id}: validation {validation_index} selectors "
+                        "must be strings"
+                    )
+                    continue
+                if validation_id == "pytest":
+                    if not selectors:
+                        errors.append(
+                            f"{invariant_id}: pytest validation {validation_index} "
+                            "must name selectors"
+                        )
+                    for selector in selectors:
+                        if (
+                            not TEST_SELECTOR.fullmatch(selector)
+                            or ".." in PurePosixPath(
+                                selector.split("::", 1)[0]
+                            ).parts
+                            or any(character in selector for character in "*?[]{}")
+                        ):
+                            errors.append(
+                                f"{invariant_id}: unsafe pytest selector "
+                                f"{selector!r}"
+                            )
+                elif selectors:
+                    errors.append(
+                        f"{invariant_id}: {validation_id} does not accept selectors"
                     )
 
     runtime_artifact_declarations = {
@@ -1132,7 +1179,7 @@ def validate_registry(
         if artifact_path is not None:
             try:
                 parsed_artifact = load_json_document(artifact_path)
-            except (OSError, json.JSONDecodeError) as exc:
+            except (OSError, strict_json.StrictJSONError) as exc:
                 errors.append(
                     f"{record_id}: classified artifact is not valid JSON: {exc}"
                 )
@@ -1294,7 +1341,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     validate = subparsers.add_parser(
         "validate",
-        help="validate schema, evidence, tests, commands, and Markdown synchronization",
+        help="validate schema, evidence, validation requests, and Markdown synchronization",
     )
     validate.add_argument("--repo-root", type=Path, default=DEFAULT_REPOSITORY_ROOT)
     validate.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
@@ -1356,7 +1403,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         registry = load_json_document(registry_path)
         schema = load_json_document(schema_path)
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, strict_json.StrictJSONError) as exc:
         print(f"registry input error: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
     if not isinstance(registry, Mapping) or not isinstance(schema, Mapping):
@@ -1404,7 +1451,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         markdown_path=markdown_path,
     )
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+        print(strict_json.canonical_dumps(report.to_dict()))
     else:
         _print_human_report(report)
     if not report.ok:

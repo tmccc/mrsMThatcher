@@ -107,7 +107,7 @@ These declarations apply only when the complete suite is already nested inside t
 
 | Total | Implemented | Partial | Missing / unsupported | Verified | Partially verified | Unverified |
 |---:|---:|---:|---:|---:|---:|---:|
-| 26 | 19 | 6 | 1 | 19 | 6 | 1 |
+| 32 | 19 | 12 | 1 | 19 | 12 | 1 |
 
 Missing means the invariant is explicitly unsupported, not silently assumed. Partial and unverified entries remain release-review inputs.
 
@@ -184,9 +184,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_runtime_ordinary_eligibility_integrity.py::test_coherently_rehashed_whitespace_drift_cannot_break_raw_quote_identity`
 - `tests/test_runtime_ordinary_eligibility_integrity.py::test_core_partition_drift_fails_before_ordinary_selection`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py` — Exercise canonical identity, partition, and coherent-rehash rejection.
+- `pytest` — `tests/test_runtime_ordinary_eligibility_integrity.py` — Exercise canonical identity, partition, and coherent-rehash rejection.
 
 **Known gaps.**
 
@@ -255,9 +255,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_runtime_ordinary_eligibility_integrity.py::test_current_runtime_eligibility_manifest_validates_without_context_sidecars`
 - `tests/test_runtime_ordinary_eligibility_integrity.py::test_coherently_rehashed_packet_mutation_still_requires_exact_partition`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py tests/test_quote_attribution_cleanup.py` — Validate the exact production partition and attribution-cleanup contract.
+- `pytest` — `tests/test_runtime_ordinary_eligibility_integrity.py`, `tests/test_quote_attribution_cleanup.py` — Validate the exact production partition and attribution-cleanup contract.
 
 **Known gaps.**
 
@@ -323,9 +323,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_historical_context_packet_corrections.py::test_core_loader_returns_validated_raw_corpus_without_context_sidecars`
 - `tests/test_production_consistency_incident.py::test_context_semantic_block_does_not_remove_ordinary_quote_eligibility`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_historical_context_packet_corrections.py::test_core_loader_returns_validated_raw_corpus_without_context_sidecars tests/test_production_consistency_incident.py::test_context_semantic_block_does_not_remove_ordinary_quote_eligibility` — Prove the ordinary lane remains available and unchanged when context-only policy is absent or blocking.
+- `pytest` — `tests/test_historical_context_packet_corrections.py::test_core_loader_returns_validated_raw_corpus_without_context_sidecars`, `tests/test_production_consistency_incident.py::test_context_semantic_block_does_not_remove_ordinary_quote_eligibility` — Prove the ordinary lane remains available and unchanged when context-only policy is absent or blocking.
 
 **Known gaps.**
 
@@ -413,9 +413,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_historical_context_reply_semantic_gate.py::test_gate_binds_the_actual_runtime_formatter_options`
 - `tests/test_historical_context_reply_semantic_gate.py::test_bot_passes_live_context_formatter_options_to_the_gate`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_historical_context_reply_semantic_gate.py tests/test_historical_context_packet_corrections.py` — Revalidate the complete context evidence and deployed-render dependency closure.
+- `pytest` — `tests/test_historical_context_reply_semantic_gate.py`, `tests/test_historical_context_packet_corrections.py` — Revalidate the complete context evidence and deployed-render dependency closure.
 
 **Known gaps.**
 
@@ -499,9 +499,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_quote_image_semantic_veto_shadow.py::test_shadow_status_rejects_manifest_with_missing_recorded_sources`
 - `tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_quote_image_semantic_veto_shadow.py tests/test_runtime_ordinary_eligibility_integrity.py tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename` — Check deterministic/fresh generated evidence and fail-closed generated-image provenance while exposing the absent cross-artifact transaction.
+- `pytest` — `tests/test_quote_image_semantic_veto_shadow.py`, `tests/test_runtime_ordinary_eligibility_integrity.py`, `tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename` — Check deterministic/fresh generated evidence and fail-closed generated-image provenance while exposing the absent cross-artifact transaction.
 
 **Known gaps.**
 
@@ -569,9 +569,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_quote_image_semantic_veto_shadow.py::test_missing_corrupt_and_stale_manifests_fail_open`
 - `tests/test_quote_image_semantic_veto_shadow.py::test_selected_image_identical_with_shadow_on_and_off`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_quote_image_semantic_veto_shadow.py` — Prove shadow configuration, freshness handling, RNG isolation, and production-selection equivalence.
+- `pytest` — `tests/test_quote_image_semantic_veto_shadow.py` — Prove shadow configuration, freshness handling, RNG isolation, and production-selection equivalence.
 
 **Known gaps.**
 
@@ -651,9 +651,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`
 - `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost` — Exercise the regular-post receipt's exact after-state and at-most-once replay.
+- `pytest` — `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`, `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`, `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost` — Exercise the regular-post receipt's exact after-state and at-most-once replay.
 
 **Known gaps.**
 
@@ -717,9 +717,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`
 - `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise meme receipt durability, mutual exclusion, and at-most-once replay.
+- `pytest` — `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`, `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise meme receipt durability, mutual exclusion, and at-most-once replay.
 
 **Known gaps.**
 
@@ -786,9 +786,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation`
 - `tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent` — Exercise reply receipt ordering, global ambiguity blocking, and idempotent recovery.
+- `pytest` — `tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write`, `tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation`, `tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent` — Exercise reply receipt ordering, global ambiguity blocking, and idempotent recovery.
 
 **Known gaps.**
 
@@ -855,9 +855,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_historical_context_reply.py::test_confirmed_receipt_write_failure_leaves_sending_barrier`
 - `tests/test_historical_context_reply_semantic_gate.py::test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_historical_context_reply.py tests/test_historical_context_reply_semantic_gate.py` — Exercise context reply durability, ambiguity preservation, and gate-independent reconciliation.
+- `pytest` — `tests/test_historical_context_reply.py`, `tests/test_historical_context_reply_semantic_gate.py` — Exercise context reply durability, ambiguity preservation, and gate-independent reconciliation.
 
 **Known gaps.**
 
@@ -925,9 +925,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_image_history_preserves_missing_basenames_and_reuses_when_file_reappears`
 - `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_used_history_bad_json_with_legacy_pickle_fails_closed tests/test_unit_helpers.py::test_image_history_preserves_missing_basenames_and_reuses_when_file_reappears tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories` — Exercise non-lossy history validation, preservation, and exact recovery.
+- `pytest` — `tests/test_unit_helpers.py::test_used_history_bad_json_with_legacy_pickle_fails_closed`, `tests/test_unit_helpers.py::test_image_history_preserves_missing_basenames_and_reuses_when_file_reappears`, `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories` — Exercise non-lossy history validation, preservation, and exact recovery.
 
 **Known gaps.**
 
@@ -992,9 +992,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_integration_harness.py::test_mentions_truncated_pagination_resumes_on_next_check`
 - `tests/test_unit_helpers.py::test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_mentions_truncated_pagination_does_not_advance_watermark tests/test_integration_harness.py::test_mentions_truncated_pagination_resumes_on_next_check tests/test_unit_helpers.py::test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x` — Exercise pagination truncation, durable resume, and receipt-bound recovery.
+- `pytest` — `tests/test_integration_harness.py::test_mentions_truncated_pagination_does_not_advance_watermark`, `tests/test_integration_harness.py::test_mentions_truncated_pagination_resumes_on_next_check`, `tests/test_unit_helpers.py::test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x` — Exercise pagination truncation, durable resume, and receipt-bound recovery.
 
 **Known gaps.**
 
@@ -1063,9 +1063,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation`
 - `tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_followup_fail_safe_hardening.py tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise the cross-lane ambiguity barrier, receipt compatibility, and safe retirement order.
+- `pytest` — `tests/test_followup_fail_safe_hardening.py`, `tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise the cross-lane ambiguity barrier, receipt compatibility, and safe retirement order.
 
 **Known gaps.**
 
@@ -1130,9 +1130,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_digest_safety_hardening.py::test_resume_preserves_in_flight_provider_call_until_usage_arrives`
 - `tests/test_digest_reply_observability.py::test_conversational_usage_without_matching_call_start_is_incomplete`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_digest_safety_hardening.py::test_resume_preserves_in_flight_provider_call_until_usage_arrives tests/test_digest_reply_observability.py::test_conversational_usage_without_matching_call_start_is_incomplete` — Exercise resumable provider-call accounting and conservative unmatched-usage reporting.
+- `pytest` — `tests/test_digest_safety_hardening.py::test_resume_preserves_in_flight_provider_call_until_usage_arrives`, `tests/test_digest_reply_observability.py::test_conversational_usage_without_matching_call_start_is_incomplete` — Exercise resumable provider-call accounting and conservative unmatched-usage reporting.
 
 **Known gaps.**
 
@@ -1217,9 +1217,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls`
 - `tests/test_deployment_assets.py::test_local_config_example_is_accepted_as_one_atomic_override`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py tests/test_deployment_assets.py tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls` — Exercise fail-closed, atomic, allowlisted local configuration.
+- `pytest` — `tests/test_fail_safe_bootstrap_and_control.py`, `tests/test_deployment_assets.py`, `tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls` — Exercise fail-closed, atomic, allowlisted local configuration.
 
 **Known gaps.**
 
@@ -1287,9 +1287,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_fail_safe_bootstrap_and_control.py::test_control_malformed_preserves_prior_pause_and_repair_recovers`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_global_pause_is_rechecked_at_remote_boundaries`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py` — Exercise runtime-control allowlisting, failure preservation, and boundary rechecks.
+- `pytest` — `tests/test_fail_safe_bootstrap_and_control.py` — Exercise runtime-control allowlisting, failure preservation, and boundary rechecks.
 
 **Known gaps.**
 
@@ -1357,9 +1357,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget`
 - `tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post` — Exercise bounded total request time and non-retry of ambiguous writes.
+- `pytest` — `tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget`, `tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget`, `tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post` — Exercise bounded total request time and non-retry of ambiguous writes.
 
 **Known gaps.**
 
@@ -1427,9 +1427,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_fail_safe_bootstrap_and_control.py::test_failed_bootstrap_leaves_operational_guard_closed`
 - `tests/test_logging_isolation.py::test_plain_import_does_not_open_production_log`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py tests/test_logging_isolation.py` — Exercise import safety and the explicit bootstrap guard.
+- `pytest` — `tests/test_fail_safe_bootstrap_and_control.py`, `tests/test_logging_isolation.py` — Exercise import safety and the explicit bootstrap guard.
 
 **Known gaps.**
 
@@ -1493,9 +1493,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation`
 - `tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock` — Exercise singleton ownership and lock-before-recovery ordering.
+- `pytest` — `tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir`, `tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation`, `tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock` — Exercise singleton ownership and lock-before-recovery ordering.
 
 **Known gaps.**
 
@@ -1563,9 +1563,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_integration_harness.py::test_launcher_treats_repeated_fast_clean_exits_as_unhealthy`
 - `tests/test_integration_harness.py::test_launcher_validates_effective_settings_loaded_from_env_file`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_launcher_surfaces_child_output_and_exits_after_fast_failure_limit tests/test_integration_harness.py::test_launcher_treats_repeated_fast_clean_exits_as_unhealthy tests/test_integration_harness.py::test_launcher_validates_effective_settings_loaded_from_env_file tests/test_integration_harness.py::test_launcher_has_valid_shell_syntax` — Exercise launcher diagnostics, effective configuration, and crash-loop termination.
+- `pytest` — `tests/test_integration_harness.py::test_launcher_surfaces_child_output_and_exits_after_fast_failure_limit`, `tests/test_integration_harness.py::test_launcher_treats_repeated_fast_clean_exits_as_unhealthy`, `tests/test_integration_harness.py::test_launcher_validates_effective_settings_loaded_from_env_file`, `tests/test_integration_harness.py::test_launcher_has_valid_shell_syntax` — Exercise launcher diagnostics, effective configuration, and crash-loop termination.
 
 **Known gaps.**
 
@@ -1630,9 +1630,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - None recorded.
 
-**Commands.**
+**Validation requests.**
 
-- `python3 tools/priority0_registry.py validate --json` — Report this unsupported health-attestation contract explicitly until runtime implementation and tests exist.
+- `registry_validate` — Report this unsupported health-attestation contract explicitly until runtime implementation and tests exist.
 
 **Known gaps.**
 
@@ -1649,6 +1649,12 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 | `INV-TEST-003` | Frozen-candidate tests deny subprocess egress at the OS boundary | `implemented` | `verified` | `critical` |
 | `INV-TEST-004` | Fixtures and adversarial tests model production state space | `partial` | `partial` | `critical` |
 | `INV-REL-001` | Frozen, attested, executable release gate | `partial` | `partial` | `critical` |
+| `INV-REL-JSON-001` | Strict release-control JSON | `partial` | `partial` | `critical` |
+| `INV-REL-TRUST-001` | External release-assurance trust separation | `partial` | `partial` | `critical` |
+| `INV-REL-SANDBOX-001` | Private-root validation containment | `partial` | `partial` | `critical` |
+| `INV-REL-IMPORT-001` | Descendant Python import isolation | `partial` | `partial` | `critical` |
+| `INV-REL-CMD-001` | Trusted validation-ID command policy | `partial` | `partial` | `critical` |
+| `INV-REL-ART-001` | Typed runtime artefact-consumption detection | `partial` | `partial` | `critical` |
 
 ### INV-TEST-001: Collection begins in a process-local non-production environment
 
@@ -1713,9 +1719,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_logging_isolation.py::test_plain_import_does_not_open_production_log`
 - `tests/test_integration_harness.py::test_test_mode_refuses_production_base_dir`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_pytest_safety_bootstrap.py::test_collection_import_uses_process_local_test_environment tests/test_logging_isolation.py tests/test_integration_harness.py::test_test_mode_refuses_production_base_dir` — Exercise collection-time isolation and production path/log refusal.
+- `pytest` — `tests/test_pytest_safety_bootstrap.py::test_collection_import_uses_process_local_test_environment`, `tests/test_logging_isolation.py`, `tests/test_integration_harness.py::test_test_mode_refuses_production_base_dir` — Exercise collection-time isolation and production path/log refusal.
 
 **Known gaps.**
 
@@ -1779,9 +1785,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_pytest_safety_bootstrap.py::test_default_network_policy_denies_loopback_and_non_loopback`
 - `tests/test_pytest_safety_bootstrap.py::test_loopback_opt_in_allows_only_local_fake_server`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_pytest_safety_bootstrap.py` — Exercise Python-process default-deny network behavior and explicit loopback-only opt-in.
+- `pytest` — `tests/test_pytest_safety_bootstrap.py` — Exercise Python-process default-deny network behavior and explicit loopback-only opt-in.
 
 **Known gaps.**
 
@@ -1850,9 +1856,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_release_gate.py::test_subprocess_egress_preflight_uses_namespace`
 - `tests/test_release_gate.py::test_namespace_wrapper_preserves_arguments_without_shell_interpolation`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_release_gate.py::test_unavailable_os_level_network_denial_is_explicit tests/test_release_gate.py::test_subprocess_egress_preflight_uses_namespace tests/test_release_gate.py::test_namespace_wrapper_preserves_arguments_without_shell_interpolation` — Exercise fail-closed OS isolation and descendant-safe command wrapping.
+- `pytest` — `tests/test_release_gate.py::test_unavailable_os_level_network_denial_is_explicit`, `tests/test_release_gate.py::test_subprocess_egress_preflight_uses_namespace`, `tests/test_release_gate.py::test_namespace_wrapper_preserves_arguments_without_shell_interpolation` — Exercise fail-closed OS isolation and descendant-safe command wrapping.
 
 **Known gaps.**
 
@@ -1939,9 +1945,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_quote_image_metadata_remediation.py::test_paid_judgement_reuse_is_limited_to_byte_identical_semantic_inputs`
 - `tests/test_semantic_veto_new_quote_adjudication.py::test_complete_manifest_build_is_byte_identical`
 
-**Commands.**
+**Validation requests.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py tests/test_historical_context_packet_corrections.py tests/test_simulate_regular_post_futures.py tests/test_production_consistency_incident.py tests/test_image_quote_shortlist_rerank.py tests/test_quote_image_metadata_remediation.py tests/test_semantic_veto_new_quote_adjudication.py` — Exercise current production-shaped fixtures and representative adversarial transaction/evidence boundaries.
+- `pytest` — `tests/test_runtime_ordinary_eligibility_integrity.py`, `tests/test_historical_context_packet_corrections.py`, `tests/test_simulate_regular_post_futures.py`, `tests/test_production_consistency_incident.py`, `tests/test_image_quote_shortlist_rerank.py`, `tests/test_quote_image_metadata_remediation.py`, `tests/test_semantic_veto_new_quote_adjudication.py` — Exercise current production-shaped fixtures and representative adversarial transaction/evidence boundaries.
 
 **Known gaps.**
 
@@ -2050,10 +2056,10 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_release_gate.py::test_deterministic_semantic_attestation_is_byte_identical`
 - `tests/test_release_gate.py::test_detached_candidate_worktree_is_exact_and_removed`
 
-**Commands.**
+**Validation requests.**
 
-- `python3 tools/priority0_registry.py validate --json` — Validate the canonical invariant and Priority-0 control-document closure while unresolved release gaps remain explicit.
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_priority0_registry.py tests/test_release_gate.py tests/test_defect_ledger.py` — Exercise registry/ledger synchronization and executable release-gate behavior.
+- `registry_validate` — Validate the canonical invariant and Priority-0 control-document closure while unresolved release gaps remain explicit.
+- `pytest` — `tests/test_priority0_registry.py`, `tests/test_release_gate.py`, `tests/test_defect_ledger.py` — Exercise registry/ledger synchronization and executable release-gate behavior.
 
 **Known gaps.**
 
@@ -2062,6 +2068,475 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - The gate attests but deliberately does not deploy, restart, or verify an activated production tree.
 - Independent review remains a separate human session whose investigative independence cannot be proved automatically.
 - Loaded process identity is not attested; see INV-PROC-004.
+
+### INV-REL-JSON-001: Strict release-control JSON
+
+**Invariant.** Every release-control and evidence JSON input must reject duplicate object names and non-finite numbers before schema or policy evaluation, and canonical output must reject non-finite values.
+
+**Rationale.** Last-key-wins or non-standard numbers can alter the policy meaning seen by different validators.
+
+**Owner subsystem.** `release_assurance`
+
+**Failure consequence.** Last-key-wins or non-standard numbers can alter the policy meaning seen by different validators.
+
+**Failure mode.** `fail_closed` — Release qualification is refused when the external assurance boundary cannot prove this property.
+
+**Status.** `partial` — The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.
+
+**Verification.** `partial` — Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.
+
+**Preconditions.**
+
+- The application candidate is treated as untrusted input.
+- The external assurance policy and runner come from a separately committed repository.
+
+**Runtime-consumed artifacts.** `none` — This release-control contract does not add a bot runtime artefact.
+
+- None recorded.
+
+**Full-suite relevance.** `required` — Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.
+
+**Required production deployed-path checks.** `not_applicable` — This task records release assurance only and performs no production activation.
+
+- None established.
+
+**Evidence references.**
+
+- `code` `production_invariants.json` — Application-side implementation of the recorded compatibility boundary.
+- `test` `tests/test_release_gate.py::test_strict_json_rejects_duplicate_names_and_nonfinite_numbers` — Focused regression evidence for the recorded boundary.
+
+**Last verified commit.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate identity.
+
+**Last verified tree.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate tree.
+
+**Accepted residual risk.** `unaccepted` — No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.
+
+**Affected paths.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+- `independent_review_blocker_reproductions.json`
+
+**Enforcement files.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Verification tests.**
+
+- `tests/test_release_gate.py::test_strict_json_rejects_duplicate_names_and_nonfinite_numbers`
+
+**Validation requests.**
+
+- `pytest` — `tests/test_release_gate.py::test_strict_json_rejects_duplicate_names_and_nonfinite_numbers` — Exercise the application-side compatibility boundary without granting candidate-owned release authority.
+
+**Known gaps.**
+
+- The external assurance repository must independently use and test its own strict parser.
+
+### INV-REL-TRUST-001: External release-assurance trust separation
+
+**Invariant.** Candidate-owned code, registries, plugins and reports are advisory inputs only; only a separately committed and hash-pinned external runner may issue release qualification.
+
+**Rationale.** A candidate that supplies its own certifier can weaken the checks that supposedly approve it.
+
+**Owner subsystem.** `release_assurance`
+
+**Failure consequence.** A candidate that supplies its own certifier can weaken the checks that supposedly approve it.
+
+**Failure mode.** `fail_closed` — Release qualification is refused when the external assurance boundary cannot prove this property.
+
+**Status.** `partial` — The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.
+
+**Verification.** `partial` — Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.
+
+**Preconditions.**
+
+- The application candidate is treated as untrusted input.
+- The external assurance policy and runner come from a separately committed repository.
+
+**Runtime-consumed artifacts.** `none` — This release-control contract does not add a bot runtime artefact.
+
+- None recorded.
+
+**Full-suite relevance.** `required` — Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.
+
+**Required production deployed-path checks.** `not_applicable` — This task records release assurance only and performs no production activation.
+
+- None established.
+
+**Evidence references.**
+
+- `code` `production_invariants.json` — Application-side implementation of the recorded compatibility boundary.
+- `test` `tests/test_release_gate.py::test_candidate_gate_cannot_issue_authoritative_attestation` — Focused regression evidence for the recorded boundary.
+
+**Last verified commit.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate identity.
+
+**Last verified tree.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate tree.
+
+**Accepted residual risk.** `unaccepted` — No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.
+
+**Affected paths.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Enforcement files.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Verification tests.**
+
+- `tests/test_release_gate.py::test_candidate_gate_cannot_issue_authoritative_attestation`
+
+**Validation requests.**
+
+- `pytest` — `tests/test_release_gate.py::test_candidate_gate_cannot_issue_authoritative_attestation` — Exercise the application-side compatibility boundary without granting candidate-owned release authority.
+
+**Known gaps.**
+
+- The external bootstrap candidate remains pending independent review and is not yet a trusted root.
+
+### INV-REL-SANDBOX-001: Private-root validation containment
+
+**Invariant.** Authoritative validation must execute in a private-root sandbox with only read-only candidate and gate inputs plus one bounded writable output, and no visibility of production or unrelated host-user data.
+
+**Rationale.** Selected-path read-only mounts do not prevent candidate code from reading or altering unrelated host-user files.
+
+**Owner subsystem.** `release_assurance`
+
+**Failure consequence.** Selected-path read-only mounts do not prevent candidate code from reading or altering unrelated host-user files.
+
+**Failure mode.** `fail_closed` — Release qualification is refused when the external assurance boundary cannot prove this property.
+
+**Status.** `partial` — The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.
+
+**Verification.** `partial` — Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.
+
+**Preconditions.**
+
+- The application candidate is treated as untrusted input.
+- The external assurance policy and runner come from a separately committed repository.
+
+**Runtime-consumed artifacts.** `none` — This release-control contract does not add a bot runtime artefact.
+
+- None recorded.
+
+**Full-suite relevance.** `required` — Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.
+
+**Required production deployed-path checks.** `not_applicable` — This task records release assurance only and performs no production activation.
+
+- None established.
+
+**Evidence references.**
+
+- `code` `production_invariants.json` — Application-side implementation of the recorded compatibility boundary.
+- `test` `tests/test_release_gate.py::test_candidate_gate_refuses_non_development_release_run` — Focused regression evidence for the recorded boundary.
+
+**Last verified commit.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate identity.
+
+**Last verified tree.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate tree.
+
+**Accepted residual risk.** `unaccepted` — No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.
+
+**Affected paths.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Enforcement files.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Verification tests.**
+
+- `tests/test_release_gate.py::test_candidate_gate_refuses_non_development_release_run`
+
+**Validation requests.**
+
+- `pytest` — `tests/test_release_gate.py::test_candidate_gate_refuses_non_development_release_run` — Exercise the application-side compatibility boundary without granting candidate-owned release authority.
+
+**Known gaps.**
+
+- Private-root containment is supplied by the external bootstrap and remains outside this application repository.
+
+### INV-REL-IMPORT-001: Descendant Python import isolation
+
+**Invariant.** The controller, xdist workers and all Python descendants must import only from a private declared distribution closure, standard library, external plugin and candidate source.
+
+**Rationale.** Sanitising PYTHONPATH while mounting shared site-packages still exposes undeclared packages to descendants.
+
+**Owner subsystem.** `release_assurance`
+
+**Failure consequence.** Sanitising PYTHONPATH while mounting shared site-packages still exposes undeclared packages to descendants.
+
+**Failure mode.** `fail_closed` — Release qualification is refused when the external assurance boundary cannot prove this property.
+
+**Status.** `partial` — The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.
+
+**Verification.** `partial` — Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.
+
+**Preconditions.**
+
+- The application candidate is treated as untrusted input.
+- The external assurance policy and runner come from a separately committed repository.
+
+**Runtime-consumed artifacts.** `none` — This release-control contract does not add a bot runtime artefact.
+
+- None recorded.
+
+**Full-suite relevance.** `required` — Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.
+
+**Required production deployed-path checks.** `not_applicable` — This task records release assurance only and performs no production activation.
+
+- None established.
+
+**Evidence references.**
+
+- `code` `production_invariants.json` — Application-side implementation of the recorded compatibility boundary.
+- `test` `tests/test_release_gate.py::test_unrelated_project_path_is_excluded_from_isolated_validation` — Focused regression evidence for the recorded boundary.
+
+**Last verified commit.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate identity.
+
+**Last verified tree.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate tree.
+
+**Accepted residual risk.** `unaccepted` — No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.
+
+**Affected paths.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Enforcement files.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Verification tests.**
+
+- `tests/test_release_gate.py::test_unrelated_project_path_is_excluded_from_isolated_validation`
+
+**Validation requests.**
+
+- `pytest` — `tests/test_release_gate.py::test_unrelated_project_path_is_excluded_from_isolated_validation` — Exercise the application-side compatibility boundary without granting candidate-owned release authority.
+
+**Known gaps.**
+
+- The application helper inventories host distributions; physical private-environment isolation belongs to the external bootstrap.
+
+### INV-REL-CMD-001: Trusted validation-ID command policy
+
+**Invariant.** Candidate controls may propose only known validation IDs and bounded test selectors; executable argv and environment are owned by external policy and never supplied as free-form candidate strings.
+
+**Rationale.** A candidate-authored shell command can execute arbitrary code despite shell=False in the controller.
+
+**Owner subsystem.** `release_assurance`
+
+**Failure consequence.** A candidate-authored shell command can execute arbitrary code despite shell=False in the controller.
+
+**Failure mode.** `fail_closed` — Release qualification is refused when the external assurance boundary cannot prove this property.
+
+**Status.** `partial` — The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.
+
+**Verification.** `partial` — Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.
+
+**Preconditions.**
+
+- The application candidate is treated as untrusted input.
+- The external assurance policy and runner come from a separately committed repository.
+
+**Runtime-consumed artifacts.** `none` — This release-control contract does not add a bot runtime artefact.
+
+- None recorded.
+
+**Full-suite relevance.** `required` — Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.
+
+**Required production deployed-path checks.** `not_applicable` — This task records release assurance only and performs no production activation.
+
+- None established.
+
+**Evidence references.**
+
+- `code` `production_invariants.json` — Application-side implementation of the recorded compatibility boundary.
+- `test` `tests/test_release_gate.py::test_validation_requests_reject_shell_and_unsafe_selectors` — Focused regression evidence for the recorded boundary.
+
+**Last verified commit.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate identity.
+
+**Last verified tree.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate tree.
+
+**Accepted residual risk.** `unaccepted` — No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.
+
+**Affected paths.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Enforcement files.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Verification tests.**
+
+- `tests/test_release_gate.py::test_validation_requests_reject_shell_and_unsafe_selectors`
+
+**Validation requests.**
+
+- `pytest` — `tests/test_release_gate.py::test_validation_requests_reject_shell_and_unsafe_selectors` — Exercise the application-side compatibility boundary without granting candidate-owned release authority.
+
+**Known gaps.**
+
+- External command templates and overrides remain subject to independent review of the external bootstrap.
+
+### INV-REL-ART-001: Typed runtime artefact-consumption detection
+
+**Invariant.** Generated artefact discovery uses the defined resolution vocabulary and normalized path sets; every valid resolved_path is runtime consumption and advisory classification fails closed on ambiguity.
+
+**Rationale.** An impossible resolution name or path/hash tuple mismatch can misclassify a runtime-consumed artefact as historical.
+
+**Owner subsystem.** `release_assurance`
+
+**Failure consequence.** An impossible resolution name or path/hash tuple mismatch can misclassify a runtime-consumed artefact as historical.
+
+**Failure mode.** `fail_closed` — Release qualification is refused when the external assurance boundary cannot prove this property.
+
+**Status.** `partial` — The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.
+
+**Verification.** `partial` — Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.
+
+**Preconditions.**
+
+- The application candidate is treated as untrusted input.
+- The external assurance policy and runner come from a separately committed repository.
+
+**Runtime-consumed artifacts.** `none` — This release-control contract does not add a bot runtime artefact.
+
+- None recorded.
+
+**Full-suite relevance.** `required` — Focused checks establish the local contract; the external isolated full suite remains required for candidate qualification.
+
+**Required production deployed-path checks.** `not_applicable` — This task records release assurance only and performs no production activation.
+
+- None established.
+
+**Evidence references.**
+
+- `code` `production_invariants.json` — Application-side implementation of the recorded compatibility boundary.
+- `test` `tests/test_release_gate.py::test_artifact_binding_resolution_is_typed_and_runtime` — Focused regression evidence for the recorded boundary.
+
+**Last verified commit.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate identity.
+
+**Last verified tree.** `unknown` (`unknown`) — Candidate-owned metadata cannot establish the authoritative external gate tree.
+
+**Accepted residual risk.** `unaccepted` — No release qualification is accepted until the separately committed external release-assurance bootstrap is independently reviewed and its exact frozen identity validates this boundary.
+
+**Affected paths.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Enforcement files.**
+
+- `production_invariants.json`
+- `production_invariants.schema.json`
+- `PRODUCTION_INVARIANTS.md`
+- `tools/priority0_registry.py`
+- `tools/strict_json.py`
+- `tools/release_gate.py`
+- `tools/release_gate_pytest_plugin.py`
+- `tests/test_priority0_registry.py`
+- `tests/test_release_gate.py`
+
+**Verification tests.**
+
+- `tests/test_release_gate.py::test_artifact_binding_resolution_is_typed_and_runtime`
+
+**Validation requests.**
+
+- `pytest` — `tests/test_release_gate.py::test_artifact_binding_resolution_is_typed_and_runtime` — Exercise the application-side compatibility boundary without granting candidate-owned release authority.
+
+**Known gaps.**
+
+- The external assurance bootstrap must independently reproduce the loader-to-artefact classification.
 
 ## Priority-0 control files
 
@@ -2083,3 +2558,5 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `INDEPENDENT_REVIEW_REQUEST.md`
 - `why_code_reviews_continue_to_find_major_problems.md`
 - `diagnosis_measurements.json`
+- `tools/strict_json.py`
+- `independent_review_blocker_reproductions.json`

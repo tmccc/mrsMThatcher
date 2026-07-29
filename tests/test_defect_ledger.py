@@ -6,7 +6,10 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
+
 from tools import defect_ledger as ledger_tool
+from tools import strict_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,9 +22,9 @@ DIAGNOSIS_PATH = ROOT / "why_code_reviews_continue_to_find_major_problems.md"
 
 def _documents() -> tuple[dict, dict, dict]:
     return (
-        json.loads(LEDGER_PATH.read_text(encoding="utf-8")),
-        json.loads(SCHEMA_PATH.read_text(encoding="utf-8")),
-        json.loads(INVARIANTS_PATH.read_text(encoding="utf-8")),
+        strict_json.load(LEDGER_PATH),
+        strict_json.load(SCHEMA_PATH),
+        strict_json.load(INVARIANTS_PATH),
     )
 
 
@@ -46,6 +49,21 @@ def _validate(
     )
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"defects":[],"defects":[]}',
+        '{"outer":{"status":"one","status":"two"}}',
+        '{"value":Infinity}',
+    ],
+)
+def test_defect_control_json_is_strict(tmp_path: Path, payload: str) -> None:
+    path = tmp_path / "ledger.json"
+    path.write_text(payload, encoding="utf-8")
+    with pytest.raises(strict_json.StrictJSONError):
+        ledger_tool.load_json_document(path)
+
+
 def test_real_ledger_is_valid_and_markdown_summary_is_synchronized() -> None:
     ledger, schema, invariants = _documents()
 
@@ -61,6 +79,30 @@ def test_real_ledger_is_valid_and_markdown_summary_is_synchronized() -> None:
     assert dict(report.status_counts)
 
 
+def test_release_assurance_findings_are_explicit_and_runtime_json_gap_remains() -> None:
+    ledger, _schema, _invariants = _documents()
+    records = {item["id"]: item for item in ledger["defects"]}
+    expected = {
+        "DEF-0018": "INV-REL-JSON-001",
+        "DEF-0019": "INV-REL-TRUST-001",
+        "DEF-0020": "INV-REL-SANDBOX-001",
+        "DEF-0021": "INV-REL-IMPORT-001",
+        "DEF-0022": "INV-REL-CMD-001",
+        "DEF-0023": "INV-REL-ART-001",
+    }
+    for defect_id, invariant_id in expected.items():
+        record = records[defect_id]
+        assert record["status"] == "assurance-weakness"
+        assert record["severity"] == "assurance"
+        assert record["invariant_ids"] == [invariant_id]
+        assert record["fix"]["state"] == "unfixed"
+
+    runtime_gap = records["DEF-0017"]
+    assert runtime_gap["status"] == "active"
+    assert runtime_gap["defect_class"] == "runtime-defect"
+    assert "INV-REL-JSON-001" not in runtime_gap["invariant_ids"]
+
+
 def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() -> None:
     ledger, schema, invariants = _documents()
     identity = ledger["identity_scope"]
@@ -70,11 +112,12 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
     deployment = identity["production_deployment_observation"]
     regeneration = identity["post_merge_regeneration"]
 
-    assert baseline["commit"] == cutoff["commit"]
-    assert baseline["tree"] == cutoff["tree"]
+    assert baseline["commit"] != cutoff["commit"]
+    assert baseline["tree"] != cutoff["tree"]
+    assert "does not claim" in cutoff["difference_from_production_baseline"]
     assert candidate["identity_source"] == "external-release-attestation"
     assert candidate["stored_in_ledger"] is False
-    assert deployment["repository_commit"] == cutoff["commit"]
+    assert deployment["repository_commit"] == baseline["commit"]
     assert deployment["loaded_process_identity_status"].endswith("-unattested")
     assert regeneration["required"] is True
     assert regeneration["release_base_must_equal_evidence_cutoff"] is True
@@ -91,14 +134,16 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
 def test_release_base_after_evidence_cutoff_requires_regeneration() -> None:
     ledger, schema, invariants = _documents()
     cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
-    candidate_head = ledger_tool._git(ROOT, "rev-parse", "HEAD").stdout.strip()
-    assert candidate_head != cutoff
+    outside_commit = ledger_tool._git(
+        ROOT, "rev-list", "--all", "--not", cutoff, "--max-count=1"
+    ).stdout.strip()
+    assert outside_commit
 
     report = _validate(
         ledger,
         schema,
         invariants,
-        release_base=candidate_head,
+        release_base=outside_commit,
     )
 
     assert not report.ok
@@ -140,15 +185,17 @@ def test_cutoff_tree_must_belong_to_cutoff_commit() -> None:
 
 def test_fix_deployment_and_verification_claims_cannot_postdate_cutoff() -> None:
     ledger, schema, invariants = _documents()
-    candidate_head = ledger_tool._git(ROOT, "rev-parse", "HEAD").stdout.strip()
     cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
-    assert candidate_head != cutoff
+    outside_commit = ledger_tool._git(
+        ROOT, "rev-list", "--all", "--not", cutoff, "--max-count=1"
+    ).stdout.strip()
+    assert outside_commit
 
     fixed = copy.deepcopy(ledger)
     fixed_defect = next(
         item for item in fixed["defects"] if item["fix"]["state"] == "fixed"
     )
-    fixed_defect["fix"]["commit"] = candidate_head
+    fixed_defect["fix"]["commit"] = outside_commit
     fixed_report = _validate(fixed, schema, invariants)
     assert any(
         "fix claim commit is outside the ledger evidence cut-off" in error
@@ -161,7 +208,7 @@ def test_fix_deployment_and_verification_claims_cannot_postdate_cutoff() -> None
         for item in deployed["defects"]
         if item["deployment"]["state"] == "deployed-unverified"
     )
-    deployed_defect["deployment"]["observed_commit"] = candidate_head
+    deployed_defect["deployment"]["observed_commit"] = outside_commit
     deployed_report = _validate(deployed, schema, invariants)
     assert any(
         "deployment claim commit is outside the ledger evidence cut-off" in error
@@ -174,7 +221,7 @@ def test_fix_deployment_and_verification_claims_cannot_postdate_cutoff() -> None
         for item in verified["defects"]
         if item["deployment"]["state"] == "deployed-verified"
     )
-    verified_defect["deployment"]["observed_commit"] = candidate_head
+    verified_defect["deployment"]["observed_commit"] = outside_commit
     verified_report = _validate(verified, schema, invariants)
     assert any(
         "deployment claim commit is outside the ledger evidence cut-off" in error
