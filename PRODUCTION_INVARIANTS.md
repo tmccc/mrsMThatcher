@@ -442,10 +442,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - Generated outputs are built deterministically from reviewed inputs.
 - The optional generated-image pool remains disabled unless its complete inventory classifies safely.
 
-**Runtime-consumed artifacts.** `direct` — Runtime and preflight consume these generated inventories. The v3 shadow-manifest audit is separately classified as historical build-time evidence because no runtime loader reads it; the missing cross-artifact generation inventory remains the recorded gap.
+**Runtime-consumed artifacts.** `direct` — Runtime consumes the generated-image analysis and configured semantic-veto manifest. It selects generated image files directly from the configured directory and does not load generated_review_approved_images/manifest.json. The v3 shadow-manifest audit is separately classified as historical build-time evidence because no runtime loader reads it; the missing cross-artifact generation inventory remains the recorded gap.
 
 - `generated_image_analysis.json`
-- `generated_review_approved_images/manifest.json`
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json`
 
 **Full-suite relevance.** `required` — Focused checks establish the local contract; the isolated complete suite is required to detect adjacent state-machine, configuration, and generated-artifact interactions.
@@ -488,7 +487,6 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `semantic_quote_image_veto.py`
 - `mrsMThatcher2.py`
 - `generated_image_analysis.json`
-- `generated_review_approved_images/manifest.json`
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json`
 - `docs/historical_context_evidence_release_runbook.md`
 
