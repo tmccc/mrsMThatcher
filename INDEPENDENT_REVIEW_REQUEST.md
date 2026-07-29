@@ -11,6 +11,7 @@ Obtain these files from the release-gate output directory:
 - `semantic_attestation.json`;
 - `release_gate_run_receipt.json`;
 - `release_gate_report.md`;
+- `source_diagnosis_original.md`;
 - `attestation_sha256_inventory.json`.
 
 Obtain these files from the exact candidate commit:
@@ -28,10 +29,11 @@ First verify every commit, tree, diff and file hash in
 `independent_review_manifest.json`. Stop and report an identity failure if the
 package, candidate or deployed path differs.
 
-The manifest separately binds the authoritative source diagnosis used to start
-the consolidation and the corrected diagnosis in the candidate. Verify both
-path/hash records and review the evidence-backed corrections rather than
-assuming that either document describes current-master truth unaided.
+The manifest separately binds and packages byte-for-byte the authoritative
+source diagnosis used to start the consolidation, and binds the corrected
+diagnosis in the candidate. Verify both path/hash records and the packaged
+copy, then review the evidence-backed corrections rather than assuming that
+either document describes current-master truth unaided.
 
 ## Review task
 
@@ -54,8 +56,9 @@ restart or signal a service, contact a provider, or make an X action.
 5. Identify omitted failure boundaries, especially uncertain remote outcomes,
    crashes between durable transitions, concurrent workers, stale locks,
    pagination tails, cursor provenance and optional-work failures.
-6. Verify focused and complete-suite commands, OS-level network denial,
-   output hashes and candidate-before/after identity.
+6. Verify focused and complete-suite commands, the isolated content-bound
+   Python environment, OS-level network denial, user-service socket masking,
+   sealed output hashes and candidate-before/after identity.
 7. Reconcile the current defect ledger with Git history and deployment
    evidence. Challenge unsupported `fixed`, `deployed` or `verified` claims.
 8. Complete `REVIEW_COMPLETION_TEMPLATE.md`, clearly identifying explicit

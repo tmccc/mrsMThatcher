@@ -21,10 +21,14 @@ containment encloses pytest and every descendant. A Python socket monkeypatch
 is not accepted as release-candidate isolation.
 
 Validation uses a credential/proxy-free environment. The gate content-hashes
-the Python executable and the complete active dependency closure of
-`pytest`/`pytest-xdist`, binds module origins to their owning distributions,
-and supplies only those attested import roots. The toolchain identity is
-recomputed after validation.
+the Python executable and every existing import root in the active validation
+environment, including resolved content behind package symlinks. It starts
+Python with `-I -S`, excludes the mutable implementation worktree from the
+toolchain, supplies only the attested roots plus the detached candidate, and
+checks the exact origins of pytest, xdist and the registry schema backend.
+The installed user-service unit directory is read-only and the user D-Bus and
+systemd-private sockets are masked inside validation. The complete toolchain
+identity is recomputed after validation.
 
 ## Development validation
 
@@ -78,9 +82,13 @@ The gate:
 8. runs the complete parallel suite once in the same route-isolated,
    immutable-candidate/toolchain, production-read-only, PID-isolated
    containment;
-9. verifies both the detached checkout and source worktree identities again;
-   and
-10. writes deterministic semantic evidence separately from volatile run
+9. seals each completed command's output and JUnit evidence read-only against
+   later commands and rechecks all earlier evidence hashes;
+10. preserves and rechecks the exact authoritative diagnosis bytes and
+    installed service-unit identity;
+11. verifies both the detached checkout and source worktree identities again;
+    and
+12. writes deterministic semantic evidence separately from volatile run
     metadata.
 
 Outputs are written outside the candidate:
@@ -89,13 +97,16 @@ Outputs are written outside the candidate:
 - `release_gate_run_receipt.json`;
 - `release_gate_report.md`;
 - `independent_review_manifest.json`;
+- `source_diagnosis_original.md`;
 - `attestation_sha256_inventory.json`;
 - focused/full command output and JUnit XML under `validation/`.
 
 If validation blocks after creating a new output directory, the gate writes a
 bounded `release_gate_failure_receipt.json` and hashes any completed partial
-validation evidence. It never writes this receipt into the candidate or into a
-pre-existing output directory containing unrelated material.
+validation evidence. Output and scratch locations are validated against the
+candidate, Git common directory, production and toolchain before receipt
+writing is authorised. It never writes this receipt into an unvalidated path
+or into a pre-existing output directory containing unrelated material.
 
 The semantic attestation deliberately excludes timestamps, host identity,
 duration and raw test-output hashes. The run receipt binds raw output and JUnit

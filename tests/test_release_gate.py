@@ -695,11 +695,16 @@ def test_real_containment_denies_candidate_and_git_mutation(
     production.mkdir()
     dependency = tmp_path / "dependencies"
     dependency.mkdir()
+    unit_file = tmp_path / "mrsMThatcher.service"
+    unit_file.write_text("[Service]\n", encoding="utf-8")
+    sockets = release_gate.service_control_socket_paths()
     result = release_gate.containment_preflight(
         cwd=repo,
         production_root=production,
         candidate_root=repo,
         dependency_roots=(dependency,),
+        additional_read_only_paths=(unit_file,),
+        blocked_unix_sockets=sockets,
     )
     if not result["available"]:
         pytest.skip(f"OS containment unavailable on this test host: {result['reason']}")
@@ -707,6 +712,11 @@ def test_real_containment_denies_candidate_and_git_mutation(
     assert result["git_common_root_read_only"] is True
     assert result["production_root_read_only"] is True
     assert result["validation_dependency_roots_read_only"] is True
+    assert result["additional_protected_paths_read_only"] is True
+    assert result["user_service_control_sockets_blocked"] is True
+    assert result["blocked_unix_socket_paths"] == [
+        str(path) for path in sockets
+    ]
     assert result["effective_capabilities_dropped"] is True
     assert result["no_new_privileges"] is True
     assert result["read_only_remount_denied_after_capability_drop"] is True
@@ -731,6 +741,8 @@ def test_validation_environment_does_not_inherit_credentials(
     assert any(
         (path / "xdist" / "plugin.py").is_file() for path in dependency_paths
     )
+    assert environment["PYTHONNOUSERSITE"] == "1"
+    assert environment["PYTHONSAFEPATH"] == "1"
 
 
 def test_validation_environment_uses_only_attested_dependency_roots(
@@ -748,6 +760,7 @@ def test_validation_environment_uses_only_attested_dependency_roots(
     )
 
     assert environment["PYTHONPATH"] == str(dependency_path.resolve())
+    assert environment["PYTHONNOUSERSITE"] == "1"
 
 
 def test_validation_toolchain_is_versioned_and_content_bound() -> None:
@@ -757,14 +770,16 @@ def test_validation_toolchain_is_versioned_and_content_bound() -> None:
     distributions = {
         item["distribution"] for item in semantic["distributions"]
     }
-    assert {"pytest", "pytest-xdist", "execnet", "pluggy"} <= distributions
+    assert {"pytest", "pytest-xdist", "jsonschema"} == distributions
     assert all(item["version"] for item in semantic["distributions"])
-    assert all(item["content_sha256"] for item in semantic["distributions"])
-    assert all(item["file_count"] > 0 for item in semantic["distributions"])
+    assert semantic["schema_version"] == 2
+    assert all(item["content_sha256"] for item in semantic["import_roots"])
+    assert all(item["entry_count"] > 0 for item in semantic["import_roots"])
     assert {
         item["module"] for item in semantic["module_distribution_bindings"]
-    } == {"pytest", "_pytest", "xdist"}
+    } == {"pytest", "_pytest", "xdist", "jsonschema"}
     assert toolchain.python_paths
+    assert set(toolchain.python_paths) <= set(toolchain.protected_paths)
 
 
 def test_deterministic_semantic_attestation_is_byte_identical() -> None:
@@ -804,6 +819,9 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
             "candidate_root_read_only": True,
             "git_common_root_read_only": True,
             "validation_dependency_roots_read_only": True,
+            "additional_protected_paths_read_only": True,
+            "installed_service_unit_read_only": True,
+            "user_service_control_sockets_blocked": True,
             "effective_capabilities_dropped": True,
             "no_new_privileges": True,
             "read_only_remount_denied_after_capability_drop": True,
@@ -1176,15 +1194,31 @@ def test_service_identity_comparison_uses_stable_process_fields() -> None:
             "MainPID": "10",
             "ExecMainStartTimestamp": "today",
             "NRestarts": "0",
+            "ExecStart": "/usr/local/bin/runMrsMThatcher2",
+            "WorkingDirectory": "/production",
+            "FragmentPath": "/unit/mrsMThatcher.service",
+            "DropInPaths": "",
             "Unrelated": "before",
         },
         "children": [{"pid": 11, "command_sha256": "a", "is_python": True}],
+        "unit_file_identities": {
+            "/unit/mrsMThatcher.service": {"sha256": "b" * 64}
+        },
     }
     after = json.loads(json.dumps(before))
     after["properties"]["Unrelated"] = "after"
     assert release_gate.service_invariants_equal(before, after)
     after["properties"]["NRestarts"] = "1"
     assert not release_gate.service_invariants_equal(before, after)
+    for key in ("ExecStart", "WorkingDirectory", "FragmentPath", "DropInPaths"):
+        changed = json.loads(json.dumps(before))
+        changed["properties"][key] += "-changed"
+        assert not release_gate.service_invariants_equal(before, changed)
+    changed = json.loads(json.dumps(before))
+    changed["unit_file_identities"]["/unit/mrsMThatcher.service"][
+        "sha256"
+    ] = "c" * 64
+    assert not release_gate.service_invariants_equal(before, changed)
 
 
 def test_emit_outputs_includes_required_priority0_deliverables(
@@ -1255,6 +1289,8 @@ def test_emit_outputs_includes_required_priority0_deliverables(
     (output / "validation" / "focused-001.output.txt").write_text(
         "passed\n", encoding="utf-8"
     )
+    diagnosis_bytes = b"# Original diagnosis\n"
+    diagnosis_sha256 = release_gate.sha256_bytes(diagnosis_bytes)
     inventory = release_gate.emit_outputs(
         output_dir=output,
         semantic=semantic,
@@ -1263,11 +1299,14 @@ def test_emit_outputs_includes_required_priority0_deliverables(
         ledger_path=ledger_path,
         diff_hash="a" * 64,
         source_diagnosis_path="/evidence/diagnosis.md",
-        source_diagnosis_sha256="b" * 64,
+        source_diagnosis_sha256=diagnosis_sha256,
+        source_diagnosis_bytes=diagnosis_bytes,
     )
     assert "priority0_consolidation_report.md" in inventory
     assert "priority0_consolidation_final_validation.json" in inventory
     assert "validation/focused-001.output.txt" in inventory
+    assert "source_diagnosis_original.md" in inventory
+    assert (output / "source_diagnosis_original.md").read_bytes() == diagnosis_bytes
     final = json.loads(
         (output / "priority0_consolidation_final_validation.json").read_text()
     )
@@ -1283,7 +1322,9 @@ def test_emit_outputs_includes_required_priority0_deliverables(
     assert review["changed_path_mapping"] == []
     assert review["source_diagnosis"] == {
         "path": "/evidence/diagnosis.md",
-        "sha256": "b" * 64,
+        "sha256": diagnosis_sha256,
+        "packaged_path": "source_diagnosis_original.md",
+        "packaged_sha256": diagnosis_sha256,
     }
     assert review["corrected_candidate_diagnosis"]["path"] == (
         "why_code_reviews_continue_to_find_major_problems.md"
@@ -1305,6 +1346,17 @@ def test_failed_gate_preserves_bounded_failure_receipt(tmp_path: Path) -> None:
         candidate="b" * 40,
         development_dry_run=False,
         full_suite=True,
+    )
+    parent_stat = output.parent.stat()
+    output_stat = output.stat()
+    args._gate_path_authorization = release_gate.GatePathAuthorization(
+        output_dir=output.absolute(),
+        output_parent=output.parent.resolve(),
+        output_parent_device=parent_stat.st_dev,
+        output_parent_inode=parent_stat.st_ino,
+        output_existed=True,
+        output_device=output_stat.st_dev,
+        output_inode=output_stat.st_ino,
     )
     path = release_gate.emit_failure_receipt(
         args, release_gate.ReleaseGateError("focused validation failed")
@@ -1370,4 +1422,182 @@ def test_control_schema_is_validated_before_mapping(tmp_path: Path) -> None:
     with pytest.raises(release_gate.ReleaseGateError, match="schema validation"):
         release_gate.validate_control_schema(
             {"wrong": []}, schema, label="fixture"
+        )
+
+
+def test_required_truth_audit_packet_correction_pin_fails_closed(
+    tmp_path: Path,
+) -> None:
+    corrections = tmp_path / "historical_context_packet_corrections.json"
+    corrections.write_text('{"corrections":[]}\n', encoding="utf-8")
+    records = release_gate._declared_pin_records(
+        tmp_path,
+        "historical_context_evidence_truth_audit.json",
+        "input_hashes",
+        {
+            "historical_context_packet_corrections.json": (
+                release_gate.sha256_file(corrections)
+            )
+        },
+    )
+    assert len(records) == 1
+    assert records[0]["match"] is True
+    assert records[0]["runtime_relationship_required"] is True
+    assert "fail closed" in records[0]["required_reason"]
+    records = release_gate._declared_pin_records(
+        tmp_path,
+        "historical_context_evidence_truth_audit.json",
+        "input_hashes",
+        {"historical_context_packet_corrections.json": "0" * 64},
+    )
+    assert records[0]["match"] is False
+    assert records[0]["runtime_relationship_required"] is True
+
+
+def test_isolated_runner_ignores_candidate_and_home_toolchain_shadows(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    pytest_marker = tmp_path / "candidate-pytest-imported"
+    user_marker = tmp_path / "usercustomize-imported"
+    (candidate / "pytest.py").write_text(
+        f"from pathlib import Path\nPath({str(pytest_marker)!r}).write_text('bad')\n",
+        encoding="utf-8",
+    )
+    (candidate / "jsonschema.py").write_text(
+        "raise RuntimeError('candidate jsonschema shadow loaded')\n",
+        encoding="utf-8",
+    )
+    (candidate / "probe.py").write_text(
+        "import jsonschema, pytest\n"
+        "print(pytest.__file__)\n"
+        "print(jsonschema.__file__)\n",
+        encoding="utf-8",
+    )
+    home = tmp_path / "home"
+    user_site = home / ".local/lib/python3.10/site-packages"
+    user_site.mkdir(parents=True)
+    (user_site / "usercustomize.py").write_text(
+        f"from pathlib import Path\nPath({str(user_marker)!r}).write_text('bad')\n",
+        encoding="utf-8",
+    )
+    toolchain = release_gate.validation_toolchain_inventory(
+        excluded_roots=(Path.cwd(), candidate)
+    )
+    command = release_gate.isolated_python_validation_command(
+        (sys.executable, "probe.py"),
+        candidate_root=candidate,
+        toolchain=toolchain,
+    )
+    result = subprocess.run(
+        command,
+        cwd=candidate,
+        env=release_gate.sanitized_validation_environment_for_toolchain(
+            home, toolchain
+        ),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout
+    assert not pytest_marker.exists()
+    assert not user_marker.exists()
+    assert str(candidate) not in result.stdout
+
+
+def test_validation_evidence_hashes_detect_later_mutation(
+    tmp_path: Path,
+) -> None:
+    validation = tmp_path / "validation"
+    validation.mkdir()
+    output = validation / "focused-001.output.txt"
+    output.write_text("first\n", encoding="utf-8")
+    evidence = release_gate.validation_evidence_hashes(
+        validation, ["focused-001"]
+    )
+    release_gate.assert_validation_evidence_unchanged(evidence)
+    output.write_text("changed\n", encoding="utf-8")
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="sealed validation evidence"
+    ):
+        release_gate.assert_validation_evidence_unchanged(evidence)
+
+
+def test_gate_paths_reject_protected_overlap_and_allow_sibling_output(
+    tmp_path: Path,
+) -> None:
+    repo = _git_repo(tmp_path)
+    production = tmp_path / "production"
+    production.mkdir()
+    dependency = tmp_path / "dependency"
+    dependency.mkdir()
+    output = tmp_path / "attestation"
+    resolved_output, resolved_scratch, authorization = (
+        release_gate.validate_gate_paths(
+            repo=repo,
+            output_argument=output,
+            scratch_argument=tmp_path,
+            production_root=production,
+            dependency_roots=(dependency,),
+        )
+    )
+    assert resolved_output == output
+    assert resolved_scratch == tmp_path
+    assert authorization.output_existed is False
+    for unsafe_output in (
+        repo / "attestation",
+        production / "attestation",
+        dependency / "attestation",
+    ):
+        with pytest.raises(
+            release_gate.ReleaseGateError, match="output overlaps protected"
+        ):
+            release_gate.validate_gate_paths(
+                repo=repo,
+                output_argument=unsafe_output,
+                scratch_argument=tmp_path,
+                production_root=production,
+                dependency_roots=(dependency,),
+            )
+    linked_output = tmp_path / "linked-output"
+    linked_output.symlink_to(production, target_is_directory=True)
+    with pytest.raises(release_gate.ReleaseGateError, match="symbolic link"):
+        release_gate.validate_gate_paths(
+            repo=repo,
+            output_argument=linked_output,
+            scratch_argument=tmp_path,
+            production_root=production,
+            dependency_roots=(dependency,),
+        )
+    unsafe_scratch = repo / "scratch"
+    unsafe_scratch.mkdir()
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="scratch root overlaps protected"
+    ):
+        release_gate.validate_gate_paths(
+            repo=repo,
+            output_argument=output,
+            scratch_argument=unsafe_scratch,
+            production_root=production,
+            dependency_roots=(dependency,),
+        )
+
+
+def test_source_diagnosis_stable_read_detects_identity_or_content_drift(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "diagnosis.md"
+    source.write_bytes(b"original\n")
+    payload, identity = release_gate.stable_file_bytes(source)
+    release_gate.assert_stable_file(
+        source, expected_bytes=payload, expected_identity=identity
+    )
+    source.write_bytes(b"changed!\n")
+    with pytest.raises(
+        release_gate.ReleaseGateError, match="required evidence changed"
+    ):
+        release_gate.assert_stable_file(
+            source, expected_bytes=payload, expected_identity=identity
         )

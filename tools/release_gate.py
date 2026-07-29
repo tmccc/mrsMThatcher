@@ -32,6 +32,7 @@ import importlib.util
 import json
 import os
 import platform
+import pwd
 import re
 import shlex
 import shutil
@@ -122,6 +123,15 @@ ADVISORY_SOURCE_PIN_KEYS = {
     ): (
         "the runtime loader validates active_source and completed_quote_research "
         "but does not consume this whole-formatter provenance pin"
+    ),
+}
+REQUIRED_INPUT_PIN_KEYS = {
+    (
+        "historical_context_evidence_truth_audit.json",
+        "historical_context_packet_corrections.json",
+    ): (
+        "the runtime truth audit consumes the exact canonical packet-correction "
+        "input and must fail closed when that binding is stale"
     ),
 }
 
@@ -216,10 +226,24 @@ class ValidationToolchain:
 
     semantic_inventory_json: str
     python_paths: tuple[str, ...]
+    protected_paths: tuple[str, ...] = ()
 
     def semantic_dict(self) -> dict[str, Any]:
         """Return the deterministic toolchain identity."""
         return json.loads(self.semantic_inventory_json)
+
+
+@dataclasses.dataclass(frozen=True)
+class GatePathAuthorization:
+    """Identity-bound permission for the gate's private output directory."""
+
+    output_dir: Path
+    output_parent: Path
+    output_parent_device: int
+    output_parent_inode: int
+    output_existed: bool
+    output_device: int | None
+    output_inode: int | None
 
 
 def canonical_json_bytes(value: Any) -> bytes:
@@ -268,6 +292,39 @@ def file_identity(path: Path) -> dict[str, Any]:
         "mode": stat.st_mode,
         "sha256": sha256_file(path),
     }
+
+
+def stable_file_bytes(path: Path) -> tuple[bytes, dict[str, Any]]:
+    """Read one ordinary file while binding bytes to its lstat identity."""
+    path = path.absolute()
+    before = path.lstat()
+    if path.is_symlink() or not path.is_file():
+        raise ReleaseGateError(f"required evidence is not an ordinary file: {path}")
+    payload = path.read_bytes()
+    after = path.lstat()
+    fields = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if any(getattr(before, field) != getattr(after, field) for field in fields):
+        raise ReleaseGateError(f"required evidence changed while reading: {path}")
+    identity = {
+        "path": str(path),
+        "device": before.st_dev,
+        "inode": before.st_ino,
+        "mode": before.st_mode,
+        "size": before.st_size,
+        "mtime_ns": before.st_mtime_ns,
+        "ctime_ns": before.st_ctime_ns,
+        "sha256": sha256_bytes(payload),
+    }
+    return payload, identity
+
+
+def assert_stable_file(
+    path: Path, *, expected_bytes: bytes, expected_identity: Mapping[str, Any]
+) -> None:
+    """Fail when immutable review evidence changes during validation."""
+    payload, identity = stable_file_bytes(path)
+    if payload != expected_bytes or identity != dict(expected_identity):
+        raise ReleaseGateError(f"required evidence changed during validation: {path}")
 
 
 def write_atomic(path: Path, payload: bytes, mode: int = 0o600) -> None:
@@ -1306,6 +1363,8 @@ def containment_namespace_command(
     candidate_root: Path | None = None,
     git_common_root: Path | None = None,
     dependency_roots: Sequence[Path] = (),
+    additional_read_only_paths: Sequence[Path] = (),
+    blocked_unix_sockets: Sequence[Path] = (),
 ) -> tuple[str, ...]:
     """Wrap a command with network isolation and read-only protected roots."""
     prefix: tuple[str, ...] = (
@@ -1328,22 +1387,31 @@ def containment_namespace_command(
                 candidate_root,
                 git_common_root,
                 *dependency_roots,
+                *additional_read_only_paths,
             )
             if path is not None
         )
     )
+    sockets = tuple(
+        dict.fromkeys(str(Path(path).absolute()) for path in blocked_unix_sockets)
+    )
     return (
         *prefix,
         (
-            'mount --make-rprivate / && while [ "$1" != "--" ]; do '
+            'mount --make-rprivate / && '
+            'while [ "$1" != "--block-sockets" ]; do '
             'mount --bind "$1" "$1" && '
             'mount -o remount,bind,ro "$1" || exit 75; shift; done && '
+            'shift && while [ "$1" != "--" ]; do '
+            'mount --bind /dev/null "$1" || exit 79; shift; done && '
             'shift && ip link set lo up && exec setpriv '
             '--bounding-set=-all --inh-caps=-all --ambient-caps=-all '
             '--securebits=+noroot,+noroot_locked --no-new-privs -- "$@"'
         ),
         "release-gate-containment",
         *roots,
+        "--block-sockets",
+        *sockets,
         "--",
         *command,
     )
@@ -1360,6 +1428,8 @@ def containment_preflight(
     production_root: Path | None = None,
     candidate_root: Path | None = None,
     dependency_roots: Sequence[Path] = (),
+    additional_read_only_paths: Sequence[Path] = (),
+    blocked_unix_sockets: Sequence[Path] = (),
 ) -> dict[str, Any]:
     """Prove route isolation and protected-root write denial."""
     required = ("unshare", "ip", "mount", "setpriv", "sh")
@@ -1379,16 +1449,30 @@ def containment_preflight(
     candidate = candidate_root.resolve() if candidate_root is not None else None
     common = git_common_dir(candidate) if candidate is not None else None
     dependencies = tuple(Path(path).resolve() for path in dependency_roots)
-    if any(not path.is_dir() for path in dependencies):
+    additional = tuple(
+        Path(path).resolve() for path in additional_read_only_paths
+    )
+    if any(not path.exists() or path.is_symlink() for path in dependencies):
         return {
             "available": False,
             "mechanism": "user-network-and-mount-namespace",
             "reason": "validation dependency root is missing",
         }
+    if any(not path.exists() or path.is_symlink() for path in additional):
+        return {
+            "available": False,
+            "mechanism": "user-network-and-mount-namespace",
+            "reason": "additional protected path is missing or symbolic",
+        }
+    sockets = tuple(
+        Path(path).absolute()
+        for path in blocked_unix_sockets
+        if Path(path).exists()
+    )
     protected_roots = tuple(
         dict.fromkeys(
             path
-            for path in (root, candidate, common, *dependencies)
+            for path in (root, candidate, common, *dependencies, *additional)
             if path is not None
         )
     )
@@ -1421,7 +1505,9 @@ def containment_preflight(
         "status=pathlib.Path('/proc/self/status').read_text()\n"
         "if 'CapEff:\\t0000000000000000' not in status: sys.exit(76)\n"
         "if 'NoNewPrivs:\\t1' not in status: sys.exit(77)\n"
-        "for value in sys.argv[1:]:\n"
+        "values=sys.argv[1:]\n"
+        "separator=values.index('--sockets')\n"
+        "for value in values[:separator]:\n"
         " p=pathlib.Path(value)\n"
         " try:\n"
         "  (p / %r).write_bytes(b'forbidden')\n"
@@ -1432,6 +1518,14 @@ def containment_preflight(
         " r=subprocess.run(('mount','-o','remount,bind,rw',str(p)),"
         "stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n"
         " if r.returncode == 0: sys.exit(78)\n"
+        "for value in values[separator+1:]:\n"
+        " u=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+        " try:\n"
+        "  u.connect(value)\n"
+        " except OSError:\n"
+        "  pass\n"
+        " else:\n"
+        "  u.close(); sys.exit(79)\n"
     ) % probe_name
     command = containment_namespace_command(
         (
@@ -1439,11 +1533,15 @@ def containment_preflight(
             "-c",
             script,
             *(str(path) for path in protected_roots),
+            "--sockets",
+            *(str(path) for path in sockets),
         ),
         production_root=root,
         candidate_root=candidate,
         git_common_root=common,
         dependency_roots=dependencies,
+        additional_read_only_paths=additional,
+        blocked_unix_sockets=sockets,
     )
     result = _run(command, cwd=cwd, check=False, timeout=10)
     available = result.returncode == 0
@@ -1461,6 +1559,13 @@ def containment_preflight(
         "validation_dependency_roots_read_only": (
             available if dependencies else None
         ),
+        "additional_protected_paths_read_only": (
+            available if additional else None
+        ),
+        "user_service_control_sockets_blocked": (
+            available
+        ),
+        "blocked_unix_socket_paths": [str(path) for path in sockets],
         "effective_capabilities_dropped": available,
         "no_new_privileges": available,
         "read_only_remount_denied_after_capability_drop": available,
@@ -1480,89 +1585,8 @@ def network_preflight(*, cwd: Path) -> dict[str, Any]:
 def sanitized_validation_environment(home: Path) -> dict[str, str]:
     """Build a credential/proxy-free deterministic validation environment."""
     return sanitized_validation_environment_for_toolchain(
-        home, validation_toolchain_inventory()
+        home, validation_toolchain_inventory(excluded_roots=(Path.cwd(),))
     )
-
-
-def _distribution_content_inventory(distribution_name: str) -> dict[str, Any]:
-    """Hash every installed regular file declared by one distribution."""
-    try:
-        distribution = importlib.metadata.distribution(distribution_name)
-    except importlib.metadata.PackageNotFoundError as exc:
-        raise ReleaseGateError(
-            f"required validation distribution is unavailable: {distribution_name}"
-        ) from exc
-    records: list[dict[str, Any]] = []
-    for entry in sorted(distribution.files or (), key=lambda value: str(value)):
-        path = Path(distribution.locate_file(entry))
-        if not path.is_file() or path.suffix in {".pyc", ".pyo"}:
-            continue
-        records.append(
-            {
-                "path": str(entry),
-                "sha256": sha256_file(path),
-                "size": path.stat().st_size,
-            }
-        )
-    if not records:
-        normalised = _normalise_distribution_name(distribution_name)
-        modules = sorted(
-            module
-            for module, distributions in importlib.metadata.packages_distributions().items()
-            if any(
-                _normalise_distribution_name(value) == normalised
-                for value in distributions or ()
-            )
-        )
-        for module in modules:
-            spec = importlib.util.find_spec(module)
-            if spec is None or spec.origin is None:
-                continue
-            origin = Path(spec.origin).resolve()
-            candidates = (
-                sorted(origin.parent.rglob("*"))
-                if spec.submodule_search_locations
-                else [origin]
-            )
-            for path in candidates:
-                if (
-                    path.is_file()
-                    and path.suffix not in {".pyc", ".pyo"}
-                    and "__pycache__" not in path.parts
-                ):
-                    relative = (
-                        f"{module}/"
-                        + path.relative_to(origin.parent).as_posix()
-                    )
-                    records.append(
-                        {
-                            "path": relative,
-                            "sha256": sha256_file(path),
-                            "size": path.stat().st_size,
-                        }
-                    )
-        for metadata_name in ("METADATA", "PKG-INFO", "entry_points.txt"):
-            payload = distribution.read_text(metadata_name)
-            if payload is not None:
-                encoded = payload.encode("utf-8")
-                records.append(
-                    {
-                        "path": f"metadata:{metadata_name}",
-                        "sha256": sha256_bytes(encoded),
-                        "size": len(encoded),
-                    }
-                )
-    if not records:
-        raise ReleaseGateError(
-            f"validation distribution has no hashable files: {distribution_name}"
-        )
-    payload = canonical_json_bytes(records)
-    return {
-        "distribution": distribution_name,
-        "version": distribution.version,
-        "file_count": len(records),
-        "content_sha256": sha256_bytes(payload),
-    }
 
 
 def _normalise_distribution_name(value: str) -> str:
@@ -1570,125 +1594,315 @@ def _normalise_distribution_name(value: str) -> str:
     return re.sub(r"[-_.]+", "-", value).lower()
 
 
-def _runtime_distribution_requirements(distribution_name: str) -> set[str]:
-    """Return non-extra dependencies active in the current Python environment."""
-    try:
-        from packaging.requirements import InvalidRequirement, Requirement
-    except ImportError as exc:
+def _path_content_record(
+    path: Path, *, active_directories: tuple[Path, ...] = ()
+) -> dict[str, Any]:
+    """Return a deterministic, non-following content identity for one path."""
+    absolute = Path(os.path.abspath(path))
+    if absolute.is_symlink():
+        target = os.readlink(absolute)
+        record: dict[str, Any] = {
+            "kind": "symlink",
+            "target": target,
+        }
+        resolved = absolute.resolve(strict=True)
+        if resolved.is_dir():
+            if resolved in active_directories:
+                record.update(
+                    {
+                        "resolved_path": str(resolved),
+                        "resolved_directory_cycle": True,
+                    }
+                )
+            else:
+                identity = _import_root_content_inventory(
+                    resolved,
+                    active_directories=(*active_directories, resolved),
+                )
+                record.update(
+                    {
+                        "resolved_path": str(resolved),
+                        "resolved_directory_identity": identity,
+                    }
+                )
+        if resolved.is_file():
+            record.update(
+                {
+                    "resolved_path": str(resolved),
+                    "resolved_sha256": sha256_file(resolved),
+                    "resolved_size": resolved.stat().st_size,
+                }
+            )
+        return record
+    if absolute.is_file():
+        return {
+            "kind": "file",
+            "sha256": sha256_file(absolute),
+            "size": absolute.stat().st_size,
+        }
+    raise ReleaseGateError(f"unsupported validation import path: {absolute}")
+
+
+def _import_root_content_inventory(
+    root: Path, *, active_directories: tuple[Path, ...] = ()
+) -> dict[str, Any]:
+    """Hash every entry reachable without following directory symlinks."""
+    root = Path(os.path.abspath(root))
+    if root.is_file() and not root.is_symlink():
+        return {
+            "path": str(root),
+            "entry_count": 1,
+            "content_sha256": sha256_file(root),
+            "kind": "file",
+            "size": root.stat().st_size,
+        }
+    if not root.is_dir() or root.is_symlink():
         raise ReleaseGateError(
-            "packaging is required to attest validation dependencies"
-        ) from exc
-    distribution = importlib.metadata.distribution(distribution_name)
-    result: set[str] = set()
-    for raw in distribution.requires or ():
-        try:
-            requirement = Requirement(raw)
-        except InvalidRequirement as exc:
+            f"validation import root is not an ordinary file/directory: {root}"
+        )
+    resolved_root = root.resolve()
+    if not active_directories:
+        active_directories = (resolved_root,)
+    records: list[dict[str, Any]] = []
+    for directory, directory_names, file_names in os.walk(
+        root, topdown=True, followlinks=False
+    ):
+        directory_path = Path(directory)
+        retained_directories: list[str] = []
+        for name in sorted(directory_names):
+            path = directory_path / name
+            relative = path.relative_to(root).as_posix()
+            if path.is_symlink():
+                record = _path_content_record(
+                    path, active_directories=active_directories
+                )
+                record["path"] = relative
+                records.append(record)
+            else:
+                retained_directories.append(name)
+        directory_names[:] = retained_directories
+        for name in sorted(file_names):
+            path = directory_path / name
+            record = _path_content_record(
+                path, active_directories=active_directories
+            )
+            record["path"] = path.relative_to(root).as_posix()
+            records.append(record)
+    payload = canonical_json_bytes(records)
+    return {
+        "path": str(root),
+        "entry_count": len(records),
+        "content_sha256": sha256_bytes(payload),
+        "kind": "directory",
+        "resolved_external_paths": sorted(_nested_identity_paths(records)),
+    }
+
+
+def _validation_import_roots(
+    *, excluded_roots: Sequence[Path] = ()
+) -> tuple[Path, ...]:
+    """Return the exact existing import roots used by the validation Python."""
+    roots: list[Path] = []
+    excluded = tuple(Path(os.path.abspath(path)) for path in excluded_roots)
+    for raw in sys.path:
+        if not raw:
+            continue
+        path = Path(os.path.abspath(raw))
+        if not path.exists():
+            continue
+        if any(path == root or root in path.parents for root in excluded):
+            continue
+        if (not path.is_dir() and not path.is_file()) or path.is_symlink():
             raise ReleaseGateError(
-                f"cannot parse {distribution_name} dependency {raw!r}: {exc}"
-            ) from exc
-        if requirement.marker and not requirement.marker.evaluate({"extra": ""}):
-            continue
-        result.add(_normalise_distribution_name(requirement.name))
-    return result
+                f"validation Python path is not an ordinary file/directory: {path}"
+            )
+        if path not in roots:
+            roots.append(path)
+    if not roots:
+        raise ReleaseGateError("validation Python has no content-bound import roots")
+    return tuple(roots)
 
 
-def _validation_distribution_closure() -> tuple[str, ...]:
-    """Resolve the transitive installed distributions used by pytest/xdist."""
-    pending = ["pytest", "pytest-xdist"]
-    resolved: set[str] = set()
-    while pending:
-        name = _normalise_distribution_name(pending.pop())
-        if name in resolved:
+def _module_binding(module_name: str, roots: Sequence[Path]) -> dict[str, Any]:
+    """Bind one mandatory validation module to an attested import-root file."""
+    spec = importlib.util.find_spec(module_name)
+    if spec is None or spec.origin is None:
+        raise ReleaseGateError(f"validation module is unavailable: {module_name}")
+    origin = Path(os.path.abspath(spec.origin))
+    for index, root in enumerate(roots):
+        try:
+            relative = origin.relative_to(root)
+        except ValueError:
             continue
+        if not origin.is_file():
+            raise ReleaseGateError(
+                f"validation module origin is not a regular file: {module_name}"
+            )
+        return {
+            "module": module_name,
+            "root_index": index,
+            "origin": relative.as_posix(),
+            "origin_sha256": sha256_file(origin),
+        }
+    raise ReleaseGateError(
+        f"validation module origin is outside attested roots: "
+        f"{module_name}: {origin}"
+    )
+
+
+def _nested_identity_paths(value: Any) -> set[str]:
+    """Collect content-bound resolved paths from nested root identities."""
+    output: set[str] = set()
+    if isinstance(value, Mapping):
+        resolved = value.get("resolved_path")
+        if isinstance(resolved, str):
+            output.add(resolved)
+        for item in value.values():
+            output.update(_nested_identity_paths(item))
+    elif isinstance(value, list):
+        for item in value:
+            output.update(_nested_identity_paths(item))
+    return output
+
+
+def validation_toolchain_inventory(
+    *, excluded_roots: Sequence[Path] = ()
+) -> ValidationToolchain:
+    """Bind the executable and complete active import environment by content."""
+    executable = Path(sys.executable).resolve()
+    roots = _validation_import_roots(excluded_roots=excluded_roots)
+    root_records = [_import_root_content_inventory(root) for root in roots]
+    mandatory_distributions = []
+    for name in ("pytest", "pytest-xdist", "jsonschema"):
         try:
             distribution = importlib.metadata.distribution(name)
         except importlib.metadata.PackageNotFoundError as exc:
             raise ReleaseGateError(
-                f"required validation dependency is unavailable: {name}"
+                f"required validation distribution is unavailable: {name}"
             ) from exc
-        canonical = _normalise_distribution_name(
-            distribution.metadata.get("Name") or name
-        )
-        resolved.add(canonical)
-        pending.extend(
-            dependency
-            for dependency in _runtime_distribution_requirements(canonical)
-            if dependency not in resolved
-        )
-    return tuple(sorted(resolved))
-
-
-def validation_toolchain_inventory() -> ValidationToolchain:
-    """Build a content-bound identity for Python, pytest, and pytest-xdist."""
-    executable = Path(sys.executable).resolve()
-    distribution_names = _validation_distribution_closure()
-    packages = tuple(
-        _distribution_content_inventory(name) for name in distribution_names
-    )
-    module_bindings: list[dict[str, Any]] = []
-    for module_name, distribution_name in (
-        ("pytest", "pytest"),
-        ("_pytest", "pytest"),
-        ("xdist", "pytest-xdist"),
-    ):
-        spec = importlib.util.find_spec(module_name)
-        if spec is None or spec.origin is None:
-            raise ReleaseGateError(
-                f"validation module is unavailable: {module_name}"
-            )
-        distribution = importlib.metadata.distribution(distribution_name)
-        root = Path(distribution.locate_file("")).resolve()
-        origin = Path(spec.origin).resolve()
-        try:
-            relative = origin.relative_to(root).as_posix()
-        except ValueError as exc:
-            raise ReleaseGateError(
-                f"{module_name} origin is outside {distribution_name}"
-            ) from exc
-        declared_files = {str(item) for item in distribution.files or ()}
-        if relative not in declared_files:
-            raise ReleaseGateError(
-                f"{module_name} origin is not owned by {distribution_name}: "
-                f"{relative}"
-            )
-        module_bindings.append(
+        mandatory_distributions.append(
             {
-                "module": module_name,
-                "distribution": distribution_name,
-                "origin": relative,
-                "origin_sha256": sha256_file(origin),
+                "distribution": _normalise_distribution_name(
+                    distribution.metadata.get("Name") or name
+                ),
+                "version": distribution.version,
             }
         )
+    module_bindings = [
+        _module_binding(name, roots)
+        for name in ("pytest", "_pytest", "xdist", "jsonschema")
+    ]
     semantic = {
-        "schema_version": 1,
+        "schema_version": 2,
         "python": {
             "implementation": platform.python_implementation(),
             "version": platform.python_version(),
             "executable_sha256": sha256_file(executable),
         },
-        "distributions": list(packages),
+        "distributions": mandatory_distributions,
+        "import_roots": root_records,
         "module_distribution_bindings": module_bindings,
         "dependency_scope": (
-            "recursive installed requirements active for the current interpreter; "
-            "optional extras excluded"
+            "every existing sys.path import root is recursively content-bound; "
+            "isolated execution uses only these roots and the frozen candidate"
         ),
     }
-    roots = tuple(
-        sorted(
-            {
-                str(
-                    Path(
-                        importlib.metadata.distribution(name).locate_file("")
-                    ).resolve()
-                )
-                for name in distribution_names
-            }
-        )
-    )
     return ValidationToolchain(
         semantic_inventory_json=canonical_json_bytes(semantic).decode("utf-8"),
-        python_paths=roots,
+        python_paths=tuple(str(root) for root in roots),
+        protected_paths=tuple(
+            sorted(
+                {
+                    *(str(root) for root in roots),
+                    *(
+                        path
+                        for record in root_records
+                        for path in record.get("resolved_external_paths", [])
+                    ),
+                }
+            )
+        ),
+    )
+
+
+_ISOLATED_PYTHON_BOOTSTRAP = """\
+import hashlib, importlib.util, json, pathlib, runpy, sys
+roots_json, candidate_root, bindings_json, *arguments = sys.argv[1:]
+roots = json.loads(roots_json)
+sys.path[:] = [*roots, candidate_root]
+bindings = json.loads(bindings_json)
+for binding in bindings:
+    spec = importlib.util.find_spec(binding["module"])
+    if spec is None or spec.origin is None:
+        raise SystemExit("missing attested validation module: " + binding["module"])
+    origin = pathlib.Path(spec.origin).absolute()
+    expected = (
+        pathlib.Path(roots[binding["root_index"]]) / binding["origin"]
+    ).absolute()
+    if origin != expected:
+        raise SystemExit("validation module origin mismatch: " + binding["module"])
+    if hashlib.sha256(origin.read_bytes()).hexdigest() != binding["origin_sha256"]:
+        raise SystemExit("validation module content mismatch: " + binding["module"])
+if not arguments:
+    raise SystemExit("missing isolated Python target")
+if arguments[0] == "-m":
+    if len(arguments) < 2:
+        raise SystemExit("missing module after -m")
+    sys.argv = [arguments[1], *arguments[2:]]
+    runpy.run_module(arguments[1], run_name="__main__", alter_sys=True)
+else:
+    target = pathlib.Path(candidate_root, arguments[0]).resolve()
+    if pathlib.Path(candidate_root).resolve() not in target.parents:
+        raise SystemExit("isolated Python script escapes candidate")
+    sys.argv = [str(target), *arguments[1:]]
+    runpy.run_path(str(target), run_name="__main__")
+"""
+
+
+def isolated_python_validation_command(
+    command: Sequence[str],
+    *,
+    candidate_root: Path,
+    toolchain: ValidationToolchain,
+) -> tuple[str, ...]:
+    """Replace a Python validation command with an isolated attested runner."""
+    values = list(command)
+    prefix: list[str] = []
+    if values and values[0] == "env":
+        prefix.append(values.pop(0))
+        while values and re.fullmatch(
+            r"[A-Za-z_][A-Za-z0-9_]*=.*", values[0]
+        ):
+            prefix.append(values.pop(0))
+    if not values:
+        raise ReleaseGateError("validation command has no executable")
+    executable = PurePosixPath(values[0]).name
+    if (
+        executable != PurePosixPath(sys.executable).name
+        and not re.fullmatch(r"python(?:3(?:\.\d+)?)?", executable)
+    ):
+        return tuple(command)
+    python_arguments = values[1:]
+    bindings_json = json.dumps(
+        toolchain.semantic_dict()["module_distribution_bindings"],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return (
+        *prefix,
+        sys.executable,
+        "-I",
+        "-S",
+        "-c",
+        _ISOLATED_PYTHON_BOOTSTRAP,
+        json.dumps(
+            list(toolchain.python_paths),
+            sort_keys=False,
+            separators=(",", ":"),
+        ),
+        str(candidate_root),
+        bindings_json,
+        *python_arguments,
     )
 
 
@@ -1705,8 +1919,13 @@ def sanitized_validation_environment_for_toolchain(
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PATH": path,
+        # The gate's own ``-I -S`` bootstrap ignores this variable. It is
+        # retained for test-spawned Python children so they use the same
+        # content-bound roots instead of an uncontrolled user site.
         "PYTHONPATH": os.pathsep.join(toolchain.python_paths),
         "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONSAFEPATH": "1",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
     }
 
@@ -1742,6 +1961,9 @@ def execute_validation(
     production_root: Path | None = None,
     candidate_root: Path | None = None,
     dependency_roots: Sequence[Path] = (),
+    additional_read_only_paths: Sequence[Path] = (),
+    blocked_unix_sockets: Sequence[Path] = (),
+    toolchain: ValidationToolchain | None = None,
     env: Mapping[str, str] | None = None,
 ) -> ValidationResult:
     """Execute and capture one validation command."""
@@ -1754,6 +1976,16 @@ def execute_validation(
         actual = (*actual, "-p", "no:cacheprovider")
     if is_pytest and not any(token.startswith("--junitxml") for token in actual):
         actual = (*actual, f"--junitxml={junit}")
+    if toolchain is not None:
+        if candidate_root is None:
+            raise ReleaseGateError(
+                "isolated Python validation requires a candidate root"
+            )
+        actual = isolated_python_validation_command(
+            actual,
+            candidate_root=candidate_root,
+            toolchain=toolchain,
+        )
     if network_isolated:
         actual = containment_namespace_command(
             actual,
@@ -1765,6 +1997,8 @@ def execute_validation(
                 else None
             ),
             dependency_roots=dependency_roots,
+            additional_read_only_paths=additional_read_only_paths,
+            blocked_unix_sockets=blocked_unix_sockets,
         )
     started = time.monotonic()
     result = _run(actual, cwd=cwd, check=False, env=env)
@@ -1794,6 +2028,30 @@ def execute_validation(
         junit_sha256=sha256_file(junit) if junit.exists() else None,
         executed_command=actual,
     )
+
+
+def validation_evidence_hashes(
+    output_dir: Path, labels: Sequence[str]
+) -> dict[Path, str]:
+    """Return the immutable evidence identity for completed validations."""
+    evidence: dict[Path, str] = {}
+    for label in labels:
+        for suffix in ("output.txt", "junit.xml"):
+            path = output_dir / f"{label}.{suffix}"
+            if path.is_file():
+                evidence[path.absolute()] = sha256_file(path)
+    return evidence
+
+
+def assert_validation_evidence_unchanged(
+    evidence: Mapping[Path, str],
+) -> None:
+    """Fail when a later command altered earlier validation evidence."""
+    for path, expected in evidence.items():
+        if not path.is_file() or path.is_symlink() or sha256_file(path) != expected:
+            raise ReleaseGateError(
+                f"sealed validation evidence changed: {path.name}"
+            )
 
 
 @contextlib.contextmanager
@@ -1918,6 +2176,8 @@ def deployed_identity(
     for path in (
         Path("/usr/local/bin/mrsMThatcher2.py"),
         Path("/usr/local/bin/runMrsMThatcher2"),
+        Path(pwd.getpwuid(os.getuid()).pw_dir)
+        / ".config/systemd/user/mrsMThatcher.service",
     ):
         if path.is_file():
             deployed[str(path)] = file_identity(path)
@@ -2022,6 +2282,27 @@ def require_production_baseline(
         )
 
 
+def service_control_socket_paths() -> tuple[Path, ...]:
+    """Return existing user-service control sockets which validation must mask."""
+    runtime = Path(f"/run/user/{os.getuid()}")
+    return tuple(
+        path
+        for path in (runtime / "bus", runtime / "systemd/private")
+        if path.exists()
+    )
+
+
+def _systemd_path_values(raw: str) -> tuple[Path, ...]:
+    """Parse systemd's space-separated path-list representation."""
+    if not raw.strip():
+        return ()
+    try:
+        values = shlex.split(raw)
+    except ValueError as exc:
+        raise ReleaseGateError(f"cannot parse systemd path list: {exc}") from exc
+    return tuple(Path(value).absolute() for value in values)
+
+
 def service_snapshot(unit: str = "mrsMThatcher.service") -> dict[str, Any]:
     """Read the user-service and Python-child identity without signalling it."""
     if shutil.which("systemctl") is None:
@@ -2034,6 +2315,8 @@ def service_snapshot(unit: str = "mrsMThatcher.service") -> dict[str, Any]:
         "NRestarts",
         "ExecStart",
         "WorkingDirectory",
+        "FragmentPath",
+        "DropInPaths",
     )
     command = ["systemctl", "--user", "show", unit]
     for name in properties:
@@ -2072,11 +2355,22 @@ def service_snapshot(unit: str = "mrsMThatcher.service") -> dict[str, Any]:
                     "is_python": b"python" in raw.lower(),
                 }
             )
+    unit_paths = (
+        *_systemd_path_values(parsed.get("FragmentPath", "")),
+        *_systemd_path_values(parsed.get("DropInPaths", "")),
+    )
+    unit_identities: dict[str, Any] = {}
+    for path in unit_paths:
+        if path.is_file():
+            unit_identities[str(path)] = file_identity(path)
+        else:
+            unit_identities[str(path)] = {"missing": True}
     return {
         "available": True,
         "unit": unit,
         "properties": parsed,
         "children": child_records,
+        "unit_file_identities": unit_identities,
     }
 
 
@@ -2090,6 +2384,10 @@ def service_invariants_equal(
         "MainPID",
         "ExecMainStartTimestamp",
         "NRestarts",
+        "ExecStart",
+        "WorkingDirectory",
+        "FragmentPath",
+        "DropInPaths",
     )
     return (
         before.get("available") == after.get("available")
@@ -2099,6 +2397,8 @@ def service_invariants_equal(
             for key in keys
         )
         and before.get("children") == after.get("children")
+        and before.get("unit_file_identities")
+        == after.get("unit_file_identities")
     )
 
 
@@ -2173,8 +2473,14 @@ def _declared_pin_records(
             else pin_value
         )
         required = (
-            field == "source_file_hashes"
-            and (relative, str(pin_name)) not in ADVISORY_SOURCE_PIN_KEYS
+            (
+                field == "source_file_hashes"
+                and (relative, str(pin_name)) not in ADVISORY_SOURCE_PIN_KEYS
+            )
+            or (
+                field == "input_hashes"
+                and (relative, str(pin_name)) in REQUIRED_INPUT_PIN_KEYS
+            )
         )
         resolved, error = _resolve_declared_pin_path(
             repo,
@@ -2203,6 +2509,11 @@ def _declared_pin_records(
         )
         if advisory_reason:
             record["advisory_reason"] = advisory_reason
+        required_reason = REQUIRED_INPUT_PIN_KEYS.get(
+            (relative, str(pin_name))
+        )
+        if required_reason:
+            record["required_reason"] = required_reason
         output.append(record)
     return output
 
@@ -2452,6 +2763,9 @@ def deterministic_attestation(
             "candidate_root_read_only",
             "git_common_root_read_only",
             "validation_dependency_roots_read_only",
+            "additional_protected_paths_read_only",
+            "installed_service_unit_read_only",
+            "user_service_control_sockets_blocked",
             "effective_capabilities_dropped",
             "no_new_privileges",
             "read_only_remount_denied_after_capability_drop",
@@ -2480,11 +2794,15 @@ def deterministic_attestation(
         "conclusion_scope": scope,
         "release_candidate_validation_passed": bool(
             network.get("available")
+            and network.get("subprocess_egress_denied")
             and network.get("network_route_isolated")
             and network.get("production_root_read_only")
             and network.get("candidate_root_read_only")
             and network.get("git_common_root_read_only")
             and network.get("validation_dependency_roots_read_only")
+            and network.get("additional_protected_paths_read_only")
+            and network.get("installed_service_unit_read_only")
+            and network.get("user_service_control_sockets_blocked")
             and network.get("effective_capabilities_dropped")
             and network.get("no_new_privileges")
             and network.get("read_only_remount_denied_after_capability_drop")
@@ -2626,11 +2944,19 @@ def emit_outputs(
     diff_hash: str,
     source_diagnosis_path: str,
     source_diagnosis_sha256: str,
+    source_diagnosis_bytes: bytes,
 ) -> dict[str, str]:
     """Write semantic/run/report/review artefacts and a final hash inventory."""
     output_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(output_dir, 0o700)
     semantic_bytes = canonical_json_bytes(semantic)
+    if sha256_bytes(source_diagnosis_bytes) != source_diagnosis_sha256:
+        raise ReleaseGateError("captured source diagnosis hash is inconsistent")
+    packaged_diagnosis = "source_diagnosis_original.md"
+    write_atomic(
+        output_dir / packaged_diagnosis,
+        source_diagnosis_bytes,
+    )
     write_atomic(output_dir / "semantic_attestation.json", semantic_bytes)
     write_atomic(
         output_dir / "release_gate_run_receipt.json",
@@ -2678,6 +3004,8 @@ def emit_outputs(
         "source_diagnosis": {
             "path": source_diagnosis_path,
             "sha256": source_diagnosis_sha256,
+            "packaged_path": packaged_diagnosis,
+            "packaged_sha256": source_diagnosis_sha256,
         },
         "corrected_measurements": measurements.get("corrected_claims", []),
         "diagnosis_measurements_sha256": (
@@ -2849,6 +3177,8 @@ def emit_outputs(
         "source_diagnosis": {
             "path": source_diagnosis_path,
             "sha256": source_diagnosis_sha256,
+            "packaged_path": packaged_diagnosis,
+            "packaged_sha256": source_diagnosis_sha256,
         },
         "corrected_candidate_diagnosis": {
             "path": "why_code_reviews_continue_to_find_major_problems.md",
@@ -2876,6 +3206,7 @@ def emit_outputs(
         "independent_review_manifest.json",
         "priority0_consolidation_report.md",
         "priority0_consolidation_final_validation.json",
+        packaged_diagnosis,
     )
     inventory = _hash_inventory(output_dir, names)
     inventory.update(_validation_hash_inventory(output_dir))
@@ -2889,37 +3220,147 @@ def emit_outputs(
     return inventory
 
 
+def _path_is_within(path: Path, root: Path) -> bool:
+    """Return whether an absolute path equals or descends from another."""
+    return path == root or root in path.parents
+
+
+def _existing_path_has_symlink_component(path: Path) -> bool:
+    """Return whether any existing lexical component is a symbolic link."""
+    absolute = path.absolute()
+    components = (absolute, *absolute.parents)
+    return any(component.is_symlink() for component in components)
+
+
+def validate_gate_paths(
+    *,
+    repo: Path,
+    output_argument: Path,
+    scratch_argument: Path,
+    production_root: Path | None,
+    dependency_roots: Sequence[Path],
+) -> tuple[Path, Path, GatePathAuthorization]:
+    """Validate output/scratch paths before authorising any gate write."""
+    repo = repo.resolve(strict=True)
+    common = git_common_dir(repo).resolve(strict=True)
+    output_lexical = output_argument.absolute()
+    scratch_lexical = scratch_argument.absolute()
+    for value, label in (
+        (output_lexical, "output"),
+        (scratch_lexical, "scratch"),
+    ):
+        if any(ord(character) < 32 for character in str(value)):
+            raise ReleaseGateError(f"{label} path contains control characters")
+        if _existing_path_has_symlink_component(value):
+            raise ReleaseGateError(
+                f"{label} path must not contain a symbolic link component"
+            )
+    if not output_lexical.parent.is_dir() or output_lexical.parent.is_symlink():
+        raise ReleaseGateError("attestation output parent must be an ordinary directory")
+    output_parent = output_lexical.parent.resolve(strict=True)
+    output = output_parent / output_lexical.name
+    if output.exists():
+        if not output.is_dir() or output.is_symlink():
+            raise ReleaseGateError(
+                "attestation output must be an ordinary directory"
+            )
+        if any(output.iterdir()):
+            raise ReleaseGateError(
+                "attestation output directory must be new or empty"
+            )
+    if not scratch_lexical.is_dir() or scratch_lexical.is_symlink():
+        raise ReleaseGateError("scratch root must be an ordinary directory")
+    scratch = scratch_lexical.resolve(strict=True)
+    protected = [
+        repo,
+        common,
+        *(Path(path).resolve(strict=True) for path in dependency_roots),
+    ]
+    if production_root is not None:
+        protected.append(production_root.resolve(strict=True))
+    for root in dict.fromkeys(protected):
+        if _path_is_within(output, root):
+            raise ReleaseGateError(
+                f"attestation output overlaps protected path: {root}"
+            )
+        if _path_is_within(scratch, root):
+            raise ReleaseGateError(f"scratch root overlaps protected path: {root}")
+    if _path_is_within(scratch, output):
+        raise ReleaseGateError("scratch root must not be inside attestation output")
+    parent_stat = output_parent.stat()
+    output_stat = output.stat() if output.exists() else None
+    authorization = GatePathAuthorization(
+        output_dir=output,
+        output_parent=output_parent,
+        output_parent_device=parent_stat.st_dev,
+        output_parent_inode=parent_stat.st_ino,
+        output_existed=output_stat is not None,
+        output_device=output_stat.st_dev if output_stat else None,
+        output_inode=output_stat.st_ino if output_stat else None,
+    )
+    return output, scratch, authorization
+
+
+def assert_gate_output_authorized(
+    output_dir: Path, authorization: GatePathAuthorization
+) -> None:
+    """Revalidate an output destination immediately before a receipt write."""
+    output = output_dir.absolute()
+    if output != authorization.output_dir:
+        raise ReleaseGateError("attestation output differs from authorised path")
+    parent = output.parent
+    parent_stat = parent.stat()
+    if (
+        parent.resolve(strict=True) != authorization.output_parent
+        or parent_stat.st_dev != authorization.output_parent_device
+        or parent_stat.st_ino != authorization.output_parent_inode
+    ):
+        raise ReleaseGateError("attestation output parent identity changed")
+    if output.exists():
+        if not output.is_dir() or output.is_symlink():
+            raise ReleaseGateError("authorised attestation output became unsafe")
+        if authorization.output_existed:
+            output_stat = output.stat()
+            if (
+                output_stat.st_dev != authorization.output_device
+                or output_stat.st_ino != authorization.output_inode
+            ):
+                raise ReleaseGateError(
+                    "authorised attestation output identity changed"
+                )
+
+
 def run_gate(args: argparse.Namespace) -> int:
     """Run focused and optional complete validation for one frozen candidate."""
-    repo = Path(args.repo).resolve()
-    output_dir = Path(args.output_dir).resolve()
-    scratch_root = Path(args.scratch_root).resolve()
+    repo = Path(args.repo).resolve(strict=True)
     production_root = (
-        Path(args.production_root).resolve() if args.production_root else None
+        Path(args.production_root).resolve(strict=True)
+        if args.production_root
+        else None
     )
     if not args.development_dry_run and production_root is None:
         raise ReleaseGateError(
             "non-development validation requires an explicit production root"
         )
-    try:
-        output_dir.relative_to(repo)
-    except ValueError:
-        pass
-    else:
-        raise ReleaseGateError(
-            "attestation output directory must be outside the candidate worktree"
-        )
-    if output_dir.exists() and any(output_dir.iterdir()):
-        raise ReleaseGateError("attestation output directory must be new or empty")
+    toolchain_before = validation_toolchain_inventory(excluded_roots=(repo,))
+    dependency_roots = tuple(
+        Path(path) for path in toolchain_before.protected_paths
+    )
+    output_dir, scratch_root, path_authorization = validate_gate_paths(
+        repo=repo,
+        output_argument=Path(args.output_dir),
+        scratch_argument=Path(args.scratch_root),
+        production_root=production_root,
+        dependency_roots=dependency_roots,
+    )
+    args._gate_path_authorization = path_authorization
     registry_path = repo / args.registry
     ledger_path = repo / args.ledger
     if not HEX64.fullmatch(args.source_diagnosis_sha256):
         raise ReleaseGateError("source diagnosis SHA-256 is malformed")
-    diagnosis_source = Path(args.source_diagnosis_path)
-    if (
-        not diagnosis_source.is_file()
-        or sha256_file(diagnosis_source) != args.source_diagnosis_sha256
-    ):
+    diagnosis_source = Path(args.source_diagnosis_path).absolute()
+    diagnosis_bytes, diagnosis_identity = stable_file_bytes(diagnosis_source)
+    if sha256_bytes(diagnosis_bytes) != args.source_diagnosis_sha256:
         raise ReleaseGateError(
             "authoritative source diagnosis is missing or differs from its SHA-256"
         )
@@ -2966,6 +3407,23 @@ def run_gate(args: argparse.Namespace) -> int:
             development=args.development_dry_run,
         )
         service_before = service_snapshot(args.service_unit)
+        if not args.development_dry_run and not service_before.get("available"):
+            raise ReleaseGateError("live service identity is unavailable")
+        unit_paths = tuple(
+            Path(path)
+            for path, identity in sorted(
+                service_before.get("unit_file_identities", {}).items()
+            )
+            if isinstance(identity, Mapping) and not identity.get("missing")
+        )
+        unit_protection_paths = tuple(
+            dict.fromkeys(path.parent for path in unit_paths)
+        )
+        immutable_evidence_paths = (
+            diagnosis_source,
+            *unit_protection_paths,
+        )
+        blocked_control_sockets = service_control_socket_paths()
         paths = changed_paths(repo, base_commit, candidate_commit)
         runtime_paths, generated_paths = runtime_path_sets(before)
         path_mapping, _uncovered, affected = map_changed_paths(
@@ -3030,10 +3488,6 @@ def run_gate(args: argparse.Namespace) -> int:
         validation_home = output_dir / "validation-home"
         validation_home.mkdir(parents=True, exist_ok=True)
         focused: list[ValidationResult] = []
-        toolchain_before = validation_toolchain_inventory()
-        dependency_roots = tuple(
-            Path(path) for path in toolchain_before.python_paths
-        )
         validation_env = sanitized_validation_environment_for_toolchain(
             validation_home, toolchain_before
         )
@@ -3073,6 +3527,11 @@ def run_gate(args: argparse.Namespace) -> int:
                 production_root=production_root,
                 candidate_root=checkout,
                 dependency_roots=dependency_roots,
+                additional_read_only_paths=immutable_evidence_paths,
+                blocked_unix_sockets=blocked_control_sockets,
+            )
+            network["installed_service_unit_read_only"] = bool(unit_paths) and (
+                network.get("additional_protected_paths_read_only") is True
             )
             if not network["available"] and not args.development_dry_run:
                 raise ReleaseGateError(
@@ -3088,6 +3547,9 @@ def run_gate(args: argparse.Namespace) -> int:
                     "candidate_root_read_only",
                     "git_common_root_read_only",
                     "validation_dependency_roots_read_only",
+                    "additional_protected_paths_read_only",
+                    "installed_service_unit_read_only",
+                    "user_service_control_sockets_blocked",
                     "effective_capabilities_dropped",
                     "no_new_privileges",
                     "read_only_remount_denied_after_capability_drop",
@@ -3097,19 +3559,42 @@ def run_gate(args: argparse.Namespace) -> int:
                     "release containment did not prove immutable candidate, "
                     "Git metadata, production, and subprocess no-egress"
                 )
+            completed_labels: list[str] = []
+            sealed_evidence: dict[Path, str] = {}
             for index, command in enumerate(commands, start=1):
+                label = f"focused-{index:03d}"
                 focused.append(
                     execute_validation(
                         command,
                         cwd=checkout,
                         output_dir=validation_root,
-                        label=f"focused-{index:03d}",
+                        label=label,
                         network_isolated=bool(network["available"]),
                         production_root=production_root,
                         candidate_root=checkout,
                         dependency_roots=dependency_roots,
+                        additional_read_only_paths=(
+                            *immutable_evidence_paths,
+                            *sealed_evidence,
+                        ),
+                        blocked_unix_sockets=blocked_control_sockets,
+                        toolchain=toolchain_before,
                         env=validation_env,
                     )
+                )
+                assert_validation_evidence_unchanged(sealed_evidence)
+                completed_labels.append(label)
+                sealed_evidence = validation_evidence_hashes(
+                    validation_root, completed_labels
+                )
+                assert_validation_evidence_unchanged(sealed_evidence)
+                assert_stable_file(
+                    diagnosis_source,
+                    expected_bytes=diagnosis_bytes,
+                    expected_identity=diagnosis_identity,
+                )
+                assert_gate_output_authorized(
+                    output_dir, path_authorization
                 )
                 assert_candidate_checkout_unchanged(
                     checkout,
@@ -3136,7 +3621,27 @@ def run_gate(args: argparse.Namespace) -> int:
                     production_root=production_root,
                     candidate_root=checkout,
                     dependency_roots=dependency_roots,
+                    additional_read_only_paths=(
+                        *immutable_evidence_paths,
+                        *sealed_evidence,
+                    ),
+                    blocked_unix_sockets=blocked_control_sockets,
+                    toolchain=toolchain_before,
                     env=validation_env,
+                )
+                assert_validation_evidence_unchanged(sealed_evidence)
+                completed_labels.append("complete-suite")
+                sealed_evidence = validation_evidence_hashes(
+                    validation_root, completed_labels
+                )
+                assert_validation_evidence_unchanged(sealed_evidence)
+                assert_stable_file(
+                    diagnosis_source,
+                    expected_bytes=diagnosis_bytes,
+                    expected_identity=diagnosis_identity,
+                )
+                assert_gate_output_authorized(
+                    output_dir, path_authorization
                 )
                 assert_candidate_checkout_unchanged(
                     checkout,
@@ -3151,7 +3656,13 @@ def run_gate(args: argparse.Namespace) -> int:
             validation_checkout_identity_verified = True
             detached_checkout_identity_verified = not args.development_dry_run
 
-        toolchain_after = validation_toolchain_inventory()
+        assert_validation_evidence_unchanged(sealed_evidence)
+        assert_stable_file(
+            diagnosis_source,
+            expected_bytes=diagnosis_bytes,
+            expected_identity=diagnosis_identity,
+        )
+        toolchain_after = validation_toolchain_inventory(excluded_roots=(repo,))
         if toolchain_before != toolchain_after:
             raise ReleaseGateError(
                 "validation Python/pytest toolchain changed while tests were running"
@@ -3250,8 +3761,11 @@ def run_gate(args: argparse.Namespace) -> int:
             "validation_toolchain": {
                 "semantic_identity": toolchain_before.semantic_dict(),
                 "python_paths": list(toolchain_before.python_paths),
+                "protected_paths": list(toolchain_before.protected_paths),
                 "unchanged_after_validation": toolchain_before == toolchain_after,
             },
+            "source_diagnosis_identity": diagnosis_identity,
+            "source_diagnosis_unchanged": True,
             "production_identity_before": production_before,
             "production_identity_after": production_after,
             "production_identity_unchanged": production_unchanged,
@@ -3272,6 +3786,13 @@ def run_gate(args: argparse.Namespace) -> int:
             ),
             "procedural_notes": list(args.procedural_note),
         }
+        assert_gate_output_authorized(output_dir, path_authorization)
+        assert_validation_evidence_unchanged(sealed_evidence)
+        assert_stable_file(
+            diagnosis_source,
+            expected_bytes=diagnosis_bytes,
+            expected_identity=diagnosis_identity,
+        )
         inventory = emit_outputs(
             output_dir=output_dir,
             semantic=semantic,
@@ -3281,6 +3802,7 @@ def run_gate(args: argparse.Namespace) -> int:
             diff_hash=sha256_bytes(diff),
             source_diagnosis_path=args.source_diagnosis_path,
             source_diagnosis_sha256=args.source_diagnosis_sha256,
+            source_diagnosis_bytes=diagnosis_bytes,
         )
         print(json.dumps({"output_dir": str(output_dir), "files": inventory}, indent=2))
         return 0
@@ -3347,16 +3869,24 @@ def emit_failure_receipt(
         args, "output_dir", None
     ):
         return None
-    repo = Path(args.repo).resolve()
-    output_dir = Path(args.output_dir).resolve()
-    try:
-        output_dir.relative_to(repo)
-    except ValueError:
-        pass
-    else:
+    authorization = getattr(args, "_gate_path_authorization", None)
+    if not isinstance(authorization, GatePathAuthorization):
         return None
+    output_dir = authorization.output_dir
+    assert_gate_output_authorized(output_dir, authorization)
     if output_dir.exists():
-        allowed = {"validation", "validation-home"}
+        allowed = {
+            "validation",
+            "validation-home",
+            "source_diagnosis_original.md",
+            "semantic_attestation.json",
+            "release_gate_run_receipt.json",
+            "release_gate_report.md",
+            "independent_review_manifest.json",
+            "priority0_consolidation_report.md",
+            "priority0_consolidation_final_validation.json",
+            "attestation_sha256_inventory.json",
+        }
         if any(path.name not in allowed for path in output_dir.iterdir()):
             return None
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -3387,7 +3917,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "network-preflight":
             repo = Path(args.repo).resolve()
-            toolchain = validation_toolchain_inventory()
+            toolchain = validation_toolchain_inventory(
+                excluded_roots=(repo,)
+            )
+            service = service_snapshot()
+            unit_paths = tuple(
+                Path(path)
+                for path, identity in sorted(
+                    service.get("unit_file_identities", {}).items()
+                )
+                if isinstance(identity, Mapping) and not identity.get("missing")
+            )
             result = containment_preflight(
                 cwd=repo,
                 production_root=(
@@ -3397,8 +3937,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
                 candidate_root=repo,
                 dependency_roots=tuple(
-                    Path(path) for path in toolchain.python_paths
+                    Path(path) for path in toolchain.protected_paths
                 ),
+                additional_read_only_paths=tuple(
+                    dict.fromkeys(path.parent for path in unit_paths)
+                ),
+                blocked_unix_sockets=service_control_socket_paths(),
+            )
+            result["installed_service_unit_read_only"] = bool(unit_paths) and (
+                result.get("additional_protected_paths_read_only") is True
             )
             print(json.dumps(result, sort_keys=True, indent=2))
             return 0 if result["available"] else 2
