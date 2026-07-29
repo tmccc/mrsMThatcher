@@ -19,6 +19,8 @@ class StrictJSONError(ValueError):
     """Base class for a JSON representation rejected before schema validation."""
 
     def __init__(self, source: str, detail: str) -> None:
+        """Record the source label and non-secret rejection detail."""
+
         self.source = source
         self.detail = detail
         super().__init__(f"{source}: {detail}")
@@ -32,6 +34,8 @@ class DuplicateObjectNameError(StrictJSONError):
     """A JSON object contains the same member name more than once."""
 
     def __init__(self, source: str, key: str) -> None:
+        """Record the source label and duplicated object-member name."""
+
         self.key = key
         super().__init__(source, f"duplicate JSON object name {key!r}")
 
@@ -40,6 +44,8 @@ class NonFiniteNumberError(StrictJSONError):
     """The input contains a non-standard non-finite numeric constant."""
 
     def __init__(self, source: str, constant: str) -> None:
+        """Record the source label and rejected non-finite constant."""
+
         self.constant = constant
         super().__init__(source, f"non-finite JSON number {constant!r}")
 

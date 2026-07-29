@@ -507,6 +507,8 @@ class ArtifactBinding:
         return self.resolved_path is not None
 
     def to_dict(self) -> dict[str, Any]:
+        """Return a deterministic JSON-compatible representation."""
+
         value: dict[str, Any] = {
             "loader": self.loader,
             "literal": self.literal,
@@ -522,6 +524,8 @@ class ArtifactBinding:
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "ArtifactBinding":
+        """Validate and construct a binding from release-control data."""
+
         try:
             resolution = ArtifactResolution(str(value["resolution"]))
         except (KeyError, ValueError) as exc:

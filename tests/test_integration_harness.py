@@ -9,6 +9,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -3070,7 +3071,9 @@ def test_midnight_rollover_resets_reply_counts_and_spacing_uses_epoch(tmp_path: 
 
 
 def test_midnight_rollover_resets_quote_counts_and_meme_fallback_date(tmp_path: Path) -> None:
-    fake_now_dt = datetime(2026, 7, 1, 23, 30)
+    fake_now_dt = datetime(
+        2026, 7, 1, 23, 30, tzinfo=ZoneInfo("Europe/London")
+    )
     fake_now = int(fake_now_dt.timestamp())
     server = FakeApiServer(load_scenario(SCENARIOS / "quote_tweet_reply.json")).start()
     try:

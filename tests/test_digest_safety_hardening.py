@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -13,6 +15,22 @@ from tests.test_generated_image_pool_runway_digest import log_line, post
 
 
 NOW = datetime(2026, 7, 10, 12)
+
+
+@pytest.fixture
+def london_local_time():
+    """Run a test with deterministic Europe/London process-local time."""
+    original = os.environ.get("TZ")
+    os.environ["TZ"] = "Europe/London"
+    time.tzset()
+    try:
+        yield
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
 
 
 def project_with_log(tmp_path: Path) -> tuple[Path, Path]:
@@ -465,7 +483,9 @@ def test_explicit_selftest_log_cannot_load_neighbor_state_or_backscan_config(tmp
     assert config_timestamp is None
 
 
-def test_latest_state_summary_includes_last_meme_post_epoch():
+def test_latest_state_summary_includes_last_meme_post_epoch(
+    london_local_time,
+):
     summary = digest.summarize_latest_state(
         {"last_meme_post_epoch": 1_784_119_355},
         datetime(2026, 7, 15, 18, 17, 20),
