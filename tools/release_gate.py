@@ -150,6 +150,7 @@ class ValidationCaptureError(ReleaseGateError):
     """A command ran, but its structured validation evidence was incomplete."""
 
     def __init__(self, message: str, partial_result: Mapping[str, Any]) -> None:
+        """Retain the partial validation receipt alongside the gate failure."""
         super().__init__(message)
         self.partial_result = dict(partial_result)
 
@@ -1960,21 +1961,13 @@ def seccomp_library_path() -> Path:
     )
     if not ordinary:
         raise ReleaseGateError(
-            "libseccomp.so.2 is required for pathname-socket containment"
+            "libseccomp.so.2 is required for io_uring containment"
         )
     return ordinary[0]
 
 
 _SECCOMP_EXEC_BOOTSTRAP = """\
-import ctypes, errno, os, socket, sys
-
-class ScmpArgCmp(ctypes.Structure):
-    _fields_ = [
-        ("arg", ctypes.c_uint),
-        ("op", ctypes.c_int),
-        ("datum_a", ctypes.c_uint64),
-        ("datum_b", ctypes.c_uint64),
-    ]
+import ctypes, errno, os, signal, sys
 
 library_path, *command = sys.argv[1:]
 if not command:
@@ -1989,7 +1982,7 @@ library.seccomp_rule_add_array.argtypes = [
     ctypes.c_uint32,
     ctypes.c_int,
     ctypes.c_uint,
-    ctypes.POINTER(ScmpArgCmp),
+    ctypes.c_void_p,
 ]
 library.seccomp_rule_add_array.restype = ctypes.c_int
 library.seccomp_load.argtypes = [ctypes.c_void_p]
@@ -2000,23 +1993,6 @@ if not context:
     raise SystemExit("seccomp_init failed")
 try:
     action = 0x00050000 | errno.EPERM
-    for syscall_name in (b"socket", b"socketpair"):
-        syscall_number = library.seccomp_syscall_resolve_name(syscall_name)
-        if syscall_number < 0:
-            raise SystemExit(
-                syscall_name.decode() + " syscall is unavailable to seccomp"
-            )
-        comparison = ScmpArgCmp(0, 7, 0xffffffff, socket.AF_UNIX)
-        result = library.seccomp_rule_add_array(
-            context, action, syscall_number, 1, ctypes.byref(comparison)
-        )
-        if result != 0:
-            raise SystemExit(
-                "seccomp_rule_add_array failed for "
-                + syscall_name.decode()
-                + ": "
-                + str(result)
-            )
     syscall_number = library.seccomp_syscall_resolve_name(b"io_uring_setup")
     if syscall_number < 0:
         raise SystemExit("io_uring_setup syscall is unavailable to seccomp")
@@ -2032,8 +2008,70 @@ try:
         raise SystemExit("seccomp_load failed: " + str(result))
 finally:
     library.seccomp_release(context)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
 os.execvpe(command[0], command, os.environ)
 """
+
+
+def host_filesystem_unix_socket_paths(
+    proc_net_unix: Path = Path("/proc/net/unix"),
+) -> tuple[Path, ...]:
+    """Return active, pathname-bound host AF_UNIX sockets deterministically.
+
+    ``/proc/net/unix`` is the kernel inventory of active Unix-domain
+    endpoints.  Abstract sockets have no filesystem authority and are
+    intentionally excluded.  A listed pathname is accepted only when a fresh
+    non-following stat still identifies the endpoint as a socket.
+    """
+    try:
+        lines = proc_net_unix.read_text(
+            encoding="utf-8", errors="surrogateescape"
+        ).splitlines()
+    except OSError as exc:
+        raise ReleaseGateError(
+            f"cannot inventory active host Unix sockets: {proc_net_unix}: {exc}"
+        ) from exc
+    sockets: dict[str, Path] = {}
+    for line in lines[1:]:
+        fields = line.split(maxsplit=7)
+        if len(fields) != 8:
+            continue
+        value = fields[7]
+        if (
+            not value.startswith("/")
+            or "\x00" in value
+            or "\n" in value
+            or "\r" in value
+        ):
+            continue
+        path = Path(value).absolute()
+        try:
+            identity = path.lstat()
+        except OSError:
+            continue
+        if not stat.S_ISSOCK(identity.st_mode):
+            continue
+        sockets[str(path)] = path
+    return tuple(sockets[value] for value in sorted(sockets))
+
+
+def _unix_socket_mask_paths(
+    additional: Sequence[Path] = (),
+) -> tuple[Path, ...]:
+    """Combine the current kernel inventory with explicit socket endpoints."""
+    sockets = {
+        str(path): path
+        for path in host_filesystem_unix_socket_paths()
+    }
+    for value in additional:
+        path = Path(value).absolute()
+        try:
+            identity = path.lstat()
+        except OSError:
+            continue
+        if stat.S_ISSOCK(identity.st_mode):
+            sockets[str(path)] = path
+    return tuple(sockets[value] for value in sorted(sockets))
 
 
 def containment_namespace_command(
@@ -2045,8 +2083,9 @@ def containment_namespace_command(
     dependency_roots: Sequence[Path] = (),
     additional_read_only_paths: Sequence[Path] = (),
     blocked_unix_sockets: Sequence[Path] = (),
+    discover_unix_sockets: bool = True,
 ) -> tuple[str, ...]:
-    """Wrap a command with network isolation and read-only protected roots."""
+    """Wrap a command with route isolation and masked host Unix endpoints."""
     seccomp_library = seccomp_library_path()
     secured_command = (
         sys.executable,
@@ -2082,9 +2121,12 @@ def containment_namespace_command(
             if path is not None
         )
     )
-    sockets = tuple(
-        dict.fromkeys(str(Path(path).absolute()) for path in blocked_unix_sockets)
+    socket_paths = (
+        _unix_socket_mask_paths(blocked_unix_sockets)
+        if discover_unix_sockets
+        else tuple(Path(path).absolute() for path in blocked_unix_sockets)
     )
+    sockets = tuple(str(path) for path in socket_paths)
     return (
         *prefix,
         (
@@ -2121,7 +2163,7 @@ def containment_preflight(
     additional_read_only_paths: Sequence[Path] = (),
     blocked_unix_sockets: Sequence[Path] = (),
 ) -> dict[str, Any]:
-    """Prove route isolation and protected-root write denial."""
+    """Prove route/socket isolation and protected-root write denial."""
     required = ("unshare", "ip", "mount", "setpriv", "sh")
     if any(shutil.which(name) is None for name in required):
         return {
@@ -2154,11 +2196,7 @@ def containment_preflight(
             "mechanism": "user-network-and-mount-namespace",
             "reason": "additional protected path is missing or symbolic",
         }
-    sockets = tuple(
-        Path(path).absolute()
-        for path in blocked_unix_sockets
-        if Path(path).exists()
-    )
+    sockets = _unix_socket_mask_paths(blocked_unix_sockets)
     protected_roots = tuple(
         dict.fromkeys(
             path
@@ -2175,7 +2213,7 @@ def containment_preflight(
             "reason": "write-denial probe path already exists",
         }
     script = (
-        "import ctypes,errno,pathlib,socket,subprocess,sys\n"
+        "import ctypes,errno,pathlib,signal,socket,stat,subprocess,sys\n"
         "names={name for _,name in socket.if_nameindex()}\n"
         "if names != {'lo'}: sys.exit(72)\n"
         "for family in ('-4','-6'):\n"
@@ -2185,6 +2223,11 @@ def containment_preflight(
         "s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(1)\n"
         "c=socket.socket(); c.connect(s.getsockname()); a,_=s.accept()\n"
         "a.close(); c.close(); s.close()\n"
+        "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+        "left.send(b'local-ipc'); "
+        "payload=right.recv(64); left.close(); right.close()\n"
+        "if payload != b'local-ipc': sys.exit(80)\n"
+        "if signal.getsignal(signal.SIGINT) == signal.SIG_IGN: sys.exit(81)\n"
         "x=socket.socket(); x.settimeout(0.25)\n"
         "try:\n"
         " x.connect(('192.0.2.1',9))\n"
@@ -2192,18 +2235,6 @@ def containment_preflight(
         " pass\n"
         "else:\n"
         " sys.exit(71)\n"
-        "try:\n"
-        " socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
-        "except OSError as exc:\n"
-        " if exc.errno != errno.EPERM: sys.exit(83)\n"
-        "else:\n"
-        " sys.exit(80)\n"
-        "try:\n"
-        " socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
-        "except OSError as exc:\n"
-        " if exc.errno != errno.EPERM: sys.exit(84)\n"
-        "else:\n"
-        " sys.exit(81)\n"
         "status=pathlib.Path('/proc/self/status').read_text()\n"
         "if 'CapEff:\\t0000000000000000' not in status: sys.exit(76)\n"
         "if 'NoNewPrivs:\\t1' not in status: sys.exit(77)\n"
@@ -2221,25 +2252,31 @@ def containment_preflight(
         " r=subprocess.run(('mount','-o','remount,bind,rw',str(p)),"
         "stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n"
         " if r.returncode == 0: sys.exit(78)\n"
+        "null=pathlib.Path('/dev/null').stat()\n"
+        "for value in values[separator+1:library_separator]:\n"
+        " p=pathlib.Path(value)\n"
+        " try:\n"
+        "  identity=p.lstat()\n"
+        " except OSError:\n"
+        "  sys.exit(87)\n"
+        " if not stat.S_ISCHR(identity.st_mode) or "
+        "identity.st_rdev != null.st_rdev:\n"
+        "  sys.exit(88)\n"
+        " for kind in (socket.SOCK_STREAM,socket.SOCK_DGRAM):\n"
+        "  endpoint=socket.socket(socket.AF_UNIX,kind)\n"
+        "  try:\n"
+        "   endpoint.connect(value)\n"
+        "  except OSError:\n"
+        "   pass\n"
+        "  else:\n"
+        "   sys.exit(89)\n"
+        "  finally:\n"
+        "   endpoint.close()\n"
         "seccomp=ctypes.CDLL(values[library_separator+1])\n"
         "seccomp.seccomp_syscall_resolve_name.argtypes=[ctypes.c_char_p]\n"
         "seccomp.seccomp_syscall_resolve_name.restype=ctypes.c_int\n"
         "libc=ctypes.CDLL(None,use_errno=True)\n"
         "libc.syscall.restype=ctypes.c_long\n"
-        "high_family=socket.AF_UNIX | (1 << 32)\n"
-        "number=seccomp.seccomp_syscall_resolve_name(b'socket')\n"
-        "ctypes.set_errno(0)\n"
-        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
-        "socket.SOCK_STREAM,0) != -1 "
-        "or ctypes.get_errno() != errno.EPERM:\n"
-        " sys.exit(85)\n"
-        "number=seccomp.seccomp_syscall_resolve_name(b'socketpair')\n"
-        "pair=(ctypes.c_int*2)()\n"
-        "ctypes.set_errno(0)\n"
-        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
-        "socket.SOCK_STREAM,0,pair) != -1 "
-        "or ctypes.get_errno() != errno.EPERM:\n"
-        " sys.exit(86)\n"
         "number=seccomp.seccomp_syscall_resolve_name(b'io_uring_setup')\n"
         "ctypes.set_errno(0)\n"
         "if libc.syscall(number,2,0) != -1 or ctypes.get_errno() != errno.EPERM:\n"
@@ -2262,13 +2299,14 @@ def containment_preflight(
         dependency_roots=dependencies,
         additional_read_only_paths=additional,
         blocked_unix_sockets=sockets,
+        discover_unix_sockets=False,
     )
     result = _run(command, cwd=cwd, check=False, timeout=10)
     available = result.returncode == 0
     return {
         "available": available,
         "mechanism": (
-            "linux-user-network-and-mount-namespace-loopback-only-production-ro"
+            "linux-user-network-and-mount-namespace-loopback-only-unix-masked"
         ),
         "command": list(command),
         "subprocess_egress_denied": available,
@@ -2282,14 +2320,17 @@ def containment_preflight(
         "additional_protected_paths_read_only": (
             available if additional else None
         ),
-        "user_service_control_sockets_blocked": (
-            available
-        ),
-        "pathname_unix_socket_creation_denied": available,
-        "unix_socketpair_creation_denied": available,
-        "unix_socket_high_bits_alias_denied": available,
+        "loopback_inet_available": available,
+        "external_inet_routes_absent": available,
+        "host_filesystem_unix_sockets_masked": available,
+        "anonymous_unix_socketpair_available": available,
+        "sigint_default_restored": available,
         "io_uring_setup_denied": available,
-        "blocked_unix_socket_paths": [str(path) for path in sockets],
+        "masked_unix_socket_count": len(sockets),
+        "masked_unix_socket_inventory_sha256": sha256_bytes(
+            canonical_json_bytes([str(path) for path in sockets])
+        ),
+        "masked_unix_socket_paths": [str(path) for path in sockets],
         "effective_capabilities_dropped": available,
         "no_new_privileges": available,
         "read_only_remount_denied_after_capability_drop": available,
@@ -2535,8 +2576,8 @@ def validation_toolchain_inventory(
                 "path": str(seccomp_library),
                 "sha256": sha256_file(seccomp_library),
                 "purpose": (
-                    "deny AF_UNIX socket/socketpair and io_uring setup "
-                    "before candidate execution"
+                    "deny io_uring setup before candidate execution while "
+                    "filesystem Unix endpoints are mount-masked"
                 ),
             }
         ],
@@ -3306,13 +3347,8 @@ def require_production_baseline(
 
 
 def service_control_socket_paths() -> tuple[Path, ...]:
-    """Return existing user-service control sockets which validation must mask."""
-    runtime = Path(f"/run/user/{os.getuid()}")
-    return tuple(
-        path
-        for path in (runtime / "bus", runtime / "systemd/private")
-        if path.exists()
-    )
+    """Compatibility alias for the complete host pathname-socket inventory."""
+    return host_filesystem_unix_socket_paths()
 
 
 def _systemd_path_values(raw: str) -> tuple[Path, ...]:
@@ -3788,10 +3824,11 @@ def deterministic_attestation(
             "validation_dependency_roots_read_only",
             "additional_protected_paths_read_only",
             "installed_service_unit_read_only",
-            "user_service_control_sockets_blocked",
-            "pathname_unix_socket_creation_denied",
-            "unix_socketpair_creation_denied",
-            "unix_socket_high_bits_alias_denied",
+            "loopback_inet_available",
+            "external_inet_routes_absent",
+            "host_filesystem_unix_sockets_masked",
+            "anonymous_unix_socketpair_available",
+            "sigint_default_restored",
             "io_uring_setup_denied",
             "effective_capabilities_dropped",
             "no_new_privileges",
@@ -3800,7 +3837,7 @@ def deterministic_attestation(
         )
     }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "candidate": snapshot.semantic_dict(),
         "base_commit": base,
         "invariant_registry_sha256": registry_sha256,
@@ -3829,10 +3866,11 @@ def deterministic_attestation(
             and network.get("validation_dependency_roots_read_only")
             and network.get("additional_protected_paths_read_only")
             and network.get("installed_service_unit_read_only")
-            and network.get("user_service_control_sockets_blocked")
-            and network.get("pathname_unix_socket_creation_denied")
-            and network.get("unix_socketpair_creation_denied")
-            and network.get("unix_socket_high_bits_alias_denied")
+            and network.get("loopback_inet_available")
+            and network.get("external_inet_routes_absent")
+            and network.get("host_filesystem_unix_sockets_masked")
+            and network.get("anonymous_unix_socketpair_available")
+            and network.get("sigint_default_restored")
             and network.get("io_uring_setup_denied")
             and network.get("effective_capabilities_dropped")
             and network.get("no_new_privileges")
@@ -4759,7 +4797,7 @@ def run_gate(args: argparse.Namespace) -> int:
             output_dir,
             *unit_protection_paths,
         )
-        blocked_control_sockets = service_control_socket_paths()
+        blocked_control_sockets = host_filesystem_unix_socket_paths()
         paths = changed_paths(repo, base_commit, candidate_commit)
         runtime_paths, generated_paths = runtime_path_sets(before)
         path_mapping, _uncovered, affected = map_changed_paths(
@@ -4890,10 +4928,11 @@ def run_gate(args: argparse.Namespace) -> int:
                     "validation_dependency_roots_read_only",
                     "additional_protected_paths_read_only",
                     "installed_service_unit_read_only",
-                    "user_service_control_sockets_blocked",
-                    "pathname_unix_socket_creation_denied",
-                    "unix_socketpair_creation_denied",
-                    "unix_socket_high_bits_alias_denied",
+                    "loopback_inet_available",
+                    "external_inet_routes_absent",
+                    "host_filesystem_unix_sockets_masked",
+                    "anonymous_unix_socketpair_available",
+                    "sigint_default_restored",
                     "io_uring_setup_denied",
                     "effective_capabilities_dropped",
                     "no_new_privileges",
@@ -5413,7 +5452,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 additional_read_only_paths=tuple(
                     dict.fromkeys(path.parent for path in unit_paths)
                 ),
-                blocked_unix_sockets=service_control_socket_paths(),
+                blocked_unix_sockets=host_filesystem_unix_socket_paths(),
             )
             result["installed_service_unit_read_only"] = bool(unit_paths) and (
                 result.get("additional_protected_paths_read_only") is True

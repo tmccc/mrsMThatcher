@@ -648,6 +648,10 @@ def test_subprocess_egress_preflight_uses_namespace(
     result = release_gate.network_preflight(cwd=tmp_path)
     assert result["available"] is True
     assert result["subprocess_egress_denied"] is True
+    assert result["loopback_inet_available"] is True
+    assert result["external_inet_routes_absent"] is True
+    assert result["anonymous_unix_socketpair_available"] is True
+    assert result["sigint_default_restored"] is True
     assert observed[0][:5] == (
         "unshare",
         "--user",
@@ -660,6 +664,39 @@ def test_subprocess_egress_preflight_uses_namespace(
     assert "--pid" in observed[0]
     assert "--fork" in observed[0]
     assert "--mount-proc" in observed[0]
+
+
+def test_host_filesystem_unix_socket_inventory_is_sorted_and_path_bound(
+    tmp_path: Path,
+) -> None:
+    first_path = tmp_path / "z.sock"
+    second_path = tmp_path / "a.sock"
+    ordinary = tmp_path / "ordinary"
+    ordinary.write_text("not a socket\n", encoding="utf-8")
+    first = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    second = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        first.bind(str(first_path))
+        second.bind(str(second_path))
+        proc = tmp_path / "unix"
+        proc.write_text(
+            "Num RefCount Protocol Flags Type St Inode Path\n"
+            f"0: 1 0 0 1 1 1 {first_path}\n"
+            "0: 1 0 0 1 1 2 @abstract-control\n"
+            f"0: 1 0 0 1 1 3 {ordinary}\n"
+            f"0: 1 0 0 2 1 4 {second_path}\n"
+            f"0: 1 0 0 2 1 5 {first_path}\n",
+            encoding="utf-8",
+        )
+        assert release_gate.host_filesystem_unix_socket_paths(proc) == (
+            second_path,
+            first_path,
+        )
+    finally:
+        first.close()
+        second.close()
+        first_path.unlink(missing_ok=True)
+        second_path.unlink(missing_ok=True)
 
 
 def test_namespace_wrapper_preserves_arguments_without_shell_interpolation() -> None:
@@ -718,7 +755,7 @@ def test_real_containment_denies_candidate_and_git_mutation(
     dependency.mkdir()
     unit_file = tmp_path / "mrsMThatcher.service"
     unit_file.write_text("[Service]\n", encoding="utf-8")
-    sockets = release_gate.service_control_socket_paths()
+    sockets = release_gate.host_filesystem_unix_socket_paths()
     result = release_gate.containment_preflight(
         cwd=repo,
         production_root=production,
@@ -734,14 +771,16 @@ def test_real_containment_denies_candidate_and_git_mutation(
     assert result["production_root_read_only"] is True
     assert result["validation_dependency_roots_read_only"] is True
     assert result["additional_protected_paths_read_only"] is True
-    assert result["user_service_control_sockets_blocked"] is True
-    assert result["pathname_unix_socket_creation_denied"] is True
-    assert result["unix_socketpair_creation_denied"] is True
-    assert result["unix_socket_high_bits_alias_denied"] is True
+    assert result["loopback_inet_available"] is True
+    assert result["external_inet_routes_absent"] is True
+    assert result["host_filesystem_unix_sockets_masked"] is True
+    assert result["anonymous_unix_socketpair_available"] is True
+    assert result["sigint_default_restored"] is True
     assert result["io_uring_setup_denied"] is True
-    assert result["blocked_unix_socket_paths"] == [
+    assert result["masked_unix_socket_paths"] == [
         str(path) for path in sockets
     ]
+    assert result["masked_unix_socket_count"] == len(sockets)
     assert result["effective_capabilities_dropped"] is True
     assert result["no_new_privileges"] is True
     assert result["read_only_remount_denied_after_capability_drop"] is True
@@ -750,7 +789,7 @@ def test_real_containment_denies_candidate_and_git_mutation(
     assert not any(dependency.glob(".mrs-release-gate-readonly-probe-*"))
 
 
-def test_containment_denies_all_host_unix_socket_connections(
+def test_containment_masks_host_unix_socket_and_allows_anonymous_ipc(
     tmp_path: Path,
 ) -> None:
     repo = _git_repo(tmp_path)
@@ -766,22 +805,26 @@ def test_containment_denies_all_host_unix_socket_connections(
         listener.listen(1)
         listener.settimeout(0.2)
         script = (
-            "import errno,socket,sys\n"
+            "import socket,stat,sys\n"
+            "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+            "left.send(b'works')\n"
+            "if right.recv(16) != b'works': raise SystemExit(94)\n"
+            "left.close(); right.close()\n"
+            "identity=__import__('pathlib').Path(sys.argv[1]).lstat()\n"
+            "if not stat.S_ISCHR(identity.st_mode): raise SystemExit(93)\n"
+            "client=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
             "try:\n"
-            " client=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
-            "except OSError as exc:\n"
-            " if exc.errno != errno.EPERM: raise SystemExit(92)\n"
-            " try:\n"
-            "  socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
-            " except OSError as pair_exc:\n"
-            "  raise SystemExit(0 if pair_exc.errno == errno.EPERM else 93)\n"
-            " raise SystemExit(94)\n"
-            "client.connect(sys.argv[1])\n"
+            " client.connect(sys.argv[1])\n"
+            "except OSError:\n"
+            " raise SystemExit(0)\n"
+            "finally:\n"
+            " client.close()\n"
             "raise SystemExit(91)\n"
         )
         command = release_gate.containment_namespace_command(
             (sys.executable, "-c", script, str(socket_path)),
             candidate_root=repo,
+            blocked_unix_sockets=(socket_path,),
         )
         result = release_gate._run(
             command, cwd=repo, check=False, timeout=10
@@ -794,6 +837,26 @@ def test_containment_denies_all_host_unix_socket_connections(
     finally:
         listener.close()
         socket_path.unlink(missing_ok=True)
+
+
+def test_containment_restores_sigint_default_before_exec(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path)
+    script = (
+        "import signal\n"
+        "raise SystemExit("
+        "0 if signal.getsignal(signal.SIGINT) != signal.SIG_IGN else 91)"
+    )
+    command = release_gate.containment_namespace_command(
+        (sys.executable, "-c", script),
+        candidate_root=repo,
+    )
+    result = release_gate._run(command, cwd=repo, check=False, timeout=10)
+    if result.returncode in {1, 75, 79} and (
+        b"Operation not permitted" in result.stdout
+        or b"mount point is not a directory" in result.stdout
+    ):
+        pytest.skip("OS containment unavailable on this test host")
+    assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
 
 
 def test_containment_makes_distinct_source_worktree_read_only(
@@ -882,7 +945,7 @@ def test_validation_toolchain_is_versioned_and_content_bound() -> None:
     assert set(toolchain.python_paths) <= set(toolchain.protected_paths)
     containment = semantic["os_containment_dependencies"]
     assert len(containment) == 1
-    assert containment[0]["purpose"].startswith("deny AF_UNIX")
+    assert containment[0]["purpose"].startswith("deny io_uring setup")
     seccomp_path = release_gate.seccomp_library_path()
     assert containment[0]["path"] == str(seccomp_path)
     assert containment[0]["sha256"] == release_gate.sha256_file(seccomp_path)
@@ -928,10 +991,11 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
             "validation_dependency_roots_read_only": True,
             "additional_protected_paths_read_only": True,
             "installed_service_unit_read_only": True,
-            "user_service_control_sockets_blocked": True,
-            "pathname_unix_socket_creation_denied": True,
-            "unix_socketpair_creation_denied": True,
-            "unix_socket_high_bits_alias_denied": True,
+            "loopback_inet_available": True,
+            "external_inet_routes_absent": True,
+            "host_filesystem_unix_sockets_masked": True,
+            "anonymous_unix_socketpair_available": True,
+            "sigint_default_restored": True,
             "io_uring_setup_denied": True,
             "effective_capabilities_dropped": True,
             "no_new_privileges": True,
@@ -956,7 +1020,14 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
         "scope": "patch-local release candidate",
     }
     attestation = release_gate.deterministic_attestation(**values)
+    assert attestation["schema_version"] == 2
     assert attestation["release_candidate_validation_passed"] is True
+    assert attestation["network_isolation"][
+        "host_filesystem_unix_sockets_masked"
+    ] is True
+    assert attestation["network_isolation"][
+        "anonymous_unix_socketpair_available"
+    ] is True
     first = release_gate.canonical_json_bytes(attestation)
     second = release_gate.canonical_json_bytes(
         release_gate.deterministic_attestation(**values)
@@ -964,6 +1035,20 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
     assert first == second
     assert b"123.456" not in first
     assert b"output_sha256" not in first
+    values["network"] = {
+        **values["network"],
+        "anonymous_unix_socketpair_available": False,
+    }
+    assert (
+        release_gate.deterministic_attestation(**values)[
+            "release_candidate_validation_passed"
+        ]
+        is False
+    )
+    values["network"] = {
+        **values["network"],
+        "anonymous_unix_socketpair_available": True,
+    }
     values["relationships"] = {
         **values["relationships"],
         "all_required_source_file_pins_valid": False,

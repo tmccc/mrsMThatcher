@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from collections import Counter
 from pathlib import Path
@@ -13,9 +12,13 @@ import pytest
 import semantic_veto_new_quote_adjudication as target
 
 
-def _project_local_adjudication_path(tmp_path: Path) -> Path:
-    identity = hashlib.sha256(str(tmp_path).encode("utf-8")).hexdigest()[:16]
-    return target.ROOT / f".pytest-new-quote-adjudications-{identity}.json"
+def _isolated_adjudication_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """Return a temporary source path accepted by the compiler path binder."""
+    monkeypatch.setattr(target, "ROOT", tmp_path)
+    return tmp_path / "new_quote_pair_adjudications.json"
 
 
 def test_new_quote_contract_is_source_grounded_and_narrow() -> None:
@@ -132,12 +135,13 @@ def _transition_base() -> dict[str, object]:
     return base
 
 
-def test_compile_changes_only_target_missing_rows(tmp_path: Path) -> None:
+def test_compile_changes_only_target_missing_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base = _transition_base()
     records = _all_allow_records()
-    # The compiler records paths relative to the project; use a project-local
-    # temporary path for the source-hash fixture.
-    source = _project_local_adjudication_path(tmp_path)
+    source = _isolated_adjudication_path(tmp_path, monkeypatch)
     try:
         target.atomic_write_json(source, {"records": records})
         result = target.compile_manifest(base, records, adjudication_path=source)
@@ -154,7 +158,10 @@ def test_compile_changes_only_target_missing_rows(tmp_path: Path) -> None:
     )
 
 
-def test_compile_rejects_attempt_to_overwrite_existing_pair(tmp_path: Path) -> None:
+def test_compile_rejects_attempt_to_overwrite_existing_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base = _transition_base()
     records = _all_allow_records()
     existing = next(iter(base["pairs"].values()))
@@ -162,7 +169,7 @@ def test_compile_rejects_attempt_to_overwrite_existing_pair(tmp_path: Path) -> N
     records[0]["source_pair_id"] = target.pair_id(
         target.TARGET_QUOTE_ID, existing["image_hash"]
     )
-    source = _project_local_adjudication_path(tmp_path)
+    source = _isolated_adjudication_path(tmp_path, monkeypatch)
     try:
         target.atomic_write_json(source, {"records": records})
         # Duplicate image coverage is rejected before any merge can occur.
@@ -260,10 +267,13 @@ def test_two_normalised_literalism_vetoes_resolve_to_allow() -> None:
     assert records[0]["provider_first_pass"]["final_decision"] == "allow"
 
 
-def test_complete_manifest_build_is_byte_identical(tmp_path: Path) -> None:
+def test_complete_manifest_build_is_byte_identical(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     base = _transition_base()
     records = _all_allow_records()
-    source = _project_local_adjudication_path(tmp_path)
+    source = _isolated_adjudication_path(tmp_path, monkeypatch)
     try:
         target.atomic_write_json(source, {"records": records})
         first = target.compile_manifest(base, records, adjudication_path=source)

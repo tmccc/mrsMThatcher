@@ -385,13 +385,24 @@ def test_semantic_pair_hash_ignores_batching_but_covers_all_material_inputs() ->
     assert baseline != rem.semantic_pair_input_hash(quote(), image(), second_pass=True)
 
 
-def test_paid_judgement_reuse_is_limited_to_byte_identical_semantic_inputs() -> None:
+def test_paid_judgement_reuse_is_limited_to_byte_identical_semantic_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writes: list[tuple[Path, dict]] = []
+
+    def capture_write(path: Path, payload: dict) -> None:
+        writes.append((Path(path), payload))
+
+    monkeypatch.setattr(rem, "atomic_write_json", capture_write)
     eligible, _source_gaps = rem._ai_eligible_residuals(RUN)
     reuse = rem.reusable_saved_judgements(RUN, eligible)
     assert len(eligible) == 320
     assert reuse["first_reused_count"] == 320
     assert reuse["pending_first_count"] == 0
     assert reuse["second_reused_count"] == 320
+    assert len(writes) == 1
+    assert writes[0][0] == RUN / "reused_ai_judgements.json"
+    assert writes[0][1]["records"]
 
 
 def test_veto_reason_codes_include_model_contradictions() -> None:

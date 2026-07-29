@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from semantic_alignment import image_quote_shortlist_rerank as rerank
@@ -12,6 +13,49 @@ ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "semantic_alignment_research/quote_research_full_001"
 WORK = ROOT / "image_discovery_research/thatcher_image_hunt_002/integration_preparation"
 RETRIEVAL = ROOT / "semantic_alignment_research/hybrid_reply_retrieval_001"
+
+
+@pytest.fixture(autouse=True)
+def isolated_embedding_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use tracked retrieval inputs without depending on a private model cache."""
+    index_manifest = rerank.read_json(RETRIEVAL / "index/index_manifest.json")
+
+    class DeterministicEmbedder:
+        def __init__(self, _model_dir: Path) -> None:
+            pass
+
+        def encode(
+            self,
+            texts: list[str],
+            *,
+            query: bool,
+            batch_size: int,
+        ) -> np.ndarray:
+            assert query is True
+            assert batch_size == 8
+            return np.zeros((len(texts), 1), dtype=np.float32)
+
+    def validate_tracked_index(
+        retrieval_dir: Path,
+        _model_dir: Path,
+    ) -> dict:
+        assert retrieval_dir == RETRIEVAL
+        return index_manifest
+
+    def deterministic_search(
+        _matrix: np.ndarray,
+        _embedding: np.ndarray,
+        quote_ids: list[str],
+        limit: int,
+    ) -> list[tuple[str, float]]:
+        return [
+            (quote_id, 0.99 - index / 1000)
+            for index, quote_id in enumerate(quote_ids[:limit])
+        ]
+
+    monkeypatch.setattr(rerank, "LocalE5Embedder", DeterministicEmbedder)
+    monkeypatch.setattr(rerank, "validate_index", validate_tracked_index)
+    monkeypatch.setattr(rerank, "exact_cosine_search", deterministic_search)
 
 
 def assessment(quote_hash: str, decision: str = "unsuitable") -> dict:

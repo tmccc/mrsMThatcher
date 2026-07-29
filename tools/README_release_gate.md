@@ -26,13 +26,19 @@ environment, including resolved content behind package symlinks. It starts
 Python with `-I -S`, excludes the mutable implementation worktree from the
 toolchain, supplies only the attested roots plus the detached candidate, and
 checks the exact origins of pytest, xdist and the registry schema backend.
-The installed user-service unit directory is read-only and the user D-Bus and
-systemd-private sockets are masked inside validation. The complete toolchain
-identity is recomputed after validation. A content-bound libseccomp filter is
-installed before candidate code executes: AF_UNIX `socket` and `socketpair`
-creation and `io_uring_setup` are denied, so host-control pathname sockets
-cannot bypass the network namespace. Validation stdin is always `/dev/null`;
-no caller-supplied descriptor is inherited as standard input.
+The installed user-service unit directory is read-only. Before each contained
+command, the gate deterministically inventories active pathname-bound AF_UNIX
+endpoints from `/proc/net/unix`, verifies them with a non-following stat, and
+mount-masks every visible filesystem socket with `/dev/null`. The preflight
+proves that each endpoint is no longer a socket and cannot be connected to.
+Anonymous AF_UNIX IPC remains available, so ordinary asyncio wakeup pipes and
+local test-process communication continue to work. A content-bound libseccomp
+filter still denies `io_uring_setup`, and the network namespace retains
+loopback while exposing no external route. The bootstrap restores `SIGINT` to
+its default disposition immediately before executing candidate code, avoiding
+the ignored-signal state inherited from `unshare --pid --fork`. The complete
+toolchain identity is recomputed after validation. Validation stdin is always
+`/dev/null`; no caller-supplied descriptor is inherited as standard input.
 
 ## Development validation
 
