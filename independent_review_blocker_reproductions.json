@@ -52,6 +52,18 @@
       "exit_status": 0,
       "output_sha256": "fa786b8034275ff0c8c67d7aef37091f737de62e519ce1f35aec0ce0e45175dc",
       "reproduced": true
+    },
+    "candidate_gate_self_certification": {
+      "candidate_gate_path": "tools/release_gate.py",
+      "candidate_gate_sha256": "ee4e5ecb0aef59f581167c1f601f0bf879385512a8150b497d7923b0e02be95c",
+      "candidate_gate_supplied_by_certified_commit": true,
+      "candidate_gate_executed_to_generate_attestation": true,
+      "observed_release_candidate_validation_passed": true,
+      "observed_conclusion_scope": "patch-local release candidate",
+      "semantic_attestation_sha256": "cdea1d41d2d24940f1ed27bb35ae6935ecbb2743cf9088f33b2816bf7269fc81",
+      "run_receipt_sha256": "5190a1f67cf52a088964c33732499695c6a196811dfb5228bf03658d42232969",
+      "separate_external_gate_identity_present": false,
+      "reproduced": true
     }
   },
   "remediation_results": null
