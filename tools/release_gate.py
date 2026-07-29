@@ -1712,7 +1712,10 @@ def _validation_import_roots(
             continue
         if any(path == root or root in path.parents for root in excluded):
             continue
-        if (not path.is_dir() and not path.is_file()) or path.is_symlink():
+        if (
+            (not path.is_dir() and not path.is_file())
+            or _existing_path_has_symlink_component(path)
+        ):
             raise ReleaseGateError(
                 f"validation Python path is not an ordinary file/directory: {path}"
             )
