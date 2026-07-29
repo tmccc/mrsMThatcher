@@ -19,6 +19,18 @@ import pytest
 from tools import release_gate
 
 
+def _pathname_unix_socket_or_skip(kind: int) -> socket.socket:
+    """Create a pathname-capable Unix socket outside release containment."""
+    try:
+        return socket.socket(socket.AF_UNIX, kind)
+    except PermissionError as exc:
+        if exc.errno == errno.EPERM:
+            pytest.skip(
+                "outer containment prohibits the pathname AF_UNIX fixture"
+            )
+        raise
+
+
 def _run(args: list[str], cwd: Path) -> str:
     return subprocess.check_output(args, cwd=cwd, text=True).strip()
 
@@ -675,8 +687,12 @@ def test_host_filesystem_unix_socket_inventory_is_sorted_and_path_bound(
     second_path = tmp_path / "a.sock"
     ordinary = tmp_path / "ordinary"
     ordinary.write_text("not a socket\n", encoding="utf-8")
-    first = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    second = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    first = _pathname_unix_socket_or_skip(socket.SOCK_STREAM)
+    try:
+        second = _pathname_unix_socket_or_skip(socket.SOCK_DGRAM)
+    except BaseException:
+        first.close()
+        raise
     try:
         first.bind(str(first_path))
         second.bind(str(second_path))
@@ -799,14 +815,7 @@ def test_containment_masks_host_unix_socket_and_allows_anonymous_ipc(
 ) -> None:
     repo = _git_repo(tmp_path)
     socket_path = tmp_path / "harmless-host-control.sock"
-    try:
-        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    except PermissionError as exc:
-        if exc.errno == errno.EPERM:
-            pytest.skip(
-                "outer containment prohibits the pathname AF_UNIX fixture"
-            )
-        raise
+    listener = _pathname_unix_socket_or_skip(socket.SOCK_STREAM)
     try:
         listener.bind(str(socket_path))
         listener.listen(1)
@@ -873,7 +882,7 @@ def test_containment_blocks_uninventoried_host_unix_socket(
         (sys.executable, "-c", script, str(socket_path)),
         candidate_root=repo,
     )
-    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener = _pathname_unix_socket_or_skip(socket.SOCK_STREAM)
     try:
         if relative_binding:
             monkeypatch.chdir(host_directory)
