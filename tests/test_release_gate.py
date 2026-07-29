@@ -650,7 +650,9 @@ def test_subprocess_egress_preflight_uses_namespace(
     assert result["subprocess_egress_denied"] is True
     assert result["loopback_inet_available"] is True
     assert result["external_inet_routes_absent"] is True
-    assert result["anonymous_unix_socketpair_available"] is True
+    assert result["pathname_unix_socket_creation_denied"] is True
+    assert result["anonymous_unix_stream_socketpair_available"] is True
+    assert result["unix_nonstream_socketpair_denied"] is True
     assert result["sigint_default_restored"] is True
     assert observed[0][:5] == (
         "unshare",
@@ -773,8 +775,11 @@ def test_real_containment_denies_candidate_and_git_mutation(
     assert result["additional_protected_paths_read_only"] is True
     assert result["loopback_inet_available"] is True
     assert result["external_inet_routes_absent"] is True
-    assert result["host_filesystem_unix_sockets_masked"] is True
-    assert result["anonymous_unix_socketpair_available"] is True
+    assert result["inventoried_absolute_host_unix_sockets_masked"] is True
+    assert result["pathname_unix_socket_creation_denied"] is True
+    assert result["anonymous_unix_stream_socketpair_available"] is True
+    assert result["unix_nonstream_socketpair_denied"] is True
+    assert result["unix_socket_high_bits_alias_denied"] is True
     assert result["sigint_default_restored"] is True
     assert result["io_uring_setup_denied"] is True
     assert result["masked_unix_socket_paths"] == [
@@ -798,28 +803,33 @@ def test_containment_masks_host_unix_socket_and_allows_anonymous_ipc(
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     except PermissionError as exc:
         if exc.errno == errno.EPERM:
-            pytest.skip("outer release-gate containment already denies AF_UNIX")
+            pytest.skip(
+                "outer containment prohibits the pathname AF_UNIX fixture"
+            )
         raise
     try:
         listener.bind(str(socket_path))
         listener.listen(1)
         listener.settimeout(0.2)
         script = (
-            "import socket,stat,sys\n"
-            "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+            "import errno,socket,stat,sys\n"
+            "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_STREAM)\n"
             "left.send(b'works')\n"
             "if right.recv(16) != b'works': raise SystemExit(94)\n"
             "left.close(); right.close()\n"
+            "try:\n"
+            " socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+            "except OSError as exc:\n"
+            " if exc.errno != errno.EPERM: raise SystemExit(95)\n"
+            "else:\n"
+            " raise SystemExit(96)\n"
             "identity=__import__('pathlib').Path(sys.argv[1]).lstat()\n"
             "if not stat.S_ISCHR(identity.st_mode): raise SystemExit(93)\n"
-            "client=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
             "try:\n"
-            " client.connect(sys.argv[1])\n"
-            "except OSError:\n"
-            " raise SystemExit(0)\n"
-            "finally:\n"
-            " client.close()\n"
-            "raise SystemExit(91)\n"
+            " socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+            "except OSError as exc:\n"
+            " raise SystemExit(0 if exc.errno == errno.EPERM else 97)\n"
+            "raise SystemExit(98)\n"
         )
         command = release_gate.containment_namespace_command(
             (sys.executable, "-c", script, str(socket_path)),
@@ -830,6 +840,55 @@ def test_containment_masks_host_unix_socket_and_allows_anonymous_ipc(
             command, cwd=repo, check=False, timeout=10
         )
         if result.returncode in {1, 75} and b"Operation not permitted" in result.stdout:
+            pytest.skip("OS containment unavailable on this test host")
+        assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
+        with pytest.raises(TimeoutError):
+            listener.accept()
+    finally:
+        listener.close()
+        socket_path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize("relative_binding", [False, True])
+def test_containment_blocks_uninventoried_host_unix_socket(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    relative_binding: bool,
+) -> None:
+    repo = _git_repo(tmp_path)
+    host_directory = tmp_path / "host"
+    host_directory.mkdir()
+    socket_path = host_directory / "late.sock"
+    script = (
+        "import errno,socket,sys\n"
+        "try:\n"
+        " endpoint=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+        "except OSError as exc:\n"
+        " raise SystemExit(0 if exc.errno == errno.EPERM else 92)\n"
+        "endpoint.connect(sys.argv[1])\n"
+        "endpoint.sendall(b'host-egress')\n"
+        "raise SystemExit(91)\n"
+    )
+    command = release_gate.containment_namespace_command(
+        (sys.executable, "-c", script, str(socket_path)),
+        candidate_root=repo,
+    )
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        if relative_binding:
+            monkeypatch.chdir(host_directory)
+            listener.bind(socket_path.name)
+            monkeypatch.chdir(repo)
+        else:
+            listener.bind(str(socket_path))
+        listener.listen(1)
+        listener.settimeout(0.2)
+        result = release_gate._run(
+            command, cwd=repo, check=False, timeout=10
+        )
+        if result.returncode in {1, 75} and (
+            b"Operation not permitted" in result.stdout
+        ):
             pytest.skip("OS containment unavailable on this test host")
         assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
         with pytest.raises(TimeoutError):
@@ -945,7 +1004,9 @@ def test_validation_toolchain_is_versioned_and_content_bound() -> None:
     assert set(toolchain.python_paths) <= set(toolchain.protected_paths)
     containment = semantic["os_containment_dependencies"]
     assert len(containment) == 1
-    assert containment[0]["purpose"].startswith("deny io_uring setup")
+    assert containment[0]["purpose"].startswith(
+        "deny pathname-capable Unix sockets"
+    )
     seccomp_path = release_gate.seccomp_library_path()
     assert containment[0]["path"] == str(seccomp_path)
     assert containment[0]["sha256"] == release_gate.sha256_file(seccomp_path)
@@ -993,8 +1054,11 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
             "installed_service_unit_read_only": True,
             "loopback_inet_available": True,
             "external_inet_routes_absent": True,
-            "host_filesystem_unix_sockets_masked": True,
-            "anonymous_unix_socketpair_available": True,
+            "inventoried_absolute_host_unix_sockets_masked": True,
+            "pathname_unix_socket_creation_denied": True,
+            "anonymous_unix_stream_socketpair_available": True,
+            "unix_nonstream_socketpair_denied": True,
+            "unix_socket_high_bits_alias_denied": True,
             "sigint_default_restored": True,
             "io_uring_setup_denied": True,
             "effective_capabilities_dropped": True,
@@ -1023,10 +1087,10 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
     assert attestation["schema_version"] == 2
     assert attestation["release_candidate_validation_passed"] is True
     assert attestation["network_isolation"][
-        "host_filesystem_unix_sockets_masked"
+        "inventoried_absolute_host_unix_sockets_masked"
     ] is True
     assert attestation["network_isolation"][
-        "anonymous_unix_socketpair_available"
+        "anonymous_unix_stream_socketpair_available"
     ] is True
     first = release_gate.canonical_json_bytes(attestation)
     second = release_gate.canonical_json_bytes(
@@ -1037,7 +1101,7 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
     assert b"output_sha256" not in first
     values["network"] = {
         **values["network"],
-        "anonymous_unix_socketpair_available": False,
+        "anonymous_unix_stream_socketpair_available": False,
     }
     assert (
         release_gate.deterministic_attestation(**values)[
@@ -1047,7 +1111,7 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
     )
     values["network"] = {
         **values["network"],
-        "anonymous_unix_socketpair_available": True,
+        "anonymous_unix_stream_socketpair_available": True,
     }
     values["relationships"] = {
         **values["relationships"],

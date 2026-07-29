@@ -1961,13 +1961,22 @@ def seccomp_library_path() -> Path:
     )
     if not ordinary:
         raise ReleaseGateError(
-            "libseccomp.so.2 is required for io_uring containment"
+            "libseccomp.so.2 is required for Unix-socket and io_uring "
+            "containment"
         )
     return ordinary[0]
 
 
 _SECCOMP_EXEC_BOOTSTRAP = """\
-import ctypes, errno, os, signal, sys
+import ctypes, errno, os, signal, socket, sys
+
+class ScmpArgCmp(ctypes.Structure):
+    _fields_ = [
+        ("arg", ctypes.c_uint),
+        ("op", ctypes.c_int),
+        ("datum_a", ctypes.c_uint64),
+        ("datum_b", ctypes.c_uint64),
+    ]
 
 library_path, *command = sys.argv[1:]
 if not command:
@@ -1982,7 +1991,7 @@ library.seccomp_rule_add_array.argtypes = [
     ctypes.c_uint32,
     ctypes.c_int,
     ctypes.c_uint,
-    ctypes.c_void_p,
+    ctypes.POINTER(ScmpArgCmp),
 ]
 library.seccomp_rule_add_array.restype = ctypes.c_int
 library.seccomp_load.argtypes = [ctypes.c_void_p]
@@ -1993,6 +2002,39 @@ if not context:
     raise SystemExit("seccomp_init failed")
 try:
     action = 0x00050000 | errno.EPERM
+    masked_equal = 7
+    family_comparison = ScmpArgCmp(
+        0, masked_equal, 0xffffffff, socket.AF_UNIX
+    )
+    syscall_number = library.seccomp_syscall_resolve_name(b"socket")
+    if syscall_number < 0:
+        raise SystemExit("socket syscall is unavailable to seccomp")
+    result = library.seccomp_rule_add_array(
+        context, action, syscall_number, 1, ctypes.byref(family_comparison)
+    )
+    if result != 0:
+        raise SystemExit(
+            "seccomp_rule_add_array failed for pathname-capable Unix socket: "
+            + str(result)
+        )
+    syscall_number = library.seccomp_syscall_resolve_name(b"socketpair")
+    if syscall_number < 0:
+        raise SystemExit("socketpair syscall is unavailable to seccomp")
+    for socket_type in range(16):
+        if socket_type == socket.SOCK_STREAM:
+            continue
+        comparisons = (ScmpArgCmp * 2)(
+            ScmpArgCmp(0, masked_equal, 0xffffffff, socket.AF_UNIX),
+            ScmpArgCmp(1, masked_equal, 0xf, socket_type),
+        )
+        result = library.seccomp_rule_add_array(
+            context, action, syscall_number, 2, comparisons
+        )
+        if result != 0:
+            raise SystemExit(
+                "seccomp_rule_add_array failed for non-stream Unix socketpair: "
+                + str(result)
+            )
     syscall_number = library.seccomp_syscall_resolve_name(b"io_uring_setup")
     if syscall_number < 0:
         raise SystemExit("io_uring_setup syscall is unavailable to seccomp")
@@ -2016,12 +2058,14 @@ os.execvpe(command[0], command, os.environ)
 def host_filesystem_unix_socket_paths(
     proc_net_unix: Path = Path("/proc/net/unix"),
 ) -> tuple[Path, ...]:
-    """Return active, pathname-bound host AF_UNIX sockets deterministically.
+    """Return absolute pathname-bound host AF_UNIX sockets deterministically.
 
     ``/proc/net/unix`` is the kernel inventory of active Unix-domain
-    endpoints.  Abstract sockets have no filesystem authority and are
-    intentionally excluded.  A listed pathname is accepted only when a fresh
-    non-following stat still identifies the endpoint as a socket.
+    endpoints. Abstract and relative entries are intentionally excluded:
+    mount-masking this inventory is defence in depth, while seccomp denial of
+    pathname-capable Unix sockets is the completeness boundary. A listed
+    absolute pathname is accepted only when a fresh non-following stat still
+    identifies the endpoint as a socket.
     """
     try:
         lines = proc_net_unix.read_text(
@@ -2085,7 +2129,7 @@ def containment_namespace_command(
     blocked_unix_sockets: Sequence[Path] = (),
     discover_unix_sockets: bool = True,
 ) -> tuple[str, ...]:
-    """Wrap a command with route isolation and masked host Unix endpoints."""
+    """Wrap a command with route and pathname Unix-socket isolation."""
     seccomp_library = seccomp_library_path()
     secured_command = (
         sys.executable,
@@ -2223,10 +2267,22 @@ def containment_preflight(
         "s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(1)\n"
         "c=socket.socket(); c.connect(s.getsockname()); a,_=s.accept()\n"
         "a.close(); c.close(); s.close()\n"
-        "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+        "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_STREAM)\n"
         "left.send(b'local-ipc'); "
         "payload=right.recv(64); left.close(); right.close()\n"
         "if payload != b'local-ipc': sys.exit(80)\n"
+        "try:\n"
+        " socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+        "except OSError as exc:\n"
+        " if exc.errno != errno.EPERM: sys.exit(83)\n"
+        "else:\n"
+        " sys.exit(84)\n"
+        "try:\n"
+        " socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+        "except OSError as exc:\n"
+        " if exc.errno != errno.EPERM: sys.exit(85)\n"
+        "else:\n"
+        " sys.exit(86)\n"
         "if signal.getsignal(signal.SIGINT) == signal.SIG_IGN: sys.exit(81)\n"
         "x=socket.socket(); x.settimeout(0.25)\n"
         "try:\n"
@@ -2262,21 +2318,25 @@ def containment_preflight(
         " if not stat.S_ISCHR(identity.st_mode) or "
         "identity.st_rdev != null.st_rdev:\n"
         "  sys.exit(88)\n"
-        " for kind in (socket.SOCK_STREAM,socket.SOCK_DGRAM):\n"
-        "  endpoint=socket.socket(socket.AF_UNIX,kind)\n"
-        "  try:\n"
-        "   endpoint.connect(value)\n"
-        "  except OSError:\n"
-        "   pass\n"
-        "  else:\n"
-        "   sys.exit(89)\n"
-        "  finally:\n"
-        "   endpoint.close()\n"
         "seccomp=ctypes.CDLL(values[library_separator+1])\n"
         "seccomp.seccomp_syscall_resolve_name.argtypes=[ctypes.c_char_p]\n"
         "seccomp.seccomp_syscall_resolve_name.restype=ctypes.c_int\n"
         "libc=ctypes.CDLL(None,use_errno=True)\n"
         "libc.syscall.restype=ctypes.c_long\n"
+        "high_family=socket.AF_UNIX | (1 << 32)\n"
+        "number=seccomp.seccomp_syscall_resolve_name(b'socket')\n"
+        "ctypes.set_errno(0)\n"
+        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
+        "socket.SOCK_STREAM,0) != -1 "
+        "or ctypes.get_errno() != errno.EPERM:\n"
+        " sys.exit(89)\n"
+        "number=seccomp.seccomp_syscall_resolve_name(b'socketpair')\n"
+        "pair=(ctypes.c_int*2)()\n"
+        "ctypes.set_errno(0)\n"
+        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
+        "socket.SOCK_DGRAM,0,pair) != -1 "
+        "or ctypes.get_errno() != errno.EPERM:\n"
+        " sys.exit(90)\n"
         "number=seccomp.seccomp_syscall_resolve_name(b'io_uring_setup')\n"
         "ctypes.set_errno(0)\n"
         "if libc.syscall(number,2,0) != -1 or ctypes.get_errno() != errno.EPERM:\n"
@@ -2322,8 +2382,11 @@ def containment_preflight(
         ),
         "loopback_inet_available": available,
         "external_inet_routes_absent": available,
-        "host_filesystem_unix_sockets_masked": available,
-        "anonymous_unix_socketpair_available": available,
+        "inventoried_absolute_host_unix_sockets_masked": available,
+        "pathname_unix_socket_creation_denied": available,
+        "anonymous_unix_stream_socketpair_available": available,
+        "unix_nonstream_socketpair_denied": available,
+        "unix_socket_high_bits_alias_denied": available,
         "sigint_default_restored": available,
         "io_uring_setup_denied": available,
         "masked_unix_socket_count": len(sockets),
@@ -2576,8 +2639,9 @@ def validation_toolchain_inventory(
                 "path": str(seccomp_library),
                 "sha256": sha256_file(seccomp_library),
                 "purpose": (
-                    "deny io_uring setup before candidate execution while "
-                    "filesystem Unix endpoints are mount-masked"
+                    "deny pathname-capable Unix sockets, non-stream Unix "
+                    "socket pairs and io_uring setup before candidate "
+                    "execution"
                 ),
             }
         ],
@@ -3826,8 +3890,11 @@ def deterministic_attestation(
             "installed_service_unit_read_only",
             "loopback_inet_available",
             "external_inet_routes_absent",
-            "host_filesystem_unix_sockets_masked",
-            "anonymous_unix_socketpair_available",
+            "inventoried_absolute_host_unix_sockets_masked",
+            "pathname_unix_socket_creation_denied",
+            "anonymous_unix_stream_socketpair_available",
+            "unix_nonstream_socketpair_denied",
+            "unix_socket_high_bits_alias_denied",
             "sigint_default_restored",
             "io_uring_setup_denied",
             "effective_capabilities_dropped",
@@ -3868,8 +3935,11 @@ def deterministic_attestation(
             and network.get("installed_service_unit_read_only")
             and network.get("loopback_inet_available")
             and network.get("external_inet_routes_absent")
-            and network.get("host_filesystem_unix_sockets_masked")
-            and network.get("anonymous_unix_socketpair_available")
+            and network.get("inventoried_absolute_host_unix_sockets_masked")
+            and network.get("pathname_unix_socket_creation_denied")
+            and network.get("anonymous_unix_stream_socketpair_available")
+            and network.get("unix_nonstream_socketpair_denied")
+            and network.get("unix_socket_high_bits_alias_denied")
             and network.get("sigint_default_restored")
             and network.get("io_uring_setup_denied")
             and network.get("effective_capabilities_dropped")
@@ -4930,8 +5000,11 @@ def run_gate(args: argparse.Namespace) -> int:
                     "installed_service_unit_read_only",
                     "loopback_inet_available",
                     "external_inet_routes_absent",
-                    "host_filesystem_unix_sockets_masked",
-                    "anonymous_unix_socketpair_available",
+                    "inventoried_absolute_host_unix_sockets_masked",
+                    "pathname_unix_socket_creation_denied",
+                    "anonymous_unix_stream_socketpair_available",
+                    "unix_nonstream_socketpair_denied",
+                    "unix_socket_high_bits_alias_denied",
                     "sigint_default_restored",
                     "io_uring_setup_denied",
                     "effective_capabilities_dropped",

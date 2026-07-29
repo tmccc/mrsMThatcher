@@ -27,16 +27,19 @@ Python with `-I -S`, excludes the mutable implementation worktree from the
 toolchain, supplies only the attested roots plus the detached candidate, and
 checks the exact origins of pytest, xdist and the registry schema backend.
 The installed user-service unit directory is read-only. Before each contained
-command, the gate deterministically inventories active pathname-bound AF_UNIX
-endpoints from `/proc/net/unix`, verifies them with a non-following stat, and
-mount-masks every visible filesystem socket with `/dev/null`. The preflight
-proves that each endpoint is no longer a socket and cannot be connected to.
-Anonymous AF_UNIX IPC remains available, so ordinary asyncio wakeup pipes and
-local test-process communication continue to work. A content-bound libseccomp
-filter still denies `io_uring_setup`, and the network namespace retains
-loopback while exposing no external route. The bootstrap restores `SIGINT` to
-its default disposition immediately before executing candidate code, avoiding
-the ignored-signal state inherited from `unshare --pid --fork`. The complete
+command, the gate deterministically inventories absolute pathname-bound
+AF_UNIX endpoints visible in `/proc/net/unix`, verifies them with a
+non-following stat, and mount-masks those inventoried endpoints with
+`/dev/null`. This is defence in depth rather than the completeness boundary:
+relative kernel names and endpoints created after inventory cannot be
+enumerated reliably. A content-bound libseccomp filter therefore denies every
+pathname-capable `socket(AF_UNIX, ...)` call. It allows only anonymous AF_UNIX
+stream `socketpair` IPC, which preserves asyncio wakeup pipes and local
+test-process communication, and denies non-stream AF_UNIX socket pairs. The
+same filter denies `io_uring_setup`. The network namespace retains loopback
+while exposing no external route. The bootstrap restores `SIGINT` to its
+default disposition immediately before executing candidate code, avoiding the
+ignored-signal state inherited from `unshare --pid --fork`. The complete
 toolchain identity is recomputed after validation. Validation stdin is always
 `/dev/null`; no caller-supplied descriptor is inherited as standard input.
 

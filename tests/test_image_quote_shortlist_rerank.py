@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from semantic_alignment import hybrid_reply_retrieval as hybrid
 from semantic_alignment import image_quote_shortlist_rerank as rerank
 from semantic_alignment.bakeoff import anthropic_output_schema
 
@@ -17,8 +18,12 @@ RETRIEVAL = ROOT / "semantic_alignment_research/hybrid_reply_retrieval_001"
 
 @pytest.fixture(autouse=True)
 def isolated_embedding_backend(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Use tracked retrieval inputs without depending on a private model cache."""
-    index_manifest = rerank.read_json(RETRIEVAL / "index/index_manifest.json")
+    """Exercise the tracked index with deterministic model-free query vectors."""
+    matrix = np.load(
+        RETRIEVAL / "index/embeddings.npy",
+        mmap_mode="r",
+        allow_pickle=False,
+    )
 
     class DeterministicEmbedder:
         def __init__(self, _model_dir: Path) -> None:
@@ -33,29 +38,19 @@ def isolated_embedding_backend(monkeypatch: pytest.MonkeyPatch) -> None:
         ) -> np.ndarray:
             assert query is True
             assert batch_size == 8
-            return np.zeros((len(texts), 1), dtype=np.float32)
+            vectors = [
+                np.asarray(
+                    matrix[
+                        int(rerank.text_hash(text), 16) % matrix.shape[0]
+                    ],
+                    dtype=np.float32,
+                )
+                for text in texts
+            ]
+            return np.stack(vectors)
 
-    def validate_tracked_index(
-        retrieval_dir: Path,
-        _model_dir: Path,
-    ) -> dict:
-        assert retrieval_dir == RETRIEVAL
-        return index_manifest
-
-    def deterministic_search(
-        _matrix: np.ndarray,
-        _embedding: np.ndarray,
-        quote_ids: list[str],
-        limit: int,
-    ) -> list[tuple[str, float]]:
-        return [
-            (quote_id, 0.99 - index / 1000)
-            for index, quote_id in enumerate(quote_ids[:limit])
-        ]
-
+    monkeypatch.setattr(hybrid, "model_is_complete", lambda _path: True)
     monkeypatch.setattr(rerank, "LocalE5Embedder", DeterministicEmbedder)
-    monkeypatch.setattr(rerank, "validate_index", validate_tracked_index)
-    monkeypatch.setattr(rerank, "exact_cosine_search", deterministic_search)
 
 
 def assessment(quote_hash: str, decision: str = "unsuitable") -> dict:
