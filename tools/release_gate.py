@@ -2002,39 +2002,105 @@ if not context:
     raise SystemExit("seccomp_init failed")
 try:
     action = 0x00050000 | errno.EPERM
+    less_than = 2
+    equal = 4
+    greater_than = 6
     masked_equal = 7
-    family_comparison = ScmpArgCmp(
-        0, masked_equal, 0xffffffff, socket.AF_UNIX
-    )
+    if socket.AF_INET >= socket.AF_INET6:
+        raise SystemExit("unexpected Linux Internet address-family ordering")
     syscall_number = library.seccomp_syscall_resolve_name(b"socket")
     if syscall_number < 0:
         raise SystemExit("socket syscall is unavailable to seccomp")
-    result = library.seccomp_rule_add_array(
-        context, action, syscall_number, 1, ctypes.byref(family_comparison)
-    )
-    if result != 0:
-        raise SystemExit(
-            "seccomp_rule_add_array failed for pathname-capable Unix socket: "
-            + str(result)
-        )
-    syscall_number = library.seccomp_syscall_resolve_name(b"socketpair")
-    if syscall_number < 0:
-        raise SystemExit("socketpair syscall is unavailable to seccomp")
-    for socket_type in range(16):
-        if socket_type == socket.SOCK_STREAM:
-            continue
-        comparisons = (ScmpArgCmp * 2)(
-            ScmpArgCmp(0, masked_equal, 0xffffffff, socket.AF_UNIX),
-            ScmpArgCmp(1, masked_equal, 0xf, socket_type),
-        )
+    rejected_socket_families = [
+        ScmpArgCmp(0, less_than, socket.AF_INET, 0),
+        *(
+            ScmpArgCmp(0, equal, family, 0)
+            for family in range(socket.AF_INET + 1, socket.AF_INET6)
+        ),
+        ScmpArgCmp(0, greater_than, socket.AF_INET6, 0),
+    ]
+    for comparison in rejected_socket_families:
         result = library.seccomp_rule_add_array(
-            context, action, syscall_number, 2, comparisons
+            context, action, syscall_number, 1, ctypes.byref(comparison)
         )
         if result != 0:
             raise SystemExit(
-                "seccomp_rule_add_array failed for non-stream Unix socketpair: "
+                "seccomp_rule_add_array failed for socket-family allowlist: "
                 + str(result)
             )
+    syscall_number = library.seccomp_syscall_resolve_name(b"socketpair")
+    if syscall_number < 0:
+        raise SystemExit("socketpair syscall is unavailable to seccomp")
+    for comparison in (
+        ScmpArgCmp(0, less_than, socket.AF_UNIX, 0),
+        ScmpArgCmp(0, greater_than, socket.AF_UNIX, 0),
+    ):
+        result = library.seccomp_rule_add_array(
+            context, action, syscall_number, 1, ctypes.byref(comparison)
+        )
+        if result != 0:
+            raise SystemExit(
+                "seccomp_rule_add_array failed for socketpair-family "
+                "allowlist: " + str(result)
+            )
+    socketpair_type_bits = (
+        socket.SOCK_STREAM,
+        socket.SOCK_NONBLOCK,
+        socket.SOCK_CLOEXEC,
+    )
+    if (
+        len(set(socketpair_type_bits)) != len(socketpair_type_bits)
+        or any(value <= 0 or value & (value - 1) for value in socketpair_type_bits)
+    ):
+        raise SystemExit("unexpected Linux socketpair type/flag constants")
+    allowed_socketpair_type = (
+        socket.SOCK_STREAM | socket.SOCK_NONBLOCK | socket.SOCK_CLOEXEC
+    )
+    comparison = ScmpArgCmp(1, masked_equal, socket.SOCK_STREAM, 0)
+    result = library.seccomp_rule_add_array(
+        context, action, syscall_number, 1, ctypes.byref(comparison)
+    )
+    if result != 0:
+        raise SystemExit(
+            "seccomp_rule_add_array failed for required stream socketpair "
+            "type: " + str(result)
+        )
+    for bit_index in range(allowed_socketpair_type.bit_length()):
+        bit = 1 << bit_index
+        if allowed_socketpair_type & bit:
+            continue
+        result = library.seccomp_rule_add_array(
+            context,
+            action,
+            syscall_number,
+            1,
+            ctypes.byref(ScmpArgCmp(1, masked_equal, bit, bit)),
+        )
+        if result != 0:
+            raise SystemExit(
+                "seccomp_rule_add_array failed for socketpair type/flag "
+                "allowlist: " + str(result)
+            )
+    comparison = ScmpArgCmp(
+        1, greater_than, allowed_socketpair_type, 0
+    )
+    result = library.seccomp_rule_add_array(
+        context, action, syscall_number, 1, ctypes.byref(comparison)
+    )
+    if result != 0:
+        raise SystemExit(
+            "seccomp_rule_add_array failed for socketpair maximum type/flag: "
+            + str(result)
+        )
+    comparison = ScmpArgCmp(2, greater_than, 0, 0)
+    result = library.seccomp_rule_add_array(
+        context, action, syscall_number, 1, ctypes.byref(comparison)
+    )
+    if result != 0:
+        raise SystemExit(
+            "seccomp_rule_add_array failed for socketpair protocol "
+            "allowlist: " + str(result)
+        )
     syscall_number = library.seccomp_syscall_resolve_name(b"io_uring_setup")
     if syscall_number < 0:
         raise SystemExit("io_uring_setup syscall is unavailable to seccomp")
@@ -2258,19 +2324,24 @@ def containment_preflight(
         }
     script = (
         "import ctypes,errno,pathlib,signal,socket,stat,subprocess,sys\n"
-        "names={name for _,name in socket.if_nameindex()}\n"
+        "netdev=pathlib.Path('/proc/net/dev').read_text().splitlines()[2:]\n"
+        "names={line.split(':',1)[0].strip() for line in netdev if ':' in line}\n"
         "if names != {'lo'}: sys.exit(72)\n"
-        "for family in ('-4','-6'):\n"
-        " r=subprocess.run(('ip',family,'route','show','default'),"
-        "stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n"
-        " if r.returncode or r.stdout.strip(): sys.exit(73)\n"
+        "ipv4=pathlib.Path('/proc/net/route').read_text().splitlines()[1:]\n"
+        "if any(line.split() and line.split()[0]!='lo' "
+        "for line in ipv4): sys.exit(73)\n"
+        "ipv6=pathlib.Path('/proc/net/ipv6_route').read_text().splitlines()\n"
+        "if any(line.split() and line.split()[-1]!='lo' "
+        "for line in ipv6): sys.exit(73)\n"
         "s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(1)\n"
         "c=socket.socket(); c.connect(s.getsockname()); a,_=s.accept()\n"
         "a.close(); c.close(); s.close()\n"
-        "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_STREAM)\n"
-        "left.send(b'local-ipc'); "
-        "payload=right.recv(64); left.close(); right.close()\n"
-        "if payload != b'local-ipc': sys.exit(80)\n"
+        "for kind in (socket.SOCK_STREAM,"
+        "socket.SOCK_STREAM|socket.SOCK_NONBLOCK,"
+        "socket.SOCK_STREAM|socket.SOCK_CLOEXEC,"
+        "socket.SOCK_STREAM|socket.SOCK_NONBLOCK|socket.SOCK_CLOEXEC):\n"
+        " left,right=socket.socketpair(socket.AF_UNIX,kind)\n"
+        " left.close(); right.close()\n"
         "try:\n"
         " socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
         "except OSError as exc:\n"
@@ -2323,24 +2394,44 @@ def containment_preflight(
         "seccomp.seccomp_syscall_resolve_name.restype=ctypes.c_int\n"
         "libc=ctypes.CDLL(None,use_errno=True)\n"
         "libc.syscall.restype=ctypes.c_long\n"
-        "high_family=socket.AF_UNIX | (1 << 32)\n"
         "number=seccomp.seccomp_syscall_resolve_name(b'socket')\n"
-        "ctypes.set_errno(0)\n"
-        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
+        "for high_family in (socket.AF_INET|(1<<32),"
+        "socket.AF_INET6|(1<<32)):\n"
+        " ctypes.set_errno(0)\n"
+        " if libc.syscall(number,ctypes.c_ulonglong(high_family),"
         "socket.SOCK_STREAM,0) != -1 "
         "or ctypes.get_errno() != errno.EPERM:\n"
-        " sys.exit(89)\n"
-        "number=seccomp.seccomp_syscall_resolve_name(b'socketpair')\n"
-        "pair=(ctypes.c_int*2)()\n"
+        "  sys.exit(89)\n"
+        "vsock_family=getattr(socket,'AF_VSOCK',40)\n"
         "ctypes.set_errno(0)\n"
-        "if libc.syscall(number,ctypes.c_ulonglong(high_family),"
-        "socket.SOCK_DGRAM,0,pair) != -1 "
+        "if libc.syscall(number,vsock_family,socket.SOCK_STREAM,0) != -1 "
         "or ctypes.get_errno() != errno.EPERM:\n"
         " sys.exit(90)\n"
+        "number=seccomp.seccomp_syscall_resolve_name(b'socketpair')\n"
+        "pair=(ctypes.c_int*2)()\n"
+        "high_pair_family=socket.AF_UNIX | (1 << 32)\n"
+        "ctypes.set_errno(0)\n"
+        "if libc.syscall(number,ctypes.c_ulonglong(high_pair_family),"
+        "socket.SOCK_STREAM,0,pair) != -1 "
+        "or ctypes.get_errno() != errno.EPERM:\n"
+        " sys.exit(91)\n"
+        "for invalid_kind in (socket.SOCK_STREAM|(1<<12),"
+        "socket.SOCK_STREAM|(1<<32),socket.SOCK_DGRAM|(1<<32)):\n"
+        " ctypes.set_errno(0)\n"
+        " if libc.syscall(number,socket.AF_UNIX,"
+        "ctypes.c_ulonglong(invalid_kind),0,pair) != -1 "
+        "or ctypes.get_errno() != errno.EPERM:\n"
+        "  sys.exit(93)\n"
+        "for invalid_protocol in (1,1<<32):\n"
+        " ctypes.set_errno(0)\n"
+        " if libc.syscall(number,socket.AF_UNIX,socket.SOCK_STREAM,"
+        "ctypes.c_ulonglong(invalid_protocol),pair) != -1 "
+        "or ctypes.get_errno() != errno.EPERM:\n"
+        "  sys.exit(94)\n"
         "number=seccomp.seccomp_syscall_resolve_name(b'io_uring_setup')\n"
         "ctypes.set_errno(0)\n"
         "if libc.syscall(number,2,0) != -1 or ctypes.get_errno() != errno.EPERM:\n"
-        " sys.exit(82)\n"
+        " sys.exit(92)\n"
     ) % probe_name
     command = containment_namespace_command(
         (
@@ -2366,7 +2457,7 @@ def containment_preflight(
     return {
         "available": available,
         "mechanism": (
-            "linux-user-network-and-mount-namespace-loopback-only-unix-masked"
+            "linux-user-network-mount-pid-seccomp-inet-loopback-only"
         ),
         "command": list(command),
         "subprocess_egress_denied": available,
@@ -2383,10 +2474,15 @@ def containment_preflight(
         "loopback_inet_available": available,
         "external_inet_routes_absent": available,
         "inventoried_absolute_host_unix_sockets_masked": available,
+        "socket_family_allowlist_enforced": available,
+        "vsock_egress_denied": available,
+        "socket_family_high_bits_alias_denied": available,
         "pathname_unix_socket_creation_denied": available,
         "anonymous_unix_stream_socketpair_available": available,
         "unix_nonstream_socketpair_denied": available,
-        "unix_socket_high_bits_alias_denied": available,
+        "socketpair_family_allowlist_enforced": available,
+        "socketpair_family_high_bits_alias_denied": available,
+        "socketpair_type_flag_protocol_allowlist_enforced": available,
         "sigint_default_restored": available,
         "io_uring_setup_denied": available,
         "masked_unix_socket_count": len(sockets),
@@ -2639,9 +2735,9 @@ def validation_toolchain_inventory(
                 "path": str(seccomp_library),
                 "sha256": sha256_file(seccomp_library),
                 "purpose": (
-                    "deny pathname-capable Unix sockets, non-stream Unix "
-                    "socket pairs and io_uring setup before candidate "
-                    "execution"
+                    "allow socket creation only for network-namespaced IPv4 "
+                    "and IPv6, allow only anonymous Unix stream socket pairs, "
+                    "and deny io_uring setup before candidate execution"
                 ),
             }
         ],
@@ -3891,10 +3987,15 @@ def deterministic_attestation(
             "loopback_inet_available",
             "external_inet_routes_absent",
             "inventoried_absolute_host_unix_sockets_masked",
+            "socket_family_allowlist_enforced",
+            "vsock_egress_denied",
+            "socket_family_high_bits_alias_denied",
             "pathname_unix_socket_creation_denied",
             "anonymous_unix_stream_socketpair_available",
             "unix_nonstream_socketpair_denied",
-            "unix_socket_high_bits_alias_denied",
+            "socketpair_family_allowlist_enforced",
+            "socketpair_family_high_bits_alias_denied",
+            "socketpair_type_flag_protocol_allowlist_enforced",
             "sigint_default_restored",
             "io_uring_setup_denied",
             "effective_capabilities_dropped",
@@ -3936,10 +4037,17 @@ def deterministic_attestation(
             and network.get("loopback_inet_available")
             and network.get("external_inet_routes_absent")
             and network.get("inventoried_absolute_host_unix_sockets_masked")
+            and network.get("socket_family_allowlist_enforced")
+            and network.get("vsock_egress_denied")
+            and network.get("socket_family_high_bits_alias_denied")
             and network.get("pathname_unix_socket_creation_denied")
             and network.get("anonymous_unix_stream_socketpair_available")
             and network.get("unix_nonstream_socketpair_denied")
-            and network.get("unix_socket_high_bits_alias_denied")
+            and network.get("socketpair_family_allowlist_enforced")
+            and network.get("socketpair_family_high_bits_alias_denied")
+            and network.get(
+                "socketpair_type_flag_protocol_allowlist_enforced"
+            )
             and network.get("sigint_default_restored")
             and network.get("io_uring_setup_denied")
             and network.get("effective_capabilities_dropped")
@@ -5001,10 +5109,15 @@ def run_gate(args: argparse.Namespace) -> int:
                     "loopback_inet_available",
                     "external_inet_routes_absent",
                     "inventoried_absolute_host_unix_sockets_masked",
+                    "socket_family_allowlist_enforced",
+                    "vsock_egress_denied",
+                    "socket_family_high_bits_alias_denied",
                     "pathname_unix_socket_creation_denied",
                     "anonymous_unix_stream_socketpair_available",
                     "unix_nonstream_socketpair_denied",
-                    "unix_socket_high_bits_alias_denied",
+                    "socketpair_family_allowlist_enforced",
+                    "socketpair_family_high_bits_alias_denied",
+                    "socketpair_type_flag_protocol_allowlist_enforced",
                     "sigint_default_restored",
                     "io_uring_setup_denied",
                     "effective_capabilities_dropped",

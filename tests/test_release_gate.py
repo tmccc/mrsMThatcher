@@ -662,9 +662,17 @@ def test_subprocess_egress_preflight_uses_namespace(
     assert result["subprocess_egress_denied"] is True
     assert result["loopback_inet_available"] is True
     assert result["external_inet_routes_absent"] is True
+    assert result["socket_family_allowlist_enforced"] is True
+    assert result["vsock_egress_denied"] is True
+    assert result["socket_family_high_bits_alias_denied"] is True
     assert result["pathname_unix_socket_creation_denied"] is True
     assert result["anonymous_unix_stream_socketpair_available"] is True
     assert result["unix_nonstream_socketpair_denied"] is True
+    assert result["socketpair_family_allowlist_enforced"] is True
+    assert result["socketpair_family_high_bits_alias_denied"] is True
+    assert result[
+        "socketpair_type_flag_protocol_allowlist_enforced"
+    ] is True
     assert result["sigint_default_restored"] is True
     assert observed[0][:5] == (
         "unshare",
@@ -792,10 +800,17 @@ def test_real_containment_denies_candidate_and_git_mutation(
     assert result["loopback_inet_available"] is True
     assert result["external_inet_routes_absent"] is True
     assert result["inventoried_absolute_host_unix_sockets_masked"] is True
+    assert result["socket_family_allowlist_enforced"] is True
+    assert result["vsock_egress_denied"] is True
+    assert result["socket_family_high_bits_alias_denied"] is True
     assert result["pathname_unix_socket_creation_denied"] is True
     assert result["anonymous_unix_stream_socketpair_available"] is True
     assert result["unix_nonstream_socketpair_denied"] is True
-    assert result["unix_socket_high_bits_alias_denied"] is True
+    assert result["socketpair_family_allowlist_enforced"] is True
+    assert result["socketpair_family_high_bits_alias_denied"] is True
+    assert result[
+        "socketpair_type_flag_protocol_allowlist_enforced"
+    ] is True
     assert result["sigint_default_restored"] is True
     assert result["io_uring_setup_denied"] is True
     assert result["masked_unix_socket_paths"] == [
@@ -907,6 +922,66 @@ def test_containment_blocks_uninventoried_host_unix_socket(
         socket_path.unlink(missing_ok=True)
 
 
+def test_containment_enforces_socket_family_allowlists(tmp_path: Path) -> None:
+    repo = _git_repo(tmp_path)
+    script = (
+        "import ctypes,errno,socket\n"
+        "ipv4=socket.socket(socket.AF_INET,socket.SOCK_STREAM)\n"
+        "ipv4.bind(('127.0.0.1',0)); ipv4.close()\n"
+        "ipv6=socket.socket(socket.AF_INET6,socket.SOCK_STREAM)\n"
+        "ipv6.bind(('::1',0)); ipv6.close()\n"
+        "for kind in (socket.SOCK_STREAM,"
+        "socket.SOCK_STREAM|socket.SOCK_NONBLOCK,"
+        "socket.SOCK_STREAM|socket.SOCK_CLOEXEC,"
+        "socket.SOCK_STREAM|socket.SOCK_NONBLOCK|socket.SOCK_CLOEXEC):\n"
+        " left,right=socket.socketpair(socket.AF_UNIX,kind)\n"
+        " left.close(); right.close()\n"
+        "libc=ctypes.CDLL(None,use_errno=True); libc.syscall.restype=ctypes.c_long\n"
+        "seccomp=ctypes.CDLL(__import__('sys').argv[1])\n"
+        "seccomp.seccomp_syscall_resolve_name.argtypes=[ctypes.c_char_p]\n"
+        "seccomp.seccomp_syscall_resolve_name.restype=ctypes.c_int\n"
+        "socket_call=seccomp.seccomp_syscall_resolve_name(b'socket')\n"
+        "for family in (socket.AF_UNIX,getattr(socket,'AF_VSOCK',40),"
+        "getattr(socket,'AF_PACKET',17),socket.AF_INET|(1<<32),"
+        "socket.AF_INET6|(1<<32)):\n"
+        " ctypes.set_errno(0)\n"
+        " result=libc.syscall(socket_call,ctypes.c_ulonglong(family),"
+        "socket.SOCK_STREAM,0)\n"
+        " if result != -1 or ctypes.get_errno() != errno.EPERM: "
+        "raise SystemExit(90)\n"
+        "pair_call=seccomp.seccomp_syscall_resolve_name(b'socketpair')\n"
+        "pair=(ctypes.c_int*2)()\n"
+        "for family,kind,protocol in ("
+        "(socket.AF_UNIX|(1<<32),socket.SOCK_STREAM,0),"
+        "(socket.AF_UNIX,socket.SOCK_DGRAM|(1<<32),0),"
+        "(socket.AF_UNIX,socket.SOCK_STREAM|(1<<12),0),"
+        "(socket.AF_UNIX,socket.SOCK_STREAM|(1<<32),0),"
+        "(socket.AF_UNIX,socket.SOCK_STREAM,1),"
+        "(socket.AF_UNIX,socket.SOCK_STREAM,1<<32)):\n"
+        " ctypes.set_errno(0)\n"
+        " result=libc.syscall(pair_call,ctypes.c_ulonglong(family),"
+        "ctypes.c_ulonglong(kind),ctypes.c_ulonglong(protocol),pair)\n"
+        " if result != -1 or ctypes.get_errno() != errno.EPERM: "
+        "raise SystemExit(91)\n"
+    )
+    command = release_gate.containment_namespace_command(
+        (
+            sys.executable,
+            "-c",
+            script,
+            str(release_gate.seccomp_library_path()),
+        ),
+        candidate_root=repo,
+    )
+    result = release_gate._run(command, cwd=repo, check=False, timeout=10)
+    if result.returncode in {1, 75, 79} and (
+        b"Operation not permitted" in result.stdout
+        or b"mount point is not a directory" in result.stdout
+    ):
+        pytest.skip("OS containment unavailable on this test host")
+    assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
+
+
 def test_containment_restores_sigint_default_before_exec(tmp_path: Path) -> None:
     repo = _git_repo(tmp_path)
     script = (
@@ -1014,7 +1089,7 @@ def test_validation_toolchain_is_versioned_and_content_bound() -> None:
     containment = semantic["os_containment_dependencies"]
     assert len(containment) == 1
     assert containment[0]["purpose"].startswith(
-        "deny pathname-capable Unix sockets"
+        "allow socket creation only for network-namespaced IPv4 and IPv6"
     )
     seccomp_path = release_gate.seccomp_library_path()
     assert containment[0]["path"] == str(seccomp_path)
@@ -1064,10 +1139,15 @@ def test_deterministic_semantic_attestation_is_byte_identical() -> None:
             "loopback_inet_available": True,
             "external_inet_routes_absent": True,
             "inventoried_absolute_host_unix_sockets_masked": True,
+            "socket_family_allowlist_enforced": True,
+            "vsock_egress_denied": True,
+            "socket_family_high_bits_alias_denied": True,
             "pathname_unix_socket_creation_denied": True,
             "anonymous_unix_stream_socketpair_available": True,
             "unix_nonstream_socketpair_denied": True,
-            "unix_socket_high_bits_alias_denied": True,
+            "socketpair_family_allowlist_enforced": True,
+            "socketpair_family_high_bits_alias_denied": True,
+            "socketpair_type_flag_protocol_allowlist_enforced": True,
             "sigint_default_restored": True,
             "io_uring_setup_denied": True,
             "effective_capabilities_dropped": True,

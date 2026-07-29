@@ -32,14 +32,19 @@ AF_UNIX endpoints visible in `/proc/net/unix`, verifies them with a
 non-following stat, and mount-masks those inventoried endpoints with
 `/dev/null`. This is defence in depth rather than the completeness boundary:
 relative kernel names and endpoints created after inventory cannot be
-enumerated reliably. A content-bound libseccomp filter therefore denies every
-pathname-capable `socket(AF_UNIX, ...)` call. It allows only anonymous AF_UNIX
-stream `socketpair` IPC, which preserves asyncio wakeup pipes and local
-test-process communication, and denies non-stream AF_UNIX socket pairs. The
-same filter denies `io_uring_setup`. The network namespace retains loopback
-while exposing no external route. The bootstrap restores `SIGINT` to its
-default disposition immediately before executing candidate code, avoiding the
-ignored-signal state inherited from `unshare --pid --fork`. The complete
+enumerated reliably. A content-bound libseccomp filter therefore allows
+`socket()` only for IPv4 and IPv6 inside the route-isolated network namespace;
+host-capable families such as AF_UNIX and AF_VSOCK are denied. It allows only
+anonymous AF_UNIX stream `socketpair` IPC, which preserves asyncio wakeup pipes
+and local test-process communication, with only the standard `CLOEXEC` and
+`NONBLOCK` flags and protocol zero. Every other socket-pair family, type, flag
+or protocol is denied. The same filter denies `io_uring_setup`. The network
+namespace retains loopback while exposing no external route. The preflight
+uses raw syscalls to prove that high-bit family and type aliases cannot evade
+either allowlist.
+The bootstrap restores `SIGINT` to its default disposition immediately before
+executing candidate code, avoiding the ignored-signal state inherited from
+`unshare --pid --fork`. The complete
 toolchain identity is recomputed after validation. Validation stdin is always
 `/dev/null`; no caller-supplied descriptor is inherited as standard input.
 
