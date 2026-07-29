@@ -1825,6 +1825,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_simulate_regular_post_futures.py`
 - `tests/test_unit_helpers.py`
 - `tests/test_production_consistency_incident.py`
+- `tests/test_image_quote_shortlist_rerank.py`
+- `tests/test_quote_image_metadata_remediation.py`
+- `tests/test_semantic_veto_new_quote_adjudication.py`
 - `why_code_reviews_continue_to_find_major_problems.md`
 - `diagnosis_measurements.json`
 
@@ -1836,6 +1839,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_simulate_regular_post_futures.py`
 - `tests/test_unit_helpers.py`
 - `tests/test_production_consistency_incident.py`
+- `tests/test_image_quote_shortlist_rerank.py`
+- `tests/test_quote_image_metadata_remediation.py`
+- `tests/test_semantic_veto_new_quote_adjudication.py`
 - `why_code_reviews_continue_to_find_major_problems.md`
 - `diagnosis_measurements.json`
 
@@ -1845,10 +1851,13 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_historical_context_packet_corrections.py::test_core_loader_returns_validated_raw_corpus_without_context_sidecars`
 - `tests/test_unit_helpers.py::test_receipt_write_failure_emergency_persistence_attempts_all_components`
 - `tests/test_production_consistency_incident.py::test_outbox_outcome_write_failure_latches_retry_after_durable_claim`
+- `tests/test_image_quote_shortlist_rerank.py::test_corpus_backed_shortlists_are_complete_deterministic_and_exclude_unresolved`
+- `tests/test_quote_image_metadata_remediation.py::test_paid_judgement_reuse_is_limited_to_byte_identical_semantic_inputs`
+- `tests/test_semantic_veto_new_quote_adjudication.py::test_complete_manifest_build_is_byte_identical`
 
 **Commands.**
 
-- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py tests/test_historical_context_packet_corrections.py tests/test_simulate_regular_post_futures.py tests/test_production_consistency_incident.py` — Exercise current production-shaped fixtures and representative adversarial transaction/evidence boundaries.
+- `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_runtime_ordinary_eligibility_integrity.py tests/test_historical_context_packet_corrections.py tests/test_simulate_regular_post_futures.py tests/test_production_consistency_incident.py tests/test_image_quote_shortlist_rerank.py tests/test_quote_image_metadata_remediation.py tests/test_semantic_veto_new_quote_adjudication.py` — Exercise current production-shaped fixtures and representative adversarial transaction/evidence boundaries.
 
 **Known gaps.**
 
