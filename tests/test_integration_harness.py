@@ -1077,7 +1077,6 @@ def test_runtime_disabled_normal_lane_consumes_check_interval(tmp_path: Path) ->
     ("scenario", "expected_id", "expected_state_key"),
     [
         ("grok_skip.json", "130", "last_seen_mention_id"),
-        ("reply_not_allowed_403.json", "190", "replied_to_ids"),
     ],
 )
 def test_non_posting_normal_lane_outcomes_consume_check_interval(
@@ -1120,10 +1119,8 @@ def test_non_posting_normal_lane_outcomes_consume_check_interval(
         assert server.path_counts.get("/2/users/12345/mentions") == 1
         state = read_json(base_dir / "bot_state.json")
         assert state["last_reply_check_epoch"] == 2_000_000_000
-        if expected_state_key == "last_seen_mention_id":
-            assert state["last_seen_mention_id"] == expected_id
-        else:
-            assert expected_id in state[expected_state_key]
+        assert expected_state_key == "last_seen_mention_id"
+        assert state["last_seen_mention_id"] == expected_id
     finally:
         server.stop()
 
@@ -4288,17 +4285,21 @@ def test_daily_meme_post_missing_created_post_id_fails_without_recording_or_resc
 
 
 @pytest.mark.parametrize("fake_server", ["made_with_ai_retry.json"], indirect=True)
-def test_made_with_ai_post_failure_retries_without_flag(tmp_path: Path, fake_server: FakeApiServer) -> None:
+def test_made_with_ai_post_rejection_is_not_retried_without_provider_contract(
+    tmp_path: Path,
+    fake_server: FakeApiServer,
+) -> None:
     base_dir = prepare_base_dir(tmp_path, local_config={"MARK_AI_REPLIES_AS_AI": True})
     result = run_cycle(base_dir, fake_server)
 
     assert result.returncode == 0, result.stderr + result.stdout
-    assert fake_server.path_counts["/2/tweets"] == 2
-    assert len(fake_server.posts) == 1
-    assert "made_with_ai" not in fake_server.posts[0]
-    assert fake_server.posts[0]["reply"]["in_reply_to_tweet_id"] == "180"
+    assert fake_server.path_counts["/2/tweets"] == 1
+    assert fake_server.posts == []
     state = read_json(base_dir / "bot_state.json")
-    assert "180" in state["replied_to_ids"]
+    assert "180" not in state.get("replied_to_ids", [])
+    receipt = read_json(base_dir / "confirmed_reply_receipt.json")
+    assert receipt["lifecycle_state"] == "sending"
+    assert receipt["target_id"] == "180"
 
 
 def test_made_with_ai_network_failure_does_not_retry_ambiguous_post(tmp_path: Path) -> None:
@@ -4325,18 +4326,24 @@ def test_made_with_ai_network_failure_does_not_retry_ambiguous_post(tmp_path: Pa
 
 
 @pytest.mark.parametrize("fake_server", ["reply_not_allowed_403.json"], indirect=True)
-def test_reply_not_allowed_403_marks_mention_handled_without_consuming_quota(tmp_path: Path, fake_server: FakeApiServer) -> None:
+def test_reply_not_allowed_403_remains_ambiguous_and_unhandled(
+    tmp_path: Path,
+    fake_server: FakeApiServer,
+) -> None:
     base_dir = prepare_base_dir(tmp_path)
     result = run_cycle(base_dir, fake_server)
 
     assert result.returncode == 0, result.stderr + result.stdout
     assert fake_server.posts == []
     state = read_json(base_dir / "bot_state.json")
-    assert "190" in state["replied_to_ids"]
+    assert "190" not in state["replied_to_ids"]
     assert state["daily_reply_count"] == 0
     assert state["x_error_epochs"] == []
     assert state["x_write_error_epochs"] == []
-    assert state["reply_evaluation_records"]["190"]["outcome"] == "reply_not_permitted"
+    assert "reply_evaluation_records" not in state
+    marker = read_json(base_dir / "ambiguous_post_outcome.json")
+    assert marker["outcome"] == "ambiguous_remote_post"
+    assert marker["reply_to_id"] == "190"
 
 
 @pytest.mark.parametrize("fake_server", ["non_json_mentions.json"], indirect=True)

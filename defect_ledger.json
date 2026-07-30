@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger, avoiding a self-referential final-commit hash."
+      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The b6dcd17 lineage was never deployed and its transaction-assurance conclusion is superseded by the later schedule-finalisation and generic-4xx findings; the replacement candidate remains external until frozen."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, a final schedule/outcome remediation commit must replace the external unknown fix identities and bind its committed regression tests before any post-merge assurance claim."
     }
   },
   "external_evidence": [
@@ -2764,7 +2764,7 @@
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "The separately frozen remediation candidate persists an exact single-use sending record before X, but that candidate lies beyond this ledger evidence cut-off and must be supplied and validated externally."
+        "summary": "The b6dcd17 candidate persisted an exact single-use sending record before X, but it was never deployed and its broader transaction-assurance conclusion is superseded by later schedule-finalisation and generic-4xx findings. Any replacement candidate remains external to this ledger evidence cut-off until frozen and independently attested."
       },
       "deployment": {
         "state": "not-applicable",
@@ -2795,7 +2795,9 @@
         "superseded_by": [],
         "related": [
           "DEF-0003",
-          "DEF-0004"
+          "DEF-0004",
+          "DEF-0027",
+          "DEF-0029"
         ]
       }
     },
@@ -2860,7 +2862,7 @@
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "The separately frozen remediation candidate persists an exact single-use meme sending record before X, but that candidate lies beyond this ledger evidence cut-off and must be supplied and validated externally."
+        "summary": "The b6dcd17 candidate persisted an exact single-use meme sending record before X, but it was never deployed and its broader transaction-assurance conclusion is superseded by later schedule-finalisation, same-day-barrier and generic-4xx findings. Any replacement candidate remains external to this ledger evidence cut-off until frozen and independently attested."
       },
       "deployment": {
         "state": "not-applicable",
@@ -2891,7 +2893,9 @@
         "superseded_by": [],
         "related": [
           "DEF-0003",
-          "DEF-0004"
+          "DEF-0004",
+          "DEF-0028",
+          "DEF-0029"
         ]
       }
     },
@@ -2996,6 +3000,313 @@
         "superseded_by": [],
         "related": [
           "DEF-0019"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0027",
+      "title": "Confirmed regular posts could lose their bounded schedule plan",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "independent-review-regular-schedule-finalisation",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "regular quote/image posting transaction",
+        "regular and meme schedule finalisation",
+        "confirmed-post receipt reconciliation"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "scheduler-recovery"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "Source review and synthetic fault injection established the repeatable path; no live duplicate or out-of-bound schedule incident was established.",
+        "explanation": "This is a repeatable production-code defect demonstrated offline rather than a confirmed production incident."
+      },
+      "summary": "After X confirmed a regular post, the transaction stored the protected post state before durably preserving the already-selected 35-to-75-minute meme delay and next-quote time. A later schedule-helper failure could therefore leave reconciliation without the original plan, allowing the main loop to substitute a different fallback.",
+      "impact": "The remote post remained confirmed, but its exact before/after cycle history and bounded follow-up schedule were not fully recoverable. A retry could use a different delay or suppress the wrong lane instead of deterministically completing the original transaction.",
+      "introduced": {
+        "first_bad_commit": "9ae7e0f23b1b3d993006081252d9f0cddccbdc99",
+        "last_known_good_commit": "fb0e521a4ba9383f61590aec0b6050d13e175665",
+        "affected_range": "inclusive:9ae7e0f23b1b3d993006081252d9f0cddccbdc99..02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "confidence": "exact",
+        "explanation": "Git history shows 9ae7e0f introduced the post-confirmation receipt finalisation sequence; its parent fb0e521 lacked that sequence. The evidence-cut-off implementation did not durably bind the selected schedule plan before fallible finalisation."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-30",
+          "event": "Independent source review and schedule-helper fault injection established loss of the selected post-confirmation schedule plan.",
+          "commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+          "evidence": "Direct current-master source review with focused synthetic regression design"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-30",
+        "reviewed_revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "scope": "Regular-post confirmation through protected-state save, schedule finalisation and receipt retirement, including injected local schedule-helper failure.",
+        "exclusions": "The review did not call X, mutate live schedules or establish a production incident.",
+        "source": "Independent follow-up review of the b6dcd17 transaction-assurance lineage"
+      },
+      "detection": {
+        "date": "2026-07-30",
+        "revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "method": "Trace the selected schedule values across the confirmed receipt and inject an exception in each post-confirmation schedule mutation.",
+        "reproducer": "Confirm a synthetic regular post, fail a schedule helper after protected state is saved, then reconcile and observe that the originally selected schedule plan is unavailable.",
+        "source": "Direct source inspection and focused offline regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The in-progress external candidate records the selected schedule plan durably before fallible finalisation and retries only local schedule materialisation, but no committed fix exists at this ledger evidence cut-off."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-30T08:00:00+01:00",
+        "evidence": "The b6dcd17 candidate was never deployed. Fresh read-only preflight observed production at be882e8, which predates any committed repair for this finding."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. Closure requires a frozen candidate with committed schedule-finalisation regressions, exact external attestation and post-merge ledger regeneration.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "02f9d2b:mrsMThatcher2.py",
+          "claim": "The confirmed regular transaction did not durably retain the selected schedule plan before fallible schedule mutation and receipt retirement."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The replacement candidate is still external and uncommitted relative to this ledger evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0024",
+          "DEF-0028",
+          "DEF-0029"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0028",
+      "title": "Meme schedule fallback could permit a second meme on the same local date",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "independent-review-meme-same-day-schedule-barrier",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "daily meme posting transaction",
+        "meme schedule finalisation",
+        "same-local-date posting barrier"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "daily-meme-post",
+        "scheduler-recovery"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "Source review and a synthetic same-date schedule failure established the repeatable path; no second live meme was attributed to it.",
+        "explanation": "The defect is repeatable offline, but the repository evidence does not establish that it caused a production duplicate."
+      },
+      "summary": "After a confirmed meme post, a schedule-finalisation failure could fall back to one hour later on the same Europe/London date. The lane relied on next-run timing and image-history duplication checks rather than an independent durable same-date barrier.",
+      "impact": "A different eligible meme could be created later on the same local date, violating the one-daily-meme transaction boundary despite the first meme being fully confirmed.",
+      "introduced": {
+        "first_bad_commit": "9ae7e0f23b1b3d993006081252d9f0cddccbdc99",
+        "last_known_good_commit": "fb0e521a4ba9383f61590aec0b6050d13e175665",
+        "affected_range": "inclusive:9ae7e0f23b1b3d993006081252d9f0cddccbdc99..02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "confidence": "exact",
+        "explanation": "Git history shows 9ae7e0f introduced the confirmed meme receipt and fallback schedule sequence while its parent lacked it; the fallback did not guarantee the next local date."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-30",
+          "event": "Independent source review reproduced a confirmed morning meme followed by same-date fallback eligibility for a different image.",
+          "commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+          "evidence": "Direct current-master source review with focused synthetic regression design"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-30",
+        "reviewed_revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "scope": "Meme confirmation, schedule-helper failure, fallback scheduling and same-local-date eligibility.",
+        "exclusions": "The review did not call X, mutate live meme state or establish a production incident.",
+        "source": "Independent follow-up review of the b6dcd17 transaction-assurance lineage"
+      },
+      "detection": {
+        "date": "2026-07-30",
+        "revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "method": "Confirm a synthetic morning meme, fail post-confirmation schedule finalisation, persist the one-hour fallback and evaluate the lane later on the same local date.",
+        "reproducer": "A confirmed 08:00 meme followed by a persisted 09:00 same-date fallback permits another eligible image unless an independent same-date barrier is checked.",
+        "source": "Direct source inspection and focused offline regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The in-progress external candidate records next-local-date meme scheduling and checks durable current-cycle history before any create, but no committed fix exists at this ledger evidence cut-off."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-30T08:00:00+01:00",
+        "evidence": "The b6dcd17 candidate was never deployed. Fresh read-only preflight observed production at be882e8, which predates any committed repair for this finding."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. Closure requires a frozen candidate with committed same-date and schedule-finalisation regressions, exact external attestation and post-merge ledger regeneration.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "02f9d2b:mrsMThatcher2.py",
+          "claim": "The confirmed meme fallback could remain on the same local date and the lane lacked an independent durable same-date create barrier."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The replacement candidate is still external and uncommitted relative to this ledger evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0025",
+          "DEF-0027",
+          "DEF-0029"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0029",
+      "title": "Generic X create 3xx and 4xx outcomes were treated as definite non-success",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "independent-review-x-write-outcome-conservatism",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-API-001",
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "X create-response classification",
+        "regular and meme post receipts",
+        "conversational and historical-context reply receipts"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_outbox.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "Controlled synthetic response classification established repeatable retry exposure across all four create lanes; no live duplicate caused by a generic 3xx or 4xx response was established.",
+        "explanation": "This is a cross-lane production-code defect demonstrated offline rather than a confirmed live incident."
+      },
+      "summary": "The write lanes used selected HTTP status classes, including generic client errors, as proof that X had not accepted a create. A post-transmission HTTP response without a confirmed remote post identity does not establish non-success, and redirect following could also obscure the outcome.",
+      "impact": "Retiring or downgrading the sending receipt after an unproved 3xx or 4xx outcome could permit a retry of a create which X had already accepted, producing a duplicate regular post, meme or reply.",
+      "introduced": {
+        "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "confidence": "bounded",
+        "explanation": "The initial bot implementation exposed X create requests to ordinary exception/retry handling; later receipt work formalised status classification but did not establish a provider guarantee that generic 3xx or 4xx means the create was definitely not accepted."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-30",
+          "event": "Independent cross-lane review injected generic client-error and redirect outcomes and found that sending barriers could be retired or treated as safely retryable.",
+          "commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+          "evidence": "Direct current-master source review with focused synthetic regression design"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-30",
+        "reviewed_revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "scope": "All four X create lanes, redirect behaviour, response classification, durable sending barriers and retry eligibility.",
+        "exclusions": "The review did not call X and did not claim that a particular live response created a duplicate.",
+        "source": "Independent follow-up review of remote-write outcome assumptions"
+      },
+      "detection": {
+        "date": "2026-07-30",
+        "revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "method": "Inject a generic post-transmission 4xx and redirect into each create lane, inspect retained receipt state and attempt a retry.",
+        "reproducer": "For regular, meme, conversational-reply and historical-context create calls, return an unrecognised 4xx without a post ID; the evidence-cut-off code can treat the result as definite non-success rather than retaining an ambiguous sending barrier.",
+        "source": "Direct source inspection and focused offline regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The in-progress external candidate makes every unproved post-transmission outcome ambiguous by default, disables redirects for write requests and retains the sending barrier, but no committed fix exists at this ledger evidence cut-off."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-30T08:00:00+01:00",
+        "evidence": "No committed fixed repair exists at the ledger evidence cut-off. Fresh read-only preflight observed production at be882e8; no production or service mutation was authorised."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. Closure requires a frozen candidate with committed cross-lane generic-4xx and redirect regressions, exact external attestation and post-merge ledger regeneration.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "02f9d2b:mrsMThatcher2.py",
+          "claim": "The write outcome classifier and create lanes did not conservatively retain every unproved post-transmission 3xx or 4xx outcome."
+        },
+        {
+          "type": "code",
+          "reference": "02f9d2b:historical_context_outbox.py",
+          "claim": "Historical-context retry state depended on the same definite-versus-ambiguous outcome assumption."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier implementation with a proved conservative cross-lane response contract was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The replacement candidate is still external and uncommitted relative to this ledger evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0024",
+          "DEF-0025",
+          "DEF-0027",
+          "DEF-0028"
         ]
       }
     }

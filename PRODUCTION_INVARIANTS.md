@@ -600,16 +600,16 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — A durable sending receipt is written before transmission and atomically consumed into attempting state; uncertain outcomes remain blocking, while a valid response promotes the same record to the backward-compatible confirmed receipt. The attempt carries exact post-reset histories and recovery delays, and the confirmed receipt is not retired before protected state and the context disposition are durable.
+**Status.** `implemented` — A durable sending receipt is written before transmission and atomically consumed into attempting state. A valid remote response is first promoted to a confirmed pending-schedule receipt before any fallible local schedule materialisation; reconciliation derives the exact quote and meme schedules from the pre-send bound plan and never repeats the X create. Post-transmission HTTP status alone does not retire the attempt.
 
-**Verification.** `verified` — Tests use hard process exits at pre-request, remote-acceptance, response, confirmed-promotion, protected-state and receipt-retirement boundaries; they also exercise exact cycle-reset histories, strict definite-rejection classification, stable restart pause, legacy receipt compatibility and idempotent reconciliation.
+**Verification.** `verified` — Tests use hard process exits at pre-request, remote acceptance, pending-schedule promotion, protected state and receipt-retirement boundaries. They also exercise exact cycle-reset histories, schedule-materialisation failure and local-only retry, conservative generic-4xx handling, stable restart pause, legacy receipt compatibility and idempotent reconciliation.
 
 **Preconditions.**
 
 - Exactly one healthy process holds the instance lock and no unresolved conflicting meme, reply or regular receipt exists before preparation.
 - Any legacy schema-v1 receipt is inspected or reconciled before relying on exact schema-v2 after-state semantics.
 
-**Runtime-consumed artifacts.** `direct` — The regular receipt now represents both pre-send sending/attempting states and the established confirmed state; the histories and bot state represent its exact protected local after-state.
+**Runtime-consumed artifacts.** `direct` — The regular receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; the histories and bot state represent its exact protected local after-state.
 
 - `regular_post_receipt.json`
 - `lines_used.json`
@@ -620,17 +620,20 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
-- Before activation, inspect any deployed regular_post_receipt.json; an attempt in sending or attempting state requires manual reconciliation and must never be retried.
+- Before activation, inspect any deployed regular_post_receipt.json; sending, attempting or confirmed pending-schedule state must be reconciled without another X create.
 - Block deployment on invalid state and manually reconcile any schema-v1 receipt before relying on v2 exact replay.
 
 **Evidence references.**
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post` — Hard-process-loss coverage for the durable intent, remote acceptance, confirmed promotion, protected state and retirement boundaries.
+- `test` `tests/test_unit_helpers.py::test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure` — A confirmed pending-schedule receipt survives local materialisation failure and later reconciles without another remote create.
+- `test` `tests/test_unit_helpers.py::test_regular_schedule_failure_replays_exact_bound_meme_delay` — The exact pre-send quote and meme delays survive post-confirmation schedule failure and are replayed locally without another remote create.
+- `test` `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry` — A generic post-transmission 4xx preserves the exact attempt and blocks automatic retry.
 
-**Last verified commit.** `6d5608f23d3d529c8f68a318c8c8eb36ae5723c4` (`known`) — The durable pre-send implementation and cited hard-process-loss tests are frozen in this isolated repair commit; this is candidate evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The earlier 6d5608f/b6dcd17 candidate evidence did not cover schedule-finalisation or generic-4xx boundaries and was never deployed. The replacement candidate identity must be supplied by a later frozen external attestation.
 
-**Last verified tree.** `8806675e2084c1b60a5e584fc0cacd0b81d6451b` (`known`) — This is the exact tree of the isolated durable-transaction repair commit.
+**Last verified tree.** `unknown` (`unknown`) — No final replacement tree is embedded self-referentially in this registry; post-merge regeneration must bind the externally attested candidate and deployed observation.
 
 **Accepted residual risk.** `accepted` — At-most-once safety deliberately costs availability: a sending or attempting record with an uncertain remote outcome pauses every remote-write lane until an operator reconciles it. Automatic retry of that ambiguity is not accepted.
 
@@ -639,6 +642,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `mrsMThatcher2.py`
 - `tests/test_unit_helpers.py`
 - `tests/test_production_consistency_incident.py`
+- `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
@@ -651,12 +655,26 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_regular_hard_death_preserves_exact_post_reset_cycle_histories`
 - `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`
 - `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`
+- `tests/test_unit_helpers.py::test_regular_post_does_not_call_mutating_schedule_helpers_after_confirmation`
+- `tests/test_unit_helpers.py::test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`
+- `tests/test_unit_helpers.py::test_regular_schedule_failure_replays_exact_bound_meme_delay`
+- `tests/test_unit_helpers.py::test_schema_v2_regular_replay_does_not_invent_unbound_meme_schedule`
+- `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`
+- `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`
+- `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`
+- `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`
+- `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`
+- `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`
+- `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`
+- `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`
+- `tests/test_unit_helpers.py::test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane`
 - `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`
 - `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`
+- `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`, `tests/test_unit_helpers.py::test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_regular_hard_death_preserves_exact_post_reset_cycle_histories`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`, `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost` — Exercise durable pre-send intent, hard-death ambiguity retention, exact after-state, atomic confirmation and at-most-once restart behavior.
+- `pytest` — `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`, `tests/test_unit_helpers.py::test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_regular_hard_death_preserves_exact_post_reset_cycle_histories`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_regular_post_does_not_call_mutating_schedule_helpers_after_confirmation`, `tests/test_unit_helpers.py::test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`, `tests/test_unit_helpers.py::test_regular_schedule_failure_replays_exact_bound_meme_delay`, `tests/test_unit_helpers.py::test_schema_v2_regular_replay_does_not_invent_unbound_meme_schedule`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`, `tests/test_unit_helpers.py::test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane`, `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`, `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`, `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry` — Exercise durable pre-send intent, hard-death ambiguity retention, exact bound schedule after-state, pending-schedule recovery, conservative post-transmission status handling and at-most-once restart behavior.
 
 **Known gaps.**
 
@@ -674,16 +692,16 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The dedicated meme receipt is written in sending state before transmission, atomically consumed into attempting state, retained on uncertain outcomes and promoted to the backward-compatible confirmed state only after a valid response. It mutually excludes other main transactions and preserves confirmed-time scheduling.
+**Status.** `implemented` — The dedicated meme receipt is written before transmission, atomically consumed into attempting state and retained on uncertain outcomes. A valid response is promoted first to confirmed pending-schedule state; its next-local-date schedule is then materialised from the bound fallback policy. A same-local-date guard independently prevents a second daily meme, and post-transmission HTTP status alone does not retire the attempt.
 
-**Verification.** `verified` — Tests use hard process exits at pre-request, remote-acceptance, response, confirmed-promotion, protected-state and receipt-retirement boundaries; they also cover strict definite-rejection classification, stable restart pause, confirmed-state recovery, legacy receipts and future schedule validation.
+**Verification.** `verified` — Tests cover hard process exits across all transaction boundaries, pending-schedule materialisation failure and local-only retry, the same-local-date guard, conservative generic-4xx handling, stable restart pause, legacy receipts and a validated next-local-date schedule.
 
 **Preconditions.**
 
 - Exactly one healthy process holds the instance lock and no unresolved regular, meme or reply receipt exists before preparation.
 - The future meme schedule is receipt-compatible and derived from confirmed time.
 
-**Runtime-consumed artifacts.** `direct` — The meme receipt represents both pre-send sending/attempting states and the established confirmed state; bot state represents confirmed history and future scheduling.
+**Runtime-consumed artifacts.** `direct` — The meme receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; bot state represents confirmed history and the validated next-local-date schedule.
 
 - `meme_post_receipt.json`
 - `bot_state.json`
@@ -692,17 +710,21 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
-- Before activation, inspect any deployed meme_post_receipt.json; an attempt in sending or attempting state requires manual reconciliation and must never be retried.
-- Reject invalid, simultaneous, or non-future confirmed schedule state.
+- Before activation, inspect any deployed meme_post_receipt.json; sending, attempting or confirmed pending-schedule state must be reconciled without another X create.
+- Reject invalid, simultaneous, non-future or same-local-date post-confirmation meme schedule state.
 
 **Evidence references.**
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post` — Hard-process-loss coverage for both regular and meme durable transaction boundaries.
+- `test` `tests/test_unit_helpers.py::test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure` — A confirmed pending-schedule meme survives local materialisation failure and later reconciles to the bound next-local-date schedule.
+- `test` `tests/test_unit_helpers.py::test_meme_same_local_date_barrier_suppresses_second_remote_create` — The daily lane refuses a second remote create on the confirmed meme's local date.
+- `test` `tests/test_unit_helpers.py::test_confirmed_meme_receipt_write_failure_keeps_normal_schedule` — A post-confirmation receipt failure leaves a next-local-date fallback and restart refuses a different meme on the already-confirmed local date.
+- `test` `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry` — A generic post-transmission 4xx retains the meme attempt and prevents automatic retry.
 
-**Last verified commit.** `6d5608f23d3d529c8f68a318c8c8eb36ae5723c4` (`known`) — The durable pre-send implementation and cited hard-process-loss tests are frozen in this isolated repair commit; this is candidate evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The earlier 6d5608f/b6dcd17 candidate evidence omitted the same-local-date and schedule-finalisation boundaries and was never deployed. The replacement candidate identity must be supplied by a later frozen external attestation.
 
-**Last verified tree.** `8806675e2084c1b60a5e584fc0cacd0b81d6451b` (`known`) — This is the exact tree of the isolated durable-transaction repair commit.
+**Last verified tree.** `unknown` (`unknown`) — No final replacement tree is embedded self-referentially in this registry; post-merge regeneration must bind the externally attested candidate and deployed observation.
 
 **Accepted residual risk.** `accepted` — At-most-once safety deliberately costs availability: a sending or attempting record with an uncertain remote outcome pauses every remote-write lane until an operator reconciles it. Automatic retry of that ambiguity is not accepted.
 
@@ -710,6 +732,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `mrsMThatcher2.py`
 - `tests/test_unit_helpers.py`
+- `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
@@ -721,12 +744,23 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier`
 - `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`
 - `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`
+- `tests/test_unit_helpers.py::test_meme_same_local_date_barrier_suppresses_second_remote_create`
+- `tests/test_unit_helpers.py::test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`
+- `tests/test_unit_helpers.py::test_confirmed_meme_receipt_write_failure_keeps_normal_schedule`
+- `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`
+- `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`
+- `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`
+- `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`
+- `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`
+- `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`
+- `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`
 - `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`
 - `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`
+- `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`, `tests/test_unit_helpers.py::test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise meme pre-send durability, hard-death ambiguity retention, mutual exclusion, atomic confirmation and at-most-once replay.
+- `pytest` — `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`, `tests/test_unit_helpers.py::test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_meme_same_local_date_barrier_suppresses_second_remote_create`, `tests/test_unit_helpers.py::test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`, `tests/test_unit_helpers.py::test_confirmed_meme_receipt_write_failure_keeps_normal_schedule`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`, `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry` — Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay.
 
 **Known gaps.**
 
@@ -734,7 +768,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TXN-REPLY-001: Conversational-reply lifecycle and ambiguity barrier
 
-**Invariant.** Every conversational reply must durably bind lane, target, exact text, evidence, attempt time, pagination provenance when relevant, and confirmation time through prepared, sending, and confirmed states; unresolved sending state blocks every remote-write lane.
+**Invariant.** Every conversational reply must durably bind lane, target, exact text, evidence, attempt time, pagination provenance when relevant, and confirmation time through prepared, sending, and confirmed states; unresolved sending state and every unproved post-transmission outcome block every remote-write lane.
 
 **Rationale.** Conversational-reply lifecycle and ambiguity barrier is explicit because a crash near the reply request can duplicate a reply, apply confirmation-time accounting incorrectly, or advance pagination beyond an unreconciled target.
 
@@ -744,9 +778,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The versioned reply receipt is written before the request, promoted after confirmation, semantically validated, and reconciled before new remote writes.
+**Status.** `implemented` — The versioned reply receipt is written before the request, promoted after confirmation, semantically validated, and reconciled before new remote writes. A post-transmission HTTP status is treated as ambiguous unless a separately bound provider contract proves non-success; the sending receipt remains and prevents retry.
 
-**Verification.** `verified` — Tests cover durable pre-send state, v4 timing semantics, pagination provenance, global lane blocking, restart replay, and idempotent reconciliation.
+**Verification.** `verified` — Tests cover durable pre-send state, v4 timing semantics, pagination provenance, generic-4xx ambiguity retention, global lane blocking, restart replay and idempotent reconciliation.
 
 **Preconditions.**
 
@@ -769,10 +803,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write` — Focused automated evidence for the principal recorded boundary.
+- `test` `tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry` — A generic post-transmission 4xx retains the exact sending receipt and blocks a second reply create.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The production baseline and unactivated b6dcd17 candidate did not establish conservative generic-4xx handling. The replacement candidate identity must be supplied by a later frozen external attestation.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `unknown` (`unknown`) — The final replacement tree is intentionally external to this committed registry; no deployment or loaded-process claim is made.
 
 **Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
 
@@ -781,6 +816,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `mrsMThatcher2.py`
 - `reply_strategy.py`
 - `tests/test_unit_helpers.py`
+- `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
@@ -792,10 +828,12 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write`
 - `tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation`
 - `tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent`
+- `tests/test_unit_helpers.py::test_generic_reply_rejection_preserves_sending_receipt`
+- `tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write`, `tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation`, `tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent` — Exercise reply receipt ordering, global ambiguity blocking, and idempotent recovery.
+- `pytest` — `tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write`, `tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation`, `tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent`, `tests/test_unit_helpers.py::test_generic_reply_rejection_preserves_sending_receipt`, `tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry` — Exercise reply receipt ordering, conservative post-transmission status handling, global ambiguity blocking and idempotent recovery.
 
 **Known gaps.**
 
@@ -803,7 +841,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TXN-HCTX-001: Historical-context reply at-most-once transaction
 
-**Invariant.** A historical-context reply must persist a sending barrier before its remote request, reconcile confirmed history without reposting, retain ambiguity when receipt or history persistence fails, and reject malformed or conflicting receipt/history state.
+**Invariant.** A historical-context reply must persist a sending barrier before its remote request, reconcile confirmed history without reposting, retain ambiguity when receipt or history persistence fails or a post-transmission outcome is unproved, and reject malformed or conflicting receipt/history state.
 
 **Rationale.** Historical-context reply at-most-once transaction is explicit because an optional context reply can be duplicated or its ambiguous outcome can be hidden by policy disablement, missing packets, or later main-post work.
 
@@ -813,9 +851,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The context store uses separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips.
+**Status.** `implemented` — The context store uses separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips. Generic post-transmission HTTP errors retain the sending barrier and cannot be converted into terminal context state.
 
-**Verification.** `verified` — Tests cover restart reconciliation, duplicate prevention, receipt-write failure, malformed state, and ambiguity that remains visible across policy and packet failures.
+**Verification.** `verified` — Tests cover restart reconciliation, duplicate prevention, receipt-write failure, malformed state, generic-4xx ambiguity retention, and ambiguity that remains visible across policy and packet failures.
 
 **Preconditions.**
 
@@ -838,10 +876,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `historical_context_formatter.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_historical_context_reply.py::test_transactional_receipt_resume_and_duplicate_prevention` — Focused automated evidence for the principal recorded boundary.
+- `test` `tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry` — A generic post-transmission 4xx preserves the context sending barrier and prevents automatic retry or terminal misclassification.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The production baseline and unactivated b6dcd17 candidate did not establish conservative generic-4xx handling. The replacement candidate identity must be supplied by a later frozen external attestation.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `unknown` (`unknown`) — The final replacement tree is intentionally external to this committed registry; no deployment or loaded-process claim is made.
 
 **Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
 
@@ -850,10 +889,12 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `historical_context_formatter.py`
 - `historical_context_outbox.py`
 - `mrsMThatcher2.py`
+- `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
 - `historical_context_formatter.py`
+- `historical_context_outbox.py`
 - `mrsMThatcher2.py`
 
 **Verification tests.**
@@ -861,10 +902,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_historical_context_reply.py::test_transactional_receipt_resume_and_duplicate_prevention`
 - `tests/test_historical_context_reply.py::test_confirmed_receipt_write_failure_leaves_sending_barrier`
 - `tests/test_historical_context_reply_semantic_gate.py::test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate`
+- `tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_historical_context_reply.py`, `tests/test_historical_context_reply_semantic_gate.py` — Exercise context reply durability, ambiguity preservation, and gate-independent reconciliation.
+- `pytest` — `tests/test_historical_context_reply.py`, `tests/test_historical_context_reply_semantic_gate.py`, `tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry` — Exercise context reply durability, conservative post-transmission status handling, ambiguity preservation and gate-independent reconciliation.
 
 **Known gaps.**
 
@@ -1009,7 +1051,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TXN-RECEIPT-001: Global receipt compatibility and unambiguous remote-write barrier
 
-**Invariant.** Malformed, duplicate-key, unsupported, simultaneous, or unresolved transaction receipts and ambiguous remote outcomes must fail closed before any new remote write; a receipt may be removed only after every protected durable local transition completes.
+**Invariant.** Malformed, duplicate-key, unsupported, simultaneous, or unresolved transaction receipts and ambiguous remote outcomes must fail closed before any new remote write; HTTP status alone must never prove a transmitted create did not succeed; and a receipt may be removed only after every protected durable local transition completes.
 
 **Rationale.** Global receipt compatibility and unambiguous remote-write barrier is explicit because a later lane can post while an earlier outcome is unknown, overwrite recovery evidence, retire the only durable barrier before local commit is complete, or interpret a visually ambiguous duplicate-key receipt by last-wins ordering.
 
@@ -1019,9 +1061,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `mixed` — Malformed and incompatible receipts block writes, but duplicate JSON object names are not yet rejected before semantic validation.
 
-**Status.** `partial` — Global pre-write checks include ambiguity markers and reply receipts, main receipts are mutually exclusive, validators reject unsupported values, and removal follows protected writes. Safety JSON readers still use a decoder that accepts duplicate object names.
+**Status.** `partial` — Global pre-write checks include ambiguity markers and reply receipts, main receipts are mutually exclusive, confirmed main identity is promoted before fallible schedule work, and generic post-transmission status errors preserve the relevant barrier. Safety JSON readers still use a decoder that accepts duplicate object names.
 
-**Verification.** `partial` — Tests cover ambiguity marker failure, every-lane blocking, simultaneous main receipts, semantic receipt rejection, and protected save ordering, but there is no duplicate-name receipt regression.
+**Verification.** `partial` — Tests cover ambiguity marker failure, every-lane blocking, simultaneous main receipts, pending-schedule recovery, generic-4xx retention in all four create lanes, semantic receipt rejection and protected save ordering, but there is no duplicate-name receipt regression.
 
 **Preconditions.**
 
@@ -1047,10 +1089,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_followup_fail_safe_hardening.py::test_ambiguous_remote_post_blocks_process_when_marker_write_fails` — Focused automated evidence for the principal recorded boundary.
 - `report` `defect_ledger.json#DEF-0017` — Evidence-cut-off defect or assurance record linked to this invariant.
+- `test` `tests/test_x_write_outcome_conservatism.py` — All four X create lanes preserve their durable barrier when a generic post-transmission 4xx leaves remote success unproved.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The production baseline and unactivated b6dcd17 candidate did not cover the newly reviewed pending-schedule and generic-4xx boundaries. The replacement candidate identity must be supplied by a later frozen external attestation.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `unknown` (`unknown`) — The final replacement tree is intentionally external to this committed registry; the duplicate-key gap remains explicitly partial.
 
 **Accepted residual risk.** `unaccepted` — No acceptance is recorded. Open risk: Receipt and state JSON decoding does not yet reject duplicate object names before semantic validation.
 
@@ -1059,6 +1102,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `mrsMThatcher2.py`
 - `tests/test_followup_fail_safe_hardening.py`
 - `tests/test_unit_helpers.py`
+- `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
@@ -1069,10 +1113,22 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_followup_fail_safe_hardening.py::test_ambiguous_remote_post_blocks_process_when_marker_write_fails`
 - `tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation`
 - `tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal`
+- `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`
+- `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`
+- `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`
+- `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`
+- `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`
+- `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`
+- `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`
+- `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`
+- `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry`
+- `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry`
+- `tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry`
+- `tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_followup_fail_safe_hardening.py`, `tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise the cross-lane ambiguity barrier, receipt compatibility, and safe retirement order.
+- `pytest` — `tests/test_followup_fail_safe_hardening.py`, `tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`, `tests/test_x_write_outcome_conservatism.py` — Exercise the cross-lane ambiguity barrier, pending-schedule compatibility, conservative post-transmission status handling and safe retirement order.
 
 **Known gaps.**
 
@@ -1304,7 +1360,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-API-001: Bounded requests and conservative write outcomes
 
-**Invariant.** Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, and classify timeout, transport failure, malformed success, or HTTP 5xx after a write attempt as ambiguous without automatic reposting.
+**Invariant.** Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, disable redirects for writes, and classify every unproved post-transmission response or failure—including generic HTTP 3xx, 4xx and 5xx—as ambiguous without automatic reposting.
 
 **Rationale.** Bounded requests and conservative write outcomes is explicit because shutdown can exceed the supervisor budget, or an uncertain remote write can be repeated and create duplicate public content.
 
@@ -1314,9 +1370,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The request timeout parser caps the total budget, urllib3 receives a combined total timeout, and write paths persist ambiguity instead of retrying uncertain requests.
+**Status.** `implemented` — The request timeout parser caps the total budget, urllib3 receives a combined total timeout, X create requests do not follow redirects, and write paths preserve their durable barrier for every post-transmission outcome not proved successful or definitely unsent.
 
-**Verification.** `verified` — Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, and prove ambiguous writes are not retried.
+**Verification.** `verified` — Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, generic non-2xx responses and redirects, and prove ambiguous writes and made-with-AI rejection text are not retried.
 
 **Preconditions.**
 
@@ -1339,10 +1395,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget` — Focused automated evidence for the principal recorded boundary.
+- `test` `tests/test_x_write_outcome_conservatism.py::test_x_create_non_success_is_ambiguous_by_default` — A generic X create non-success response is not treated as proof that no remote post exists.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The production baseline and unactivated b6dcd17 candidate did not establish conservative generic-4xx and redirect behavior. The replacement candidate identity must be supplied by a later frozen external attestation.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `unknown` (`unknown`) — The final replacement tree is intentionally external to this committed registry; no deployment or loaded-process claim is made.
 
 **Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
 
@@ -1352,6 +1409,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `mrsMThatcher.env.example`
 - `tests/test_unit_helpers.py`
 - `tests/test_integration_harness.py`
+- `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
@@ -1363,10 +1421,13 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget`
 - `tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget`
 - `tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post`
+- `tests/test_x_write_outcome_conservatism.py::test_x_create_non_success_is_ambiguous_by_default`
+- `tests/test_x_write_outcome_conservatism.py::test_x_create_redirect_is_not_followed_and_is_ambiguous`
+- `tests/test_x_write_outcome_conservatism.py::test_made_with_ai_generic_400_never_triggers_second_create`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget`, `tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget`, `tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post` — Exercise bounded total request time and non-retry of ambiguous writes.
+- `pytest` — `tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget`, `tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget`, `tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post`, `tests/test_x_write_outcome_conservatism.py` — Exercise bounded total request time, single-hop writes and non-retry of every unproved post-transmission outcome.
 
 **Known gaps.**
 

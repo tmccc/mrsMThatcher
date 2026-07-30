@@ -1713,20 +1713,18 @@ class RemoteOperationsPaused(RuntimeError):
 
 
 def api_error_proves_remote_non_success(error: BaseException) -> bool:
-    """Return whether X explicitly rejected a write before it could succeed."""
-    if not isinstance(error, ApiError) or isinstance(
-        error,
-        AmbiguousRemotePostOutcome,
-    ):
-        return False
-    status_code = getattr(error, "status_code", None)
-    return bool(
-        error.service == "x"
-        and error.request_method == "POST"
-        and error.request_path == "/2/tweets"
-        and type(status_code) is int
-        and 400 <= status_code < 500
-    )
+    """Return whether an X create is proved not to have succeeded remotely.
+
+    HTTP status alone is not an idempotency or reconciliation contract.  In
+    particular, the project has no provider-contract evidence which proves
+    that every ``POST /2/tweets`` 4xx response excludes an accepted write.
+    Only failures raised before transmission (for example
+    :class:`RemoteOperationsPaused`) may currently retire a durable attempt.
+    Keep this compatibility predicate fail-closed until a narrowly specified,
+    externally bound provider rejection contract exists.
+    """
+    del error
+    return False
 
 
 def require_remote_operation_unpaused(operation: str) -> None:
@@ -3109,6 +3107,12 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
     if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
         require_remote_operation_unpaused(f"X {method.upper()} {path}")
 
+    if ambiguous_write:
+        # A redirect can turn one create into an untracked follow-up request.
+        # Writes are therefore single-hop unless a future provider contract
+        # explicitly proves a redirect safe.
+        kwargs["allow_redirects"] = False
+
     try:
         response = requests.request(
             method,
@@ -3141,13 +3145,14 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
         response.headers.get("x-rate-limit-reset"),
     )
 
-    if response.status_code >= 400:
+    if not 200 <= response.status_code < 300:
         log.error("X API error %s: %s", response.status_code, response.text)
         reset_epoch = print_rate_limit_headers(response)
 
-        if ambiguous_write and 500 <= response.status_code < 600:
+        if ambiguous_write:
             raise AmbiguousRemotePostOutcome(
-                f"X may have accepted the write before returning HTTP {response.status_code}: {response.text}",
+                "X write outcome is not proved by HTTP status alone; "
+                f"received HTTP {response.status_code}: {response.text}",
                 service="x",
                 status_code=response.status_code,
                 reset_epoch=reset_epoch,
@@ -5084,6 +5089,7 @@ def create_post(
             not main_post_attempt_is_semantically_valid(
                 prepared_main_post_attempt
             )
+            or prepared_main_post_attempt.get("lifecycle_state") != "sending"
             or reply_to_id is not None
             or not media_ids
         ):
@@ -5139,6 +5145,13 @@ def create_post(
             service="x",
         )
 
+    if prepared_main_post_attempt is not None:
+        attempting = mark_main_post_attempt_attempting(
+            prepared_main_post_attempt
+        )
+        prepared_main_post_attempt.clear()
+        prepared_main_post_attempt.update(attempting)
+
     def validate_created_post_response(result: dict) -> dict:
         response_data = result.get("data") if isinstance(result, dict) else None
         post_id = response_data.get("id") if isinstance(response_data, dict) else None
@@ -5149,21 +5162,6 @@ def create_post(
             )
         return result
 
-    def made_with_ai_field_rejected(error: ApiError) -> bool:
-        status_code = getattr(error, "status_code", None)
-        if status_code not in {400, 422}:
-            return False
-
-        message = str(error).lower()
-        return "made_with_ai" in message
-
-    if prepared_main_post_attempt is not None:
-        attempting = mark_main_post_attempt_attempting(
-            prepared_main_post_attempt
-        )
-        prepared_main_post_attempt.clear()
-        prepared_main_post_attempt.update(attempting)
-
     try:
         result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
         validate_created_post_response(result)
@@ -5171,31 +5169,6 @@ def create_post(
         return result
     except AmbiguousRemotePostOutcome:
         record_ambiguous_remote_post(payload)
-        raise
-    except ApiError as exc:
-        if made_with_ai and made_with_ai_field_rejected(exc):
-            log.warning("Post failed because made_with_ai field was rejected; retrying without made_with_ai field")
-            payload.pop("made_with_ai", None)
-            if prepared_main_post_attempt is not None:
-                rebound_attempt = rebind_main_post_attempt_payload(
-                    prepared_main_post_attempt,
-                    payload,
-                )
-                prepared_main_post_attempt.clear()
-                prepared_main_post_attempt.update(rebound_attempt)
-                attempting = mark_main_post_attempt_attempting(
-                    prepared_main_post_attempt
-                )
-                prepared_main_post_attempt.clear()
-                prepared_main_post_attempt.update(attempting)
-            try:
-                result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
-                validate_created_post_response(result)
-            except AmbiguousRemotePostOutcome:
-                record_ambiguous_remote_post(payload)
-                raise
-            log.info("Created X post successfully after removing made_with_ai. response=%s", result)
-            return result
         raise
 
 
@@ -5833,13 +5806,105 @@ def main_post_attempt_payload(attempt: dict) -> dict:
     return payload
 
 
+BOUND_MEME_SCHEDULE_STATE_KEYS = {
+    "last_meme_post_epoch",
+    "next_meme_post_epoch",
+    "meme_schedule_version",
+    "next_meme_schedule_mode",
+    "next_meme_schedule_date",
+    "meme_anchor_quote_post_epoch",
+}
+
+# Schema-v4 recovery delays are data, not current configuration.  These
+# immutable format bounds keep old receipts readable across configuration
+# changes while rejecting corrupt plans that could suppress a lane for years.
+MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = 31 * 24 * 60 * 60
+
+
+def bound_meme_schedule_state(state: dict) -> dict:
+    """Capture the exact meme-schedule inputs bound before a regular X write."""
+    next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
+    next_mode = str(state.get("next_meme_schedule_mode", "") or "")
+    next_date = str(state.get("next_meme_schedule_date", "") or "")
+    schedule_version = int(state.get("meme_schedule_version", 0) or 0)
+    if next_epoch:
+        # Older state can predate the descriptive schedule fields.  Bind its
+        # effective fallback interpretation explicitly rather than leaving
+        # reconciliation dependent on later defaults.
+        next_mode = next_mode or "fallback"
+        next_date = next_date or safe_epoch_date_str(next_epoch)
+        schedule_version = schedule_version or MEME_SCHEDULE_VERSION
+    return {
+        "last_meme_post_epoch": int(state.get("last_meme_post_epoch", 0) or 0),
+        "next_meme_post_epoch": next_epoch,
+        "meme_schedule_version": schedule_version,
+        "next_meme_schedule_mode": next_mode,
+        "next_meme_schedule_date": next_date,
+        "meme_anchor_quote_post_epoch": int(
+            state.get("meme_anchor_quote_post_epoch", 0) or 0
+        ),
+    }
+
+
+def bound_meme_schedule_state_is_valid(value: object) -> bool:
+    """Return whether a pre-send meme-schedule snapshot is self-consistent."""
+    if not isinstance(value, dict) or set(value) != BOUND_MEME_SCHEDULE_STATE_KEYS:
+        return False
+    integer_keys = {
+        "last_meme_post_epoch",
+        "next_meme_post_epoch",
+        "meme_schedule_version",
+        "meme_anchor_quote_post_epoch",
+    }
+    if any(type(value.get(key)) is not int or int(value[key]) < 0 for key in integer_keys):
+        return False
+    if int(value["meme_schedule_version"]) > MEME_SCHEDULE_VERSION:
+        return False
+    next_epoch = int(value["next_meme_post_epoch"])
+    last_epoch = int(value["last_meme_post_epoch"])
+    anchor_epoch = int(value["meme_anchor_quote_post_epoch"])
+    if any(
+        epoch and not valid_receipt_epoch(epoch)
+        for epoch in (next_epoch, last_epoch, anchor_epoch)
+    ):
+        return False
+    mode = str(value["next_meme_schedule_mode"])
+    schedule_date = str(value["next_meme_schedule_date"])
+    if next_epoch:
+        if (
+            int(value["meme_schedule_version"]) < 1
+            or mode not in MEME_SCHEDULE_MODES
+            or not mode
+        ):
+            return False
+        if mode == "after_first_quote_after_midday":
+            if (
+                anchor_epoch <= 0
+                or next_epoch <= anchor_epoch
+                or schedule_date != safe_epoch_date_str(anchor_epoch)
+            ):
+                return False
+        elif (
+            anchor_epoch
+            or schedule_date != safe_epoch_date_str(next_epoch)
+        ):
+            return False
+    elif mode or schedule_date or anchor_epoch:
+        return False
+    return True
+
+
 def main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
     if not isinstance(data, dict):
         return False
     lane = str(data.get("lane") or "")
-    expected_schema = {"quote_image": 3, "daily_meme": 2}.get(lane)
-    if expected_schema is None or data.get("schema_version") != expected_schema:
+    supported_schemas = {
+        "quote_image": {3, 4},
+        "daily_meme": {2, 3},
+    }.get(lane)
+    schema_version = data.get("schema_version")
+    if supported_schemas is None or schema_version not in supported_schemas:
         return False
     if data.get("lifecycle_state") not in {"sending", "attempting"}:
         return False
@@ -5898,12 +5963,20 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             or int(selected["image_no"]) < 0
         ):
             return False
-        if set(recovery_plan) != {
+        expected_recovery_keys = {
             "quote_delay_seconds",
             "meme_delay_seconds",
             "quote_history_after",
             "image_history_after",
-        }:
+        }
+        if schema_version == 4:
+            expected_recovery_keys |= {
+                "meme_scheduling_enabled",
+                "meme_trigger_after_hour",
+                "meme_schedule_version",
+                "meme_schedule_before",
+            }
+        if set(recovery_plan) != expected_recovery_keys:
             return False
         quote_delay = recovery_plan.get("quote_delay_seconds")
         meme_delay = recovery_plan.get("meme_delay_seconds")
@@ -5911,14 +5984,14 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         image_history = recovery_plan.get("image_history_after")
         if (
             type(quote_delay) is not int
-            or not POST_SLEEP_MIN <= quote_delay <= POST_SLEEP_MAX
+            or not 0 < quote_delay <= MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS
             or (
                 meme_delay is not None
                 and (
                     type(meme_delay) is not int
-                    or not MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS
-                    <= meme_delay
-                    <= MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS
+                    or not 0
+                    < meme_delay
+                    <= MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS
                 )
             )
             or not isinstance(quote_history, list)
@@ -5943,11 +6016,53 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             )
         ):
             return False
+        if schema_version == 4 and (
+            type(recovery_plan.get("meme_scheduling_enabled")) is not bool
+            or type(recovery_plan.get("meme_trigger_after_hour")) is not int
+            or not 0 <= int(recovery_plan["meme_trigger_after_hour"]) <= 23
+            or type(recovery_plan.get("meme_schedule_version")) is not int
+            or not 1
+            <= int(recovery_plan["meme_schedule_version"])
+            <= MEME_SCHEDULE_VERSION
+            or not bound_meme_schedule_state_is_valid(
+                recovery_plan.get("meme_schedule_before")
+            )
+            or (
+                recovery_plan["meme_scheduling_enabled"]
+                and meme_delay is None
+            )
+            or (
+                not recovery_plan["meme_scheduling_enabled"]
+                and meme_delay is not None
+            )
+        ):
+            return False
     else:
+        expected_meme_keys = {"next_schedule_mode"}
+        if schema_version == 3:
+            expected_meme_keys |= {
+                "meme_schedule_version",
+                "fallback_hour",
+                "fallback_minute",
+            }
         if (
             set(selected) != {"meme_basename"}
             or not valid_receipt_basename(selected.get("meme_basename"))
-            or recovery_plan != {"next_schedule_mode": "fallback"}
+            or set(recovery_plan) != expected_meme_keys
+            or recovery_plan.get("next_schedule_mode") != "fallback"
+            or (
+                schema_version == 3
+                and (
+                    type(recovery_plan.get("meme_schedule_version")) is not int
+                    or not 1
+                    <= int(recovery_plan["meme_schedule_version"])
+                    <= MEME_SCHEDULE_VERSION
+                    or type(recovery_plan.get("fallback_hour")) is not int
+                    or not 0 <= int(recovery_plan["fallback_hour"]) <= 23
+                    or type(recovery_plan.get("fallback_minute")) is not int
+                    or not 0 <= int(recovery_plan["fallback_minute"]) <= 59
+                )
+            )
         ):
             return False
     payload = main_post_attempt_payload(data)
@@ -5987,8 +6102,24 @@ def build_main_post_attempt(
     payload["media"] = {"media_ids": [str(value) for value in media_ids]}
     if made_with_ai:
         payload["made_with_ai"] = True
+    legacy_plan = (
+        lane == "quote_image"
+        and set(recovery_plan) == {
+            "quote_delay_seconds",
+            "meme_delay_seconds",
+            "quote_history_after",
+            "image_history_after",
+        }
+    ) or (
+        lane == "daily_meme"
+        and recovery_plan == {"next_schedule_mode": "fallback"}
+    )
     attempt = {
-        "schema_version": 3 if lane == "quote_image" else 2,
+        "schema_version": (
+            (3 if legacy_plan else 4)
+            if lane == "quote_image"
+            else (2 if legacy_plan else 3)
+        ),
         "lifecycle_state": "sending",
         "lane": lane,
         "attempt_id": hashlib.sha256(os.urandom(32)).hexdigest(),
@@ -6038,50 +6169,6 @@ def write_main_post_attempt(attempt: dict) -> None:
         attempt["attempt_id"],
         path,
     )
-
-
-def rebind_main_post_attempt_payload(attempt: dict, payload: dict) -> dict:
-    """Durably bind a definite retry to its revised exact payload."""
-    path = main_post_attempt_path(attempt)
-    status, current = (
-        load_regular_post_receipt()
-        if path == REGULAR_POST_RECEIPT_FILE
-        else load_meme_post_receipt()
-    )
-    if status != "sending" or current != attempt:
-        raise AmbiguousRemotePostOutcome(
-            "Main-post sending receipt changed before a definite payload retry",
-            service="x",
-        )
-    rebound = {
-        **attempt,
-        "lifecycle_state": "sending",
-        "payload_revision": int(attempt["payload_revision"]) + 1,
-        "payload_sha256": canonical_remote_post_payload_sha256(payload),
-        "text": str(payload.get("text") or ""),
-        "text_sha256": hashlib.sha256(
-            str(payload.get("text") or "").encode("utf-8")
-        ).hexdigest(),
-        "media_ids": [
-            str(value)
-            for value in ((payload.get("media") or {}).get("media_ids") or [])
-        ],
-        "reply_to_id": str(
-            (payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""
-        ),
-        "made_with_ai": bool(payload.get("made_with_ai")),
-    }
-    if not main_post_attempt_is_semantically_valid(rebound):
-        raise RuntimeError("Rebound main-post attempt failed validation")
-    atomic_write_json(path, rebound, durable=True)
-    log.warning(
-        "Rebound main-post sending receipt lane=%s attempt_id=%s "
-        "payload_revision=%s",
-        rebound["lane"],
-        rebound["attempt_id"],
-        rebound["payload_revision"],
-    )
-    return rebound
 
 
 def mark_main_post_attempt_attempting(attempt: dict) -> dict:
@@ -6183,14 +6270,344 @@ def confirmed_receipt_matches_main_attempt(receipt: dict, attempt: dict) -> bool
     )
 
 
+def confirmed_pending_schedule_receipt_is_semantically_valid(
+    data: object,
+    *,
+    expected_lane: str | None = None,
+) -> bool:
+    """Validate a remote-confirmed receipt awaiting local schedule materialisation."""
+    if not isinstance(data, dict) or set(data) != {
+        "schema_version",
+        "receipt_type",
+        "post_id",
+        "confirmation_epoch",
+        "source_attempt",
+        "image_summary",
+    }:
+        return False
+    if (
+        type(data.get("schema_version")) is not int
+        or data.get("schema_version") != 1
+        or data.get("receipt_type") != "confirmed_pending_schedule"
+        or not valid_post_id(data.get("post_id"))
+        or not isinstance(data.get("image_summary"), str)
+    ):
+        return False
+    confirmation_epoch = receipt_int(data.get("confirmation_epoch"))
+    if confirmation_epoch is None or not valid_receipt_epoch(confirmation_epoch):
+        return False
+    attempt = data.get("source_attempt")
+    if (
+        not main_post_attempt_is_semantically_valid(attempt)
+        or attempt.get("lifecycle_state") != "attempting"
+        or attempt.get("schema_version")
+        not in (
+            {4} if attempt.get("lane") == "quote_image" else {3}
+        )
+        or confirmation_epoch < int(attempt["attempt_epoch"])
+    ):
+        return False
+    lane = str(attempt.get("lane") or "")
+    if expected_lane is not None and lane != expected_lane:
+        return False
+    if lane == "quote_image" and data["image_summary"]:
+        return False
+    return lane in {"quote_image", "daily_meme"}
+
+
+def build_confirmed_pending_schedule_receipt(
+    attempt: dict,
+    *,
+    post_id: str,
+    confirmation_epoch: int,
+    image_summary: str = "",
+) -> dict:
+    """Build a versioned confirmed receipt without deriving local schedules."""
+    if (
+        not main_post_attempt_is_semantically_valid(attempt)
+        or attempt.get("lifecycle_state") != "attempting"
+        or not valid_post_id(post_id)
+        or not valid_receipt_epoch(int(confirmation_epoch))
+        or int(confirmation_epoch) < int(attempt["attempt_epoch"])
+    ):
+        raise RuntimeError(
+            "Refusing an invalid main-post attempt or confirmation"
+        )
+    pending = {
+        "schema_version": 1,
+        "receipt_type": "confirmed_pending_schedule",
+        "post_id": str(post_id),
+        "confirmation_epoch": int(confirmation_epoch),
+        "source_attempt": copy.deepcopy(attempt),
+        "image_summary": str(image_summary),
+    }
+    if not confirmed_pending_schedule_receipt_is_semantically_valid(
+        pending,
+        expected_lane=str(attempt["lane"]),
+    ):
+        raise RuntimeError(
+            "Internal error: confirmed pending-schedule receipt is invalid"
+        )
+    return pending
+
+
+def confirmation_epoch_for_main_attempt(attempt: dict, observed_epoch: int) -> int:
+    """Return a confirmation epoch which cannot precede its durable attempt."""
+    attempt_epoch = int(attempt["attempt_epoch"])
+    observed_epoch = int(observed_epoch)
+    if observed_epoch < attempt_epoch:
+        log.warning(
+            "Wall clock moved backwards after X confirmation; clamping "
+            "confirmation epoch lane=%s attempt_id=%s observed=%s attempt=%s",
+            attempt.get("lane"),
+            attempt.get("attempt_id"),
+            observed_epoch,
+            attempt_epoch,
+        )
+        return attempt_epoch
+    return observed_epoch
+
+
+def promote_main_post_attempt_to_confirmed_pending_schedule(
+    attempt: dict,
+    *,
+    post_id: str,
+    confirmation_epoch: int,
+    image_summary: str = "",
+) -> dict:
+    """Atomically bind a confirmed remote identity before fallible local work."""
+    pending = build_confirmed_pending_schedule_receipt(
+        attempt,
+        post_id=post_id,
+        confirmation_epoch=confirmation_epoch,
+        image_summary=image_summary,
+    )
+    path = main_post_attempt_path(attempt)
+    status, current = (
+        load_regular_post_receipt()
+        if path == REGULAR_POST_RECEIPT_FILE
+        else load_meme_post_receipt()
+    )
+    if status != "sending" or current != attempt:
+        raise AmbiguousRemotePostOutcome(
+            "Main-post attempt changed before remote-confirmation promotion",
+            service="x",
+        )
+    if attempt["lane"] == "quote_image":
+        write_regular_post_receipt(pending)
+    else:
+        write_meme_post_receipt(pending)
+    log.warning(
+        "Promoted main-post attempt to confirmed pending-schedule receipt "
+        "lane=%s attempt_id=%s post_id=%s path=%s",
+        attempt["lane"],
+        attempt["attempt_id"],
+        post_id,
+        path,
+    )
+    return pending
+
+
+def materialize_bound_regular_schedule_receipt(pending: dict) -> dict:
+    """Build a full regular receipt solely from its durable bound plan."""
+    if not confirmed_pending_schedule_receipt_is_semantically_valid(
+        pending,
+        expected_lane="quote_image",
+    ):
+        raise InvalidRegularPostReceipt(
+            "Invalid confirmed regular pending-schedule receipt"
+        )
+    attempt = pending["source_attempt"]
+    selected = attempt["selected_identity"]
+    plan = attempt["recovery_plan"]
+    quote_post_epoch = int(pending["confirmation_epoch"])
+    next_quote_post_epoch = quote_post_epoch + int(plan["quote_delay_seconds"])
+    snapshot = copy.deepcopy(plan["meme_schedule_before"])
+    next_meme_post_epoch = int(snapshot["next_meme_post_epoch"])
+    next_meme_schedule_mode = str(snapshot["next_meme_schedule_mode"])
+    next_meme_schedule_date = str(snapshot["next_meme_schedule_date"])
+    meme_anchor_quote_post_epoch = int(snapshot["meme_anchor_quote_post_epoch"])
+    meme_schedule_version = int(snapshot["meme_schedule_version"])
+    meme_schedule_changed_by_quote = False
+
+    if bool(plan["meme_scheduling_enabled"]):
+        quote_dt = datetime.fromtimestamp(quote_post_epoch)
+        quote_date = quote_dt.strftime("%Y-%m-%d")
+        last_meme_epoch = int(snapshot["last_meme_post_epoch"])
+        meme_already_posted = bool(
+            last_meme_epoch
+            and safe_epoch_date_str(last_meme_epoch) == quote_date
+        )
+        already_anchored = bool(
+            next_meme_post_epoch
+            and next_meme_schedule_date == quote_date
+            and next_meme_schedule_mode == "after_first_quote_after_midday"
+        )
+        if (
+            quote_dt.hour >= int(plan["meme_trigger_after_hour"])
+            and not meme_already_posted
+            and not already_anchored
+        ):
+            next_meme_post_epoch = (
+                quote_post_epoch + int(plan["meme_delay_seconds"])
+            )
+            next_meme_schedule_mode = "after_first_quote_after_midday"
+            next_meme_schedule_date = quote_date
+            meme_anchor_quote_post_epoch = quote_post_epoch
+            meme_schedule_version = int(plan["meme_schedule_version"])
+            meme_schedule_changed_by_quote = True
+
+    receipt = {
+        "schema_version": 3,
+        "post_id": str(pending["post_id"]),
+        "quote_hash": str(selected["quote_hash"]),
+        "line_no": int(selected["line_no"]),
+        "source_line_number": int(selected["source_line_number"]),
+        "text": str(attempt["text"]),
+        "image_basename": str(selected["image_basename"]),
+        "image_no": int(selected["image_no"]),
+        "quote_post_epoch": quote_post_epoch,
+        "next_quote_post_epoch": next_quote_post_epoch,
+        "next_meme_post_epoch": next_meme_post_epoch,
+        "meme_schedule_version": meme_schedule_version,
+        "next_meme_schedule_mode": next_meme_schedule_mode,
+        "next_meme_schedule_date": next_meme_schedule_date,
+        "meme_anchor_quote_post_epoch": meme_anchor_quote_post_epoch,
+        "meme_schedule_changed_by_quote": meme_schedule_changed_by_quote,
+        "quote_history_after": list(plan["quote_history_after"]),
+        "image_history_after": list(plan["image_history_after"]),
+        "attempt_id": str(attempt["attempt_id"]),
+        "attempt_payload_sha256": str(attempt["payload_sha256"]),
+    }
+    if not regular_post_receipt_is_semantically_valid(receipt):
+        raise InvalidRegularPostReceipt(
+            "Bound regular schedule produced an invalid confirmed receipt"
+        )
+    return receipt
+
+
+def materialize_bound_meme_schedule_receipt(pending: dict) -> dict:
+    """Build a full meme receipt solely from its durable bound plan."""
+    if not confirmed_pending_schedule_receipt_is_semantically_valid(
+        pending,
+        expected_lane="daily_meme",
+    ):
+        raise InvalidMemePostReceipt(
+            "Invalid confirmed meme pending-schedule receipt"
+        )
+    attempt = pending["source_attempt"]
+    selected = attempt["selected_identity"]
+    plan = attempt["recovery_plan"]
+    meme_post_epoch = int(pending["confirmation_epoch"])
+    confirmation_dt = datetime.fromtimestamp(meme_post_epoch)
+    next_dt = (confirmation_dt + timedelta(days=1)).replace(
+        hour=int(plan["fallback_hour"]),
+        minute=int(plan["fallback_minute"]),
+        second=0,
+        microsecond=0,
+    )
+    next_meme_post_epoch = int(next_dt.timestamp())
+    receipt = {
+        "schema_version": 2,
+        "post_id": str(pending["post_id"]),
+        "meme_basename": str(selected["meme_basename"]),
+        "meme_post_epoch": meme_post_epoch,
+        "next_meme_post_epoch": next_meme_post_epoch,
+        "meme_schedule_version": int(plan["meme_schedule_version"]),
+        "next_meme_schedule_mode": str(plan["next_schedule_mode"]),
+        "text": str(attempt["text"]),
+        "image_summary": str(pending["image_summary"]),
+        "attempt_id": str(attempt["attempt_id"]),
+        "attempt_payload_sha256": str(attempt["payload_sha256"]),
+    }
+    if not meme_post_receipt_is_semantically_valid(receipt):
+        raise InvalidMemePostReceipt(
+            "Bound meme schedule produced an invalid confirmed receipt"
+        )
+    return receipt
+
+
+def finalize_confirmed_pending_schedule_receipt(
+    pending: dict,
+) -> dict:
+    """Atomically replace one pending schedule with its complete local receipt."""
+    if not confirmed_pending_schedule_receipt_is_semantically_valid(pending):
+        raise RuntimeError("Refusing to finalise an invalid pending receipt")
+    attempt = pending["source_attempt"]
+    path = main_post_attempt_path(attempt)
+    status, current = (
+        load_regular_post_receipt()
+        if path == REGULAR_POST_RECEIPT_FILE
+        else load_meme_post_receipt()
+    )
+    if status != "pending_schedule" or current != pending:
+        raise RuntimeError(
+            "Confirmed pending-schedule receipt changed before finalisation"
+        )
+    if attempt["lane"] == "quote_image":
+        receipt = materialize_bound_regular_schedule_receipt(pending)
+    else:
+        receipt = materialize_bound_meme_schedule_receipt(pending)
+    if attempt["lane"] == "quote_image":
+        write_regular_post_receipt(receipt)
+    else:
+        write_meme_post_receipt(receipt)
+    log.warning(
+        "Finalised confirmed pending-schedule receipt lane=%s post_id=%s path=%s",
+        attempt["lane"],
+        pending["post_id"],
+        path,
+    )
+    return receipt
+
+
 def write_regular_post_receipt(receipt: dict) -> None:
     """Write regular post receipt."""
     if MEME_POST_RECEIPT_FILE.exists():
         raise UnresolvedMemePostReceipt(f"Refusing regular post while unresolved meme-post receipt exists: {MEME_POST_RECEIPT_FILE}")
+    if confirmed_pending_schedule_receipt_is_semantically_valid(
+        receipt,
+        expected_lane="quote_image",
+    ):
+        status, attempt = load_regular_post_receipt()
+        if status != "sending" or attempt != receipt["source_attempt"]:
+            raise UnresolvedRegularPostReceipt(
+                "Refusing to promote a changed regular main-post attempt"
+            )
+        atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
+        log.warning(
+            "Wrote confirmed regular pending-schedule receipt post_id=%s path=%s",
+            receipt.get("post_id"),
+            REGULAR_POST_RECEIPT_FILE,
+        )
+        return
     if not regular_post_receipt_is_semantically_valid(receipt):
         raise RuntimeError("Internal error: generated regular-post receipt failed semantic validation")
     if REGULAR_POST_RECEIPT_FILE.exists():
-        status, attempt = load_regular_post_receipt()
+        status, current = load_regular_post_receipt()
+        if status == "pending_schedule" and current is not None:
+            if materialize_bound_regular_schedule_receipt(current) != receipt:
+                raise UnresolvedRegularPostReceipt(
+                    "Refusing a schedule result which does not match the durable "
+                    "confirmed regular plan"
+                )
+            atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
+            log.warning(
+                "Finalised regular-post pending schedule post_id=%s path=%s",
+                receipt.get("post_id"),
+                REGULAR_POST_RECEIPT_FILE,
+            )
+            return
+        attempt = current
+        if (
+            status == "sending"
+            and isinstance(attempt, dict)
+            and attempt.get("schema_version") == 4
+        ):
+            raise UnresolvedRegularPostReceipt(
+                "Current-schema regular attempts must be promoted through the "
+                "durable confirmed pending-schedule receipt"
+            )
         if (
             status != "sending"
             or attempt is None
@@ -6216,7 +6633,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a regular-post receipt is internally consistent."""
     schema_version = data.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {1, 2}:
+    if type(schema_version) is not int or schema_version not in {1, 2, 3}:
         return False
     post_id = str(data.get("post_id") or "")
     quote_hash = str(data.get("quote_hash") or "")
@@ -6241,7 +6658,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         return False
     if quote_text_hash(text) != quote_hash:
         return False
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         quote_history = data.get("quote_history_after")
         image_history = data.get("image_history_after")
         if (
@@ -6268,7 +6685,22 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     next_meme_epoch = receipt_int(data.get("next_meme_post_epoch", 0), default=0)
     if next_meme_epoch is None:
         return False
+    schedule_version = data.get("meme_schedule_version")
+    if schema_version == 3 and (
+        type(schedule_version) is not int
+        or schedule_version < 0
+        or schedule_version > MEME_SCHEDULE_VERSION
+    ):
+        return False
+    if schema_version < 3 and schedule_version is not None and (
+        type(schedule_version) is not int
+        or schedule_version < 0
+        or schedule_version > MEME_SCHEDULE_VERSION
+    ):
+        return False
     if next_meme_epoch:
+        if schema_version == 3 and schedule_version < 1:
+            return False
         if not valid_receipt_epoch(next_meme_epoch):
             return False
         mode = str(data.get("next_meme_schedule_mode") or "")
@@ -6326,10 +6758,15 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
             REGULAR_POST_RECEIPT_FILE,
         )
         return "invalid", data
+    if confirmed_pending_schedule_receipt_is_semantically_valid(
+        data,
+        expected_lane="quote_image",
+    ):
+        return "pending_schedule", data
     if (
         not isinstance(data, dict)
         or type(data.get("schema_version")) is not int
-        or data.get("schema_version") not in {1, 2}
+        or data.get("schema_version") not in {1, 2, 3}
     ):
         log.critical("Invalid regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
         return "invalid", None
@@ -6361,10 +6798,49 @@ def write_meme_post_receipt(receipt: dict) -> None:
     """Write meme post receipt."""
     if REGULAR_POST_RECEIPT_FILE.exists():
         raise UnresolvedRegularPostReceipt(f"Refusing meme post while unresolved regular-post receipt exists: {REGULAR_POST_RECEIPT_FILE}")
+    if confirmed_pending_schedule_receipt_is_semantically_valid(
+        receipt,
+        expected_lane="daily_meme",
+    ):
+        status, attempt = load_meme_post_receipt()
+        if status != "sending" or attempt != receipt["source_attempt"]:
+            raise UnresolvedMemePostReceipt(
+                "Refusing to promote a changed meme main-post attempt"
+            )
+        atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
+        log.warning(
+            "Wrote confirmed meme pending-schedule receipt post_id=%s path=%s",
+            receipt.get("post_id"),
+            MEME_POST_RECEIPT_FILE,
+        )
+        return
     if not meme_post_receipt_is_semantically_valid(receipt):
         raise RuntimeError("Internal error: generated meme-post receipt failed semantic validation")
     if MEME_POST_RECEIPT_FILE.exists():
-        status, attempt = load_meme_post_receipt()
+        status, current = load_meme_post_receipt()
+        if status == "pending_schedule" and current is not None:
+            if materialize_bound_meme_schedule_receipt(current) != receipt:
+                raise UnresolvedMemePostReceipt(
+                    "Refusing a schedule result which does not match the durable "
+                    "confirmed meme plan"
+                )
+            atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
+            log.warning(
+                "Finalised meme-post pending schedule post_id=%s path=%s",
+                receipt.get("post_id"),
+                MEME_POST_RECEIPT_FILE,
+            )
+            return
+        attempt = current
+        if (
+            status == "sending"
+            and isinstance(attempt, dict)
+            and attempt.get("schema_version") == 3
+        ):
+            raise UnresolvedMemePostReceipt(
+                "Current-schema meme attempts must be promoted through the "
+                "durable confirmed pending-schedule receipt"
+            )
         if (
             status != "sending"
             or attempt is None
@@ -6389,7 +6865,8 @@ def write_meme_post_receipt(receipt: dict) -> None:
 
 def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     """Return whether a meme-post receipt is internally consistent."""
-    if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
+    schema_version = data.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {1, 2}:
         return False
     if not valid_post_id(data.get("post_id")):
         return False
@@ -6402,6 +6879,19 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     if next_meme_post_epoch is None or not valid_receipt_epoch(next_meme_post_epoch):
         return False
     if next_meme_post_epoch <= meme_post_epoch:
+        return False
+    schedule_version = data.get("meme_schedule_version")
+    if schema_version == 2 and (
+        type(schedule_version) is not int
+        or schedule_version < 1
+        or schedule_version > MEME_SCHEDULE_VERSION
+    ):
+        return False
+    if schema_version == 1 and schedule_version is not None and (
+        type(schedule_version) is not int
+        or schedule_version < 1
+        or schedule_version > MEME_SCHEDULE_VERSION
+    ):
         return False
     mode = str(data.get("next_meme_schedule_mode") or "fallback")
     if mode not in MEME_SCHEDULE_MODES or mode == "after_first_quote_after_midday":
@@ -6427,7 +6917,15 @@ def load_meme_post_receipt() -> tuple[str, dict | None]:
             MEME_POST_RECEIPT_FILE,
         )
         return "invalid", data
-    if not isinstance(data, dict) or data.get("schema_version") != 1:
+    if confirmed_pending_schedule_receipt_is_semantically_valid(
+        data,
+        expected_lane="daily_meme",
+    ):
+        return "pending_schedule", data
+    if (
+        not isinstance(data, dict)
+        or data.get("schema_version") not in {1, 2}
+    ):
         log.critical("Invalid meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
         return "invalid", None
     required = ("post_id", "meme_basename", "meme_post_epoch", "next_meme_post_epoch")
@@ -6469,7 +6967,11 @@ def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
     posted.add(meme_basename)
     state["posted_meme_filenames"] = sorted(posted)
     state["next_meme_post_epoch"] = next_meme_post_epoch
-    state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
+    state["meme_schedule_version"] = (
+        int(receipt["meme_schedule_version"])
+        if receipt.get("schema_version") == 2
+        else int(receipt.get("meme_schedule_version") or MEME_SCHEDULE_VERSION)
+    )
     state["next_meme_schedule_mode"] = str(receipt.get("next_meme_schedule_mode") or "fallback")
     state["next_meme_schedule_date"] = epoch_date_str(next_meme_post_epoch)
     state["meme_anchor_quote_post_epoch"] = 0
@@ -6497,6 +6999,13 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
             "leaving its sending receipt as a global manual-reconciliation barrier"
         )
         return False
+    if status == "pending_schedule" and receipt is not None:
+        log.warning(
+            "Finalising local schedule for already-confirmed meme post_id=%s",
+            receipt.get("post_id"),
+        )
+        receipt = finalize_confirmed_pending_schedule_receipt(receipt)
+        status = "valid"
     if status == "invalid" or receipt is None:
         raise InvalidMemePostReceipt(f"Invalid meme-post receipt blocks the bot: {MEME_POST_RECEIPT_FILE}")
     log.warning(
@@ -6519,7 +7028,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
     next_quote_post_epoch = int(receipt["next_quote_post_epoch"])
     text = str(receipt.get("text") or "")
 
-    if receipt.get("schema_version") == 2:
+    if receipt.get("schema_version") in {2, 3}:
         lines_used.clear()
         lines_used.update(str(value) for value in receipt["quote_history_after"])
         images_used.clear()
@@ -6566,9 +7075,38 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         if not spacing_already_reflected:
             update_regular_generated_image_spacing_state(state, image_basename)
     if receipt_is_newest_main:
-        if receipt.get("next_meme_post_epoch"):
+        if receipt.get("schema_version") in {2, 3}:
+            # Current schema-v3 receipts carry the exact bound schedule and
+            # its policy version. Schema v2 retains the earlier exact-time
+            # interpretation with a backward-compatible version fallback.
+            # Apply even an intentionally empty schedule verbatim; invoking
+            # the legacy random helper here would make restart recovery differ
+            # from the bound transaction.
+            state["next_meme_post_epoch"] = int(
+                receipt.get("next_meme_post_epoch", 0) or 0
+            )
+            state["meme_schedule_version"] = (
+                int(receipt["meme_schedule_version"])
+                if receipt.get("schema_version") == 3
+                else int(
+                    receipt.get("meme_schedule_version")
+                    or MEME_SCHEDULE_VERSION
+                )
+            )
+            state["next_meme_schedule_mode"] = str(
+                receipt.get("next_meme_schedule_mode") or ""
+            )
+            state["next_meme_schedule_date"] = str(
+                receipt.get("next_meme_schedule_date") or ""
+            )
+            state["meme_anchor_quote_post_epoch"] = int(
+                receipt.get("meme_anchor_quote_post_epoch") or 0
+            )
+        elif receipt.get("next_meme_post_epoch"):
             state["next_meme_post_epoch"] = int(receipt["next_meme_post_epoch"])
-            state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
+            state["meme_schedule_version"] = int(
+                receipt.get("meme_schedule_version") or MEME_SCHEDULE_VERSION
+            )
             state["next_meme_schedule_mode"] = str(receipt.get("next_meme_schedule_mode") or state.get("next_meme_schedule_mode") or "")
             state["next_meme_schedule_date"] = str(receipt.get("next_meme_schedule_date") or epoch_date_str(int(receipt["next_meme_post_epoch"])))
             state["meme_anchor_quote_post_epoch"] = int(receipt.get("meme_anchor_quote_post_epoch") or 0)
@@ -6640,21 +7178,47 @@ def confirmed_regular_emergency_representation_is_complete(
     lines_used: set,
     images_used: set,
     state: dict,
+    main_post_attempt: dict,
 ) -> bool:
-    """Return whether the no-receipt regular-post fallback prevents replay."""
+    """Return whether fallback state exactly implements the pre-send plan."""
     state_post_epoch = receipt_int(state.get("last_quote_post_epoch"))
-    next_post_epoch = receipt_int(state.get("next_quote_post_epoch"))
+    try:
+        pending = build_confirmed_pending_schedule_receipt(
+            main_post_attempt,
+            post_id=str(post_id),
+            confirmation_epoch=int(post_epoch or 0),
+        )
+        expected = materialize_bound_regular_schedule_receipt(pending)
+    except Exception:
+        return False
+    expected_meme_epoch = int(expected.get("next_meme_post_epoch", 0) or 0)
     return bool(
         valid_post_id(post_id)
         and post_epoch is not None
         and valid_receipt_epoch(post_epoch)
         and str(state.get("last_main_post_id") or "") == str(post_id)
+        and lines_used == set(expected["quote_history_after"])
+        and images_used == set(expected["image_history_after"])
         and quote_hash in lines_used
         and image_basename in images_used
         and state_post_epoch == post_epoch
-        and next_post_epoch is not None
-        and valid_receipt_epoch(next_post_epoch)
-        and next_post_epoch > post_epoch
+        and receipt_int(state.get("next_quote_post_epoch"))
+        == int(expected["next_quote_post_epoch"])
+        and int(state.get("next_meme_post_epoch", 0) or 0)
+        == expected_meme_epoch
+        and int(state.get("meme_schedule_version", 0) or 0)
+        == int(expected["meme_schedule_version"])
+        and (
+            not expected_meme_epoch
+            or (
+                str(state.get("next_meme_schedule_mode") or "")
+                == str(expected["next_meme_schedule_mode"])
+                and str(state.get("next_meme_schedule_date") or "")
+                == str(expected["next_meme_schedule_date"])
+                and int(state.get("meme_anchor_quote_post_epoch", 0) or 0)
+                == int(expected["meme_anchor_quote_post_epoch"])
+            )
+        )
     )
 
 
@@ -6664,11 +7228,21 @@ def confirmed_meme_emergency_representation_is_complete(
     post_epoch: int | None,
     meme_basename: str,
     state: dict,
+    main_post_attempt: dict,
 ) -> bool:
-    """Return whether the no-receipt meme fallback prevents replay."""
+    """Return whether fallback state exactly implements the pre-send plan."""
     state_post_epoch = receipt_int(state.get("last_meme_post_epoch"))
-    next_post_epoch = receipt_int(state.get("next_meme_post_epoch"))
     posted = {str(item) for item in state.get("posted_meme_filenames", [])}
+    try:
+        pending = build_confirmed_pending_schedule_receipt(
+            main_post_attempt,
+            post_id=str(post_id),
+            confirmation_epoch=int(post_epoch or 0),
+        )
+        expected = materialize_bound_meme_schedule_receipt(pending)
+    except Exception:
+        return False
+    expected_next_epoch = int(expected["next_meme_post_epoch"])
     return bool(
         valid_post_id(post_id)
         and post_epoch is not None
@@ -6676,9 +7250,17 @@ def confirmed_meme_emergency_representation_is_complete(
         and str(state.get("last_main_post_id") or "") == str(post_id)
         and meme_basename in posted
         and state_post_epoch == post_epoch
-        and next_post_epoch is not None
-        and valid_receipt_epoch(next_post_epoch)
-        and next_post_epoch > post_epoch
+        and receipt_int(state.get("next_meme_post_epoch"))
+        == expected_next_epoch
+        and int(state.get("meme_schedule_version", 0) or 0)
+        == int(expected["meme_schedule_version"])
+        and safe_epoch_date_str(expected_next_epoch)
+        > safe_epoch_date_str(int(post_epoch))
+        and str(state.get("next_meme_schedule_mode") or "")
+        == str(expected["next_meme_schedule_mode"])
+        and str(state.get("next_meme_schedule_date") or "")
+        == safe_epoch_date_str(expected_next_epoch)
+        and int(state.get("meme_anchor_quote_post_epoch", 0) or 0) == 0
     )
 
 
@@ -7596,6 +8178,13 @@ def reconcile_regular_post_receipt(
             "leaving its sending receipt as a global manual-reconciliation barrier"
         )
         return False
+    if status == "pending_schedule" and receipt is not None:
+        log.warning(
+            "Finalising local schedule for already-confirmed regular post_id=%s",
+            receipt.get("post_id"),
+        )
+        receipt = finalize_confirmed_pending_schedule_receipt(receipt)
+        status = "valid"
     if status == "invalid" or receipt is None:
         raise InvalidRegularPostReceipt(f"Invalid regular-post receipt blocks main posting: {REGULAR_POST_RECEIPT_FILE}")
     log.warning(
@@ -9793,6 +10382,10 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             recovery_plan={
                 "quote_delay_seconds": quote_delay,
                 "meme_delay_seconds": meme_delay,
+                "meme_scheduling_enabled": bool(ENABLE_DAILY_MEME_POSTS),
+                "meme_trigger_after_hour": int(MEME_TRIGGER_AFTER_HOUR),
+                "meme_schedule_version": int(MEME_SCHEDULE_VERSION),
+                "meme_schedule_before": bound_meme_schedule_state(state),
                 "quote_history_after": sorted(set(lines_used) | {quote_hash}),
                 "image_history_after": sorted(
                     set(images_used) | {image_basename}
@@ -9850,51 +10443,106 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             confirmed_post_sigint_guard = None
         raise
 
+    pending_schedule_promoted = False
     try:
-        quote_post_epoch = now_epoch()
+        quote_post_epoch = confirmation_epoch_for_main_attempt(
+            main_post_attempt,
+            now_epoch(),
+        )
         context_obligation_receipt = {
             "post_id": str(posted_id),
             "quote_hash": quote_hash,
             "quote_post_epoch": quote_post_epoch,
             "text": tweet,
         }
-        state["next_quote_post_epoch"] = int(quote_post_epoch) + int(quote_delay)
-        quote_schedule_fields, _quote_delay = next_quote_schedule_fields(quote_post_epoch, delay=quote_delay)
-        meme_schedule_fields = meme_schedule_fields_after_quote_post(state, quote_post_epoch, delay=meme_delay)
-        meme_schedule_changed_by_quote = bool(meme_schedule_fields)
-        receipt = {
-            "schema_version": 2,
-            "post_id": str(posted_id),
-            "quote_hash": quote_hash,
-            "line_no": line_no,
-            "source_line_number": line_no + 1,
-            "text": tweet,
-            "image_basename": image_basename,
-            "image_no": image_no,
-            "quote_post_epoch": quote_post_epoch,
-            "next_quote_post_epoch": int(quote_schedule_fields["next_quote_post_epoch"]),
-            "next_meme_post_epoch": int(meme_schedule_fields.get("next_meme_post_epoch", state.get("next_meme_post_epoch", 0) or 0) or 0),
-            "next_meme_schedule_mode": str(meme_schedule_fields.get("next_meme_schedule_mode", state.get("next_meme_schedule_mode", "")) or ""),
-            "next_meme_schedule_date": str(meme_schedule_fields.get("next_meme_schedule_date", state.get("next_meme_schedule_date", "")) or ""),
-            "meme_anchor_quote_post_epoch": int(meme_schedule_fields.get("meme_anchor_quote_post_epoch", state.get("meme_anchor_quote_post_epoch", 0) or 0) or 0),
-            "meme_schedule_changed_by_quote": meme_schedule_changed_by_quote,
-            "quote_history_after": list(
-                main_post_attempt["recovery_plan"]["quote_history_after"]
-            ),
-            "image_history_after": list(
-                main_post_attempt["recovery_plan"]["image_history_after"]
-            ),
-            "attempt_id": str(main_post_attempt["attempt_id"]),
-            "attempt_payload_sha256": str(main_post_attempt["payload_sha256"]),
+        pending_schedule_receipt = build_confirmed_pending_schedule_receipt(
+            main_post_attempt,
+            post_id=str(posted_id),
+            confirmation_epoch=quote_post_epoch,
+        )
+        pending_schedule_receipt = (
+            promote_main_post_attempt_to_confirmed_pending_schedule(
+                main_post_attempt,
+                post_id=str(posted_id),
+                confirmation_epoch=quote_post_epoch,
+            )
+        )
+        pending_schedule_promoted = True
+        receipt = finalize_confirmed_pending_schedule_receipt(
+            pending_schedule_receipt
+        )
+        quote_schedule_fields = {
+            "next_quote_post_epoch": int(receipt["next_quote_post_epoch"])
         }
-        write_regular_post_receipt(receipt)
+        meme_schedule_fields = {
+            "next_meme_post_epoch": int(
+                receipt.get("next_meme_post_epoch", 0) or 0
+            ),
+            "meme_schedule_version": int(receipt["meme_schedule_version"]),
+            "next_meme_schedule_mode": str(
+                receipt.get("next_meme_schedule_mode") or ""
+            ),
+            "next_meme_schedule_date": str(
+                receipt.get("next_meme_schedule_date") or ""
+            ),
+            "meme_anchor_quote_post_epoch": int(
+                receipt.get("meme_anchor_quote_post_epoch") or 0
+            ),
+        }
     except BaseException as receipt_exc:
         log.critical(
             "Confirmed regular quote/image post_id=%s but failed writing recovery receipt; in-memory used histories remain marked",
             posted_id,
             exc_info=True,
         )
+        if pending_schedule_promoted:
+            # The remote identity is already durable.  Leave this receipt in
+            # place so startup/current-loop reconciliation retries only local
+            # schedule materialisation and can never recreate the X post.
+            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+            confirmed_post_sigint_guard = None
+            if not isinstance(receipt_exc, Exception):
+                raise
+            raise ConfirmedPostLocalPersistenceError(
+                f"Confirmed regular quote/image post {posted_id}; its durable "
+                "pending-schedule receipt remains for local-only reconciliation"
+            ) from receipt_exc
         fallback_failures: list[str] = []
+        if "pending_schedule_receipt" in locals():
+            try:
+                fallback_receipt = materialize_bound_regular_schedule_receipt(
+                    pending_schedule_receipt
+                )
+                quote_schedule_fields = {
+                    "next_quote_post_epoch": int(
+                        fallback_receipt["next_quote_post_epoch"]
+                    )
+                }
+                meme_schedule_fields = {
+                    "next_meme_post_epoch": int(
+                        fallback_receipt.get("next_meme_post_epoch", 0) or 0
+                    ),
+                    "meme_schedule_version": int(
+                        fallback_receipt["meme_schedule_version"]
+                    ),
+                    "next_meme_schedule_mode": str(
+                        fallback_receipt.get("next_meme_schedule_mode") or ""
+                    ),
+                    "next_meme_schedule_date": str(
+                        fallback_receipt.get("next_meme_schedule_date") or ""
+                    ),
+                    "meme_anchor_quote_post_epoch": int(
+                        fallback_receipt.get("meme_anchor_quote_post_epoch")
+                        or 0
+                    ),
+                }
+            except Exception:
+                fallback_failures.append("bound_schedule_materialisation")
+                log.critical(
+                    "Emergency bound schedule materialisation failed after "
+                    "confirmed regular post",
+                    exc_info=True,
+                )
         try:
             lines_used.add(quote_hash)
             images_used.add(image_basename)
@@ -9959,6 +10607,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             lines_used=lines_used,
             images_used=images_used,
             state=state,
+            main_post_attempt=main_post_attempt,
         ):
             failures.append("incomplete_regular_post_state")
         failure_text = ", ".join(failures) if failures else "receipt"
@@ -10443,6 +11092,21 @@ def post_next_meme(state: dict) -> None:
     ):
         log.warning("Reconciled meme post receipt; not creating a second meme post in the same call")
         return
+    current_meme_epoch = now_epoch()
+    if meme_posted_on_date(state, epoch_date_str(current_meme_epoch)):
+        log.warning(
+            "Daily meme already confirmed on the current local date; "
+            "scheduling the next fallback without another X request"
+        )
+        run_daily_meme_stage(
+            "same_day_duplicate_barrier",
+            lambda: schedule_next_meme_post(
+                state,
+                current_meme_epoch,
+                mode="fallback",
+            ),
+        )
+        return
     run_daily_meme_stage(
         "main_receipt_barrier",
         block_if_unresolved_regular_post_receipt,
@@ -10484,7 +11148,13 @@ def post_next_meme(state: dict) -> None:
         media_ids=[media_id],
         made_with_ai=False,
         selected_identity={"meme_basename": meme_path.name},
-        recovery_plan={"next_schedule_mode": "fallback"},
+        recovery_plan={
+            "next_schedule_mode": "fallback",
+            "meme_schedule_version": MEME_SCHEDULE_VERSION,
+            "fallback_hour": MEME_FALLBACK_HOUR,
+            "fallback_minute": MEME_FALLBACK_MINUTE,
+        },
+        attempt_epoch=current_meme_epoch,
     )
     run_daily_meme_stage(
         "main_post_attempt_persistence",
@@ -10539,30 +11209,41 @@ def post_next_meme(state: dict) -> None:
             confirmed_post_sigint_guard = None
         raise
 
+    pending_schedule_promoted = False
     try:
-        meme_post_epoch = now_epoch()
-        apply_state_fields(state, meme_delay_schedule_fields(int(meme_post_epoch) + 3600, "delayed_exception"))
-        planned_state = copy.deepcopy(state)
-        planned_state["last_meme_post_epoch"] = meme_post_epoch
-        planned_posted = set(
-            str(x) for x in planned_state.get("posted_meme_filenames", [])
+        meme_post_epoch = confirmation_epoch_for_main_attempt(
+            main_post_attempt,
+            now_epoch(),
         )
-        planned_posted.add(meme_path.name)
-        planned_state["posted_meme_filenames"] = sorted(planned_posted)
-        meme_schedule_fields = next_meme_schedule_fields(planned_state, meme_post_epoch, mode="fallback")
-        receipt = {
-            "schema_version": 1,
-            "post_id": str(posted_id),
-            "meme_basename": meme_path.name,
-            "meme_post_epoch": meme_post_epoch,
-            "next_meme_post_epoch": int(meme_schedule_fields["next_meme_post_epoch"]),
-            "next_meme_schedule_mode": str(meme_schedule_fields.get("next_meme_schedule_mode") or "fallback"),
-            "text": MEME_POST_TEXT,
-            "image_summary": image_summary,
-            "attempt_id": str(main_post_attempt["attempt_id"]),
-            "attempt_payload_sha256": str(main_post_attempt["payload_sha256"]),
+        pending_schedule_receipt = build_confirmed_pending_schedule_receipt(
+            main_post_attempt,
+            post_id=str(posted_id),
+            confirmation_epoch=meme_post_epoch,
+            image_summary=image_summary,
+        )
+        pending_schedule_receipt = (
+            promote_main_post_attempt_to_confirmed_pending_schedule(
+                main_post_attempt,
+                post_id=str(posted_id),
+                confirmation_epoch=meme_post_epoch,
+                image_summary=image_summary,
+            )
+        )
+        pending_schedule_promoted = True
+        receipt = finalize_confirmed_pending_schedule_receipt(
+            pending_schedule_receipt
+        )
+        meme_schedule_fields = {
+            "next_meme_post_epoch": int(receipt["next_meme_post_epoch"]),
+            "meme_schedule_version": int(receipt["meme_schedule_version"]),
+            "next_meme_schedule_mode": str(
+                receipt["next_meme_schedule_mode"]
+            ),
+            "next_meme_schedule_date": safe_epoch_date_str(
+                int(receipt["next_meme_post_epoch"])
+            ),
+            "meme_anchor_quote_post_epoch": 0,
         }
-        write_meme_post_receipt(receipt)
     except BaseException as receipt_exc:
         log.critical(
             "Confirmed meme post_id=%s but stage=meme_receipt_creation failed; attempting direct durable state save",
@@ -10577,9 +11258,40 @@ def post_next_meme(state: dict) -> None:
             error_type=type(receipt_exc).__name__,
             reason=str(receipt_exc)[:500],
         )
+        if pending_schedule_promoted:
+            # Confirmation is already durable.  Leave the pending receipt for
+            # local-only reconciliation; no scheduler path may create another
+            # meme while it remains.
+            end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+            confirmed_post_sigint_guard = None
+            if not isinstance(receipt_exc, Exception):
+                raise
+            raise ConfirmedPostLocalPersistenceError(
+                f"Confirmed meme post {posted_id}; its durable pending-schedule "
+                "receipt remains for local-only reconciliation"
+            ) from receipt_exc
         emergency_state_write_succeeded = False
         emergency_state_complete = False
         try:
+            if "pending_schedule_receipt" in locals():
+                fallback_receipt = materialize_bound_meme_schedule_receipt(
+                    pending_schedule_receipt
+                )
+                meme_schedule_fields = {
+                    "next_meme_post_epoch": int(
+                        fallback_receipt["next_meme_post_epoch"]
+                    ),
+                    "meme_schedule_version": int(
+                        fallback_receipt["meme_schedule_version"]
+                    ),
+                    "next_meme_schedule_mode": str(
+                        fallback_receipt["next_meme_schedule_mode"]
+                    ),
+                    "next_meme_schedule_date": safe_epoch_date_str(
+                        int(fallback_receipt["next_meme_post_epoch"])
+                    ),
+                    "meme_anchor_quote_post_epoch": 0,
+                }
             state["last_main_post_id"] = str(posted_id)
             if "meme_post_epoch" in locals():
                 state["last_meme_post_epoch"] = meme_post_epoch
@@ -10609,6 +11321,7 @@ def post_next_meme(state: dict) -> None:
                 post_epoch=meme_post_epoch if "meme_post_epoch" in locals() else None,
                 meme_basename=meme_path.name,
                 state=state,
+                main_post_attempt=main_post_attempt,
             )
         except Exception as emergency_exc:
             if isinstance(emergency_exc, StateBackupWriteError) and json_file_matches(STATE_FILE, state):
@@ -10618,6 +11331,7 @@ def post_next_meme(state: dict) -> None:
                     post_epoch=meme_post_epoch if "meme_post_epoch" in locals() else None,
                     meme_basename=meme_path.name,
                     state=state,
+                    main_post_attempt=main_post_attempt,
                 )
                 log.warning(
                     "Emergency canonical state was committed after confirmed meme post, "
@@ -12160,9 +12874,8 @@ def post_conversational_reply_with_durable_identity(
                 exc_info=True,
             )
         raise
-    except (ApiError, RemoteOperationsPaused) as remote_error:
-        # These outcomes are classified before transmission or from a definite
-        # non-success HTTP response. They cannot represent an accepted post.
+    except RemoteOperationsPaused:
+        # The runtime-control check is local and occurs before transmission.
         try:
             remove_confirmed_reply_receipt(
                 receipt_template,
@@ -12176,6 +12889,28 @@ def post_conversational_reply_with_durable_identity(
             ) from removal_error
         end_confirmed_post_sigint_deferral(sigint_guard)
         raise
+    except ApiError as remote_error:
+        # No provider-contract evidence makes a post-transmission HTTP status a
+        # proof of non-creation.  Preserve the durable sending receipt and
+        # require reconciliation rather than authorising another reply.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        try:
+            record_api_error(state, remote_error, "x", scope="write")
+            save_state(state)
+        except Exception:
+            log.critical(
+                "The conversational reply sending receipt is durable, but "
+                "write-error bookkeeping could not be persisted",
+                exc_info=True,
+            )
+        raise AmbiguousRemotePostOutcome(
+            "Conversational reply received a post-transmission error whose "
+            "remote-create outcome is unproved; its sending receipt remains",
+            service="x",
+            status_code=remote_error.status_code,
+            request_method=remote_error.request_method,
+            request_path=remote_error.request_path,
+        ) from remote_error
     except BaseException as remote_error:
         # Any unclassified interruption may have happened after bytes reached
         # X. Preserve the pre-send receipt as a restart-safe manual

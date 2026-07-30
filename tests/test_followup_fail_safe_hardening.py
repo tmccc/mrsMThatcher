@@ -232,7 +232,7 @@ def test_x_server_error_on_post_creates_durable_ambiguity_barrier(
 
 
 @pytest.mark.parametrize("status_code", [400, 403, 429])
-def test_x_definite_client_rejection_does_not_create_ambiguity_barrier(
+def test_x_client_error_without_provider_contract_creates_ambiguity_barrier(
     status_code: int,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -248,13 +248,15 @@ def test_x_definite_client_rejection_does_not_create_ambiguity_barrier(
 
     monkeypatch.setattr(bot.requests, "request", lambda *_args, **_kwargs: Response(status_code))
 
-    with pytest.raises(bot.ApiError) as caught:
+    with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
         bot.create_post("test")
 
-    assert not isinstance(caught.value, bot.AmbiguousRemotePostOutcome)
     assert caught.value.status_code == status_code
-    assert not (tmp_path / "ambiguous_post_outcome.json").exists()
-    assert bot.ambiguous_remote_post_is_blocking() is False
+    marker = json.loads(
+        (tmp_path / "ambiguous_post_outcome.json").read_text(encoding="utf-8")
+    )
+    assert marker["outcome"] == "ambiguous_remote_post"
+    assert bot.ambiguous_remote_post_is_blocking() is True
 
 
 @pytest.mark.parametrize(

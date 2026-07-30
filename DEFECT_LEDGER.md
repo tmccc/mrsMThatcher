@@ -21,14 +21,14 @@ findings and directly related runtime and release-assurance gaps.
 - Status-claim boundary: Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger, avoiding a self-referential final-commit hash.
+- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The b6dcd17 lineage was never deployed and its transaction-assurance conclusion is superseded by the later schedule-finalisation and generic-4xx findings; the replacement candidate remains external until frozen.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, a final schedule/outcome remediation commit must replace the external unknown fix identities and bind its committed regression tests before any post-merge assurance claim.
 
 ## Status taxonomy
 
@@ -76,7 +76,7 @@ deployment.
 | Test isolation | `DEF-0011` |
 | Test fixtures | `DEF-0012` |
 
-`DEF-0013` through `DEF-0023` are directly related, established gaps recorded
+`DEF-0013` through `DEF-0029` are directly related, established gaps recorded
 at the ledger evidence cut-off. Their status must be regenerated before this
 ledger is used against a later production baseline.
 
@@ -112,6 +112,9 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0024` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post` | false — This is a repeatable production-code defect, but the review evidence is a controlled offline reproduction rather than an observed live duplicate. Evidence: The failure was reproduced with a synthetic hard-process exit after simulated remote acceptance; no production duplicate has been established from this finding. |
 | `DEF-0025` | runtime-defect | `mrsMThatcher2.py` | `daily-meme-post` | false — This is a repeatable production-code defect, but the review evidence is a controlled offline reproduction rather than an observed live duplicate. Evidence: The failure was reproduced with a synthetic hard-process exit after simulated remote acceptance; no production duplicate has been established from this finding. |
 | `DEF-0026` | assurance-weakness | `defect_ledger.json`; `tools/defect_ledger.py` | `release-attestation-ledger-validation` | true — The incident invalidated that patch-local assurance conclusion; it did not change or activate production. Evidence: An archived external gate run qualified a candidate without executing ledger_validate and supplied a release base different from the ledger evidence cut-off. |
+| `DEF-0027` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `scheduler-recovery` | false — This is a repeatable production-code defect demonstrated offline rather than a confirmed production incident. Evidence: Source review and synthetic fault injection established the repeatable path; no live duplicate or out-of-bound schedule incident was established. |
+| `DEF-0028` | runtime-defect | `mrsMThatcher2.py` | `daily-meme-post`; `scheduler-recovery` | false — The defect is repeatable offline, but the repository evidence does not establish that it caused a production duplicate. Evidence: Source review and a synthetic same-date schedule failure established the repeatable path; no second live meme was attributed to it. |
+| `DEF-0029` | runtime-defect | `mrsMThatcher2.py`; `historical_context_outbox.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply` | false — This is a cross-lane production-code defect demonstrated offline rather than a confirmed live incident. Evidence: Controlled synthetic response classification established repeatable retry exposure across all four create lanes; no live duplicate caused by a generic 3xx or 4xx response was established. |
 
 ## Chronology projection
 
@@ -177,6 +180,9 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0024` | 2026-07-30 | `02f9d2be` | Independent review reproduced two remote accepts across a hard process death and restart. | priority0_transaction_assurance_remediation_report.md |
 | `DEF-0025` | 2026-07-30 | `02f9d2be` | Independent review reproduced two remote accepts across a meme hard process death and restart. | priority0_transaction_assurance_remediation_report.md |
 | `DEF-0026` | 2026-07-30 | `02f9d2be` | Independent review reproduced the ledger/base mismatch and confirmed ledger_validate was absent from the archived external run. | priority0_transaction_assurance_remediation_report.md |
+| `DEF-0027` | 2026-07-30 | `02f9d2be` | Independent source review and schedule-helper fault injection established loss of the selected post-confirmation schedule plan. | Direct current-master source review with focused synthetic regression design |
+| `DEF-0028` | 2026-07-30 | `02f9d2be` | Independent source review reproduced a confirmed morning meme followed by same-date fallback eligibility for a different image. | Direct current-master source review with focused synthetic regression design |
+| `DEF-0029` | 2026-07-30 | `02f9d2be` | Independent cross-lane review injected generic client-error and redirect outcomes and found that sending barriers could be retired or treated as safely retryable. | Direct current-master source review with focused synthetic regression design |
 
 ## Summary
 
@@ -208,6 +214,9 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0024` | active | critical | Regular posts lacked a durable pre-send remote-write barrier | `INV-TXN-REG-001` | `36edf036`, bounded | unfixed | observed in production `be882e81` |
 | `DEF-0025` | active | critical | Daily meme posts lacked a durable pre-send remote-write barrier | `INV-TXN-MEME-001` | `36edf036`, bounded | unfixed | observed in production `be882e81` |
 | `DEF-0026` | assurance-weakness | assurance | External assurance omitted mandatory release-base-bound ledger validation | `INV-REL-001` | unknown | unfixed | not applicable |
+| `DEF-0027` | active | critical | Confirmed regular posts could lose their bounded schedule plan | `INV-TXN-REG-001`, `INV-TXN-RECEIPT-001` | `9ae7e0f2` | unfixed | observed in production `be882e81` |
+| `DEF-0028` | active | critical | Meme schedule fallback could permit a second meme on the same local date | `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `9ae7e0f2` | unfixed | observed in production `be882e81` |
+| `DEF-0029` | active | critical | Generic X create 3xx and 4xx outcomes were treated as definite non-success | `INV-API-001`, `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | unfixed | present in observed production and at evidence cut-off |
 
 ## Records
 
@@ -576,6 +585,35 @@ base. The application ledger cannot certify the external-gate repair; closure
 requires a separately frozen assurance commit, an exact base-bound result and
 new independent review.
 
+### DEF-0027 — Confirmed regular-post schedule finalisation
+
+At the ledger evidence cut-off, a confirmed regular post could persist its
+protected post state without durably retaining the already-selected bounded
+meme delay and next-quote schedule. A later local schedule failure therefore
+left reconciliation unable to reproduce the original plan. The `b6dcd17`
+candidate was never deployed and does not close this later finding. Closure
+requires a separately frozen replacement candidate, committed regressions,
+external attestation and post-merge ledger regeneration.
+
+### DEF-0028 — Daily-meme same-date barrier
+
+At the ledger evidence cut-off, a post-confirmation meme schedule failure could
+persist a one-hour fallback on the same Europe/London date. Because the lane
+did not independently reject all creates after a durable meme success on that
+local date, a different image could become eligible for a second create. No
+live duplicate is asserted. The repair remains external and uncommitted
+relative to this evidence boundary.
+
+### DEF-0029 — Conservative X create outcomes
+
+The four X create lanes treated selected generic HTTP errors as proof that the
+remote write did not succeed. A status without a confirmed post identity does
+not establish non-success after transmission, so retiring the sending barrier
+could permit a duplicate retry. No live duplicate is asserted. Closure requires
+the same fail-closed ambiguous-outcome rule, redirect handling and committed
+regressions across regular, meme, conversational-reply and
+historical-context-reply lanes.
+
 ## Unknown-value policy
 
 The following are intentionally unknown rather than inferred:
@@ -586,7 +624,7 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- `DEF-0013` through `DEF-0026`: no repair commit exists at the ledger evidence
+- `DEF-0013` through `DEF-0029`: no repair commit exists at the ledger evidence
   cut-off where the JSON records
   `fix.state=unfixed`.
 

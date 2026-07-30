@@ -275,6 +275,7 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         if invariant["last_verified_commit"]["status"] == "unknown"
     } == {
         "INV-PROC-004",
+        "INV-API-001",
         "INV-REL-001",
         "INV-REL-ART-001",
         "INV-REL-CMD-001",
@@ -283,6 +284,11 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         "INV-REL-SANDBOX-001",
         "INV-REL-TRUST-001",
         "INV-TEST-003",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001",
+        "INV-TXN-REG-001",
+        "INV-TXN-REPLY-001",
     }
     assert records["INV-PROC-004"]["accepted_residual_risk"]["status"] == (
         "unaccepted"
