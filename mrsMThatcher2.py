@@ -1712,6 +1712,23 @@ class RemoteOperationsPaused(RuntimeError):
     """A global runtime-control pause blocked a remote operation."""
 
 
+def api_error_proves_remote_non_success(error: BaseException) -> bool:
+    """Return whether X explicitly rejected a write before it could succeed."""
+    if not isinstance(error, ApiError) or isinstance(
+        error,
+        AmbiguousRemotePostOutcome,
+    ):
+        return False
+    status_code = getattr(error, "status_code", None)
+    return bool(
+        error.service == "x"
+        and error.request_method == "POST"
+        and error.request_path == "/2/tweets"
+        and type(status_code) is int
+        and 400 <= status_code < 500
+    )
+
+
 def require_remote_operation_unpaused(operation: str) -> None:
     """Fail before a remote boundary while a global pause is active."""
     if not global_remote_writes_paused():
@@ -4715,11 +4732,31 @@ def unresolved_conversational_reply_receipt_is_blocking() -> bool:
     return status in {"sending", "invalid"}
 
 
+def unresolved_main_post_attempt_is_blocking() -> bool:
+    """Return whether a main-post attempt forbids another remote write."""
+    regular_status, _regular = load_regular_post_receipt()
+    meme_status, _meme = load_meme_post_receipt()
+    return regular_status in {"sending", "invalid"} or meme_status in {
+        "sending",
+        "invalid",
+    }
+
+
 def block_if_ambiguous_remote_post(
     *,
     prepared_conversational_reply_receipt: dict | None = None,
+    prepared_main_post_attempt: dict | None = None,
 ) -> None:
     """Refuse posting while a remote-write safety incident is unresolved."""
+    if (
+        prepared_conversational_reply_receipt is not None
+        and prepared_main_post_attempt is not None
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "One remote write cannot be authorised by both reply and main-post "
+            "attempt records",
+            service="x",
+        )
     if _AMBIGUOUS_REMOTE_POST_SEEN:
         try:
             marker_exists = AMBIGUOUS_POST_OUTCOME_FILE.exists()
@@ -4748,14 +4785,46 @@ def block_if_ambiguous_remote_post(
             f"blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
             service="x",
         )
+
+    regular_status, regular_receipt = load_regular_post_receipt()
+    meme_status, meme_receipt = load_meme_post_receipt()
+    blocking_main_receipts = [
+        ("regular", regular_status, regular_receipt),
+        ("meme", meme_status, meme_receipt),
+    ]
+    for lane_name, status, receipt in blocking_main_receipts:
+        if status not in {"sending", "invalid"}:
+            continue
+        if status == "invalid":
+            if lane_name == "regular":
+                raise InvalidRegularPostReceipt(
+                    f"Invalid regular-post receipt blocks posting: "
+                    f"{REGULAR_POST_RECEIPT_FILE}"
+                )
+            raise InvalidMemePostReceipt(
+                f"Invalid meme-post receipt blocks posting: {MEME_POST_RECEIPT_FILE}"
+            )
+        if (
+            status == "sending"
+            and prepared_main_post_attempt is not None
+            and receipt == prepared_main_post_attempt
+            and prepared_main_post_attempt.get("lifecycle_state") == "sending"
+        ):
+            continue
+        raise AmbiguousRemotePostOutcome(
+            "An unresolved main-post sending or invalid receipt blocks further "
+            "posting",
+            service="x",
+        )
+
     status, receipt = load_confirmed_reply_receipt()
-    if status not in {"sending", "invalid"}:
-        return
     if (
         status == "sending"
         and prepared_conversational_reply_receipt is not None
         and receipt == prepared_conversational_reply_receipt
     ):
+        return
+    if status not in {"sending", "invalid"}:
         return
     raise AmbiguousRemotePostOutcome(
         "An unresolved conversational-reply sending or invalid receipt blocks "
@@ -4779,11 +4848,14 @@ def ambiguous_remote_post_is_blocking() -> bool:
         )
         return True
     try:
-        return unresolved_conversational_reply_receipt_is_blocking()
+        return (
+            unresolved_main_post_attempt_is_blocking()
+            or unresolved_conversational_reply_receipt_is_blocking()
+        )
     except Exception:
         log.critical(
-            "The conversational-reply receipt cannot be inspected; treating all "
-            "remote writes as blocked",
+            "A remote-write receipt cannot be inspected; treating all remote "
+            "writes as blocked",
             exc_info=True,
         )
         return True
@@ -4856,6 +4928,11 @@ def durable_remote_write_safety_barrier_exists() -> bool:
     """Return whether restart safety survives loss of the process latch."""
     if durable_remote_write_safety_marker_exists():
         return True
+    try:
+        if unresolved_main_post_attempt_is_blocking():
+            return True
+    except Exception:
+        return REGULAR_POST_RECEIPT_FILE.exists() or MEME_POST_RECEIPT_FILE.exists()
     try:
         status, _receipt = load_confirmed_reply_receipt()
     except Exception:
@@ -4985,6 +5062,7 @@ def create_post(
     made_with_ai: bool = False,
     *,
     prepared_conversational_reply_receipt: dict | None = None,
+    prepared_main_post_attempt: dict | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
     require_remote_operation_unpaused("X post creation")
@@ -5001,10 +5079,24 @@ def create_post(
                 "requested remote write",
                 service="x",
             )
+    if prepared_main_post_attempt is not None:
+        if (
+            not main_post_attempt_is_semantically_valid(
+                prepared_main_post_attempt
+            )
+            or reply_to_id is not None
+            or not media_ids
+        ):
+            raise AmbiguousRemotePostOutcome(
+                "Prepared main-post attempt is invalid for the requested remote "
+                "write",
+                service="x",
+            )
     block_if_ambiguous_remote_post(
         prepared_conversational_reply_receipt=(
             prepared_conversational_reply_receipt
         ),
+        prepared_main_post_attempt=prepared_main_post_attempt,
     )
     log.info(
         "Creating X post. reply_to_id=%s media_count=%d made_with_ai=%s text=%r",
@@ -5034,6 +5126,18 @@ def create_post(
 
     if not payload.get("text") and not payload.get("media"):
         raise ValueError("Cannot create X post without text or media")
+    if (
+        prepared_main_post_attempt is not None
+        and not main_post_attempt_binds_payload(
+            prepared_main_post_attempt,
+            payload,
+        )
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "Prepared main-post attempt does not exactly bind the requested "
+            "remote payload",
+            service="x",
+        )
 
     def validate_created_post_response(result: dict) -> dict:
         response_data = result.get("data") if isinstance(result, dict) else None
@@ -5053,6 +5157,13 @@ def create_post(
         message = str(error).lower()
         return "made_with_ai" in message
 
+    if prepared_main_post_attempt is not None:
+        attempting = mark_main_post_attempt_attempting(
+            prepared_main_post_attempt
+        )
+        prepared_main_post_attempt.clear()
+        prepared_main_post_attempt.update(attempting)
+
     try:
         result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
         validate_created_post_response(result)
@@ -5065,6 +5176,18 @@ def create_post(
         if made_with_ai and made_with_ai_field_rejected(exc):
             log.warning("Post failed because made_with_ai field was rejected; retrying without made_with_ai field")
             payload.pop("made_with_ai", None)
+            if prepared_main_post_attempt is not None:
+                rebound_attempt = rebind_main_post_attempt_payload(
+                    prepared_main_post_attempt,
+                    payload,
+                )
+                prepared_main_post_attempt.clear()
+                prepared_main_post_attempt.update(rebound_attempt)
+                attempting = mark_main_post_attempt_attempting(
+                    prepared_main_post_attempt
+                )
+                prepared_main_post_attempt.clear()
+                prepared_main_post_attempt.update(attempting)
             try:
                 result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
                 validate_created_post_response(result)
@@ -5682,14 +5805,410 @@ def valid_receipt_basename(value: object) -> bool:
     return bool(basename) and Path(basename).name == basename and basename not in {".", ".."}
 
 
+def canonical_remote_post_payload_sha256(payload: dict) -> str:
+    """Return the stable identity of one exact X create payload."""
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def main_post_attempt_payload(attempt: dict) -> dict:
+    """Reconstruct the exact remote payload bound by a main-post attempt."""
+    payload: dict = {}
+    text = str(attempt.get("text") or "")
+    media_ids = attempt.get("media_ids")
+    reply_to_id = str(attempt.get("reply_to_id") or "")
+    if text:
+        payload["text"] = text
+    if isinstance(media_ids, list) and media_ids:
+        payload["media"] = {"media_ids": [str(value) for value in media_ids]}
+    if reply_to_id:
+        payload["reply"] = {"in_reply_to_tweet_id": reply_to_id}
+    if attempt.get("made_with_ai") is True:
+        payload["made_with_ai"] = True
+    return payload
+
+
+def main_post_attempt_is_semantically_valid(data: object) -> bool:
+    """Return whether a pre-send regular or meme attempt is self-consistent."""
+    if not isinstance(data, dict):
+        return False
+    lane = str(data.get("lane") or "")
+    expected_schema = {"quote_image": 3, "daily_meme": 2}.get(lane)
+    if expected_schema is None or data.get("schema_version") != expected_schema:
+        return False
+    if data.get("lifecycle_state") not in {"sending", "attempting"}:
+        return False
+    if re.fullmatch(r"[0-9a-f]{64}", str(data.get("attempt_id") or "")) is None:
+        return False
+    attempt_epoch = receipt_int(data.get("attempt_epoch"))
+    if attempt_epoch is None or not valid_receipt_epoch(attempt_epoch):
+        return False
+    revision = receipt_int(data.get("payload_revision"))
+    if revision is None or revision < 1 or revision > 10:
+        return False
+    text = data.get("text")
+    if not isinstance(text, str):
+        return False
+    if hashlib.sha256(text.encode("utf-8")).hexdigest() != str(
+        data.get("text_sha256") or ""
+    ):
+        return False
+    media_ids = data.get("media_ids")
+    if (
+        not isinstance(media_ids, list)
+        or not media_ids
+        or len(media_ids) > 4
+        or any(not isinstance(value, str) or not value for value in media_ids)
+        or len(set(media_ids)) != len(media_ids)
+    ):
+        return False
+    if str(data.get("reply_to_id") or ""):
+        return False
+    if not isinstance(data.get("made_with_ai"), bool):
+        return False
+    selected = data.get("selected_identity")
+    recovery_plan = data.get("recovery_plan")
+    if not isinstance(selected, dict):
+        return False
+    if not isinstance(recovery_plan, dict):
+        return False
+    if lane == "quote_image":
+        if set(selected) != {
+            "quote_hash",
+            "line_no",
+            "source_line_number",
+            "image_basename",
+            "image_no",
+        }:
+            return False
+        quote_hash = str(selected.get("quote_hash") or "")
+        if (
+            re.fullmatch(r"[0-9a-f]{64}", quote_hash) is None
+            or quote_text_hash(text) != quote_hash
+            or not valid_receipt_basename(selected.get("image_basename"))
+            or type(selected.get("line_no")) is not int
+            or int(selected["line_no"]) < 0
+            or selected.get("source_line_number") != int(selected["line_no"]) + 1
+            or type(selected.get("image_no")) is not int
+            or int(selected["image_no"]) < 0
+        ):
+            return False
+        if set(recovery_plan) != {
+            "quote_delay_seconds",
+            "meme_delay_seconds",
+            "quote_history_after",
+            "image_history_after",
+        }:
+            return False
+        quote_delay = recovery_plan.get("quote_delay_seconds")
+        meme_delay = recovery_plan.get("meme_delay_seconds")
+        quote_history = recovery_plan.get("quote_history_after")
+        image_history = recovery_plan.get("image_history_after")
+        if (
+            type(quote_delay) is not int
+            or not POST_SLEEP_MIN <= quote_delay <= POST_SLEEP_MAX
+            or (
+                meme_delay is not None
+                and (
+                    type(meme_delay) is not int
+                    or not MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS
+                    <= meme_delay
+                    <= MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS
+                )
+            )
+            or not isinstance(quote_history, list)
+            or len(quote_history) > 10_000
+            or len(set(quote_history)) != len(quote_history)
+            or quote_history != sorted(quote_history)
+            or quote_hash not in quote_history
+            or any(
+                not isinstance(value, str)
+                or re.fullmatch(r"[0-9a-f]{64}", value) is None
+                for value in quote_history
+            )
+            or not isinstance(image_history, list)
+            or len(image_history) > 10_000
+            or len(set(image_history)) != len(image_history)
+            or image_history != sorted(image_history)
+            or str(selected["image_basename"]) not in image_history
+            or any(
+                not isinstance(value, str)
+                or not valid_receipt_basename(value)
+                for value in image_history
+            )
+        ):
+            return False
+    else:
+        if (
+            set(selected) != {"meme_basename"}
+            or not valid_receipt_basename(selected.get("meme_basename"))
+            or recovery_plan != {"next_schedule_mode": "fallback"}
+        ):
+            return False
+    payload = main_post_attempt_payload(data)
+    return (
+        bool(payload.get("text") or payload.get("media"))
+        and canonical_remote_post_payload_sha256(payload)
+        == str(data.get("payload_sha256") or "")
+    )
+
+
+def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
+    """Return whether an attempt authorises exactly one remote payload."""
+    return bool(
+        main_post_attempt_is_semantically_valid(attempt)
+        and main_post_attempt_payload(attempt) == payload
+        and canonical_remote_post_payload_sha256(payload)
+        == str(attempt.get("payload_sha256") or "")
+    )
+
+
+def build_main_post_attempt(
+    *,
+    lane: str,
+    text: str,
+    media_ids: list[str],
+    made_with_ai: bool,
+    selected_identity: dict,
+    recovery_plan: dict,
+    attempt_epoch: int | None = None,
+) -> dict:
+    """Build a durable pre-send identity for one main-post transaction."""
+    if lane not in {"quote_image", "daily_meme"}:
+        raise ValueError(f"Unsupported main-post lane: {lane}")
+    payload: dict = {}
+    if text:
+        payload["text"] = str(text)
+    payload["media"] = {"media_ids": [str(value) for value in media_ids]}
+    if made_with_ai:
+        payload["made_with_ai"] = True
+    attempt = {
+        "schema_version": 3 if lane == "quote_image" else 2,
+        "lifecycle_state": "sending",
+        "lane": lane,
+        "attempt_id": hashlib.sha256(os.urandom(32)).hexdigest(),
+        "attempt_epoch": now_epoch() if attempt_epoch is None else int(attempt_epoch),
+        "payload_revision": 1,
+        "payload_sha256": canonical_remote_post_payload_sha256(payload),
+        "text": str(text),
+        "text_sha256": hashlib.sha256(str(text).encode("utf-8")).hexdigest(),
+        "media_ids": [str(value) for value in media_ids],
+        "reply_to_id": "",
+        "made_with_ai": bool(made_with_ai),
+        "selected_identity": copy.deepcopy(selected_identity),
+        "recovery_plan": copy.deepcopy(recovery_plan),
+    }
+    if not main_post_attempt_is_semantically_valid(attempt):
+        raise RuntimeError("Internal error: generated main-post attempt is invalid")
+    return attempt
+
+
+def main_post_attempt_path(attempt: dict) -> Path:
+    """Return the receipt path which owns one main-post attempt."""
+    lane = str(attempt.get("lane") or "")
+    if lane == "quote_image":
+        return REGULAR_POST_RECEIPT_FILE
+    if lane == "daily_meme":
+        return MEME_POST_RECEIPT_FILE
+    raise ValueError(f"Unsupported main-post attempt lane: {lane}")
+
+
+def write_main_post_attempt(attempt: dict) -> None:
+    """Durably record a main-post transaction before its X create request."""
+    if not main_post_attempt_is_semantically_valid(attempt):
+        raise RuntimeError("Internal error: generated main-post attempt failed validation")
+    if REGULAR_POST_RECEIPT_FILE.exists() or MEME_POST_RECEIPT_FILE.exists():
+        raise UnresolvedRegularPostReceipt(
+            "Refusing to overwrite an unresolved regular or meme transaction"
+        )
+    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing a main-post attempt while a conversational-reply receipt exists"
+        )
+    path = main_post_attempt_path(attempt)
+    atomic_write_json(path, attempt, durable=True)
+    log.warning(
+        "Wrote main-post sending receipt lane=%s attempt_id=%s path=%s",
+        attempt["lane"],
+        attempt["attempt_id"],
+        path,
+    )
+
+
+def rebind_main_post_attempt_payload(attempt: dict, payload: dict) -> dict:
+    """Durably bind a definite retry to its revised exact payload."""
+    path = main_post_attempt_path(attempt)
+    status, current = (
+        load_regular_post_receipt()
+        if path == REGULAR_POST_RECEIPT_FILE
+        else load_meme_post_receipt()
+    )
+    if status != "sending" or current != attempt:
+        raise AmbiguousRemotePostOutcome(
+            "Main-post sending receipt changed before a definite payload retry",
+            service="x",
+        )
+    rebound = {
+        **attempt,
+        "lifecycle_state": "sending",
+        "payload_revision": int(attempt["payload_revision"]) + 1,
+        "payload_sha256": canonical_remote_post_payload_sha256(payload),
+        "text": str(payload.get("text") or ""),
+        "text_sha256": hashlib.sha256(
+            str(payload.get("text") or "").encode("utf-8")
+        ).hexdigest(),
+        "media_ids": [
+            str(value)
+            for value in ((payload.get("media") or {}).get("media_ids") or [])
+        ],
+        "reply_to_id": str(
+            (payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""
+        ),
+        "made_with_ai": bool(payload.get("made_with_ai")),
+    }
+    if not main_post_attempt_is_semantically_valid(rebound):
+        raise RuntimeError("Rebound main-post attempt failed validation")
+    atomic_write_json(path, rebound, durable=True)
+    log.warning(
+        "Rebound main-post sending receipt lane=%s attempt_id=%s "
+        "payload_revision=%s",
+        rebound["lane"],
+        rebound["attempt_id"],
+        rebound["payload_revision"],
+    )
+    return rebound
+
+
+def mark_main_post_attempt_attempting(attempt: dict) -> dict:
+    """Atomically consume one sending authorisation before remote transmission."""
+    if attempt.get("lifecycle_state") != "sending":
+        raise AmbiguousRemotePostOutcome(
+            "A main-post attempt can only transmit once from sending state",
+            service="x",
+        )
+    path = main_post_attempt_path(attempt)
+    status, current = (
+        load_regular_post_receipt()
+        if path == REGULAR_POST_RECEIPT_FILE
+        else load_meme_post_receipt()
+    )
+    if status != "sending" or current != attempt:
+        raise AmbiguousRemotePostOutcome(
+            "Main-post sending receipt changed before transmission",
+            service="x",
+        )
+    attempting = {**attempt, "lifecycle_state": "attempting"}
+    if not main_post_attempt_is_semantically_valid(attempting):
+        raise RuntimeError("Attempting main-post receipt failed validation")
+    atomic_write_json(path, attempting, durable=True)
+    log.warning(
+        "Promoted main-post receipt to attempting lane=%s attempt_id=%s path=%s",
+        attempting["lane"],
+        attempting["attempt_id"],
+        path,
+    )
+    return attempting
+
+
+def remove_main_post_attempt(
+    attempt: dict,
+    *,
+    sending_disposition: str,
+) -> None:
+    """Retire an exact sending attempt after one proved-safe disposition."""
+    if sending_disposition not in {
+        "definite_non_success",
+        "confirmed_state_fallback",
+    }:
+        raise ValueError("A main-post sending receipt requires an explicit disposition")
+    path = main_post_attempt_path(attempt)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            current = json.load(handle)
+        if current != attempt or not main_post_attempt_is_semantically_valid(current):
+            raise AmbiguousRemotePostOutcome(
+                "Refusing to remove a changed main-post sending receipt",
+                service="x",
+            )
+        path.unlink()
+        fsync_parent_dir(path, strict=True)
+        log.info(
+            "Removed main-post sending receipt disposition=%s "
+            "lane=%s attempt_id=%s path=%s",
+            sending_disposition,
+            attempt["lane"],
+            attempt["attempt_id"],
+            path,
+        )
+    except FileNotFoundError as exc:
+        raise AmbiguousRemotePostOutcome(
+            "Main-post sending receipt disappeared before definite-failure retirement",
+            service="x",
+        ) from exc
+
+
+def confirmed_receipt_matches_main_attempt(receipt: dict, attempt: dict) -> bool:
+    """Return whether a confirmed receipt atomically promotes one attempt."""
+    if (
+        not main_post_attempt_is_semantically_valid(attempt)
+        or str(receipt.get("attempt_id") or "") != str(attempt["attempt_id"])
+        or str(receipt.get("attempt_payload_sha256") or "")
+        != str(attempt["payload_sha256"])
+    ):
+        return False
+    selected = attempt["selected_identity"]
+    if attempt["lane"] == "quote_image":
+        return bool(
+            str(receipt.get("quote_hash") or "") == selected["quote_hash"]
+            and receipt.get("line_no") == selected["line_no"]
+            and receipt.get("source_line_number")
+            == selected["source_line_number"]
+            and str(receipt.get("image_basename") or "")
+            == selected["image_basename"]
+            and receipt.get("image_no") == selected["image_no"]
+            and str(receipt.get("text") or "") == str(attempt["text"])
+            and receipt.get("quote_history_after")
+            == attempt["recovery_plan"]["quote_history_after"]
+            and receipt.get("image_history_after")
+            == attempt["recovery_plan"]["image_history_after"]
+        )
+    return bool(
+        str(receipt.get("meme_basename") or "") == selected["meme_basename"]
+        and str(receipt.get("text") or "") == str(attempt["text"])
+    )
+
+
 def write_regular_post_receipt(receipt: dict) -> None:
     """Write regular post receipt."""
-    if REGULAR_POST_RECEIPT_FILE.exists():
-        raise UnresolvedRegularPostReceipt(f"Refusing to overwrite unresolved regular-post receipt: {REGULAR_POST_RECEIPT_FILE}")
     if MEME_POST_RECEIPT_FILE.exists():
         raise UnresolvedMemePostReceipt(f"Refusing regular post while unresolved meme-post receipt exists: {MEME_POST_RECEIPT_FILE}")
     if not regular_post_receipt_is_semantically_valid(receipt):
         raise RuntimeError("Internal error: generated regular-post receipt failed semantic validation")
+    if REGULAR_POST_RECEIPT_FILE.exists():
+        status, attempt = load_regular_post_receipt()
+        if (
+            status != "sending"
+            or attempt is None
+            or not confirmed_receipt_matches_main_attempt(receipt, attempt)
+        ):
+            raise UnresolvedRegularPostReceipt(
+                "Refusing to overwrite an unresolved regular-post receipt: "
+                f"{REGULAR_POST_RECEIPT_FILE}"
+            )
+        atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
+        log.warning(
+            "Promoted regular-post sending receipt to confirmed attempt_id=%s "
+            "post_id=%s path=%s",
+            receipt.get("attempt_id"),
+            receipt.get("post_id"),
+            REGULAR_POST_RECEIPT_FILE,
+        )
+        return
     atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
     log.warning("Wrote confirmed regular-post receipt pending local reconciliation: %s", REGULAR_POST_RECEIPT_FILE)
 
@@ -5799,6 +6318,14 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
     except Exception:
         log.exception("Malformed regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
         return "invalid", None
+    if isinstance(data, dict) and main_post_attempt_is_semantically_valid(data):
+        if data.get("lane") == "quote_image":
+            return "sending", data
+        log.critical(
+            "A meme attempt was stored in the regular-post receipt path: %s",
+            REGULAR_POST_RECEIPT_FILE,
+        )
+        return "invalid", data
     if (
         not isinstance(data, dict)
         or type(data.get("schema_version")) is not int
@@ -5832,12 +6359,30 @@ def remove_regular_post_receipt() -> None:
 
 def write_meme_post_receipt(receipt: dict) -> None:
     """Write meme post receipt."""
-    if MEME_POST_RECEIPT_FILE.exists():
-        raise UnresolvedMemePostReceipt(f"Refusing to overwrite unresolved meme-post receipt: {MEME_POST_RECEIPT_FILE}")
     if REGULAR_POST_RECEIPT_FILE.exists():
         raise UnresolvedRegularPostReceipt(f"Refusing meme post while unresolved regular-post receipt exists: {REGULAR_POST_RECEIPT_FILE}")
     if not meme_post_receipt_is_semantically_valid(receipt):
         raise RuntimeError("Internal error: generated meme-post receipt failed semantic validation")
+    if MEME_POST_RECEIPT_FILE.exists():
+        status, attempt = load_meme_post_receipt()
+        if (
+            status != "sending"
+            or attempt is None
+            or not confirmed_receipt_matches_main_attempt(receipt, attempt)
+        ):
+            raise UnresolvedMemePostReceipt(
+                "Refusing to overwrite an unresolved meme-post receipt: "
+                f"{MEME_POST_RECEIPT_FILE}"
+            )
+        atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
+        log.warning(
+            "Promoted meme-post sending receipt to confirmed attempt_id=%s "
+            "post_id=%s path=%s",
+            receipt.get("attempt_id"),
+            receipt.get("post_id"),
+            MEME_POST_RECEIPT_FILE,
+        )
+        return
     atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
     log.warning("Wrote confirmed meme-post receipt pending local reconciliation: %s", MEME_POST_RECEIPT_FILE)
 
@@ -5874,6 +6419,14 @@ def load_meme_post_receipt() -> tuple[str, dict | None]:
     except Exception:
         log.exception("Malformed meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
         return "invalid", None
+    if isinstance(data, dict) and main_post_attempt_is_semantically_valid(data):
+        if data.get("lane") == "daily_meme":
+            return "sending", data
+        log.critical(
+            "A regular-post attempt was stored in the meme receipt path: %s",
+            MEME_POST_RECEIPT_FILE,
+        )
+        return "invalid", data
     if not isinstance(data, dict) or data.get("schema_version") != 1:
         log.critical("Invalid meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
         return "invalid", None
@@ -5937,6 +6490,12 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
     """Reconcile a durable meme receipt without duplicating a remote post."""
     status, receipt = load_meme_post_receipt()
     if status == "absent":
+        return False
+    if status == "sending":
+        log.critical(
+            "A meme post was interrupted with an uncertain remote outcome; "
+            "leaving its sending receipt as a global manual-reconciliation barrier"
+        )
         return False
     if status == "invalid" or receipt is None:
         raise InvalidMemePostReceipt(f"Invalid meme-post receipt blocks the bot: {MEME_POST_RECEIPT_FILE}")
@@ -7030,6 +7589,12 @@ def reconcile_regular_post_receipt(
     """Reconcile a durable regular-post receipt without duplicating a remote post."""
     status, receipt = load_regular_post_receipt()
     if status == "absent":
+        return False
+    if status == "sending":
+        log.critical(
+            "A regular post was interrupted with an uncertain remote outcome; "
+            "leaving its sending receipt as a global manual-reconciliation barrier"
+        )
         return False
     if status == "invalid" or receipt is None:
         raise InvalidRegularPostReceipt(f"Invalid regular-post receipt blocks main posting: {REGULAR_POST_RECEIPT_FILE}")
@@ -9125,11 +9690,12 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     log.info("Starting quote/image post cycle")
     block_if_ambiguous_remote_post()
 
+    transaction_preflight_epoch = now_epoch()
     receipt_status = reconcile_main_post_receipts(
         lines_used,
         images_used,
         state,
-        minimum_next_quote_epoch=now_epoch(),
+        minimum_next_quote_epoch=transaction_preflight_epoch,
     )
     if receipt_status.get("regular"):
         log.warning("Reconciled regular quote/image receipt; not creating a second regular post in the same call")
@@ -9212,12 +9778,36 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         log.debug("Quote text=%r", tweet)
 
         media_id = upload_media(image)
+        main_post_attempt = build_main_post_attempt(
+            lane="quote_image",
+            text=tweet,
+            media_ids=[media_id],
+            made_with_ai=image_made_with_ai,
+            selected_identity={
+                "quote_hash": quote_hash,
+                "line_no": line_no,
+                "source_line_number": line_no + 1,
+                "image_basename": image_basename,
+                "image_no": image_no,
+            },
+            recovery_plan={
+                "quote_delay_seconds": quote_delay,
+                "meme_delay_seconds": meme_delay,
+                "quote_history_after": sorted(set(lines_used) | {quote_hash}),
+                "image_history_after": sorted(
+                    set(images_used) | {image_basename}
+                ),
+            },
+            attempt_epoch=transaction_preflight_epoch,
+        )
+        write_main_post_attempt(main_post_attempt)
         confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
         response = create_post(
             text=tweet,
             media_ids=[media_id],
             reply_to_id=None,
             made_with_ai=image_made_with_ai,
+            prepared_main_post_attempt=main_post_attempt,
         )
         posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
         log.debug("Posted_id=%s", posted_id)
@@ -9230,9 +9820,29 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         images_used.clear()
         images_used.update(original_images_used)
         if (
+            "main_post_attempt" in locals()
+            and (
+                isinstance(remote_exc, RemoteOperationsPaused)
+                or api_error_proves_remote_non_success(remote_exc)
+            )
+        ):
+            try:
+                remove_main_post_attempt(
+                    main_post_attempt,
+                    sending_disposition="definite_non_success",
+                )
+            except BaseException as removal_exc:
+                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+                confirmed_post_sigint_guard = None
+                raise AmbiguousRemotePostOutcome(
+                    "A definitely unsuccessful regular post left its durable "
+                    "sending receipt unresolved",
+                    service="x",
+                ) from removal_exc
+        if (
             isinstance(remote_exc, AmbiguousRemotePostOutcome)
             and _AMBIGUOUS_REMOTE_POST_SEEN
-            and not durable_remote_write_safety_marker_exists()
+            and not durable_remote_write_safety_barrier_exists()
         ):
             retain_sigint_deferral_without_durable_barrier(lane="quote_image")
         else:
@@ -9242,6 +9852,12 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
 
     try:
         quote_post_epoch = now_epoch()
+        context_obligation_receipt = {
+            "post_id": str(posted_id),
+            "quote_hash": quote_hash,
+            "quote_post_epoch": quote_post_epoch,
+            "text": tweet,
+        }
         state["next_quote_post_epoch"] = int(quote_post_epoch) + int(quote_delay)
         quote_schedule_fields, _quote_delay = next_quote_schedule_fields(quote_post_epoch, delay=quote_delay)
         meme_schedule_fields = meme_schedule_fields_after_quote_post(state, quote_post_epoch, delay=meme_delay)
@@ -9254,6 +9870,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             "source_line_number": line_no + 1,
             "text": tweet,
             "image_basename": image_basename,
+            "image_no": image_no,
             "quote_post_epoch": quote_post_epoch,
             "next_quote_post_epoch": int(quote_schedule_fields["next_quote_post_epoch"]),
             "next_meme_post_epoch": int(meme_schedule_fields.get("next_meme_post_epoch", state.get("next_meme_post_epoch", 0) or 0) or 0),
@@ -9261,8 +9878,14 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             "next_meme_schedule_date": str(meme_schedule_fields.get("next_meme_schedule_date", state.get("next_meme_schedule_date", "")) or ""),
             "meme_anchor_quote_post_epoch": int(meme_schedule_fields.get("meme_anchor_quote_post_epoch", state.get("meme_anchor_quote_post_epoch", 0) or 0) or 0),
             "meme_schedule_changed_by_quote": meme_schedule_changed_by_quote,
-            "quote_history_after": sorted(set(lines_used) | {quote_hash}),
-            "image_history_after": sorted(set(images_used) | {image_basename}),
+            "quote_history_after": list(
+                main_post_attempt["recovery_plan"]["quote_history_after"]
+            ),
+            "image_history_after": list(
+                main_post_attempt["recovery_plan"]["image_history_after"]
+            ),
+            "attempt_id": str(main_post_attempt["attempt_id"]),
+            "attempt_payload_sha256": str(main_post_attempt["payload_sha256"]),
         }
         write_regular_post_receipt(receipt)
     except BaseException as receipt_exc:
@@ -9345,7 +9968,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 post_id=str(posted_id),
                 failure_components=["regular_post_receipt", *failures],
             )
-            if durable_barrier:
+            if durable_barrier or durable_remote_write_safety_barrier_exists():
                 end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
                 confirmed_post_sigint_guard = None
             else:
@@ -9353,6 +9976,37 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed regular quote/image post {posted_id} has no complete "
                 f"durable recovery representation: {failure_text}"
+            ) from receipt_exc
+        status_after_fallback, _current_after_fallback = load_regular_post_receipt()
+        if status_after_fallback == "sending":
+            try:
+                enqueue_historical_context_obligation(
+                    context_obligation_receipt
+                )
+            except Exception as context_exc:
+                log.critical(
+                    "Confirmed regular quote/image post_id=%s has durable "
+                    "protected state, but its historical-context disposition "
+                    "could not be persisted; retaining the main-post attempt "
+                    "receipt as a manual-reconciliation barrier",
+                    posted_id,
+                    exc_info=True,
+                )
+                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+                confirmed_post_sigint_guard = None
+                raise ConfirmedPostLocalPersistenceError(
+                    f"Confirmed regular quote/image post {posted_id} but failed "
+                    "persisting its historical-context disposition; the durable "
+                    "attempt receipt remains unresolved"
+                ) from context_exc
+            remove_main_post_attempt(
+                main_post_attempt,
+                sending_disposition="confirmed_state_fallback",
+            )
+        elif status_after_fallback != "valid":
+            raise UnrecoverableConfirmedPostPersistenceError(
+                f"Confirmed regular quote/image post {posted_id} has no stable "
+                "receipt state after fallback persistence"
             ) from receipt_exc
         end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
         confirmed_post_sigint_guard = None
@@ -9824,6 +10478,18 @@ def post_next_meme(state: dict) -> None:
         lambda: upload_media(str(meme_path)),
     )
 
+    main_post_attempt = build_main_post_attempt(
+        lane="daily_meme",
+        text=MEME_POST_TEXT,
+        media_ids=[media_id],
+        made_with_ai=False,
+        selected_identity={"meme_basename": meme_path.name},
+        recovery_plan={"next_schedule_mode": "fallback"},
+    )
+    run_daily_meme_stage(
+        "main_post_attempt_persistence",
+        lambda: write_main_post_attempt(main_post_attempt),
+    )
     confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
         response = run_daily_meme_stage(
@@ -9833,6 +10499,7 @@ def post_next_meme(state: dict) -> None:
                 media_ids=[media_id],
                 reply_to_id=None,
                 made_with_ai=False,
+                prepared_main_post_attempt=main_post_attempt,
             ),
         )
 
@@ -9845,9 +10512,26 @@ def post_next_meme(state: dict) -> None:
         )
     except BaseException as remote_exc:
         if (
+            isinstance(remote_exc, RemoteOperationsPaused)
+            or api_error_proves_remote_non_success(remote_exc)
+        ):
+            try:
+                remove_main_post_attempt(
+                    main_post_attempt,
+                    sending_disposition="definite_non_success",
+                )
+            except BaseException as removal_exc:
+                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+                confirmed_post_sigint_guard = None
+                raise AmbiguousRemotePostOutcome(
+                    "A definitely unsuccessful meme post left its durable "
+                    "sending receipt unresolved",
+                    service="x",
+                ) from removal_exc
+        if (
             isinstance(remote_exc, AmbiguousRemotePostOutcome)
             and _AMBIGUOUS_REMOTE_POST_SEEN
-            and not durable_remote_write_safety_marker_exists()
+            and not durable_remote_write_safety_barrier_exists()
         ):
             retain_sigint_deferral_without_durable_barrier(lane="daily_meme")
         else:
@@ -9875,6 +10559,8 @@ def post_next_meme(state: dict) -> None:
             "next_meme_schedule_mode": str(meme_schedule_fields.get("next_meme_schedule_mode") or "fallback"),
             "text": MEME_POST_TEXT,
             "image_summary": image_summary,
+            "attempt_id": str(main_post_attempt["attempt_id"]),
+            "attempt_payload_sha256": str(main_post_attempt["payload_sha256"]),
         }
         write_meme_post_receipt(receipt)
     except BaseException as receipt_exc:
@@ -9952,13 +10638,24 @@ def post_next_meme(state: dict) -> None:
                 post_id=str(posted_id),
                 failure_components=["meme_post_receipt", incomplete_component],
             )
-            if durable_barrier:
+            if durable_barrier or durable_remote_write_safety_barrier_exists():
                 end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
                 confirmed_post_sigint_guard = None
             else:
                 retain_sigint_deferral_without_durable_barrier(lane="daily_meme")
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed meme post {posted_id} has no complete durable recovery representation"
+            ) from receipt_exc
+        status_after_fallback, _current_after_fallback = load_meme_post_receipt()
+        if status_after_fallback == "sending":
+            remove_main_post_attempt(
+                main_post_attempt,
+                sending_disposition="confirmed_state_fallback",
+            )
+        elif status_after_fallback != "valid":
+            raise UnrecoverableConfirmedPostPersistenceError(
+                f"Confirmed meme post {posted_id} has no stable receipt state "
+                "after fallback persistence"
             ) from receipt_exc
         end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
         confirmed_post_sigint_guard = None
@@ -13266,7 +13963,6 @@ def main() -> None:
     """Run the command-line entry point."""
     require_production_bootstrap()
     require_established_installation()
-    block_if_ambiguous_remote_post()
     random.seed()
     acquire_instance_lock()
     reconcile_runtime_historical_context_state()
