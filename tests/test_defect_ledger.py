@@ -487,14 +487,18 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     ) == ledger_tool.render_diagnosis_chronology(ledger)
 
 
-def test_candidate_only_active_defect_is_not_rendered_as_observed_production() -> None:
+def test_candidate_lineage_defects_are_not_rendered_as_observed_production() -> None:
     ledger, _schema, _invariants = _documents()
-    defect = next(
+    repaired = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0030"
     )
+    active = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0031"
+    )
 
-    rendered = ledger_tool._deployment_cell(defect)
-
-    assert rendered == (
+    assert ledger_tool._deployment_cell(repaired) == (
+        "not-deployed; observed `be882e81`"
+    )
+    assert ledger_tool._deployment_cell(active) == (
         "not deployed; absent from observed production `be882e81`"
     )
