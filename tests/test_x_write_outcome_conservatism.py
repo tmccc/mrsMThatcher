@@ -73,6 +73,8 @@ def isolate_remote_write_state(
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    monkeypatch.setattr(bot, "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN", False)
+    monkeypatch.setattr(bot, "_RETAINED_CONFIRMED_POST_SIGINT_GUARD", None)
     monkeypatch.setattr(
         bot,
         "_CONTROL_CACHE",

@@ -282,6 +282,8 @@ MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
 CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
 AMBIGUOUS_POST_OUTCOME_FILE = BASE_DIR / "ambiguous_post_outcome.json"
 _AMBIGUOUS_REMOTE_POST_SEEN = False
+_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
+_RETAINED_CONFIRMED_POST_SIGINT_GUARD = None
 MEME_SCHEDULE_MODES = {
     "",
     "fallback",
@@ -4751,6 +4753,7 @@ def block_if_ambiguous_remote_post(
     *,
     prepared_conversational_reply_receipt: dict | None = None,
     prepared_main_post_attempt: dict | None = None,
+    allow_confirmed_pending_schedule_reconciliation: bool = False,
 ) -> None:
     """Refuse posting while a remote-write safety incident is unresolved."""
     if (
@@ -4798,7 +4801,16 @@ def block_if_ambiguous_remote_post(
         ("meme", meme_status, meme_receipt),
     ]
     for lane_name, status, receipt in blocking_main_receipts:
-        if status not in {"sending", "invalid"}:
+        if status not in {"sending", "pending_schedule", "invalid"}:
+            continue
+        if (
+            status == "pending_schedule"
+            and allow_confirmed_pending_schedule_reconciliation
+        ):
+            # Main-lane entry points may pass this narrow exception solely to
+            # reach their local receipt reconciler.  Every remote-create
+            # preflight, including the later preflight in those same lanes,
+            # retains the default fail-closed behaviour.
             continue
         if status == "invalid":
             if lane_name == "regular":
@@ -4817,8 +4829,8 @@ def block_if_ambiguous_remote_post(
         ):
             continue
         raise AmbiguousRemotePostOutcome(
-            "An unresolved main-post sending or invalid receipt blocks further "
-            "posting",
+            "An unresolved main-post sending, confirmed pending-schedule, or "
+            "invalid receipt blocks further posting",
             service="x",
         )
 
@@ -4918,8 +4930,18 @@ def end_confirmed_post_sigint_deferral(
 
 def durable_remote_write_safety_marker_exists() -> bool:
     """Return whether restart safety survives loss of the in-process latch."""
+    global _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
     try:
-        return AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        if not AMBIGUOUS_POST_OUTCOME_FILE.exists():
+            return False
+        # A previous atomic replacement may be visible even though its
+        # parent-directory fsync failed, including after a process restart
+        # reset the in-memory uncertainty flag.  Re-establish durability on
+        # every positive check; mere visibility must never authorise exit.
+        fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
+        _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
+        release_retained_sigint_deferral_after_durable_barrier()
+        return True
     except Exception:
         log.critical(
             "The remote-write safety marker cannot be inspected; its durability "
@@ -4945,8 +4967,25 @@ def durable_remote_write_safety_barrier_exists() -> bool:
     return status in {"sending", "invalid"}
 
 
-def retain_sigint_deferral_without_durable_barrier(*, lane: str) -> None:
+def retain_sigint_deferral_without_durable_barrier(
+    *,
+    lane: str,
+    guard: ConfirmedPostSigintDeferral | None,
+) -> None:
     """Explain why controlled shutdown must remain deferred after total loss."""
+    global _RETAINED_CONFIRMED_POST_SIGINT_GUARD
+    if guard is not None:
+        if (
+            _RETAINED_CONFIRMED_POST_SIGINT_GUARD is not None
+            and _RETAINED_CONFIRMED_POST_SIGINT_GUARD is not guard
+        ):
+            log.critical(
+                "A different confirmed-post SIGINT guard was already retained; "
+                "preserving the earlier process-wide guard lane=%s",
+                lane,
+            )
+        else:
+            _RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
     log.critical(
         "Keeping SIGINT deferred for lane=%s because the confirmed/ambiguous "
         "remote write has no durable local barrier. The process must remain "
@@ -4955,27 +4994,48 @@ def retain_sigint_deferral_without_durable_barrier(*, lane: str) -> None:
     )
 
 
+def release_retained_sigint_deferral_after_durable_barrier() -> None:
+    """Restore and deliver a deferred SIGINT once restart safety is durable."""
+    global _RETAINED_CONFIRMED_POST_SIGINT_GUARD
+    guard = _RETAINED_CONFIRMED_POST_SIGINT_GUARD
+    if guard is None:
+        return
+    try:
+        end_confirmed_post_sigint_deferral(guard)
+    except BaseException:
+        current_handler = signal.getsignal(signal.SIGINT)
+        if getattr(current_handler, "__self__", None) is not guard:
+            # Restoration succeeded and only delivery of the deferred signal
+            # raised.  Do not retain a guard whose handler is no longer active.
+            _RETAINED_CONFIRMED_POST_SIGINT_GUARD = None
+        raise
+    _RETAINED_CONFIRMED_POST_SIGINT_GUARD = None
+
+
 def record_ambiguous_remote_post(payload: dict) -> None:
     """Persist a manual-reconciliation barrier without claiming success or failure."""
+    global _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
     global _AMBIGUOUS_REMOTE_POST_SEEN
     _AMBIGUOUS_REMOTE_POST_SEEN = True
+    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
     try:
         if AMBIGUOUS_POST_OUTCOME_FILE.exists():
-            return
-        text = str(payload.get("text") or "")
-        atomic_write_json(
-            AMBIGUOUS_POST_OUTCOME_FILE,
-            {
-                "schema_version": 1,
-                "recorded_at_epoch": now_epoch(),
-                "outcome": "ambiguous_remote_post",
-                "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                "reply_to_id": str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""),
-                "media_ids": list((payload.get("media") or {}).get("media_ids") or []),
-                "made_with_ai": bool(payload.get("made_with_ai")),
-            },
-            durable=True,
-        )
+            fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
+        else:
+            text = str(payload.get("text") or "")
+            atomic_write_json(
+                AMBIGUOUS_POST_OUTCOME_FILE,
+                {
+                    "schema_version": 1,
+                    "recorded_at_epoch": now_epoch(),
+                    "outcome": "ambiguous_remote_post",
+                    "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                    "reply_to_id": str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""),
+                    "media_ids": list((payload.get("media") or {}).get("media_ids") or []),
+                    "made_with_ai": bool(payload.get("made_with_ai")),
+                },
+                durable=True,
+            )
     except Exception:
         log.critical(
             "AMBIGUOUS REMOTE X POST OUTCOME: the durable safety marker could not be "
@@ -4984,6 +5044,7 @@ def record_ambiguous_remote_post(payload: dict) -> None:
             exc_info=True,
         )
         return
+    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
     log.critical(
         "AMBIGUOUS REMOTE X POST OUTCOME: X may have accepted the write, but a usable confirmation was not received. "
         "Automatic posting is blocked pending manual reconciliation: %s",
@@ -5006,8 +5067,10 @@ def latch_confirmed_post_persistence_failure(
 
     Return whether the durable barrier marker was written (or already exists).
     """
+    global _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
     global _AMBIGUOUS_REMOTE_POST_SEEN
     _AMBIGUOUS_REMOTE_POST_SEEN = True
+    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
     failures = sorted({str(item) for item in failure_components if str(item)})
     incident_identity = json.dumps(
         {
@@ -5035,7 +5098,9 @@ def latch_confirmed_post_persistence_failure(
     else:
         marker["recorded_at_epoch"] = recorded_at_epoch
     try:
-        if not AMBIGUOUS_POST_OUTCOME_FILE.exists():
+        if AMBIGUOUS_POST_OUTCOME_FILE.exists():
+            fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
+        else:
             atomic_write_json(AMBIGUOUS_POST_OUTCOME_FILE, marker, durable=True)
     except Exception:
         log.critical(
@@ -5049,6 +5114,7 @@ def latch_confirmed_post_persistence_failure(
             exc_info=True,
         )
         return False
+    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
     log.critical(
         "CONFIRMED REMOTE POST LOST COMPLETE LOCAL RECOVERY: post_id=%s lane=%s "
         "failures=%s. All remote writes are blocked pending manual reconciliation: %s",
@@ -5232,6 +5298,17 @@ class ConfirmedPostLocalPersistenceError(RuntimeError):
 class UnrecoverableConfirmedPostPersistenceError(ConfirmedPostLocalPersistenceError):
     """Raised when a confirmed main post has no complete durable representation."""
     pass
+
+
+class ConfirmedPendingScheduleDurabilityUncertain(
+    UnrecoverableConfirmedPostPersistenceError
+):
+    """Raised when a promoted pending receipt cannot be proved directory-durable."""
+
+    def __init__(self, message: str, *, durable_barrier: bool) -> None:
+        """Record whether a separate restart-safe marker was established."""
+        super().__init__(message)
+        self.durable_barrier = bool(durable_barrier)
 
 
 class InvalidConfirmedReplyReceipt(RuntimeError):
@@ -5735,6 +5812,19 @@ def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> No
     os.replace(tmp, path)
     if durable:
         fsync_parent_dir(path, strict=durable)
+
+
+def canonical_atomic_json_bytes(value: object) -> bytes:
+    """Return the exact byte representation used by ``atomic_write_json``."""
+    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def atomic_json_file_exactly_matches(path: Path, value: object) -> bool:
+    """Compare a receipt with its expected canonical bytes without JSON parsing."""
+    try:
+        return path.read_bytes() == canonical_atomic_json_bytes(value)
+    except Exception:
+        return False
 
 
 def valid_post_id(value: object) -> bool:
@@ -6393,10 +6483,76 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
             "Main-post attempt changed before remote-confirmation promotion",
             service="x",
         )
-    if attempt["lane"] == "quote_image":
-        write_regular_post_receipt(pending)
-    else:
-        write_meme_post_receipt(pending)
+    try:
+        if attempt["lane"] == "quote_image":
+            write_regular_post_receipt(pending)
+        else:
+            write_meme_post_receipt(pending)
+    except BaseException as write_error:
+        # ``atomic_write_json`` replaces the receipt before synchronising its
+        # parent directory.  A failure at that final boundary can therefore
+        # leave the exact pending receipt visible even though the writer did
+        # not return.  Latch first: every inspection and recovery operation
+        # below is fallible, and no unrelated remote lane may proceed while
+        # durability is uncertain.
+        global _AMBIGUOUS_REMOTE_POST_SEEN
+        latch_was_already_set = _AMBIGUOUS_REMOTE_POST_SEEN
+        _AMBIGUOUS_REMOTE_POST_SEEN = True
+
+        if atomic_json_file_exactly_matches(path, pending):
+            try:
+                fsync_parent_dir(path, strict=True)
+                if not atomic_json_file_exactly_matches(path, pending):
+                    raise RuntimeError(
+                        "Pending-schedule receipt changed during durability recheck"
+                    )
+            except BaseException as durability_error:
+                durable_barrier = latch_confirmed_post_persistence_failure(
+                    lane=str(attempt["lane"]),
+                    post_id=str(post_id),
+                    failure_components=[
+                        "pending_schedule_parent_fsync",
+                        type(durability_error).__name__,
+                    ],
+                )
+                raise ConfirmedPendingScheduleDurabilityUncertain(
+                    "Confirmed main-post pending-schedule receipt is visible but "
+                    "its parent-directory durability could not be re-established",
+                    durable_barrier=durable_barrier,
+                ) from write_error
+
+            if not latch_was_already_set:
+                _AMBIGUOUS_REMOTE_POST_SEEN = False
+            log.warning(
+                "Re-established confirmed pending-schedule receipt durability "
+                "after its initial parent-directory fsync failed lane=%s "
+                "attempt_id=%s post_id=%s path=%s",
+                attempt["lane"],
+                attempt["attempt_id"],
+                post_id,
+                path,
+            )
+        elif atomic_json_file_exactly_matches(path, attempt):
+            # The replace did not occur.  The previously durable sending
+            # attempt remains the restart-safe barrier, so the caller's
+            # existing confirmed-state fallback may proceed.
+            if not latch_was_already_set:
+                _AMBIGUOUS_REMOTE_POST_SEEN = False
+            raise
+        else:
+            durable_barrier = latch_confirmed_post_persistence_failure(
+                lane=str(attempt["lane"]),
+                post_id=str(post_id),
+                failure_components=[
+                    "pending_schedule_receipt_identity",
+                    type(write_error).__name__,
+                ],
+            )
+            raise ConfirmedPendingScheduleDurabilityUncertain(
+                "Confirmed main-post receipt identity changed or could not be "
+                "verified after pending-schedule promotion failed",
+                durable_barrier=durable_barrier,
+            ) from write_error
     log.warning(
         "Promoted main-post attempt to confirmed pending-schedule receipt "
         "lane=%s attempt_id=%s post_id=%s path=%s",
@@ -8067,7 +8223,13 @@ def process_due_historical_context_obligations(
     """Serialise complete context attempts across claims and remote outcomes."""
     from historical_context_outbox import OutboxWorkerBusy
 
-    if ambiguous_remote_post_is_blocking():
+    try:
+        block_if_ambiguous_remote_post()
+    except (
+        AmbiguousRemotePostOutcome,
+        InvalidRegularPostReceipt,
+        InvalidMemePostReceipt,
+    ):
         log.critical(
             "Historical-context auxiliary worker deferred by the unresolved "
             "global remote-write ambiguity barrier"
@@ -10277,7 +10439,9 @@ def choose_regular_quote_image_pair(
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     """Select and post one quotation-image pair transactionally."""
     log.info("Starting quote/image post cycle")
-    block_if_ambiguous_remote_post()
+    block_if_ambiguous_remote_post(
+        allow_confirmed_pending_schedule_reconciliation=True
+    )
 
     transaction_preflight_epoch = now_epoch()
     receipt_status = reconcile_main_post_receipts(
@@ -10437,7 +10601,10 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             and _AMBIGUOUS_REMOTE_POST_SEEN
             and not durable_remote_write_safety_barrier_exists()
         ):
-            retain_sigint_deferral_without_durable_barrier(lane="quote_image")
+            retain_sigint_deferral_without_durable_barrier(
+                lane="quote_image",
+                guard=confirmed_post_sigint_guard,
+            )
         else:
             end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
             confirmed_post_sigint_guard = None
@@ -10495,6 +10662,19 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             posted_id,
             exc_info=True,
         )
+        if isinstance(
+            receipt_exc,
+            ConfirmedPendingScheduleDurabilityUncertain,
+        ):
+            if receipt_exc.durable_barrier:
+                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+                confirmed_post_sigint_guard = None
+            else:
+                retain_sigint_deferral_without_durable_barrier(
+                    lane="quote_image",
+                    guard=confirmed_post_sigint_guard,
+                )
+            raise
         if pending_schedule_promoted:
             # The remote identity is already durable.  Leave this receipt in
             # place so startup/current-loop reconciliation retries only local
@@ -10621,7 +10801,10 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
                 confirmed_post_sigint_guard = None
             else:
-                retain_sigint_deferral_without_durable_barrier(lane="quote_image")
+                retain_sigint_deferral_without_durable_barrier(
+                    lane="quote_image",
+                    guard=confirmed_post_sigint_guard,
+                )
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed regular quote/image post {posted_id} has no complete "
                 f"durable recovery representation: {failure_text}"
@@ -11074,7 +11257,12 @@ def require_valid_meme_post_id(posted_id: object) -> None:
 def post_next_meme(state: dict) -> None:
     """Select and post the next daily meme transactionally."""
     log.info("Starting daily meme post cycle")
-    run_daily_meme_stage("remote_write_barrier", block_if_ambiguous_remote_post)
+    run_daily_meme_stage(
+        "remote_write_barrier",
+        lambda: block_if_ambiguous_remote_post(
+            allow_confirmed_pending_schedule_reconciliation=True
+        ),
+    )
 
     def validate_receipt_barriers() -> None:
         if both_main_post_receipts_exist():
@@ -11203,7 +11391,10 @@ def post_next_meme(state: dict) -> None:
             and _AMBIGUOUS_REMOTE_POST_SEEN
             and not durable_remote_write_safety_barrier_exists()
         ):
-            retain_sigint_deferral_without_durable_barrier(lane="daily_meme")
+            retain_sigint_deferral_without_durable_barrier(
+                lane="daily_meme",
+                guard=confirmed_post_sigint_guard,
+            )
         else:
             end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
             confirmed_post_sigint_guard = None
@@ -11258,6 +11449,19 @@ def post_next_meme(state: dict) -> None:
             error_type=type(receipt_exc).__name__,
             reason=str(receipt_exc)[:500],
         )
+        if isinstance(
+            receipt_exc,
+            ConfirmedPendingScheduleDurabilityUncertain,
+        ):
+            if receipt_exc.durable_barrier:
+                end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
+                confirmed_post_sigint_guard = None
+            else:
+                retain_sigint_deferral_without_durable_barrier(
+                    lane="daily_meme",
+                    guard=confirmed_post_sigint_guard,
+                )
+            raise
         if pending_schedule_promoted:
             # Confirmation is already durable.  Leave the pending receipt for
             # local-only reconciliation; no scheduler path may create another
@@ -11356,7 +11560,10 @@ def post_next_meme(state: dict) -> None:
                 end_confirmed_post_sigint_deferral(confirmed_post_sigint_guard)
                 confirmed_post_sigint_guard = None
             else:
-                retain_sigint_deferral_without_durable_barrier(lane="daily_meme")
+                retain_sigint_deferral_without_durable_barrier(
+                    lane="daily_meme",
+                    guard=confirmed_post_sigint_guard,
+                )
             raise UnrecoverableConfirmedPostPersistenceError(
                 f"Confirmed meme post {posted_id} has no complete durable recovery representation"
             ) from receipt_exc
@@ -12850,6 +13057,15 @@ def post_conversational_reply_with_durable_identity(
             "Refusing conversational X write with an invalid reply receipt template"
         )
 
+    # Preserve the receipt-specific error for an already unresolved reply, but
+    # do not create a new competing reply receipt while a confirmed main post
+    # is represented by a local-only pending-schedule obligation.
+    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite unresolved conversational-reply receipt: "
+            f"{CONFIRMED_REPLY_RECEIPT_FILE}"
+        )
+    block_if_ambiguous_remote_post()
     write_sending_reply_receipt(receipt_template)
     sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
@@ -12998,7 +13214,10 @@ def post_conversational_reply_with_durable_identity(
             ):
                 end_confirmed_post_sigint_deferral(sigint_guard)
             else:
-                retain_sigint_deferral_without_durable_barrier(lane=lane)
+                retain_sigint_deferral_without_durable_barrier(
+                    lane=lane,
+                    guard=sigint_guard,
+                )
             raise UnrecoverableConfirmedReplyPersistenceError(
                 f"Confirmed conversational reply {own_reply_id} to "
                 f"{reply_to_id} has no complete durable recovery representation"

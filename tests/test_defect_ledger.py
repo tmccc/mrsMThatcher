@@ -447,7 +447,6 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     )
     assert not report.ok
     assert any("Markdown Summary is stale" in error for error in report.errors)
-
     output = tmp_path / "rendered.md"
     output.write_text(MARKDOWN_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     diagnosis_output = tmp_path / "diagnosis.md"
@@ -486,3 +485,16 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
         diagnosis_output.read_text(encoding="utf-8"),
         ledger_tool.DIAGNOSIS_PATTERN,
     ) == ledger_tool.render_diagnosis_chronology(ledger)
+
+
+def test_candidate_only_active_defect_is_not_rendered_as_observed_production() -> None:
+    ledger, _schema, _invariants = _documents()
+    defect = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0030"
+    )
+
+    rendered = ledger_tool._deployment_cell(defect)
+
+    assert rendered == (
+        "not deployed; absent from observed production `be882e81`"
+    )

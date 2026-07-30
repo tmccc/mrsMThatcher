@@ -520,6 +520,8 @@ def _deployment_cell(defect: Mapping[str, Any]) -> str:
         return "not applicable"
     if status == "active":
         evidence = str(deployment.get("evidence", "")).lower()
+        if "never deployed" in evidence:
+            return f"not deployed; absent from observed production `{observed}`"
         if (
             "observed production" in evidence
             and "ledger evidence cut-off" in evidence
