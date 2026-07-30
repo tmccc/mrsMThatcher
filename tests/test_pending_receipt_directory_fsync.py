@@ -808,6 +808,7 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
         assert fsync_attempts == 2
         assert sleep_calls == 2
         assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
         assert signal.getsignal(signal.SIGINT) is delivered_handler
         assert delivered == [signal.SIGINT]
         assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()

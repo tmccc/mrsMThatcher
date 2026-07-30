@@ -600,9 +600,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — A durable sending receipt is written before transmission and atomically consumed into attempting state. A valid remote response is first promoted to a confirmed pending-schedule receipt before any fallible local schedule materialisation. If replacement succeeds but its directory fsync reports failure, the exact canonical receipt is re-read, its parent is synchronised again and its bytes are rechecked; uncertainty latches all writes before marker recovery. Reconciliation derives the exact quote and meme schedules from the pre-send bound plan and never repeats the X create. Post-transmission HTTP status alone does not retire the attempt.
+**Status.** `implemented` — A durable sending receipt is written before transmission and atomically consumed into attempting state. A valid remote response is first promoted to a confirmed pending-schedule receipt before any fallible local schedule materialisation. If replacement succeeds but its directory fsync reports failure, the exact canonical receipt is re-read, its parent is synchronised again and its bytes are rechecked; uncertainty latches all writes before marker recovery. The real daemon retries delayed marker-directory durability on every blocked tick while logging the pause once, then restores and delivers retained SIGINT exactly once when the barrier becomes restart-safe. Reconciliation derives the exact quote and meme schedules from the pre-send bound plan and never repeats the X create. Post-transmission HTTP status alone does not retire the attempt.
 
-**Verification.** `verified` — Tests use hard process exits at pre-request, remote acceptance, pending-schedule promotion, protected state and receipt-retirement boundaries. They also inject the post-replacement parent-directory fsync boundary, exact-byte mismatch, marker failure and recovery, deferred-SIGINT delivery, actual cross-lane reply preflight and unchanged auxiliary-context attempts, and exercise exact cycle-reset histories, schedule-materialisation failure, local-only retry, conservative generic-4xx handling, stable restart pause, legacy receipt compatibility and idempotent reconciliation.
+**Verification.** `verified` — Tests use hard process exits at pre-request, remote acceptance, pending-schedule promotion, protected state and receipt-retirement boundaries. They also drive the real daemon through two blocked ticks with first-fail/second-success marker fsync, inject the post-replacement parent-directory fsync boundary, exact-byte mismatch, marker failure and recovery, deferred-SIGINT delivery, actual cross-lane reply preflight and unchanged auxiliary-context attempts, and exercise exact cycle-reset histories, schedule-materialisation failure, local-only retry, conservative generic-4xx handling, stable restart pause, legacy receipt compatibility and idempotent reconciliation.
 
 **Preconditions.**
 
@@ -629,7 +629,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post` — Hard-process-loss coverage for the durable intent, remote acceptance, confirmed promotion, protected state and retirement boundaries.
 - `test` `tests/test_unit_helpers.py::test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure` — A confirmed pending-schedule receipt survives local materialisation failure and later reconciles without another remote create.
 - `test` `tests/test_unit_helpers.py::test_regular_schedule_failure_replays_exact_bound_meme_delay` — The exact pre-send quote and meme delays survive post-confirmation schedule failure and are replayed locally without another remote create.
-- `test` `tests/test_pending_receipt_directory_fsync.py` — Post-replacement directory-fsync failures are revalidated exactly or latch every write before fallible recovery; marker recovery restores deferred SIGINT, while pending receipts block actual reply creation, preserve unclaimed context work and reconcile locally after restart.
+- `test` `tests/test_pending_receipt_directory_fsync.py` — Post-replacement directory-fsync failures are revalidated exactly or latch every write before fallible recovery; the real daemon retries delayed marker durability on every blocked tick and restores deferred SIGINT exactly once, while pending receipts block actual reply creation, preserve unclaimed context work and reconcile locally after restart.
 - `test` `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry` — A generic post-transmission 4xx preserves the exact attempt and blocks automatic retry.
 
 **Last verified commit.** `unknown` (`unknown`) — The 1b730410 predecessor covered pre-send durability, schedule finalisation and conservative response handling but omitted the post-replacement parent-directory fsync boundary recorded as DEF-0030. The replacement candidate identity must be supplied by a later frozen external attestation.
@@ -672,6 +672,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane`
 - `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`
 - `tests/test_pending_receipt_directory_fsync.py`
+- `tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick`
 - `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`
 - `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry`
 
@@ -695,9 +696,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The dedicated meme receipt is written before transmission, atomically consumed into attempting state and retained on uncertain outcomes. A valid response is promoted first to confirmed pending-schedule state. A reported post-replacement directory-fsync failure is accepted only after exact-byte revalidation and a successful explicit parent re-fsync; otherwise the process latches before marker recovery. Its next-local-date schedule is then materialised from the bound fallback policy. A same-local-date guard independently prevents a second daily meme, and post-transmission HTTP status alone does not retire the attempt.
+**Status.** `implemented` — The dedicated meme receipt is written before transmission, atomically consumed into attempting state and retained on uncertain outcomes. A valid response is promoted first to confirmed pending-schedule state. A reported post-replacement directory-fsync failure is accepted only after exact-byte revalidation and a successful explicit parent re-fsync; otherwise the process latches before marker recovery. The real daemon retries delayed marker-directory durability on every blocked tick while logging the pause once, then restores and delivers retained SIGINT exactly once when the barrier becomes restart-safe. Its next-local-date schedule is then materialised from the bound fallback policy. A same-local-date guard independently prevents a second daily meme, and post-transmission HTTP status alone does not retire the attempt.
 
-**Verification.** `verified` — Tests cover hard process exits across all transaction boundaries, post-replacement directory-fsync failure, exact-byte mismatch, marker loss and recovery, deferred-SIGINT delivery, cross-lane reply blocking, unchanged auxiliary-context attempts, pending-schedule materialisation failure and local-only retry, the same-local-date guard, conservative generic-4xx handling, stable restart pause, legacy receipts and a validated next-local-date schedule.
+**Verification.** `verified` — Tests cover hard process exits across all transaction boundaries, a real two-tick daemon recovery with first-fail/second-success marker fsync, post-replacement directory-fsync failure, exact-byte mismatch, marker loss and recovery, deferred-SIGINT delivery, cross-lane reply blocking, unchanged auxiliary-context attempts, pending-schedule materialisation failure and local-only retry, the same-local-date guard, conservative generic-4xx handling, stable restart pause, legacy receipts and a validated next-local-date schedule.
 
 **Preconditions.**
 
@@ -723,7 +724,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_unit_helpers.py::test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure` — A confirmed pending-schedule meme survives local materialisation failure and later reconciles to the bound next-local-date schedule.
 - `test` `tests/test_unit_helpers.py::test_meme_same_local_date_barrier_suppresses_second_remote_create` — The daily lane refuses a second remote create on the confirmed meme's local date.
 - `test` `tests/test_unit_helpers.py::test_confirmed_meme_receipt_write_failure_keeps_normal_schedule` — A post-confirmation receipt failure leaves a next-local-date fallback and restart refuses a different meme on the already-confirmed local date.
-- `test` `tests/test_pending_receipt_directory_fsync.py` — The meme lane re-establishes exact pending-receipt directory durability or latches all writes; recovered marker durability restores deferred SIGINT, context work remains unclaimed and restart performs local-only reconciliation.
+- `test` `tests/test_pending_receipt_directory_fsync.py` — The meme lane re-establishes exact pending-receipt directory durability or latches all writes; the real daemon retries delayed marker durability on every blocked tick and restores deferred SIGINT exactly once, context work remains unclaimed and restart performs local-only reconciliation.
 - `test` `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry` — A generic post-transmission 4xx retains the meme attempt and prevents automatic retry.
 
 **Last verified commit.** `unknown` (`unknown`) — The 1b730410 predecessor covered the same-local-date and schedule-finalisation boundaries but omitted the post-replacement parent-directory fsync boundary recorded as DEF-0030. The replacement candidate identity must be supplied by a later frozen external attestation.
@@ -762,6 +763,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`
 - `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`
 - `tests/test_pending_receipt_directory_fsync.py`
+- `tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick`
 - `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry`
 
 **Validation requests.**
@@ -1067,9 +1069,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `mixed` — Malformed and incompatible receipts block writes, but duplicate JSON object names are not yet rejected before semantic validation.
 
-**Status.** `partial` — Global pre-write checks include ambiguity markers, reply receipts and confirmed pending-schedule main receipts; main receipts are mutually exclusive; confirmed main identity is promoted before fallible schedule work; reported post-replacement fsync failures require exact bytes plus an explicit successful re-fsync; and generic post-transmission status errors preserve the relevant barrier. Safety JSON readers still use a decoder that accepts duplicate object names.
+**Status.** `partial` — Global pre-write checks include ambiguity markers, reply receipts and confirmed pending-schedule main receipts; main receipts are mutually exclusive; confirmed main identity is promoted before fallible schedule work; reported post-replacement fsync failures require exact bytes plus an explicit successful re-fsync; the daemon retries delayed marker durability on every blocked tick and releases retained SIGINT only after restart safety is durable; and generic post-transmission status errors preserve the relevant barrier. Safety JSON readers still use a decoder that accepts duplicate object names.
 
-**Verification.** `partial` — Tests cover ambiguity marker failure and later recovery (including after marker replacement), deferred-SIGINT restoration, every-lane blocking, simultaneous main receipts, exact pending-schedule directory-durability recovery, changed receipt bytes, actual conversational-reply preflight, unchanged auxiliary-context attempts, generic-4xx retention in all four create lanes, semantic receipt rejection and protected save ordering, but there is no duplicate-name receipt regression.
+**Verification.** `partial` — Tests cover ambiguity marker failure and later recovery (including a real two-tick daemon loop after marker replacement), deferred-SIGINT restoration, every-lane blocking, simultaneous main receipts, exact pending-schedule directory-durability recovery, changed receipt bytes, actual conversational-reply preflight, unchanged auxiliary-context attempts, generic-4xx retention in all four create lanes, semantic receipt rejection and protected save ordering, but there is no duplicate-name receipt regression.
 
 **Preconditions.**
 
@@ -1095,7 +1097,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_followup_fail_safe_hardening.py::test_ambiguous_remote_post_blocks_process_when_marker_write_fails` — Focused automated evidence for the principal recorded boundary.
 - `report` `defect_ledger.json#DEF-0017` — Evidence-cut-off defect or assurance record linked to this invariant.
-- `test` `tests/test_pending_receipt_directory_fsync.py` — Exact receipt-byte and parent-directory durability checks fail closed before an actual unrelated reply create or context claim, preserve process/SIGINT barriers when marker durability fails and restore deferred SIGINT only after marker re-fsync succeeds.
+- `test` `tests/test_pending_receipt_directory_fsync.py` — Exact receipt-byte and parent-directory durability checks fail closed before an actual unrelated reply create or context claim, preserve process/SIGINT barriers when marker durability fails, and prove the real daemon retries marker re-fsync until deferred SIGINT can be restored exactly once.
 - `test` `tests/test_x_write_outcome_conservatism.py` — All four X create lanes preserve their durable barrier when a generic post-transmission 4xx leaves remote success unproved.
 
 **Last verified commit.** `unknown` (`unknown`) — The 1b730410 predecessor covered pending-schedule replay and generic-4xx handling but omitted the post-replacement parent-directory fsync, marker-durability and cross-lane boundary recorded as DEF-0030. The replacement candidate identity must be supplied by a later frozen external attestation.
@@ -1130,6 +1132,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`
 - `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`
 - `tests/test_pending_receipt_directory_fsync.py`
+- `tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick`
 - `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry`
 - `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry`
 - `tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry`

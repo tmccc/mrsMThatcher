@@ -15,21 +15,21 @@ independently reproduced candidate-lineage defects.
 
 - Production baseline commit: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
 - Production baseline tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
-- Ledger evidence cut-off commit: `1b73041026e211240d0f55a8b2eb83800dc34db3`
-- Ledger evidence cut-off tree: `e04dd5dd2ff3ef84272502658d85ee9b5a1b20f3`
+- Ledger evidence cut-off commit: `dd8aa52c93982de561b460832baa77b90ddb95a7`
+- Ledger evidence cut-off tree: `9c62af551436f5fe17ad0c5fc2914b454f5cce57`
 - Evidence valid through: `2026-07-30`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated schedule-assurance candidate used as the exact base of this directory-durability remediation. It incorporates the prior durable-attempt, schedule and conservative-response repairs while recording the newly reproduced post-replacement parent-fsync defect separately; it does not claim that the base or this repair was merged, deployed or loaded.
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated directory-durability candidate used as the exact base of this daemon-loop remediation. It incorporates the prior durable-attempt, schedule, conservative-response and post-replacement parent-fsync repairs while recording the newly reproduced delayed marker-durability recheck defect separately; it does not claim that the base or this repair was merged, deployed or loaded.
 - Status-claim boundary: Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The 1b730410 predecessor was never deployed and its transaction-assurance conclusion is superseded by DEF-0030; the replacement candidate remains external until frozen.
+- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The dd8aa52 predecessor was never deployed and its directory-durability conclusion is qualified by DEF-0031; the replacement candidate remains external until frozen.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final pending-receipt directory-durability remediation commit must replace DEF-0030's external unknown fix identity and bind its committed regression tests before any post-merge assurance claim.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final daemon-loop durability-recheck remediation commit must replace DEF-0031's external unknown fix identity and bind its committed regression test before any post-merge assurance claim.
 
 ## Status taxonomy
 
@@ -117,6 +117,7 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0028` | runtime-defect | `mrsMThatcher2.py` | `daily-meme-post`; `scheduler-recovery` | false — The defect is repeatable offline, but the repository evidence does not establish that it caused a production duplicate. Evidence: Source review and a synthetic same-date schedule failure established the repeatable path; no second live meme was attributed to it. |
 | `DEF-0029` | runtime-defect | `mrsMThatcher2.py`; `historical_context_outbox.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply` | false — This is a cross-lane production-code defect demonstrated offline rather than a confirmed live incident. Evidence: Controlled synthetic response classification established repeatable retry exposure across all four create lanes; no live duplicate caused by a generic 3xx or 4xx response was established. |
 | `DEF-0030` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `cross-cutting-remote-write-barrier` | false — The defect is repeatable in the unactivated reviewed candidate, but it is not an observed live incident and does not prove that the confirmed main post itself would necessarily be recreated. Evidence: Independent synthetic fault injection reproduced the boundary in both main-post lanes without a network or X action; no production duplicate was established. |
+| `DEF-0031` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `cross-cutting-remote-write-barrier`; `controlled-service-stop` | false — The defect is repeatable in the unactivated dd8aa52 reviewed candidate. Remote writes remain blocked while that process lives, but its retained SIGINT and restart-safety transition cannot recover after the first paused tick. Evidence: Independent synthetic two-tick fault injection reproduced the delayed recovery without a network or X action; no production incident or duplicate post was established. |
 
 ## Chronology projection
 
@@ -191,6 +192,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0029` | 2026-07-30 | `02f9d2be` | Independent cross-lane review injected generic client-error and redirect outcomes and found that sending barriers could be retired or treated as safely retryable. | Direct current-master source review with focused synthetic regression design |
 | `DEF-0029` | 2026-07-30 | `1b730410` | All create lanes were changed to preserve the sending barrier for unproved post-transmission outcomes. | Commit source and cross-lane conservative-outcome regressions |
 | `DEF-0030` | 2026-07-30 | `1b730410` | Independent review injected failure after pending-receipt replacement and reproduced the missing latch, marker, SIGINT restoration and cross-lane barrier in regular and meme transactions. | Separate read-only review of the tree-exact history-free package |
+| `DEF-0030` | 2026-07-30 | `dd8aa52c` | The replacement candidate added exact-byte revalidation, explicit parent re-fsync, pre-recovery latching, cross-lane barriers and deferred-SIGINT recovery. | Committed source and 21 focused pending-receipt durability regressions |
+| `DEF-0031` | 2026-07-30 | `dd8aa52c` | Independent review drove two real daemon-loop ticks: the first marker fsync failed, the second tick did not retry, and the retained guard and deferred SIGINT remained. | Independent IR-DD8AA52-01 reproduction |
 
 ## Summary
 
@@ -225,7 +228,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0027` | repaired-not-deployed | critical | Confirmed regular posts could lose their bounded schedule plan | `INV-TXN-REG-001`, `INV-TXN-RECEIPT-001` | `9ae7e0f2` | `1b730410` | not-deployed; observed `be882e81` |
 | `DEF-0028` | repaired-not-deployed | critical | Meme schedule fallback could permit a second meme on the same local date | `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `9ae7e0f2` | `1b730410` | not-deployed; observed `be882e81` |
 | `DEF-0029` | repaired-not-deployed | critical | Generic X create 3xx and 4xx outcomes were treated as definite non-success | `INV-API-001`, `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | `1b730410` | not-deployed; observed `be882e81` |
-| `DEF-0030` | active | critical | Post-replacement pending-receipt fsync failure did not establish a global barrier | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `1b730410` | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0030` | repaired-not-deployed | critical | Post-replacement pending-receipt fsync failure did not establish a global barrier | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `1b730410` | `dd8aa52c` | not-deployed; observed `be882e81` |
+| `DEF-0031` | active | critical | Daemon stopped rechecking delayed remote-write marker durability | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `dd8aa52c` | unfixed | not deployed; absent from observed production `be882e81` |
 
 ## Records
 
@@ -627,10 +631,22 @@ the parent directory. The caller rejected the visible pending state before
 setting a global latch or durable marker, did not restore SIGINT and permitted
 an unrelated reply preflight to reach its X-create boundary. Independent
 synthetic tests reproduced this in both regular and meme lanes without a real
-network action. The replacement candidate must exact-byte revalidate and
-explicitly re-fsync the receipt, or latch before any further fallible recovery;
-it must also bind the pending state into every unrelated remote-write
-preflight.
+network action. Commit `dd8aa52` repairs this boundary by exact-byte
+revalidation and explicit parent re-fsync, with pre-recovery latching,
+cross-lane barriers and deferred-SIGINT recovery. It remains unactivated. Its
+distinct delayed daemon-loop recheck defect is recorded as `DEF-0031`.
+
+### DEF-0031 — Delayed marker-durability daemon recheck
+
+The `dd8aa52` candidate retained SIGINT and an in-process write latch when an
+ambiguity marker's parent-directory fsync failed, but the real daemon invoked
+the durability helper only on the first one-shot pause-log iteration. A
+transient first failure was therefore never retried on later blocked ticks;
+the retained guard remained installed and a deferred controlled stop was not
+delivered. The replacement candidate must recheck durability on every blocked
+tick while keeping the pause-status log one-shot, and must prove first-fail,
+second-success recovery through the real `main()` loop without reaching any
+remote-action lane.
 
 ## Unknown-value policy
 
@@ -642,7 +658,7 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- Every record through `DEF-0030`: no repair commit exists at the ledger
+- Every active record through `DEF-0031`: no repair commit exists at the ledger
   evidence cut-off where the JSON records
   `fix.state=unfixed`.
 

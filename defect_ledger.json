@@ -10,10 +10,10 @@
       "role": "Historical production and master state against which the defect records and invariant references were established."
     },
     "ledger_evidence_cutoff": {
-      "commit": "1b73041026e211240d0f55a8b2eb83800dc34db3",
-      "tree": "e04dd5dd2ff3ef84272502658d85ee9b5a1b20f3",
+      "commit": "dd8aa52c93982de561b460832baa77b90ddb95a7",
+      "tree": "9c62af551436f5fe17ad0c5fc2914b454f5cce57",
       "as_of": "2026-07-30",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated schedule-assurance candidate used as the exact base of this directory-durability remediation. It incorporates the prior durable-attempt, schedule and conservative-response repairs while recording the newly reproduced post-replacement parent-fsync defect separately; it does not claim that the base or this repair was merged, deployed or loaded.",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated directory-durability candidate used as the exact base of this daemon-loop remediation. It incorporates the prior durable-attempt, schedule, conservative-response and post-replacement parent-fsync repairs while recording the newly reproduced delayed marker-durability recheck defect separately; it does not claim that the base or this repair was merged, deployed or loaded.",
       "meaning": "Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The 1b730410 predecessor was never deployed and its transaction-assurance conclusion is superseded by DEF-0030; the replacement candidate remains external until frozen."
+      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The dd8aa52 predecessor was never deployed and its directory-durability conclusion is qualified by DEF-0031; the replacement candidate remains external until frozen."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final pending-receipt directory-durability remediation commit must replace DEF-0030's external unknown fix identity and bind its committed regression tests before any post-merge assurance claim."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final daemon-loop durability-recheck remediation commit must replace DEF-0031's external unknown fix identity and bind its committed regression test before any post-merge assurance claim."
     }
   },
   "external_evidence": [
@@ -1599,7 +1599,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:unknown..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "unknown",
         "explanation": "This is absence of an environmental control, not a code regression with a defensible first-bad commit."
       },
@@ -1712,7 +1712,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:unknown..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "unknown",
         "explanation": "This is an absent release control spanning Git, collaboration and deployment; repository history does not identify one introducing commit."
       },
@@ -1818,7 +1818,7 @@
       "introduced": {
         "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "bounded",
         "explanation": "The production wrapper dates to 2179d71 and has never carried generation identity. Earlier service/process arrangements were not audited for this property."
       },
@@ -1929,7 +1929,7 @@
       "introduced": {
         "first_bad_commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
         "last_known_good_commit": "b267a330983c5db2aec2c5722ce9e994b43bbeda",
-        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "exact",
         "explanation": "Git -S history for historical_context_formatter.py in the material veto manifest identifies 2220df1e as the first pin."
       },
@@ -2043,7 +2043,7 @@
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "bounded",
         "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
       },
@@ -2164,7 +2164,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "bounded",
         "explanation": "The release-control parser first exists in the Priority-0 candidate lineage and the independent review reproduced the weakness at 305ac6b."
       },
@@ -2263,7 +2263,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "exact",
         "explanation": "The self-certifying gate was introduced in the Priority-0 candidate lineage and remains candidate-owned at 305ac6b."
       },
@@ -2354,7 +2354,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "bounded",
         "explanation": "The containment design exists only in the Priority-0 candidate lineage and is reproduced at 305ac6b."
       },
@@ -2447,7 +2447,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "bounded",
         "explanation": "The private validation environment was introduced with the candidate gate but still binds shared distribution roots at 305ac6b."
       },
@@ -2541,7 +2541,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "exact",
         "explanation": "Free-form invariant commands are part of the introduced Priority-0 registry and gate."
       },
@@ -2638,7 +2638,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..dd8aa52c93982de561b460832baa77b90ddb95a7",
         "confidence": "exact",
         "explanation": "Both incorrect comparisons are present in the Priority-0 candidate implementation."
       },
@@ -3426,7 +3426,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "independent-review-pending-receipt-directory-fsync-boundary",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -3468,6 +3468,12 @@
           "event": "Independent review injected failure after pending-receipt replacement and reproduced the missing latch, marker, SIGINT restoration and cross-lane barrier in regular and meme transactions.",
           "commit": "1b73041026e211240d0f55a8b2eb83800dc34db3",
           "evidence": "Separate read-only review of the tree-exact history-free package"
+        },
+        {
+          "date": "2026-07-30",
+          "event": "The replacement candidate added exact-byte revalidation, explicit parent re-fsync, pre-recovery latching, cross-lane barriers and deferred-SIGINT recovery.",
+          "commit": "dd8aa52c93982de561b460832baa77b90ddb95a7",
+          "evidence": "Committed source and 21 focused pending-receipt durability regressions"
         }
       ],
       "first_review_scope": {
@@ -3484,19 +3490,38 @@
         "reproducer": "Both main lanes left a visible pending receipt, no global latch or marker and a deferred SIGINT handler; a separately prepared reply reached the local X-create recorder.",
         "source": "Independent two-lane adversarial reproduction supplied to this remediation"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_one_shot_pending_parent_fsync_failure_is_revalidated_and_completed",
+          "kind": "regression",
+          "commit": "dd8aa52c93982de561b460832baa77b90ddb95a7"
+        },
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_persistent_pending_parent_fsync_failure_latches_before_other_writes",
+          "kind": "regression",
+          "commit": "dd8aa52c93982de561b460832baa77b90ddb95a7"
+        },
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_pending_schedule_receipt_blocks_actual_conversational_create_preflight",
+          "kind": "regression",
+          "commit": "dd8aa52c93982de561b460832baa77b90ddb95a7"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "The replacement candidate must exact-byte revalidate and explicitly re-fsync the pending receipt, latch before fallible recovery when uncertainty remains, align SIGINT with durable-marker success and block unrelated create preflights until local reconciliation."
+        "state": "fixed",
+        "commit": "dd8aa52c93982de561b460832baa77b90ddb95a7",
+        "summary": "The reviewed replacement exact-byte revalidates and explicitly re-fsyncs the pending receipt, latches before fallible recovery when uncertainty remains, aligns SIGINT with durable-marker success and blocks unrelated create preflights until local reconciliation."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-30T08:00:00+01:00",
-        "evidence": "The affected 1b730410 candidate was never deployed. Production remained at be882e8 and this remediation is not authorised to deploy."
+        "evidence": "The repair is present by the dd8aa52 evidence cut-off, but production remained at be882e8 and this remediation is not authorised to deploy."
       },
-      "residual_risk": "Active at the ledger evidence cut-off. Closure requires committed two-lane post-replacement fsync, marker/latch, SIGINT, cross-lane preflight and restart regressions plus a new exact external attestation.",
+      "residual_risk": "The post-replacement parent-fsync boundary is repaired in the unactivated dd8aa52 candidate. Its distinct delayed daemon-loop marker-durability recheck defect is tracked as DEF-0031.",
       "evidence": [
         {
           "type": "code",
@@ -3507,6 +3532,112 @@
           "type": "report",
           "reference": "independent-review-verdict-2026-07-30-pending-receipt-directory-fsync",
           "claim": "Independent review reproduced the exact two-lane boundary and withheld release approval."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_pending_receipt_directory_fsync.py",
+          "claim": "The reviewed replacement re-establishes pending-receipt directory durability or preserves a global marker/latch, blocks unrelated writes and restores deferred SIGINT after durable recovery."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0024",
+          "DEF-0025",
+          "DEF-0027",
+          "DEF-0028",
+          "DEF-0029"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0031",
+      "title": "Daemon stopped rechecking delayed remote-write marker durability",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "independent-review-delayed-marker-durability-recheck",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "main daemon ambiguity pause",
+        "remote-write safety marker parent-directory durability",
+        "confirmed-post SIGINT deferral"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "cross-cutting-remote-write-barrier",
+        "controlled-service-stop"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "Independent synthetic two-tick fault injection reproduced the delayed recovery without a network or X action; no production incident or duplicate post was established.",
+        "explanation": "The defect is repeatable in the unactivated dd8aa52 reviewed candidate. Remote writes remain blocked while that process lives, but its retained SIGINT and restart-safety transition cannot recover after the first paused tick."
+      },
+      "summary": "The daemon called the durable remote-write safety-barrier helper only while its one-shot ambiguity log flag was false. If the first marker parent-directory fsync failed transiently, later blocked ticks slept without retrying the helper, so marker durability uncertainty and the retained SIGINT guard could persist indefinitely.",
+      "impact": "A controlled service stop could progress toward finite timeout and forced termination while restart safety still depended on an in-memory latch, contradicting the candidate's claim that delayed marker durability releases and delivers deferred SIGINT once it becomes durable.",
+      "introduced": {
+        "first_bad_commit": "dd8aa52c93982de561b460832baa77b90ddb95a7",
+        "last_known_good_commit": "1b73041026e211240d0f55a8b2eb83800dc34db3",
+        "affected_range": "inclusive:dd8aa52c93982de561b460832baa77b90ddb95a7..dd8aa52c93982de561b460832baa77b90ddb95a7",
+        "confidence": "exact",
+        "explanation": "Commit dd8aa52 added retained-SIGINT marker-durability recovery atop the existing one-shot ambiguity-pause log branch, but left the recovery helper inside that one-shot branch."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-30",
+          "event": "Independent review drove two real daemon-loop ticks: the first marker fsync failed, the second tick did not retry, and the retained guard and deferred SIGINT remained.",
+          "commit": "dd8aa52c93982de561b460832baa77b90ddb95a7",
+          "evidence": "Independent IR-DD8AA52-01 reproduction"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-30",
+        "reviewed_revision": "dd8aa52c93982de561b460832baa77b90ddb95a7",
+        "scope": "Successive blocked iterations of the real daemon main loop after a transient ambiguity-marker parent-directory fsync failure, including retained SIGINT state.",
+        "exclusions": "The review made no X request, did not mutate production and did not demonstrate a duplicate post.",
+        "source": "Separate independent review of the dd8aa52 application candidate"
+      },
+      "detection": {
+        "date": "2026-07-30",
+        "revision": "dd8aa52c93982de561b460832baa77b90ddb95a7",
+        "method": "Install a retained guard with deferred SIGINT, fail the first marker parent fsync, allow a second blocked main-loop tick and count durability attempts and signal deliveries.",
+        "reproducer": "Two blocked ticks produced one parent-fsync attempt, retained the guard, kept SIGINT deferred and delivered no deferred signal.",
+        "source": "Independent IR-DD8AA52-01 reproduction supplied to this remediation"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The replacement candidate must invoke the durability helper on every blocked daemon tick while retaining one-shot status logging, and prove delayed parent-fsync recovery restores the prior handler and delivers deferred SIGINT exactly once without permitting a remote action."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-30T08:00:00+01:00",
+        "evidence": "The affected dd8aa52 candidate was never deployed. Production remained at be882e8 and this remediation is not authorised to deploy."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. Closure requires a committed real-main two-tick regression, an external mandatory selector and a new exact external attestation.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "dd8aa52:mrsMThatcher2.py",
+          "claim": "The durability helper is nested beneath the one-shot ambiguity_pause_logged condition."
+        },
+        {
+          "type": "report",
+          "reference": "independent-review-verdict-IR-DD8AA52-01",
+          "claim": "Independent review reproduced one durability attempt across two blocked daemon ticks and withheld release approval."
         }
       ],
       "unknowns": [
@@ -3519,11 +3650,7 @@
         "supersedes": [],
         "superseded_by": [],
         "related": [
-          "DEF-0024",
-          "DEF-0025",
-          "DEF-0027",
-          "DEF-0028",
-          "DEF-0029"
+          "DEF-0030"
         ]
       }
     }
