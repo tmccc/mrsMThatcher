@@ -55,9 +55,12 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 from packaging.markers import default_environment
 from packaging.requirements import InvalidRequirement, Requirement
 
-try:
+if __package__:
     from tools import strict_json
-except ModuleNotFoundError:  # Support ``python3 tools/release_gate.py``.
+else:
+    # Direct-script execution puts this directory first on sys.path.  Import
+    # the sibling explicitly instead of consulting an unrelated installed
+    # package which happens to use the generic top-level name ``tools``.
     import strict_json  # type: ignore[no-redef]
 
 

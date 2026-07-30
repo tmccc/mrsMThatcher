@@ -101,6 +101,46 @@ def test_documented_script_invocation_loads_sibling_schema_validator() -> None:
 
 
 @pytest.mark.parametrize(
+    "entrypoint",
+    [
+        "tools/release_gate.py",
+        "tools/priority0_registry.py",
+        "tools/defect_ledger.py",
+    ],
+)
+def test_direct_cli_ignores_unrelated_installed_tools_namespace(
+    tmp_path: Path,
+    entrypoint: str,
+) -> None:
+    """Documented direct CLIs must load their sibling strict parser."""
+
+    root = Path(__file__).resolve().parents[1]
+    unrelated = tmp_path / "unrelated"
+    package = unrelated / "tools"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "strict_json.py").write_text(
+        "raise RuntimeError('unrelated tools namespace imported')\n",
+        encoding="utf-8",
+    )
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(unrelated)
+
+    result = subprocess.run(
+        [sys.executable, str(root / entrypoint), "--help"],
+        cwd=Path("/"),
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout
+    assert "unrelated tools namespace imported" not in result.stdout
+
+
+@pytest.mark.parametrize(
     "payload",
     [
         '{"schema_version":1,"schema_version":2}',

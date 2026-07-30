@@ -15,9 +15,11 @@ import subprocess
 import sys
 from typing import Any, Iterable, Mapping, Sequence
 
-try:
+if __package__:
     from tools import strict_json
-except ModuleNotFoundError:  # Support ``python3 tools/defect_ledger.py``.
+else:
+    # Direct-script execution must use the sibling release-control parser,
+    # regardless of any unrelated installed package named ``tools``.
     import strict_json  # type: ignore[no-redef]
 
 
