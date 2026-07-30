@@ -14,10 +14,10 @@ findings and directly related runtime and release-assurance gaps.
 
 - Production baseline commit: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
 - Production baseline tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
-- Ledger evidence cut-off commit: `305ac6b137542bcb147bf214f7aefb3f16a166dc`
-- Ledger evidence cut-off tree: `84d8f63e7e2020858592d080fa6ddc5c058714df`
-- Evidence valid through: `2026-07-29`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline only to the independently reviewed Priority-0 follow-up candidate. It records assurance defects in that candidate; it does not claim that candidate was merged, deployed or loaded.
+- Ledger evidence cut-off commit: `02f9d2be49b9a3f5b5502481a995c8ececc80896`
+- Ledger evidence cut-off tree: `d81ce4cf2675e283ba6e67f0e5418054d3a557dd`
+- Evidence valid through: `2026-07-30`
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the frozen, unactivated Priority-0 tree-hygiene candidate used as the exact base of this replacement remediation. It incorporates the reviewed assurance lineage through that base; it does not claim that the base or this repair was merged, deployed or loaded.
 - Status-claim boundary: Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
@@ -109,6 +109,9 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0021` | assurance-weakness | `tools/release_gate.py`; `tools/release_gate_pytest_plugin.py` | `release-validation-python-environment` | false — No real unrelated project package was imported or modified. Evidence: The reproduction imported a synthetic undeclared sibling package. |
 | `DEF-0022` | assurance-weakness | `production_invariants.json`; `production_invariants.schema.json`; `tools/release_gate.py` | `release-validation-command-policy` | false — No real host project or production path was targeted. Evidence: Only a synthetic shell command writing a canary was used. |
 | `DEF-0023` | assurance-weakness | `tools/release_gate.py` | `release-generated-artifact-attestation` | false — It invalidates an assurance conclusion but does not establish a production runtime incident. Evidence: The finding was reproduced against synthetic and current candidate binding records. |
+| `DEF-0024` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post` | false — This is a repeatable production-code defect, but the review evidence is a controlled offline reproduction rather than an observed live duplicate. Evidence: The failure was reproduced with a synthetic hard-process exit after simulated remote acceptance; no production duplicate has been established from this finding. |
+| `DEF-0025` | runtime-defect | `mrsMThatcher2.py` | `daily-meme-post` | false — This is a repeatable production-code defect, but the review evidence is a controlled offline reproduction rather than an observed live duplicate. Evidence: The failure was reproduced with a synthetic hard-process exit after simulated remote acceptance; no production duplicate has been established from this finding. |
+| `DEF-0026` | assurance-weakness | `defect_ledger.json`; `tools/defect_ledger.py` | `release-attestation-ledger-validation` | true — The incident invalidated that patch-local assurance conclusion; it did not change or activate production. Evidence: An archived external gate run qualified a candidate without executing ledger_validate and supplied a release base different from the ledger evidence cut-off. |
 
 ## Chronology projection
 
@@ -171,6 +174,9 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0021` | 2026-07-29 | `305ac6b1` | An undeclared synthetic package remained importable by a candidate Python child. | independent_review_blocker_reproductions.json |
 | `DEF-0022` | 2026-07-29 | `305ac6b1` | The gate accepted sh -c with synthetic dynamic code. | independent_review_blocker_reproductions.json |
 | `DEF-0023` | 2026-07-29 | `305ac6b1` | Independent review reproduced missed static_path_composition consumption and the string-versus-tuple mismatch. | independent_review_blocker_reproductions.json |
+| `DEF-0024` | 2026-07-30 | `02f9d2be` | Independent review reproduced two remote accepts across a hard process death and restart. | priority0_transaction_assurance_remediation_report.md |
+| `DEF-0025` | 2026-07-30 | `02f9d2be` | Independent review reproduced two remote accepts across a meme hard process death and restart. | priority0_transaction_assurance_remediation_report.md |
+| `DEF-0026` | 2026-07-30 | `02f9d2be` | Independent review reproduced the ledger/base mismatch and confirmed ledger_validate was absent from the archived external run. | priority0_transaction_assurance_remediation_report.md |
 
 ## Summary
 
@@ -193,12 +199,15 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0015` | active | medium | Process health does not expose the loaded commit and artifact generation identity | `INV-PROC-004`, `INV-ART-001` | `2179d71e`, bounded | unfixed | observed in production `be882e81` |
 | `DEF-0016` | latent-disabled | medium | Semantic-veto manifest pins a multi-purpose formatter as its attribution predicate | `INV-VETO-001`, `INV-ART-001` | `2220df1e` | unfixed | enforcement unsupported; shadow only |
 | `DEF-0017` | active | high | Duplicate JSON object names remain last-wins in safety documents | `INV-CONFIG-001`, `INV-PAUSE-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | unfixed | present in observed production and at evidence cut-off |
-| `DEF-0018` | assurance-weakness | assurance | Priority-0 release-control JSON accepts ambiguous duplicate object names | `INV-REL-JSON-001` | `4ae20446`, bounded | unfixed | not applicable |
-| `DEF-0019` | assurance-weakness | assurance | Candidate-owned gate can certify the candidate which supplies it | `INV-REL-TRUST-001` | `4ae20446` | unfixed | not applicable |
-| `DEF-0020` | assurance-weakness | assurance | Validation containment exposes unrelated host-user files | `INV-REL-SANDBOX-001` | `4ae20446`, bounded | unfixed | not applicable |
-| `DEF-0021` | assurance-weakness | assurance | Validation descendants can import undeclared host distributions | `INV-REL-IMPORT-001` | `4ae20446`, bounded | unfixed | not applicable |
-| `DEF-0022` | assurance-weakness | assurance | Candidate registry can author arbitrary validation commands | `INV-REL-CMD-001` | `4ae20446` | unfixed | not applicable |
-| `DEF-0023` | assurance-weakness | assurance | Runtime artefact-consumption detector misses real loader bindings | `INV-REL-ART-001` | `4ae20446` | unfixed | not applicable |
+| `DEF-0018` | assurance-weakness | assurance | Priority-0 release-control JSON accepts ambiguous duplicate object names | `INV-REL-JSON-001` | `516b9b40`, bounded | unfixed | not applicable |
+| `DEF-0019` | assurance-weakness | assurance | Candidate-owned gate can certify the candidate which supplies it | `INV-REL-TRUST-001` | `516b9b40` | unfixed | not applicable |
+| `DEF-0020` | assurance-weakness | assurance | Validation containment exposes unrelated host-user files | `INV-REL-SANDBOX-001` | `516b9b40`, bounded | unfixed | not applicable |
+| `DEF-0021` | assurance-weakness | assurance | Validation descendants can import undeclared host distributions | `INV-REL-IMPORT-001` | `516b9b40`, bounded | unfixed | not applicable |
+| `DEF-0022` | assurance-weakness | assurance | Candidate registry can author arbitrary validation commands | `INV-REL-CMD-001` | `516b9b40` | unfixed | not applicable |
+| `DEF-0023` | assurance-weakness | assurance | Runtime artefact-consumption detector misses real loader bindings | `INV-REL-ART-001` | `516b9b40` | unfixed | not applicable |
+| `DEF-0024` | active | critical | Regular posts lacked a durable pre-send remote-write barrier | `INV-TXN-REG-001` | `36edf036`, bounded | unfixed | observed in production `be882e81` |
+| `DEF-0025` | active | critical | Daily meme posts lacked a durable pre-send remote-write barrier | `INV-TXN-MEME-001` | `36edf036`, bounded | unfixed | observed in production `be882e81` |
+| `DEF-0026` | assurance-weakness | assurance | External assurance omitted mandatory release-base-bound ledger validation | `INV-REL-001` | unknown | unfixed | not applicable |
 
 ## Records
 
@@ -541,6 +550,32 @@ compared string paths with `(path, hash)` tuples. A real resolved artefact
 could consequently be labelled historical. Typed resolution records and a
 normalised `set[str]` runtime inventory are required.
 
+### DEF-0024 — Regular-post hard-crash window
+
+At the ledger evidence cut-off, the regular quote/image lane transmitted to X
+before persisting its first durable remote-write barrier. An independent
+separate-process reproduction showed that a hard death after simulated remote
+acceptance could leave restart state eligible for another create. No live
+duplicate is asserted. A remediation candidate exists outside this ledger's
+evidence boundary and requires exact external attestation.
+
+### DEF-0025 — Meme-post hard-crash window
+
+At the ledger evidence cut-off, the daily-meme lane had the same pre-receipt
+hard-death window. The independent reproduction admitted two simulated remote
+IDs across restart. No live duplicate is asserted. Candidate-only tests and
+code cannot change this base-bound status until a merge is followed by ledger
+regeneration.
+
+### DEF-0026 — Release-base-bound ledger validation
+
+The archived external assurance run did not execute `ledger_validate`, and its
+command policy did not supply `--release-base`. It therefore qualified a
+candidate whose ledger evidence cut-off differed from the supplied release
+base. The application ledger cannot certify the external-gate repair; closure
+requires a separately frozen assurance commit, an exact base-bound result and
+new independent review.
+
 ## Unknown-value policy
 
 The following are intentionally unknown rather than inferred:
@@ -551,7 +586,8 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- `DEF-0013` through `DEF-0023`: no repair commit exists where the JSON records
+- `DEF-0013` through `DEF-0026`: no repair commit exists at the ledger evidence
+  cut-off where the JSON records
   `fix.state=unfixed`.
 
 These explanations are recorded per field in `defect_ledger.json`; consumers

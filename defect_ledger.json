@@ -2,7 +2,7 @@
   "$schema": "./defect_ledger.schema.json",
   "schema_version": 2,
   "ledger_id": "mrsMThatcher-defect-evidence-ledger",
-  "as_of": "2026-07-29",
+  "as_of": "2026-07-30",
   "identity_scope": {
     "production_baseline": {
       "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -10,10 +10,10 @@
       "role": "Historical production and master state against which the defect records and invariant references were established."
     },
     "ledger_evidence_cutoff": {
-      "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
-      "tree": "84d8f63e7e2020858592d080fa6ddc5c058714df",
-      "as_of": "2026-07-29",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline only to the independently reviewed Priority-0 follow-up candidate. It records assurance defects in that candidate; it does not claim that candidate was merged, deployed or loaded.",
+      "commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+      "tree": "d81ce4cf2675e283ba6e67f0e5418054d3a557dd",
+      "as_of": "2026-07-30",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the frozen, unactivated Priority-0 tree-hygiene candidate used as the exact base of this replacement remediation. It incorporates the reviewed assurance lineage through that base; it does not claim that the base or this repair was merged, deployed or loaded.",
       "meaning": "Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash."
     },
     "candidate_under_review": {
@@ -1599,7 +1599,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:unknown..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "unknown",
         "explanation": "This is absence of an environmental control, not a code regression with a defensible first-bad commit."
       },
@@ -1712,7 +1712,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:unknown..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "unknown",
         "explanation": "This is an absent release control spanning Git, collaboration and deployment; repository history does not identify one introducing commit."
       },
@@ -1818,7 +1818,7 @@
       "introduced": {
         "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "bounded",
         "explanation": "The production wrapper dates to 2179d71 and has never carried generation identity. Earlier service/process arrangements were not audited for this property."
       },
@@ -1929,7 +1929,7 @@
       "introduced": {
         "first_bad_commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
         "last_known_good_commit": "b267a330983c5db2aec2c5722ce9e994b43bbeda",
-        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "exact",
         "explanation": "Git -S history for historical_context_formatter.py in the material veto manifest identifies 2220df1e as the first pin."
       },
@@ -2043,7 +2043,7 @@
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "bounded",
         "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
       },
@@ -2162,9 +2162,9 @@
       "summary": "The candidate registry parser accepted a duplicate name with ordinary last-key-wins JSON semantics while the defect-ledger parser behaved differently.",
       "impact": "An untrusted candidate control document could visually contain conflicting policy while the gate silently used only the last value.",
       "introduced": {
-        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "bounded",
         "explanation": "The release-control parser first exists in the Priority-0 candidate lineage and the independent review reproduced the weakness at 305ac6b."
       },
@@ -2198,8 +2198,8 @@
       },
       "deployment": {
         "state": "not-applicable",
-        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
-        "observed_at": "2026-07-29T00:00:00+00:00",
+        "observed_commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "observed_at": "2026-07-30T08:00:00+01:00",
         "evidence": "This is a candidate assurance control and has not been merged or deployed."
       },
       "residual_risk": "Open at the ledger evidence cut-off; DEF-0017 separately tracks production runtime JSON parsing.",
@@ -2261,9 +2261,9 @@
       "summary": "The application candidate owns the gate, registry and pytest evidence plugin that issue its release result.",
       "impact": "Candidate code can influence the policy, evidence collection and Boolean used to qualify that same candidate.",
       "introduced": {
-        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "exact",
         "explanation": "The self-certifying gate was introduced in the Priority-0 candidate lineage and remains candidate-owned at 305ac6b."
       },
@@ -2297,8 +2297,8 @@
       },
       "deployment": {
         "state": "not-applicable",
-        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
-        "observed_at": "2026-07-29T00:00:00+00:00",
+        "observed_commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "observed_at": "2026-07-30T08:00:00+01:00",
         "evidence": "The gate is release tooling and no production activation is claimed."
       },
       "residual_risk": "Open until an independently reviewed external bootstrap gate rejects candidate-owned authority.",
@@ -2352,9 +2352,9 @@
       "summary": "The selected-path namespace blocks network access and protects named roots, but retains the host root filesystem and unrelated user paths.",
       "impact": "Candidate validation can read or alter files outside the candidate and output roots despite an apparently contained run.",
       "introduced": {
-        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "bounded",
         "explanation": "The containment design exists only in the Priority-0 candidate lineage and is reproduced at 305ac6b."
       },
@@ -2388,8 +2388,8 @@
       },
       "deployment": {
         "state": "not-applicable",
-        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
-        "observed_at": "2026-07-29T00:00:00+00:00",
+        "observed_commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "observed_at": "2026-07-30T08:00:00+01:00",
         "evidence": "Development assurance control; no production deployment applies."
       },
       "residual_risk": "Open until private-root canaries prove host filesystem non-visibility and non-mutability.",
@@ -2445,9 +2445,9 @@
       "summary": "Sanitising PYTHONPATH does not remove shared site-packages and source roots from the interpreter's filesystem or default import configuration.",
       "impact": "Controller, xdist worker or child process can execute undeclared code absent from the attested dependency inventory.",
       "introduced": {
-        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "bounded",
         "explanation": "The private validation environment was introduced with the candidate gate but still binds shared distribution roots at 305ac6b."
       },
@@ -2481,8 +2481,8 @@
       },
       "deployment": {
         "state": "not-applicable",
-        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
-        "observed_at": "2026-07-29T00:00:00+00:00",
+        "observed_commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "observed_at": "2026-07-30T08:00:00+01:00",
         "evidence": "Development assurance control; no production deployment applies."
       },
       "residual_risk": "Open until controller, worker and subprocess imports are confined by filesystem construction, not environment convention.",
@@ -2539,9 +2539,9 @@
       "summary": "The untrusted candidate registry supplies free-form command strings and the gate accepts a shell interpreter with dynamic -c code.",
       "impact": "A candidate can choose arbitrary executable behaviour while presenting it as required invariant validation.",
       "introduced": {
-        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "exact",
         "explanation": "Free-form invariant commands are part of the introduced Priority-0 registry and gate."
       },
@@ -2575,8 +2575,8 @@
       },
       "deployment": {
         "state": "not-applicable",
-        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
-        "observed_at": "2026-07-29T00:00:00+00:00",
+        "observed_commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "observed_at": "2026-07-30T08:00:00+01:00",
         "evidence": "Development assurance control; no production deployment applies."
       },
       "residual_risk": "Open until free-form commands are absent from candidate control documents and external policy owns every executable template.",
@@ -2636,9 +2636,9 @@
       "summary": "The detector checks an impossible resolution label and compares path strings with (path, hash) tuples.",
       "impact": "A runtime-consumed artefact can be misclassified as historical or advisory, allowing a stale relationship to escape required validation.",
       "introduced": {
-        "first_bad_commit": "4ae2044677318acad43ae579598fe795e421c176",
+        "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:4ae2044677318acad43ae579598fe795e421c176..305ac6b137542bcb147bf214f7aefb3f16a166dc",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..02f9d2be49b9a3f5b5502481a995c8ececc80896",
         "confidence": "exact",
         "explanation": "Both incorrect comparisons are present in the Priority-0 candidate implementation."
       },
@@ -2672,8 +2672,8 @@
       },
       "deployment": {
         "state": "not-applicable",
-        "observed_commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
-        "observed_at": "2026-07-29T00:00:00+00:00",
+        "observed_commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "observed_at": "2026-07-30T08:00:00+01:00",
         "evidence": "Release assurance only; no production deployment applies."
       },
       "residual_risk": "Open at the evidence cut-off until typed discovery and direct-companion zero-state semantics are externally validated.",
@@ -2700,6 +2700,302 @@
         "superseded_by": [],
         "related": [
           "DEF-0014"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0024",
+      "title": "Regular posts lacked a durable pre-send remote-write barrier",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "independent-review-regular-hard-crash-window",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001"
+      ],
+      "components": [
+        "regular quote/image posting transaction",
+        "regular post receipt"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The failure was reproduced with a synthetic hard-process exit after simulated remote acceptance; no production duplicate has been established from this finding.",
+        "explanation": "This is a repeatable production-code defect, but the review evidence is a controlled offline reproduction rather than an observed live duplicate."
+      },
+      "summary": "The first durable regular-post record was written only after X returned a post ID, leaving a hard-death window in which X could accept the post while restart state still permitted another create.",
+      "impact": "An abrupt process death between remote acceptance and receipt persistence could create the same quote/image post twice after restart.",
+      "introduced": {
+        "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "confidence": "bounded",
+        "explanation": "The initial bot implementation transmitted the regular post before its first durable transaction record; the reviewed replacement base retained that ordering."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-30",
+          "event": "Independent review reproduced two remote accepts across a hard process death and restart.",
+          "commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+          "evidence": "priority0_transaction_assurance_remediation_report.md"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-30",
+        "reviewed_revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "scope": "Regular-post hard process loss between X create acceptance and the first durable confirmed receipt.",
+        "exclusions": "The review made no X request and did not establish that a live duplicate incident occurred.",
+        "source": "Separate independent review of the tree-exact Priority-0 package"
+      },
+      "detection": {
+        "date": "2026-07-30",
+        "revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "method": "Terminate a separate process at the first post-receipt write after a simulated X accept, restart from durable state and observe a second create.",
+        "reproducer": "The independent regular hard-crash reproduction admitted simulated post IDs 950001 and 950002 across restart.",
+        "source": "Separate independent review supplied to the remediation task"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The separately frozen remediation candidate persists an exact single-use sending record before X, but that candidate lies beyond this ledger evidence cut-off and must be supplied and validated externally."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-30T08:00:00+01:00",
+        "evidence": "No fixed repair exists at the ledger evidence cut-off. Fresh read-only preflight showed production HEAD and origin/master at be882e8; no production or service mutation was authorised."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. A separately supplied candidate is intended to fail closed on uncertain sending/attempting records, but closure requires an exact external attestation and post-merge ledger regeneration.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "02f9d2b:mrsMThatcher2.py",
+          "claim": "At the evidence cut-off the regular transaction still transmits before its first durable remote-success barrier."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier implementation with a proven durable pre-send barrier was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The remediation candidate identity is supplied externally and is deliberately not embedded beyond this ledger evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0004"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0025",
+      "title": "Daily meme posts lacked a durable pre-send remote-write barrier",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "independent-review-meme-hard-crash-window",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-MEME-001"
+      ],
+      "components": [
+        "daily meme posting transaction",
+        "meme post receipt"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "daily-meme-post"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The failure was reproduced with a synthetic hard-process exit after simulated remote acceptance; no production duplicate has been established from this finding.",
+        "explanation": "This is a repeatable production-code defect, but the review evidence is a controlled offline reproduction rather than an observed live duplicate."
+      },
+      "summary": "The first durable meme-post record was written only after X returned a post ID, leaving the same hard-death replay window as regular posts.",
+      "impact": "An abrupt process death between remote acceptance and receipt persistence could create the same daily meme twice after restart.",
+      "introduced": {
+        "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "confidence": "bounded",
+        "explanation": "The initial bot implementation transmitted the meme before its first durable transaction record; the reviewed replacement base retained that ordering."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-30",
+          "event": "Independent review reproduced two remote accepts across a meme hard process death and restart.",
+          "commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+          "evidence": "priority0_transaction_assurance_remediation_report.md"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-30",
+        "reviewed_revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "scope": "Meme-post hard process loss between X create acceptance and the first durable confirmed receipt.",
+        "exclusions": "The review made no X request and did not establish that a live duplicate incident occurred.",
+        "source": "Separate independent review of the tree-exact Priority-0 package"
+      },
+      "detection": {
+        "date": "2026-07-30",
+        "revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "method": "Terminate a separate process at the first post-receipt write after a simulated X accept, restart from durable state and observe a second create.",
+        "reproducer": "The independent meme hard-crash reproduction admitted simulated post IDs 970001 and 970002 across restart.",
+        "source": "Separate independent review supplied to the remediation task"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The separately frozen remediation candidate persists an exact single-use meme sending record before X, but that candidate lies beyond this ledger evidence cut-off and must be supplied and validated externally."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-30T08:00:00+01:00",
+        "evidence": "No fixed repair exists at the ledger evidence cut-off. Fresh read-only preflight showed production HEAD and origin/master at be882e8; no production or service mutation was authorised."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. A separately supplied candidate is intended to fail closed on uncertain sending/attempting records, but closure requires an exact external attestation and post-merge ledger regeneration.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "02f9d2b:mrsMThatcher2.py",
+          "claim": "At the evidence cut-off the meme transaction still transmits before its first durable remote-success barrier."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier implementation with a proven durable pre-send barrier was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The remediation candidate identity is supplied externally and is deliberately not embedded beyond this ledger evidence cut-off."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0004"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0026",
+      "title": "External assurance omitted mandatory release-base-bound ledger validation",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "independent-review-ledger-release-base-binding",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-001"
+      ],
+      "components": [
+        "external release-assurance command policy",
+        "defect ledger evidence cut-off"
+      ],
+      "affected_files": [
+        "defect_ledger.json",
+        "tools/defect_ledger.py"
+      ],
+      "runtime_lanes": [
+        "release-attestation-ledger-validation"
+      ],
+      "incident": {
+        "occurred": true,
+        "evidence": "An archived external gate run qualified a candidate without executing ledger_validate and supplied a release base different from the ledger evidence cut-off.",
+        "explanation": "The incident invalidated that patch-local assurance conclusion; it did not change or activate production."
+      },
+      "summary": "The external command plan did not make ledger_validate mandatory and its template did not pass --release-base, so a candidate could be qualified despite violating the ledger's exact evidence-cutoff rule. The defective command policy and runner are external to this application repository; the listed application files are the ledger operand and validator interface, not the source of the omission.",
+      "impact": "A frozen-candidate attestation could claim qualification while its own defect history was stale for the supplied release base.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "unknown",
+        "confidence": "unknown",
+        "explanation": "The independently supplied package established the faulty command plan but did not establish the external assurance commit ancestry needed for an exact introduction range."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-30",
+          "event": "Independent review reproduced the ledger/base mismatch and confirmed ledger_validate was absent from the archived external run.",
+          "commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+          "evidence": "priority0_transaction_assurance_remediation_report.md"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-30",
+        "reviewed_revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "scope": "External release-assurance command policy, executed validators and defect-ledger evidence-cutoff binding.",
+        "exclusions": "The review did not approve or deploy the application candidate or external gate.",
+        "source": "Separate independent review of the tree-exact Priority-0 package"
+      },
+      "detection": {
+        "date": "2026-07-30",
+        "revision": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "method": "Run the candidate ledger validator with the archived release base and inspect the external command-policy/result inventory.",
+        "reproducer": "tools/defect_ledger.py validate --json --release-base <archived-base> exits unsuccessfully while the archived gate contains no ledger_validate result.",
+        "source": "Separate independent review supplied to the remediation task"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A separately committed external assurance candidate must inject registry_validate and release-base-bound ledger_validate on every run and independently compare the exact cutoff before qualification."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "02f9d2be49b9a3f5b5502481a995c8ececc80896",
+        "observed_at": "2026-07-30T08:00:00+01:00",
+        "evidence": "Release assurance only; no production activation applies."
+      },
+      "residual_risk": "The application ledger cannot self-certify the external fix. Closure requires a hash-pinned external assurance commit, an exact base-bound command result and a new separate review.",
+      "evidence": [
+        {
+          "type": "report",
+          "reference": "priority0_transaction_assurance_remediation_report.md",
+          "claim": "Records the independent mismatch reproduction and the bounded external-gate remediation."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The final external assurance commit is intentionally supplied by the later attestation rather than embedded self-referentially in this application ledger."
+        },
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review package did not provide enough external repository ancestry to establish this without guessing."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "The review package did not establish an earlier external assurance commit which enforced the release-base-bound ledger rule."
+        },
+        {
+          "field": "introduced.affected_range",
+          "explanation": "The external assurance repository ancestry needed to bound the affected range was not part of the independently supplied evidence."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0019"
         ]
       }
     }

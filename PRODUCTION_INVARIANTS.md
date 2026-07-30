@@ -590,26 +590,26 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TXN-REG-001: Regular-post at-most-once transaction and exact replay
 
-**Invariant.** A confirmed regular post must be represented durably before interrupt delivery, preserve the exact authoritative quote/image histories and future schedules, reconcile idempotently after restart, and never cause a second remote post.
+**Invariant.** Before a regular-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected quote/image identity, post-cycle histories and recovery delays. An uncertain attempt must survive restart as a global manual-reconciliation barrier; a confirmed attempt must promote atomically to the established receipt, preserve the exact authoritative histories and future schedules, reconcile idempotently, and never cause a second remote post.
 
 **Rationale.** Regular-post at-most-once transaction and exact replay is explicit because a crash after remote confirmation can duplicate a post or reconstruct different local cycle state from the state that followed the confirmed post.
 
 **Owner subsystem.** `regular_post_transaction`
 
-**Failure consequence.** A crash after remote confirmation can duplicate a post or reconstruct different local cycle state from the state that followed the confirmed post.
+**Failure consequence.** A hard process death after X accepts a post but before the first confirmed receipt can duplicate the post, or a later recovery can reconstruct different local cycle state from the state that followed the confirmed post.
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — Receipt schema v2 carries post-cycle histories and schedules, durable receipt writes precede reconciliation, and unresolved receipts block new main posts.
+**Status.** `implemented` — A durable sending receipt is written before transmission and atomically consumed into attempting state; uncertain outcomes remain blocking, while a valid response promotes the same record to the backward-compatible confirmed receipt. The attempt carries exact post-reset histories and recovery delays, and the confirmed receipt is not retired before protected state and the context disposition are durable.
 
-**Verification.** `verified` — Tests exercise exact history restoration, protected durable-save ordering, restart replay, duplicate prevention, receipt removal failure, and deferred SIGINT.
+**Verification.** `verified` — Tests use hard process exits at pre-request, remote-acceptance, response, confirmed-promotion, protected-state and receipt-retirement boundaries; they also exercise exact cycle-reset histories, strict definite-rejection classification, stable restart pause, legacy receipt compatibility and idempotent reconciliation.
 
 **Preconditions.**
 
-- No unresolved conflicting meme or regular receipt exists before preparation.
+- Exactly one healthy process holds the instance lock and no unresolved conflicting meme, reply or regular receipt exists before preparation.
 - Any legacy schema-v1 receipt is inspected or reconciled before relying on exact schema-v2 after-state semantics.
 
-**Runtime-consumed artifacts.** `direct` — These runtime-state files represent a confirmed regular post and its exact local after-state.
+**Runtime-consumed artifacts.** `direct` — The regular receipt now represents both pre-send sending/attempting states and the established confirmed state; the histories and bot state represent its exact protected local after-state.
 
 - `regular_post_receipt.json`
 - `lines_used.json`
@@ -620,18 +620,19 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
-- Before restart, inspect any deployed regular_post_receipt.json; block deployment on invalid state and manually reconcile any schema-v1 receipt before relying on v2 exact replay.
+- Before activation, inspect any deployed regular_post_receipt.json; an attempt in sending or attempting state requires manual reconciliation and must never be retried.
+- Block deployment on invalid state and manually reconcile any schema-v1 receipt before relying on v2 exact replay.
 
 **Evidence references.**
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
-- `test` `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories` — Focused automated evidence for the principal recorded boundary.
+- `test` `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post` — Hard-process-loss coverage for the durable intent, remote acceptance, confirmed promotion, protected state and retirement boundaries.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `6d5608f23d3d529c8f68a318c8c8eb36ae5723c4` (`known`) — The durable pre-send implementation and cited hard-process-loss tests are frozen in this isolated repair commit; this is candidate evidence, not proof of deployment.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `8806675e2084c1b60a5e584fc0cacd0b81d6451b` (`known`) — This is the exact tree of the isolated durable-transaction repair commit.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `accepted` — At-most-once safety deliberately costs availability: a sending or attempting record with an uncertain remote outcome pauses every remote-write lane until an operator reconciles it. Automatic retry of that ambiguity is not accepted.
 
 **Affected paths.**
 
@@ -646,12 +647,16 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Verification tests.**
 
 - `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`
+- `tests/test_unit_helpers.py::test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier`
+- `tests/test_unit_helpers.py::test_regular_hard_death_preserves_exact_post_reset_cycle_histories`
+- `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`
+- `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`
 - `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`
 - `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`, `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`, `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost` — Exercise the regular-post receipt's exact after-state and at-most-once replay.
+- `pytest` — `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`, `tests/test_unit_helpers.py::test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_regular_hard_death_preserves_exact_post_reset_cycle_histories`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`, `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost` — Exercise durable pre-send intent, hard-death ambiguity retention, exact after-state, atomic confirmation and at-most-once restart behavior.
 
 **Known gaps.**
 
@@ -659,26 +664,26 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TXN-MEME-001: Meme-post at-most-once transaction
 
-**Invariant.** A confirmed meme post must have one self-validating durable receipt, reconcile its post history and future schedule idempotently, block conflicting main transactions, and never be remotely reposted during recovery.
+**Invariant.** Before a meme-post X create request can be transmitted, one durable single-use attempt must bind the exact payload and selected meme identity. An uncertain attempt must survive restart as a global manual-reconciliation barrier; a confirmed attempt must promote atomically to the established self-validating receipt, reconcile post history and future schedule idempotently, and never be remotely reposted.
 
 **Rationale.** Meme-post at-most-once transaction is explicit because a crash or persistence failure can duplicate the meme, lose its future schedule, or corrupt the ordering between meme and regular main posts.
 
 **Owner subsystem.** `meme_post_transaction`
 
-**Failure consequence.** A crash or persistence failure can duplicate the meme, lose its future schedule, or corrupt the ordering between meme and regular main posts.
+**Failure consequence.** A hard process death after X accepts a meme but before the first confirmed receipt can duplicate it, lose its future schedule, or corrupt ordering between meme and regular main posts.
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — Dedicated meme receipts are durably written, mutually exclude regular receipts, preserve confirmed-time scheduling, and block on invalid or simultaneous state.
+**Status.** `implemented` — The dedicated meme receipt is written in sending state before transmission, atomically consumed into attempting state, retained on uncertain outcomes and promoted to the backward-compatible confirmed state only after a valid response. It mutually excludes other main transactions and preserves confirmed-time scheduling.
 
-**Verification.** `verified` — Tests cover confirmed-state failure recovery, replay without a second post, receipt-removal failure, simultaneous receipts, and future schedule validation.
+**Verification.** `verified` — Tests use hard process exits at pre-request, remote-acceptance, response, confirmed-promotion, protected-state and receipt-retirement boundaries; they also cover strict definite-rejection classification, stable restart pause, confirmed-state recovery, legacy receipts and future schedule validation.
 
 **Preconditions.**
 
-- No unresolved regular or meme receipt exists before preparation.
+- Exactly one healthy process holds the instance lock and no unresolved regular, meme or reply receipt exists before preparation.
 - The future meme schedule is receipt-compatible and derived from confirmed time.
 
-**Runtime-consumed artifacts.** `direct` — The meme receipt and bot state jointly represent confirmation and future scheduling.
+**Runtime-consumed artifacts.** `direct` — The meme receipt represents both pre-send sending/attempting states and the established confirmed state; bot state represents confirmed history and future scheduling.
 
 - `meme_post_receipt.json`
 - `bot_state.json`
@@ -687,18 +692,19 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
-- Before restart, inspect any deployed meme_post_receipt.json and reject invalid, simultaneous, or non-future schedule state.
+- Before activation, inspect any deployed meme_post_receipt.json; an attempt in sending or attempting state requires manual reconciliation and must never be retried.
+- Reject invalid, simultaneous, or non-future confirmed schedule state.
 
 **Evidence references.**
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
-- `test` `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt` — Focused automated evidence for the principal recorded boundary.
+- `test` `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post` — Hard-process-loss coverage for both regular and meme durable transaction boundaries.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `6d5608f23d3d529c8f68a318c8c8eb36ae5723c4` (`known`) — The durable pre-send implementation and cited hard-process-loss tests are frozen in this isolated repair commit; this is candidate evidence, not proof of deployment.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `8806675e2084c1b60a5e584fc0cacd0b81d6451b` (`known`) — This is the exact tree of the isolated durable-transaction repair commit.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `accepted` — At-most-once safety deliberately costs availability: a sending or attempting record with an uncertain remote outcome pauses every remote-write lane until an operator reconciles it. Automatic retry of that ambiguity is not accepted.
 
 **Affected paths.**
 
@@ -712,12 +718,15 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Verification tests.**
 
 - `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`
+- `tests/test_unit_helpers.py::test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier`
+- `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`
+- `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`
 - `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`
 - `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`, `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise meme receipt durability, mutual exclusion, and at-most-once replay.
+- `pytest` — `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`, `tests/test_unit_helpers.py::test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation` — Exercise meme pre-send durability, hard-death ambiguity retention, mutual exclusion, atomic confirmation and at-most-once replay.
 
 **Known gaps.**
 
