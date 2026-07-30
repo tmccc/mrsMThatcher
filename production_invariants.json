@@ -2833,6 +2833,8 @@
         "INDEPENDENT_REVIEW_REQUEST.md",
         "why_code_reviews_continue_to_find_major_problems.md",
         "diagnosis_measurements.json",
+        "priority0_transaction_assurance_remediation_report.md",
+        "priority0_transaction_assurance_final_validation.json",
         "docs/historical_context_evidence_release_runbook.md",
         "deploy/systemd-user/mrsMThatcher.service"
       ],
@@ -2855,7 +2857,9 @@
           "REVIEW_COMPLETION_TEMPLATE.md",
           "INDEPENDENT_REVIEW_REQUEST.md",
           "why_code_reviews_continue_to_find_major_problems.md",
-          "diagnosis_measurements.json"
+          "diagnosis_measurements.json",
+          "priority0_transaction_assurance_remediation_report.md",
+          "priority0_transaction_assurance_final_validation.json"
         ],
         "tests": [
           "tests/test_priority0_registry.py::test_real_registry_is_valid_and_markdown_is_synchronised",

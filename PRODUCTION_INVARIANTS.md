@@ -2031,6 +2031,8 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `INDEPENDENT_REVIEW_REQUEST.md`
 - `why_code_reviews_continue_to_find_major_problems.md`
 - `diagnosis_measurements.json`
+- `priority0_transaction_assurance_remediation_report.md`
+- `priority0_transaction_assurance_final_validation.json`
 - `docs/historical_context_evidence_release_runbook.md`
 - `deploy/systemd-user/mrsMThatcher.service`
 
@@ -2054,6 +2056,8 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `INDEPENDENT_REVIEW_REQUEST.md`
 - `why_code_reviews_continue_to_find_major_problems.md`
 - `diagnosis_measurements.json`
+- `priority0_transaction_assurance_remediation_report.md`
+- `priority0_transaction_assurance_final_validation.json`
 
 **Verification tests.**
 
