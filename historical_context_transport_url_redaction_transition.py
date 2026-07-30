@@ -1229,6 +1229,7 @@ def _invariant_pairs(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Build, validate, or apply the transport-URL redaction transition."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     build = subparsers.add_parser("build")
