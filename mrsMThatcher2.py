@@ -15040,18 +15040,22 @@ def main() -> None:
     maintenance_pause_logged = global_remote_writes_paused()
     while True:
         if ambiguous_remote_post_is_blocking():
+            try:
+                # Recheck durability on every blocked tick.  A previous
+                # marker-directory fsync may have failed transiently, and this
+                # helper is also responsible for restoring and delivering a
+                # retained SIGINT once the restart-safe barrier is durable.
+                durable_marker_confirmed = (
+                    durable_remote_write_safety_barrier_exists()
+                )
+            except Exception:
+                durable_marker_confirmed = False
+                log.critical(
+                    "The remote-write safety marker could not be inspected; the "
+                    "process will remain latched and must not be restarted",
+                    exc_info=True,
+                )
             if not ambiguity_pause_logged:
-                try:
-                    durable_marker_confirmed = (
-                        durable_remote_write_safety_barrier_exists()
-                    )
-                except Exception:
-                    durable_marker_confirmed = False
-                    log.critical(
-                        "The remote-write safety marker could not be inspected; the "
-                        "process will remain latched and must not be restarted",
-                        exc_info=True,
-                    )
                 if durable_marker_confirmed:
                     log.critical(
                         "All remote posting and reply lanes are paused by the durable "

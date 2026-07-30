@@ -712,3 +712,109 @@ def test_recovered_marker_delivers_deferred_sigint_once() -> None:
         assert signal.getsignal(signal.SIGINT) is delivered_handler
     finally:
         signal.signal(signal.SIGINT, original_signal_handler)
+
+
+def test_main_rechecks_marker_durability_on_every_blocked_tick(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A later marker fsync recovery must release the real daemon's SIGINT guard."""
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "reconcile_runtime_historical_context_state", lambda: None)
+    monkeypatch.setattr(bot, "glob", lambda _pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    state = {"next_quote_post_epoch": 1}
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (int(state_arg.get(key, current)), False),
+    )
+
+    def remote_lane_reached(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("the ambiguity barrier must block every remote-action lane")
+
+    monkeypatch.setattr(
+        bot,
+        "safely_process_due_historical_context_obligations",
+        remote_lane_reached,
+    )
+    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
+    monkeypatch.setattr(bot, "create_post", remote_lane_reached)
+    monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
+    monkeypatch.setattr(bot, "x_request", remote_lane_reached)
+    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+
+    original_signal_handler = signal.getsignal(signal.SIGINT)
+    delivered: list[int] = []
+
+    def delivered_handler(signum: int, _frame: object | None) -> None:
+        delivered.append(signum)
+
+    guard = bot.ConfirmedPostSigintDeferral()
+    guard.previous_handler = delivered_handler
+    guard.pending = True
+    signal.signal(signal.SIGINT, guard.handle)
+    bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = True
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    bot.AMBIGUOUS_POST_OUTCOME_FILE.write_text("{}\n", encoding="utf-8")
+
+    fsync_attempts = 0
+
+    def transient_parent_fsync(path: Path, *, strict: bool = False) -> None:
+        nonlocal fsync_attempts
+        assert path == bot.AMBIGUOUS_POST_OUTCOME_FILE
+        assert strict is True
+        fsync_attempts += 1
+        if fsync_attempts == 1:
+            raise OSError("first parent-directory fsync failed")
+
+    monkeypatch.setattr(bot, "fsync_parent_dir", transient_parent_fsync)
+
+    class TwoBlockedTicksComplete(Exception):
+        pass
+
+    sleep_calls = 0
+
+    def stop_after_two_blocked_ticks(_seconds: float) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls == 2:
+            raise TwoBlockedTicksComplete
+
+    monkeypatch.setattr(bot, "sleep", stop_after_two_blocked_ticks)
+
+    try:
+        with pytest.raises(TwoBlockedTicksComplete):
+            bot.main()
+        assert fsync_attempts == 2
+        assert sleep_calls == 2
+        assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
+        assert signal.getsignal(signal.SIGINT) is delivered_handler
+        assert delivered == [signal.SIGINT]
+        assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot.ambiguous_remote_post_is_blocking() is True
+        assert sum(
+            "All remote posting and reply lanes are paused" in record.getMessage()
+            for record in caplog.records
+        ) == 1
+    finally:
+        signal.signal(signal.SIGINT, original_signal_handler)
