@@ -29,11 +29,11 @@
     },
     "source_role_audit": {
       "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-      "sha256": "904e1b24b8ebe7ef74756e086958a64cc81a3669d4ea3861a42bb0499b9ffd24"
+      "sha256": "ea2a7ce7e9b841da20aa6db7c48cc2e14666f9791d3e7398d349d5104b892e3f"
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",
-      "sha256": "0714db027126ffd381e4277bb1c085ce2dc5c91ca4a69f7074f0ecbe9d6b461e"
+      "sha256": "24cdc67ac957c3a69c0b00435eb74cbe026834486ec080c28566eeeed2abdd32"
     }
   },
   "manual_review_totals": {

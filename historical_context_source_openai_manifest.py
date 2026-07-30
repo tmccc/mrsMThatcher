@@ -1,11 +1,15 @@
 """Dependency-free validation for saved OpenAI source-research evidence."""
 from __future__ import annotations
 
+import copy
 import hashlib
 import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from historical_context_source_resolution import (
+    _sanitise_transient_redirect_url,
+)
 from historical_context_source_research_manifest import (
     SOURCE_VALIDATION_POLICY_VERSION,
 )
@@ -38,6 +42,37 @@ def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def sanitise_openai_research_manifest(
+    manifest: dict[str, Any],
+) -> tuple[dict[str, Any], int]:
+    """Remove transient signing material from saved rejected-source URLs."""
+    if not isinstance(manifest, dict):
+        raise RuntimeError("OpenAI historical-context source manifest is invalid")
+    result = copy.deepcopy(manifest)
+    changed = 0
+    items = result.get("items")
+    if not isinstance(items, dict):
+        raise RuntimeError("OpenAI historical-context source manifest is invalid")
+    for item in items.values():
+        if not isinstance(item, dict):
+            raise RuntimeError("OpenAI researched item is invalid")
+        rejected = item.get("rejected_sources", [])
+        if not isinstance(rejected, list):
+            raise RuntimeError("OpenAI rejected-source records are invalid")
+        for row in rejected:
+            source = row.get("source") if isinstance(row, dict) else None
+            if not isinstance(source, dict):
+                raise RuntimeError("OpenAI rejected-source record is invalid")
+            url = source.get("url")
+            if not isinstance(url, str):
+                raise RuntimeError("OpenAI rejected-source URL is invalid")
+            sanitised, modified = _sanitise_transient_redirect_url(url)
+            if modified:
+                source["url"] = sanitised
+                changed += 1
+    return result, changed
+
+
 def validate_openai_research_manifest(
     manifest: dict[str, Any],
     packets: dict[str, dict[str, Any]],
@@ -52,6 +87,14 @@ def validate_openai_research_manifest(
         or manifest.get("prompt_version") != OPENAI_RESEARCH_PROMPT_VERSION
     ):
         raise RuntimeError("OpenAI historical-context source manifest is incompatible")
+    sanitised_manifest, changed_rejected_url_count = (
+        sanitise_openai_research_manifest(manifest)
+    )
+    if changed_rejected_url_count or sanitised_manifest != manifest:
+        raise RuntimeError(
+            "OpenAI historical-context source manifest retains transient "
+            "provider credentials"
+        )
     queue = manifest.get("queue_quote_ids")
     items = manifest.get("items")
     failures = manifest.get("failures")
@@ -99,7 +142,11 @@ def validate_openai_research_manifest(
         source_ids: set[str] = set()
         for source in sources:
             passage = source.get("exact_supporting_passage")
-            parsed = urlsplit(str(source.get("url") or ""))
+            source_url = str(source.get("url") or "")
+            parsed = urlsplit(source_url)
+            _sanitised_url, signed_transport_url = (
+                _sanitise_transient_redirect_url(source_url)
+            )
             match_kind = source.get("wording_match_kind")
             similarity = source.get("wording_similarity")
             if (
@@ -107,6 +154,7 @@ def validate_openai_research_manifest(
                 or source["source_id"] in source_ids
                 or parsed.scheme not in {"http", "https"}
                 or not parsed.netloc
+                or signed_transport_url
                 or not isinstance(passage, str)
                 or not passage.strip()
                 or source.get("exact_supporting_passage_sha256")

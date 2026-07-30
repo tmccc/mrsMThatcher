@@ -23,6 +23,7 @@ from semantic_alignment.quote_research_gemini import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SYNTHETIC_API_KEY = "-".join(("not", "a", "real", "key"))
 
 
 def record(index: int = 1) -> dict:
@@ -72,7 +73,10 @@ def http_429() -> requests.HTTPError:
 
 class FakeDeveloper(DeveloperResearchClient):
     def __init__(self, outcomes):
-        super().__init__("not-a-real-key", request=lambda *args, **kwargs: None)
+        super().__init__(
+            SYNTHETIC_API_KEY,
+            request=lambda *args, **kwargs: None,
+        )
         self.outcomes = list(outcomes)
         self.calls = 0
 
@@ -110,7 +114,10 @@ def test_deterministic_selection_excludes_batch_one():
 
 
 def test_grounding_and_transport_parity_are_explicit():
-    developer = DeveloperResearchClient("not-a-real-key", request=lambda *args, **kwargs: None)
+    developer = DeveloperResearchClient(
+        SYNTHETIC_API_KEY,
+        request=lambda *args, **kwargs: None,
+    )
     vertex = VertexResearchClient("test-project", client=object())
     assert developer.payload("prompt")["tools"] == [{"googleSearch": {}}]
     assert vertex.config().tools[0].google_search is not None

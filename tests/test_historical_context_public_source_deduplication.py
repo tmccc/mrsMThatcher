@@ -54,7 +54,7 @@ IMMUTABLE_HASHES = {
     ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
     RESEARCH / "research_packets.json": "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e",
     RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "904e1b24b8ebe7ef74756e086958a64cc81a3669d4ea3861a42bb0499b9ffd24",
+    RESEARCH / "historical_context_source_role_audit.json": "ea2a7ce7e9b841da20aa6db7c48cc2e14666f9791d3e7398d349d5104b892e3f",
     RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
     RESEARCH / "final_unresolved/final_research_status.json": "766f2bbb0c722d4dfc85a4b3fda1de9cf9c97e39a5311ab92196aa81a67c826e",
 }

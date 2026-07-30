@@ -34,7 +34,11 @@ from historical_context_source_openai_manifest import (
     OPENAI_RESEARCH_FILENAME,
     OPENAI_RESEARCH_POLICY_VERSION,
     OPENAI_RESEARCH_SCHEMA_VERSION,
+    sanitise_openai_research_manifest,
     validate_openai_research_manifest,
+)
+from historical_context_source_resolution import (
+    _sanitise_transient_redirect_url,
 )
 
 
@@ -179,13 +183,19 @@ def extract_cited_sources(raw: dict[str, Any]) -> tuple[list[dict[str, str]], in
             if value.get("type") == "web_search_call":
                 search_calls += 1
             if value.get("type") == "url_citation" and value.get("url"):
+                url, _changed = _sanitise_transient_redirect_url(
+                    value["url"]
+                )
                 found.append({
-                    "url": str(value["url"]),
+                    "url": url,
                     "title": str(value.get("title") or ""),
                 })
             if value.get("type") in {"url", "web_search_result"} and value.get("url"):
+                url, _changed = _sanitise_transient_redirect_url(
+                    value["url"]
+                )
                 found.append({
-                    "url": str(value["url"]),
+                    "url": url,
                     "title": str(value.get("title") or ""),
                 })
             for child in value.values():
@@ -428,6 +438,7 @@ def build_research_manifest(
         "items": results.get("items", {}),
         "failures": results.get("failures", {}),
     }
+    manifest, _changed_url_count = sanitise_openai_research_manifest(manifest)
     validate_openai_research_manifest(manifest, packets)
     return manifest
 

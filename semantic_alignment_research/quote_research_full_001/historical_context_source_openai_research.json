@@ -1122,7 +1122,7 @@
           "reason": "http_403",
           "source": {
             "title": "",
-            "url": "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781315641935/c3dc6c4b-19cf-458b-9de9-6495ca0d383f/preview.pdf?AWSAccessKeyId=ASIAQFVOSJ57RDIYVXMF&Expires=1774015696&Signature=W51FME1ei5Z6%2FWm6U3ZKfBg2Nls%3D&response-content-disposition=attachment%3B+filename%3D%2210.4324_9781315641935_previewpdf.pdf%22&x-amz-security-token=IQoJb3JpZ2luX2VjEGkaCXVzLWVhc3QtMSJHMEUCIQD7jqYZaBP9717oGvjJTnRGsRfnY4VWmqef6KbW9stgNwIgN%2FVjLwoO6cDmEGvtB9LfnIof61j%2BdIMZsFRHpQory28qjQQIMhAEGgwwMTIxNzcyNjQ1MTEiDHaFb6Ot3Pb7rXLP8yrqA0JAOQJ0tGUAfFH0YAMT6D%2B3AVHn849WqRNQtLLWgAuXrdjnRNZ1lG%2FWHrKqLoDWK6103AukUS8GvCOn6eAo9c8Yzte0LtgXqJorl08AZQVQIe94YSMT8jYcuHxpORsyTAVHB%2BQ5xLhUMUZAM90pNPTllPqMzyI7k09Ssq3uS73xcsIBBqqwbxXotrf%2BCs1sbsjKLwdMSswMNBX5Y70C9%2BYRwSSxHw0WupCrgGxqOOEFlOU%2FKi4UZP5vxNMbA4uuXJ3FLdf%2FnrKBu4SoEsgzwq4242fF6XSAW73x%2BPnPPF2z9IfVEStzOaotBE%2BlkoPQPXknQLyYvyU0VEH2%2BnI51fdb3QvLQ3qrKmwe3qfsMBcZemq%2FRMJN%2BomtKHXKqUpYFTDdJoNg%2BpLDUJj0jjTJf8y%2FLdSp2WX%2FhG91KFEzYHoFNPmvjgKwB1jQvAO68Nf1z2eSwnyPzk5loHhMW27W3730PMHVJDEnr9YQkG51yTIAolMmJGhYbBqBNn6B%2BsUm4xxuChdMkX49r%2BTCW6LiZSQQzOW5qRGa16hRWLit6b%2BOni8XX%2FVNZCz8Qohz91eahPUjl95KB6wm4UXZSlLU5tQE3sk6GpbU96lJgvL3CJleF1QN%2FP2MB1KbmA0ntBXfbyTdLajgwwACLaEwvZT0zQY6pQFP166juFr4t08YDZPbQGjvzEViK%2F7iqA83Oi2qUTOxqaDteJvMc0XcMyG2p2LailZ5OAfKXemcVCXmxlFQa7UWO4foAs4F1B8NUm6ayX5toeTj1OWobmAdI5E4aBpMp5rp2xbGPdmX%2FVTO4n4Y9T0HLp77cCaNC6OC7iaOl7Dd1%2BAOugxeEMBxo1pngNPhl%2BTk75rGGrxCeSOsTtWEK%2FPVNpkYbK0%3D"
+            "url": "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781315641935/c3dc6c4b-19cf-458b-9de9-6495ca0d383f/preview.pdf?Expires=1774015696&response-content-disposition=attachment%3B+filename%3D%2210.4324_9781315641935_previewpdf.pdf%22"
           }
         },
         {
@@ -17235,7 +17235,7 @@
           "reason": "http_403",
           "source": {
             "title": "",
-            "url": "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781315747804/3a4edcb6-1613-4047-8cf1-02fdfada3f14/chapters/chapter7.pdf?AWSAccessKeyId=ASIAQFVOSJ57QZXFD6CA&Expires=1773463289&Signature=eYDJrt2mOFbB0rywi7a6i2LKtfU%3D&response-content-disposition=attachment%3B+filename%3D%2210.4324_9781315747804-9_chapterpdf.pdf%22&x-amz-security-token=IQoJb3JpZ2luX2VjENT%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJHMEUCIDEUX90gneDrv22BFh0XldPxfRqTpprxrl0GhAPLvowgAiEA%2B7mJvVx2xaKXEdh1UTb%2FV3zhOeE0szv%2FHUhz4c5zNAkqlgQInf%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARAEGgwwMTIxNzcyNjQ1MTEiDJyQKZaJTxaU%2BA1bPCrqA%2FEgVxdzkKGnTelwTsbVQ1635cHqFzD%2BBu4IA1jFV6CcYBTgXKkfNwE5%2FPEUMg0F2c5r8OM0mfCtX3gUSQJ7mWdpVpBNkwk26owFtxLl7ISIWB7aI5gcYYPCnAH6%2BwiKcpCydP3RJ5q7u%2BJyva2iTu6tZibRNbIH6fIcGzsn15CK3QRhg5VJ5AaPlzzOQoW2nh6ppM8bx5FNYp0PmEm8hW2pGMEVLEOmcfblQkhWMvfcNDe08lRhNJAChDceVZQ4XqQ%2Brjn%2FcIub5MzlNJ0xb4FtD2U8h3TYDxn3XoNGf8Qh7putYWDkMNQmG%2FZmv6d3ApD8Zf5f8fkGO3coAbnwz1smllgKarUs4%2Fh3fTpEmcj3gid5YB6nHiT0PAVmbKmBigkhwf9B6NFnv%2B5W48PhF8Eeiaw21vxEdweNGtwI64qRKMG62Hy5HDvBjtJUT1WIFXz0bTR%2F4RUxrp5AJd9DrUsgorZEGvoDqhtlO%2FuGHA2wmDBSJXlCHoafDmy1q%2BDxdJ3Zg9sNP1mGzfXF1hGCUOE%2FSf8TFtYlP2U4%2Bx8A0BNfZGE7u0CnI8vCGHw2RRD5usU%2FGN%2BJCuHXZbBl47Z2cEEBFt%2BUms76h3NoPx32sB%2B5rqAE%2F8up9%2BDKqGWGa5JkxLCcA2cggwqFYXMwtrzTzQY6pQGbADmrjl7Yhqa%2FRBXpLTphUb08Zm%2F%2BSmpqh%2BDFTOHHlscskk9%2FU%2FjuZ0oYn15Ji03KBOHWxhr9HumfW9N7k%2Byd0qKyNZZNJcV56AM1aXOFOLFy05mIWXI%2B0gkuAjzmWttMON6E2OolKROQjeA6o9sgSJGqkGAKdQYU92l70dfDjYsRsYgvMdFVldCaemifAEhj94Vt7y8mHKhzSls7BcxoBY2Exa4%3D"
+            "url": "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781315747804/3a4edcb6-1613-4047-8cf1-02fdfada3f14/chapters/chapter7.pdf?Expires=1773463289&response-content-disposition=attachment%3B+filename%3D%2210.4324_9781315747804-9_chapterpdf.pdf%22"
           }
         },
         {
@@ -17955,21 +17955,21 @@
           "reason": "http_403",
           "source": {
             "title": "",
-            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=gYUBrnhfGJEZyIT0Fc7R%2F20251109%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251109T115927Z&X-Amz-Expires=600&X-Amz-Signature=c4a107cad81b4bc24ed48566e57211719129793e6d7a5494039a5c6cd2802526&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22"
+            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22"
           }
         },
         {
           "reason": "http_403",
           "source": {
             "title": "",
-            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=gYUBrnhfGJEZyIT0Fc7R%2F20251010%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251010T161345Z&X-Amz-Expires=600&X-Amz-Signature=5e989b1d20b5f61c6f7dd0ebe3a348ad44f8f651f8e1d0d5aa0d4a0deeaed411&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22"
+            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22"
           }
         },
         {
           "reason": "http_403",
           "source": {
             "title": "",
-            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=gYUBrnhfGJEZyIT0Fc7R%2F20251127%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251127T170548Z&X-Amz-Expires=600&X-Amz-Signature=ffea82ba1da316295b3a254d72e5c4b778ce2423e49238366f18ebc33e03b03e&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22"
+            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22"
           }
         },
         {
@@ -18039,7 +18039,7 @@
           "reason": "http_403",
           "source": {
             "title": "",
-            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=gYUBrnhfGJEZyIT0Fc7R%2F20251109%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251109T115927Z&X-Amz-Expires=600&X-Amz-Signature=c4a107cad81b4bc24ed48566e57211719129793e6d7a5494039a5c6cd2802526&X-Amz-SignedHeaders=host&response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22&utm_source=openai"
+            "url": "https://storage.freidok.ub.uni-freiburg.de/publications/242033/gsugYfh0gJ3lZaXw/Mittelweg_36_3_4_2023.pdf?response-content-disposition=attachment%3B+filename%3D%22Mittelweg_36_3_4_2023.pdf%22&utm_source=openai"
           }
         },
         {
@@ -18103,7 +18103,7 @@
           "reason": "http_403",
           "source": {
             "title": "",
-            "url": "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781032660875/28f8e172-b44b-4b14-b479-176d209e8c60/preview.pdf?AWSAccessKeyId=ASIAQFVOSJ57VB6YQPDA&Expires=1772354421&Signature=5TIzK%2BFtRyefbVi3%2B71pSLOopQE%3D&response-content-disposition=attachment%3B+filename%3D%2210.4324_9781032660875_previewpdf.pdf%22&x-amz-security-token=IQoJb3JpZ2luX2VjEJ3%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJIMEYCIQD37W%2B8qtC8wL6hpaFMJl%2FwbwfUxQlzUmLt50nLbZwjQAIhANtjWL1H%2Bto%2Fx3ftClZa%2FY7iysDqkcO7ANRzeb8WXNfnKo0ECGYQBBoMMDEyMTc3MjY0NTExIgwSr8b3emXzZtjns8Qq6gNaR7Gx3IUpPfg%2FR4Y5y6E8mgRn2NXm7TC2Mkatpvqf6gLkDym6X23BtgJqNSngXY2apnHnn10Oc1UrVkV%2F81UrLkDQDCeWO9%2BkHpb%2BzNR69umaqruvDWGARzoj4d2K6cfoDNody%2B7s5A9sEqCXrC7B5hPNCGP0SLN0x4vIa279b8VBb9uYX7f2anZhuSALJ5XKLTFPfYZ85KYD1UJR%2B2ftfqv1O700U2N3FAYP0KuO9vtOn8nAWL3Xsnsor7HQYWp%2FX6V6BhPQNs%2F%2BQI4Z49WiOabUp5j%2BLYKyoMKaBgqukSkGFCehu5qlFy9rh%2BNYvWMcupO6278dB1VJJm9%2Fds9qsHTcjQLS8g9xcyCmhg%2Fa%2Fsd6w%2BoN9zq%2B5XYa6lBmDSqGyh%2FPizHYPCoky4q7Ns3RqfTFC3iF6zvpGpWWs%2FfUmIFuMYW%2FjmvLeKIQUrwnJ3KfpS%2FO6BelfJ0lLgvk5ppLKVvFkuUQIh2hBe0NKGZnrsgTjbMOTW0b4rvAJVnH%2F6x%2B6Khd%2FshYEbQ3x7PDsDDd%2FV5%2Bqj0kpBlLMbjEzWUkhZaK4Fgh%2Bp%2ByaxreKeuY3lh0c7G9Q57C78tC%2B1QKoGG02jXtRTYgbd%2FwZy845OPCHFMbOxOOAmCAml2OekiSDBNnid48F38Ua1N1MIqJj80GOqQBhHSsF%2Bo8xl6AMEL7hALrdc%2BLASJVHiFFbGPlKQy4t9T5XMZHOg4%2F7Xhx5V25YxNh5jENApwPFeuFz7jbE4OTtSxECdmBgk%2BOEppl6LyDOsY6y3fl415mGnPlPwKDciFNwgP2LO9CauUdbiMgFM1FIWsQ2Da25Sam%2FXhimvIoI8dkZ6%2BWx9oMCwsrzQo5qTWwPflDiciTdLaC0nuXBjYiY0t7agA%3D"
+            "url": "https://s3-euw1-ap-pe-df-pch-content-store-p.s3.eu-west-1.amazonaws.com/9781032660875/28f8e172-b44b-4b14-b479-176d209e8c60/preview.pdf?Expires=1772354421&response-content-disposition=attachment%3B+filename%3D%2210.4324_9781032660875_previewpdf.pdf%22"
           }
         },
         {

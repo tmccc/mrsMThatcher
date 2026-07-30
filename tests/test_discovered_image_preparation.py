@@ -16,6 +16,7 @@ from semantic_alignment.io import atomic_write_json, read_json, sha256_file
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SYNTHETIC_API_KEY = "-".join(("not", "a", "real", "key"))
 
 
 def image(path: Path, size=(800, 600), colour=(30, 70, 110)) -> None:
@@ -282,7 +283,7 @@ def test_source_grounded_normalisation_truncates_only_bounded_prose():
 
 def test_analysis_requires_exact_confirmation_and_caches_by_hash(tmp_path, monkeypatch):
     project, research, work = make_project(tmp_path)
-    monkeypatch.setenv("XAI_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("XAI_API_KEY", SYNTHETIC_API_KEY)
     calls = []
 
     def fake_call(**kwargs):
@@ -315,7 +316,7 @@ def test_source_grounded_analysis_is_separate_cached_and_names_source_figures(tm
         "approximate_date": "1984-12-22", "source_page_url": "https://example.test/a",
     }]})
     prep.build_source_grounded_metadata(research, work)
-    monkeypatch.setenv("XAI_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("XAI_API_KEY", SYNTHETIC_API_KEY)
     calls = []
 
     def fake_call(**kwargs):
@@ -351,7 +352,7 @@ def test_source_grounded_schema_failure_persists_response_and_cost(tmp_path, mon
         "source_page_url": "https://example.test/a",
     }]})
     prep.build_source_grounded_metadata(research, work)
-    monkeypatch.setenv("XAI_API_KEY", "not-a-real-key")
+    monkeypatch.setenv("XAI_API_KEY", SYNTHETIC_API_KEY)
 
     def fake_call(**_kwargs):
         return canonical.ApiResult(

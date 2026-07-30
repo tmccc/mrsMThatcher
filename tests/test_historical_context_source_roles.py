@@ -41,6 +41,7 @@ from historical_context_source_openai import (
 )
 from historical_context_source_openai_manifest import (
     OPENAI_RESEARCH_FILENAME,
+    sanitise_openai_research_manifest,
     validate_openai_research_manifest,
 )
 from historical_context_source_independent_review import (
@@ -53,7 +54,12 @@ from historical_context_source_curated_evidence import (
 )
 from historical_context_source_recovery import validate_recovery
 from historical_context_source_research_manifest import validate_research_manifest
-from historical_context_source_resolution import validate_resolution
+from historical_context_source_resolution import (
+    RESOLUTION_POLICY_VERSION,
+    _sanitise_transient_redirect_url,
+    sanitise_resolution_manifest,
+    validate_resolution,
+)
 from historical_context_source_roles import (
     AUDIT_FILENAME,
     _public_verification,
@@ -781,6 +787,105 @@ def test_saved_recovery_and_resolution_manifests_are_identity_valid(corpus):
     assert resolution["completed_url_count"] == 864
 
 
+def test_saved_resolution_redacts_transient_storage_credentials():
+    signed_url = (
+        "https://s3.eu-central-1.amazonaws.com/example/object.pdf?"
+        "X-Amz-Algorithm=AWS4-HMAC-SHA256&"
+        "X-Amz-Credential="
+        + "A"
+        + "KIA"
+        + "0123456789ABCDEF"
+        + "%2F20260721%2Feu-central-1%2Fs3%2Faws4_request&"
+        "X-Amz-Date=20260721T143430Z&X-Amz-Expires=60&"
+        "X-Amz-Signature="
+        + "1" * 64
+        + "&response-content-type=application%2Fpdf"
+    )
+
+    sanitised, changed = _sanitise_transient_redirect_url(signed_url)
+
+    assert changed is True
+    assert sanitised == (
+        "https://s3.eu-central-1.amazonaws.com/example/object.pdf?"
+        "response-content-type=application%2Fpdf"
+    )
+    assert "X-Amz-" not in sanitised
+
+
+def test_saved_resolution_manifest_migration_is_deterministic_and_narrow():
+    signed_url = (
+        "https://storage.googleapis.com/example/object.pdf?"
+        "X-Goog-Algorithm=GOOG4-RSA-SHA256&"
+        "X-Goog-Credential=temporary-identity&"
+        "X-Goog-Signature="
+        + "2" * 64
+        + "&response-content-disposition=inline"
+    )
+    manifest = {
+        "schema_version": 1,
+        "policy_version": "saved-grounding-redirect-resolution-v1",
+        "complete": True,
+        "expected_url_count": 1,
+        "completed_url_count": 1,
+        "items": {
+            "record": {
+                "final_url": signed_url,
+                "redirect_chain": ["https://example.test/start", signed_url],
+                "unchanged": {"evidence": True},
+            }
+        },
+    }
+
+    first, first_count = sanitise_resolution_manifest(manifest)
+    second, second_count = sanitise_resolution_manifest(manifest)
+
+    assert first == second
+    assert first_count == second_count == 2
+    assert first["policy_version"] == RESOLUTION_POLICY_VERSION
+    assert first["items"]["record"]["unchanged"] == {"evidence": True}
+    assert "X-Goog-" not in first["items"]["record"]["final_url"]
+    assert manifest["policy_version"] == "saved-grounding-redirect-resolution-v1"
+
+
+def test_saved_resolution_redaction_preserves_retained_query_bytes_and_order():
+    signed_url = (
+        "https://research-bucket.s3.amazonaws.com/document.pdf?"
+        "response-content-disposition=inline%3B%20filename%3Dreview%2520copy.pdf&"
+        "X-Amz-Algorithm=AWS4-HMAC-SHA256&"
+        "utm_source=review%20queue&"
+        "X-Amz-Credential="
+        + "A"
+        + "KIA"
+        + "0123456789ABCDEF"
+        + "%2F20260721%2Feu-central-1%2Fs3%2Faws4_request&"
+        "response-content-type=application%2Fpdf&"
+        "X-Amz-Signature="
+        + "3" * 64
+    )
+
+    sanitised, changed = _sanitise_transient_redirect_url(signed_url)
+
+    assert changed is True
+    assert sanitised == (
+        "https://research-bucket.s3.amazonaws.com/document.pdf?"
+        "response-content-disposition=inline%3B%20filename%3Dreview%2520copy.pdf&"
+        "utm_source=review%20queue&"
+        "response-content-type=application%2Fpdf"
+    )
+
+
+def test_saved_resolution_keeps_non_storage_author_selector_query():
+    author_selector_url = (
+        "https://best-quotations.com/authquotes.php?"
+        "auth=Margaret%20Thatcher"
+    )
+
+    sanitised, changed = _sanitise_transient_redirect_url(author_selector_url)
+
+    assert changed is False
+    assert sanitised == author_selector_url
+
+
 def test_gemini_queue_and_cost_preflight_cover_only_true_no_source_residual(corpus, audit):
     packets, _ = corpus
     queue = residual_queue(audit)
@@ -864,6 +969,50 @@ def test_openai_native_search_sources_are_deduplicated_and_search_is_counted():
     assert [source["url"] for source in sources] == [
         "https://example.test/a", "https://example.test/b",
     ]
+
+
+def test_openai_search_and_saved_rejections_drop_transient_signing_material():
+    signed_url = (
+        "https://content.example.test/file.pdf?"
+        "response-content-disposition=a%20b&"
+        "X-Amz-Algorithm=AWS4-HMAC-SHA256&"
+        "X-Amz-Credential=temporary%2Fscope&"
+        "X-Amz-Signature="
+        + "3" * 64
+    )
+    sources, _search_calls = extract_cited_sources({
+        "output": [{
+            "type": "url_citation",
+            "url": signed_url,
+            "title": "Signed transport URL",
+        }]
+    })
+    assert sources == [{
+        "url": (
+            "https://content.example.test/file.pdf?"
+            "response-content-disposition=a%20b"
+        ),
+        "title": "Signed transport URL",
+    }]
+
+    manifest = {
+        "items": {
+            "quote": {
+                "rejected_sources": [{
+                    "source": {"url": signed_url},
+                    "reason": "fixture rejection",
+                }],
+            },
+        },
+    }
+    sanitised, changed = sanitise_openai_research_manifest(manifest)
+    assert changed == 1
+    assert sanitised["items"]["quote"]["rejected_sources"][0]["source"][
+        "url"
+    ] == sources[0]["url"]
+    assert manifest["items"]["quote"]["rejected_sources"][0]["source"][
+        "url"
+    ] == signed_url
 
 
 def test_openai_pilot_limit_counts_every_request_not_only_successes(
@@ -1001,6 +1150,67 @@ def test_saved_openai_research_manifest_is_complete_and_source_grounded(corpus):
         for item in manifest["items"].values()
         for source in item["validated_sources"]
     )
+
+
+def test_saved_openai_research_rejects_signed_rejected_source_url(corpus):
+    packets, _ = corpus
+    manifest = json.loads(
+        (RESEARCH_DIR / OPENAI_RESEARCH_FILENAME).read_text(encoding="utf-8")
+    )
+    changed = copy.deepcopy(manifest)
+    rejected = next(
+        row
+        for item in changed["items"].values()
+        for row in item["rejected_sources"]
+    )
+    credential_key = "X-" + "Amz-" + "Credential"
+    signature_key = "X-" + "Amz-" + "Signature"
+    separator = "&" if "?" in rejected["source"]["url"] else "?"
+    rejected["source"]["url"] += (
+        f"{separator}{credential_key}=temporary-scope&"
+        f"{signature_key}={'4' * 64}"
+    )
+
+    with pytest.raises(RuntimeError, match="transient provider credentials"):
+        validate_openai_research_manifest(changed, packets)
+
+
+def test_saved_openai_research_rejects_signed_validated_source_url(corpus):
+    packets, _ = corpus
+    manifest = json.loads(
+        (RESEARCH_DIR / OPENAI_RESEARCH_FILENAME).read_text(encoding="utf-8")
+    )
+    changed = copy.deepcopy(manifest)
+    source = next(
+        source
+        for item in changed["items"].values()
+        for source in item["validated_sources"]
+    )
+    signature_key = "X-" + "Amz-" + "Signature"
+    separator = "&" if "?" in source["url"] else "?"
+    source["url"] += f"{separator}{signature_key}={'5' * 64}"
+
+    with pytest.raises(RuntimeError, match="researched source is invalid"):
+        validate_openai_research_manifest(changed, packets)
+
+
+def test_saved_openai_research_allows_ordinary_author_selector(corpus):
+    packets, _ = corpus
+    manifest = json.loads(
+        (RESEARCH_DIR / OPENAI_RESEARCH_FILENAME).read_text(encoding="utf-8")
+    )
+    changed = copy.deepcopy(manifest)
+    rejected = next(
+        row
+        for item in changed["items"].values()
+        for row in item["rejected_sources"]
+    )
+    separator = "&" if "?" in rejected["source"]["url"] else "?"
+    rejected["source"]["url"] += (
+        f"{separator}auth=Margaret%20Thatcher"
+    )
+
+    validate_openai_research_manifest(changed, packets)
 
 
 def test_model_result_cannot_change_quote_identity(corpus):

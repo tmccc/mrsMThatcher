@@ -1,0 +1,61 @@
+{
+  "baseline_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+  "broad_suite_run": false,
+  "completed_packet_count": 627,
+  "current_tree_secret_scan": {
+    "file_count": 1951,
+    "finding_count": 0,
+    "passed": true
+  },
+  "deterministic_build": {
+    "byte_identical": true,
+    "matches_candidate_files": true,
+    "passed": true
+  },
+  "focused_tests": {
+    "failed": 0,
+    "passed": 274,
+    "warnings": 9
+  },
+  "historical_context_gate": {
+    "blocked_count_after": 13,
+    "blocked_count_before": 13,
+    "blocked_ids_unchanged": true,
+    "policy_unchanged": true
+  },
+  "invariants": {
+    "corpus_identity_unchanged": true,
+    "evidence_roles_unchanged": true,
+    "ordinary_cycle_order_unchanged": true,
+    "public_rendering_unchanged": true,
+    "quotation_text_unchanged": true,
+    "semantic_veto_unchanged": true,
+    "source_identity_unchanged": true,
+    "unresolved_partition_unchanged": true
+  },
+  "network_or_provider_actions": 0,
+  "ordinary_cycle_count_after": 611,
+  "ordinary_cycle_count_before": 611,
+  "output_sha256": {
+    "evidence_truth_audit": "24cdc67ac957c3a69c0b00435eb74cbe026834486ec080c28566eeeed2abdd32",
+    "openai_research": "9d5eef501e2bb605ece137e147924d9b28f2fea2f1b8b34a1816cb58b4352926",
+    "public_projection_review": "0ae91763a549bc0262148325b4c0855de1b842709244970b9101cb8f54d5b0fc",
+    "public_source_deduplication_audit": "171d5a09cc64bd1d42814033cacfe901585f5680872b406a102e5fd8456f4b47",
+    "resolution": "cf81899fd29dc6e65790b182a5f73127b87ac4ccfe1087f0d0d32bf1751b0a2e",
+    "semantic_gate_audit": "b1c163e09a2c7ebf7ae33221d093ad6855e2ba7e1ddc5b4bf78706e43633ff4d",
+    "semantic_review_ledger": "dd041bb7745fa0b018ed09c3c0c9f8db676c0755d530572bc7e4bf56cdfc793e",
+    "source_role_audit": "ea2a7ce7e9b841da20aa6db7c48cc2e14666f9791d3e7398d349d5104b892e3f",
+    "transition_manifest": "4a08dda2241ac9cef89659f68bf99b27307f9525cbfdf4aee5290b9788058180"
+  },
+  "production_mutations": 0,
+  "resolution_url_fields_redacted": 2,
+  "schema_version": 1,
+  "service_actions": 0,
+  "source_role_audit_changed_leaf_count": 4,
+  "status": "validated_for_priority0_replay",
+  "stored_rejected_source_urls_redacted": 7,
+  "transition_kind": "priority0_current_tree_transport_hygiene",
+  "unresolved_count_after": 5,
+  "unresolved_count_before": 5,
+  "x_actions": 0
+}

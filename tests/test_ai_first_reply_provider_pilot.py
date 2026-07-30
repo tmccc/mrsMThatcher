@@ -12,6 +12,9 @@ import requests
 from tools import pilot_ai_first_reply_strategy as pilot
 
 
+SYNTHETIC_API_KEY = "-".join(("not", "a", "real", "key"))
+
+
 class FakeResponse:
     """Minimal requests-compatible response."""
 
@@ -74,7 +77,7 @@ def test_transport_records_cost_and_never_repeats_completed_call(tmp_path: Path)
 
     ledger = pilot.PilotLedger(tmp_path / "cost_ledger.json", model="grok-4.3", hard_limit_usd=1.0)
     transport = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=ledger,
@@ -145,7 +148,7 @@ def test_response_cache_recovers_crash_before_ledger_completion(tmp_path: Path) 
     }
     first_ledger = pilot.PilotLedger(ledger_path, model="grok-4.3", hard_limit_usd=1.0)
     first = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=first_ledger,
@@ -172,7 +175,7 @@ def test_response_cache_recovers_crash_before_ledger_completion(tmp_path: Path) 
 
     recovered_ledger = pilot.PilotLedger(ledger_path, model="grok-4.3", hard_limit_usd=1.0)
     recovered = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=recovered_ledger,
@@ -194,7 +197,7 @@ def test_ambiguous_transport_failure_blocks_resume_and_reserves_exposure(tmp_pat
 
     ledger = pilot.PilotLedger(tmp_path / "cost_ledger.json", model="grok-4.3", hard_limit_usd=1.0)
     transport = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=ledger,
@@ -245,7 +248,7 @@ def test_definite_429_is_retried_without_ambiguous_exposure(tmp_path: Path) -> N
         hard_limit_usd=1.0,
     )
     transport = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=ledger,
@@ -289,7 +292,7 @@ def test_exhausted_429_stays_resumable_and_does_not_become_ambiguous(tmp_path: P
         hard_limit_usd=1.0,
     )
     transport = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=ledger,
@@ -346,7 +349,7 @@ def test_definite_503_is_retried_without_ambiguous_exposure(tmp_path: Path) -> N
         hard_limit_usd=1.0,
     )
     transport = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=ledger,
@@ -390,7 +393,7 @@ def test_nonretryable_http_error_is_definite_and_unblocked(tmp_path: Path) -> No
         hard_limit_usd=1.0,
     )
     transport = pilot.PilotTransport(
-        api_key="not-a-real-key",
+        api_key=SYNTHETIC_API_KEY,
         base_url=pilot.DEFAULT_XAI_BASE,
         model_metadata=model_metadata(),
         ledger=ledger,

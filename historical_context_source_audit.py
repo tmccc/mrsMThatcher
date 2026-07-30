@@ -30,6 +30,7 @@ from historical_context_source_recovery import (
 from historical_context_source_resolution import (
     RESOLUTION_FILENAME,
     resolve_sources,
+    sanitise_resolution_manifest,
     validate_resolution,
 )
 from historical_context_source_research_manifest import (
@@ -38,6 +39,7 @@ from historical_context_source_research_manifest import (
 )
 from historical_context_source_openai_manifest import (
     OPENAI_RESEARCH_FILENAME,
+    sanitise_openai_research_manifest,
     validate_openai_research_manifest,
 )
 from historical_context_source_independent_review import (
@@ -630,11 +632,59 @@ def main(argv: list[str] | None = None) -> int:
     )
     resolve_parser.add_argument("--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR)
     resolve_parser.add_argument("--workers", type=int, choices=(1, 2), default=1)
+    sanitise_parser = subparsers.add_parser(
+        "sanitise-saved-resolution",
+        help="remove transient provider signing material without retrieval",
+    )
+    sanitise_parser.add_argument(
+        "--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR
+    )
+    sanitise_openai_parser = subparsers.add_parser(
+        "sanitise-saved-openai-research",
+        help="remove transient signing material from saved rejected URLs",
+    )
+    sanitise_openai_parser.add_argument(
+        "--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR
+    )
     report_parser = subparsers.add_parser("report", help="render the Markdown report")
     report_parser.add_argument("--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR)
     report_parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     report_parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     args = parser.parse_args(argv)
+    if args.command == "sanitise-saved-resolution":
+        packets, _unresolved = load_and_validate_corpus(
+            args.research_dir,
+            require_source_role_audit=False,
+            load_source_role_audit=False,
+        )
+        path = args.research_dir / RESOLUTION_FILENAME
+        before = _load_json(path)
+        result, changed_url_field_count = sanitise_resolution_manifest(before)
+        validate_resolution(result, packets)
+        atomic_write_json(path, result)
+        print(json.dumps({
+            "changed_url_field_count": changed_url_field_count,
+            "complete": result["complete"],
+            "policy_version": result["policy_version"],
+        }, indent=2, sort_keys=True))
+        return 0
+    if args.command == "sanitise-saved-openai-research":
+        packets, _unresolved = load_and_validate_corpus(
+            args.research_dir,
+            require_source_role_audit=False,
+            load_source_role_audit=False,
+        )
+        path = args.research_dir / OPENAI_RESEARCH_FILENAME
+        result, changed_url_field_count = sanitise_openai_research_manifest(
+            _load_json(path)
+        )
+        validate_openai_research_manifest(result, packets)
+        atomic_write_json(path, result)
+        print(json.dumps({
+            "changed_url_field_count": changed_url_field_count,
+            "policy_version": result["policy_version"],
+        }, indent=2, sort_keys=True))
+        return 0
     if args.command == "resolve-saved-sources":
         packets, unresolved = load_and_validate_corpus(
             args.research_dir,

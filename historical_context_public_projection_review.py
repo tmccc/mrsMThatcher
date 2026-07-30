@@ -31,6 +31,10 @@ from historical_context_source_roles import (
     AUDIT_FILENAME,
     POLICY_VERSION as CURRENT_POLICY,
 )
+from historical_context_transport_url_redaction_transition import (
+    MANIFEST_FILENAME as TRANSPORT_URL_REDACTION_MANIFEST_FILENAME,
+    load_and_validate_transition as load_transport_url_redaction_transition,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -53,6 +57,9 @@ MTF_TRANSITION_MANIFEST_PATH = (
 )
 MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH = (
     ROOT / "historical_context_v9_mtf_live_context_transition_manifest.json"
+)
+TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH = (
+    ROOT / TRANSPORT_URL_REDACTION_MANIFEST_FILENAME
 )
 POST_V9_TRANSITION_KIND = (
     "historical_context_v9_reviewed_evidence_transition"
@@ -175,6 +182,9 @@ MTF_TRANSITION_MANIFEST_SHA256 = (
 )
 MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_SHA256 = (
     "ebcc1e793ec710067084831f84236b7599edf08b5236eca2dd98be8ae4124436"
+)
+TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_SHA256 = (
+    "4a08dda2241ac9cef89659f68bf99b27307f9525cbfdf4aee5290b9788058180"
 )
 POST_V9_INPUT_NAMES = (
     "corpus_manifest.json",
@@ -793,6 +803,16 @@ def build_review(
     mtf_live_context_transition = _load_post_v9_transition_manifest(
         MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH
     )
+    transport_redaction_transition = load_transport_url_redaction_transition(
+        TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH,
+        research_dir=research_dir,
+        root=ROOT,
+    )
+    if (
+        _file_sha256(TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH)
+        != TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_SHA256
+    ):
+        raise RuntimeError("frozen transport-URL redaction transition differs")
     packets, _ = load_and_validate_corpus(
         research_dir,
         require_source_role_audit=True,
@@ -873,7 +893,9 @@ def build_review(
                 curated=curated,
                 current_field_map=historical_v9_field_map,
                 historical_transition_ids=transition_ids,
-                expected_input_hashes=_post_v9_input_hashes(research_dir),
+                expected_input_hashes=mtf_live_context_transition[
+                    "input_hashes"
+                ],
                 expected_bindings=mtf_live_context_bindings,
                 expected_baseline_source_count=(
                     mtf_live_context_transition[
@@ -1319,6 +1341,9 @@ def build_review(
         input_hashes[
             MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH.name
         ] = _file_sha256(MTF_LIVE_CONTEXT_TRANSITION_MANIFEST_PATH)
+    input_hashes[
+        TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH.name
+    ] = _file_sha256(TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH)
     counts = {
         "change_count": len(records),
         "date_only_day_precision_count": date_precision_counts["day"],
@@ -1416,6 +1441,7 @@ def _validate_output_path(
             "historical_context_v9_mtf_corpus_evidence_transition_manifest.json",
             "historical_context_v9_mtf_live_context_transition_manifest.json",
             "historical_context_v9_statecraft_primary_transition_manifest.json",
+            TRANSPORT_URL_REDACTION_MANIFEST_FILENAME,
             "historical_context_source_roles.py",
             "mrsMThatcher.txt",
             "quote_analysis.json",

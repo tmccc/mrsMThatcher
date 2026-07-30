@@ -2401,14 +2401,15 @@
   ],
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "historical_context_formatter.py": "1bfc42e977316dd36beee8093d23e83816371988e18c8d22798e4a6a54a64ffb",
-    "historical_context_public_projection_review.py": "8a15225ef8ae7098f747004e70870e3defcd4b338b7562082c33ac77e297e9c5",
-    "historical_context_source_role_audit.json": "904e1b24b8ebe7ef74756e086958a64cc81a3669d4ea3861a42bb0499b9ffd24",
+    "historical_context_formatter.py": "8b9848106390806ceefb282630ad4ffbce59af40e2f4a16eeb16f398a1d4a04d",
+    "historical_context_public_projection_review.py": "fa09546ca6ed18c2bf56e3dca663a16f9fe337e68496855e6427d41ff1aff3ce",
+    "historical_context_source_role_audit.json": "ea2a7ce7e9b841da20aa6db7c48cc2e14666f9791d3e7398d349d5104b892e3f",
     "historical_context_v8_v9_transition_manifest.json": "75077d0522df8cb8f673e8892846624faad9075e907bd20f05bed906f80476ba",
     "historical_context_v9_local_book_evidence_transition_manifest.json": "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f",
     "historical_context_v9_mtf_corpus_evidence_transition_manifest.json": "10d9955279e41a0908475bb083f5a0c93bddabbe152767c74c5a18da39dbdafd",
     "historical_context_v9_mtf_live_context_transition_manifest.json": "ebcc1e793ec710067084831f84236b7599edf08b5236eca2dd98be8ae4124436",
     "historical_context_v9_statecraft_primary_transition_manifest.json": "79ed91b04acf9c840a353eea334d2ffc2de136a2ddeef4cf5f7754edab5291d6",
+    "historical_context_v9_transport_url_redaction_transition_manifest.json": "4a08dda2241ac9cef89659f68bf99b27307f9525cbfdf4aee5290b9788058180",
     "research_packets.json": "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e"
   },
   "interpretation": {

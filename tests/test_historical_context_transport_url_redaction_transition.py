@@ -1,0 +1,749 @@
+"""Focused tests for the transport-only source-resolution transition."""
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+import historical_context_transport_url_redaction_transition as transition
+
+
+SECRET_VALUE = "fixture-signature-value-must-not-survive"
+OLD_URL = (
+    "https://s3.eu-central-1.amazonaws.com/reviewed/file.pdf?"
+    "response-content-disposition=a%20b"
+    "&X-Amz-Algorithm=AWS4-HMAC-SHA256"
+    "&X-Amz-Date=20260721T143430Z"
+    "&X-Amz-SignedHeaders=host"
+    "&X-Amz-Credential=fixture%2Fscope"
+    "&X-Amz-Expires=119"
+    f"&X-Amz-Signature={SECRET_VALUE}"
+)
+NEW_URL = (
+    "https://s3.eu-central-1.amazonaws.com/reviewed/file.pdf?"
+    "response-content-disposition=a%20b"
+)
+AUTH_SELECTOR_URL = "https://best-quotations.com/item?auth=Margaret%20Thatcher"
+OPENAI_SECRET_VALUE = "openai-fixture-signing-value-must-not-survive"
+
+
+def _canonical(value: object) -> bytes:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+
+
+def _write(path: Path, value: object) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(value, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _fixture(tmp_path: Path) -> dict[str, Any]:
+    before_resolution = {
+        "complete": True,
+        "items": {
+            transition.EXPECTED_RESOLUTION_ITEM_ID: {
+                "final_url": OLD_URL,
+                "original_url": "https://vertex.example/opaque",
+                "original_url_sha256": transition.EXPECTED_RESOLUTION_ITEM_ID,
+                "quote_ids": [transition.EXPECTED_QUOTE_ID],
+                "redirect_chain": [
+                    "https://vertex.example/opaque",
+                    OLD_URL,
+                ],
+                "status": "resolved",
+                "wording_matches": {
+                    transition.EXPECTED_QUOTE_ID: {
+                        "coverage": "none",
+                        "matched_passage": None,
+                    },
+                },
+            },
+            "b" * 64: {
+                "final_url": AUTH_SELECTOR_URL,
+                "original_url": "https://vertex.example/other",
+                "original_url_sha256": "b" * 64,
+                "quote_ids": ["c" * 64],
+                "redirect_chain": [
+                    "https://vertex.example/other",
+                    AUTH_SELECTOR_URL,
+                ],
+                "status": "resolved",
+                "wording_matches": {
+                    "c" * 64: {
+                        "coverage": "none",
+                        "matched_passage": None,
+                    },
+                },
+            },
+        },
+        "policy_version": transition.BEFORE_POLICY,
+        "schema_version": 1,
+    }
+    after_resolution = copy.deepcopy(before_resolution)
+    after_resolution["policy_version"] = transition.AFTER_POLICY
+    affected = after_resolution["items"][
+        transition.EXPECTED_RESOLUTION_ITEM_ID
+    ]
+    affected["final_url"] = NEW_URL
+    affected["redirect_chain"][1] = NEW_URL
+
+    openai_before = {
+        "items": {},
+        "policy_version": (
+            "source-role-openai-research-v1-forced-search-and-fetched-passage"
+        ),
+        "schema_version": 1,
+    }
+    for quote_id, index in transition.EXPECTED_OPENAI_RESEARCH_PATHS:
+        item = openai_before["items"].setdefault(
+            quote_id, {"rejected_sources": []}
+        )
+        while len(item["rejected_sources"]) <= index:
+            item["rejected_sources"].append({
+                "reason": "synthetic rejection",
+                "source": {
+                    "title": "Synthetic source",
+                    "url": "https://example.test/ordinary",
+                },
+            })
+        if quote_id.startswith("eca9"):
+            suffix = (
+                "&utm_source=review"
+                if index == 14 else ""
+            )
+            signed = (
+                "https://storage.freidok.ub.uni-freiburg.de/file.pdf?"
+                "X-Amz-Algorithm=AWS4-HMAC-SHA256"
+                "&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD"
+                "&X-Amz-Credential=fixture%2Fscope"
+                "&X-Amz-Date=20260721T143430Z"
+                "&X-Amz-Expires=300"
+                f"&X-Amz-Signature={OPENAI_SECRET_VALUE}"
+                "&X-Amz-SignedHeaders=host"
+                "&response-content-disposition=a%20b"
+                f"{suffix}"
+            )
+        else:
+            signed = (
+                "https://s3-euw1-ap-pe-df-pch-content-store-p."
+                "s3.eu-west-1.amazonaws.com/file.pdf?"
+                "AWSAccessKeyId=fixture"
+                "&Expires=1999999999"
+                f"&Signature={OPENAI_SECRET_VALUE}"
+                "&response-content-disposition=a%20b"
+                "&x-amz-security-token=fixture-token"
+            )
+        item["rejected_sources"][index]["source"]["url"] = signed
+    openai_after = copy.deepcopy(openai_before)
+    for quote_id, index in transition.EXPECTED_OPENAI_RESEARCH_PATHS:
+        source = openai_after["items"][quote_id][
+            "rejected_sources"
+        ][index]["source"]
+        old = source["url"]
+        parts = old.split("?")
+        retained = [
+            pair for pair in parts[1].split("&")
+            if not transition._is_signed_query_key(
+                transition._query_key(pair)
+            )
+        ]
+        source["url"] = f"{parts[0]}?{'&'.join(retained)}"
+    before_openai_path = _write(
+        tmp_path / "before" / transition.OPENAI_RESEARCH_FILENAME,
+        openai_before,
+    )
+    after_openai_path = _write(
+        tmp_path / "current" / transition.OPENAI_RESEARCH_FILENAME,
+        openai_after,
+    )
+
+    old_row_hash = hashlib.sha256(_canonical(
+        before_resolution["items"][transition.EXPECTED_RESOLUTION_ITEM_ID]
+    )).hexdigest()
+    new_row_hash = hashlib.sha256(_canonical(
+        after_resolution["items"][transition.EXPECTED_RESOLUTION_ITEM_ID]
+    )).hexdigest()
+    sources = [
+        {
+            "resolved_redirect_record": False,
+            "source_id": f"{index:064x}",
+            "source_index": index,
+        }
+        for index in range(transition.EXPECTED_SOURCE_INDEX)
+    ]
+    sources.append({
+        "action": "retain_as_discovery_lead_only",
+        "assigned_roles": [],
+        "claims_supported": [],
+        "public_title": None,
+        "public_url": None,
+        "resolution_record_sha256": old_row_hash,
+        "resolved_redirect_record": True,
+        "resolved_url": OLD_URL,
+        "source_id": transition.EXPECTED_SOURCE_ID,
+        "source_index": transition.EXPECTED_SOURCE_INDEX,
+        "supporting_passages": [],
+    })
+    before_audit = {
+        "items": {
+            transition.EXPECTED_QUOTE_ID: {
+                "attribution_eligible": True,
+                "confidence_after": {"historical_context": "unknown"},
+                "date": "unknown",
+                "public_context_supported_fields": [],
+                "public_output_changes": [],
+                "public_verification_wording": "Exact wording not verified",
+                "quote_id": transition.EXPECTED_QUOTE_ID,
+                "quote_text": "Synthetic fixture quotation.",
+                "quote_text_sha256": transition.EXPECTED_QUOTE_ID,
+                "renderable_sources": [],
+                "requires_further_research": True,
+                "source_event": "unknown",
+                "sources": sources,
+                "speaker": "Margaret Thatcher (attributed)",
+                "stable_locator": "unknown",
+                "supported_public_roles": [],
+                "wording_status_after": "unverified",
+            },
+        },
+        "policy_version": transition.SOURCE_ROLE_POLICY,
+        "schema_version": 5,
+        "source_file_hashes": {},
+    }
+
+    before_resolution_path = _write(
+        tmp_path / "before" / transition.RESOLUTION_FILENAME,
+        before_resolution,
+    )
+    after_resolution_path = _write(
+        tmp_path / "current" / transition.RESOLUTION_FILENAME,
+        after_resolution,
+    )
+    before_audit["source_file_hashes"][
+        transition.RESOLUTION_FILENAME
+    ] = _sha(before_resolution_path)
+    before_audit["source_file_hashes"][
+        transition.OPENAI_RESEARCH_FILENAME
+    ] = _sha(before_openai_path)
+    before_audit_path = _write(
+        tmp_path / "before" / transition.AUDIT_FILENAME,
+        before_audit,
+    )
+    after_audit = copy.deepcopy(before_audit)
+    after_audit["source_file_hashes"][
+        transition.RESOLUTION_FILENAME
+    ] = _sha(after_resolution_path)
+    after_audit["source_file_hashes"][
+        transition.OPENAI_RESEARCH_FILENAME
+    ] = _sha(after_openai_path)
+    current_source = after_audit["items"][
+        transition.EXPECTED_QUOTE_ID
+    ]["sources"][transition.EXPECTED_SOURCE_INDEX]
+    current_source["resolved_url"] = NEW_URL
+    current_source["resolution_record_sha256"] = new_row_hash
+    after_audit_path = _write(
+        tmp_path / "current" / transition.AUDIT_FILENAME,
+        after_audit,
+    )
+    predecessor_transition_path = _write(
+        tmp_path / transition.PREDECESSOR_TRANSITION_FILENAME,
+        {
+            "input_hashes": {
+                transition.AUDIT_FILENAME: _sha(before_audit_path),
+            },
+            "items": {transition.EXPECTED_QUOTE_ID: {}},
+            "manifest_kind": (
+                "historical_context_v9_reviewed_evidence_transition"
+            ),
+            "schema_version": 1,
+        },
+    )
+    invariant_values = {
+        "corpus": {
+            "record_count": 1,
+            "records": [{
+                "quote_id": transition.EXPECTED_QUOTE_ID,
+                "quote_text": "Synthetic fixture quotation.",
+            }],
+        },
+        "ordinary_cycle": {
+            "runtime_eligible_quote_count": 1,
+            "runtime_eligible_quote_ids": [transition.EXPECTED_QUOTE_ID],
+        },
+        "historical_context_gate": {
+            "gate": {
+                "blocked_quote_count": 1,
+                "semantic_review_ledger_sha256": "a" * 64,
+            },
+            "input_hashes": {
+                "historical_context_published_reply_semantic_review.json":
+                    "b" * 64,
+                "historical_context_source_role_audit.json": "c" * 64,
+                "runtime_eligible_quote_manifest.json": "d" * 64,
+            },
+            "policy_version": "fixture-gate-v1",
+            "records": [{
+                "attribution_eligible": True,
+                "open_review_disposition": "fixture_open",
+                "public_reply_decision": "blocked_open_semantic_review",
+                "quote_id": transition.EXPECTED_QUOTE_ID,
+                "suppressed_reply": "Synthetic suppressed reply.",
+            }],
+        },
+        "semantic_veto": {
+            "mode": "shadow",
+            "pair_count": 1,
+            "policy_version": "fixture-veto-v1",
+        },
+        "unresolved": {
+            "unresolved_count": 1,
+            "unresolved_quote_ids": ["e" * 64],
+        },
+    }
+    invariant_pairs: dict[str, transition.InvariantPair] = {}
+    for label, value in invariant_values.items():
+        before_value = copy.deepcopy(value)
+        after_value = copy.deepcopy(value)
+        if label == "historical_context_gate":
+            after_value["gate"]["semantic_review_ledger_sha256"] = "1" * 64
+            after_value["input_hashes"][
+                "historical_context_published_reply_semantic_review.json"
+            ] = "2" * 64
+            after_value["input_hashes"][
+                "historical_context_source_role_audit.json"
+            ] = "3" * 64
+        repository_path = f"invariants/{label}.json"
+        before_path = _write(
+            tmp_path / "invariants-before" / f"{label}.json",
+            before_value,
+        )
+        after_path = _write(
+            tmp_path / "invariants-current" / f"{label}.json",
+            after_value,
+        )
+        invariant_pairs[label] = transition.InvariantPair(
+            before_path,
+            after_path,
+            repository_path,
+        )
+    return {
+        "before_resolution": before_resolution_path,
+        "current_resolution": after_resolution_path,
+        "before_openai": before_openai_path,
+        "current_openai": after_openai_path,
+        "before_audit": before_audit_path,
+        "current_audit": after_audit_path,
+        "predecessor_transition": predecessor_transition_path,
+        "invariant_pairs": invariant_pairs,
+    }
+
+
+def _build(paths: dict[str, Any], **kwargs):
+    kwargs.setdefault("unchanged_invariants", paths["invariant_pairs"])
+    return transition.build_transition(
+        predecessor_resolution=paths["before_resolution"],
+        current_resolution=paths["current_resolution"],
+        predecessor_openai_research=paths["before_openai"],
+        current_openai_research=paths["current_openai"],
+        predecessor_source_role_audit=paths["before_audit"],
+        current_source_role_audit=paths["current_audit"],
+        predecessor_transition=paths["predecessor_transition"],
+        **kwargs,
+    )
+
+
+def _rebind_fixture(tmp_path: Path) -> dict[str, Path]:
+    paths = _fixture(tmp_path / "inputs")
+    root = tmp_path / "root"
+    research = root / "research"
+    research.mkdir(parents=True)
+    for name, source in (
+        (transition.RESOLUTION_FILENAME, paths["current_resolution"]),
+        (transition.OPENAI_RESEARCH_FILENAME, paths["current_openai"]),
+        (transition.AUDIT_FILENAME, paths["current_audit"]),
+    ):
+        (research / name).write_bytes(source.read_bytes())
+    (root / transition.PREDECESSOR_TRANSITION_FILENAME).write_bytes(
+        paths["predecessor_transition"].read_bytes()
+    )
+    for pair in paths["invariant_pairs"].values():
+        target = root / pair.repository_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(pair.after.read_bytes())
+    manifest_path = _write(
+        root / transition.MANIFEST_FILENAME,
+        _build(paths),
+    )
+    truth_path = _write(
+        root / transition.EVIDENCE_TRUTH_FILENAME,
+        {
+            "audit_kind": transition.EVIDENCE_TRUTH_AUDIT_KIND,
+            "counts": {"invariant_failure_count": 0},
+            "input_hashes": {
+                transition.AUDIT_FILENAME: _sha(paths["before_audit"]),
+                "historical_context_reply_history.json": "4" * 64,
+                "research_packets.json": "5" * 64,
+            },
+            "invariants": {"published_history_is_immutable": True},
+            "records": {
+                "published_reply_reviews": [{
+                    "parent_post_id": "synthetic-parent",
+                    "quote_id": transition.EXPECTED_QUOTE_ID,
+                }],
+            },
+            "schema_version": transition.EVIDENCE_TRUTH_SCHEMA_VERSION,
+        },
+    )
+    return {
+        **paths,
+        "root": root,
+        "research": research,
+        "manifest": manifest_path,
+        "truth": truth_path,
+    }
+
+
+def test_manifest_is_deterministic_scoped_and_secret_free(tmp_path):
+    paths = _fixture(tmp_path)
+    first = _build(paths)
+    second = _build(paths)
+
+    assert first == second
+    assert _canonical(first) == _canonical(second)
+    assert first["scope"]["quote_ids"] == [transition.EXPECTED_QUOTE_ID]
+    assert first["scope"]["resolution_item_ids"] == [
+        transition.EXPECTED_RESOLUTION_ITEM_ID
+    ]
+    assert first["scope"]["source_ids"] == [transition.EXPECTED_SOURCE_ID]
+    assert first["scope"][
+        "openai_research_rejected_source_paths"
+    ] == [
+        {"quote_id": quote_id, "rejected_source_index": index}
+        for quote_id, index in transition.EXPECTED_OPENAI_RESEARCH_PATHS
+    ]
+    assert first["transport_redaction"]["removed_query_keys"] == list(
+        transition.EXPECTED_REMOVED_QUERY_KEYS
+    )
+    encoded = _canonical(first)
+    assert SECRET_VALUE.encode() not in encoded
+    assert OLD_URL.encode() not in encoded
+    assert NEW_URL.encode() not in encoded
+    assert AUTH_SELECTOR_URL.encode() not in encoded
+    assert OPENAI_SECRET_VALUE.encode() not in encoded
+
+
+def test_retained_query_bytes_cannot_be_reencoded(tmp_path):
+    paths = _fixture(tmp_path)
+    current = json.loads(paths["current_resolution"].read_text())
+    row = current["items"][transition.EXPECTED_RESOLUTION_ITEM_ID]
+    row["final_url"] = row["final_url"].replace("%20", "+")
+    row["redirect_chain"][1] = row["redirect_chain"][1].replace("%20", "+")
+    _write(paths["current_resolution"], current)
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="retained query bytes or order",
+    ):
+        _build(paths)
+
+
+def test_auth_author_selector_is_not_a_signed_credential(tmp_path):
+    paths = _fixture(tmp_path)
+    manifest = _build(paths)
+    assert "auth" not in {
+        value.casefold()
+        for value in manifest["transport_redaction"]["removed_query_keys"]
+    }
+
+    current = json.loads(paths["current_resolution"].read_text())
+    current["items"]["b" * 64]["final_url"] = (
+        "https://best-quotations.com/item"
+    )
+    _write(paths["current_resolution"], current)
+    with pytest.raises(
+        transition.TransitionError,
+        match="unreviewed transport host",
+    ):
+        _build(paths)
+
+
+def test_non_transport_audit_change_is_rejected(tmp_path):
+    paths = _fixture(tmp_path)
+    current = json.loads(paths["current_audit"].read_text())
+    current["items"][transition.EXPECTED_QUOTE_ID][
+        "public_context_supported_fields"
+    ] = ["historical_context"]
+    _write(paths["current_audit"], current)
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="non-transport semantic changes",
+    ):
+        _build(paths)
+
+
+def test_non_url_openai_research_change_is_rejected(tmp_path):
+    paths = _fixture(tmp_path)
+    current = json.loads(paths["current_openai"].read_text())
+    quote_id, index = transition.EXPECTED_OPENAI_RESEARCH_PATHS[0]
+    current["items"][quote_id]["rejected_sources"][index][
+        "reason"
+    ] = "changed rejection"
+    _write(paths["current_openai"], current)
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="changes beyond reviewed URL redaction",
+    ):
+        _build(paths)
+
+
+def test_unchanged_corpus_cycle_and_gate_are_bound_and_rechecked(tmp_path):
+    paths = _fixture(tmp_path)
+    root = tmp_path / "root"
+    research = root / "research"
+    research.mkdir(parents=True)
+    for name, source in (
+        (transition.RESOLUTION_FILENAME, paths["current_resolution"]),
+        (transition.OPENAI_RESEARCH_FILENAME, paths["current_openai"]),
+        (transition.AUDIT_FILENAME, paths["current_audit"]),
+    ):
+        (research / name).write_bytes(source.read_bytes())
+    predecessor = root / transition.PREDECESSOR_TRANSITION_FILENAME
+    predecessor.write_bytes(paths["predecessor_transition"].read_bytes())
+    for pair in paths["invariant_pairs"].values():
+        target = root / pair.repository_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(pair.after.read_bytes())
+
+    manifest = _build(paths)
+    manifest_path = _write(
+        root / transition.MANIFEST_FILENAME, manifest
+    )
+    assert transition.load_and_validate_transition(
+        manifest_path, research_dir=research, root=root
+    ) == manifest
+    assert manifest["predecessor_transition"][
+        "source_role_audit_sha256"
+    ] == _sha(paths["before_audit"])
+    assert manifest["unchanged_invariants"]["historical_context_gate"][
+        "bytes_unchanged"
+    ] is False
+
+    cycle_pair = paths["invariant_pairs"]["ordinary_cycle"]
+    cycle_path = root / cycle_pair.repository_path
+    cycle = json.loads(cycle_path.read_text())
+    cycle["runtime_eligible_quote_ids"].append("d" * 64)
+    _write(cycle_path, cycle)
+    with pytest.raises(transition.TransitionError, match="invariant hash"):
+        transition.load_and_validate_transition(
+            manifest_path, research_dir=research, root=root
+        )
+
+
+def test_gate_disposition_and_suppressed_reply_changes_are_rejected(tmp_path):
+    paths = _fixture(tmp_path)
+    pairs = dict(paths["invariant_pairs"])
+    gate_pair = pairs["historical_context_gate"]
+    changed = json.loads(gate_pair.after.read_text())
+    changed["records"][0]["open_review_disposition"] = "changed"
+    changed["records"][0]["suppressed_reply"] = "Changed reply."
+    changed_path = _write(tmp_path / "changed-gate.json", changed)
+    pairs["historical_context_gate"] = transition.InvariantPair(
+        gate_pair.before,
+        changed_path,
+        gate_pair.repository_path,
+    )
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="historical_context_gate invariant semantics changed",
+    ):
+        _build(paths, unchanged_invariants=pairs)
+
+
+def test_invariant_set_is_required_and_exact(tmp_path):
+    paths = _fixture(tmp_path)
+    incomplete = dict(paths["invariant_pairs"])
+    incomplete.pop("semantic_veto")
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="labels differ from the required set",
+    ):
+        _build(paths, unchanged_invariants=incomplete)
+
+
+def test_predecessor_audit_binding_and_current_hash_fail_closed(tmp_path):
+    paths = _fixture(tmp_path)
+    predecessor = json.loads(paths["predecessor_transition"].read_text())
+    predecessor["input_hashes"][transition.AUDIT_FILENAME] = "0" * 64
+    _write(paths["predecessor_transition"], predecessor)
+    with pytest.raises(
+        transition.TransitionError,
+        match="does not bind predecessor",
+    ):
+        _build(paths)
+
+    paths = _fixture(tmp_path / "second")
+    manifest = _build(paths)
+    root = tmp_path / "root"
+    research = root / "research"
+    research.mkdir(parents=True)
+    (research / transition.RESOLUTION_FILENAME).write_bytes(
+        paths["current_resolution"].read_bytes()
+    )
+    (research / transition.OPENAI_RESEARCH_FILENAME).write_bytes(
+        paths["current_openai"].read_bytes()
+    )
+    (research / transition.AUDIT_FILENAME).write_bytes(
+        paths["current_audit"].read_bytes()
+    )
+    (root / transition.PREDECESSOR_TRANSITION_FILENAME).write_bytes(
+        paths["predecessor_transition"].read_bytes()
+    )
+    manifest_path = _write(root / transition.MANIFEST_FILENAME, manifest)
+    audit = json.loads(
+        (research / transition.AUDIT_FILENAME).read_text()
+    )
+    audit["schema_version"] = 99
+    _write(research / transition.AUDIT_FILENAME, audit)
+    with pytest.raises(transition.TransitionError, match="input hash"):
+        transition.load_and_validate_transition(
+            manifest_path, research_dir=research, root=root
+        )
+
+
+def test_cli_build_is_byte_deterministic(tmp_path, capsys):
+    paths = _fixture(tmp_path)
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    common = [
+        "build",
+        "--predecessor-resolution", str(paths["before_resolution"]),
+        "--current-resolution", str(paths["current_resolution"]),
+        "--predecessor-openai-research", str(paths["before_openai"]),
+        "--current-openai-research", str(paths["current_openai"]),
+        "--predecessor-source-role-audit", str(paths["before_audit"]),
+        "--current-source-role-audit", str(paths["current_audit"]),
+        "--predecessor-transition", str(paths["predecessor_transition"]),
+    ]
+    for label, pair in sorted(paths["invariant_pairs"].items()):
+        common.extend([
+            "--unchanged-invariant",
+            label,
+            str(pair.before),
+            str(pair.after),
+            pair.repository_path,
+        ])
+    assert transition.main([*common, "--output", str(first)]) == 0
+    capsys.readouterr()
+    assert transition.main([*common, "--output", str(second)]) == 0
+    capsys.readouterr()
+    assert first.read_bytes() == second.read_bytes()
+
+
+def test_evidence_truth_rebind_is_deterministic_and_nonsemantic(tmp_path):
+    paths = _rebind_fixture(tmp_path)
+    before_bytes = paths["truth"].read_bytes()
+    before = json.loads(before_bytes)
+
+    first = transition.rebind_evidence_truth_audit(
+        paths["truth"],
+        paths["manifest"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    )
+    second = transition.rebind_evidence_truth_audit(
+        paths["truth"],
+        paths["manifest"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    )
+
+    expected = copy.deepcopy(before)
+    expected["input_hashes"][transition.AUDIT_FILENAME] = _sha(
+        paths["current_audit"]
+    )
+    assert first == second == expected
+    assert _canonical(first) == _canonical(second)
+    assert paths["truth"].read_bytes() == before_bytes
+    before["input_hashes"].pop(transition.AUDIT_FILENAME)
+    first["input_hashes"].pop(transition.AUDIT_FILENAME)
+    assert first == before
+
+
+def test_evidence_truth_rebind_rejects_predecessor_hash_mismatch(tmp_path):
+    paths = _rebind_fixture(tmp_path)
+    truth = json.loads(paths["truth"].read_text())
+    truth["input_hashes"][transition.AUDIT_FILENAME] = "0" * 64
+    _write(paths["truth"], truth)
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="does not match transition predecessor",
+    ):
+        transition.rebind_evidence_truth_audit(
+            paths["truth"],
+            paths["manifest"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_evidence_truth_rebind_cli_is_byte_deterministic(tmp_path, capsys):
+    paths = _rebind_fixture(tmp_path)
+    first = tmp_path / "truth-first.json"
+    second = tmp_path / "truth-second.json"
+    common = [
+        "rebind-evidence-truth",
+        "--truth-audit",
+        str(paths["truth"]),
+        "--manifest",
+        str(paths["manifest"]),
+        "--research-dir",
+        str(paths["research"]),
+        "--root",
+        str(paths["root"]),
+    ]
+
+    assert transition.main([*common, "--output", str(first)]) == 0
+    capsys.readouterr()
+    assert transition.main([*common, "--output", str(second)]) == 0
+    capsys.readouterr()
+
+    assert first.read_bytes() == second.read_bytes()
+    old_hash = _sha(paths["before_audit"]).encode()
+    new_hash = _sha(paths["current_audit"]).encode()
+    original = paths["truth"].read_bytes()
+    assert original.count(old_hash) == 1
+    assert first.read_bytes() == original.replace(old_hash, new_hash)
+
+
+def test_duplicate_manifest_object_name_is_rejected(tmp_path):
+    manifest = tmp_path / "duplicate.json"
+    manifest.write_text(
+        '{"schema_version":1,"schema_version":1}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        transition.TransitionError, match="duplicate JSON object name"
+    ):
+        transition.load_and_validate_transition(
+            manifest,
+            research_dir=tmp_path,
+            root=tmp_path,
+        )

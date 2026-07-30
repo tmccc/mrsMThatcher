@@ -17658,7 +17658,7 @@
       "captured_body_sha256": "08608b4e2ae66607ac16925ac392b4c3a1c68cec297b161d08bfba9f14c92ac0",
       "content_type": "application/pdf",
       "error": null,
-      "final_url": "https://s3.eu-central-1.amazonaws.com/eu-st01.ext.exlibrisgroup.com/41ILO_INST/storage/alma/E6/A4/3D/80/4C/10/37/35/22/D1/7A/34/99/83/10/C0/09238%282014-6-1%2917-34.pdf?response-content-disposition=attachment%3B%20filename%3D%2209238%25282014-6-1%252917-34.pdf%22%3B%20filename%2A%3DUTF-8%27%2709238%25282014-6-1%252917-34.pdf&response-content-type=application%2Fpdf&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260721T143430Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIASFZ3TTVRIW3HGO5P%2F20260721%2Feu-central-1%2Fs3%2Faws4_request&X-Amz-Expires=119&X-Amz-Signature=e6ac35c121d01f1dbe0b88f2f7bb09198a68e03aa6f5b2e1e606bfac2961a963",
+      "final_url": "https://s3.eu-central-1.amazonaws.com/eu-st01.ext.exlibrisgroup.com/41ILO_INST/storage/alma/E6/A4/3D/80/4C/10/37/35/22/D1/7A/34/99/83/10/C0/09238%282014-6-1%2917-34.pdf?response-content-disposition=attachment%3B%20filename%3D%2209238%25282014-6-1%252917-34.pdf%22%3B%20filename%2A%3DUTF-8%27%2709238%25282014-6-1%252917-34.pdf&response-content-type=application%2Fpdf",
       "http_status": 200,
       "original_url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQESHG35H707WvvXqDGeAv6kZf3lphZ8SO7gD8qsgN-laIyinRDTAChanyf6LrOyT3zkDh_EHL5J0dp4Rrgna8i9MlpKBnm_XFnrsuYr7Z__pEJiHdR1iaV8T0qcHiqoKxF9ldKHFRxGJYyMG3ofqoosVUgnqviLEAVGXBGbooezVElqAzDK9Dwtzxo8jrwHoOvRphhP08MLCVvY_1ZDpm9uaOb7M0CzP3e75A==",
       "original_url_sha256": "a3172f76c55338d1e55d9b77ba09bb8e77c990fd64eaa42e819babb59687e368",
@@ -17670,7 +17670,7 @@
       "redirect_chain": [
         "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQESHG35H707WvvXqDGeAv6kZf3lphZ8SO7gD8qsgN-laIyinRDTAChanyf6LrOyT3zkDh_EHL5J0dp4Rrgna8i9MlpKBnm_XFnrsuYr7Z__pEJiHdR1iaV8T0qcHiqoKxF9ldKHFRxGJYyMG3ofqoosVUgnqviLEAVGXBGbooezVElqAzDK9Dwtzxo8jrwHoOvRphhP08MLCVvY_1ZDpm9uaOb7M0CzP3e75A==",
         "https://researchrepository.ilo.org/view/pdfCoverPage?instCode=41ILO_INST&filePid=13116630410002676&download=true",
-        "https://s3.eu-central-1.amazonaws.com/eu-st01.ext.exlibrisgroup.com/41ILO_INST/storage/alma/E6/A4/3D/80/4C/10/37/35/22/D1/7A/34/99/83/10/C0/09238%282014-6-1%2917-34.pdf?response-content-disposition=attachment%3B%20filename%3D%2209238%25282014-6-1%252917-34.pdf%22%3B%20filename%2A%3DUTF-8%27%2709238%25282014-6-1%252917-34.pdf&response-content-type=application%2Fpdf&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260721T143430Z&X-Amz-SignedHeaders=host&X-Amz-Credential=AKIASFZ3TTVRIW3HGO5P%2F20260721%2Feu-central-1%2Fs3%2Faws4_request&X-Amz-Expires=119&X-Amz-Signature=e6ac35c121d01f1dbe0b88f2f7bb09198a68e03aa6f5b2e1e606bfac2961a963"
+        "https://s3.eu-central-1.amazonaws.com/eu-st01.ext.exlibrisgroup.com/41ILO_INST/storage/alma/E6/A4/3D/80/4C/10/37/35/22/D1/7A/34/99/83/10/C0/09238%282014-6-1%2917-34.pdf?response-content-disposition=attachment%3B%20filename%3D%2209238%25282014-6-1%252917-34.pdf%22%3B%20filename%2A%3DUTF-8%27%2709238%25282014-6-1%252917-34.pdf&response-content-type=application%2Fpdf"
       ],
       "retrieved_at": "2026-07-21T14:34:30.474460Z",
       "status": "resolved",
@@ -26765,7 +26765,7 @@
       }
     }
   },
-  "policy_version": "saved-grounding-redirect-resolution-v1",
+  "policy_version": "saved-grounding-redirect-resolution-v2-transient-query-redaction",
   "schema_version": 1,
   "scope": "post-recovery-no-reliable-source-packets",
   "scope_quote_count": 301,

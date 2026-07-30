@@ -13,14 +13,28 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import unquote_plus, urlsplit, urlunsplit
 
 
 RESOLUTION_SCHEMA_VERSION = 1
-RESOLUTION_POLICY_VERSION = "saved-grounding-redirect-resolution-v1"
+RESOLUTION_POLICY_VERSION = (
+    "saved-grounding-redirect-resolution-v2-transient-query-redaction"
+)
+LEGACY_RESOLUTION_POLICY_VERSIONS = frozenset({
+    "saved-grounding-redirect-resolution-v1",
+})
 RESOLUTION_FILENAME = "historical_context_source_resolution.json"
 MAXIMUM_BODY_BYTES = 5 * 1024 * 1024
 _REDIRECT_HOST = "vertexaisearch.cloud.google.com"
+_SIGNED_QUERY_PREFIXES = (
+    "x-amz-",
+    "x-goog-",
+)
+_SIGNED_QUERY_KEYS = frozenset({
+    "awsaccesskeyid",
+    "googleaccessid",
+    "signature",
+})
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -33,6 +47,92 @@ def _sha256(value: bytes) -> str:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _sanitise_transient_redirect_url(value: Any) -> tuple[str, bool]:
+    """Remove provider signing credentials from one observed retrieval URL.
+
+    The source identity remains the original provider redirect.  Resolved URLs
+    are transport diagnostics only, so retaining short-lived signing material
+    adds no evidential value and makes an otherwise public audit unsafe to
+    distribute.
+    """
+    text = str(value or "")
+    parsed = urlsplit(text)
+    query_fields = parsed.query.split("&") if parsed.query else []
+    query_keys = [
+        unquote_plus(field.partition("=")[0]).casefold()
+        for field in query_fields
+    ]
+    if not any(
+        key in {"awsaccesskeyid", "googleaccessid"}
+        or key.startswith(_SIGNED_QUERY_PREFIXES)
+        for key in query_keys
+    ):
+        return text, False
+    retained: list[str] = []
+    removed = False
+    for field, key in zip(query_fields, query_keys):
+        if (
+            key in _SIGNED_QUERY_KEYS
+            or key.startswith(_SIGNED_QUERY_PREFIXES)
+        ):
+            removed = True
+        else:
+            retained.append(field)
+    if not removed:
+        return text, False
+    return (
+        urlunsplit((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            "&".join(retained),
+            parsed.fragment,
+        )),
+        True,
+    )
+
+
+def sanitise_resolution_manifest(
+    resolution: dict[str, Any],
+) -> tuple[dict[str, Any], int]:
+    """Return a deterministic credential-free saved-resolution manifest."""
+    if (
+        not isinstance(resolution, dict)
+        or resolution.get("schema_version") != RESOLUTION_SCHEMA_VERSION
+        or resolution.get("policy_version")
+        not in LEGACY_RESOLUTION_POLICY_VERSIONS | {RESOLUTION_POLICY_VERSION}
+    ):
+        raise RuntimeError(
+            "historical-context source resolution cannot be sanitised"
+        )
+    result = json.loads(json.dumps(resolution))
+    changed = 0
+    for row in result.get("items", {}).values():
+        if not isinstance(row, dict):
+            raise RuntimeError(
+                "historical-context source resolution item is invalid"
+            )
+        if row.get("final_url") is not None:
+            final_url, modified = _sanitise_transient_redirect_url(
+                row["final_url"]
+            )
+            row["final_url"] = final_url
+            changed += int(modified)
+        redirects = row.get("redirect_chain")
+        if not isinstance(redirects, list):
+            raise RuntimeError(
+                "historical-context source resolution redirect chain is invalid"
+            )
+        sanitised_redirects: list[str] = []
+        for redirect in redirects:
+            sanitised, modified = _sanitise_transient_redirect_url(redirect)
+            sanitised_redirects.append(sanitised)
+            changed += int(modified)
+        row["redirect_chain"] = sanitised_redirects
+    result["policy_version"] = RESOLUTION_POLICY_VERSION
+    return result, changed
 
 
 def _tokens(value: Any) -> list[str]:
@@ -158,12 +258,17 @@ def _fetch_one(
             quote_id: _wording_match(page_text, packets[quote_id])
             for quote_id in quote_ids
         }
+        final_url, _ = _sanitise_transient_redirect_url(response.url)
+        redirect_chain = [
+            _sanitise_transient_redirect_url(row.url)[0]
+            for row in response.history
+        ] + [final_url]
         return {
             **base,
             "status": "resolved" if response.ok else "http_error",
             "http_status": int(response.status_code),
-            "final_url": str(response.url),
-            "redirect_chain": [str(row.url) for row in response.history] + [str(response.url)],
+            "final_url": final_url,
+            "redirect_chain": redirect_chain,
             "content_type": content_type,
             "captured_body_bytes": len(content),
             "body_truncated": truncated,
@@ -323,6 +428,20 @@ def validate_resolution(
             )
         if set(row.get("wording_matches", {})) != set(row.get("quote_ids", [])):
             raise RuntimeError("historical-context source resolution match coverage differs")
+        for resolved_url in [
+            row.get("final_url"),
+            *row.get("redirect_chain", []),
+        ]:
+            if resolved_url is None:
+                continue
+            sanitised_url, modified = _sanitise_transient_redirect_url(
+                resolved_url
+            )
+            if modified or sanitised_url != resolved_url:
+                raise RuntimeError(
+                    "historical-context source resolution retains transient "
+                    "provider credentials"
+                )
         for match in row["wording_matches"].values():
             passage = match.get("matched_passage")
             if passage is not None and match.get("matched_passage_sha256") != _sha256(passage.encode()):

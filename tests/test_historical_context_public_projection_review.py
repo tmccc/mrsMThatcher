@@ -21,6 +21,7 @@ from historical_context_public_projection_review import (
     POST_V9_TRANSITION_STATUS,
     REVIEW_SCHEMA_VERSION,
     SAFE_EVENT_ONLY_FALLBACK,
+    TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH,
     TRANSITION_MANIFEST_PATH,
     V9_POLICY,
     _v7_public_context_supported_fields,
@@ -39,6 +40,11 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
     assert review["schema_version"] == REVIEW_SCHEMA_VERSION == 3
     assert review["review_ready"] is True
     assert all(review["invariants"].values())
+    assert review["input_hashes"][
+        TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH.name
+    ] == hashlib.sha256(
+        TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH.read_bytes()
+    ).hexdigest()
     assert review["counts"] == {
         "change_count": 72,
         "date_only_day_precision_count": 60,
@@ -372,6 +378,20 @@ def test_projection_review_cli_refuses_unrelated_and_protected_outputs(
     with pytest.raises(ValueError, match="protected project input"):
         main(["--output", str(protected), "--overwrite"])
     assert protected.read_bytes() == original_protected
+
+    transition_bytes = (
+        TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH.read_bytes()
+    )
+    with pytest.raises(ValueError, match="protected project input"):
+        main([
+            "--output",
+            str(TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH),
+            "--overwrite",
+        ])
+    assert (
+        TRANSPORT_URL_REDACTION_TRANSITION_MANIFEST_PATH.read_bytes()
+        == transition_bytes
+    )
 
     with pytest.raises(ValueError, match="immutable research directory"):
         main([
