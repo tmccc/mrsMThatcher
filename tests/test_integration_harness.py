@@ -4189,14 +4189,17 @@ def test_test_post_quote_replays_receipt_without_second_post(tmp_path: Path) -> 
 
 
 @pytest.mark.parametrize("fake_server", ["media_v2_fallback.json"], indirect=True)
-def test_media_v2_failure_falls_back_to_v1_upload(tmp_path: Path, fake_server: FakeApiServer) -> None:
+def test_media_v2_server_failure_does_not_fallback_to_v1_upload(
+    tmp_path: Path,
+    fake_server: FakeApiServer,
+) -> None:
     base_dir = prepare_base_dir(tmp_path)
     result = run_bot_command(base_dir, fake_server, "--test-post-quote")
 
-    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.returncode == 1
     assert fake_server.path_counts["/2/media/upload"] == 1
-    assert fake_server.path_counts["/1.1/media/upload.json"] == 1
-    assert fake_server.posts[0]["media"]["media_ids"] == ["fake-media-v1-fallback"]
+    assert fake_server.path_counts.get("/1.1/media/upload.json", 0) == 0
+    assert fake_server.posts == []
 
 
 def test_media_v2_rate_limit_does_not_fallback_to_v1_upload(tmp_path: Path) -> None:

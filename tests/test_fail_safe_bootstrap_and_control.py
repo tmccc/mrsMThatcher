@@ -380,7 +380,7 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
         elif boundary == "media":
             image_path = tmp_path / "image.jpg"
             image_path.write_bytes(b"not sent")
-            bot.upload_media(str(image_path))
+            bot.upload_media(str(image_path), lane="quote_image")
         elif boundary == "provider":
             bot.xai_structured_reply_call(
                 stage="review",

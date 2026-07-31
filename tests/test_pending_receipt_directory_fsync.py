@@ -1367,7 +1367,7 @@ def test_test_mode_custom_external_endpoint_cannot_bypass_instance_lock(
 
     with pytest.raises(
         (RuntimeError, bot.AmbiguousRemotePostOutcome),
-        match="instance lock|internal exact-receipt authorization",
+        match="instance lock|durable transport-journal authorization",
     ):
         bot.x_request("POST", "/2/tweets", json={"text": "never sent"})
     assert transmitted == []

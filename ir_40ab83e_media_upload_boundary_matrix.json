@@ -1,0 +1,26 @@
+{
+  "document_kind": "mrsMThatcher_ir_40ab83e_media_upload_boundary_matrix",
+  "finding_id": "IR-40AB83E-02",
+  "lanes": [
+    "quote_image",
+    "daily_meme"
+  ],
+  "network_calls_permitted": 0,
+  "reviewed_base_commit": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+  "reviewed_base_tree": "8d2001f7a69cb3b473540fc0f969ffb36d2e907d",
+  "schema_version": 1,
+  "test_module": "tests/test_media_upload_transaction_integration.py",
+  "transport_endpoint": "/2/media/upload",
+  "fault_points": [
+    "hard_exit_at_transport_with_sending_receipt_and_fence",
+    "valid_response_then_hard_exit_before_confirmation",
+    "confirmed_receipt_then_hard_exit_before_main_attempt",
+    "receipt_deleted_or_replaced_at_transport_with_fence_retained",
+    "fence_deleted_or_replaced_at_transport_with_receipt_retained",
+    "main_attempt_write_or_exact_handoff_failure",
+    "pause_after_handoff_before_public_create"
+  ],
+  "legacy_fallback_policy": "no automatic v1.1 fallback after any v2 outcome",
+  "safe_result_predicate": "transport_not_reached OR fresh_process_blocks_all_remote_writes OR exact_main_post_receipt_owns_confirmed_media_id",
+  "restart_probe": "literal fresh Python process with zero transport permitted"
+}

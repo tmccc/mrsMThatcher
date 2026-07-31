@@ -102,6 +102,19 @@ def create_bound_context_post(
     )
 
 
+def armed_context_transport_authority(
+    payload: dict[str, object],
+) -> bot.TransportAuthority:
+    receipt = prepare_context_create(text=str(payload.get("text") or ""))
+    prepared = bot.begin_transport_transaction(
+        receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        expected_receipt=receipt,
+        lane="historical_context_reply",
+        payload=payload,
+    )
+    return bot.arm_transport_transaction(Path(prepared.journal_path), prepared)
+
+
 def test_explicit_initialisation_and_missing_file_matrix(tmp_path, monkeypatch):
     install_paths(monkeypatch, tmp_path, activate_protocol=False)
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
@@ -500,7 +513,10 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
     else:
         monkeypatch.setattr(bot, "upload_media_v2", lambda *_args, **_kwargs: prepared("media upload"))
         monkeypatch.setattr(bot, "upload_media_v1_1", lambda *_args, **_kwargs: prepared("media upload fallback"))
-        invoke = lambda: bot.upload_media(str(tmp_path / "image.png"))
+        invoke = lambda: bot.upload_media(
+            str(tmp_path / "image.png"),
+            lane="quote_image",
+        )
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Unreconciled"):
         invoke()
@@ -524,15 +540,15 @@ def test_success_status_malformed_body_is_ambiguous_only_for_writes(
     response._content = body
     monkeypatch.setattr(bot.requests, "request", lambda *args, **kwargs: response)
 
+    payload = {"text": "test"}
+    authority = armed_context_transport_authority(payload)
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match=message):
         bot.x_request(
             "POST",
             "/2/tweets",
             ambiguous_write=True,
-            json={"text": "test"},
-            _remote_write_authorization=(
-                bot._REMOTE_WRITE_PREFLIGHT_AUTHORIZATION
-            ),
+            json=payload,
+            _remote_write_authorization=authority,
         )
     with pytest.raises(bot.ApiError, match=message) as exc_info:
         bot.x_request("GET", "/2/users/me")

@@ -1,0 +1,69 @@
+{
+  "remediation_candidate_identity": "unfrozen_worktree",
+  "reviewed_base_commit": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+  "reviewed_base_tree": "8d2001f7a69cb3b473540fc0f969ffb36d2e907d",
+  "document_kind": "mrsMThatcher_ir_40ab83e_cross_lane_boundary_matrix",
+  "finding_id": "IR-40AB83E-01",
+  "lanes": [
+    {
+      "durable_owner": "regular_post_receipt.json",
+      "entry_point": "post_random_quote",
+      "fault_points": [
+        "after_exact_sending_to_attempting_promotion_before_journal",
+        "after_journal_arm_and_source_receipt_removal",
+        "at_transport_after_journal_removal_with_fence_retained",
+        "at_transport_after_fence_removal_with_journal_retained"
+      ],
+      "lane": "regular_quote_image",
+      "prepared_argument": "prepared_main_post_attempt"
+    },
+    {
+      "durable_owner": "meme_post_receipt.json",
+      "entry_point": "post_next_meme",
+      "fault_points": [
+        "after_exact_sending_to_attempting_promotion_before_journal",
+        "after_journal_arm_and_source_receipt_removal",
+        "at_transport_after_journal_removal_with_fence_retained",
+        "at_transport_after_fence_removal_with_journal_retained"
+      ],
+      "lane": "daily_meme",
+      "prepared_argument": "prepared_main_post_attempt"
+    },
+    {
+      "durable_owner": "confirmed_reply_receipt.json",
+      "entry_point": "post_conversational_reply_with_durable_identity",
+      "fault_points": [
+        "after_exact_durable_sending_receipt_validation_before_journal",
+        "after_journal_arm_and_source_receipt_removal",
+        "at_transport_after_journal_removal_with_fence_retained",
+        "at_transport_after_fence_removal_with_journal_retained"
+      ],
+      "lane": "conversational_reply",
+      "prepared_argument": "prepared_conversational_reply_receipt"
+    },
+    {
+      "durable_owner": "historical_context_reply_receipt.json",
+      "entry_point": "HistoricalContextReplyStore.post",
+      "fault_points": [
+        "after_exact_durable_sending_receipt_validation_before_journal",
+        "after_journal_arm_and_source_receipt_removal",
+        "at_transport_after_journal_removal_with_fence_retained",
+        "at_transport_after_fence_removal_with_journal_retained"
+      ],
+      "lane": "historical_context_reply",
+      "prepared_argument": "prepared_historical_context_reply_receipt"
+    }
+  ],
+  "network_calls_permitted": 0,
+  "post_journal_expected_result": "transport may be reached only while both exact payload-bound companions were validated; either surviving companion remains a restart-visible global barrier",
+  "safe_result_predicate": "transport_not_reached OR restart_process_blocks_all_remote_writes",
+  "schema_version": 1,
+  "test_module": "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+  "unsafe_sequence": [
+    "exact durable lane receipt is validated",
+    "literal peer process removes or replaces one source/journal/fence namespace entry and fsyncs its parent directory",
+    "POST /2/tweets requests.request boundary is reached",
+    "the sending process exits through os._exit before exception recovery",
+    "a fresh Python process must find the source receipt, journal, fence or another durable global barrier"
+  ]
+}

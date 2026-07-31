@@ -17,6 +17,12 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlsplit
 
+from remote_write_transport_journal import (
+    journal_path_for_receipt,
+    retire_confirmed_transport_transaction,
+    transport_journal_is_blocking,
+)
+
 DEFAULT_RESEARCH_DIR = Path("semantic_alignment_research/quote_research_full_001")
 DEFAULT_MAXIMUM_LENGTH = 4000
 MAXIMUM_SUPPORTED_LENGTH = 25_000
@@ -1726,6 +1732,14 @@ class HistoricalContextReplyStore:
                 raise RuntimeError("historical context reply receipt conflicts with completed history")
         history["items"][parent_post_id] = {**receipt, "status": "completed"}
         self._save_history(history)
+        journal_path = journal_path_for_receipt(self.receipt_path)
+        if transport_journal_is_blocking(journal_path):
+            retire_confirmed_transport_transaction(
+                receipt_path=self.receipt_path,
+                expected_confirmed_receipt=receipt,
+                lane="historical_context_reply",
+                post_id=str(receipt["reply_post_id"]),
+            )
         self._retire_exact_receipt(receipt_bytes)
         return True
 

@@ -28,6 +28,27 @@ def _x_response(status_code: int, body: object) -> bot.requests.Response:
     return response
 
 
+def _armed_x_create_authority(payload: dict[str, object]) -> bot.TransportAuthority:
+    """Create one exact journal authority for a direct transport unit test."""
+
+    receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "unit_test": True,
+    }
+    bot.atomic_write_json(bot.CONFIRMED_REPLY_RECEIPT_FILE, receipt, durable=True)
+    prepared = bot.begin_transport_transaction(
+        receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        expected_receipt=receipt,
+        lane="conversational_reply",
+        payload=payload,
+    )
+    return bot.arm_transport_transaction(
+        Path(prepared.journal_path),
+        prepared,
+    )
+
+
 def test_raw_and_bearer_x_create_require_receipt_bound_internal_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -42,7 +63,7 @@ def test_raw_and_bearer_x_create_require_receipt_bound_internal_authority(
     )
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
-        match="internal exact-receipt authorization",
+        match="durable transport-journal authorization",
     ):
         bot.x_request(
             "POST",
@@ -52,15 +73,12 @@ def test_raw_and_bearer_x_create_require_receipt_bound_internal_authority(
         )
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
-        match="ambiguous-write handling",
+        match="durable transport-journal authorization",
     ):
         bot.x_request(
             "POST",
             "/2/tweets",
             json={"text": "unbound"},
-            _remote_write_authorization=(
-                bot._REMOTE_WRITE_PREFLIGHT_AUTHORIZATION
-            ),
         )
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
@@ -99,7 +117,7 @@ def test_normalised_raw_and_bearer_x_create_variants_require_authority(
     )
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
-        match="internal exact-receipt authorization",
+        match="durable transport-journal authorization",
     ):
         bot.x_request(
             "POST",
@@ -118,10 +136,10 @@ def test_normalised_raw_and_bearer_x_create_variants_require_authority(
         )
 
 
-def test_legitimate_non_create_x_post_remains_available(
+def test_direct_media_upload_requires_explicit_ambiguous_write_handling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Normalisation hardening does not turn media upload into tweet create."""
+    """The low-level media endpoint cannot silently use retryable semantics."""
 
     calls: list[tuple[str, str]] = []
 
@@ -133,10 +151,222 @@ def test_legitimate_non_create_x_post_remains_available(
     monkeypatch.setattr(bot, "require_instance_lock_for_remote_write", lambda _op: None)
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
 
-    assert bot.x_request("POST", "/2/media/upload", data={"media_type": "image/jpeg"}) == {
-        "data": {"id": "123"}
-    }
-    assert calls == [("POST", f"{bot.X_BASE}/2/media/upload")]
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="explicit ambiguous-write handling",
+    ):
+        bot.x_request(
+            "POST",
+            "/2/media/upload",
+            data={"media_type": "image/jpeg"},
+        )
+    assert calls == []
+
+
+def test_tweet_authority_cannot_bypass_another_write_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "tweet authority must stop before another endpoint"
+        ),
+    )
+
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="cannot authorise another X endpoint",
+    ):
+        bot.x_request(
+            "POST",
+            "/2/media/upload",
+            data={"media_type": "image/jpeg"},
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+
+def test_noncanonical_lane_authority_cannot_reach_tweet_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"text": "unit"}
+    receipt = {"schema_version": 1, "lifecycle_state": "sending"}
+    bot.atomic_write_json(bot.CONFIRMED_REPLY_RECEIPT_FILE, receipt, durable=True)
+    prepared = bot.begin_transport_transaction(
+        receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        expected_receipt=receipt,
+        lane="invented_lane",
+        payload=payload,
+    )
+    authority = bot.arm_transport_transaction(
+        Path(prepared.journal_path),
+        prepared,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "noncanonical authority must stop before transport"
+        ),
+    )
+
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="lost its exact durable transport authority",
+    ):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+
+def test_v2_media_upload_uses_ambiguous_write_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The preferred upload is one non-repeatable remote write attempt."""
+
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    calls: list[tuple[str, str, dict[str, object]]] = []
+
+    def uploaded(
+        method: str,
+        path: str,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        calls.append((method, path, kwargs))
+        return {"data": {"id": "media-1"}}
+
+    monkeypatch.setattr(bot, "x_request", uploaded)
+    mime_type = "image/png"
+    form = {"media_category": "tweet_image", "media_type": mime_type}
+    authority = bot.begin_media_upload(
+        receipt_path=bot.MEDIA_UPLOAD_RECEIPT_FILE,
+        image_path=image,
+        lane="quote_image",
+        mime_type=mime_type,
+        payload_metadata=bot.media_upload_payload_metadata(form),
+    )
+
+    assert bot.upload_media_v2(str(image), authority=authority) == "media-1"
+    assert len(calls) == 1
+    method, path, kwargs = calls[0]
+    assert (method, path) == ("POST", "/2/media/upload")
+    assert kwargs["ambiguous_write"] is True
+
+
+@pytest.mark.parametrize(
+    "remote_error",
+    [
+        bot.AmbiguousRemotePostOutcome("timeout", service="x"),
+        bot.ApiError("server error", service="x", status_code=500),
+        RuntimeError("unclassified post-attempt failure"),
+    ],
+)
+def test_v2_media_upload_failure_never_calls_legacy_fallback(
+    remote_error: Exception,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No v1.1 upload follows a v2 outcome which may be remote."""
+
+    legacy_calls = 0
+
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+
+    def failed_v2(_image_path: str, **_kwargs: object) -> str:
+        raise remote_error
+
+    def legacy(_image_path: str) -> str:
+        nonlocal legacy_calls
+        legacy_calls += 1
+        return "legacy-media"
+
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda _op: None)
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(bot, "upload_media_v2", failed_v2)
+    monkeypatch.setattr(bot, "upload_media_v1_1", legacy)
+
+    with pytest.raises(type(remote_error), match=str(remote_error)):
+        bot.upload_media(str(image), lane="quote_image")
+
+    assert legacy_calls == 0
+
+
+def test_v2_media_transport_timeout_never_calls_legacy_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A timeout after entering Requests is an ambiguous terminal outcome."""
+
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    legacy_calls = 0
+
+    def timed_out(*_args: object, **_kwargs: object) -> bot.requests.Response:
+        raise bot.requests.ReadTimeout("response lost")
+
+    def legacy(_image_path: str) -> str:
+        nonlocal legacy_calls
+        legacy_calls += 1
+        return "legacy-media"
+
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_a, **_k: None)
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(bot.requests, "request", timed_out)
+    monkeypatch.setattr(bot, "upload_media_v1_1", legacy)
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="response lost"):
+        bot.upload_media(str(image), lane="quote_image")
+
+    assert legacy_calls == 0
+    assert bot.durable_remote_write_safety_barrier_exists() is True
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        {},
+        {"data": {}},
+        {"data": {"id": ""}},
+        {"data": {"id": []}},
+    ],
+)
+def test_v2_media_success_without_usable_id_never_calls_legacy_fallback(
+    result: dict[str, object],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 2xx-shaped result without an upload identity remains ambiguous."""
+
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    legacy_calls = 0
+
+    monkeypatch.setattr(bot, "require_remote_operation_unpaused", lambda *_a, **_k: None)
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(bot, "x_request", lambda *_a, **_k: result)
+
+    def legacy(_image_path: str) -> str:
+        nonlocal legacy_calls
+        legacy_calls += 1
+        return "legacy-media"
+
+    monkeypatch.setattr(bot, "upload_media_v1_1", legacy)
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="valid data.id"):
+        bot.upload_media(str(image), lane="quote_image")
+
+    assert legacy_calls == 0
 
 
 def test_create_post_requires_exactly_one_prepared_durable_receipt(
@@ -178,6 +408,11 @@ def isolate_remote_write_state(
         bot,
         "CONFIRMED_REPLY_RECEIPT_FILE",
         tmp_path / "confirmed_reply_receipt.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "MEDIA_UPLOAD_RECEIPT_FILE",
+        tmp_path / "remote_media_upload_receipt.json",
     )
     monkeypatch.setattr(
         bot,
@@ -251,6 +486,7 @@ def isolate_remote_write_state(
 @pytest.mark.parametrize("status_code", [400, 401, 403, 404, 408, 409, 425, 429, 500])
 def test_x_create_non_success_is_ambiguous_by_default(
     status_code: int,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, object]] = []
@@ -268,21 +504,22 @@ def test_x_create_non_success_is_ambiguous_by_default(
 
     monkeypatch.setattr(bot.requests, "request", rejected)
 
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.x_request(
             "POST",
             "/2/tweets",
-            json={"text": "unit"},
+            json=payload,
             ambiguous_write=True,
-            _remote_write_authorization=(
-                bot._REMOTE_WRITE_PREFLIGHT_AUTHORIZATION
-            ),
+            _remote_write_authorization=authority,
         )
 
     assert len(calls) == 1
 
 
 def test_x_create_redirect_is_not_followed_and_is_ambiguous(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, object]] = []
@@ -299,16 +536,16 @@ def test_x_create_redirect_is_not_followed_and_is_ambiguous(
 
     monkeypatch.setattr(bot.requests, "request", redirected)
 
+    payload = {"text": "unit"}
+    authority = _armed_x_create_authority(payload)
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.x_request(
             "POST",
             "/2/tweets",
-            json={"text": "unit"},
+            json=payload,
             ambiguous_write=True,
             allow_redirects=True,
-            _remote_write_authorization=(
-                bot._REMOTE_WRITE_PREFLIGHT_AUTHORIZATION
-            ),
+            _remote_write_authorization=authority,
         )
 
     assert len(calls) == 1
@@ -526,9 +763,88 @@ def test_exact_owning_historical_context_create_is_allowed_once(
     assert result["reply_post_id"] == "222"
     assert len(remote_calls) == 1
     assert not store.receipt_path.exists()
+    assert not bot.journal_path_for_receipt(store.receipt_path).exists()
     completed = store.history()["items"]["111"]
     assert completed["status"] == "completed"
     assert completed["reply_post_id"] == "222"
+
+
+def test_regular_success_retires_journal_before_lane_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actual_create_post = bot.create_post
+    lines_used, images_used, state, *_ = configure_simple_quote_post(
+        tmp_path,
+        monkeypatch,
+    )
+    quote_hash = bot.quote_text_hash("Good quote.")
+    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: {quote_hash})
+    monkeypatch.setattr(bot, "create_post", actual_create_post)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_a, **_k: _x_response(201, {"data": {"id": "950001"}}),
+    )
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
+    assert not bot.journal_path_for_receipt(bot.REGULAR_POST_RECEIPT_FILE).exists()
+
+
+def test_meme_success_retires_journal_before_lane_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actual_create_post = bot.create_post
+    state, _ = configure_simple_meme_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(bot, "create_post", actual_create_post)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_a, **_k: _x_response(201, {"data": {"id": "970001"}}),
+    )
+
+    bot.post_next_meme(state)
+
+    assert not bot.MEME_POST_RECEIPT_FILE.exists()
+    assert not bot.journal_path_for_receipt(bot.MEME_POST_RECEIPT_FILE).exists()
+
+
+def test_conversational_success_retires_journal_only_after_state_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = unit_sending_reply_receipt()
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_a, **_k: _x_response(201, {"data": {"id": "980001"}}),
+    )
+    state = bot.default_state()
+
+    _response, confirmed = bot.post_conversational_reply_with_durable_identity(
+        state=state,
+        receipt_template=receipt,
+        reply_text=str(receipt["reply_text"]),
+        reply_to_id=str(receipt["target_id"]),
+        made_with_ai=False,
+        lane=str(receipt["candidate_source"]),
+    )
+    journal_path = bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
+    assert journal_path.exists()
+    bot.apply_confirmed_reply_receipt(state, confirmed)
+    bot.save_state(state, durable=True)
+    bot.retire_lane_transport_journal_if_present(
+        receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        receipt=confirmed,
+        lane="conversational_reply",
+        post_id="980001",
+    )
+    bot.remove_confirmed_reply_receipt(confirmed)
+
+    assert not journal_path.exists()
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
 
 
 def test_prepared_receipt_authority_requires_the_exact_durable_file() -> None:

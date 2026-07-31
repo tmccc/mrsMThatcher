@@ -324,7 +324,7 @@ def exercise_direct_preflights(
         ),
         (
             "media_upload",
-            lambda: bot.upload_media(str(image)),
+            lambda: bot.upload_media(str(image), lane="quote_image"),
         ),
         (
             "provider_request",
@@ -553,7 +553,10 @@ def inspect_receipt_backed_process(
     image.write_bytes(b"offline synthetic image")
     checks = {
         "create_post": lambda: bot.create_post("offline synthetic post"),
-        "media_upload": lambda: bot.upload_media(str(image)),
+        "media_upload": lambda: bot.upload_media(
+            str(image),
+            lane="quote_image",
+        ),
         "shared_barrier": bot.block_if_ambiguous_remote_post,
     }
     results: dict[str, str] = {}

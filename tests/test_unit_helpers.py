@@ -1796,7 +1796,12 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -1904,7 +1909,12 @@ def configure_generated_cycle_recovery_post(
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
     monkeypatch.setattr(bot.random, "randint", lambda low, high: low)
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -2103,7 +2113,7 @@ def test_last_image_boundary_fallback_fails_safely_without_fourth_pass(
     state["last_regular_image_filename"] = "t01.jpg"
     original_lines = set(lines_used)
     original_images = set(images_used)
-    monkeypatch.setattr(bot, "upload_media", lambda path: pytest.fail("upload_media should not be called"))
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: pytest.fail("upload_media should not be called"))
     monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
     caplog.set_level(logging.INFO, logger=bot.log.name)
 
@@ -2195,7 +2205,7 @@ def test_last_image_fallback_does_not_reenable_spacing_blocked_generated_previou
     state["last_regular_image_filename"] = last_generated
     state["original_regular_posts_since_generated_image"] = 0
     monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
-    monkeypatch.setattr(bot, "upload_media", lambda path: pytest.fail("upload_media should not be called"))
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: pytest.fail("upload_media should not be called"))
     monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
     caplog.set_level(logging.INFO, logger=bot.log.name)
 
@@ -2225,7 +2235,7 @@ def test_post_random_quote_image_cycle_recovery_fails_safely_once(
     images_used.add("t01.jpg")
     original_lines = set(lines_used)
     original_images = set(images_used)
-    monkeypatch.setattr(bot, "upload_media", lambda path: pytest.fail("upload_media should not be called"))
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: pytest.fail("upload_media should not be called"))
     monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
     caplog.set_level(logging.INFO, logger=bot.log.name)
 
@@ -2490,7 +2500,7 @@ def test_post_random_quote_restores_histories_when_all_pair_attempts_fail_after_
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", images_used_file)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
-    monkeypatch.setattr(bot, "upload_media", lambda path: pytest.fail("upload_media should not be called"))
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: pytest.fail("upload_media should not be called"))
     monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
     monkeypatch.setattr(
         bot,
@@ -2577,7 +2587,12 @@ def test_post_random_quote_requires_created_post_id_before_marking_histories(
     monkeypatch.setattr(bot, "LINES_USED_FILE", lines_used_file)
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", images_used_file)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -2657,7 +2672,12 @@ def configure_simple_quote_post(
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", receipt_file)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -2688,6 +2708,45 @@ def mock_confirmed_main_post(
     return json.loads(json.dumps(response))
 
 
+def install_receipt_bound_x_request_stub(
+    monkeypatch: pytest.MonkeyPatch,
+    callback: object,
+) -> None:
+    """Make a low-level X stub preserve the real final authority check.
+
+    Tests which replace ``x_request`` still need to consume the exact durable
+    transport authority at the point represented by the fake transport.  A
+    plain response lambda would otherwise bypass the production boundary and
+    make later confirmation fail for the wrong reason.
+    """
+
+    def bound_request(method: str, path: str, **kwargs: object) -> object:
+        if bot.x_request_targets_tweet_create(method, path):
+            authority = kwargs.get("_remote_write_authorization")
+            assert isinstance(authority, bot.TransportAuthority)
+            expected_receipt_path = bot.canonical_transport_receipt_path_for_lane(
+                authority.lane
+            )
+            assert expected_receipt_path is not None
+            bot.block_if_unrelated_receipt_appeared_for_tweet_transport(
+                expected_receipt_path
+            )
+            payload = kwargs.get("json")
+            assert isinstance(payload, dict)
+            bot.consume_transport_authority(
+                Path(authority.journal_path),
+                authority,
+                method=method,
+                request_path="/2/tweets",
+                payload=payload,
+                expected_receipt_path=expected_receipt_path,
+            )
+        assert callable(callback)
+        return callback(method, path, **kwargs)
+
+    monkeypatch.setattr(bot, "x_request", bound_request)
+
+
 def configure_simple_meme_post(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2700,7 +2759,12 @@ def configure_simple_meme_post(
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", receipt_file)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
     return {
@@ -3048,7 +3112,7 @@ def test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier(
         os._exit(73)
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", accept_then_hard_exit)
+    install_receipt_bound_x_request_stub(monkeypatch, accept_then_hard_exit)
     context = multiprocessing.get_context("fork")
     process = context.Process(
         target=bot.post_random_quote,
@@ -3147,7 +3211,7 @@ def test_regular_hard_death_preserves_exact_post_reset_cycle_histories(
         os._exit(75)
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", accept_then_hard_exit)
+    install_receipt_bound_x_request_stub(monkeypatch, accept_then_hard_exit)
     process = multiprocessing.get_context("fork").Process(
         target=bot.post_random_quote,
         args=(lines_used, images_used, state),
@@ -3223,7 +3287,7 @@ def test_main_post_hard_death_boundaries_never_recreate_remote_post(
         return {"data": {"id": confirmed_post_id}}
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", confirmed_remote_request)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote_request)
     monkeypatch.setattr(
         bot,
         "enqueue_historical_context_obligation",
@@ -3822,7 +3886,7 @@ def test_main_attempt_authorises_exactly_one_remote_create(
         remote_calls += 1
         return {"data": {"id": "950001" if lane == "quote_image" else "970001"}}
 
-    monkeypatch.setattr(bot, "x_request", create_once)
+    install_receipt_bound_x_request_stub(monkeypatch, create_once)
 
     bot.create_post(
         text=str(attempt["text"]),
@@ -3880,7 +3944,7 @@ def test_regular_generic_4xx_retains_sending_attempt(
         )
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", definite_failure)
+    install_receipt_bound_x_request_stub(monkeypatch, definite_failure)
     with pytest.raises(bot.ApiError, match="definite rejection"):
         bot.post_random_quote(lines_used, images_used, state)
 
@@ -4014,7 +4078,7 @@ def test_regular_uncertain_remote_failure_retains_attempt_and_blocks_retry(
         monkeypatch.setattr(bot.requests, "request", transport_failure)
         expected_error: type[BaseException] = bot.AmbiguousRemotePostOutcome
     else:
-        monkeypatch.setattr(bot, "x_request", uncertain_request)
+        install_receipt_bound_x_request_stub(monkeypatch, uncertain_request)
         expected_error = (
             RuntimeError
             if failure_kind == "unexpected"
@@ -4066,7 +4130,7 @@ def test_regular_normal_success_atomically_promotes_sending_attempt(
         return {"data": {"id": "950001"}}
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", confirmed_create)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_create)
     monkeypatch.setattr(bot, "remove_regular_post_receipt", lambda: None)
     bot.post_random_quote(lines_used, images_used, state)
 
@@ -4101,9 +4165,8 @@ def test_regular_promotion_failure_records_context_before_attempt_retirement(
         monkeypatch,
     )
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(
-        bot,
-        "x_request",
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "950001"}},
     )
     monkeypatch.setattr(
@@ -4150,9 +4213,8 @@ def test_regular_promotion_and_required_context_enqueue_failure_retains_attempt(
         monkeypatch,
     )
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(
-        bot,
-        "x_request",
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "950001"}},
     )
     monkeypatch.setattr(
@@ -4509,7 +4571,7 @@ def test_regular_total_persistence_loss_latches_when_marker_write_also_fails(
         boundary_calls += 1
         pytest.fail("remote boundary must not be reached after the safety latch")
 
-    monkeypatch.setattr(bot, "x_request", unexpected_boundary)
+    install_receipt_bound_x_request_stub(monkeypatch, unexpected_boundary)
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="in-process remote-write safety latch"):
         original_create_post("must not be sent")
     assert remote_calls == 1
@@ -5329,7 +5391,12 @@ def test_posting_duplicate_quote_marks_hash_and_blocks_identical_line_same_cycle
     monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(lines))
     monkeypatch.setattr(bot, "load_image_analysis", lambda: image_analysis_for_paths([image_path]))
     monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -5499,7 +5566,12 @@ def test_successful_meme_post_persists_post_and_future_schedule_in_one_state_sav
     saved_states: list[dict] = []
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -5533,7 +5605,12 @@ def test_meme_helper_failure_after_confirmation_leaves_receipt(
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -6940,9 +7017,14 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
             lambda *args, **kwargs: {"image_no": 0, "path": "image.jpg", "basename": "image.jpg", "score": 1.0},
         )
         if failure == "upload":
-            monkeypatch.setattr(bot, "upload_media", lambda path: (_ for _ in ()).throw(OSError("upload failed")))
+            monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: (_ for _ in ()).throw(OSError("upload failed")))
         else:
-            monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+            monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+            monkeypatch.setattr(
+                bot,
+                "handoff_confirmed_media_upload_to_main_attempt",
+                lambda _attempt: None,
+            )
             if failure == "create":
                 monkeypatch.setattr(bot, "create_post", lambda **kwargs: (_ for _ in ()).throw(OSError("create failed")))
             elif failure == "invalid_post_id":
@@ -6974,7 +7056,12 @@ def test_daily_meme_missing_post_id_fails_without_success_side_effects(
     events: list[tuple[str, dict[str, object]]] = []
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7011,7 +7098,12 @@ def test_meme_post_uses_confirmed_time_across_midnight(tmp_path: Path, monkeypat
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
     monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
     pre_confirm_epoch = int(datetime(2026, 7, 6, 23, 59, 50).timestamp())
@@ -7081,7 +7173,12 @@ def test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_loca
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7143,7 +7240,12 @@ def test_confirmed_meme_state_failure_reconciles_receipt(
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", receipt_file)
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7210,7 +7312,12 @@ def test_confirmed_meme_receipt_write_failure_keeps_normal_schedule(
     (meme_dir / "002_meme.png").write_bytes(b"second meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7262,7 +7369,12 @@ def test_confirmed_meme_sigint_is_delivered_only_after_durable_receipt(
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", receipt_file)
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7337,7 +7449,7 @@ def test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier(
         os._exit(74)
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", accept_then_hard_exit)
+    install_receipt_bound_x_request_stub(monkeypatch, accept_then_hard_exit)
     context = multiprocessing.get_context("fork")
     process = context.Process(target=bot.post_next_meme, args=(state,))
     process.start()
@@ -7400,7 +7512,7 @@ def test_meme_generic_4xx_retains_sending_attempt(
         )
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", definite_failure)
+    install_receipt_bound_x_request_stub(monkeypatch, definite_failure)
     with pytest.raises(bot.ApiError, match="definite rejection"):
         bot.post_next_meme(state)
 
@@ -7450,7 +7562,7 @@ def test_meme_uncertain_remote_failure_retains_attempt_and_blocks_retry(
         monkeypatch.setattr(bot.requests, "request", transport_failure)
         expected_error: type[BaseException] = bot.AmbiguousRemotePostOutcome
     else:
-        monkeypatch.setattr(bot, "x_request", uncertain_request)
+        install_receipt_bound_x_request_stub(monkeypatch, uncertain_request)
         expected_error = (
             RuntimeError
             if failure_kind == "unexpected"
@@ -7494,7 +7606,7 @@ def test_meme_normal_success_atomically_promotes_sending_attempt(
         return {"data": {"id": "970001"}}
 
     monkeypatch.setattr(bot, "create_post", actual_create_post)
-    monkeypatch.setattr(bot, "x_request", confirmed_create)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_create)
     monkeypatch.setattr(bot, "remove_meme_post_receipt", lambda: None)
     bot.post_next_meme(state)
 
@@ -7520,7 +7632,12 @@ def test_meme_ambiguous_create_without_marker_uses_durable_attempt_barrier(
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
 
     def ambiguous_create(**kwargs: object) -> dict:
@@ -7566,7 +7683,12 @@ def test_meme_emergency_canonical_state_survives_backup_failure(
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7616,7 +7738,12 @@ def test_meme_total_persistence_loss_latches_all_remote_writes(
 
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(bot, "create_post", confirmed_create)
     monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
     monkeypatch.setattr(
@@ -7650,7 +7777,7 @@ def test_meme_total_persistence_loss_latches_all_remote_writes(
         boundary_calls += 1
         pytest.fail("remote boundary must not be reached after the durable safety marker")
 
-    monkeypatch.setattr(bot, "x_request", unexpected_boundary)
+    install_receipt_bound_x_request_stub(monkeypatch, unexpected_boundary)
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         original_create_post("must not be sent")
     assert remote_calls == 1
@@ -7667,7 +7794,12 @@ def test_meme_total_persistence_and_marker_loss_uses_durable_attempt_barrier(
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7724,7 +7856,12 @@ def test_confirmed_meme_with_incomplete_emergency_state_latches(
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda _path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda _path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -7779,7 +7916,12 @@ def test_meme_receipt_removal_failure_keeps_future_meme_schedule(
     (meme_dir / "001_meme.png").write_bytes(b"meme")
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
-    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "upload_media", lambda path, **_kwargs: "media-1")
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        lambda _attempt: None,
+    )
     monkeypatch.setattr(
         bot,
         "create_post",
@@ -8589,7 +8731,10 @@ def test_control_bool_missing_value_is_false() -> None:
 
 @pytest.mark.parametrize("post_id", ["123456", 123456])
 def test_create_post_accepts_valid_numeric_ids(monkeypatch: pytest.MonkeyPatch, post_id: object) -> None:
-    monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": post_id}})
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
+        lambda *args, **kwargs: {"data": {"id": post_id}},
+    )
     receipt = prepare_unit_historical_context_create(text="hello")
 
     assert bot.create_post(
@@ -8603,10 +8748,10 @@ def test_create_post_passes_long_text_without_280_character_truncation(monkeypat
     text = "Historically grounded context. " * 20
     assert len(text) > 280
     requests = []
-    monkeypatch.setattr(
-        bot,
-        "x_request",
-        lambda *args, **kwargs: requests.append((args, kwargs)) or {"data": {"id": "123456"}},
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
+        lambda *args, **kwargs: requests.append((args, kwargs))
+        or {"data": {"id": "123456"}},
     )
     receipt = prepare_unit_historical_context_create(
         text=text,
@@ -8642,7 +8787,10 @@ def test_create_post_rejects_invalid_or_missing_ids(
 ) -> None:
     marker = tmp_path / "ambiguous_post.json"
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", marker)
-    monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: response)
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
+        lambda *args, **kwargs: response,
+    )
     receipt = prepare_unit_historical_context_create(text="hello")
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
@@ -8686,7 +8834,10 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
         "generate_ai_first_reply",
         lambda actual_context, *_args, **_kwargs: unit_approved_reply(actual_context),
     )
-    monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": "banana"}})
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
+        lambda *args, **kwargs: {"data": {"id": "banana"}},
+    )
     monkeypatch.setattr(bot, "save_state", lambda state, **_kwargs: None)
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
@@ -9928,7 +10079,7 @@ def test_reply_post_helper_captures_confirmation_after_remote_success(
         clock["epoch"] = confirmation_epoch
         return {"data": {"id": "999"}}
 
-    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
     response, confirmed = bot.post_conversational_reply_with_durable_identity(
         state=bot.default_state(),
         receipt_template=sending,
@@ -9966,7 +10117,10 @@ def test_schema_v4_clock_rollback_uses_conservative_confirmation_time(
         clock["epoch"] = attempt_epoch - 60
         return {"data": {"id": "999"}}
 
-    monkeypatch.setattr(bot, "x_request", confirmed_after_clock_rollback)
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
+        confirmed_after_clock_rollback,
+    )
     _, confirmed = bot.post_conversational_reply_with_durable_identity(
         state=bot.default_state(),
         receipt_template=sending,
@@ -9994,9 +10148,8 @@ def test_invalid_v4_confirmation_never_mutates_fallback_state(
     baseline = copy.deepcopy(state)
     original_validator = bot.confirmed_reply_receipt_is_semantically_valid
 
-    monkeypatch.setattr(
-        bot,
-        "x_request",
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "999"}},
     )
     monkeypatch.setattr(
@@ -10046,7 +10199,7 @@ def test_schema_v4_promotion_failure_fallback_uses_confirmation_time(
         clock["epoch"] = confirmation_epoch
         return {"data": {"id": "999"}}
 
-    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
     monkeypatch.setattr(
         bot,
         "promote_sending_reply_receipt",
@@ -10436,7 +10589,7 @@ def test_conversational_reply_receipt_is_durable_before_remote_write(
         observed.append({"method": method, "path": path, **kwargs})
         return {"data": {"id": "999"}}
 
-    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
 
     response, confirmed = bot.post_conversational_reply_with_durable_identity(
         state=state,
@@ -10467,7 +10620,7 @@ def test_prepared_reply_bypass_requires_exact_receipt_text_and_target(
         remote_calls += 1
         return {"data": {"id": "999"}}
 
-    monkeypatch.setattr(bot, "x_request", remote)
+    install_receipt_bound_x_request_stub(monkeypatch, remote)
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.create_post(
@@ -10588,7 +10741,7 @@ def test_sending_reply_receipt_blocks_each_remote_lane_before_preparation(
             "upload_media_v1_1",
             lambda *_args, **_kwargs: prepared("media upload fallback"),
         )
-        invoke = lambda: bot.upload_media("image.png")
+        invoke = lambda: bot.upload_media("image.png", lane="quote_image")
 
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
@@ -10634,7 +10787,7 @@ def test_generic_reply_rejection_preserves_sending_receipt(
             status_code=403,
         )
 
-    monkeypatch.setattr(bot, "x_request", rejected)
+    install_receipt_bound_x_request_stub(monkeypatch, rejected)
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="outcome is unproved"):
         bot.post_conversational_reply_with_durable_identity(
@@ -10668,7 +10821,7 @@ def test_unclassified_reply_interruption_preserves_sending_receipt(
     def interrupted(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise remote_error
 
-    monkeypatch.setattr(bot, "x_request", interrupted)
+    install_receipt_bound_x_request_stub(monkeypatch, interrupted)
     expected = (
         bot.AmbiguousRemotePostOutcome
         if isinstance(remote_error, Exception)
@@ -10718,7 +10871,7 @@ def test_reply_ambiguity_marker_and_state_failure_preserve_restart_barrier(
         )
 
     monkeypatch.setattr(bot, "atomic_write_json", selective_atomic_write)
-    monkeypatch.setattr(bot, "x_request", accepted_without_response)
+    install_receipt_bound_x_request_stub(monkeypatch, accepted_without_response)
     monkeypatch.setattr(
         bot,
         "save_state",
@@ -10767,7 +10920,7 @@ def test_reply_promotion_state_and_marker_failure_blocks_restart_duplicate(
         return {"data": {"id": "999"}}
 
     monkeypatch.setattr(bot, "atomic_write_json", selective_atomic_write)
-    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
     monkeypatch.setattr(
         bot,
         "promote_sending_reply_receipt",
@@ -10811,9 +10964,8 @@ def test_reply_promotion_failure_uses_confirmed_state_fallback(
     state["daily_reply_date"] = str(sending["daily_reply_date"])
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-    monkeypatch.setattr(
-        bot,
-        "x_request",
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
         lambda *_args, **_kwargs: {"data": {"id": "999"}},
     )
     monkeypatch.setattr(
@@ -10871,7 +11023,7 @@ def test_reply_sigint_is_delivered_only_after_confirmed_receipt(
         assert receipt["reply_post_id"] == "999"
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", lambda: guard)
     monkeypatch.setattr(bot, "end_confirmed_post_sigint_deferral", deliver_sigint)
 
@@ -10933,7 +11085,7 @@ def test_reply_sigint_during_confirmed_promotion_reconciles_without_duplicate(
 
     monkeypatch.setattr(bot, "begin_confirmed_post_sigint_deferral", begin_deferral)
     monkeypatch.setattr(bot, "atomic_write_json", interrupt_after_confirmed_promotion)
-    monkeypatch.setattr(bot, "x_request", confirmed_remote)
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
 
     try:
         with pytest.raises(KeyboardInterrupt):
@@ -13084,7 +13236,7 @@ def test_all_image_hash_failures_raise_global_unavailable(
     analysis = image_analysis_for_paths([image_path])
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
     monkeypatch.setattr(bot, "load_image_analysis", lambda: analysis)
-    monkeypatch.setattr(bot, "current_image_sha256", lambda path: (_ for _ in ()).throw(OSError("read failed")))
+    monkeypatch.setattr(bot, "current_image_sha256", lambda path, **_kwargs: (_ for _ in ()).throw(OSError("read failed")))
 
     with pytest.raises(bot.GlobalImageUnavailable):
         bot.choose_matched_unused_image(set(), {"analysis": {"primary_topics": ["anything"]}}, {})

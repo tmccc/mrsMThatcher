@@ -43,6 +43,28 @@ from remote_write_safety_protocol import (
     ProtocolActivationError,
     inspect_protocol_activation,
 )
+from remote_media_upload_receipt import (
+    MediaUploadAuthority,
+    MediaUploadReceiptError,
+    begin_media_upload,
+    confirm_media_upload,
+    consume_media_upload_authority,
+    load_confirmed_media_upload,
+    media_upload_receipt_is_blocking,
+    retire_confirmed_media_upload,
+)
+from remote_write_transport_journal import (
+    TransportAuthority,
+    TransportJournalError,
+    arm_transport_transaction,
+    begin_transport_transaction,
+    confirm_transport_transaction,
+    consume_transport_authority,
+    fence_path_for_journal,
+    journal_path_for_receipt,
+    retire_confirmed_transport_transaction,
+    transport_journal_is_blocking,
+)
 
 
 SELF_TEST_REQUESTED = "--self-test" in sys.argv
@@ -293,6 +315,7 @@ IMAGES_USED_FILE = BASE_DIR / "images_used.json"
 REGULAR_POST_RECEIPT_FILE = BASE_DIR / "regular_post_receipt.json"
 MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
 CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
+MEDIA_UPLOAD_RECEIPT_FILE = BASE_DIR / "remote_media_upload_receipt.json"
 AMBIGUOUS_POST_OUTCOME_FILE = BASE_DIR / "ambiguous_post_outcome.json"
 AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE = (
     BASE_DIR / "ambiguous_post_outcome.restart_barrier.json"
@@ -2293,9 +2316,6 @@ def api_error_proves_remote_non_success(error: BaseException) -> bool:
     return False
 
 
-_REMOTE_WRITE_PREFLIGHT_AUTHORIZATION = object()
-
-
 def require_remote_operation_unpaused(
     operation: str,
     *,
@@ -2303,10 +2323,13 @@ def require_remote_operation_unpaused(
 ) -> None:
     """Fail before a remote boundary while a global pause is active."""
     require_instance_lock_for_remote_write(operation)
-    if transaction_authorization is _REMOTE_WRITE_PREFLIGHT_AUTHORIZATION:
-        # The exact transaction receipt was validated immediately before this
-        # internal authorization was issued. Recheck the process-wide protocol,
-        # marker and latches without making the transaction block itself.
+    if isinstance(
+        transaction_authorization,
+        (TransportAuthority, MediaUploadAuthority),
+    ):
+        # The exact payload-bound journal is validated and consumed again at
+        # the transport boundary.  Recheck only process-wide incident state
+        # here so the transaction does not block itself.
         block_if_remote_write_safety_incident_latched()
     else:
         # Direct transport/provider calls have no prepared-receipt authority.
@@ -3699,6 +3722,16 @@ def x_request_targets_tweet_create(method: str, path: str) -> bool:
         == "/2/tweets"
     )
 
+
+def x_request_targets_media_upload(method: str, path: str) -> bool:
+    """Return whether one prepared X request targets the v2 media-create route."""
+
+    return bool(
+        str(method).upper() == "POST"
+        and normalised_prepared_x_request_path(method, path).rstrip("/")
+        == "/2/media/upload"
+    )
+
 def print_rate_limit_headers(response: requests.Response) -> int | None:
     """Log rate limit headers."""
     log.warning("Rate Limit: %s", response.headers.get("x-rate-limit-limit"))
@@ -3728,20 +3761,44 @@ def x_request(
     path: str,
     *,
     ambiguous_write: bool = False,
-    _remote_write_authorization: object | None = None,
+    _remote_write_authorization: TransportAuthority | MediaUploadAuthority | None = None,
     **kwargs,
 ) -> dict:
     """Send an authenticated X API request with bounded retries."""
     url = f"{X_BASE}{path}"
     is_post_create = x_request_targets_tweet_create(method, path)
+    is_media_upload = x_request_targets_media_upload(method, path)
+    if isinstance(_remote_write_authorization, TransportAuthority) and not is_post_create:
+        raise AmbiguousRemotePostOutcome(
+            "A tweet-create transport authority cannot authorise another X endpoint",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    if isinstance(_remote_write_authorization, MediaUploadAuthority) and not is_media_upload:
+        raise AmbiguousRemotePostOutcome(
+            "A media-upload authority cannot authorise another X endpoint",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    if _remote_write_authorization is not None and not isinstance(
+        _remote_write_authorization,
+        (TransportAuthority, MediaUploadAuthority),
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "X write authority has an unsupported type",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
     if is_post_create and (
-        _remote_write_authorization
-        is not _REMOTE_WRITE_PREFLIGHT_AUTHORIZATION
+        not isinstance(_remote_write_authorization, TransportAuthority)
         or not ambiguous_write
     ):
         raise AmbiguousRemotePostOutcome(
-            "X post creation requires the internal exact-receipt authorization "
-            "and ambiguous-write handling",
+            "X post creation requires an exact durable transport-journal "
+            "authorization and ambiguous-write handling",
             service="x",
             request_method=method,
             request_path=path,
@@ -3772,6 +3829,88 @@ def x_request(
         # Writes are therefore single-hop unless a future provider contract
         # explicitly proves a redirect safe.
         kwargs["allow_redirects"] = False
+
+    if is_post_create:
+        payload = kwargs.get("json")
+        if not isinstance(payload, dict):
+            raise AmbiguousRemotePostOutcome(
+                "X post creation requires one exact JSON payload",
+                service="x",
+                request_method=method,
+                request_path=path,
+            )
+        try:
+            expected_receipt_path = canonical_transport_receipt_path_for_lane(
+                _remote_write_authorization.lane
+            )
+            if expected_receipt_path is None:
+                raise TransportJournalError(
+                    "transport authority lane is not a canonical public-create lane"
+                )
+            block_if_unrelated_receipt_appeared_for_tweet_transport(
+                expected_receipt_path
+            )
+            consume_transport_authority(
+                Path(_remote_write_authorization.journal_path),
+                _remote_write_authorization,
+                method=method,
+                request_path="/2/tweets",
+                payload=payload,
+                expected_receipt_path=expected_receipt_path,
+            )
+        except TransportJournalError as exc:
+            raise AmbiguousRemotePostOutcome(
+                "X post creation lost its exact durable transport authority",
+                service="x",
+                request_method=method,
+                request_path=path,
+            ) from exc
+
+    if is_media_upload and (
+        not isinstance(_remote_write_authorization, MediaUploadAuthority)
+        or not ambiguous_write
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "X media upload requires exact durable media authority and explicit "
+            "ambiguous-write handling",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    if is_media_upload:
+        files = kwargs.get("files")
+        form = kwargs.get("data")
+        media_part = files.get("media") if isinstance(files, dict) else None
+        if (
+            not isinstance(media_part, tuple)
+            or len(media_part) < 3
+            or not hasattr(media_part[1], "name")
+            or not isinstance(media_part[2], str)
+            or not isinstance(form, dict)
+        ):
+            raise AmbiguousRemotePostOutcome(
+                "X media upload request is not an exact bound multipart payload",
+                service="x",
+                request_method=method,
+                request_path=path,
+            )
+        try:
+            block_if_unrelated_receipt_appeared_for_media_transport()
+            consume_media_upload_authority(
+                MEDIA_UPLOAD_RECEIPT_FILE,
+                _remote_write_authorization,
+                image_path=Path(media_part[1].name),
+                lane=_remote_write_authorization.lane,
+                mime_type=media_part[2],
+                payload_metadata=media_upload_payload_metadata(form),
+            )
+        except MediaUploadReceiptError as exc:
+            raise AmbiguousRemotePostOutcome(
+                "X media upload lost its exact durable transport authority",
+                service="x",
+                request_method=method,
+                request_path=path,
+            ) from exc
 
     try:
         response = requests.request(
@@ -5299,8 +5438,22 @@ def dedupe_reply_candidates(mentions: list[dict], hot_post_replies: list[dict]) 
 # Media / posting
 # ---------------------------------------------------------------------
 
-def upload_media_v2(image_path: str) -> str:
-    """Return the upload media v2."""
+def media_upload_payload_metadata(form: dict[str, object]) -> dict[str, object]:
+    """Bind the durable media receipt to the exact remote form fields."""
+
+    return {
+        "request_method": "POST",
+        "request_path": "/2/media/upload",
+        "form": dict(form),
+    }
+
+
+def upload_media_v2(
+    image_path: str,
+    *,
+    authority: MediaUploadAuthority,
+) -> str:
+    """Upload once through v2 and return its confirmed media identity."""
     log.info("Uploading media via X API v2: %s", image_path)
 
     mime_type, _ = mimetypes.guess_type(image_path)
@@ -5323,80 +5476,98 @@ def upload_media_v2(image_path: str) -> str:
             "/2/media/upload",
             files=files,
             data=data,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
         )
 
-    media_id = str(result["data"]["id"])
+    response_data = result.get("data") if isinstance(result, dict) else None
+    raw_media_id = (
+        response_data.get("id") if isinstance(response_data, dict) else None
+    )
+    if (
+        isinstance(raw_media_id, bool)
+        or not isinstance(raw_media_id, (str, int))
+        or not str(raw_media_id).strip()
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "X may have accepted the v2 media upload but its response did not "
+            "include a valid data.id",
+            service="x",
+            request_method="POST",
+            request_path="/2/media/upload",
+        )
+    media_id = str(raw_media_id).strip()
     log.info("Uploaded media via v2. media_id=%s", media_id)
     return media_id
 
 
 def upload_media_v1_1(image_path: str) -> str:
-    """Return the upload media v1 1."""
-    log.info("Uploading media via legacy v1.1 fallback: %s", image_path)
+    """Refuse the retired legacy endpoint before any transport."""
 
-    url = f"{X_UPLOAD_BASE}/1.1/media/upload.json"
-
-    with open(image_path, "rb") as f:
-        files = {
-            "media": f,
-        }
-        data = {
-            "media_category": "tweet_image",
-        }
-
-        require_remote_operation_unpaused("X v1.1 media upload")
-        try:
-            response = requests.post(
-                url,
-                auth=AUTH,
-                files=files,
-                data=data,
-                timeout=request_timeout(),
-            )
-        except requests.RequestException as e:
-            log.exception("v1.1 media upload failed before receiving response")
-            raise ApiError(str(e), service="x") from e
-
-    log.debug("v1.1 media upload response status: %s", response.status_code)
-
-    if response.status_code >= 400:
-        log.error("Media upload error %s: %s", response.status_code, response.text)
-        reset_epoch = print_rate_limit_headers(response)
-
-        raise ApiError(
-            f"Media upload error {response.status_code}: {response.text}",
-            service="x",
-            status_code=response.status_code,
-            reset_epoch=reset_epoch,
-        )
-
-    try:
-        media_id = str(response.json()["media_id_string"])
-    except Exception as e:
-        log.exception("Could not parse media upload response")
-        raise ApiError(f"Could not parse media upload response: {response.text[:500]}", service="x") from e
-
-    log.info("Uploaded media via v1.1. media_id=%s", media_id)
-    return media_id
+    del image_path
+    raise AmbiguousRemotePostOutcome(
+        "Legacy v1.1 media upload is disabled because it has no durable "
+        "transaction authority",
+        service="x",
+        request_method="POST",
+        request_path="/1.1/media/upload.json",
+    )
 
 
-def upload_media(image_path: str) -> str:
-    """Upload media through the preferred endpoint with a safe fallback."""
+def upload_media(image_path: str, *, lane: str) -> str:
+    """Upload once under a restart-visible, image-bound sending receipt."""
     require_remote_operation_unpaused("X media upload")
     block_if_ambiguous_remote_post()
+    mime_type, _ = mimetypes.guess_type(image_path)
+    if not mime_type:
+        mime_type = "image/jpeg"
+    form: dict[str, object] = {
+        "media_category": "tweet_image",
+        "media_type": mime_type,
+    }
     try:
-        return upload_media_v2(image_path)
-    except RemoteOperationsPaused:
+        authority = begin_media_upload(
+            receipt_path=MEDIA_UPLOAD_RECEIPT_FILE,
+            image_path=Path(image_path),
+            lane=lane,
+            mime_type=mime_type,
+            payload_metadata=media_upload_payload_metadata(form),
+        )
+    except MediaUploadReceiptError as exc:
+        raise AmbiguousRemotePostOutcome(
+            "Could not establish the restart-persistent media-upload receipt",
+            service="x",
+            request_method="POST",
+            request_path="/2/media/upload",
+        ) from exc
+    try:
+        media_id = upload_media_v2(image_path, authority=authority)
+        confirm_media_upload(
+            MEDIA_UPLOAD_RECEIPT_FILE,
+            authority,
+            media_id=media_id,
+        )
+        return media_id
+    except AmbiguousRemotePostOutcome:
+        # The upload precedes the public-post sending receipt.  If its response
+        # is lost, no lane receipt yet exists to suppress a later automatic
+        # upload.  Publish the ordinary restart-persistent ambiguity barrier;
+        # never repeat the upload through either endpoint automatically.
+        log.critical(
+            "X media upload outcome is ambiguous; blocking every subsequent "
+            "remote write pending manual reconciliation. image=%s",
+            Path(image_path).name,
+        )
+        record_ambiguous_remote_post({"text": "", "media": {"media_ids": []}})
         raise
-    except ApiError as exc:
-        if getattr(exc, "status_code", None) == 429:
-            log.exception("v2 media upload was rate limited; not retrying v1.1 fallback")
-            raise
-        log.exception("v2 media upload failed; trying v1.1 fallback")
-        return upload_media_v1_1(image_path)
-    except Exception:
-        log.exception("v2 media upload failed; trying v1.1 fallback")
-        return upload_media_v1_1(image_path)
+    except MediaUploadReceiptError as exc:
+        record_ambiguous_remote_post({"text": "", "media": {"media_ids": []}})
+        raise AmbiguousRemotePostOutcome(
+            "X confirmed a media upload but its durable receipt could not be confirmed",
+            service="x",
+            request_method="POST",
+            request_path="/2/media/upload",
+        ) from exc
 
 
 def unresolved_conversational_reply_receipt_is_blocking() -> bool:
@@ -5564,6 +5735,133 @@ def block_if_remote_write_safety_incident_latched() -> None:
     )
 
 
+def remote_write_transport_journal_paths() -> tuple[Path, ...]:
+    """Return every distinct transaction-journal path used by active lanes."""
+
+    return tuple(
+        sorted(
+            {
+                journal_path_for_receipt(path)
+                for path in (
+                    REGULAR_POST_RECEIPT_FILE,
+                    MEME_POST_RECEIPT_FILE,
+                    CONFIRMED_REPLY_RECEIPT_FILE,
+                    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+                )
+            },
+            key=str,
+        )
+    )
+
+
+def canonical_transport_receipt_path_for_lane(lane: str) -> Path | None:
+    """Return the only receipt pathname allowed to authorise one public lane."""
+
+    return {
+        "quote_image": REGULAR_POST_RECEIPT_FILE,
+        "daily_meme": MEME_POST_RECEIPT_FILE,
+        "conversational_reply": CONFIRMED_REPLY_RECEIPT_FILE,
+        "historical_context_reply": HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    }.get(str(lane))
+
+
+def block_if_unrelated_receipt_appeared_for_tweet_transport(
+    expected_receipt_path: Path,
+) -> None:
+    """Reject a lane which appeared after the transaction's initial preflight."""
+
+    for path in (
+        REGULAR_POST_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE,
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ):
+        if path != expected_receipt_path and os.path.lexists(path):
+            raise TransportJournalError(
+                "an unrelated durable receipt appeared before tweet transport"
+            )
+    if media_upload_receipt_is_blocking(MEDIA_UPLOAD_RECEIPT_FILE):
+        raise TransportJournalError(
+            "an unresolved media receipt appeared before tweet transport"
+        )
+
+
+def block_if_unrelated_receipt_appeared_for_media_transport() -> None:
+    """Reject media transport if any other transaction owns remote writes."""
+
+    if remote_write_transport_journal_is_blocking():
+        raise MediaUploadReceiptError(
+            "a public-create transport journal appeared before media upload"
+        )
+    for path in (
+        REGULAR_POST_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE,
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ):
+        if os.path.lexists(path):
+            raise MediaUploadReceiptError(
+                "an unrelated durable receipt appeared before media upload"
+            )
+
+
+def remote_write_transport_journal_is_blocking() -> bool:
+    """Return whether any valid, invalid, or torn transport journal exists."""
+
+    return any(
+        transport_journal_is_blocking(path)
+        for path in remote_write_transport_journal_paths()
+    )
+
+
+def block_if_remote_write_transport_journal_exists() -> None:
+    """Fail closed before unrelated remote work while a journal is unresolved."""
+
+    if remote_write_transport_journal_is_blocking():
+        raise AmbiguousRemotePostOutcome(
+            "An unresolved payload-bound transport journal blocks every other "
+            "remote-write lane",
+            service="x",
+        )
+
+
+def remote_media_upload_receipt_is_blocking() -> bool:
+    """Return whether a valid, invalid, or torn media transaction exists."""
+
+    return media_upload_receipt_is_blocking(MEDIA_UPLOAD_RECEIPT_FILE)
+
+
+def block_if_remote_media_upload_receipt_exists() -> None:
+    """Fail closed before unrelated work while a media upload is unresolved."""
+
+    if remote_media_upload_receipt_is_blocking():
+        raise AmbiguousRemotePostOutcome(
+            "An unresolved media-upload receipt blocks every remote-write lane",
+            service="x",
+        )
+
+
+def retire_lane_transport_journal_if_present(
+    *,
+    receipt_path: Path,
+    receipt: dict,
+    lane: str,
+    post_id: str,
+) -> bool:
+    """Retire a new-protocol journal while accepting legacy confirmed receipts."""
+
+    journal_path = journal_path_for_receipt(receipt_path)
+    if not transport_journal_is_blocking(journal_path):
+        return False
+    retire_confirmed_transport_transaction(
+        receipt_path=receipt_path,
+        expected_confirmed_receipt=receipt,
+        lane=lane,
+        post_id=post_id,
+    )
+    return True
+
+
 def block_if_ambiguous_remote_post(
     *,
     prepared_conversational_reply_receipt: dict | None = None,
@@ -5588,6 +5886,8 @@ def block_if_ambiguous_remote_post(
             service="x",
         )
     block_if_remote_write_safety_incident_latched()
+    block_if_remote_write_transport_journal_exists()
+    block_if_remote_media_upload_receipt_exists()
 
     regular_status, regular_receipt = load_regular_post_receipt()
     meme_status, meme_receipt = load_meme_post_receipt()
@@ -5688,6 +5988,10 @@ def ambiguous_remote_post_is_blocking() -> bool:
     if remote_write_safety_incident_is_latched():
         return True
     if remote_write_safety_marker_path_present_or_unsafe():
+        return True
+    if remote_write_transport_journal_is_blocking():
+        return True
+    if remote_media_upload_receipt_is_blocking():
         return True
     if historical_context_receipt_path_present_or_unsafe():
         return True
@@ -6131,6 +6435,10 @@ def durable_remote_write_safety_barrier_exists() -> bool:
         and durable_remote_write_safety_marker_exists()
     ):
         return True
+    if remote_write_transport_journal_is_blocking():
+        return True
+    if remote_media_upload_receipt_is_blocking():
+        return True
     try:
         if unresolved_main_post_attempt_is_blocking():
             return True
@@ -6375,18 +6683,6 @@ def create_post(
         ),
         prepared_main_post_attempt=prepared_main_post_attempt,
     )
-    require_remote_operation_unpaused(
-        "X post creation",
-        transaction_authorization=_REMOTE_WRITE_PREFLIGHT_AUTHORIZATION,
-    )
-    log.info(
-        "Creating X post. reply_to_id=%s media_count=%d made_with_ai=%s text=%r",
-        reply_to_id,
-        len(media_ids or []),
-        made_with_ai,
-        text,
-    )
-
     payload: dict = {}
 
     if text:
@@ -6420,6 +6716,16 @@ def create_post(
             service="x",
         )
 
+    # This check is still before the transport journal is published, so a
+    # local pause can stop cleanly without creating an unresolved attempt.
+    # The final transport helper repeats the pause and instance-lock checks.
+    require_instance_lock_for_remote_write("X post creation")
+    block_if_remote_write_safety_incident_latched()
+    if global_remote_writes_paused():
+        raise RemoteOperationsPaused(
+            "Global runtime control pause blocks operation: X post creation"
+        )
+
     if prepared_main_post_attempt is not None:
         attempting = mark_main_post_attempt_attempting(
             prepared_main_post_attempt
@@ -6427,7 +6733,55 @@ def create_post(
         prepared_main_post_attempt.clear()
         prepared_main_post_attempt.update(attempting)
 
-    def validate_created_post_response(result: dict) -> dict:
+    if prepared_conversational_reply_receipt is not None:
+        transaction_receipt_path = CONFIRMED_REPLY_RECEIPT_FILE
+        transaction_receipt = prepared_conversational_reply_receipt
+        transaction_lane = "conversational_reply"
+    elif prepared_historical_context_reply_receipt is not None:
+        transaction_receipt_path = HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        transaction_receipt = prepared_historical_context_reply_receipt
+        transaction_lane = "historical_context_reply"
+    else:
+        assert prepared_main_post_attempt is not None
+        transaction_receipt_path = main_post_attempt_path(
+            prepared_main_post_attempt
+        )
+        transaction_receipt = prepared_main_post_attempt
+        transaction_lane = str(prepared_main_post_attempt["lane"])
+
+    try:
+        transport_authority = begin_transport_transaction(
+            receipt_path=transaction_receipt_path,
+            expected_receipt=transaction_receipt,
+            lane=transaction_lane,
+            payload=payload,
+        )
+        transport_authority = arm_transport_transaction(
+            Path(transport_authority.journal_path),
+            transport_authority,
+        )
+    except TransportJournalError as exc:
+        record_ambiguous_remote_post(payload)
+        raise AmbiguousRemotePostOutcome(
+            "Could not establish the restart-persistent transport journal",
+            service="x",
+            request_method="POST",
+            request_path="/2/tweets",
+        ) from exc
+
+    log.info(
+        "Creating X post with durable transport journal. "
+        "lane=%s transaction_id=%s reply_to_id=%s media_count=%d "
+        "made_with_ai=%s text=%r",
+        transaction_lane,
+        transport_authority.transaction_id,
+        reply_to_id,
+        len(media_ids or []),
+        made_with_ai,
+        text,
+    )
+
+    def validate_created_post_response(result: dict) -> str:
         response_data = result.get("data") if isinstance(result, dict) else None
         post_id = response_data.get("id") if isinstance(response_data, dict) else None
         if not valid_post_id(post_id):
@@ -6435,7 +6789,7 @@ def create_post(
                 f"X may have accepted the post but its response did not include a valid numeric data.id: {result}",
                 service="x",
             )
-        return result
+        return str(post_id)
 
     try:
         result = x_request(
@@ -6443,11 +6797,25 @@ def create_post(
             "/2/tweets",
             json=payload,
             ambiguous_write=True,
-            _remote_write_authorization=_REMOTE_WRITE_PREFLIGHT_AUTHORIZATION,
+            _remote_write_authorization=transport_authority,
         )
-        validate_created_post_response(result)
+        post_id = validate_created_post_response(result)
+        confirm_transport_transaction(
+            Path(transport_authority.journal_path),
+            transport_authority,
+            post_id=post_id,
+        )
         log.info("Created X post successfully. response=%s", result)
         return result
+    except TransportJournalError as exc:
+        record_ambiguous_remote_post(payload)
+        raise AmbiguousRemotePostOutcome(
+            "X returned a post identity but its durable transport journal "
+            "could not be confirmed",
+            service="x",
+            request_method="POST",
+            request_path="/2/tweets",
+        ) from exc
     except AmbiguousRemotePostOutcome:
         record_ambiguous_remote_post(payload)
         raise
@@ -7476,6 +7844,30 @@ def write_main_post_attempt(attempt: dict) -> None:
     )
 
 
+def handoff_confirmed_media_upload_to_main_attempt(attempt: dict) -> None:
+    """Retire media authority only after the exact main attempt is durable."""
+
+    confirmation = load_confirmed_media_upload(MEDIA_UPLOAD_RECEIPT_FILE)
+    if confirmation is None:
+        raise MediaUploadReceiptError(
+            "main-post attempt has no confirmed media-upload receipt"
+        )
+    path = main_post_attempt_path(attempt)
+    retire_confirmed_media_upload(
+        MEDIA_UPLOAD_RECEIPT_FILE,
+        confirmation,
+        main_post_receipt_path=path,
+        expected_main_post_receipt_bytes=canonical_atomic_json_bytes(attempt),
+    )
+    log.warning(
+        "Handed confirmed media upload to durable main-post attempt "
+        "lane=%s attempt_id=%s media_id=%s",
+        attempt["lane"],
+        attempt["attempt_id"],
+        confirmation.media_id,
+    )
+
+
 def mark_main_post_attempt_attempting(attempt: dict) -> dict:
     """Atomically consume one sending authorisation before remote transmission."""
     if attempt.get("lifecycle_state") != "sending":
@@ -8386,6 +8778,12 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
     )
     apply_meme_post_receipt(receipt, state)
     save_state(state, durable=True)
+    retire_lane_transport_journal_if_present(
+        receipt_path=MEME_POST_RECEIPT_FILE,
+        receipt=receipt,
+        lane="daily_meme",
+        post_id=str(receipt["post_id"]),
+    )
     remove_meme_post_receipt()
     return True
 
@@ -9652,6 +10050,12 @@ def reconcile_regular_post_receipt(
         )
     save_regular_post_protected_state(lines_used, images_used, state, durable=True)
     enqueue_historical_context_obligation(receipt)
+    retire_lane_transport_journal_if_present(
+        receipt_path=REGULAR_POST_RECEIPT_FILE,
+        receipt=receipt,
+        lane="quote_image",
+        post_id=str(receipt["post_id"]),
+    )
     remove_regular_post_receipt()
     log.info(
         "Confirmed main post reconciliation is complete; auxiliary context "
@@ -11818,7 +12222,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         )
         log.debug("Quote text=%r", tweet)
 
-        media_id = upload_media(image)
+        media_id = upload_media(image, lane="quote_image")
         main_post_attempt = build_main_post_attempt(
             lane="quote_image",
             text=tweet,
@@ -11846,6 +12250,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             attempt_epoch=transaction_preflight_epoch,
         )
         write_main_post_attempt(main_post_attempt)
+        handoff_confirmed_media_upload_to_main_attempt(main_post_attempt)
         confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
         response = create_post(
             text=tweet,
@@ -11866,10 +12271,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         images_used.update(original_images_used)
         if (
             "main_post_attempt" in locals()
-            and (
-                isinstance(remote_exc, RemoteOperationsPaused)
-                or api_error_proves_remote_non_success(remote_exc)
-            )
+            and api_error_proves_remote_non_success(remote_exc)
         ):
             try:
                 remove_main_post_attempt(
@@ -12119,6 +12521,12 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                     "persisting its historical-context disposition; the durable "
                     "attempt receipt remains unresolved"
                 ) from context_exc
+            retire_lane_transport_journal_if_present(
+                receipt_path=REGULAR_POST_RECEIPT_FILE,
+                receipt=main_post_attempt,
+                lane="quote_image",
+                post_id=str(posted_id),
+            )
             remove_main_post_attempt(
                 main_post_attempt,
                 sending_disposition="confirmed_state_fallback",
@@ -12160,6 +12568,12 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         record_recent_own_post(state, str(posted_id))
         save_regular_post_protected_state(lines_used, images_used, state, durable=True)
         enqueue_historical_context_obligation(receipt)
+        retire_lane_transport_journal_if_present(
+            receipt_path=REGULAR_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="quote_image",
+            post_id=str(posted_id),
+        )
         remove_regular_post_receipt()
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
@@ -12615,7 +13029,7 @@ def post_next_meme(state: dict) -> None:
 
     media_id = run_daily_meme_stage(
         "media_upload",
-        lambda: upload_media(str(meme_path)),
+        lambda: upload_media(str(meme_path), lane="daily_meme"),
     )
 
     main_post_attempt = build_main_post_attempt(
@@ -12635,6 +13049,10 @@ def post_next_meme(state: dict) -> None:
     run_daily_meme_stage(
         "main_post_attempt_persistence",
         lambda: write_main_post_attempt(main_post_attempt),
+    )
+    run_daily_meme_stage(
+        "media_upload_handoff",
+        lambda: handoff_confirmed_media_upload_to_main_attempt(main_post_attempt),
     )
     confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
@@ -12657,10 +13075,7 @@ def post_next_meme(state: dict) -> None:
             lambda: require_valid_meme_post_id(posted_id),
         )
     except BaseException as remote_exc:
-        if (
-            isinstance(remote_exc, RemoteOperationsPaused)
-            or api_error_proves_remote_non_success(remote_exc)
-        ):
+        if api_error_proves_remote_non_success(remote_exc):
             try:
                 remove_main_post_attempt(
                     main_post_attempt,
@@ -12857,6 +13272,12 @@ def post_next_meme(state: dict) -> None:
             ) from receipt_exc
         status_after_fallback, _current_after_fallback = load_meme_post_receipt()
         if status_after_fallback == "sending":
+            retire_lane_transport_journal_if_present(
+                receipt_path=MEME_POST_RECEIPT_FILE,
+                receipt=main_post_attempt,
+                lane="daily_meme",
+                post_id=str(posted_id),
+            )
             remove_main_post_attempt(
                 main_post_attempt,
                 sending_disposition="confirmed_state_fallback",
@@ -12912,6 +13333,12 @@ def post_next_meme(state: dict) -> None:
         )
         raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but durable state save failed")
     try:
+        retire_lane_transport_journal_if_present(
+            receipt_path=MEME_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="daily_meme",
+            post_id=str(posted_id),
+        )
         remove_meme_post_receipt()
     except Exception as exc:
         log.critical(
@@ -14267,6 +14694,12 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
         )
         raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt reconciliation state save failed") from exc
     try:
+        retire_lane_transport_journal_if_present(
+            receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+            receipt=receipt,
+            lane="conversational_reply",
+            post_id=str(receipt["reply_post_id"]),
+        )
         remove_confirmed_reply_receipt(receipt)
     except Exception as exc:
         log.critical("Confirmed reply receipt state was saved but receipt removal failed", exc_info=True)
@@ -14512,6 +14945,12 @@ def post_conversational_reply_with_durable_identity(
             ) from (fallback_error or receipt_error)
 
         try:
+            retire_lane_transport_journal_if_present(
+                receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+                receipt=receipt_template,
+                lane="conversational_reply",
+                post_id=own_reply_id,
+            )
             remove_confirmed_reply_receipt(
                 receipt_template,
                 sending_disposition="confirmed_state_fallback",
@@ -14537,6 +14976,16 @@ def post_conversational_reply_with_durable_identity(
 def maybe_reply_to_mentions(state: dict) -> str:
     """Process eligible mention and hot-post candidates under all reply limits."""
     log.info("Starting mention reply check")
+    # A confirmed reply receipt and its transport journal are a recoverable
+    # local transaction, not permission for a new remote write.  Reconcile it
+    # before the general journal barrier so a restart can finish the exact
+    # durable transaction without first weakening that barrier.
+    reset_daily_reply_count_if_needed(state)
+    prior_reply_status, _prior_reply = load_confirmed_reply_receipt()
+    if prior_reply_status == "valid" and reconcile_confirmed_reply_receipt(state):
+        log.warning(
+            "Reconciled confirmed reply receipt before checking new mention candidates"
+        )
     block_if_ambiguous_remote_post()
 
     if not ENABLE_AUTO_REPLIES:
@@ -14560,10 +15009,6 @@ def maybe_reply_to_mentions(state: dict) -> str:
     if in_api_cooldown(state, scope="xai"):
         log.info("Skipping mention check due to xAI API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
-
-    reset_daily_reply_count_if_needed(state)
-    if reconcile_confirmed_reply_receipt(state):
-        log.warning("Reconciled confirmed reply receipt before checking new mention candidates")
 
     daily_replied_author_counts = daily_author_reply_counts(state)
 
@@ -15152,6 +15597,12 @@ def maybe_reply_to_mentions(state: dict) -> str:
         log.info("Recorded and cached own auto-reply id=%s", own_reply_id)
         save_state(state, durable=True)
         try:
+            retire_lane_transport_journal_if_present(
+                receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+                receipt=receipt,
+                lane="conversational_reply",
+                post_id=own_reply_id,
+            )
             remove_confirmed_reply_receipt(receipt)
         except Exception as exc:
             log.critical(
@@ -15509,6 +15960,15 @@ def mark_quote_spam_author(state: dict, author_id: str) -> None:
 def maybe_reply_to_quote_tweets(state: dict) -> str:
     """Process eligible quote-tweet candidates under all reply limits."""
     log.info("Starting quote-tweet reply check")
+    # Finish an exact confirmed local transaction before the unresolved-
+    # journal guard rejects every new remote lane.
+    reset_daily_reply_count_if_needed(state)
+    reset_daily_quote_reply_count_if_needed(state)
+    prior_reply_status, _prior_reply = load_confirmed_reply_receipt()
+    if prior_reply_status == "valid" and reconcile_confirmed_reply_receipt(state):
+        log.warning(
+            "Reconciled confirmed reply receipt before checking new quote-tweet candidates"
+        )
     block_if_ambiguous_remote_post()
 
     if not ENABLE_QUOTE_TWEET_CHECKS:
@@ -15530,11 +15990,6 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
     if in_api_cooldown(state, scope="write") or in_api_cooldown(state, scope="xai") or in_api_cooldown(state, scope="quote"):
         log.info("Skipping quote-tweet check due to API cooldown")
         return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
-
-    reset_daily_reply_count_if_needed(state)
-    reset_daily_quote_reply_count_if_needed(state)
-    if reconcile_confirmed_reply_receipt(state):
-        log.warning("Reconciled confirmed reply receipt before checking new quote-tweet candidates")
 
     if int(state.get("daily_reply_count", 0) or 0) >= MAX_AUTO_REPLIES_PER_DAY:
         log.info("Skipping quote-tweet check: total daily reply cap reached")
@@ -15984,6 +16439,12 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             log.info("Recorded and cached own quote-tweet auto-reply id=%s", own_reply_id)
             save_state(state, durable=True)
             try:
+                retire_lane_transport_journal_if_present(
+                    receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+                    receipt=receipt,
+                    lane="conversational_reply",
+                    post_id=own_reply_id,
+                )
                 remove_confirmed_reply_receipt(receipt)
             except Exception as exc:
                 log.critical(
