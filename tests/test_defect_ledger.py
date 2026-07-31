@@ -143,7 +143,7 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
             "production_observation",
             "production deployment observation date exceeds top-level as_of",
         ),
-        ("chronology", "chronology[3] date exceeds top-level as_of"),
+        ("chronology", "chronology[4] date exceeds top-level as_of"),
         (
             "first_review_scope",
             "first_review_scope.date date exceeds top-level as_of",
@@ -534,7 +534,7 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     ) == ledger_tool.render_diagnosis_chronology(ledger)
 
 
-def test_repaired_and_production_lineage_defects_render_honestly() -> None:
+def test_repaired_and_fresh_process_marker_defects_render_honestly() -> None:
     ledger, _schema, _invariants = _documents()
     pending_receipt_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0030"
@@ -542,11 +542,14 @@ def test_repaired_and_production_lineage_defects_render_honestly() -> None:
     daemon_loop_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0031"
     )
-    active_production_defect = next(
+    marker_identity_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0032"
     )
-    active_process_lock_defect = next(
+    process_lock_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0033"
+    )
+    fresh_process_defect = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0034"
     )
 
     assert ledger_tool._deployment_cell(pending_receipt_repair) == (
@@ -555,13 +558,25 @@ def test_repaired_and_production_lineage_defects_render_honestly() -> None:
     assert ledger_tool._deployment_cell(daemon_loop_repair) == (
         "not-deployed; observed `be882e81`"
     )
-    assert ledger_tool._deployment_cell(active_production_defect) == (
-        "observed in production `be882e81`"
+    assert ledger_tool._deployment_cell(marker_identity_repair) == (
+        "not-deployed; observed `be882e81`"
     )
-    assert ledger_tool._deployment_cell(active_process_lock_defect) == (
-        "observed in production `be882e81`"
+    assert ledger_tool._deployment_cell(process_lock_repair) == (
+        "not-deployed; observed `be882e81`"
     )
-    introduction = active_production_defect["introduced"]
+    assert ledger_tool._deployment_cell(fresh_process_defect) == (
+        "not deployed; absent from observed production `be882e81`"
+    )
+    assert marker_identity_repair["status"] == "repaired-not-deployed"
+    assert process_lock_repair["status"] == "repaired-not-deployed"
+    assert fresh_process_defect["status"] == "active"
+    assert marker_identity_repair["fix"]["commit"] == (
+        "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+    )
+    assert process_lock_repair["fix"]["commit"] == (
+        "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+    )
+    introduction = marker_identity_repair["introduced"]
     assert (
         introduction["first_bad_commit"]
         == "7f76c11325c79682d45382009295bcb5628ecdd8"
@@ -575,15 +590,16 @@ def test_repaired_and_production_lineage_defects_render_honestly() -> None:
         "..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22"
     )
     chronology_commits = {
-        event["commit"] for event in active_production_defect["chronology"]
+        event["commit"] for event in marker_identity_repair["chronology"]
     }
     assert {
         "7f76c11325c79682d45382009295bcb5628ecdd8",
         "acfc4f69ef9503c6bf842d0ab2897c919a455dbe",
         "dd8aa52c93982de561b460832baa77b90ddb95a7",
         "ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
     } <= chronology_commits
-    lock_introduction = active_process_lock_defect["introduced"]
+    lock_introduction = process_lock_repair["introduced"]
     assert (
         lock_introduction["first_bad_commit"]
         == "f0be0b5de09ca6b75f4701bb34e690675e17106e"
@@ -596,7 +612,30 @@ def test_repaired_and_production_lineage_defects_render_honestly() -> None:
         "inclusive:f0be0b5de09ca6b75f4701bb34e690675e17106e"
         "..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22"
     )
-    assert active_process_lock_defect["invariant_ids"] == ["INV-PROC-002"]
-    assert active_process_lock_defect["incident"]["occurred"] is False
-    assert "DEF-0033" in active_production_defect["relations"]["related"]
-    assert "DEF-0032" in active_process_lock_defect["relations"]["related"]
+    assert process_lock_repair["invariant_ids"] == ["INV-PROC-002"]
+    assert process_lock_repair["incident"]["occurred"] is False
+    assert "DEF-0033" in marker_identity_repair["relations"]["related"]
+    assert "DEF-0032" in process_lock_repair["relations"]["related"]
+    assert "DEF-0034" in marker_identity_repair["relations"]["related"]
+    assert "DEF-0034" in process_lock_repair["relations"]["related"]
+    assert fresh_process_defect["introduced"]["affected_range"] == (
+        "inclusive:2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        "..2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+    )
+    assert fresh_process_defect["fix"] == {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": (
+            "The replacement candidate must seed both process barriers "
+            "immediately on marker namespace observation, treat either barrier "
+            "as blocking in direct preflight and scheduler paths, retain them "
+            "on every inspection or acknowledgement failure, and prove multiple "
+            "fresh-process scheduler ticks reach no remote boundary."
+        ),
+    }
+    assert set(fresh_process_defect["invariant_ids"]) == {
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001",
+        "INV-TXN-REG-001",
+    }
+    assert fresh_process_defect["incident"]["occurred"] is False

@@ -891,15 +891,163 @@ def test_marker_disappearance_during_fsync_keeps_durable_helper_fail_closed(
         signal.signal(signal.SIGINT, original_signal_handler)
 
 
+def test_fresh_process_marker_disappearance_latches_and_blocks_preflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A marker observed after restart must latch before its acknowledgement."""
+    actual_create_post = bot.create_post
+    marker_payload = _ambiguous_marker_payload()
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        marker_payload,
+        durable=True,
+    )
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
+    _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(
+        monkeypatch
+    )
+
+    assert bot.durable_remote_write_safety_marker_exists() is False
+    assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.block_if_ambiguous_remote_post()
+    _actual_conversational_create_is_blocked(
+        monkeypatch,
+        actual_create_post,
+    )
+
+
+def test_fresh_process_marker_inspection_failure_latches_both_barriers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unreadable marker namespace cannot be interpreted as safely empty."""
+    original_lstat = bot.os.lstat
+
+    def fail_marker_lstat(path: object, *args: object, **kwargs: object):
+        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+            raise OSError("injected marker namespace inspection failure")
+        return original_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(bot.os, "lstat", fail_marker_lstat)
+
+    assert bot.durable_remote_write_safety_marker_exists() is False
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.block_if_ambiguous_remote_post()
+
+
+def test_fresh_process_marker_probe_latches_before_later_disappearance() -> None:
+    """The lightweight namespace probe must close its own lookup-to-sync race."""
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+
+    assert bot.remote_write_safety_marker_path_present_or_unsafe() is True
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    bot.AMBIGUOUS_POST_OUTCOME_FILE.unlink()
+
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.block_if_ambiguous_remote_post()
+
+
+def test_durability_uncertainty_blocks_low_level_remote_preflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """X and provider helpers cannot bypass the process-wide uncertainty latch."""
+    monkeypatch.setattr(
+        bot,
+        "require_instance_lock_for_remote_write",
+        lambda _operation: None,
+    )
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = False
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.require_remote_operation_unpaused("synthetic provider operation")
+
+
+def test_durability_uncertainty_blocks_x_and_provider_transports(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transport wrappers must stop before requests on uncertainty alone."""
+    monkeypatch.setattr(
+        bot,
+        "require_instance_lock_for_remote_write",
+        lambda _operation: None,
+    )
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = False
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    request_calls: list[str] = []
+
+    def unexpected_request(*_args: object, **_kwargs: object) -> object:
+        request_calls.append("reached")
+        pytest.fail("remote transport was reached through the uncertainty latch")
+
+    monkeypatch.setattr(bot.requests, "request", unexpected_request)
+    monkeypatch.setattr(bot.requests, "post", unexpected_request)
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request("POST", "/2/tweets", json={"text": "synthetic"})
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.xai_structured_reply_call(
+            stage="synthetic",
+            model="synthetic-model",
+            system_prompt="system",
+            user_prompt="user",
+            response_schema={
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            },
+            timeout_seconds=1,
+            max_output_tokens=1,
+            media_context=None,
+        )
+    assert request_calls == []
+
+
+def test_clean_fresh_process_without_marker_allows_remote_preflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Completed offline reconciliation must not permanently close later starts."""
+    monkeypatch.setattr(
+        bot,
+        "require_instance_lock_for_remote_write",
+        lambda _operation: None,
+    )
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
+
+    bot.require_remote_operation_unpaused("synthetic clean operation")
+
+
 @pytest.mark.parametrize(
     "mutation",
     ["replace", "content", "symlink", "dangling_symlink", "directory"],
 )
+@pytest.mark.parametrize("initially_latched", [False, True])
 def test_marker_namespace_mutation_during_fsync_keeps_acknowledgement_fail_closed(
     mutation: str,
+    initially_latched: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Replacement, content and type changes cannot release the process guard."""
+    """Every namespace change latches fresh and already-running processes."""
     actual_create_post = bot.create_post
     original_signal_handler = signal.getsignal(signal.SIGINT)
     delivered: list[int] = []
@@ -912,8 +1060,8 @@ def test_marker_namespace_mutation_during_fsync_keeps_acknowledgement_fail_close
     guard.pending = True
     signal.signal(signal.SIGINT, guard.handle)
     bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
-    bot._AMBIGUOUS_REMOTE_POST_SEEN = True
-    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = initially_latched
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = initially_latched
     bot.atomic_write_json(
         bot.AMBIGUOUS_POST_OUTCOME_FILE,
         _ambiguous_marker_payload(),
@@ -1843,3 +1991,111 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
         ) == 1
     finally:
         signal.signal(signal.SIGINT, original_signal_handler)
+
+
+def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A restart-only marker must become a process latch before it can vanish."""
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(
+        bot,
+        "reconcile_runtime_historical_context_state",
+        lambda: None,
+    )
+    monkeypatch.setattr(bot, "glob", lambda _pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(
+        bot,
+        "validate_original_editorial_shadow_startup",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "validate_generated_identity_shadow_startup",
+        lambda: None,
+    )
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    state = {"next_quote_post_epoch": 1}
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(
+        bot,
+        "reconcile_startup_main_post_receipts",
+        lambda *_args: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "seed_recent_own_post_ids_from_cache",
+        lambda _state: None,
+    )
+    monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: CONFIRMATION_EPOCH)
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (
+            int(state_arg.get(key, current)),
+            False,
+        ),
+    )
+
+    remote_actions: list[str] = []
+
+    def remote_lane_reached(*_args: object, **_kwargs: object) -> None:
+        remote_actions.append("reached")
+        pytest.fail("fresh-process marker loss must not open a remote lane")
+
+    monkeypatch.setattr(
+        bot,
+        "safely_process_due_historical_context_obligations",
+        remote_lane_reached,
+    )
+    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
+    monkeypatch.setattr(bot, "create_post", remote_lane_reached)
+    monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
+    monkeypatch.setattr(bot, "x_request", remote_lane_reached)
+    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+
+    marker_payload = _ambiguous_marker_payload()
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        marker_payload,
+        durable=True,
+    )
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
+    _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(
+        monkeypatch
+    )
+
+    class ThreeBlockedTicksComplete(Exception):
+        pass
+
+    sleep_calls = 0
+
+    def stop_after_three_blocked_ticks(_seconds: float) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls == 3:
+            raise ThreeBlockedTicksComplete
+
+    monkeypatch.setattr(bot, "sleep", stop_after_three_blocked_ticks)
+
+    with pytest.raises(ThreeBlockedTicksComplete):
+        bot.main()
+    assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
+    assert sleep_calls == 3
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert remote_actions == []

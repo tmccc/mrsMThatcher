@@ -308,10 +308,12 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
         "status": "unknown",
         "value": None,
         "explanation": (
-            "The production baseline and ee7539c evidence cut-off retain the "
-            "lock-namespace and continuous-ownership defect recorded as "
-            "DEF-0033. The replacement candidate identity and its external "
-            "validation are deliberately supplied after the candidate is frozen."
+            "The 2ad0f79 evidence cut-off repairs the lock-namespace and "
+            "continuous-ownership defect recorded as DEF-0033, but that "
+            "candidate was rejected for the separate fresh-process marker/latch "
+            "defect recorded as DEF-0034. A final replacement candidate identity "
+            "and its external validation are deliberately supplied after the "
+            "candidate is frozen."
         ),
     }
     statement = invariant["statement"]
@@ -341,6 +343,51 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
         "tests/test_pending_receipt_directory_fsync.py::"
         "test_instance_lock_fdinfo_proof_failure_blocks_remote_preflight",
     } <= set(invariant["enforcement"]["tests"])
+
+
+def test_transaction_invariants_cover_fresh_process_marker_only_restart() -> None:
+    registry = strict_json.load(REGISTRY_PATH)
+    records = {item["id"]: item for item in registry["invariants"]}
+    required_tests = {
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_fresh_process_marker_disappearance_latches_and_blocks_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_fresh_process_marker_inspection_failure_latches_both_barriers",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_fresh_process_marker_probe_latches_before_later_disappearance",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_durability_uncertainty_blocks_low_level_remote_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_durability_uncertainty_blocks_x_and_provider_transports",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks",
+    }
+
+    for invariant_id in (
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001",
+    ):
+        invariant = records[invariant_id]
+        statement = invariant["statement"]
+        rationale = invariant["status_rationale"]
+        assert "marker namespace entry" in statement
+        assert "either" in statement
+        assert (
+            "block every remote-write lane" in statement
+            or "block all remote writes" in statement
+        )
+        assert "marker-durability uncertainty" in rationale
+        assert required_tests <= set(invariant["enforcement"]["tests"])
+        assert "DEF-0034" in invariant["last_verified_commit"]["explanation"]
+
+    cross_lane_test = (
+        "tests/test_followup_fail_safe_hardening.py::"
+        "test_existing_ambiguity_marker_blocks_each_lane_before_preparation"
+    )
+    assert cross_lane_test in records["INV-TXN-REG-001"]["enforcement"]["tests"]
+    assert cross_lane_test in records["INV-TXN-MEME-001"]["enforcement"]["tests"]
+    assert cross_lane_test in records["INV-TXN-RECEIPT-001"]["enforcement"]["tests"]
 
 
 def test_v3_shadow_audit_is_historical_not_runtime_consumed() -> None:

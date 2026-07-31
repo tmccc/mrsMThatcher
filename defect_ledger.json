@@ -10,10 +10,10 @@
       "role": "Historical production and master state against which the defect records and invariant references were established."
     },
     "ledger_evidence_cutoff": {
-      "commit": "ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
-      "tree": "269152f382557aa8cbcbc12dd93f284294effab2",
+      "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+      "tree": "cdc99dee117817a72b4954c24172242c351ad1b7",
       "as_of": "2026-07-31",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated ee7539c candidate used as the exact base of this marker-identity and lock-ownership remediation. It incorporates the durable-attempt, schedule, conservative-response, post-replacement parent-fsync and daemon-loop recheck repairs while recording the marker-disappearance acknowledgement defect and the separately established process-lock namespace/continuous-ownership defect; it does not claim that the base or either repair was merged, deployed or loaded.",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated 2ad0f79 candidate. That candidate incorporates the durable-attempt, schedule, conservative-response, post-replacement parent-fsync, daemon-loop recheck, marker-identity and process-lock ownership repairs recorded through DEF-0033. Independent review then established the distinct fresh-process marker-observation/latch defect recorded as DEF-0034. This ledger does not claim that the candidate or any repair was merged, deployed or loaded.",
       "meaning": "Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The ee7539c predecessor was never deployed and its marker-durability and process-lock conclusions are qualified by DEF-0032 and DEF-0033; the replacement candidate remains external until frozen."
+      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The 2ad0f79 evidence cut-off was never deployed; it repairs DEF-0032 and DEF-0033 but was independently rejected for DEF-0034. The replacement candidate remains external until frozen."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final marker-identity, process-lock ownership and offline-reconciliation remediation commit must replace DEF-0032 and DEF-0033's external unknown fix identities and bind their committed regressions before any post-merge assurance claim."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final fresh-process marker-observation and uncertainty-barrier remediation commit must replace DEF-0034's external unknown fix identity and bind its committed regressions before any post-merge assurance claim."
     }
   },
   "external_evidence": [
@@ -1599,7 +1599,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:unknown..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "unknown",
         "explanation": "This is absence of an environmental control, not a code regression with a defensible first-bad commit."
       },
@@ -1712,7 +1712,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:unknown..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "unknown",
         "explanation": "This is an absent release control spanning Git, collaboration and deployment; repository history does not identify one introducing commit."
       },
@@ -1818,7 +1818,7 @@
       "introduced": {
         "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "bounded",
         "explanation": "The production wrapper dates to 2179d71 and has never carried generation identity. Earlier service/process arrangements were not audited for this property."
       },
@@ -1929,7 +1929,7 @@
       "introduced": {
         "first_bad_commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
         "last_known_good_commit": "b267a330983c5db2aec2c5722ce9e994b43bbeda",
-        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "exact",
         "explanation": "Git -S history for historical_context_formatter.py in the material veto manifest identifies 2220df1e as the first pin."
       },
@@ -2045,7 +2045,7 @@
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "bounded",
         "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
       },
@@ -2166,7 +2166,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "bounded",
         "explanation": "The release-control parser first exists in the Priority-0 candidate lineage and the independent review reproduced the weakness at 305ac6b."
       },
@@ -2265,7 +2265,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "exact",
         "explanation": "The self-certifying gate was introduced in the Priority-0 candidate lineage and remains candidate-owned at 305ac6b."
       },
@@ -2356,7 +2356,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "bounded",
         "explanation": "The containment design exists only in the Priority-0 candidate lineage and is reproduced at 305ac6b."
       },
@@ -2449,7 +2449,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "bounded",
         "explanation": "The private validation environment was introduced with the candidate gate but still binds shared distribution roots at 305ac6b."
       },
@@ -2543,7 +2543,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "exact",
         "explanation": "Free-form invariant commands are part of the introduced Priority-0 registry and gate."
       },
@@ -2640,7 +2640,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
         "confidence": "exact",
         "explanation": "Both incorrect comparisons are present in the Priority-0 candidate implementation."
       },
@@ -3676,7 +3676,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "independent-review-marker-disappearance-during-parent-fsync",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -3703,7 +3703,7 @@
       "incident": {
         "occurred": false,
         "evidence": "Independent local fault injection removed the marker inside the parent-directory fsync hook and reproduced false durability acknowledgement without a network, provider or X action; no production incident or duplicate post was established.",
-        "explanation": "The defect is present in the observed production lineage and the unactivated ee7539c candidate, but the review proved a missing restart barrier rather than an actual live duplicate."
+        "explanation": "The defect is present in the observed production lineage and the unactivated ee7539c candidate, but is repaired by the unactivated 2ad0f79 evidence cut-off. The review proved a missing restart barrier rather than an actual live duplicate."
       },
       "summary": "The marker durability helper and the existing-marker branches of ambiguity recording and confirmed-post persistence latching checked marker visibility only before synchronising its parent directory. If the namespace entry disappeared, was replaced or changed type during that synchronisation, they could clear durability uncertainty and release deferred SIGINT without a marker remaining for the next process.",
       "impact": "After the in-memory latch disappears, a restart can lack the durable evidence intended to block all remote-write lanes. The current process can also deliver a deferred controlled-stop signal while its reported restart-safe marker is absent.",
@@ -3738,6 +3738,12 @@
           "event": "Independent review removed the marker during the real parent-directory fsync and reproduced false success in the durable helper, confirmed-post latch and ambiguous-post recorder.",
           "commit": "ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
           "evidence": "Independent IR-EE7539C-01 reproduction"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "The replacement candidate centralised no-follow marker acknowledgement, required stable identity and exact bytes across synchronisation, retained process/SIGINT barriers on every mismatch and added lock-bound offline retirement.",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+          "evidence": "Committed source, marker-identity regressions and offline-reconciliation tests"
         }
       ],
       "first_review_scope": {
@@ -3754,19 +3760,44 @@
         "reproducer": "All three paths accepted a parent directory durably containing no marker; the durable helper cleared uncertainty and delivered deferred SIGINT.",
         "source": "Independent IR-EE7539C-01 reproduction supplied to this remediation"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_marker_disappearance_during_fsync_keeps_durable_helper_fail_closed",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        },
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_marker_namespace_mutation_during_fsync_keeps_acknowledgement_fail_closed",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        },
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        },
+        {
+          "path": "tests/test_remote_write_safety_marker_reconciliation.py",
+          "nodeid": "test_reconciliation_archives_exact_inode_before_removing_active_marker",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "The replacement candidate must centralise no-follow marker acknowledgement, require stable ordinary-file identity and exact bytes before and after file and directory synchronisation, retain latch/uncertainty/SIGINT on every mismatch, and enforce offline-only exact-hash marker retirement under the process-lifetime instance lock."
+        "state": "fixed",
+        "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+        "summary": "The 2ad0f79 candidate centralises no-follow marker acknowledgement, requires stable ordinary-file identity and exact bytes before and after file and directory synchronisation, retains latch/uncertainty/SIGINT on every mismatch, and enforces offline-only exact-hash marker retirement under the process-lifetime instance lock."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "The affected 7f76c113 and acfc4f69 commits are ancestral to the production commit observed at 2026-07-28T23:40:14+01:00. No repair has been deployed and this task is not authorised to deploy."
+        "evidence": "The repair is present at the unactivated 2ad0f79 evidence cut-off, while production remained at be882e8. No deployment is recorded or authorised."
       },
-      "residual_risk": "Active at the ledger evidence cut-off and observed production baseline. Closure requires committed disappearance/replacement/type/content and recovery regressions, a tested lock-bound offline reconciliation protocol, external mandatory selectors and a new exact attestation.",
+      "residual_risk": "The marker identity/content acknowledgement defect is repaired but not deployed. Independent review of 2ad0f79 established the distinct fresh-process latch and durability-uncertainty defect tracked as DEF-0034.",
       "evidence": [
         {
           "type": "code",
@@ -3782,21 +3813,27 @@
           "type": "commit",
           "reference": "7f76c113^..7f76c113:mrsMThatcher2.py",
           "claim": "The first-bad commit and parent comparison establish the original ambiguity-marker boundary; later acfc4f69 and dd8aa52 comparisons establish its extension to confirmed-post durability and parent-directory synchronisation."
-        }
-      ],
-      "unknowns": [
+        },
         {
-          "field": "fix.commit",
-          "explanation": "The replacement candidate identity is supplied externally after this evidence cut-off and is deliberately not embedded self-referentially."
+          "type": "test",
+          "reference": "tests/test_pending_receipt_directory_fsync.py",
+          "claim": "The 2ad0f79 regressions cover disappearance, replacement, mutation, type and content changes around marker acknowledgement plus later durable recovery."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_marker_reconciliation.py",
+          "claim": "The supported offline path binds the exact marker identity and bytes under the process lock before retirement."
         }
       ],
+      "unknowns": [],
       "relations": {
         "supersedes": [],
         "superseded_by": [],
         "related": [
           "DEF-0030",
           "DEF-0031",
-          "DEF-0033"
+          "DEF-0033",
+          "DEF-0034"
         ]
       }
     },
@@ -3806,7 +3843,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "independent-final-audit-instance-lock-namespace-continuous-ownership",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-PROC-002"
@@ -3832,7 +3869,7 @@
       "incident": {
         "occurred": false,
         "evidence": "The final local source audit established the path-following, namespace-replacement and same-descriptor re-acquisition gaps without a network, provider or X action; no production concurrency incident, duplicate post or state race was established.",
-        "explanation": "This is a latent critical runtime defect present in the observed production lineage and the unactivated ee7539c candidate, not evidence that two production processes actually posted concurrently."
+        "explanation": "This is a latent critical runtime defect present in the observed production lineage and the unactivated ee7539c candidate, repaired by the unactivated 2ad0f79 evidence cut-off. It is not evidence that two production processes actually posted concurrently."
       },
       "summary": "The instance lock was opened through normal path-following file APIs and acquisition did not require one ordinary filesystem link or bind the acquired descriptor to a stable path identity. Later checks compared the held descriptor with the pathname and re-applied flock on the same open file description; after an accidental unlock that operation can reacquire the lock instead of proving continuous ownership. Normal remote-operation preflight therefore did not independently prove that the daemon still owned the single lock namespace shared with supported offline reconciliation.",
       "impact": "A symbolic, aliased or replaced lock pathname can create a second lock namespace, and an unlocked daemon descriptor can reacquire rather than expose the ownership loss. A daemon, second process or offline reconciler could then proceed under different or unproved lock ownership and undermine receipt, schedule and ambiguity-marker mutual exclusion.",
@@ -3855,6 +3892,12 @@
           "event": "The final remediation audit established that path replacement and same-descriptor re-flocking could not prove one continuous lock namespace across daemon writes and offline reconciliation.",
           "commit": "ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
           "evidence": "Independent final source audit of the ee7539c evidence cut-off"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "The replacement candidate bound the process to state-directory identity, a no-follow single-link lock, independent OFD ownership and a directory-identity singleton enforced before remote writes and by offline reconciliation.",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+          "evidence": "Committed lock-ownership implementation and adversarial runtime/reconciler regressions"
         }
       ],
       "first_review_scope": {
@@ -3871,19 +3914,50 @@
         "reproducer": "The source audit established that acquisition followed the lock pathname and did not bind a single-link identity, while a same-open-description flock could silently reacquire a lost lock instead of proving uninterrupted ownership.",
         "source": "Independent final source audit supplied to this remediation"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_instance_lock_acquisition_binds_path_inode_and_continuous_ownership",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        },
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        },
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_instance_lock_fdinfo_proof_failure_blocks_remote_preflight",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        },
+        {
+          "path": "tests/test_remote_write_safety_marker_reconciliation.py",
+          "nodeid": "test_reconciliation_refuses_while_daemon_instance_lock_is_held",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        },
+        {
+          "path": "tests/test_remote_write_safety_marker_reconciliation.py",
+          "nodeid": "test_directory_inode_lock_blocks_reconciler_after_lock_path_replacement",
+          "kind": "regression",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-      "summary": "The replacement candidate must exclusively lock the state-directory inode across path and network namespaces, acquire a no-follow ordinary single-link file lock relative to that directory, bind its device/inode/PID identity, hold and verify an exclusive OFD write lock on the designated descriptor, retain a supplementary directory-identity-derived abstract socket, restrict the fake-endpoint bypass to loopback, release every partial acquisition on failure, and make every non-read remote operation and the supported offline reconciler enforce the identical namespace."
+        "state": "fixed",
+        "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+      "summary": "The 2ad0f79 candidate exclusively locks the state-directory inode across path and network namespaces, acquires a no-follow ordinary single-link file lock relative to that directory, binds its device/inode/PID identity, holds and independently verifies exclusive OFD ownership, retains a directory-identity-derived singleton, restricts test endpoint bypass, releases partial acquisitions and makes every non-read remote operation and the supported offline reconciler enforce the same namespace."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "The affected f0be0b5 commit is ancestral to the production commit observed at 2026-07-28T23:40:14+01:00. No repair has been deployed and this task is not authorised to deploy."
+        "evidence": "The repair is present at the unactivated 2ad0f79 evidence cut-off, while production remained at be882e8. No deployment is recorded or authorised."
       },
-    "residual_risk": "Active at the ledger evidence cut-off and observed production baseline. Closure requires a committed state-directory-inode lock shared across path aliases and network namespaces, no-follow single-link acquisition identity relative to that directory, exact exclusive designated-descriptor OFD ownership, supplementary directory-identity singleton, loopback-only fake-endpoint bypass, leak-free partial acquisition cleanup, independent file/directory exclusion at every non-read remote boundary, matching offline-reconciler regressions, external mandatory selectors and a new exact attestation.",
+    "residual_risk": "The process-lock namespace and continuous-ownership defect is repaired but not deployed. Independent review of 2ad0f79 established the separate fresh-process marker/latch defect tracked as DEF-0034.",
       "evidence": [
         {
           "type": "code",
@@ -3899,19 +3973,148 @@
           "type": "commit",
           "reference": "f0be0b5^..f0be0b5:mrsMThatcher2.py",
           "claim": "The first-bad commit and its parent establish the exact introduction of the original instance-lock implementation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_pending_receipt_directory_fsync.py",
+          "claim": "The 2ad0f79 regressions establish no-follow acquisition, state-directory identity, independent OFD ownership and fail-closed remote preflight."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_marker_reconciliation.py",
+          "claim": "The 2ad0f79 reconciler regressions establish the identical directory/lock namespace and refuse live or changed ownership."
+        }
+      ],
+      "unknowns": [],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0032",
+          "DEF-0034"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0034",
+      "title": "Fresh-process marker observation did not establish a blocking in-memory barrier",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "independent-review-fresh-process-marker-disappearance-latch-gap",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "fresh-process ambiguity-marker discovery",
+        "marker-durability uncertainty",
+        "cross-lane remote-write preflight",
+        "main scheduler ambiguity pause"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "provider-request",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "Independent fresh-process fault injection reproduced a path to the local historical-context remote boundary with every network/provider operation replaced by a sentinel. No production, provider or X action occurred.",
+        "explanation": "The defect was reproduced in the unactivated 2ad0f79 candidate. It establishes an open remote-write barrier after restart, not an observed production post or duplicate."
+      },
+      "summary": "A restarted process could observe a valid pre-existing ambiguity marker with both process globals initially false. If the marker disappeared during parent-directory fsync, acknowledgement failed and marker-durability uncertainty became true, but the incident latch remained false and neither direct preflight nor the scheduler treated uncertainty as blocking.",
+      "impact": "The marker could be the sole restart-surviving barrier, yet after its disappearance the fresh process could proceed to historical-context or another remote-write lane because the remaining in-memory uncertainty was not consulted.",
+      "introduced": {
+        "first_bad_commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:2ad0f79feb0d54be1b1687546449deac6bd1a0c1..2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+        "confidence": "bounded",
+        "explanation": "Commit 2ad0f79 made marker acknowledgement fail on namespace disappearance and set marker-durability uncertainty, but fresh-process discovery did not seed the incident latch and the uncertainty flag was not part of the global blocking predicate. Earlier candidates had a different false-acknowledgement defect tracked by DEF-0032, so no predecessor is asserted as globally safe."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "Independent review began from false globals and a valid marker, removed the marker during real parent-directory fsync, then reached the historical-context remote lane because the surviving uncertainty flag was not blocking.",
+          "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+          "evidence": "Independent IR-2AD0F79-01 fresh-process reproduction"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+        "scope": "Fresh-process marker-only restart state, disappearance during parent-directory fsync, direct remote-write preflight and subsequent real scheduler iterations.",
+        "exclusions": "The review made no X or provider request, did not mutate production and did not demonstrate a live post or duplicate.",
+        "source": "Separate independent review of the 2ad0f79 application candidate"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
+        "method": "Start with a valid ambiguous_post_outcome.json, false process globals and no retained guard; unlink the marker inside the real parent-directory fsync, then inspect both flags, direct preflight and a real scheduler iteration.",
+        "reproducer": "Acknowledgement failed and marker-durability uncertainty became true, but the incident latch remained false, the global blocker returned false and the scheduler reached a sentinel historical-context remote boundary.",
+        "source": "Independent IR-2AD0F79-01 reproduction supplied to this remediation"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The replacement candidate must seed both process barriers immediately on marker namespace observation, treat either barrier as blocking in direct preflight and scheduler paths, retain them on every inspection or acknowledgement failure, and prove multiple fresh-process scheduler ticks reach no remote boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The defect is established at the unactivated 2ad0f79 evidence cut-off. That candidate was never deployed; production remained at be882e8, and this record does not infer the exact 2ad0f79 failure mode from that older deployed implementation."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. Until a frozen replacement is externally attested, a fresh process can lose the sole marker namespace entry while retaining only an uncertainty flag which the rejected candidate did not treat as a remote-write barrier.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "2ad0f79:mrsMThatcher2.py",
+          "claim": "Marker-disappearance failure set durability uncertainty without necessarily setting the process incident latch, while global preflight read only the incident latch or marker pathname."
+        },
+        {
+          "type": "report",
+          "reference": "independent-review-verdict-IR-2AD0F79-01",
+          "claim": "Independent review reproduced the fresh-process marker-only state, disappearance boundary and historical-context remote-lane reachability and withheld approval."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_pending_receipt_directory_fsync.py",
+          "claim": "The replacement regressions begin with false globals, require both barriers after marker observation or inspection failure, drive multiple real daemon ticks with zero remote actions, and include test_durability_uncertainty_blocks_x_and_provider_transports for low-level X and provider boundaries."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
+          "claim": "The replacement regression parameterises marker-only and uncertainty-only states across all seven remote-write lanes."
         }
       ],
       "unknowns": [
         {
           "field": "fix.commit",
           "explanation": "The replacement candidate identity is supplied externally after this evidence cut-off and is deliberately not embedded self-referentially."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No predecessor is asserted safe because earlier candidates had the distinct false-acknowledgement defect tracked by DEF-0032."
         }
       ],
       "relations": {
         "supersedes": [],
         "superseded_by": [],
         "related": [
-          "DEF-0032"
+          "DEF-0030",
+          "DEF-0031",
+          "DEF-0032",
+          "DEF-0033"
         ]
       }
     }

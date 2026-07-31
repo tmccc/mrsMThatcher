@@ -873,21 +873,22 @@
       "id": "INV-TXN-REG-001",
       "category": "transaction",
       "title": "Regular-post at-most-once transaction and exact replay",
-      "statement": "Before a regular-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected quote/image identity, post-cycle histories and recovery delays. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation; a confirmed attempt must promote atomically to the established receipt, block unrelated remote writes while local schedule work remains pending, preserve the exact authoritative histories and future schedules, reconcile idempotently, and never cause a second remote post. A safety marker may be retired only by the offline, instance-lock-bound reconciliation protocol.",
+      "statement": "Before a regular-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected quote/image identity, post-cycle histories and recovery delays. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation. A restarted process that observes any marker namespace entry must latch the in-process incident and marker-durability barriers before fallible inspection or synchronisation, and either barrier must block every remote-write lane. A confirmed attempt must promote atomically to the established receipt, block unrelated remote writes while local schedule work remains pending, preserve the exact authoritative histories and future schedules, reconcile idempotently, and never cause a second remote post. A safety marker may be retired only by the offline, instance-lock-bound reconciliation protocol.",
       "failure_if_violated": "A hard process death after X accepts a post but before the first confirmed receipt can duplicate the post, or a later recovery can reconstruct different local cycle state from the state that followed the confirmed post.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The regular-lane state machine is implemented: a durable sending receipt is written before transmission and atomically consumed into attempting state. A valid remote response is first promoted to a confirmed pending-schedule receipt before any fallible local schedule materialisation. If replacement succeeds but its directory fsync reports failure, the exact canonical receipt is re-read, its parent is synchronised again and its bytes are rechecked; uncertainty latches all writes before marker recovery. Marker acknowledgement uses no-follow ordinary-file inspection and requires the same device, inode, type and exact bytes before and after file and parent-directory synchronisation. Disappearance, replacement, mutation or type change retains the process latch and deferred SIGINT. The real daemon retries on every blocked tick, and supported marker retirement durably commits the same-inode archive and receipt under the process-lifetime instance lock before removing the active marker. Reconciliation derives the exact quote and meme schedules from the pre-send bound plan and never repeats the X create. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.",
+      "status_rationale": "The regular-lane state machine is implemented: a durable sending receipt is written before transmission and atomically consumed into attempting state. A valid remote response is first promoted to a confirmed pending-schedule receipt before any fallible local schedule materialisation. If replacement succeeds but its directory fsync reports failure, the exact canonical receipt is re-read, its parent is synchronised again and its bytes are rechecked; uncertainty latches all writes before marker recovery. Marker acknowledgement uses no-follow ordinary-file inspection and requires the same device, inode, type and exact bytes before and after file and parent-directory synchronisation. A marker namespace observation now seeds both process-local barriers before fallible inspection, and either the incident latch or marker-durability uncertainty blocks every remote lane. Disappearance, replacement, mutation, type change or inspection failure retains both barriers and any deferred SIGINT. The real daemon retries on every blocked tick, and supported marker retirement durably commits the same-inode archive and receipt under the process-lifetime instance lock before removing the active marker. Reconciliation derives the exact quote and meme schedules from the pre-send bound plan and never repeats the X create. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests use hard process exits at pre-request, remote acceptance, pending-schedule promotion, protected state and receipt-retirement boundaries. They also inject marker disappearance, inode replacement, content mutation, symlink and directory substitution around parent synchronisation; prove the latch and deferred SIGINT remain; drive later valid-marker recovery through the real daemon with zero remote actions; and prove the offline reconciler preserves the active marker through uncatchable exits until its same-inode archive and receipt are durable. Existing tests retain exact cycle-reset, schedule, conservative-response, restart and idempotent-reconciliation coverage. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap."
+        "rationale": "Tests use hard process exits at pre-request, remote acceptance, pending-schedule promotion, protected state and receipt-retirement boundaries. They also start from fresh-process globals with a pre-existing marker, inject marker disappearance or inspection failure, prove both process-local barriers are retained, exercise direct preflight and multiple real daemon ticks without reaching any remote lane, and cover inode replacement, content mutation, symlink and directory substitution around parent synchronisation. Later valid-marker recovery through the real daemon delivers deferred SIGINT once with zero remote actions, and the offline reconciler preserves the active marker through uncatchable exits until its same-inode archive and receipt are durable. Existing tests retain exact cycle-reset, schedule, conservative-response, restart and idempotent-reconciliation coverage. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
         "README.md",
-        "tests/test_unit_helpers.py",
-        "tests/test_pending_receipt_directory_fsync.py",
-        "tools/reconcile_remote_write_safety_marker.py",
+      "tests/test_unit_helpers.py",
+      "tests/test_pending_receipt_directory_fsync.py",
+      "tests/test_followup_fail_safe_hardening.py",
+      "tools/reconcile_remote_write_safety_marker.py",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_production_consistency_incident.py",
         "tests/test_x_write_outcome_conservatism.py"
@@ -919,6 +920,13 @@
           "tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post",
         "tests/test_pending_receipt_directory_fsync.py",
         "tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_latches_and_blocks_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_inspection_failure_latches_both_barriers",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_probe_latches_before_later_disappearance",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_low_level_remote_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_x_and_provider_transports",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks",
+        "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost",
           "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry"
@@ -946,8 +954,15 @@
           "tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create",
           "tests/test_unit_helpers.py::test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane",
           "tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post",
-          "tests/test_pending_receipt_directory_fsync.py",
-          "tests/test_remote_write_safety_marker_reconciliation.py",
+        "tests/test_pending_receipt_directory_fsync.py",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_latches_and_blocks_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_inspection_failure_latches_both_barriers",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_probe_latches_before_later_disappearance",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_low_level_remote_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_x_and_provider_transports",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks",
+        "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
+        "tests/test_remote_write_safety_marker_reconciliation.py",
           "tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost",
           "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry"
         ],
@@ -1034,7 +1049,7 @@
     "last_verified_commit": {
       "status": "unknown",
       "value": null,
-      "explanation": "The independently reviewed ee7539c predecessor includes the earlier pre-send, schedule, conservative-response, pending-receipt and daemon-loop repairs but was rejected for the marker-identity defect recorded as DEF-0032. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
+      "explanation": "The 2ad0f79 evidence cut-off repairs the marker-identity defect recorded as DEF-0032 but independent review rejected it for the fresh-process latch/uncertainty defect recorded as DEF-0034. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
     },
     "last_verified_tree": {
       "status": "unknown",
@@ -1050,21 +1065,22 @@
       "id": "INV-TXN-MEME-001",
       "category": "transaction",
       "title": "Meme-post at-most-once transaction",
-      "statement": "Before a meme-post X create request can be transmitted, one durable single-use attempt must bind the exact payload and selected meme identity. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation; a confirmed attempt must promote atomically to the established self-validating receipt, block unrelated remote writes while local schedule work remains pending, reconcile post history and future schedule idempotently, and never be remotely reposted. A safety marker may be retired only by the offline, instance-lock-bound reconciliation protocol.",
+      "statement": "Before a meme-post X create request can be transmitted, one durable single-use attempt must bind the exact payload and selected meme identity. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation. A restarted process that observes any marker namespace entry must latch the in-process incident and marker-durability barriers before fallible inspection or synchronisation, and either barrier must block every remote-write lane. A confirmed attempt must promote atomically to the established self-validating receipt, block unrelated remote writes while local schedule work remains pending, reconcile post history and future schedule idempotently, and never be remotely reposted. A safety marker may be retired only by the offline, instance-lock-bound reconciliation protocol.",
       "failure_if_violated": "A hard process death after X accepts a meme but before the first confirmed receipt can duplicate it, lose its future schedule, or corrupt ordering between meme and regular main posts.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The meme-lane state machine is implemented: its dedicated receipt is written before transmission, atomically consumed into attempting state and retained on uncertain outcomes. A valid response is promoted first to confirmed pending-schedule state. A reported post-replacement directory-fsync failure is accepted only after exact-byte revalidation and a successful explicit parent re-fsync; otherwise the process latches before marker recovery. Marker acknowledgement requires the same no-follow ordinary-file identity and exact bytes before and after file and parent-directory synchronisation; mutation retains the process latch and deferred SIGINT. The daemon retries every blocked tick, and supported marker retirement durably commits the same-inode archive and receipt under the process-lifetime instance lock before removing the active marker. Its next-local-date schedule is materialised from the bound policy, with an independent same-date guard. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.",
+      "status_rationale": "The meme-lane state machine is implemented: its dedicated receipt is written before transmission, atomically consumed into attempting state and retained on uncertain outcomes. A valid response is promoted first to confirmed pending-schedule state. A reported post-replacement directory-fsync failure is accepted only after exact-byte revalidation and a successful explicit parent re-fsync; otherwise the process latches before marker recovery. Marker acknowledgement requires the same no-follow ordinary-file identity and exact bytes before and after file and parent-directory synchronisation. A marker namespace observation now seeds both process-local barriers before fallible inspection, and either the incident latch or marker-durability uncertainty blocks every remote lane. Disappearance, replacement, mutation, type change or inspection failure retains both barriers and any deferred SIGINT. The daemon retries every blocked tick, and supported marker retirement durably commits the same-inode archive and receipt under the process-lifetime instance lock before removing the active marker. Its next-local-date schedule is materialised from the bound policy, with an independent same-date guard. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover hard process exits across all transaction boundaries; marker disappearance, inode replacement, content mutation and type substitution; later valid-marker recovery through the real daemon with one deferred-SIGINT delivery and zero remote actions; offline lock-bound archive/receipt commitment before active-marker retirement; pending-schedule failure and local-only retry; the same-local-date guard; conservative generic-4xx handling; stable restart pause; legacy receipts and a validated next-local-date schedule. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap."
+        "rationale": "Tests cover hard process exits across all transaction boundaries; a fresh-process restart with a pre-existing marker and false globals; marker disappearance, inspection failure, inode replacement, content mutation and type substitution; either process-local barrier blocking direct preflight and every remote lane; multiple real daemon ticks with no remote action; later valid-marker recovery through the real daemon with one deferred-SIGINT delivery; offline lock-bound archive/receipt commitment before active-marker retirement; pending-schedule failure and local-only retry; the same-local-date guard; conservative generic-4xx handling; stable restart pause; legacy receipts and a validated next-local-date schedule. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
         "README.md",
-        "tests/test_unit_helpers.py",
-        "tests/test_pending_receipt_directory_fsync.py",
-        "tools/reconcile_remote_write_safety_marker.py",
+      "tests/test_unit_helpers.py",
+      "tests/test_pending_receipt_directory_fsync.py",
+      "tests/test_followup_fail_safe_hardening.py",
+      "tools/reconcile_remote_write_safety_marker.py",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_x_write_outcome_conservatism.py"
       ],
@@ -1092,6 +1108,13 @@
           "tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation",
         "tests/test_pending_receipt_directory_fsync.py",
         "tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_latches_and_blocks_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_inspection_failure_latches_both_barriers",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_probe_latches_before_later_disappearance",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_low_level_remote_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_x_and_provider_transports",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks",
+        "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry"
         ],
@@ -1115,8 +1138,15 @@
           "tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback",
           "tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post",
           "tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation",
-          "tests/test_pending_receipt_directory_fsync.py",
-          "tests/test_remote_write_safety_marker_reconciliation.py",
+        "tests/test_pending_receipt_directory_fsync.py",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_latches_and_blocks_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_inspection_failure_latches_both_barriers",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_probe_latches_before_later_disappearance",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_low_level_remote_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_x_and_provider_transports",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks",
+        "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
+        "tests/test_remote_write_safety_marker_reconciliation.py",
           "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry"
         ],
         "purpose": "Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay."
@@ -1205,7 +1235,7 @@
     "last_verified_commit": {
       "status": "unknown",
       "value": null,
-      "explanation": "The independently reviewed ee7539c predecessor includes the earlier same-local-date, schedule, conservative-response, pending-receipt and daemon-loop repairs but was rejected for the marker-identity defect recorded as DEF-0032. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
+      "explanation": "The 2ad0f79 evidence cut-off repairs the marker-identity defect recorded as DEF-0032 but independent review rejected it for the fresh-process latch/uncertainty defect recorded as DEF-0034. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
     },
     "last_verified_tree": {
       "status": "unknown",
@@ -1634,14 +1664,14 @@
       "id": "INV-TXN-RECEIPT-001",
       "category": "transaction",
       "title": "Global receipt compatibility and unambiguous remote-write barrier",
-      "statement": "Malformed, duplicate-key, unsupported, simultaneous, or unresolved transaction receipts and ambiguous remote outcomes must fail closed before any new remote write; a confirmed pending-schedule receipt must block unrelated remote lanes until local reconciliation; visibility after atomic replacement must not substitute for explicit parent-directory durability; an ambiguity marker must remain the same ordinary file with the same exact bytes across file and parent-directory synchronisation and may be retired only offline under the instance lock; HTTP status alone must never prove a transmitted create did not succeed; and a receipt may be removed only after every protected durable local transition completes.",
+      "statement": "Malformed, duplicate-key, unsupported, simultaneous, or unresolved transaction receipts and ambiguous remote outcomes must fail closed before any new remote write; a confirmed pending-schedule receipt must block unrelated remote lanes until local reconciliation; visibility after atomic replacement must not substitute for explicit parent-directory durability; an ambiguity marker must remain the same ordinary file with the same exact bytes across file and parent-directory synchronisation and may be retired only offline under the instance lock; observing any marker namespace entry after restart must latch both process-local safety barriers before fallible inspection, and either marker-durability uncertainty or the incident latch must independently block all remote writes; HTTP status alone must never prove a transmitted create did not succeed; and a receipt may be removed only after every protected durable local transition completes.",
       "failure_if_violated": "A later lane can post while an earlier outcome is unknown, overwrite recovery evidence, retire the only durable barrier before local commit is complete, or interpret a visually ambiguous duplicate-key receipt by last-wins ordering.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "Global pre-write checks include every marker namespace entry, reply receipts and confirmed pending-schedule main receipts; main receipts are mutually exclusive; confirmed main identity is promoted before fallible schedule work; reported post-replacement fsync failures require exact bytes plus an explicit successful re-fsync. Marker acknowledgement uses no-follow ordinary-file snapshots and accepts only stable device, inode, type and exact bytes before and after synchronisation; all other states retain the latch and deferred SIGINT. The offline reconciler owns the only supported removal path and refuses the live instance lock. Safety JSON readers still use a decoder that accepts duplicate object names.",
+      "status_rationale": "Global pre-write checks include every marker namespace entry, either process-local remote-write safety barrier (the incident latch or marker-durability uncertainty), reply receipts and confirmed pending-schedule main receipts; main receipts are mutually exclusive; confirmed main identity is promoted before fallible schedule work; reported post-replacement fsync failures require exact bytes plus an explicit successful re-fsync. Marker observation latches before fallible inspection, and acknowledgement uses no-follow ordinary-file snapshots and accepts only stable device, inode, type and exact bytes before and after synchronisation; disappearance, replacement, mutation, type change or inspection failure retains both barriers and deferred SIGINT. The offline reconciler owns the only supported removal path and refuses the live instance lock. Safety JSON readers still use a decoder that accepts duplicate object names.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover marker failure, disappearance, inode replacement, content mutation, symlink/directory substitution and later recovery through the real daemon; deferred-SIGINT restoration; every-lane blocking; offline lock-bound marker archival; simultaneous main receipts; exact pending-schedule recovery; changed receipt bytes; actual reply preflight; unchanged auxiliary work; generic-4xx retention in all four create lanes; semantic receipt rejection and protected save ordering. There is still no duplicate-name receipt regression."
+        "rationale": "Tests cover a fresh-process restart with a pre-existing marker and false globals; marker failure, disappearance, inspection failure, inode replacement, content mutation, symlink/directory substitution and later recovery through the real daemon; both process-local barriers independently blocking direct preflight and every remote lane; repeated real daemon ticks without remote actions; deferred-SIGINT restoration; offline lock-bound marker archival; simultaneous main receipts; exact pending-schedule recovery; changed receipt bytes; actual reply preflight; unchanged auxiliary work; generic-4xx retention in all four create lanes; semantic receipt rejection and protected save ordering. There is still no duplicate-name receipt regression."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -1672,6 +1702,12 @@
           "tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create",
         "tests/test_pending_receipt_directory_fsync.py",
         "tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_latches_and_blocks_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_inspection_failure_latches_both_barriers",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_probe_latches_before_later_disappearance",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_low_level_remote_preflight",
+        "tests/test_pending_receipt_directory_fsync.py::test_durability_uncertainty_blocks_x_and_provider_transports",
+        "tests/test_pending_receipt_directory_fsync.py::test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry",
           "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry",
@@ -1774,7 +1810,7 @@
     "last_verified_commit": {
       "status": "unknown",
       "value": null,
-      "explanation": "The independently reviewed ee7539c predecessor includes the earlier pending-schedule, conservative-response, directory-durability and daemon-loop repairs but was rejected for the marker-identity defect recorded as DEF-0032. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
+      "explanation": "The 2ad0f79 evidence cut-off repairs the marker-identity defect recorded as DEF-0032 but independent review rejected it because a fresh process could lose the marker while leaving its incident latch false and its durability-uncertainty flag non-blocking, as recorded in DEF-0034. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
     },
     "last_verified_tree": {
       "status": "unknown",
@@ -2470,7 +2506,7 @@
       "last_verified_commit": {
         "status": "unknown",
         "value": null,
-        "explanation": "The production baseline and ee7539c evidence cut-off retain the lock-namespace and continuous-ownership defect recorded as DEF-0033. The replacement candidate identity and its external validation are deliberately supplied after the candidate is frozen."
+      "explanation": "The 2ad0f79 evidence cut-off repairs the lock-namespace and continuous-ownership defect recorded as DEF-0033, but that candidate was rejected for the separate fresh-process marker/latch defect recorded as DEF-0034. A final replacement candidate identity and its external validation are deliberately supplied after the candidate is frozen."
       },
       "last_verified_tree": {
         "status": "unknown",

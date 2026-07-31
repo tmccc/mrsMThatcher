@@ -275,7 +275,11 @@ def test_x_client_error_without_provider_contract_creates_ambiguity_barrier(
 )
 @pytest.mark.parametrize(
     "barrier_kind",
-    ["durable_marker", "confirmed_persistence_in_process"],
+    [
+        "durable_marker",
+        "confirmed_persistence_in_process",
+        "durability_uncertain",
+    ],
 )
 def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
     lane: str,
@@ -288,8 +292,14 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
     install_paths(monkeypatch, tmp_path)
     if barrier_kind == "durable_marker":
         (tmp_path / "ambiguous_post_outcome.json").write_text("{}\n", encoding="utf-8")
-    else:
+    elif barrier_kind == "confirmed_persistence_in_process":
         monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", True)
+    else:
+        monkeypatch.setattr(
+            bot,
+            "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN",
+            True,
+        )
     calls: list[str] = []
 
     def prepared(name: str):

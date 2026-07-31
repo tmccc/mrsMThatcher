@@ -2262,6 +2262,10 @@ def api_error_proves_remote_non_success(error: BaseException) -> bool:
 def require_remote_operation_unpaused(operation: str) -> None:
     """Fail before a remote boundary while a global pause is active."""
     require_instance_lock_for_remote_write(operation)
+    # This marker/latch-only check is intentionally separate from receipt
+    # validation: prepared transactions need narrow receipt exceptions, but no
+    # remote operation may bypass a process-wide safety incident.
+    block_if_remote_write_safety_incident_latched()
     if not global_remote_writes_paused():
         return
     log.warning(
@@ -5280,6 +5284,36 @@ def unresolved_main_post_attempt_is_blocking() -> bool:
     }
 
 
+def remote_write_safety_incident_is_latched() -> bool:
+    """Return whether process memory requires every remote operation to stop."""
+    return (
+        _AMBIGUOUS_REMOTE_POST_SEEN
+        or _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
+    )
+
+
+def block_if_remote_write_safety_incident_latched() -> None:
+    """Fail before remote work when a marker or either process latch exists."""
+    marker_exists = remote_write_safety_marker_path_present_or_unsafe()
+    # Re-read after the namespace probe: observing or failing to inspect the
+    # marker seeds both process latches, and a concurrent signal-path latch
+    # must not be lost to a stale pre-probe snapshot.
+    incident_latched = remote_write_safety_incident_is_latched()
+    if not incident_latched and not marker_exists:
+        return
+    if marker_exists:
+        raise AmbiguousRemotePostOutcome(
+            "Unreconciled ambiguous/confirmed-persistence remote-write safety "
+            f"barrier blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
+            service="x",
+        )
+    raise AmbiguousRemotePostOutcome(
+        "Unreconciled in-process remote-write safety latch or marker-"
+        "durability uncertainty blocks further posting",
+        service="x",
+    )
+
+
 def block_if_ambiguous_remote_post(
     *,
     prepared_conversational_reply_receipt: dict | None = None,
@@ -5296,25 +5330,7 @@ def block_if_ambiguous_remote_post(
             "attempt records",
             service="x",
         )
-    if _AMBIGUOUS_REMOTE_POST_SEEN:
-        marker_exists = remote_write_safety_marker_path_present_or_unsafe()
-        if marker_exists:
-            raise AmbiguousRemotePostOutcome(
-                "Unreconciled ambiguous/confirmed-persistence remote-write safety "
-                f"barrier blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
-                service="x",
-            )
-        raise AmbiguousRemotePostOutcome(
-            "Unreconciled in-process remote-write safety latch blocks further posting",
-            service="x",
-        )
-    marker_exists = remote_write_safety_marker_path_present_or_unsafe()
-    if marker_exists:
-        raise AmbiguousRemotePostOutcome(
-            "Unreconciled ambiguous/confirmed-persistence remote-write safety barrier "
-            f"blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
-            service="x",
-        )
+    block_if_remote_write_safety_incident_latched()
 
     regular_status, regular_receipt = load_regular_post_receipt()
     meme_status, meme_receipt = load_meme_post_receipt()
@@ -5374,7 +5390,7 @@ def block_if_ambiguous_remote_post(
 
 def ambiguous_remote_post_is_blocking() -> bool:
     """Return the global write barrier state without starting any remote work."""
-    if _AMBIGUOUS_REMOTE_POST_SEEN:
+    if remote_write_safety_incident_is_latched():
         return True
     if remote_write_safety_marker_path_present_or_unsafe():
         return True
@@ -5442,6 +5458,14 @@ def end_confirmed_post_sigint_deferral(
     raise KeyboardInterrupt
 
 
+def latch_remote_write_safety_marker_observation() -> None:
+    """Keep both process barriers after a marker is seen or cannot be excluded."""
+    global _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
+    global _AMBIGUOUS_REMOTE_POST_SEEN
+    _AMBIGUOUS_REMOTE_POST_SEEN = True
+    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+
+
 def remote_write_safety_marker_path_present_or_unsafe() -> bool:
     """Treat every marker namespace entry or inspection error as blocking.
 
@@ -5454,12 +5478,14 @@ def remote_write_safety_marker_path_present_or_unsafe() -> bool:
     except FileNotFoundError:
         return False
     except Exception:
+        latch_remote_write_safety_marker_observation()
         log.critical(
             "The remote-write safety marker namespace cannot be inspected; "
             "treating all remote writes as blocked",
             exc_info=True,
         )
         return True
+    latch_remote_write_safety_marker_observation()
     return True
 
 
@@ -5481,6 +5507,10 @@ def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, byte
     """Read one bounded, no-follow marker snapshot with stable file identity."""
     path = AMBIGUOUS_POST_OUTCOME_FILE
     before = os.lstat(path)
+    # A marker pathname is the surviving restart barrier.  Seed both
+    # process-local barriers before any later open, read, fsync or revalidation
+    # can fail or race with a cooperating filesystem actor.
+    latch_remote_write_safety_marker_observation()
     if not stat.S_ISREG(before.st_mode):
         raise RuntimeError("Remote-write safety marker is not a regular file")
     if before.st_nlink != 1:
@@ -5625,7 +5655,7 @@ def durable_remote_write_safety_marker_exists() -> bool:
     except FileNotFoundError:
         return False
     except Exception:
-        _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+        latch_remote_write_safety_marker_observation()
         log.critical(
             "The remote-write safety marker cannot be inspected; its durability "
             "cannot be relied upon",
@@ -5635,7 +5665,7 @@ def durable_remote_write_safety_marker_exists() -> bool:
 
     # Once a namespace entry is observed, only an unchanged, ordinary,
     # no-follow marker may clear uncertainty or release a retained SIGINT.
-    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    latch_remote_write_safety_marker_observation()
     try:
         acknowledge_durable_remote_write_safety_marker()
     except Exception:
@@ -7186,7 +7216,7 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
         # below is fallible, and no unrelated remote lane may proceed while
         # durability is uncertain.
         global _AMBIGUOUS_REMOTE_POST_SEEN
-        latch_was_already_set = _AMBIGUOUS_REMOTE_POST_SEEN
+        latch_was_already_set = remote_write_safety_incident_is_latched()
         _AMBIGUOUS_REMOTE_POST_SEEN = True
 
         if atomic_json_file_exactly_matches(path, pending):
@@ -11288,7 +11318,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 ) from removal_exc
         if (
             isinstance(remote_exc, AmbiguousRemotePostOutcome)
-            and _AMBIGUOUS_REMOTE_POST_SEEN
+            and remote_write_safety_incident_is_latched()
             and not durable_remote_write_safety_barrier_exists()
         ):
             retain_sigint_deferral_without_durable_barrier(
@@ -12078,7 +12108,7 @@ def post_next_meme(state: dict) -> None:
                 ) from removal_exc
         if (
             isinstance(remote_exc, AmbiguousRemotePostOutcome)
-            and _AMBIGUOUS_REMOTE_POST_SEEN
+            and remote_write_safety_incident_is_latched()
             and not durable_remote_write_safety_barrier_exists()
         ):
             retain_sigint_deferral_without_durable_barrier(
@@ -16199,7 +16229,7 @@ def prepare_test_main_post_state(state: dict) -> None:
 def wait_for_durable_barrier_before_one_shot_exit(*, lane: str) -> None:
     """Keep a one-shot posting process alive while its only barrier is memory."""
     if (
-        not _AMBIGUOUS_REMOTE_POST_SEEN
+        not remote_write_safety_incident_is_latched()
         or durable_remote_write_safety_barrier_exists()
     ):
         return

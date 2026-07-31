@@ -411,10 +411,13 @@ no-replace same-inode archive link, makes that archive and its audit receipt
 durable while the active marker still exists, and only then removes and
 synchronises the active marker name as the final transition. An uncatchable
 exit before that final transition therefore leaves the fail-closed marker
-present. If marker durability must be
-recovered while the daemon is alive, restore or replace the marker atomically;
-never delete it. The archival command records an operator reference but does
-not itself determine whether the X outcome has been reconciled.
+present. A running process latches immediately when it observes any marker
+namespace entry; failed inspection or durability acknowledgement remains an
+independent in-memory blocker even if the pathname then disappears. If marker
+durability must be recovered while the daemon is alive, restore or replace the
+marker atomically; never delete it. The archival command records an operator
+reference but does not itself determine whether the X outcome has been
+reconciled.
 
 The daemon first opens and exclusively locks the state-directory inode. That
 kernel file lock is shared across lexical aliases and network namespaces. It
