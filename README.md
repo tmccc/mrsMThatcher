@@ -400,6 +400,43 @@ write. Such an ambiguous outcome creates `ambiguous_post_outcome.json` and
 blocks further posting until an operator reconciles it; the bot does not claim
 exactly-once delivery.
 
+The safety marker must never be removed while the daemon is running. After an
+operator has independently reconciled the remote outcome, stop the service and
+wait for its process to exit, record the marker's SHA-256, then use
+`tools/reconcile_remote_write_safety_marker.py` with that exact hash and
+`--confirm-offline-reconciliation-complete`. The tool refuses while any of the
+daemon's shared state-directory, abstract-socket, open-file-description or
+BSD-flock boundaries is held and rejects symbolic links. It creates a
+no-replace same-inode archive link, makes that archive and its audit receipt
+durable while the active marker still exists, and only then removes and
+synchronises the active marker name as the final transition. An uncatchable
+exit before that final transition therefore leaves the fail-closed marker
+present. If marker durability must be
+recovered while the daemon is alive, restore or replace the marker atomically;
+never delete it. The archival command records an operator reference but does
+not itself determine whether the X outcome has been reconciled.
+
+The daemon first opens and exclusively locks the state-directory inode. That
+kernel file lock is shared across lexical aliases and network namespaces. It
+then binds a supplementary Linux abstract-socket singleton derived from the
+directory's device and inode and opens `mrsMThatcher.lock` relative to the held
+directory without following links. The file identity is held for the process
+lifetime using both an open-file-description write lock and BSD flock. Every
+non-read remote boundary uses Linux `/proc/self/fdinfo` to prove that each
+designated descriptor itself owns its exclusive flock, proves that the
+designated file descriptor owns the exclusive OFD lock, checks separate
+descriptors are excluded from the file and directory, and revalidates both path
+identities and the supplementary socket. Missing or unrecognised `fdinfo`
+records fail closed. Focused tests exercise the same-inode exclusion mechanism
+through aliases and path replacement; the deployment host must also retain a
+readable Linux `/proc` because this development host cannot directly create a
+second network namespace. The test bypass applies only to explicit loopback endpoints;
+custom external endpoints and the live-endpoint override require the real
+lock. Do not rename, replace or hard-link the lock while the daemon is running.
+The offline reconciler rejects linked files, a live recorded daemon PID and
+raced project, lock and archive names in addition to requiring the same
+directory, file and supplementary socket boundaries.
+
 Generated utilisation remains bounded by available structured logs: “ever
 used” is not an account-lifetime claim. Rate sections report calendar span,
 observed logging time, largest detected gap, and coverage quality; material

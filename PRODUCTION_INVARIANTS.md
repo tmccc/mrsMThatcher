@@ -7,7 +7,7 @@ Priority-0 production safety contracts for quotation eligibility and evidence, d
 
 - Registry: `mrsMThatcher-production-invariants` version `2`
 - Production baseline: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
-- Reviewed: `2026-07-28`
+- Reviewed: `2026-07-31`
 
 ## Status vocabulary
 
@@ -107,7 +107,7 @@ These declarations apply only when the complete suite is already nested inside t
 
 | Total | Implemented | Partial | Missing / unsupported | Verified | Partially verified | Unverified |
 |---:|---:|---:|---:|---:|---:|---:|
-| 32 | 19 | 12 | 1 | 19 | 12 | 1 |
+| 32 | 14 | 17 | 1 | 14 | 17 | 1 |
 
 Missing means the invariant is explicitly unsupported, not silently assumed. Partial and unverified entries remain release-review inputs.
 
@@ -579,10 +579,10 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 | ID | Contract | Implementation | Verification | Criticality |
 |---|---|---|---|---|
-| `INV-TXN-REG-001` | Regular-post at-most-once transaction and exact replay | `implemented` | `verified` | `critical` |
-| `INV-TXN-MEME-001` | Meme-post at-most-once transaction | `implemented` | `verified` | `critical` |
-| `INV-TXN-REPLY-001` | Conversational-reply lifecycle and ambiguity barrier | `implemented` | `verified` | `critical` |
-| `INV-TXN-HCTX-001` | Historical-context reply at-most-once transaction | `implemented` | `verified` | `critical` |
+| `INV-TXN-REG-001` | Regular-post at-most-once transaction and exact replay | `partial` | `partial` | `critical` |
+| `INV-TXN-MEME-001` | Meme-post at-most-once transaction | `partial` | `partial` | `critical` |
+| `INV-TXN-REPLY-001` | Conversational-reply lifecycle and ambiguity barrier | `partial` | `partial` | `critical` |
+| `INV-TXN-HCTX-001` | Historical-context reply at-most-once transaction | `partial` | `partial` | `critical` |
 | `INV-TXN-HIST-001` | Authoritative histories are durable and non-lossy | `implemented` | `verified` | `critical` |
 | `INV-TXN-PAGE-001` | Pagination progress is transactional with reply outcomes | `implemented` | `verified` | `critical` |
 | `INV-TXN-RECEIPT-001` | Global receipt compatibility and unambiguous remote-write barrier | `partial` | `partial` | `critical` |
@@ -590,7 +590,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TXN-REG-001: Regular-post at-most-once transaction and exact replay
 
-**Invariant.** Before a regular-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected quote/image identity, post-cycle histories and recovery delays. An uncertain attempt must survive restart as a global manual-reconciliation barrier; a confirmed attempt must promote atomically to the established receipt, explicitly prove parent-directory durability, block unrelated remote writes while local schedule work remains pending, preserve the exact authoritative histories and future schedules, reconcile idempotently, and never cause a second remote post.
+**Invariant.** Before a regular-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected quote/image identity, post-cycle histories and recovery delays. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation; a confirmed attempt must promote atomically to the established receipt, block unrelated remote writes while local schedule work remains pending, preserve the exact authoritative histories and future schedules, reconcile idempotently, and never cause a second remote post. A safety marker may be retired only by the offline, instance-lock-bound reconciliation protocol.
 
 **Rationale.** Regular-post at-most-once transaction and exact replay is explicit because a crash after remote confirmation can duplicate a post or reconstruct different local cycle state from the state that followed the confirmed post.
 
@@ -600,21 +600,24 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — A durable sending receipt is written before transmission and atomically consumed into attempting state. A valid remote response is first promoted to a confirmed pending-schedule receipt before any fallible local schedule materialisation. If replacement succeeds but its directory fsync reports failure, the exact canonical receipt is re-read, its parent is synchronised again and its bytes are rechecked; uncertainty latches all writes before marker recovery. The real daemon retries delayed marker-directory durability on every blocked tick while logging the pause once, then restores and delivers retained SIGINT exactly once when the barrier becomes restart-safe. Reconciliation derives the exact quote and meme schedules from the pre-send bound plan and never repeats the X create. Post-transmission HTTP status alone does not retire the attempt.
+**Status.** `partial` — The regular-lane state machine is implemented: a durable sending receipt is written before transmission and atomically consumed into attempting state. A valid remote response is first promoted to a confirmed pending-schedule receipt before any fallible local schedule materialisation. If replacement succeeds but its directory fsync reports failure, the exact canonical receipt is re-read, its parent is synchronised again and its bytes are rechecked; uncertainty latches all writes before marker recovery. Marker acknowledgement uses no-follow ordinary-file inspection and requires the same device, inode, type and exact bytes before and after file and parent-directory synchronisation. Disappearance, replacement, mutation or type change retains the process latch and deferred SIGINT. The real daemon retries on every blocked tick, and supported marker retirement durably commits the same-inode archive and receipt under the process-lifetime instance lock before removing the active marker. Reconciliation derives the exact quote and meme schedules from the pre-send bound plan and never repeats the X create. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.
 
-**Verification.** `verified` — Tests use hard process exits at pre-request, remote acceptance, pending-schedule promotion, protected state and receipt-retirement boundaries. They also drive the real daemon through two blocked ticks with first-fail/second-success marker fsync, inject the post-replacement parent-directory fsync boundary, exact-byte mismatch, marker failure and recovery, deferred-SIGINT delivery, actual cross-lane reply preflight and unchanged auxiliary-context attempts, and exercise exact cycle-reset histories, schedule-materialisation failure, local-only retry, conservative generic-4xx handling, stable restart pause, legacy receipt compatibility and idempotent reconciliation.
+**Verification.** `partial` — Tests use hard process exits at pre-request, remote acceptance, pending-schedule promotion, protected state and receipt-retirement boundaries. They also inject marker disappearance, inode replacement, content mutation, symlink and directory substitution around parent synchronisation; prove the latch and deferred SIGINT remain; drive later valid-marker recovery through the real daemon with zero remote actions; and prove the offline reconciler preserves the active marker through uncatchable exits until its same-inode archive and receipt are durable. Existing tests retain exact cycle-reset, schedule, conservative-response, restart and idempotent-reconciliation coverage. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap.
 
 **Preconditions.**
 
 - Exactly one healthy process holds the instance lock and no unresolved conflicting meme, reply or regular receipt exists before preparation.
+- While the daemon is alive, no supported operator path removes the remote-write safety marker; offline retirement requires exact-hash reconciliation and exclusive acquisition of the same instance lock.
 - Any legacy schema-v1 receipt is inspected or reconciled before relying on exact schema-v2 after-state semantics.
 
-**Runtime-consumed artifacts.** `direct` — The regular receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; the histories and bot state represent its exact protected local after-state.
+**Runtime-consumed artifacts.** `direct` — The regular receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; the histories and bot state represent its exact protected local after-state. The ambiguity marker supplies the restart barrier, while the process-lifetime instance lock excludes supported online marker retirement.
 
 - `regular_post_receipt.json`
 - `lines_used.json`
 - `images_used.json`
 - `bot_state.json`
+- `ambiguous_post_outcome.json`
+- `mrsMThatcher.lock`
 
 **Full-suite relevance.** `required` — Focused checks establish the local contract; the isolated complete suite is required to detect adjacent state-machine, configuration, and generated-artifact interactions.
 
@@ -622,6 +625,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - Before activation, inspect any deployed regular_post_receipt.json; sending, attempting or confirmed pending-schedule state must be reconciled without another X create.
 - Block deployment on invalid state and manually reconcile any schema-v1 receipt before relying on v2 exact replay.
+- Verify the deployed reconciler source and SHA-256 match the committed tools/reconcile_remote_write_safety_marker.py; inspect ambiguous_post_outcome.json and mrsMThatcher.lock without mutation and require any retirement plan to use the exact-hash offline protocol only after the daemon has exited.
 
 **Evidence references.**
 
@@ -629,26 +633,31 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post` — Hard-process-loss coverage for the durable intent, remote acceptance, confirmed promotion, protected state and retirement boundaries.
 - `test` `tests/test_unit_helpers.py::test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure` — A confirmed pending-schedule receipt survives local materialisation failure and later reconciles without another remote create.
 - `test` `tests/test_unit_helpers.py::test_regular_schedule_failure_replays_exact_bound_meme_delay` — The exact pre-send quote and meme delays survive post-confirmation schedule failure and are replayed locally without another remote create.
-- `test` `tests/test_pending_receipt_directory_fsync.py` — Post-replacement directory-fsync failures are revalidated exactly or latch every write before fallible recovery; the real daemon retries delayed marker durability on every blocked tick and restores deferred SIGINT exactly once, while pending receipts block actual reply creation, preserve unclaimed context work and reconcile locally after restart.
+- `test` `tests/test_pending_receipt_directory_fsync.py` — Post-replacement failures and marker disappearance, replacement, content or type changes fail closed; the real daemon retries later valid durability and restores deferred SIGINT exactly once without reaching a remote lane.
+- `test` `tests/test_remote_write_safety_marker_reconciliation.py` — The supported offline removal path requires the exact marker hash, refuses the daemon's held instance lock, preserves and archives the original inode and bytes, and rejects symbolic or unsafe paths.
 - `test` `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry` — A generic post-transmission 4xx preserves the exact attempt and blocks automatic retry.
 
-**Last verified commit.** `unknown` (`unknown`) — The 1b730410 predecessor covered pre-send durability, schedule finalisation and conservative response handling but omitted the post-replacement parent-directory fsync boundary recorded as DEF-0030. The replacement candidate identity must be supplied by a later frozen external attestation.
+**Last verified commit.** `unknown` (`unknown`) — The independently reviewed ee7539c predecessor includes the earlier pre-send, schedule, conservative-response, pending-receipt and daemon-loop repairs but was rejected for the marker-identity defect recorded as DEF-0032. The replacement candidate identity and verification remain supplied only by a later frozen external attestation.
 
 **Last verified tree.** `unknown` (`unknown`) — No final replacement tree is embedded self-referentially in this registry; post-merge regeneration must bind the externally attested candidate and deployed observation.
 
-**Accepted residual risk.** `accepted` — At-most-once safety deliberately costs availability: a sending, attempting, confirmed pending-schedule, or otherwise uncertain record blocks unrelated remote writes until local or manual reconciliation. Automatic retry of remote ambiguity is not accepted.
+**Accepted residual risk.** `unaccepted` — The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017. At-most-once safety deliberately costs availability: a sending, attempting, confirmed pending-schedule, or otherwise uncertain record blocks unrelated remote writes until local or manual reconciliation; that fail-closed availability cost is intended behaviour, not accepted corruption risk.
 
 **Affected paths.**
 
 - `mrsMThatcher2.py`
+- `README.md`
 - `tests/test_unit_helpers.py`
 - `tests/test_pending_receipt_directory_fsync.py`
+- `tools/reconcile_remote_write_safety_marker.py`
+- `tests/test_remote_write_safety_marker_reconciliation.py`
 - `tests/test_production_consistency_incident.py`
 - `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
 - `mrsMThatcher2.py`
+- `tools/reconcile_remote_write_safety_marker.py`
 
 **Verification tests.**
 
@@ -673,20 +682,21 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`
 - `tests/test_pending_receipt_directory_fsync.py`
 - `tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick`
+- `tests/test_remote_write_safety_marker_reconciliation.py`
 - `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`
 - `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`, `tests/test_unit_helpers.py::test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_regular_hard_death_preserves_exact_post_reset_cycle_histories`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_regular_post_does_not_call_mutating_schedule_helpers_after_confirmation`, `tests/test_unit_helpers.py::test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`, `tests/test_unit_helpers.py::test_regular_schedule_failure_replays_exact_bound_meme_delay`, `tests/test_unit_helpers.py::test_schema_v2_regular_replay_does_not_invent_unbound_meme_schedule`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`, `tests/test_unit_helpers.py::test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane`, `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`, `tests/test_pending_receipt_directory_fsync.py`, `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`, `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry` — Exercise durable pre-send intent, hard-death ambiguity retention, exact bound schedule after-state, pending-schedule recovery, conservative post-transmission status handling and at-most-once restart behavior.
+- `pytest` — `tests/test_unit_helpers.py::test_regular_receipt_v2_restores_authoritative_post_cycle_histories`, `tests/test_unit_helpers.py::test_regular_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_regular_hard_death_preserves_exact_post_reset_cycle_histories`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_regular_post_does_not_call_mutating_schedule_helpers_after_confirmation`, `tests/test_unit_helpers.py::test_regular_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`, `tests/test_unit_helpers.py::test_regular_schedule_failure_replays_exact_bound_meme_delay`, `tests/test_unit_helpers.py::test_schema_v2_regular_replay_does_not_invent_unbound_meme_schedule`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`, `tests/test_unit_helpers.py::test_regular_quote_schedule_failure_after_confirmation_suppresses_quote_lane`, `tests/test_unit_helpers.py::test_regular_receipt_replay_does_not_create_second_post`, `tests/test_pending_receipt_directory_fsync.py`, `tests/test_remote_write_safety_marker_reconciliation.py`, `tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost`, `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry` — Exercise durable pre-send intent, hard-death ambiguity retention, exact bound schedule after-state, pending-schedule recovery, conservative post-transmission status handling and at-most-once restart behavior.
 
 **Known gaps.**
 
-- None recorded for this contract.
+- The shared receipt decoder accepts duplicate JSON object names; complete fail-closed receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017.
 
 ### INV-TXN-MEME-001: Meme-post at-most-once transaction
 
-**Invariant.** Before a meme-post X create request can be transmitted, one durable single-use attempt must bind the exact payload and selected meme identity. An uncertain attempt must survive restart as a global manual-reconciliation barrier; a confirmed attempt must promote atomically to the established self-validating receipt, explicitly prove parent-directory durability, block unrelated remote writes while local schedule work remains pending, reconcile post history and future schedule idempotently, and never be remotely reposted.
+**Invariant.** Before a meme-post X create request can be transmitted, one durable single-use attempt must bind the exact payload and selected meme identity. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation; a confirmed attempt must promote atomically to the established self-validating receipt, block unrelated remote writes while local schedule work remains pending, reconcile post history and future schedule idempotently, and never be remotely reposted. A safety marker may be retired only by the offline, instance-lock-bound reconciliation protocol.
 
 **Rationale.** Meme-post at-most-once transaction is explicit because a crash or persistence failure can duplicate the meme, lose its future schedule, or corrupt the ordering between meme and regular main posts.
 
@@ -696,19 +706,22 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The dedicated meme receipt is written before transmission, atomically consumed into attempting state and retained on uncertain outcomes. A valid response is promoted first to confirmed pending-schedule state. A reported post-replacement directory-fsync failure is accepted only after exact-byte revalidation and a successful explicit parent re-fsync; otherwise the process latches before marker recovery. The real daemon retries delayed marker-directory durability on every blocked tick while logging the pause once, then restores and delivers retained SIGINT exactly once when the barrier becomes restart-safe. Its next-local-date schedule is then materialised from the bound fallback policy. A same-local-date guard independently prevents a second daily meme, and post-transmission HTTP status alone does not retire the attempt.
+**Status.** `partial` — The meme-lane state machine is implemented: its dedicated receipt is written before transmission, atomically consumed into attempting state and retained on uncertain outcomes. A valid response is promoted first to confirmed pending-schedule state. A reported post-replacement directory-fsync failure is accepted only after exact-byte revalidation and a successful explicit parent re-fsync; otherwise the process latches before marker recovery. Marker acknowledgement requires the same no-follow ordinary-file identity and exact bytes before and after file and parent-directory synchronisation; mutation retains the process latch and deferred SIGINT. The daemon retries every blocked tick, and supported marker retirement durably commits the same-inode archive and receipt under the process-lifetime instance lock before removing the active marker. Its next-local-date schedule is materialised from the bound policy, with an independent same-date guard. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.
 
-**Verification.** `verified` — Tests cover hard process exits across all transaction boundaries, a real two-tick daemon recovery with first-fail/second-success marker fsync, post-replacement directory-fsync failure, exact-byte mismatch, marker loss and recovery, deferred-SIGINT delivery, cross-lane reply blocking, unchanged auxiliary-context attempts, pending-schedule materialisation failure and local-only retry, the same-local-date guard, conservative generic-4xx handling, stable restart pause, legacy receipts and a validated next-local-date schedule.
+**Verification.** `partial` — Tests cover hard process exits across all transaction boundaries; marker disappearance, inode replacement, content mutation and type substitution; later valid-marker recovery through the real daemon with one deferred-SIGINT delivery and zero remote actions; offline lock-bound archive/receipt commitment before active-marker retirement; pending-schedule failure and local-only retry; the same-local-date guard; conservative generic-4xx handling; stable restart pause; legacy receipts and a validated next-local-date schedule. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap.
 
 **Preconditions.**
 
 - Exactly one healthy process holds the instance lock and no unresolved regular, meme or reply receipt exists before preparation.
+- While the daemon is alive, no supported operator path removes the remote-write safety marker; offline retirement requires exact-hash reconciliation and exclusive acquisition of the same instance lock.
 - The future meme schedule is receipt-compatible and derived from confirmed time.
 
-**Runtime-consumed artifacts.** `direct` — The meme receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; bot state represents confirmed history and the validated next-local-date schedule.
+**Runtime-consumed artifacts.** `direct` — The meme receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; bot state represents confirmed history and the validated next-local-date schedule. The ambiguity marker supplies the restart barrier, while the process-lifetime instance lock excludes supported online marker retirement.
 
 - `meme_post_receipt.json`
 - `bot_state.json`
+- `ambiguous_post_outcome.json`
+- `mrsMThatcher.lock`
 
 **Full-suite relevance.** `required` — Focused checks establish the local contract; the isolated complete suite is required to detect adjacent state-machine, configuration, and generated-artifact interactions.
 
@@ -716,6 +729,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - Before activation, inspect any deployed meme_post_receipt.json; sending, attempting or confirmed pending-schedule state must be reconciled without another X create.
 - Reject invalid, simultaneous, non-future or same-local-date post-confirmation meme schedule state.
+- Verify the deployed reconciler source and SHA-256 match the committed tools/reconcile_remote_write_safety_marker.py; inspect ambiguous_post_outcome.json and mrsMThatcher.lock without mutation and require any retirement plan to use the exact-hash offline protocol only after the daemon has exited.
 
 **Evidence references.**
 
@@ -724,25 +738,30 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_unit_helpers.py::test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure` — A confirmed pending-schedule meme survives local materialisation failure and later reconciles to the bound next-local-date schedule.
 - `test` `tests/test_unit_helpers.py::test_meme_same_local_date_barrier_suppresses_second_remote_create` — The daily lane refuses a second remote create on the confirmed meme's local date.
 - `test` `tests/test_unit_helpers.py::test_confirmed_meme_receipt_write_failure_keeps_normal_schedule` — A post-confirmation receipt failure leaves a next-local-date fallback and restart refuses a different meme on the already-confirmed local date.
-- `test` `tests/test_pending_receipt_directory_fsync.py` — The meme lane re-establishes exact pending-receipt directory durability or latches all writes; the real daemon retries delayed marker durability on every blocked tick and restores deferred SIGINT exactly once, context work remains unclaimed and restart performs local-only reconciliation.
+- `test` `tests/test_pending_receipt_directory_fsync.py` — The meme lane re-establishes exact pending-receipt and marker identity durability or latches all writes; disappearance, replacement, content and type changes retain deferred SIGINT, while later valid recovery releases it once with zero remote actions.
+- `test` `tests/test_remote_write_safety_marker_reconciliation.py` — Offline marker retirement refuses the live daemon lock and archives the exact reviewed marker bytes before restart.
 - `test` `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry` — A generic post-transmission 4xx retains the meme attempt and prevents automatic retry.
 
-**Last verified commit.** `unknown` (`unknown`) — The 1b730410 predecessor covered the same-local-date and schedule-finalisation boundaries but omitted the post-replacement parent-directory fsync boundary recorded as DEF-0030. The replacement candidate identity must be supplied by a later frozen external attestation.
+**Last verified commit.** `unknown` (`unknown`) — The independently reviewed ee7539c predecessor includes the earlier same-local-date, schedule, conservative-response, pending-receipt and daemon-loop repairs but was rejected for the marker-identity defect recorded as DEF-0032. The replacement candidate identity and verification remain supplied only by a later frozen external attestation.
 
 **Last verified tree.** `unknown` (`unknown`) — No final replacement tree is embedded self-referentially in this registry; post-merge regeneration must bind the externally attested candidate and deployed observation.
 
-**Accepted residual risk.** `accepted` — At-most-once safety deliberately costs availability: a sending, attempting, confirmed pending-schedule, or otherwise uncertain record blocks unrelated remote writes until local or manual reconciliation. Automatic retry of remote ambiguity is not accepted.
+**Accepted residual risk.** `unaccepted` — The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017. At-most-once safety deliberately costs availability: a sending, attempting, confirmed pending-schedule, or otherwise uncertain record blocks unrelated remote writes until local or manual reconciliation; that fail-closed availability cost is intended behaviour, not accepted corruption risk.
 
 **Affected paths.**
 
 - `mrsMThatcher2.py`
+- `README.md`
 - `tests/test_unit_helpers.py`
 - `tests/test_pending_receipt_directory_fsync.py`
+- `tools/reconcile_remote_write_safety_marker.py`
+- `tests/test_remote_write_safety_marker_reconciliation.py`
 - `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
 - `mrsMThatcher2.py`
+- `tools/reconcile_remote_write_safety_marker.py`
 
 **Verification tests.**
 
@@ -764,15 +783,16 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`
 - `tests/test_pending_receipt_directory_fsync.py`
 - `tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick`
+- `tests/test_remote_write_safety_marker_reconciliation.py`
 - `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`, `tests/test_unit_helpers.py::test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_meme_same_local_date_barrier_suppresses_second_remote_create`, `tests/test_unit_helpers.py::test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`, `tests/test_unit_helpers.py::test_confirmed_meme_receipt_write_failure_keeps_normal_schedule`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`, `tests/test_pending_receipt_directory_fsync.py`, `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry` — Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay.
+- `pytest` — `tests/test_unit_helpers.py::test_confirmed_meme_state_failure_reconciles_receipt`, `tests/test_unit_helpers.py::test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action`, `tests/test_unit_helpers.py::test_meme_same_local_date_barrier_suppresses_second_remote_create`, `tests/test_unit_helpers.py::test_meme_schedule_finalisation_failure_after_confirmation_is_confirmed_local_failure`, `tests/test_unit_helpers.py::test_confirmed_meme_receipt_write_failure_keeps_normal_schedule`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_meme_receipt_replay_does_not_create_second_post`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`, `tests/test_pending_receipt_directory_fsync.py`, `tests/test_remote_write_safety_marker_reconciliation.py`, `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry` — Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay.
 
 **Known gaps.**
 
-- None recorded for this contract.
+- The shared receipt decoder accepts duplicate JSON object names; complete fail-closed receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017.
 
 ### INV-TXN-REPLY-001: Conversational-reply lifecycle and ambiguity barrier
 
@@ -786,9 +806,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The versioned reply receipt is written before the request, promoted after confirmation, semantically validated, and reconciled before new remote writes. A post-transmission HTTP status is treated as ambiguous unless a separately bound provider contract proves non-success; the sending receipt remains and prevents retry.
+**Status.** `partial` — The versioned reply receipt is written before the request, promoted after confirmation, semantically validated, and reconciled before new remote writes. A post-transmission HTTP status is treated as ambiguous unless a separately bound provider contract proves non-success; the sending receipt remains and prevents retry. The shared receipt decoder still accepts duplicate JSON object names, so the complete exact-binding contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.
 
-**Verification.** `verified` — Tests cover durable pre-send state, v4 timing semantics, pagination provenance, generic-4xx ambiguity retention, global lane blocking, restart replay and idempotent reconciliation.
+**Verification.** `partial` — Tests cover durable pre-send state, v4 timing semantics, pagination provenance, generic-4xx ambiguity retention, global lane blocking, restart replay and idempotent reconciliation. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap.
 
 **Preconditions.**
 
@@ -817,7 +837,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Last verified tree.** `unknown` (`unknown`) — The final replacement tree is intentionally external to this committed registry; no deployment or loaded-process claim is made.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `unaccepted` — The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017.
 
 **Affected paths.**
 
@@ -845,7 +865,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Known gaps.**
 
-- None recorded for this contract.
+- The shared receipt decoder accepts duplicate JSON object names; complete fail-closed conversational-reply receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017.
 
 ### INV-TXN-HCTX-001: Historical-context reply at-most-once transaction
 
@@ -859,9 +879,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — The context store uses separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips. Generic post-transmission HTTP errors retain the sending barrier and cannot be converted into terminal context state.
+**Status.** `partial` — The context store uses separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips. Generic post-transmission HTTP errors retain the sending barrier and cannot be converted into terminal context state. The shared receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt/history contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.
 
-**Verification.** `verified` — Tests cover restart reconciliation, duplicate prevention, receipt-write failure, malformed state, generic-4xx ambiguity retention, and ambiguity that remains visible across policy and packet failures.
+**Verification.** `partial` — Tests cover restart reconciliation, duplicate prevention, receipt-write failure, malformed state, generic-4xx ambiguity retention, and ambiguity that remains visible across policy and packet failures. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap.
 
 **Preconditions.**
 
@@ -890,7 +910,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Last verified tree.** `unknown` (`unknown`) — The final replacement tree is intentionally external to this committed registry; no deployment or loaded-process claim is made.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `unaccepted` — The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017.
 
 **Affected paths.**
 
@@ -918,7 +938,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Known gaps.**
 
-- None recorded for this contract.
+- The shared receipt decoder accepts duplicate JSON object names; complete fail-closed historical-context receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017.
 
 ### INV-TXN-HIST-001: Authoritative histories are durable and non-lossy
 
@@ -1059,7 +1079,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-TXN-RECEIPT-001: Global receipt compatibility and unambiguous remote-write barrier
 
-**Invariant.** Malformed, duplicate-key, unsupported, simultaneous, or unresolved transaction receipts and ambiguous remote outcomes must fail closed before any new remote write; a confirmed pending-schedule receipt must block unrelated remote lanes until local reconciliation; visibility after atomic replacement must not substitute for explicit parent-directory durability; HTTP status alone must never prove a transmitted create did not succeed; and a receipt may be removed only after every protected durable local transition completes.
+**Invariant.** Malformed, duplicate-key, unsupported, simultaneous, or unresolved transaction receipts and ambiguous remote outcomes must fail closed before any new remote write; a confirmed pending-schedule receipt must block unrelated remote lanes until local reconciliation; visibility after atomic replacement must not substitute for explicit parent-directory durability; an ambiguity marker must remain the same ordinary file with the same exact bytes across file and parent-directory synchronisation and may be retired only offline under the instance lock; HTTP status alone must never prove a transmitted create did not succeed; and a receipt may be removed only after every protected durable local transition completes.
 
 **Rationale.** Global receipt compatibility and unambiguous remote-write barrier is explicit because a later lane can post while an earlier outcome is unknown, overwrite recovery evidence, retire the only durable barrier before local commit is complete, or interpret a visually ambiguous duplicate-key receipt by last-wins ordering.
 
@@ -1069,38 +1089,42 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Failure mode.** `mixed` — Malformed and incompatible receipts block writes, but duplicate JSON object names are not yet rejected before semantic validation.
 
-**Status.** `partial` — Global pre-write checks include ambiguity markers, reply receipts and confirmed pending-schedule main receipts; main receipts are mutually exclusive; confirmed main identity is promoted before fallible schedule work; reported post-replacement fsync failures require exact bytes plus an explicit successful re-fsync; the daemon retries delayed marker durability on every blocked tick and releases retained SIGINT only after restart safety is durable; and generic post-transmission status errors preserve the relevant barrier. Safety JSON readers still use a decoder that accepts duplicate object names.
+**Status.** `partial` — Global pre-write checks include every marker namespace entry, reply receipts and confirmed pending-schedule main receipts; main receipts are mutually exclusive; confirmed main identity is promoted before fallible schedule work; reported post-replacement fsync failures require exact bytes plus an explicit successful re-fsync. Marker acknowledgement uses no-follow ordinary-file snapshots and accepts only stable device, inode, type and exact bytes before and after synchronisation; all other states retain the latch and deferred SIGINT. The offline reconciler owns the only supported removal path and refuses the live instance lock. Safety JSON readers still use a decoder that accepts duplicate object names.
 
-**Verification.** `partial` — Tests cover ambiguity marker failure and later recovery (including a real two-tick daemon loop after marker replacement), deferred-SIGINT restoration, every-lane blocking, simultaneous main receipts, exact pending-schedule directory-durability recovery, changed receipt bytes, actual conversational-reply preflight, unchanged auxiliary-context attempts, generic-4xx retention in all four create lanes, semantic receipt rejection and protected save ordering, but there is no duplicate-name receipt regression.
+**Verification.** `partial` — Tests cover marker failure, disappearance, inode replacement, content mutation, symlink/directory substitution and later recovery through the real daemon; deferred-SIGINT restoration; every-lane blocking; offline lock-bound marker archival; simultaneous main receipts; exact pending-schedule recovery; changed receipt bytes; actual reply preflight; unchanged auxiliary work; generic-4xx retention in all four create lanes; semantic receipt rejection and protected save ordering. There is still no duplicate-name receipt regression.
 
 **Preconditions.**
 
 - All receipt and ambiguity paths are resolved within the active production state directory.
+- The running daemon owns the process-lifetime instance lock; supported marker removal occurs only after shutdown through exact-hash offline reconciliation under that same lock.
 - Receipt retirement occurs only after protected durable writes complete.
 
-**Runtime-consumed artifacts.** `direct` — Every remote-write lane consults the relevant receipt and global ambiguity barriers before another write.
+**Runtime-consumed artifacts.** `direct` — Every remote-write lane consults the relevant receipt and global ambiguity barrier before another write; the process-lifetime instance lock is the mutual-exclusion boundary for the supported offline marker reconciler.
 
 - `regular_post_receipt.json`
 - `meme_post_receipt.json`
 - `confirmed_reply_receipt.json`
 - `historical_context_reply_receipt.json`
 - `ambiguous_post_outcome.json`
+- `mrsMThatcher.lock`
 
 **Full-suite relevance.** `required` — Focused checks establish the local contract; the isolated complete suite is required to detect adjacent state-machine, configuration, and generated-artifact interactions.
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
 - Inspect all deployed receipt and ambiguity paths before service restart; simultaneous, malformed, or unresolved records block activation.
+- Verify the deployed reconciler source and SHA-256 match the committed tools/reconcile_remote_write_safety_marker.py; inspect ambiguous_post_outcome.json and mrsMThatcher.lock without mutation and require any retirement plan to use the exact-hash offline protocol only after the daemon has exited.
 
 **Evidence references.**
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_followup_fail_safe_hardening.py::test_ambiguous_remote_post_blocks_process_when_marker_write_fails` — Focused automated evidence for the principal recorded boundary.
 - `report` `defect_ledger.json#DEF-0017` — Evidence-cut-off defect or assurance record linked to this invariant.
-- `test` `tests/test_pending_receipt_directory_fsync.py` — Exact receipt-byte and parent-directory durability checks fail closed before an actual unrelated reply create or context claim, preserve process/SIGINT barriers when marker durability fails, and prove the real daemon retries marker re-fsync until deferred SIGINT can be restored exactly once.
+- `test` `tests/test_pending_receipt_directory_fsync.py` — Exact receipt and marker identity checks fail closed before an unrelated write, preserve process/SIGINT barriers on disappearance, replacement, mutation or type change, and prove later valid recovery restores deferred SIGINT exactly once.
+- `test` `tests/test_remote_write_safety_marker_reconciliation.py` — The only supported marker-removal path is offline, exact-hash bound, symlink rejecting and mutually exclusive with the running daemon.
 - `test` `tests/test_x_write_outcome_conservatism.py` — All four X create lanes preserve their durable barrier when a generic post-transmission 4xx leaves remote success unproved.
 
-**Last verified commit.** `unknown` (`unknown`) — The 1b730410 predecessor covered pending-schedule replay and generic-4xx handling but omitted the post-replacement parent-directory fsync, marker-durability and cross-lane boundary recorded as DEF-0030. The replacement candidate identity must be supplied by a later frozen external attestation.
+**Last verified commit.** `unknown` (`unknown`) — The independently reviewed ee7539c predecessor includes the earlier pending-schedule, conservative-response, directory-durability and daemon-loop repairs but was rejected for the marker-identity defect recorded as DEF-0032. The replacement candidate identity and verification remain supplied only by a later frozen external attestation.
 
 **Last verified tree.** `unknown` (`unknown`) — The final replacement tree is intentionally external to this committed registry; the duplicate-key gap remains explicitly partial.
 
@@ -1109,14 +1133,18 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Affected paths.**
 
 - `mrsMThatcher2.py`
+- `README.md`
 - `tests/test_followup_fail_safe_hardening.py`
 - `tests/test_unit_helpers.py`
 - `tests/test_pending_receipt_directory_fsync.py`
+- `tools/reconcile_remote_write_safety_marker.py`
+- `tests/test_remote_write_safety_marker_reconciliation.py`
 - `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
 
 - `mrsMThatcher2.py`
+- `tools/reconcile_remote_write_safety_marker.py`
 
 **Verification tests.**
 
@@ -1133,6 +1161,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`
 - `tests/test_pending_receipt_directory_fsync.py`
 - `tests/test_pending_receipt_directory_fsync.py::test_main_rechecks_marker_durability_on_every_blocked_tick`
+- `tests/test_remote_write_safety_marker_reconciliation.py`
 - `tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry`
 - `tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry`
 - `tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry`
@@ -1140,7 +1169,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Validation requests.**
 
-- `pytest` — `tests/test_followup_fail_safe_hardening.py`, `tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`, `tests/test_pending_receipt_directory_fsync.py`, `tests/test_x_write_outcome_conservatism.py` — Exercise the cross-lane ambiguity barrier, pending-schedule compatibility, conservative post-transmission status handling and safe retirement order.
+- `pytest` — `tests/test_followup_fail_safe_hardening.py`, `tests/test_unit_helpers.py::test_protected_durable_saves_complete_before_receipt_removal`, `tests/test_unit_helpers.py::test_simultaneous_regular_and_meme_receipts_block_reconciliation`, `tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post`, `tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death`, `tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change`, `tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values`, `tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt`, `tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version`, `tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback`, `tests/test_unit_helpers.py::test_main_attempt_authorises_exactly_one_remote_create`, `tests/test_pending_receipt_directory_fsync.py`, `tests/test_remote_write_safety_marker_reconciliation.py`, `tests/test_x_write_outcome_conservatism.py` — Exercise the cross-lane ambiguity barrier, pending-schedule compatibility, conservative post-transmission status handling and safe retirement order.
 
 **Known gaps.**
 
@@ -1221,7 +1250,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 | `INV-PAUSE-001` | Runtime pause and control state fail closed and unambiguously | `partial` | `partial` | `critical` |
 | `INV-API-001` | Bounded requests and conservative write outcomes | `implemented` | `verified` | `critical` |
 | `INV-PROC-001` | Import safety and explicit production bootstrap | `implemented` | `verified` | `critical` |
-| `INV-PROC-002` | Single process owns recovery and posting | `implemented` | `verified` | `critical` |
+| `INV-PROC-002` | Single process owns recovery and posting | `partial` | `partial` | `critical` |
 | `INV-PROC-003` | Launcher exposes failures and bounds repeated fast exits | `implemented` | `verified` | `critical` |
 | `INV-PROC-004` | Runtime health attests loaded release identity | `missing` | `unverified` | `critical` |
 
@@ -1517,26 +1546,30 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 ### INV-PROC-002: Single process owns recovery and posting
 
-**Invariant.** One non-overlapping instance lock must be acquired for the production state directory before receipt reconciliation, outbox recovery, scheduler mutation, or any remote-write preparation, including one-shot operational commands.
+**Invariant.** One process-lifetime instance lock must be acquired before receipt reconciliation, outbox recovery, scheduler mutation or remote-write preparation and must exclusively lock an opened state-directory inode. It must, without following symbolic links, bind one ordinary, single-link lock pathname to the acquired descriptor's device, inode, exact canonical owner record and exclusive open-file-description lock. A state-directory-device/inode-derived Linux abstract socket supplies an additional same-network-namespace singleton but is not the cross-namespace authority. Before every non-read remote operation, the designated descriptors must prove their own exclusive flock and OFD ownership, separate descriptors must prove exclusion on both the file and directory inode, the bound path identities must remain unchanged and the abstract singleton must remain bound. The supported offline marker reconciler must acquire and continuously revalidate the identical directory-inode and file-lock namespace and therefore cannot run concurrently with the daemon across network namespaces, lock-file replacement or path aliases. This implementation does not yet revalidate the namespace immediately before every purely local recovery, scheduler or state-file mutation.
 
-**Rationale.** Single process owns recovery and posting is explicit because two processes can reconcile or post concurrently, race state files, and defeat otherwise correct receipt and ambiguity barriers.
+**Rationale.** The safety property is not merely that some descriptor can acquire some lock inode. The daemon's designated descriptors must continuously own their exclusive locks, while a held directory-inode flock supplies the alias- and network-namespace-stable mutual-exclusion boundary. The abstract socket is supplementary only. Every supported offline tool and every non-read remote boundary must use those same identities. Broader per-mutation local-state namespace revalidation is recorded separately as an unclosed gap.
 
 **Owner subsystem.** `process_locking`
 
-**Failure consequence.** Two processes can reconcile or post concurrently, race state files, and defeat otherwise correct receipt and ambiguity barriers.
+**Failure consequence.** A followed, aliased, replaced or no-longer-owned lock pathname can create two lock namespaces or make an unlocked process look like the owner. The daemon and an offline reconciler or second process can then reconcile or post concurrently, race state files, and defeat otherwise correct receipt and ambiguity barriers.
 
 **Failure mode.** `fail_closed` — The guarded action or assurance claim is refused when the required state cannot be proved.
 
-**Status.** `implemented` — Bootstrap acquires an OS lock keyed to the state directory, startup orders the lock before context reconciliation, and one-shot commands share the same guarded path.
+**Status.** `partial` — The replacement implementation opens and exclusively flocks the state-directory inode before any other ownership boundary. Linux inode-lock semantics make that lock common to path aliases and network namespaces; this host cannot create the second network namespace needed for a direct namespace test, so focused tests exercise the same-inode exclusion mechanism through path replacement and aliases. It then binds a supplementary Linux abstract socket derived from the directory device/inode, opens the file lock relative to the held directory descriptor with no-follow semantics, requires one ordinary link, writes and reads back the exact canonical device/inode/PID identity, and holds both BSD flock and a Linux OFD write lock. Before every non-read remote operation, Linux /proc/self/fdinfo must prove that each designated descriptor itself owns its exclusive flock, F_OFD_GETLK plus write/read probes prove exclusive OFD ownership, separate descriptors must remain excluded from the file and directory inode, the socket and both path identities must remain bound. The test bypass is limited positively to explicit loopback endpoints. Bootstrap orders acquisition before recovery, one-shot commands share the guarded remote-write path, and the offline marker reconciler must acquire all boundaries. Any acquisition failure releases every partially acquired boundary. Purely local recovery, scheduler and state-file mutation paths do not all perform a fresh namespace/path revalidation immediately before mutation, so that broader continuity claim remains partial.
 
-**Verification.** `verified` — Integration and incident tests start competing processes and assert lock-before-reconciliation ordering for daemon and one-shot execution.
+**Verification.** `partial` — Focused tests cover competing processes, the same-inode mechanism relied on for cross-network-namespace exclusion, no-follow/single-link acquisition, exact owner-record round-trip and short-write failure, acquired inode/PID identity, exact exclusive designated-descriptor flock and OFD ownership, fail-closed unavailable or malformed Linux fdinfo, independent file/directory exclusion, the supplementary abstract singleton, custom external test-endpoint rejection, unlocked and replaced-path rejection, leak-free acquisition failure, lock-before-reconciliation ordering, and offline-reconciler exclusion after file, project-root or archive-path replacement. A second network namespace is not directly exercised on this host, and tests do not claim fresh namespace revalidation before every local state mutation. The replacement candidate still requires a frozen external attestation.
 
 **Preconditions.**
 
 - Every daemon and one-shot posting command uses the same production state directory.
+- The supported runtime is Linux with readable /proc/self/fdinfo lock records; unavailable or unrecognised fdinfo fails closed, and the deployment-host check must exercise this prerequisite.
 - The instance lock is acquired before receipt or outbox reconciliation.
+- Every non-read remote operation calls the common remote-operation preflight which verifies the exact exclusive designated OFD owner, separate-descriptor file and directory exclusion, supplementary bound state-directory-identity singleton and stable path identities.
+- Only explicit loopback endpoints may use the fake-endpoint test bypass; custom or external test endpoints require real process-lock ownership.
+- Supported marker retirement is performed only by the offline reconciler after it exclusively acquires and revalidates the same directory-inode flock, abstract-socket, OFD and no-follow single-link lock namespace.
 
-**Runtime-consumed artifacts.** `direct` — The OS lock file identifies the production state directory whose recovery and posting work has one owner.
+**Runtime-consumed artifacts.** `direct` — The exclusively held state-directory inode, no-follow single-link lock pathname, designated flock/OFD identities, canonical PID record and supplementary directory-identity-derived abstract socket guard remote-write preparation and supported offline marker reconciliation across lexical aliases and network namespaces. Purely local per-mutation namespace continuity remains a known gap.
 
 - `mrsMThatcher.lock`
 
@@ -1544,42 +1577,75 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 **Required production deployed-path checks.** `required` — These read-only checks must be recorded against the exact deployed paths before activation or write enablement.
 
-- Prove exactly one deployed wrapper/child owns mrsMThatcher.lock before any one-shot command or service restart performs recovery.
+- Prove the deployed state-directory inode and mrsMThatcher.lock are exclusively held by the one healthy child; require readable Linux fdinfo, one ordinary single-link file, the exact canonical PID record, exclusive designated flock and OFD ownership, separate-descriptor exclusion on file and directory, and the supplementary state-directory-device/inode-derived abstract singleton.
+- Verify the deployed mrsMThatcher2.py and tools/reconcile_remote_write_safety_marker.py hashes exactly match the frozen candidate and that no supported one-shot or reconciler path bypasses the shared lock namespace.
+- Before activation, run the frozen directory-inode, lock-acquisition, designated-exclusive-OFD, abstract-singleton, separate-descriptor, custom-endpoint and offline-reconciler exclusion tests against copies rather than live state.
 
 **Evidence references.**
 
 - `code` `mrsMThatcher2.py` — Primary recorded enforcement or assurance path for this invariant.
-- `test` `tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir` — Focused automated evidence for the principal recorded boundary.
+- `test` `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_acquisition_binds_path_inode_and_continuous_ownership` — Focused evidence for no-follow single-link acquisition identity and the separate-descriptor continuous-ownership proof.
+- `test` `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_rejects_hard_linked_operational_files` — The supported offline reconciler rejects an aliased lock namespace instead of claiming the daemon is offline.
+- `operational` `README.md` — The operator protocol requires marker retirement only after daemon exit through the exact-hash offline reconciler.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The production baseline and ee7539c evidence cut-off retain the lock-namespace and continuous-ownership defect recorded as DEF-0033. The replacement candidate identity and its external validation are deliberately supplied after the candidate is frozen.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `unknown` (`unknown`) — The replacement tree is not self-referentially embedded before the application candidate is committed and externally attested.
 
-**Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
+**Accepted residual risk.** `unaccepted` — The absence of immediate namespace revalidation before every purely local state mutation remains an unaccepted adjacent gap; this candidate does not claim to close it.
 
 **Affected paths.**
 
+- `README.md`
 - `mrsMThatcher2.py`
+- `tools/reconcile_remote_write_safety_marker.py`
 - `tests/test_integration_harness.py`
+- `tests/test_pending_receipt_directory_fsync.py`
 - `tests/test_production_consistency_incident.py`
+- `tests/test_remote_write_safety_marker_reconciliation.py`
 
 **Enforcement files.**
 
 - `mrsMThatcher2.py`
+- `tools/reconcile_remote_write_safety_marker.py`
 
 **Verification tests.**
 
 - `tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir`
+- `tests/test_pending_receipt_directory_fsync.py::test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement`
+- `tests/test_pending_receipt_directory_fsync.py::test_shared_ofd_lock_cannot_masquerade_as_exclusive_daemon_owner`
+- `tests/test_pending_receipt_directory_fsync.py::test_other_directory_flock_cannot_masquerade_as_daemon_owner`
+- `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_fdinfo_proof_failure_blocks_remote_preflight`
+- `tests/test_pending_receipt_directory_fsync.py::test_test_mode_custom_external_endpoint_cannot_bypass_instance_lock`
+- `tests/test_pending_receipt_directory_fsync.py::test_replaced_lock_path_blocks_remote_preflight_without_marker`
+- `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_acquisition_binds_path_inode_and_continuous_ownership`
+- `tests/test_pending_receipt_directory_fsync.py::test_abstract_singleton_survives_instance_lock_path_replacement`
+- `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_acquisition_failure_releases_all_ownership_boundaries`
+- `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_short_owner_write_releases_all_ownership_boundaries`
+- `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_acquisition_rejects_state_directory_swap`
 - `tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation`
 - `tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_refuses_while_daemon_instance_lock_is_held`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_refuses_daemon_abstract_singleton_without_flock`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_refuses_daemon_ofd_lock_without_flock`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_directory_inode_lock_blocks_reconciler_after_lock_path_replacement`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_lost_reconciler_ofd_lock_is_detected_before_marker_move`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_other_directory_flock_cannot_masquerade_as_reconciler_owner`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_real_path_reconciler_cannot_bypass_daemon_symlink_alias_singleton`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_rejects_hard_linked_operational_files`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_lock_path_replacement_after_acquisition_preserves_marker`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_project_path_replacement_after_acquisition_preserves_marker`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciler_fdinfo_proof_failure_refuses_marker_retirement`
+- `tests/test_remote_write_safety_marker_reconciliation.py::test_live_recorded_daemon_pid_refuses_marker_retirement`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir`, `tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation`, `tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock` — Exercise singleton ownership and lock-before-recovery ordering.
+- `pytest` — `tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir`, `tests/test_pending_receipt_directory_fsync.py::test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement`, `tests/test_pending_receipt_directory_fsync.py::test_shared_ofd_lock_cannot_masquerade_as_exclusive_daemon_owner`, `tests/test_pending_receipt_directory_fsync.py::test_other_directory_flock_cannot_masquerade_as_daemon_owner`, `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_fdinfo_proof_failure_blocks_remote_preflight`, `tests/test_pending_receipt_directory_fsync.py::test_test_mode_custom_external_endpoint_cannot_bypass_instance_lock`, `tests/test_pending_receipt_directory_fsync.py::test_replaced_lock_path_blocks_remote_preflight_without_marker`, `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_acquisition_binds_path_inode_and_continuous_ownership`, `tests/test_pending_receipt_directory_fsync.py::test_abstract_singleton_survives_instance_lock_path_replacement`, `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_acquisition_failure_releases_all_ownership_boundaries`, `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_short_owner_write_releases_all_ownership_boundaries`, `tests/test_pending_receipt_directory_fsync.py::test_instance_lock_acquisition_rejects_state_directory_swap`, `tests/test_production_consistency_incident.py::test_main_acquires_process_lock_before_context_reconciliation`, `tests/test_production_consistency_incident.py::test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock`, `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_refuses_while_daemon_instance_lock_is_held`, `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_refuses_daemon_abstract_singleton_without_flock`, `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_refuses_daemon_ofd_lock_without_flock`, `tests/test_remote_write_safety_marker_reconciliation.py::test_directory_inode_lock_blocks_reconciler_after_lock_path_replacement`, `tests/test_remote_write_safety_marker_reconciliation.py::test_lost_reconciler_ofd_lock_is_detected_before_marker_move`, `tests/test_remote_write_safety_marker_reconciliation.py::test_other_directory_flock_cannot_masquerade_as_reconciler_owner`, `tests/test_remote_write_safety_marker_reconciliation.py::test_real_path_reconciler_cannot_bypass_daemon_symlink_alias_singleton`, `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciliation_rejects_hard_linked_operational_files`, `tests/test_remote_write_safety_marker_reconciliation.py::test_lock_path_replacement_after_acquisition_preserves_marker`, `tests/test_remote_write_safety_marker_reconciliation.py::test_project_path_replacement_after_acquisition_preserves_marker`, `tests/test_remote_write_safety_marker_reconciliation.py::test_reconciler_fdinfo_proof_failure_refuses_marker_retirement`, `tests/test_remote_write_safety_marker_reconciliation.py::test_live_recorded_daemon_pid_refuses_marker_retirement` — Exercise the directory-inode mechanism used for namespace/path exclusion, no-follow single-link acquisition, acquisition identity, exact flock and exclusive OFD ownership by the designated descriptors, fail-closed Linux fdinfo inspection, file and directory exclusion through independent descriptors, the supplementary abstract singleton, loopback-only fake-endpoint bypass, remote-write preflight, lock-before-recovery ordering and offline-reconciler exclusion.
 
 **Known gaps.**
 
-- None recorded for this contract.
+- The namespace is revalidated at every non-read remote boundary and throughout supported offline marker retirement, but not immediately before every purely local recovery, scheduler or state-file mutation.
+- Cross-network-namespace exclusion relies on the tested same-inode Linux flock mechanism; this host cannot create a second network namespace for a direct end-to-end regression.
 
 ### INV-PROC-003: Launcher exposes failures and bounds repeated fast exits
 

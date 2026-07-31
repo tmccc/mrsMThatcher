@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import signal
+import fcntl
+import socket
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
@@ -118,6 +122,57 @@ def isolate_transaction_files(
             if line.strip()
         },
     )
+
+
+def _install_production_instance_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    ofd_owner: bool = True,
+) -> tuple[Path, object, socket.socket, int]:
+    """Install one production-equivalent lock and abstract singleton."""
+
+    lock_path = tmp_path / "mrsMThatcher.lock"
+    lock_path.write_text(f"pid={os.getpid()}\n", encoding="ascii")
+    held = lock_path.open("r+", encoding="ascii")
+    fcntl.flock(held.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    if ofd_owner:
+        fcntl.fcntl(
+            held.fileno(),
+            fcntl.F_OFD_SETLK,
+            bot.ofd_lock_record(fcntl.F_WRLCK),
+        )
+    held_stat = os.fstat(held.fileno())
+    singleton_name = bot.instance_lock_abstract_socket_name(tmp_path)
+    singleton = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    singleton.bind(singleton_name)
+    state_directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    fcntl.flock(
+        state_directory_fd,
+        fcntl.LOCK_EX | fcntl.LOCK_NB,
+    )
+    state_directory_identity = os.fstat(state_directory_fd)
+    monkeypatch.setattr(bot, "TEST_MODE", False)
+    monkeypatch.setattr(bot, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(bot, "LOCK_FILE", lock_path)
+    monkeypatch.setattr(bot, "_LOCK_FH", held)
+    monkeypatch.setattr(
+        bot,
+        "_LOCK_ACQUISITION_IDENTITY",
+        (held_stat.st_dev, held_stat.st_ino, os.getpid()),
+    )
+    monkeypatch.setattr(bot, "_LOCK_SOCKET", singleton)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET_NAME", singleton_name)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_FD", state_directory_fd)
+    monkeypatch.setattr(
+        bot,
+        "_STATE_DIR_LOCK_IDENTITY",
+        (state_directory_identity.st_dev, state_directory_identity.st_ino),
+    )
+    return lock_path, held, singleton, state_directory_fd
 
 
 def _receipt_path(lane: str) -> Path:
@@ -280,6 +335,89 @@ def _actual_conversational_create_is_blocked(
             lane="mention",
         )
     assert x_boundaries == []
+
+
+def _ambiguous_marker_payload(text: str = "Good quote.") -> dict:
+    """Return one structurally complete ambiguity marker for durability tests."""
+    return {
+        "schema_version": 1,
+        "recorded_at_epoch": CONFIRMATION_EPOCH,
+        "outcome": "ambiguous_remote_post",
+        "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "reply_to_id": "",
+        "media_ids": [],
+        "made_with_ai": False,
+    }
+
+
+def _install_marker_disappearance_during_parent_fsync(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Callable[..., None], list[Path]]:
+    """Remove the marker before performing the real parent-directory fsync."""
+    original_fsync_parent_dir = bot.fsync_parent_dir
+    removed: list[Path] = []
+
+    def remove_then_fsync(path: Path, *, strict: bool = False) -> None:
+        resolved = Path(path)
+        if (
+            resolved == bot.AMBIGUOUS_POST_OUTCOME_FILE
+            and resolved.exists()
+            and not removed
+        ):
+            resolved.unlink()
+            removed.append(resolved)
+        original_fsync_parent_dir(path, strict=strict)
+
+    monkeypatch.setattr(bot, "fsync_parent_dir", remove_then_fsync)
+    return original_fsync_parent_dir, removed
+
+
+def _install_marker_namespace_mutation_during_parent_fsync(
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> list[str]:
+    """Mutate one acknowledged marker name before the real directory fsync."""
+    original_fsync_parent_dir = bot.fsync_parent_dir
+    mutations: list[str] = []
+
+    def mutate_then_fsync(path: Path, *, strict: bool = False) -> None:
+        resolved = Path(path)
+        if (
+            resolved == bot.AMBIGUOUS_POST_OUTCOME_FILE
+            and os.path.lexists(resolved)
+            and not mutations
+        ):
+            original_bytes = resolved.read_bytes()
+            if mutation == "replace":
+                replacement = resolved.with_name("replacement-marker.json")
+                replacement.write_bytes(original_bytes)
+                os.replace(replacement, resolved)
+            elif mutation == "content":
+                resolved.write_bytes(
+                    bot.canonical_atomic_json_bytes(
+                        _ambiguous_marker_payload("Changed quote.")
+                    )
+                )
+                with open(resolved, "rb") as handle:
+                    os.fsync(handle.fileno())
+            elif mutation == "symlink":
+                target = resolved.with_name("marker-symlink-target.json")
+                target.write_bytes(original_bytes)
+                resolved.unlink()
+                resolved.symlink_to(target.name)
+            elif mutation == "dangling_symlink":
+                resolved.unlink()
+                resolved.symlink_to("missing-marker-target.json")
+            elif mutation == "directory":
+                resolved.unlink()
+                resolved.mkdir()
+            else:  # pragma: no cover - test helper contract
+                raise AssertionError(f"unknown marker mutation: {mutation}")
+            mutations.append(mutation)
+        original_fsync_parent_dir(path, strict=strict)
+
+    monkeypatch.setattr(bot, "fsync_parent_dir", mutate_then_fsync)
+    return mutations
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
@@ -710,6 +848,892 @@ def test_recovered_marker_delivers_deferred_sigint_once() -> None:
         assert deliveries == [signal.SIGINT]
         assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
         assert signal.getsignal(signal.SIGINT) is delivered_handler
+    finally:
+        signal.signal(signal.SIGINT, original_signal_handler)
+
+
+def test_marker_disappearance_during_fsync_keeps_durable_helper_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A directory fsync cannot acknowledge a marker absent from that directory."""
+    original_signal_handler = signal.getsignal(signal.SIGINT)
+    delivered: list[int] = []
+
+    def delivered_handler(signum: int, _frame: object | None) -> None:
+        delivered.append(signum)
+
+    guard = bot.ConfirmedPostSigintDeferral()
+    guard.previous_handler = delivered_handler
+    guard.pending = True
+    signal.signal(signal.SIGINT, guard.handle)
+    bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = True
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+    _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(
+        monkeypatch
+    )
+
+    try:
+        assert bot.durable_remote_write_safety_marker_exists() is False
+        assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
+        assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+        assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is guard
+        assert getattr(signal.getsignal(signal.SIGINT), "__self__", None) is guard
+        assert delivered == []
+    finally:
+        signal.signal(signal.SIGINT, original_signal_handler)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["replace", "content", "symlink", "dangling_symlink", "directory"],
+)
+def test_marker_namespace_mutation_during_fsync_keeps_acknowledgement_fail_closed(
+    mutation: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replacement, content and type changes cannot release the process guard."""
+    actual_create_post = bot.create_post
+    original_signal_handler = signal.getsignal(signal.SIGINT)
+    delivered: list[int] = []
+
+    def delivered_handler(signum: int, _frame: object | None) -> None:
+        delivered.append(signum)
+
+    guard = bot.ConfirmedPostSigintDeferral()
+    guard.previous_handler = delivered_handler
+    guard.pending = True
+    signal.signal(signal.SIGINT, guard.handle)
+    bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = True
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+    mutations = _install_marker_namespace_mutation_during_parent_fsync(
+        monkeypatch,
+        mutation,
+    )
+
+    try:
+        assert bot.durable_remote_write_safety_marker_exists() is False
+        assert mutations == [mutation]
+        assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+        assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is guard
+        assert getattr(signal.getsignal(signal.SIGINT), "__self__", None) is guard
+        assert delivered == []
+        assert bot.ambiguous_remote_post_is_blocking() is True
+        _actual_conversational_create_is_blocked(
+            monkeypatch,
+            actual_create_post,
+        )
+    finally:
+        signal.signal(signal.SIGINT, original_signal_handler)
+
+
+def test_marker_disappearance_during_fsync_keeps_confirmed_latch_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An existing marker must remain present before latch durability is claimed."""
+    monkeypatch.setattr(bot, "now_epoch", lambda: CONFIRMATION_EPOCH)
+    marker_arguments = {
+        "lane": "daily_meme",
+        "post_id": "970001",
+        "failure_components": ["meme_post_receipt", "state"],
+    }
+    assert bot.latch_confirmed_post_persistence_failure(**marker_arguments) is True
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = False
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
+    _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(
+        monkeypatch
+    )
+
+    assert bot.latch_confirmed_post_persistence_failure(**marker_arguments) is False
+    assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+
+
+def test_marker_disappearance_during_fsync_keeps_ambiguous_record_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reusing an existing ambiguity marker must revalidate its post-fsync path."""
+    monkeypatch.setattr(bot, "now_epoch", lambda: CONFIRMATION_EPOCH)
+    payload = {"text": "Good quote."}
+    bot.record_ambiguous_remote_post(payload)
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = False
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
+    _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(
+        monkeypatch
+    )
+
+    bot.record_ambiguous_remote_post(payload)
+    assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+
+
+@pytest.mark.parametrize("mutation", ["disappear", "replace"])
+def test_new_marker_atomic_write_mutation_keeps_ambiguous_record_fail_closed(
+    mutation: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The exact newly written marker must still exist when it is acknowledged."""
+    actual_create_post = bot.create_post
+    original_signal_handler = signal.getsignal(signal.SIGINT)
+    original_atomic_write_json = bot.atomic_write_json
+    original_fsync_parent_dir = bot.fsync_parent_dir
+    mutations: list[str] = []
+    delivered: list[int] = []
+
+    def delivered_handler(signum: int, _frame: object | None) -> None:
+        delivered.append(signum)
+
+    guard = bot.ConfirmedPostSigintDeferral()
+    guard.previous_handler = delivered_handler
+    guard.pending = True
+    signal.signal(signal.SIGINT, guard.handle)
+    bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
+
+    def write_then_mutate(
+        path: Path,
+        value: object,
+        *,
+        durable: bool = False,
+    ) -> None:
+        original_atomic_write_json(path, value, durable=durable)
+        resolved = Path(path)
+        if resolved != bot.AMBIGUOUS_POST_OUTCOME_FILE:
+            return
+        if mutation == "disappear":
+            resolved.unlink()
+        else:
+            replacement = resolved.with_name("replacement-ambiguity-marker.json")
+            replacement.write_bytes(
+                bot.canonical_atomic_json_bytes(
+                    _ambiguous_marker_payload("Different incident.")
+                )
+            )
+            os.replace(replacement, resolved)
+        original_fsync_parent_dir(resolved, strict=True)
+        mutations.append(mutation)
+
+    monkeypatch.setattr(bot, "atomic_write_json", write_then_mutate)
+
+    try:
+        bot.record_ambiguous_remote_post({"text": "Good quote."})
+
+        assert mutations == [mutation]
+        assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+        assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is guard
+        assert getattr(signal.getsignal(signal.SIGINT), "__self__", None) is guard
+        assert delivered == []
+        _actual_conversational_create_is_blocked(monkeypatch, actual_create_post)
+    finally:
+        signal.signal(signal.SIGINT, original_signal_handler)
+
+
+def test_new_marker_atomic_write_does_not_swallow_hard_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hard process exit is not an ordinary recoverable write exception."""
+
+    class HardProcessExit(BaseException):
+        pass
+
+    def hard_exit(
+        _path: Path,
+        _value: object,
+        *,
+        durable: bool = False,
+    ) -> None:
+        assert durable is True
+        raise HardProcessExit
+
+    monkeypatch.setattr(bot, "atomic_write_json", hard_exit)
+
+    with pytest.raises(HardProcessExit):
+        bot.ensure_durable_remote_write_safety_marker(
+            _ambiguous_marker_payload()
+        )
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
+def test_hard_linked_marker_cannot_be_acknowledged(
+    tmp_path: Path,
+) -> None:
+    """A second name for the marker defeats namespace-bound reconciliation."""
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+    alias = tmp_path / "marker-alias.json"
+    os.link(bot.AMBIGUOUS_POST_OUTCOME_FILE, alias)
+
+    assert bot.durable_remote_write_safety_marker_exists() is False
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert alias.exists()
+
+
+def test_production_acknowledgement_rejects_replaced_instance_lock_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The daemon's held lock inode must still own the supported lock pathname."""
+    lock_path, held_lock, singleton, state_directory_fd = _install_production_instance_lock(
+        tmp_path,
+        monkeypatch,
+    )
+    expected_lock = f"pid={os.getpid()}\n"
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+
+    try:
+        assert bot.durable_remote_write_safety_marker_exists() is True
+
+        replacement = tmp_path / "replacement.lock"
+        replacement.write_text(expected_lock, encoding="ascii")
+        os.replace(replacement, lock_path)
+        bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+
+        assert bot.durable_remote_write_safety_marker_exists() is False
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+        assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    finally:
+        held_lock.close()
+        singleton.close()
+        os.close(state_directory_fd)
+
+
+def test_live_endpoint_test_override_requires_real_instance_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live-write-capable test mode may not bypass production lock ownership."""
+    monkeypatch.setattr(bot, "TEST_MODE", True)
+    monkeypatch.setenv(
+        "MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST",
+        bot.LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE,
+    )
+    monkeypatch.setattr(bot, "_LOCK_FH", None)
+    monkeypatch.setattr(bot, "_LOCK_ACQUISITION_IDENTITY", None)
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+
+    assert bot.durable_remote_write_safety_marker_exists() is False
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+
+
+def test_test_mode_custom_external_endpoint_cannot_bypass_instance_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only explicit loopback fixtures receive the fake-endpoint test bypass."""
+
+    transmitted: list[str] = []
+    monkeypatch.setattr(bot, "TEST_MODE", True)
+    monkeypatch.delenv("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST", raising=False)
+    monkeypatch.setattr(
+        bot,
+        "X_BASE",
+        "https://external-write-proxy.invalid",
+    )
+    monkeypatch.setattr(bot, "_LOCK_FH", None)
+    monkeypatch.setattr(bot, "_LOCK_ACQUISITION_IDENTITY", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_FD", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_IDENTITY", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET_NAME", None)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: transmitted.append("sent"),
+    )
+
+    with pytest.raises(RuntimeError, match="instance lock"):
+        bot.x_request("POST", "/2/tweets", json={"text": "never sent"})
+    assert transmitted == []
+
+
+def test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Another fd's lock cannot be misattributed to the designated daemon fd."""
+    lock_path = tmp_path / "mrsMThatcher.lock"
+    lock_path.write_text(f"pid={os.getpid()}\n", encoding="ascii")
+    unlocked = lock_path.open("r+", encoding="ascii")
+    independent_owner = lock_path.open("r+", encoding="ascii")
+    fcntl.fcntl(
+        independent_owner.fileno(),
+        fcntl.F_OFD_SETLK,
+        bot.ofd_lock_record(fcntl.F_WRLCK),
+    )
+    held_stat = os.fstat(unlocked.fileno())
+    singleton_name = bot.instance_lock_abstract_socket_name(tmp_path)
+    singleton = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    singleton.bind(singleton_name)
+    state_directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    fcntl.flock(
+        state_directory_fd,
+        fcntl.LOCK_EX | fcntl.LOCK_NB,
+    )
+    state_directory_identity = os.fstat(state_directory_fd)
+    monkeypatch.setattr(bot, "TEST_MODE", False)
+    monkeypatch.setattr(bot, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(bot, "LOCK_FILE", lock_path)
+    monkeypatch.setattr(bot, "_LOCK_FH", unlocked)
+    monkeypatch.setattr(
+        bot,
+        "_LOCK_ACQUISITION_IDENTITY",
+        (held_stat.st_dev, held_stat.st_ino, os.getpid()),
+    )
+    monkeypatch.setattr(bot, "_LOCK_SOCKET", singleton)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET_NAME", singleton_name)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_FD", state_directory_fd)
+    monkeypatch.setattr(
+        bot,
+        "_STATE_DIR_LOCK_IDENTITY",
+        (state_directory_identity.st_dev, state_directory_identity.st_ino),
+    )
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+
+    try:
+        assert bot.durable_remote_write_safety_marker_exists() is False
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    finally:
+        os.close(state_directory_fd)
+        singleton.close()
+        independent_owner.close()
+        unlocked.close()
+
+
+def test_shared_ofd_lock_cannot_masquerade_as_exclusive_daemon_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The designated descriptor must own a write lock, not merely a read lock."""
+
+    _lock_path, held, singleton, state_directory_fd = _install_production_instance_lock(
+        tmp_path,
+        monkeypatch,
+        ofd_owner=False,
+    )
+    fcntl.fcntl(
+        held.fileno(),
+        fcntl.F_OFD_SETLK,
+        bot.ofd_lock_record(fcntl.F_RDLCK),
+    )
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        _ambiguous_marker_payload(),
+        durable=True,
+    )
+    try:
+        assert bot.durable_remote_write_safety_marker_exists() is False
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    finally:
+        singleton.close()
+        held.close()
+        os.close(state_directory_fd)
+
+
+def test_other_directory_flock_cannot_masquerade_as_daemon_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The designated directory fd—not merely the inode—must own the flock."""
+
+    _lock_path, held, singleton, state_directory_fd = _install_production_instance_lock(
+        tmp_path,
+        monkeypatch,
+    )
+    fcntl.flock(state_directory_fd, fcntl.LOCK_UN)
+    independent_owner = os.open(
+        tmp_path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    fcntl.flock(
+        independent_owner,
+        fcntl.LOCK_EX | fcntl.LOCK_NB,
+    )
+    try:
+        with pytest.raises(RuntimeError, match="state-directory descriptor"):
+            bot.require_remote_operation_unpaused("synthetic X write")
+    finally:
+        os.close(independent_owner)
+        os.close(state_directory_fd)
+        singleton.close()
+        held.close()
+
+
+@pytest.mark.parametrize("failure", ["unavailable", "malformed"])
+def test_instance_lock_fdinfo_proof_failure_blocks_remote_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    """Missing or unparseable Linux fdinfo must fail closed before a write."""
+
+    _lock_path, held, singleton, state_directory_fd = _install_production_instance_lock(
+        tmp_path,
+        monkeypatch,
+    )
+    original_read_text = Path.read_text
+
+    def controlled_read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path == Path(f"/proc/self/fdinfo/{state_directory_fd}"):
+            if failure == "unavailable":
+                raise OSError("injected unavailable fdinfo")
+            return "lock: malformed\n"
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", controlled_read_text)
+    try:
+        with pytest.raises(RuntimeError, match="state-directory descriptor"):
+            bot.require_remote_operation_unpaused("synthetic X write")
+    finally:
+        os.close(state_directory_fd)
+        singleton.close()
+        held.close()
+
+
+def test_replaced_lock_path_blocks_remote_preflight_without_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Normal remote-write preflight must detect a second lock namespace."""
+    lock_path, held, singleton, state_directory_fd = _install_production_instance_lock(
+        tmp_path,
+        monkeypatch,
+    )
+    expected = f"pid={os.getpid()}\n"
+
+    replacement = tmp_path / "replacement.lock"
+    replacement.write_text(expected, encoding="ascii")
+    os.replace(replacement, lock_path)
+    try:
+        with pytest.raises(RuntimeError, match="instance-lock"):
+            bot.require_remote_operation_unpaused("synthetic X write")
+    finally:
+        held.close()
+        singleton.close()
+        os.close(state_directory_fd)
+
+
+def test_instance_lock_acquisition_binds_path_inode_and_continuous_ownership(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Production acquisition records an inode a second fd cannot lock."""
+    lock_path = tmp_path / "mrsMThatcher.lock"
+    monkeypatch.setattr(bot, "TEST_MODE", False)
+    monkeypatch.setattr(bot, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(bot, "LOCK_FILE", lock_path)
+    monkeypatch.setattr(bot, "_LOCK_FH", None)
+    monkeypatch.setattr(bot, "_LOCK_ACQUISITION_IDENTITY", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET_NAME", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_FD", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_IDENTITY", None)
+
+    bot.acquire_instance_lock()
+    acquired = bot._LOCK_FH
+    try:
+        assert acquired is not None
+        metadata = os.fstat(acquired.fileno())
+        assert bot._LOCK_ACQUISITION_IDENTITY == (
+            metadata.st_dev,
+            metadata.st_ino,
+            os.getpid(),
+        )
+        assert lock_path.read_text(encoding="ascii") == f"pid={os.getpid()}\n"
+        bot.require_instance_lock_for_remote_write("synthetic X write")
+
+        probe = os.open(lock_path, os.O_RDWR)
+        try:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with pytest.raises(OSError) as conflict:
+                fcntl.fcntl(
+                    probe,
+                    fcntl.F_OFD_SETLK,
+                    bot.ofd_lock_record(fcntl.F_WRLCK),
+                )
+            assert conflict.value.errno in {11, 13}
+        finally:
+            os.close(probe)
+
+        competitor = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            with pytest.raises(OSError):
+                competitor.bind(bot.instance_lock_abstract_socket_name(tmp_path))
+        finally:
+            competitor.close()
+    finally:
+        if acquired is not None:
+            acquired.close()
+        if bot._LOCK_SOCKET is not None:
+            bot._LOCK_SOCKET.close()
+        if bot._STATE_DIR_LOCK_FD is not None:
+            os.close(bot._STATE_DIR_LOCK_FD)
+
+
+def test_abstract_singleton_survives_instance_lock_path_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replacing the pathname cannot create a second supported live owner."""
+
+    lock_path, held, singleton, state_directory_fd = _install_production_instance_lock(
+        tmp_path,
+        monkeypatch,
+    )
+    replacement = tmp_path / "replacement.lock"
+    replacement.write_text(f"pid={os.getpid()}\n", encoding="ascii")
+    os.replace(replacement, lock_path)
+
+    competitor = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        with pytest.raises(OSError):
+            competitor.bind(bot.instance_lock_abstract_socket_name(tmp_path))
+        with pytest.raises(RuntimeError, match="instance-lock path"):
+            bot.require_remote_operation_unpaused("synthetic X write")
+    finally:
+        competitor.close()
+        singleton.close()
+        held.close()
+        os.close(state_directory_fd)
+
+
+def test_instance_lock_acquisition_failure_releases_all_ownership_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A post-flock identity failure must not leak a hidden process owner."""
+
+    lock_path = tmp_path / "mrsMThatcher.lock"
+    monkeypatch.setattr(bot, "TEST_MODE", False)
+    monkeypatch.setattr(bot, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(bot, "LOCK_FILE", lock_path)
+    monkeypatch.setattr(bot, "_LOCK_FH", None)
+    monkeypatch.setattr(bot, "_LOCK_ACQUISITION_IDENTITY", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET_NAME", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_FD", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_IDENTITY", None)
+    original_stat = os.stat
+    lock_stat_calls = 0
+
+    def fail_second_lock_stat(path: object, *args: object, **kwargs: object):
+        nonlocal lock_stat_calls
+        if path == lock_path.name and kwargs.get("dir_fd") is not None:
+            lock_stat_calls += 1
+            if lock_stat_calls == 2:
+                raise FileNotFoundError("injected post-flock pathname loss")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(bot.os, "stat", fail_second_lock_stat)
+    with pytest.raises(FileNotFoundError, match="post-flock"):
+        bot.acquire_instance_lock()
+
+    assert bot._LOCK_FH is None
+    assert bot._LOCK_SOCKET is None
+    competitor = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    descriptor = os.open(lock_path, os.O_RDWR)
+    directory_probe = os.open(
+        tmp_path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        competitor.bind(bot.instance_lock_abstract_socket_name(tmp_path))
+        fcntl.flock(
+            directory_probe,
+            fcntl.LOCK_EX | fcntl.LOCK_NB,
+        )
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.fcntl(
+            descriptor,
+            fcntl.F_OFD_SETLK,
+            bot.ofd_lock_record(fcntl.F_WRLCK),
+        )
+    finally:
+        os.close(directory_probe)
+        os.close(descriptor)
+        competitor.close()
+
+
+def test_instance_lock_short_owner_write_releases_all_ownership_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial canonical PID record cannot leave a hidden process owner."""
+
+    lock_path = tmp_path / "mrsMThatcher.lock"
+    monkeypatch.setattr(bot, "TEST_MODE", False)
+    monkeypatch.setattr(bot, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(bot, "LOCK_FILE", lock_path)
+    monkeypatch.setattr(bot, "_LOCK_FH", None)
+    monkeypatch.setattr(bot, "_LOCK_ACQUISITION_IDENTITY", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET_NAME", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_FD", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_IDENTITY", None)
+    original_pwrite = os.pwrite
+
+    def short_pwrite(descriptor: int, data: bytes, offset: int) -> int:
+        return original_pwrite(descriptor, data[:-1], offset)
+
+    monkeypatch.setattr(bot.os, "pwrite", short_pwrite)
+    with pytest.raises(RuntimeError, match="write was incomplete"):
+        bot.acquire_instance_lock()
+
+    assert bot._LOCK_FH is None
+    assert bot._LOCK_ACQUISITION_IDENTITY is None
+    assert bot._STATE_DIR_LOCK_FD is None
+    assert bot._STATE_DIR_LOCK_IDENTITY is None
+    assert bot._LOCK_SOCKET is None
+    assert bot._LOCK_SOCKET_NAME is None
+
+    directory_probe = os.open(
+        tmp_path,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    file_probe = os.open(lock_path, os.O_RDWR)
+    competitor = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        fcntl.flock(directory_probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(file_probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.fcntl(
+            file_probe,
+            fcntl.F_OFD_SETLK,
+            bot.ofd_lock_record(fcntl.F_WRLCK),
+        )
+        competitor.bind(bot.instance_lock_abstract_socket_name(tmp_path))
+    finally:
+        competitor.close()
+        os.close(file_probe)
+        os.close(directory_probe)
+
+
+def test_instance_lock_acquisition_rejects_state_directory_swap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The file lock cannot be committed under a replacement BASE_DIR."""
+
+    lock_path = tmp_path / "mrsMThatcher.lock"
+    displaced = tmp_path.with_name(f"{tmp_path.name}-displaced")
+    monkeypatch.setattr(bot, "TEST_MODE", False)
+    monkeypatch.setattr(bot, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(bot, "LOCK_FILE", lock_path)
+    monkeypatch.setattr(bot, "_LOCK_FH", None)
+    monkeypatch.setattr(bot, "_LOCK_ACQUISITION_IDENTITY", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET", None)
+    monkeypatch.setattr(bot, "_LOCK_SOCKET_NAME", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_FD", None)
+    monkeypatch.setattr(bot, "_STATE_DIR_LOCK_IDENTITY", None)
+    original_open = os.open
+    swapped: list[Path] = []
+
+    def swap_before_lock_open(
+        path: object,
+        flags: int,
+        *args: object,
+        **kwargs: object,
+    ) -> int:
+        if (
+            path == lock_path.name
+            and kwargs.get("dir_fd") is not None
+            and not swapped
+        ):
+            tmp_path.rename(displaced)
+            tmp_path.mkdir()
+            swapped.append(displaced)
+        return original_open(path, flags, *args, **kwargs)
+
+    original_identity = os.stat(tmp_path)
+    monkeypatch.setattr(bot.os, "open", swap_before_lock_open)
+    with pytest.raises(RuntimeError, match="pathname changed"):
+        bot.acquire_instance_lock()
+
+    assert swapped == [displaced]
+    assert bot._LOCK_FH is None
+    assert bot._STATE_DIR_LOCK_FD is None
+    assert bot._LOCK_SOCKET is None
+    old_directory_probe = original_open(
+        displaced,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    competitor = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        fcntl.flock(
+            old_directory_probe,
+            fcntl.LOCK_EX | fcntl.LOCK_NB,
+        )
+        competitor.bind(
+            bot.instance_lock_abstract_socket_name_for_identity(
+                original_identity.st_dev,
+                original_identity.st_ino,
+            )
+        )
+    finally:
+        competitor.close()
+        os.close(old_directory_probe)
+
+
+def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed acknowledgement may recover later without opening a write lane."""
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "reconcile_runtime_historical_context_state", lambda: None)
+    monkeypatch.setattr(bot, "glob", lambda _pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    state = {"next_quote_post_epoch": 1}
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "reconcile_startup_main_post_receipts", lambda *_args: None)
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: CONFIRMATION_EPOCH)
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: False)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state_arg, key, current: (int(state_arg.get(key, current)), False),
+    )
+
+    remote_actions: list[str] = []
+
+    def remote_lane_reached(*_args: object, **_kwargs: object) -> None:
+        remote_actions.append("reached")
+        pytest.fail("marker recovery must not open any remote-action lane")
+
+    monkeypatch.setattr(
+        bot,
+        "safely_process_due_historical_context_obligations",
+        remote_lane_reached,
+    )
+    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
+    monkeypatch.setattr(bot, "create_post", remote_lane_reached)
+    monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
+    monkeypatch.setattr(bot, "x_request", remote_lane_reached)
+    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+
+    original_signal_handler = signal.getsignal(signal.SIGINT)
+    delivered: list[int] = []
+
+    def delivered_handler(signum: int, _frame: object | None) -> None:
+        delivered.append(signum)
+
+    guard = bot.ConfirmedPostSigintDeferral()
+    guard.previous_handler = delivered_handler
+    guard.pending = True
+    signal.signal(signal.SIGINT, guard.handle)
+    bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = True
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    marker_payload = _ambiguous_marker_payload()
+    bot.atomic_write_json(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        marker_payload,
+        durable=True,
+    )
+    original_fsync_parent_dir, removed = (
+        _install_marker_disappearance_during_parent_fsync(monkeypatch)
+    )
+    marker_fsync_attempts = 0
+    injected_fsync = bot.fsync_parent_dir
+
+    def count_marker_fsync(path: Path, *, strict: bool = False) -> None:
+        nonlocal marker_fsync_attempts
+        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+            marker_fsync_attempts += 1
+        injected_fsync(path, strict=strict)
+
+    monkeypatch.setattr(bot, "fsync_parent_dir", count_marker_fsync)
+
+    class TwoBlockedTicksComplete(Exception):
+        pass
+
+    sleep_calls = 0
+
+    def recover_then_stop(_seconds: float) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls == 1:
+            assert delivered == []
+            assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is guard
+            assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+            assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+            bot.AMBIGUOUS_POST_OUTCOME_FILE.write_bytes(
+                bot.canonical_atomic_json_bytes(marker_payload)
+            )
+            with open(bot.AMBIGUOUS_POST_OUTCOME_FILE, "rb") as handle:
+                os.fsync(handle.fileno())
+            original_fsync_parent_dir(
+                bot.AMBIGUOUS_POST_OUTCOME_FILE,
+                strict=True,
+            )
+            return
+        raise TwoBlockedTicksComplete
+
+    monkeypatch.setattr(bot, "sleep", recover_then_stop)
+
+    try:
+        with pytest.raises(TwoBlockedTicksComplete):
+            bot.main()
+        assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
+        assert marker_fsync_attempts == 2
+        assert sleep_calls == 2
+        assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
+        assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
+        assert signal.getsignal(signal.SIGINT) is delivered_handler
+        assert delivered == [signal.SIGINT]
+        assert remote_actions == []
+
+        assert bot.durable_remote_write_safety_marker_exists() is True
+        assert delivered == [signal.SIGINT]
+        assert remote_actions == []
     finally:
         signal.signal(signal.SIGINT, original_signal_handler)
 

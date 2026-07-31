@@ -101,6 +101,11 @@ def test_release_assurance_findings_are_explicit_and_runtime_json_gap_remains() 
     assert runtime_gap["status"] == "active"
     assert runtime_gap["defect_class"] == "runtime-defect"
     assert "INV-REL-JSON-001" not in runtime_gap["invariant_ids"]
+    assert {
+        "INV-TXN-HCTX-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-RECEIPT-001",
+    } <= set(runtime_gap["invariant_ids"])
 
 
 def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() -> None:
@@ -129,6 +134,48 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
         release_base=cutoff["commit"],
     )
     assert report.ok, "\n".join(report.errors)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "expected_error"),
+    [
+        (
+            "production_observation",
+            "production deployment observation date exceeds top-level as_of",
+        ),
+        ("chronology", "chronology[3] date exceeds top-level as_of"),
+        (
+            "first_review_scope",
+            "first_review_scope.date date exceeds top-level as_of",
+        ),
+        ("detection", "detection.date date exceeds top-level as_of"),
+        (
+            "deployment",
+            "deployment.observed_at date exceeds top-level as_of",
+        ),
+    ],
+)
+def test_evidence_dates_cannot_exceed_ledger_as_of(
+    field_name: str,
+    expected_error: str,
+) -> None:
+    ledger, schema, invariants = _documents()
+    defect = next(item for item in ledger["defects"] if item["id"] == "DEF-0032")
+    if field_name == "production_observation":
+        ledger["identity_scope"]["production_deployment_observation"][
+            "observed_at"
+        ] = "2099-01-01T00:00:00+00:00"
+    elif field_name == "chronology":
+        defect["chronology"][-1]["date"] = "2099-01-01"
+    elif field_name == "deployment":
+        defect["deployment"]["observed_at"] = "2099-01-01T00:00:00+00:00"
+    else:
+        defect[field_name]["date"] = "2099-01-01"
+
+    report = _validate(ledger, schema, invariants)
+
+    assert not report.ok
+    assert any(expected_error in error for error in report.errors)
 
 
 def test_release_base_after_evidence_cutoff_requires_regeneration() -> None:
@@ -487,18 +534,69 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     ) == ledger_tool.render_diagnosis_chronology(ledger)
 
 
-def test_candidate_lineage_defects_are_not_rendered_as_observed_production() -> None:
+def test_repaired_and_production_lineage_defects_render_honestly() -> None:
     ledger, _schema, _invariants = _documents()
-    repaired = next(
+    pending_receipt_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0030"
     )
-    active = next(
+    daemon_loop_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0031"
     )
+    active_production_defect = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0032"
+    )
+    active_process_lock_defect = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0033"
+    )
 
-    assert ledger_tool._deployment_cell(repaired) == (
+    assert ledger_tool._deployment_cell(pending_receipt_repair) == (
         "not-deployed; observed `be882e81`"
     )
-    assert ledger_tool._deployment_cell(active) == (
-        "not deployed; absent from observed production `be882e81`"
+    assert ledger_tool._deployment_cell(daemon_loop_repair) == (
+        "not-deployed; observed `be882e81`"
     )
+    assert ledger_tool._deployment_cell(active_production_defect) == (
+        "observed in production `be882e81`"
+    )
+    assert ledger_tool._deployment_cell(active_process_lock_defect) == (
+        "observed in production `be882e81`"
+    )
+    introduction = active_production_defect["introduced"]
+    assert (
+        introduction["first_bad_commit"]
+        == "7f76c11325c79682d45382009295bcb5628ecdd8"
+    )
+    assert (
+        introduction["last_known_good_commit"]
+        == "db84eebf17247236f0dee85007ad928109875143"
+    )
+    assert introduction["affected_range"] == (
+        "inclusive:7f76c11325c79682d45382009295bcb5628ecdd8"
+        "..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22"
+    )
+    chronology_commits = {
+        event["commit"] for event in active_production_defect["chronology"]
+    }
+    assert {
+        "7f76c11325c79682d45382009295bcb5628ecdd8",
+        "acfc4f69ef9503c6bf842d0ab2897c919a455dbe",
+        "dd8aa52c93982de561b460832baa77b90ddb95a7",
+        "ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22",
+    } <= chronology_commits
+    lock_introduction = active_process_lock_defect["introduced"]
+    assert (
+        lock_introduction["first_bad_commit"]
+        == "f0be0b5de09ca6b75f4701bb34e690675e17106e"
+    )
+    assert (
+        lock_introduction["last_known_good_commit"]
+        == "4f268ed666b5cad7e7a76e1a0b4cd6963645a534"
+    )
+    assert lock_introduction["affected_range"] == (
+        "inclusive:f0be0b5de09ca6b75f4701bb34e690675e17106e"
+        "..ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22"
+    )
+    assert active_process_lock_defect["invariant_ids"] == ["INV-PROC-002"]
+    assert active_process_lock_defect["incident"]["occurred"] is False
+    assert "DEF-0033" in active_production_defect["relations"]["related"]
+    assert "DEF-0032" in active_process_lock_defect["relations"]["related"]

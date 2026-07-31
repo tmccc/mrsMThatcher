@@ -274,6 +274,7 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         for invariant_id, invariant in records.items()
         if invariant["last_verified_commit"]["status"] == "unknown"
     } == {
+        "INV-PROC-002",
         "INV-PROC-004",
         "INV-API-001",
         "INV-REL-001",
@@ -293,6 +294,53 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
     assert records["INV-PROC-004"]["accepted_residual_risk"]["status"] == (
         "unaccepted"
     )
+
+
+def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclusion() -> None:
+    registry = strict_json.load(REGISTRY_PATH)
+    invariant = next(
+        item
+        for item in registry["invariants"]
+        if item["id"] == "INV-PROC-002"
+    )
+
+    assert invariant["last_verified_commit"] == {
+        "status": "unknown",
+        "value": None,
+        "explanation": (
+            "The production baseline and ee7539c evidence cut-off retain the "
+            "lock-namespace and continuous-ownership defect recorded as "
+            "DEF-0033. The replacement candidate identity and its external "
+            "validation are deliberately supplied after the candidate is frozen."
+        ),
+    }
+    statement = invariant["statement"]
+    assert "without following symbolic links" in statement
+    assert "ordinary, single-link lock pathname" in statement
+    assert "separate descriptors" in statement
+    assert "Before every non-read remote operation" in statement
+    assert "offline marker reconciler" in statement
+    assert {
+        "mrsMThatcher2.py",
+        "tools/reconcile_remote_write_safety_marker.py",
+        "tests/test_pending_receipt_directory_fsync.py",
+        "tests/test_remote_write_safety_marker_reconciliation.py",
+        "README.md",
+    } <= set(invariant["affected_paths"])
+    assert {
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_instance_lock_acquisition_binds_path_inode_and_continuous_ownership",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement",
+        "tests/test_remote_write_safety_marker_reconciliation.py::"
+        "test_reconciliation_refuses_while_daemon_instance_lock_is_held",
+        "tests/test_remote_write_safety_marker_reconciliation.py::"
+        "test_reconciliation_rejects_hard_linked_operational_files",
+        "tests/test_remote_write_safety_marker_reconciliation.py::"
+        "test_project_path_replacement_after_acquisition_preserves_marker",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_instance_lock_fdinfo_proof_failure_blocks_remote_preflight",
+    } <= set(invariant["enforcement"]["tests"])
 
 
 def test_v3_shadow_audit_is_historical_not_runtime_consumed() -> None:
@@ -496,7 +544,12 @@ def test_real_registry_is_valid_and_markdown_is_synchronised() -> None:
             "INV-REL-SANDBOX-001",
             "INV-REL-TRUST-001",
             "INV-TEST-004",
+            "INV-PROC-002",
+            "INV-TXN-HCTX-001",
+            "INV-TXN-MEME-001",
             "INV-TXN-RECEIPT-001",
+            "INV-TXN-REG-001",
+            "INV-TXN-REPLY-001",
         }
 
 

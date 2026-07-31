@@ -15,21 +15,21 @@ independently reproduced candidate-lineage defects.
 
 - Production baseline commit: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
 - Production baseline tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
-- Ledger evidence cut-off commit: `dd8aa52c93982de561b460832baa77b90ddb95a7`
-- Ledger evidence cut-off tree: `9c62af551436f5fe17ad0c5fc2914b454f5cce57`
-- Evidence valid through: `2026-07-30`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated directory-durability candidate used as the exact base of this daemon-loop remediation. It incorporates the prior durable-attempt, schedule, conservative-response and post-replacement parent-fsync repairs while recording the newly reproduced delayed marker-durability recheck defect separately; it does not claim that the base or this repair was merged, deployed or loaded.
+- Ledger evidence cut-off commit: `ee7539c2b5bcf41faa07bbbc9ecc53d91eb2ec22`
+- Ledger evidence cut-off tree: `269152f382557aa8cbcbc12dd93f284294effab2`
+- Evidence valid through: `2026-07-31`
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated ee7539c candidate used as the exact base of this marker-identity and lock-ownership remediation. It incorporates the durable-attempt, schedule, conservative-response, post-replacement parent-fsync and daemon-loop recheck repairs while recording the marker-disappearance acknowledgement defect and the separately established process-lock namespace/continuous-ownership defect; it does not claim that the base or either repair was merged, deployed or loaded.
 - Status-claim boundary: Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The dd8aa52 predecessor was never deployed and its directory-durability conclusion is qualified by DEF-0031; the replacement candidate remains external until frozen.
+- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The ee7539c predecessor was never deployed and its marker-durability and process-lock conclusions are qualified by DEF-0032 and DEF-0033; the replacement candidate remains external until frozen.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final daemon-loop durability-recheck remediation commit must replace DEF-0031's external unknown fix identity and bind its committed regression test before any post-merge assurance claim.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final marker-identity, process-lock ownership and offline-reconciliation remediation commit must replace DEF-0032 and DEF-0033's external unknown fix identities and bind their committed regressions before any post-merge assurance claim.
 
 ## Status taxonomy
 
@@ -118,6 +118,8 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0029` | runtime-defect | `mrsMThatcher2.py`; `historical_context_outbox.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply` | false — This is a cross-lane production-code defect demonstrated offline rather than a confirmed live incident. Evidence: Controlled synthetic response classification established repeatable retry exposure across all four create lanes; no live duplicate caused by a generic 3xx or 4xx response was established. |
 | `DEF-0030` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `cross-cutting-remote-write-barrier` | false — The defect is repeatable in the unactivated reviewed candidate, but it is not an observed live incident and does not prove that the confirmed main post itself would necessarily be recreated. Evidence: Independent synthetic fault injection reproduced the boundary in both main-post lanes without a network or X action; no production duplicate was established. |
 | `DEF-0031` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `cross-cutting-remote-write-barrier`; `controlled-service-stop` | false — The defect is repeatable in the unactivated dd8aa52 reviewed candidate. Remote writes remain blocked while that process lives, but its retained SIGINT and restart-safety transition cannot recover after the first paused tick. Evidence: Independent synthetic two-tick fault injection reproduced the delayed recovery without a network or X action; no production incident or duplicate post was established. |
+| `DEF-0032` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `cross-cutting-remote-write-barrier`; `controlled-service-stop` | false — The defect is present in the observed production lineage and the unactivated ee7539c candidate, but the review proved a missing restart barrier rather than an actual live duplicate. Evidence: Independent local fault injection removed the marker inside the parent-directory fsync hook and reproduced false durability acknowledgement without a network, provider or X action; no production incident or duplicate post was established. |
+| `DEF-0033` | runtime-defect | `mrsMThatcher2.py` | `process-bootstrap`; `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `one-shot-operations`; `offline-marker-reconciliation` | false — This is a latent critical runtime defect present in the observed production lineage and the unactivated ee7539c candidate, not evidence that two production processes actually posted concurrently. Evidence: The final local source audit established the path-following, namespace-replacement and same-descriptor re-acquisition gaps without a network, provider or X action; no production concurrency incident, duplicate post or state race was established. |
 
 ## Chronology projection
 
@@ -194,6 +196,13 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0030` | 2026-07-30 | `1b730410` | Independent review injected failure after pending-receipt replacement and reproduced the missing latch, marker, SIGINT restoration and cross-lane barrier in regular and meme transactions. | Separate read-only review of the tree-exact history-free package |
 | `DEF-0030` | 2026-07-30 | `dd8aa52c` | The replacement candidate added exact-byte revalidation, explicit parent re-fsync, pre-recovery latching, cross-lane barriers and deferred-SIGINT recovery. | Committed source and 21 focused pending-receipt durability regressions |
 | `DEF-0031` | 2026-07-30 | `dd8aa52c` | Independent review drove two real daemon-loop ticks: the first marker fsync failed, the second tick did not retry, and the retained guard and deferred SIGINT remained. | Independent IR-DD8AA52-01 reproduction |
+| `DEF-0031` | 2026-07-30 | `30ca2b50` | The replacement moved the durability check outside one-shot logging and added a real-daemon two-tick regression proving retry, guard restoration and one deferred-signal delivery. | Committed source and test plus independent predecessor/candidate A/B reproduction |
+| `DEF-0032` | 2026-07-11 | `7f76c113` | The ambiguity marker and an existing-marker early-return were introduced without a stable namespace identity check. | Git source history and parent comparison against db84eebf |
+| `DEF-0032` | 2026-07-27 | `acfc4f69` | The fail-closed confirmed-post durability and deferred-SIGINT paths began relying on marker visibility without a stable post-synchronisation namespace identity check. | Git source history and parent comparison against c140532 |
+| `DEF-0032` | 2026-07-30 | `dd8aa52c` | Parent-directory synchronisation was added to all three marker acknowledgement paths, but no post-synchronisation identity/content recheck was added. | Git source history and parent comparison against 1b730410 |
+| `DEF-0032` | 2026-07-31 | `ee7539c2` | Independent review removed the marker during the real parent-directory fsync and reproduced false success in the durable helper, confirmed-post latch and ambiguous-post recorder. | Independent IR-EE7539C-01 reproduction |
+| `DEF-0033` | 2026-07-04 | `f0be0b5d` | The process-lifetime instance lock was introduced without no-follow single-link acquisition identity or a separate-descriptor continuous-ownership proof. | Git source history and parent comparison against 4f268ed |
+| `DEF-0033` | 2026-07-31 | `ee7539c2` | The final remediation audit established that path replacement and same-descriptor re-flocking could not prove one continuous lock namespace across daemon writes and offline reconciliation. | Independent final source audit of the ee7539c evidence cut-off |
 
 ## Summary
 
@@ -215,7 +224,7 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0014` | assurance-weakness | assurance | Final validation is not bound to a frozen candidate tree and artifact inventory | `INV-REL-001`, `INV-ART-001` | unknown | unfixed | not applicable |
 | `DEF-0015` | active | medium | Process health does not expose the loaded commit and artifact generation identity | `INV-PROC-004`, `INV-ART-001` | `2179d71e`, bounded | unfixed | observed in production `be882e81` |
 | `DEF-0016` | latent-disabled | medium | Semantic-veto manifest pins a multi-purpose formatter as its attribution predicate | `INV-VETO-001`, `INV-ART-001` | `2220df1e` | unfixed | enforcement unsupported; shadow only |
-| `DEF-0017` | active | high | Duplicate JSON object names remain last-wins in safety documents | `INV-CONFIG-001`, `INV-PAUSE-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | unfixed | present in observed production and at evidence cut-off |
+| `DEF-0017` | active | high | Duplicate JSON object names remain last-wins in safety documents | `INV-CONFIG-001`, `INV-PAUSE-001`, `INV-TXN-HCTX-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | unfixed | present in observed production and at evidence cut-off |
 | `DEF-0018` | assurance-weakness | assurance | Priority-0 release-control JSON accepts ambiguous duplicate object names | `INV-REL-JSON-001` | `516b9b40`, bounded | unfixed | not applicable |
 | `DEF-0019` | assurance-weakness | assurance | Candidate-owned gate can certify the candidate which supplies it | `INV-REL-TRUST-001` | `516b9b40` | unfixed | not applicable |
 | `DEF-0020` | assurance-weakness | assurance | Validation containment exposes unrelated host-user files | `INV-REL-SANDBOX-001` | `516b9b40`, bounded | unfixed | not applicable |
@@ -229,7 +238,9 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0028` | repaired-not-deployed | critical | Meme schedule fallback could permit a second meme on the same local date | `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `9ae7e0f2` | `1b730410` | not-deployed; observed `be882e81` |
 | `DEF-0029` | repaired-not-deployed | critical | Generic X create 3xx and 4xx outcomes were treated as definite non-success | `INV-API-001`, `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | `36edf036`, bounded | `1b730410` | not-deployed; observed `be882e81` |
 | `DEF-0030` | repaired-not-deployed | critical | Post-replacement pending-receipt fsync failure did not establish a global barrier | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `1b730410` | `dd8aa52c` | not-deployed; observed `be882e81` |
-| `DEF-0031` | active | critical | Daemon stopped rechecking delayed remote-write marker durability | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `dd8aa52c` | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0031` | repaired-not-deployed | critical | Daemon stopped rechecking delayed remote-write marker durability | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `dd8aa52c` | `30ca2b50` | not-deployed; observed `be882e81` |
+| `DEF-0032` | active | critical | Remote-write marker disappearance was acknowledged as durable | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `7f76c113` | unfixed | observed in production `be882e81` |
+| `DEF-0033` | active | critical | Instance-lock namespace and continuous ownership were not proved | `INV-PROC-002` | `f0be0b5d` | unfixed | observed in production `be882e81` |
 
 ## Records
 
@@ -643,10 +654,44 @@ ambiguity marker's parent-directory fsync failed, but the real daemon invoked
 the durability helper only on the first one-shot pause-log iteration. A
 transient first failure was therefore never retried on later blocked ticks;
 the retained guard remained installed and a deferred controlled stop was not
-delivered. The replacement candidate must recheck durability on every blocked
-tick while keeping the pause-status log one-shot, and must prove first-fail,
-second-success recovery through the real `main()` loop without reaching any
-remote-action lane.
+delivered. Commit `30ca2b5` repairs the loop by rechecking durability on every
+blocked tick while keeping the pause-status log one-shot. The real-loop
+regression proves first-fail, second-success recovery and exactly one deferred
+signal delivery without reaching any remote-action lane. The repair remains
+unactivated; its distinct marker-identity defect is tracked as `DEF-0032`.
+
+### DEF-0032 — Marker disappearance during durability acknowledgement
+
+The marker helper and the existing-marker paths used by ambiguity recording
+and confirmed-post persistence latching checked the marker only before
+synchronising its parent directory. Independent fault injection removed the
+marker inside that synchronisation call and durably committed an absent
+namespace entry. All three paths could nevertheless report success; the main
+helper cleared uncertainty and released deferred SIGINT, leaving a fresh
+process with no marker barrier. The same gap covers inode replacement, content
+mutation and type changes. This defect began in `7f76c113`, was extended to
+confirmed-post durability in `acfc4f69`, and is ancestral to
+observed production `be882e81`, and remains active at the `ee7539c` evidence
+cut-off. No live incident or duplicate post is asserted. Closure requires a
+central no-follow pre/post identity-and-byte acknowledgement plus an
+offline-only, exact-hash reconciliation protocol under the daemon's
+process-lifetime instance lock.
+
+### DEF-0033 — Instance-lock namespace and continuous ownership
+
+The process-lifetime lock followed its pathname during acquisition, did not
+require one ordinary filesystem link and did not bind the acquired descriptor
+to a stable path identity. Later checks re-applied `flock` to that same open
+file description, which can reacquire an accidentally lost lock instead of
+proving uninterrupted ownership. Normal remote-operation preflight therefore
+did not independently exclude a second lock namespace or concurrent offline
+reconciliation. The defect was introduced in `f0be0b5`, whose parent
+`4f268ed` contains no instance-lock implementation; it is ancestral to
+observed production `be882e81` and remains active at the `ee7539c` evidence
+cut-off. No live concurrency incident or duplicate post is asserted. Closure
+requires no-follow single-link acquisition identity, a separate-descriptor
+continuous-ownership probe before every non-read remote operation, and
+offline-reconciler exclusion on the same lock namespace.
 
 ## Unknown-value policy
 
@@ -658,8 +703,8 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- Every active record through `DEF-0031`: no repair commit exists at the ledger
-  evidence cut-off where the JSON records
+- Every active record through `DEF-0033`: no repair commit exists at the ledger
+  evidence cut-off where that JSON record has
   `fix.state=unfixed`.
 
 These explanations are recorded per field in `defect_ledger.json`; consumers

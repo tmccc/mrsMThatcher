@@ -57,6 +57,7 @@ DIAGNOSIS_PATTERN = re.compile(
 INCLUSIVE_RANGE_PATTERN = re.compile(
     r"^inclusive:(unknown|[0-9a-f]{40})\.\.([0-9a-f]{40})$"
 )
+CALENDAR_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 EXTERNAL_EVIDENCE_ID_PATTERN = re.compile(r"\bEXT-[A-Z0-9-]+\b")
 KNOWN_STATUS_RULES = frozenset(
     {
@@ -94,6 +95,16 @@ class ValidationReport:
             "errors": list(self.errors),
             "warnings": list(self.warnings),
         }
+
+
+def _calendar_date(value: object) -> str | None:
+    """Return an ISO calendar-date prefix when it is structurally comparable."""
+
+    candidate = str(value or "")
+    prefix = candidate[:10]
+    if CALENDAR_DATE_PATTERN.fullmatch(prefix) is None:
+        return None
+    return prefix
 
 
 def load_json_document(path: Path) -> Any:
@@ -1192,6 +1203,20 @@ def _semantic_errors(
             errors.append(
                 "ledger evidence cut-off date does not match top-level as_of"
             )
+    ledger_as_of = _calendar_date(ledger.get("as_of"))
+    production_observed_date = (
+        _calendar_date(production_observation.get("observed_at"))
+        if isinstance(production_observation, Mapping)
+        else None
+    )
+    if (
+        ledger_as_of is not None
+        and production_observed_date is not None
+        and production_observed_date > ledger_as_of
+    ):
+        errors.append(
+            "production deployment observation date exceeds top-level as_of"
+        )
     if isinstance(candidate_scope, Mapping) and (
         candidate_scope.get("identity_source")
         != "external-release-attestation"
@@ -1357,6 +1382,46 @@ def _semantic_errors(
             ]
             if dates != sorted(dates):
                 errors.append(f"{defect_id}: chronology is not sorted by date")
+            if ledger_as_of is not None:
+                for event_index, event in enumerate(chronology):
+                    event_date = (
+                        _calendar_date(event.get("date"))
+                        if isinstance(event, Mapping)
+                        else None
+                    )
+                    if event_date is not None and event_date > ledger_as_of:
+                        errors.append(
+                            f"{defect_id}: chronology[{event_index}] date "
+                            "exceeds top-level as_of"
+                        )
+
+        if ledger_as_of is not None:
+            dated_fields = (
+                (
+                    "first_review_scope.date",
+                    defect.get("first_review_scope", {}).get("date")
+                    if isinstance(defect.get("first_review_scope"), Mapping)
+                    else None,
+                ),
+                (
+                    "detection.date",
+                    defect.get("detection", {}).get("date")
+                    if isinstance(defect.get("detection"), Mapping)
+                    else None,
+                ),
+                (
+                    "deployment.observed_at",
+                    deployment.get("observed_at")
+                    if isinstance(deployment, Mapping)
+                    else None,
+                ),
+            )
+            for field_name, raw_date in dated_fields:
+                record_date = _calendar_date(raw_date)
+                if record_date is not None and record_date > ledger_as_of:
+                    errors.append(
+                        f"{defect_id}: {field_name} date exceeds top-level as_of"
+                    )
 
         fix_state = fix.get("state") if isinstance(fix, Mapping) else None
         fix_commit = fix.get("commit") if isinstance(fix, Mapping) else None

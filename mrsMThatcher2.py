@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import html
 import copy
+import errno
 import fcntl
 import hashlib
+import ipaddress
 import json
 import logging
 import math
@@ -17,6 +19,9 @@ import random
 import re
 import signal
 import shutil
+import socket
+import stat
+import struct
 import sys
 import threading
 from collections import Counter
@@ -281,6 +286,7 @@ REGULAR_POST_RECEIPT_FILE = BASE_DIR / "regular_post_receipt.json"
 MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
 CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
 AMBIGUOUS_POST_OUTCOME_FILE = BASE_DIR / "ambiguous_post_outcome.json"
+REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES = 64 * 1024
 _AMBIGUOUS_REMOTE_POST_SEEN = False
 _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
 _RETAINED_CONFIRMED_POST_SIGINT_GUARD = None
@@ -410,29 +416,537 @@ _IMPORT_CONSOLE_HANDLER.setFormatter(logging.Formatter(
 ))
 log.addHandler(_IMPORT_CONSOLE_HANDLER)
 _LOCK_FH = None
+_LOCK_ACQUISITION_IDENTITY: tuple[int, int, int] | None = None
+_STATE_DIR_LOCK_FD: int | None = None
+_STATE_DIR_LOCK_IDENTITY: tuple[int, int] | None = None
+_LOCK_SOCKET: socket.socket | None = None
+_LOCK_SOCKET_NAME: bytes | None = None
+_OFD_LOCK_FORMAT = "hhqqi"
+
+
+def instance_lock_abstract_socket_name(base_dir: Path | None = None) -> bytes:
+    """Return one Linux abstract-socket name bound to the state directory."""
+    root = os.path.abspath(os.fspath(base_dir or BASE_DIR))
+    identity = os.stat(root, follow_symlinks=True)
+    if not stat.S_ISDIR(identity.st_mode):
+        raise RuntimeError("Instance-lock state root is not a directory")
+    return instance_lock_abstract_socket_name_for_identity(
+        int(identity.st_dev),
+        int(identity.st_ino),
+    )
+
+
+def instance_lock_abstract_socket_name_for_identity(
+    device: int,
+    inode: int,
+) -> bytes:
+    """Return one supplementary singleton name for a directory identity."""
+
+    identity_bytes = (
+        f"dev={int(device)};ino={int(inode)}"
+    ).encode("ascii")
+    digest = hashlib.sha256(identity_bytes).hexdigest()[:40].encode("ascii")
+    return b"\0mrsMThatcher-instance-" + digest
+
+
+def ofd_lock_record(lock_type: int) -> bytes:
+    """Return one one-byte-range Linux OFD lock request."""
+    return struct.pack(
+        _OFD_LOCK_FORMAT,
+        lock_type,
+        os.SEEK_SET,
+        0,
+        1,
+        0,
+    )
+
+
+def descriptor_owns_exclusive_flock(
+    descriptor: int,
+    *,
+    expected_device: int,
+    expected_inode: int,
+) -> bool:
+    """Return whether Linux fdinfo binds an exclusive flock to this exact fd."""
+
+    try:
+        fdinfo = Path(f"/proc/self/fdinfo/{int(descriptor)}").read_text(
+            encoding="ascii",
+        )
+    except (OSError, UnicodeError):
+        return False
+    expected_major = os.major(int(expected_device))
+    expected_minor = os.minor(int(expected_device))
+    for line in fdinfo.splitlines():
+        fields = line.split()
+        if (
+            len(fields) != 9
+            or fields[0] != "lock:"
+            or fields[2:5] != ["FLOCK", "ADVISORY", "WRITE"]
+            or fields[7:] != ["0", "EOF"]
+        ):
+            continue
+        try:
+            lock_pid = int(fields[5])
+            major_text, minor_text, inode_text = fields[6].split(":", 2)
+            lock_major = int(major_text, 16)
+            lock_minor = int(minor_text, 16)
+            lock_inode = int(inode_text)
+        except (TypeError, ValueError):
+            continue
+        if (
+            lock_pid == os.getpid()
+            and lock_major == expected_major
+            and lock_minor == expected_minor
+            and lock_inode == int(expected_inode)
+        ):
+            return True
+    return False
+
+
+def test_mode_excludes_live_remote_writes() -> bool:
+    """Return whether test mode uses only explicitly local fake endpoints."""
+    return (
+        TEST_MODE
+        and os.getenv("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST")
+        != LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE
+        and all(
+            endpoint_is_loopback(value)
+            for value in (X_BASE, X_UPLOAD_BASE, XAI_BASE)
+        )
+    )
+
+
+def require_instance_lock_for_remote_write(operation: str) -> None:
+    """Prove exact OFD, pathname and abstract-singleton process ownership.
+
+    ``F_OFD_GETLK`` on the designated descriptor distinguishes its ownership
+    from a lock held by some other open file description.  A separate probe
+    must remain excluded, the pathname identity must remain bound, and the
+    non-filesystem singleton must still be live.  Fake-endpoint tests may
+    bypass this production boundary; the explicit live-endpoint test override
+    may not.
+    """
+    if test_mode_excludes_live_remote_writes():
+        return
+    if (
+        _LOCK_FH is None
+        or _LOCK_ACQUISITION_IDENTITY is None
+        or _STATE_DIR_LOCK_FD is None
+        or _STATE_DIR_LOCK_IDENTITY is None
+    ):
+        raise RuntimeError(
+            f"{operation} requires the established process-lifetime instance lock"
+        )
+    if _LOCK_SOCKET is None or _LOCK_SOCKET_NAME is None:
+        raise RuntimeError(
+            f"{operation} requires the non-replaceable process singleton"
+        )
+    try:
+        socket_name = _LOCK_SOCKET.getsockname()
+    except OSError as exc:
+        raise RuntimeError(
+            f"{operation} refused because the process singleton is unavailable"
+        ) from exc
+    if socket_name != _LOCK_SOCKET_NAME:
+        raise RuntimeError(
+            f"{operation} refused because the process singleton identity changed"
+        )
+
+    expected_directory_device, expected_directory_inode = (
+        _STATE_DIR_LOCK_IDENTITY
+    )
+    directory_opened = os.fstat(_STATE_DIR_LOCK_FD)
+    directory_current = os.stat(BASE_DIR, follow_symlinks=True)
+    if (
+        not stat.S_ISDIR(directory_opened.st_mode)
+        or not stat.S_ISDIR(directory_current.st_mode)
+        or directory_opened.st_dev != expected_directory_device
+        or directory_opened.st_ino != expected_directory_inode
+        or directory_current.st_dev != expected_directory_device
+        or directory_current.st_ino != expected_directory_inode
+    ):
+        raise RuntimeError(
+            f"{operation} refused because the state-directory lock identity changed"
+        )
+    if not descriptor_owns_exclusive_flock(
+        _STATE_DIR_LOCK_FD,
+        expected_device=expected_directory_device,
+        expected_inode=expected_directory_inode,
+    ):
+        raise RuntimeError(
+            f"{operation} refused because the designated state-directory "
+            "descriptor does not own its exclusive lock"
+        )
+    directory_probe = os.open(
+        BASE_DIR,
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        probe_identity = os.fstat(directory_probe)
+        if (
+            probe_identity.st_dev != expected_directory_device
+            or probe_identity.st_ino != expected_directory_inode
+        ):
+            raise RuntimeError(
+                f"{operation} refused because the state-directory path was replaced"
+            )
+        try:
+            fcntl.flock(
+                directory_probe,
+                fcntl.LOCK_EX | fcntl.LOCK_NB,
+            )
+        except BlockingIOError:
+            pass
+        else:
+            fcntl.flock(directory_probe, fcntl.LOCK_UN)
+            raise RuntimeError(
+                f"{operation} refused because the process-lifetime "
+                "state-directory lock is not held"
+            )
+    finally:
+        os.close(directory_probe)
+
+    descriptor = _LOCK_FH.fileno()
+    expected_device, expected_inode, expected_pid = _LOCK_ACQUISITION_IDENTITY
+    held = os.fstat(descriptor)
+    current = os.lstat(LOCK_FILE)
+    expected_contents = f"pid={expected_pid}\n".encode("ascii")
+    contents = os.pread(descriptor, len(expected_contents) + 1, 0)
+    if (
+        expected_pid != os.getpid()
+        or not stat.S_ISREG(held.st_mode)
+        or not stat.S_ISREG(current.st_mode)
+        or held.st_nlink != 1
+        or current.st_nlink != 1
+        or held.st_dev != expected_device
+        or held.st_ino != expected_inode
+        or current.st_dev != expected_device
+        or current.st_ino != expected_inode
+        or contents != expected_contents
+    ):
+        raise RuntimeError(
+            f"{operation} refused because the instance-lock pathname or "
+            "acquisition identity changed"
+        )
+    if not descriptor_owns_exclusive_flock(
+        descriptor,
+        expected_device=expected_device,
+        expected_inode=expected_inode,
+    ):
+        raise RuntimeError(
+            f"{operation} refused because the designated instance-lock "
+            "descriptor does not own its exclusive flock"
+        )
+
+    own_query = fcntl.fcntl(
+        descriptor,
+        fcntl.F_OFD_GETLK,
+        ofd_lock_record(fcntl.F_WRLCK),
+    )
+    own_conflict = struct.unpack(_OFD_LOCK_FORMAT, own_query)[0]
+    if own_conflict != fcntl.F_UNLCK:
+        raise RuntimeError(
+            f"{operation} refused because another open file description owns "
+            "the instance lock"
+        )
+
+    probe_flags = os.O_RDWR | getattr(os, "O_CLOEXEC", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise RuntimeError("O_NOFOLLOW is required for instance-lock verification")
+    probe = os.open(LOCK_FILE, probe_flags | nofollow)
+    try:
+        probe_stat = os.fstat(probe)
+        if (
+            not stat.S_ISREG(probe_stat.st_mode)
+            or probe_stat.st_nlink != 1
+            or probe_stat.st_dev != expected_device
+            or probe_stat.st_ino != expected_inode
+        ):
+            raise RuntimeError(
+                f"{operation} refused because the instance-lock path was replaced"
+            )
+        for requested_type in (fcntl.F_WRLCK, fcntl.F_RDLCK):
+            try:
+                fcntl.fcntl(
+                    probe,
+                    fcntl.F_OFD_SETLK,
+                    ofd_lock_record(requested_type),
+                )
+            except OSError as exc:
+                if exc.errno not in {errno.EACCES, errno.EAGAIN}:
+                    raise
+            else:
+                fcntl.fcntl(
+                    probe,
+                    fcntl.F_OFD_SETLK,
+                    ofd_lock_record(fcntl.F_UNLCK),
+                )
+                raise RuntimeError(
+                    f"{operation} refused because the designated open file "
+                    "description does not continuously own the exclusive "
+                    "write lock"
+                )
+    finally:
+        os.close(probe)
+
+    after = os.lstat(LOCK_FILE)
+    if (
+        not stat.S_ISREG(after.st_mode)
+        or after.st_nlink != 1
+        or after.st_dev != expected_device
+        or after.st_ino != expected_inode
+    ):
+        raise RuntimeError(
+            f"{operation} refused because the instance-lock path changed during "
+            "the ownership probe"
+        )
 
 
 def acquire_instance_lock() -> None:
     """Prevent two bot processes from sharing one mutable state directory."""
     global _LOCK_FH
+    global _LOCK_ACQUISITION_IDENTITY
+    global _STATE_DIR_LOCK_FD
+    global _STATE_DIR_LOCK_IDENTITY
+    global _LOCK_SOCKET
+    global _LOCK_SOCKET_NAME
 
     if _LOCK_FH is not None:
+        require_instance_lock_for_remote_write("Instance-lock reuse")
         return
 
     BASE_DIR.mkdir(parents=True, exist_ok=True)
-    fh = open(LOCK_FILE, "a+")
+    state_directory_fd: int | None = None
+    instance_socket: socket.socket | None = None
+    descriptor: int | None = None
+    fh = None
+    ownership_handoff_committed = False
     try:
-        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        log.critical("Another MrsMThatcher instance already holds lock %s", LOCK_FILE)
-        fh.close()
-        sys.exit(2)
+        directory_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+        )
+        state_directory_fd = os.open(BASE_DIR, directory_flags)
+        state_directory_identity = os.fstat(state_directory_fd)
+        current_state_directory = os.stat(BASE_DIR, follow_symlinks=True)
+        if (
+            not stat.S_ISDIR(state_directory_identity.st_mode)
+            or not stat.S_ISDIR(current_state_directory.st_mode)
+            or state_directory_identity.st_dev != current_state_directory.st_dev
+            or state_directory_identity.st_ino != current_state_directory.st_ino
+        ):
+            raise RuntimeError(
+                "State-directory identity changed while its instance lock was opened"
+            )
+        try:
+            fcntl.flock(
+                state_directory_fd,
+                fcntl.LOCK_EX | fcntl.LOCK_NB,
+            )
+        except BlockingIOError:
+            log.critical(
+                "Another MrsMThatcher instance owns state-directory lock %s",
+                BASE_DIR,
+            )
+            sys.exit(2)
+        if not descriptor_owns_exclusive_flock(
+            state_directory_fd,
+            expected_device=int(state_directory_identity.st_dev),
+            expected_inode=int(state_directory_identity.st_ino),
+        ):
+            raise RuntimeError(
+                "State-directory descriptor does not own its acquired flock"
+            )
 
-    fh.seek(0)
-    fh.truncate()
-    fh.write(f"pid={os.getpid()}\n")
-    fh.flush()
-    _LOCK_FH = fh
+        socket_name = instance_lock_abstract_socket_name_for_identity(
+            int(state_directory_identity.st_dev),
+            int(state_directory_identity.st_ino),
+        )
+        instance_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            instance_socket.bind(socket_name)
+        except OSError as exc:
+            if exc.errno == errno.EADDRINUSE:
+                log.critical(
+                    "Another MrsMThatcher instance owns process singleton %s",
+                    socket_name[1:].decode("ascii", errors="replace"),
+                )
+                sys.exit(2)
+            raise
+
+        flags = (
+            os.O_RDWR
+            | os.O_CREAT
+            | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        try:
+            descriptor = os.open(
+                LOCK_FILE.name,
+                flags,
+                0o600,
+                dir_fd=state_directory_fd,
+            )
+        except OSError:
+            log.critical("Instance lock cannot be opened safely: %s", LOCK_FILE)
+            raise
+        opened = os.fstat(descriptor)
+        current = os.stat(
+            LOCK_FILE.name,
+            dir_fd=state_directory_fd,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or not stat.S_ISREG(current.st_mode)
+            or opened.st_nlink != 1
+            or current.st_nlink != 1
+            or opened.st_dev != current.st_dev
+            or opened.st_ino != current.st_ino
+        ):
+            raise RuntimeError(
+                "Instance-lock pathname does not identify one ordinary file"
+            )
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            log.critical(
+                "Another MrsMThatcher instance already holds lock %s",
+                LOCK_FILE,
+            )
+            sys.exit(2)
+        if not descriptor_owns_exclusive_flock(
+            descriptor,
+            expected_device=int(opened.st_dev),
+            expected_inode=int(opened.st_ino),
+        ):
+            raise RuntimeError(
+                "Instance-lock descriptor does not own its acquired flock"
+            )
+
+        identity = os.fstat(descriptor)
+        after_lock = os.stat(
+            LOCK_FILE.name,
+            dir_fd=state_directory_fd,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(identity.st_mode)
+            or not stat.S_ISREG(after_lock.st_mode)
+            or identity.st_nlink != 1
+            or after_lock.st_nlink != 1
+            or identity.st_dev != after_lock.st_dev
+            or identity.st_ino != after_lock.st_ino
+        ):
+            raise RuntimeError(
+                "Instance-lock pathname changed while exclusive ownership was acquired"
+            )
+        try:
+            fcntl.fcntl(
+                descriptor,
+                fcntl.F_OFD_SETLK,
+                ofd_lock_record(fcntl.F_WRLCK),
+            )
+        except OSError as exc:
+            if exc.errno in {errno.EACCES, errno.EAGAIN}:
+                log.critical(
+                    "Another MrsMThatcher instance owns OFD lock %s",
+                    LOCK_FILE,
+                )
+                sys.exit(2)
+            raise
+
+        owner_pid = os.getpid()
+        record = f"pid={owner_pid}\n".encode("ascii")
+        os.ftruncate(descriptor, 0)
+        written = os.pwrite(descriptor, record, 0)
+        if written != len(record):
+            raise RuntimeError("Instance-lock owner record write was incomplete")
+        os.fsync(descriptor)
+        if os.pread(descriptor, len(record) + 1, 0) != record:
+            raise RuntimeError(
+                "Instance-lock owner record did not round-trip exactly"
+            )
+        final_path = os.stat(
+            LOCK_FILE.name,
+            dir_fd=state_directory_fd,
+            follow_symlinks=False,
+        )
+        final_state_directory = os.stat(BASE_DIR, follow_symlinks=True)
+        if (
+            not stat.S_ISREG(final_path.st_mode)
+            or final_path.st_nlink != 1
+            or final_path.st_dev != identity.st_dev
+            or final_path.st_ino != identity.st_ino
+            or final_state_directory.st_dev != state_directory_identity.st_dev
+            or final_state_directory.st_ino != state_directory_identity.st_ino
+        ):
+            raise RuntimeError(
+                "Instance-lock pathname changed while its owner record was committed"
+            )
+        fh = os.fdopen(descriptor, "r+", encoding="ascii")
+        descriptor = None
+        lock_acquisition_identity = (
+            int(identity.st_dev),
+            int(identity.st_ino),
+            owner_pid,
+        )
+        state_directory_lock_identity = (
+            int(state_directory_identity.st_dev),
+            int(state_directory_identity.st_ino),
+        )
+        (
+            _LOCK_FH,
+            _LOCK_ACQUISITION_IDENTITY,
+            _STATE_DIR_LOCK_FD,
+            _STATE_DIR_LOCK_IDENTITY,
+            _LOCK_SOCKET,
+            _LOCK_SOCKET_NAME,
+        ) = (
+            fh,
+            lock_acquisition_identity,
+            state_directory_fd,
+            state_directory_lock_identity,
+            instance_socket,
+            socket_name,
+        )
+        ownership_handoff_committed = True
+    except BaseException:
+        if not ownership_handoff_committed:
+            (
+                _LOCK_FH,
+                _LOCK_ACQUISITION_IDENTITY,
+                _STATE_DIR_LOCK_FD,
+                _STATE_DIR_LOCK_IDENTITY,
+                _LOCK_SOCKET,
+                _LOCK_SOCKET_NAME,
+            ) = (None, None, None, None, None, None)
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+            if fh is not None:
+                try:
+                    fh.close()
+                except OSError:
+                    pass
+            if instance_socket is not None:
+                try:
+                    instance_socket.close()
+                except OSError:
+                    pass
+            if state_directory_fd is not None:
+                try:
+                    os.close(state_directory_fd)
+                except OSError:
+                    pass
+        raise
     log.info("Acquired instance lock %s", LOCK_FILE)
 
 
@@ -1603,6 +2117,20 @@ def endpoint_host(url: str) -> str:
         return ""
 
 
+def endpoint_is_loopback(url: str) -> bool:
+    """Return whether one configured endpoint is an explicit loopback host."""
+
+    host = endpoint_host(url)
+    if host in {"localhost", "localhost.localdomain"} or host.endswith(
+        ".localhost"
+    ):
+        return True
+    try:
+        return ipaddress.ip_address(host.split("%", 1)[0]).is_loopback
+    except ValueError:
+        return False
+
+
 X_BASE = normalise_base_url(os.getenv("X_API_BASE_URL", "https://api.x.com"), strip_trailing_segments=("2",))
 X_UPLOAD_BASE = normalise_base_url(
     os.getenv("X_UPLOAD_BASE_URL", "https://upload.twitter.com"),
@@ -1657,13 +2185,15 @@ if (
     TEST_MODE
     and os.getenv("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST") != LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE
 ):
-    live_endpoints = []
-    if endpoint_host(X_BASE) == "api.x.com":
-        live_endpoints.append(f"X_API_BASE_URL={X_BASE}")
-    if endpoint_host(X_UPLOAD_BASE) == "upload.twitter.com":
-        live_endpoints.append(f"X_UPLOAD_BASE_URL={X_UPLOAD_BASE}")
-    if endpoint_host(XAI_BASE) == "api.x.ai":
-        live_endpoints.append(f"XAI_API_BASE_URL={XAI_BASE}")
+    live_endpoints = [
+        f"{name}={value}"
+        for name, value in (
+            ("X_API_BASE_URL", X_BASE),
+            ("X_UPLOAD_BASE_URL", X_UPLOAD_BASE),
+            ("XAI_API_BASE_URL", XAI_BASE),
+        )
+        if not endpoint_is_loopback(value)
+    ]
 
     if live_endpoints:
         log.critical(
@@ -1731,6 +2261,7 @@ def api_error_proves_remote_non_success(error: BaseException) -> bool:
 
 def require_remote_operation_unpaused(operation: str) -> None:
     """Fail before a remote boundary while a global pause is active."""
+    require_instance_lock_for_remote_write(operation)
     if not global_remote_writes_paused():
         return
     log.warning(
@@ -4766,10 +5297,7 @@ def block_if_ambiguous_remote_post(
             service="x",
         )
     if _AMBIGUOUS_REMOTE_POST_SEEN:
-        try:
-            marker_exists = AMBIGUOUS_POST_OUTCOME_FILE.exists()
-        except Exception:
-            marker_exists = False
+        marker_exists = remote_write_safety_marker_path_present_or_unsafe()
         if marker_exists:
             raise AmbiguousRemotePostOutcome(
                 "Unreconciled ambiguous/confirmed-persistence remote-write safety "
@@ -4780,13 +5308,7 @@ def block_if_ambiguous_remote_post(
             "Unreconciled in-process remote-write safety latch blocks further posting",
             service="x",
         )
-    try:
-        marker_exists = AMBIGUOUS_POST_OUTCOME_FILE.exists()
-    except Exception as exc:
-        raise AmbiguousRemotePostOutcome(
-            "The remote-write safety marker cannot be inspected; failing closed",
-            service="x",
-        ) from exc
+    marker_exists = remote_write_safety_marker_path_present_or_unsafe()
     if marker_exists:
         raise AmbiguousRemotePostOutcome(
             "Unreconciled ambiguous/confirmed-persistence remote-write safety barrier "
@@ -4854,15 +5376,7 @@ def ambiguous_remote_post_is_blocking() -> bool:
     """Return the global write barrier state without starting any remote work."""
     if _AMBIGUOUS_REMOTE_POST_SEEN:
         return True
-    try:
-        if AMBIGUOUS_POST_OUTCOME_FILE.exists():
-            return True
-    except Exception:
-        log.critical(
-            "The remote-write safety marker cannot be inspected; treating all remote "
-            "writes as blocked",
-            exc_info=True,
-        )
+    if remote_write_safety_marker_path_present_or_unsafe():
         return True
     try:
         return (
@@ -4928,27 +5442,212 @@ def end_confirmed_post_sigint_deferral(
     raise KeyboardInterrupt
 
 
+def remote_write_safety_marker_path_present_or_unsafe() -> bool:
+    """Treat every marker namespace entry or inspection error as blocking.
+
+    ``Path.exists()`` follows symlinks and therefore reports a dangling link as
+    absent.  A malformed, replaced, unreadable or otherwise unusual entry is
+    not evidence that the remote-write incident has been reconciled.
+    """
+    try:
+        os.lstat(AMBIGUOUS_POST_OUTCOME_FILE)
+    except FileNotFoundError:
+        return False
+    except Exception:
+        log.critical(
+            "The remote-write safety marker namespace cannot be inspected; "
+            "treating all remote writes as blocked",
+            exc_info=True,
+        )
+        return True
+    return True
+
+
+def require_remote_write_marker_removal_protocol() -> None:
+    """Require the process-lifetime instance lock for marker acknowledgement.
+
+    Production marker removal is supported only while the bot is stopped and a
+    reconciler holds ``mrsMThatcher.lock`` exclusively.  The running daemon
+    holds that lock for its lifetime, so a cooperating reconciler cannot remove
+    the marker after the acknowledgement recheck.  Tests use isolated paths and
+    exercise the same byte/identity checks without a production lock.
+    """
+    require_instance_lock_for_remote_write(
+        "Remote-write safety marker acknowledgement"
+    )
+
+
+def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, bytes]:
+    """Read one bounded, no-follow marker snapshot with stable file identity."""
+    path = AMBIGUOUS_POST_OUTCOME_FILE
+    before = os.lstat(path)
+    if not stat.S_ISREG(before.st_mode):
+        raise RuntimeError("Remote-write safety marker is not a regular file")
+    if before.st_nlink != 1:
+        raise RuntimeError(
+            "Remote-write safety marker must have exactly one filesystem link"
+        )
+    if before.st_size > REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES:
+        raise RuntimeError("Remote-write safety marker exceeds the size limit")
+
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise RuntimeError("O_NOFOLLOW is required for safety-marker inspection")
+    fd = os.open(path, flags | nofollow)
+    try:
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_dev != before.st_dev
+            or opened.st_ino != before.st_ino
+        ):
+            raise RuntimeError(
+                "Remote-write safety marker changed while it was opened"
+            )
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = os.read(fd, min(8192, REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES + 1 - total))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES:
+                raise RuntimeError("Remote-write safety marker exceeds the size limit")
+        after_read = os.fstat(fd)
+        if (
+            after_read.st_dev != opened.st_dev
+            or after_read.st_ino != opened.st_ino
+            or after_read.st_nlink != 1
+            or after_read.st_size != opened.st_size
+            or after_read.st_ctime_ns != opened.st_ctime_ns
+            or after_read.st_mtime_ns != opened.st_mtime_ns
+        ):
+            raise RuntimeError(
+                "Remote-write safety marker changed while it was read"
+            )
+        os.fsync(fd)
+        after_sync = os.fstat(fd)
+        after_path = os.lstat(path)
+        if (
+            not stat.S_ISREG(after_path.st_mode)
+            or after_sync.st_nlink != 1
+            or after_path.st_nlink != 1
+            or after_sync.st_dev != opened.st_dev
+            or after_sync.st_ino != opened.st_ino
+            or after_sync.st_size != opened.st_size
+            or after_sync.st_ctime_ns != opened.st_ctime_ns
+            or after_sync.st_mtime_ns != opened.st_mtime_ns
+            or after_path.st_dev != opened.st_dev
+            or after_path.st_ino != opened.st_ino
+            or stat.S_IFMT(after_path.st_mode) != stat.S_IFMT(opened.st_mode)
+            or after_path.st_ctime_ns != opened.st_ctime_ns
+        ):
+            raise RuntimeError(
+                "Remote-write safety marker changed while it was synchronised"
+            )
+    finally:
+        os.close(fd)
+
+    data = b"".join(chunks)
+    if len(data) != opened.st_size:
+        raise RuntimeError("Remote-write safety marker read was incomplete")
+    return (
+        opened.st_dev,
+        opened.st_ino,
+        stat.S_IFMT(opened.st_mode),
+        opened.st_ctime_ns,
+        data,
+    )
+
+
+def acknowledge_durable_remote_write_safety_marker(
+    *,
+    expected_bytes: bytes | None = None,
+) -> bool:
+    """Synchronise and revalidate one unchanged marker namespace entry."""
+    require_remote_write_marker_removal_protocol()
+    before = read_remote_write_safety_marker_snapshot()
+    if expected_bytes is not None and before[-1] != expected_bytes:
+        raise RuntimeError(
+            "Remote-write safety marker does not match the expected incident"
+        )
+
+    # File contents are synchronised by the snapshot helper.  The directory
+    # fsync makes the name-to-inode binding durable; the second no-follow read
+    # proves that the name still identifies the same ordinary file afterwards.
+    fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
+    after = read_remote_write_safety_marker_snapshot()
+    if before != after:
+        raise RuntimeError(
+            "Remote-write safety marker disappeared, changed or was replaced "
+            "during durability acknowledgement"
+        )
+    if expected_bytes is not None and after[-1] != expected_bytes:
+        raise RuntimeError(
+            "Remote-write safety marker changed from the expected incident"
+        )
+    # The supported offline reconciler must still be excluded by the exact
+    # process-lifetime lock after the final marker identity/content check.
+    require_remote_write_marker_removal_protocol()
+    return True
+
+
+def ensure_durable_remote_write_safety_marker(marker: dict) -> bool:
+    """Write or acknowledge a marker without trusting atomic-write return alone."""
+    expected_bytes = canonical_atomic_json_bytes(marker)
+    try:
+        os.lstat(AMBIGUOUS_POST_OUTCOME_FILE)
+    except FileNotFoundError:
+        try:
+            atomic_write_json(
+                AMBIGUOUS_POST_OUTCOME_FILE,
+                marker,
+                durable=True,
+            )
+        except Exception:
+            # Replacement can succeed before the final directory fsync raises.
+            # The central acknowledgement below decides whether exact durable
+            # bytes now exist; the writer's return status is not authoritative.
+            pass
+    return acknowledge_durable_remote_write_safety_marker(
+        expected_bytes=expected_bytes,
+    )
+
+
 def durable_remote_write_safety_marker_exists() -> bool:
     """Return whether restart safety survives loss of the in-process latch."""
     global _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
     try:
-        if not AMBIGUOUS_POST_OUTCOME_FILE.exists():
-            return False
-        # A previous atomic replacement may be visible even though its
-        # parent-directory fsync failed, including after a process restart
-        # reset the in-memory uncertainty flag.  Re-establish durability on
-        # every positive check; mere visibility must never authorise exit.
-        fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
-        _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
-        release_retained_sigint_deferral_after_durable_barrier()
-        return True
+        os.lstat(AMBIGUOUS_POST_OUTCOME_FILE)
+    except FileNotFoundError:
+        return False
     except Exception:
+        _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
         log.critical(
             "The remote-write safety marker cannot be inspected; its durability "
             "cannot be relied upon",
             exc_info=True,
         )
         return False
+
+    # Once a namespace entry is observed, only an unchanged, ordinary,
+    # no-follow marker may clear uncertainty or release a retained SIGINT.
+    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    try:
+        acknowledge_durable_remote_write_safety_marker()
+    except Exception:
+        log.critical(
+            "The remote-write safety marker cannot be durably acknowledged; "
+            "the process-local latch and deferred SIGINT remain active",
+            exc_info=True,
+        )
+        return False
+    _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
+    release_retained_sigint_deferral_after_durable_barrier()
+    return True
 
 
 def durable_remote_write_safety_barrier_exists() -> bool:
@@ -5018,24 +5717,18 @@ def record_ambiguous_remote_post(payload: dict) -> None:
     global _AMBIGUOUS_REMOTE_POST_SEEN
     _AMBIGUOUS_REMOTE_POST_SEEN = True
     _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+    text = str(payload.get("text") or "")
     try:
-        if AMBIGUOUS_POST_OUTCOME_FILE.exists():
-            fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
-        else:
-            text = str(payload.get("text") or "")
-            atomic_write_json(
-                AMBIGUOUS_POST_OUTCOME_FILE,
-                {
-                    "schema_version": 1,
-                    "recorded_at_epoch": now_epoch(),
-                    "outcome": "ambiguous_remote_post",
-                    "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-                    "reply_to_id": str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""),
-                    "media_ids": list((payload.get("media") or {}).get("media_ids") or []),
-                    "made_with_ai": bool(payload.get("made_with_ai")),
-                },
-                durable=True,
-            )
+        marker = {
+            "schema_version": 1,
+            "recorded_at_epoch": now_epoch(),
+            "outcome": "ambiguous_remote_post",
+            "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "reply_to_id": str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""),
+            "media_ids": list((payload.get("media") or {}).get("media_ids") or []),
+            "made_with_ai": bool(payload.get("made_with_ai")),
+        }
+        ensure_durable_remote_write_safety_marker(marker)
     except Exception:
         log.critical(
             "AMBIGUOUS REMOTE X POST OUTCOME: the durable safety marker could not be "
@@ -5098,10 +5791,7 @@ def latch_confirmed_post_persistence_failure(
     else:
         marker["recorded_at_epoch"] = recorded_at_epoch
     try:
-        if AMBIGUOUS_POST_OUTCOME_FILE.exists():
-            fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
-        else:
-            atomic_write_json(AMBIGUOUS_POST_OUTCOME_FILE, marker, durable=True)
+        ensure_durable_remote_write_safety_marker(marker)
     except Exception:
         log.critical(
             "CONFIRMED REMOTE POST LOST COMPLETE LOCAL RECOVERY: post_id=%s lane=%s "
