@@ -662,6 +662,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_pending_receipt_directory_fsync.py`
 - `tests/test_followup_fail_safe_hardening.py`
 - `tests/test_remote_write_safety_second_restart.py`
+- `tests/helpers/protocol_activation.py`
 - `tests/helpers/remote_write_safety_second_restart_driver.py`
 - `tools/reconcile_remote_write_safety_marker.py`
 - `tools/activate_remote_write_safety_protocol.py`
@@ -799,6 +800,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_pending_receipt_directory_fsync.py`
 - `tests/test_followup_fail_safe_hardening.py`
 - `tests/test_remote_write_safety_second_restart.py`
+- `tests/helpers/protocol_activation.py`
 - `tests/helpers/remote_write_safety_second_restart_driver.py`
 - `tools/reconcile_remote_write_safety_marker.py`
 - `tools/activate_remote_write_safety_protocol.py`
@@ -921,6 +923,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_x_write_outcome_conservatism.py`
 - `tests/test_production_consistency_incident.py`
 - `tests/test_remote_write_safety_second_restart.py`
+- `tests/helpers/protocol_activation.py`
 
 **Enforcement files.**
 
@@ -1009,6 +1012,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_historical_context_reply.py`
 - `tests/test_production_consistency_incident.py`
 - `tests/test_remote_write_safety_second_restart.py`
+- `tests/helpers/protocol_activation.py`
 - `tests/test_x_write_outcome_conservatism.py`
 
 **Enforcement files.**
@@ -1246,6 +1250,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_unit_helpers.py`
 - `tests/test_pending_receipt_directory_fsync.py`
 - `tests/test_remote_write_safety_second_restart.py`
+- `tests/helpers/protocol_activation.py`
 - `tests/helpers/remote_write_safety_second_restart_driver.py`
 - `tools/reconcile_remote_write_safety_marker.py`
 - `tools/activate_remote_write_safety_protocol.py`
