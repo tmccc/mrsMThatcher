@@ -534,7 +534,7 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     ) == ledger_tool.render_diagnosis_chronology(ledger)
 
 
-def test_repaired_and_fresh_process_marker_defects_render_honestly() -> None:
+def test_repaired_and_second_restart_marker_defects_render_honestly() -> None:
     ledger, _schema, _invariants = _documents()
     pending_receipt_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0030"
@@ -551,6 +551,9 @@ def test_repaired_and_fresh_process_marker_defects_render_honestly() -> None:
     fresh_process_defect = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0034"
     )
+    second_restart_defect = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0035"
+    )
 
     assert ledger_tool._deployment_cell(pending_receipt_repair) == (
         "not-deployed; observed `be882e81`"
@@ -565,11 +568,15 @@ def test_repaired_and_fresh_process_marker_defects_render_honestly() -> None:
         "not-deployed; observed `be882e81`"
     )
     assert ledger_tool._deployment_cell(fresh_process_defect) == (
+        "not-deployed; observed `be882e81`"
+    )
+    assert ledger_tool._deployment_cell(second_restart_defect) == (
         "not deployed; absent from observed production `be882e81`"
     )
     assert marker_identity_repair["status"] == "repaired-not-deployed"
     assert process_lock_repair["status"] == "repaired-not-deployed"
-    assert fresh_process_defect["status"] == "active"
+    assert fresh_process_defect["status"] == "repaired-not-deployed"
+    assert second_restart_defect["status"] == "active"
     assert marker_identity_repair["fix"]["commit"] == (
         "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
     )
@@ -622,20 +629,30 @@ def test_repaired_and_fresh_process_marker_defects_render_honestly() -> None:
         "inclusive:2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
         "..2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
     )
-    assert fresh_process_defect["fix"] == {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": (
-            "The replacement candidate must seed both process barriers "
-            "immediately on marker namespace observation, treat either barrier "
-            "as blocking in direct preflight and scheduler paths, retain them "
-            "on every inspection or acknowledgement failure, and prove multiple "
-            "fresh-process scheduler ticks reach no remote boundary."
-        ),
-    }
+    assert fresh_process_defect["fix"]["state"] == "fixed"
+    assert fresh_process_defect["fix"]["commit"] == (
+        "debc079949b567362ce7c451ea43fd52ffedfa4d"
+    )
+    assert "process-local" in fresh_process_defect["fix"]["summary"]
+    assert "DEF-0035" in fresh_process_defect["fix"]["summary"]
     assert set(fresh_process_defect["invariant_ids"]) == {
         "INV-TXN-MEME-001",
         "INV-TXN-RECEIPT-001",
         "INV-TXN-REG-001",
     }
     assert fresh_process_defect["incident"]["occurred"] is False
+    assert second_restart_defect["introduced"]["affected_range"] == (
+        "inclusive:debc079949b567362ce7c451ea43fd52ffedfa4d"
+        "..debc079949b567362ce7c451ea43fd52ffedfa4d"
+    )
+    assert second_restart_defect["fix"]["state"] == "unfixed"
+    assert second_restart_defect["fix"]["commit"] == "unknown"
+    assert "ambiguous_post_outcome.restart_barrier.json" in (
+        second_restart_defect["fix"]["summary"]
+    )
+    assert set(second_restart_defect["invariant_ids"]) == {
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001",
+        "INV-TXN-REG-001",
+    }
+    assert second_restart_defect["incident"]["occurred"] is False

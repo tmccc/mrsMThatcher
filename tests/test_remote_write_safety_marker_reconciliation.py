@@ -274,6 +274,84 @@ def test_reconciliation_archives_exact_inode_before_removing_active_marker(
     assert receipt_value["successful_return_requires_source_absent"] is True
 
 
+def test_reconciliation_retires_exact_successor_pair_last(
+    tmp_path: Path,
+) -> None:
+    """The reviewed pair is archived before its successor is retired last."""
+
+    project = installation(tmp_path)
+    marker = project / reconcile.MARKER_BASENAME
+    successor = project / reconcile.RESTART_BARRIER_BASENAME
+    os.link(marker, successor, follow_symlinks=False)
+    original_identity = marker.stat()
+
+    result = run_reconciliation(project)
+
+    archive = project / result.archive_path
+    receipt = project / result.receipt_path
+    assert result.schema_version == 3
+    assert result.active_barrier_names == (
+        reconcile.MARKER_BASENAME,
+        reconcile.RESTART_BARRIER_BASENAME,
+    )
+    assert result.restart_barrier_present_before_reconciliation is True
+    assert result.active_marker_removal_is_final_transition is False
+    assert result.restart_barrier_retired_last is True
+    assert result.successful_return_requires_all_active_barriers_absent is True
+    assert not marker.exists()
+    assert not successor.exists()
+    assert archive.read_bytes() == MARKER_BYTES
+    assert archive.stat().st_nlink == 1
+    assert (archive.stat().st_dev, archive.stat().st_ino) == (
+        original_identity.st_dev,
+        original_identity.st_ino,
+    )
+    assert json.loads(receipt.read_text(encoding="utf-8")) == result.to_dict()
+
+
+def test_reconciliation_accepts_exact_successor_only_survivor(
+    tmp_path: Path,
+) -> None:
+    """A successor which survived legacy-name loss remains reconcilable."""
+
+    project = installation(tmp_path)
+    marker = project / reconcile.MARKER_BASENAME
+    successor = project / reconcile.RESTART_BARRIER_BASENAME
+    os.link(marker, successor, follow_symlinks=False)
+    marker.unlink()
+
+    result = run_reconciliation(project)
+
+    assert result.source_marker == reconcile.RESTART_BARRIER_BASENAME
+    assert result.active_barrier_names == (
+        reconcile.RESTART_BARRIER_BASENAME,
+    )
+    assert result.restart_barrier_present_before_reconciliation is True
+    assert result.restart_barrier_retired_last is True
+    assert not marker.exists()
+    assert not successor.exists()
+    assert (project / result.archive_path).read_bytes() == MARKER_BYTES
+
+
+def test_reconciliation_rejects_split_marker_and_successor_inodes(
+    tmp_path: Path,
+) -> None:
+    """Two expected names cannot disguise two unrelated incident files."""
+
+    project = installation(tmp_path)
+    successor = project / reconcile.RESTART_BARRIER_BASENAME
+    successor.write_bytes(MARKER_BYTES)
+
+    with pytest.raises(
+        reconcile.UnsafeReconciliationPathError,
+        match="same-inode",
+    ):
+        run_reconciliation(project)
+
+    assert (project / reconcile.MARKER_BASENAME).read_bytes() == MARKER_BYTES
+    assert successor.read_bytes() == MARKER_BYTES
+
+
 def test_reconciliation_rejects_wrong_hash_without_moving_marker(
     tmp_path: Path,
 ) -> None:
@@ -328,6 +406,42 @@ def test_reconciliation_rejects_project_path_with_symlink_component(
     assert (project / reconcile.MARKER_BASENAME).read_bytes() == MARKER_BYTES
 
 
+def test_reconciliation_rejects_parent_traversal_before_symlink_normalisation(
+    tmp_path: Path,
+) -> None:
+    """A symlink/.. spelling cannot redirect reconciliation to another tree."""
+
+    lexical_project = installation(tmp_path)
+    target_parent = tmp_path / "target-parent"
+    target_parent.mkdir()
+    (target_parent / "child").mkdir()
+    resolved_project = target_parent / "bot"
+    resolved_project.mkdir()
+    (resolved_project / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    (resolved_project / reconcile.MARKER_BASENAME).write_bytes(MARKER_BYTES)
+    alias = tmp_path / "alias"
+    alias.symlink_to(target_parent / "child", target_is_directory=True)
+    supplied = alias / ".." / "bot"
+
+    assert supplied.stat().st_ino == resolved_project.stat().st_ino
+    assert supplied.stat().st_ino != lexical_project.stat().st_ino
+    with pytest.raises(
+        reconcile.UnsafeReconciliationPathError,
+        match="parent-directory traversal",
+    ):
+        run_reconciliation(supplied)
+
+    assert (
+        lexical_project / reconcile.MARKER_BASENAME
+    ).read_bytes() == MARKER_BYTES
+    assert (
+        resolved_project / reconcile.MARKER_BASENAME
+    ).read_bytes() == MARKER_BYTES
+
+
 @pytest.mark.parametrize("entry", ["marker", "lock"])
 def test_reconciliation_rejects_hard_linked_operational_files(
     tmp_path: Path,
@@ -372,7 +486,7 @@ def test_lock_path_replacement_after_acquisition_preserves_marker(
         archive_fd: int,
         basename: str,
         payload: dict[str, object],
-    ) -> str:
+    ) -> tuple[str, int, os.stat_result]:
         temporary = original_write_receipt_temp(archive_fd, basename, payload)
         lock_path = project / reconcile.LOCK_BASENAME
         displaced = project / "displaced-instance-lock"
@@ -416,7 +530,7 @@ def test_project_path_replacement_after_acquisition_preserves_marker(
         archive_fd: int,
         basename: str,
         payload: dict[str, object],
-    ) -> str:
+    ) -> tuple[str, int, os.stat_result]:
         temporary = original_write_receipt_temp(archive_fd, basename, payload)
         project.rename(displaced)
         project.mkdir()
@@ -455,7 +569,7 @@ def test_archive_path_replacement_after_acquisition_preserves_marker(
         archive_fd: int,
         basename: str,
         payload: dict[str, object],
-    ) -> str:
+    ) -> tuple[str, int, os.stat_result]:
         temporary = original_write_receipt_temp(archive_fd, basename, payload)
         archive.rename(displaced)
         archive.mkdir(mode=0o700)
@@ -824,6 +938,62 @@ def test_archive_collision_inserted_after_precheck_is_never_overwritten(
     assert not list(archive.glob("*.reconciliation.json"))
 
 
+def test_same_inode_archive_collision_is_never_claimed_or_deleted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raced same-inode link is a collision, not this invocation's property."""
+
+    project = installation(tmp_path)
+    marker = project / reconcile.MARKER_BASENAME
+    archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    archive.mkdir(mode=0o700)
+    archive_name = f"ambiguous_post_outcome.{MARKER_SHA256}.json"
+    original_link_noreplace = reconcile._link_noreplace
+    injected: list[str] = []
+
+    def inject_same_inode_collision(
+        source_basename: str,
+        destination_basename: str,
+        *,
+        source_directory_fd: int,
+        destination_directory_fd: int,
+        label: str,
+    ) -> None:
+        if destination_basename == archive_name and not injected:
+            os.link(
+                source_basename,
+                destination_basename,
+                src_dir_fd=source_directory_fd,
+                dst_dir_fd=destination_directory_fd,
+                follow_symlinks=False,
+            )
+            injected.append(destination_basename)
+        original_link_noreplace(
+            source_basename,
+            destination_basename,
+            source_directory_fd=source_directory_fd,
+            destination_directory_fd=destination_directory_fd,
+            label=label,
+        )
+
+    monkeypatch.setattr(
+        reconcile,
+        "_link_noreplace",
+        inject_same_inode_collision,
+    )
+    with pytest.raises(reconcile.ArchiveCommitError, match="already exists"):
+        run_reconciliation(project)
+
+    collision = archive / archive_name
+    assert injected == [archive_name]
+    assert collision.exists()
+    assert collision.stat().st_ino == marker.stat().st_ino
+    assert marker.stat().st_nlink == 2
+    assert not list(archive.glob("*.reconciliation.json"))
+    assert not list(archive.glob(".*.tmp.*"))
+
+
 def test_receipt_collision_inserted_after_precheck_is_never_overwritten(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -880,6 +1050,174 @@ def test_receipt_collision_inserted_after_precheck_is_never_overwritten(
     assert not (archive / archive_name).exists()
     assert (archive / receipt_name).read_bytes() == collision_bytes
     assert not list(archive.glob(".*.tmp.*"))
+
+
+def test_replaced_temporary_receipt_is_rejected_and_not_deleted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Creation identity, not a reused temporary basename, owns cleanup."""
+
+    project = installation(tmp_path)
+    original_write_receipt_temp = reconcile._write_receipt_temp
+    replacement_bytes: list[bytes] = []
+
+    def replace_temporary_receipt(
+        archive_fd: int,
+        basename: str,
+        payload: dict[str, object],
+    ) -> tuple[str, int, os.stat_result]:
+        (
+            temporary,
+            original_descriptor,
+            original_identity,
+        ) = original_write_receipt_temp(
+            archive_fd,
+            basename,
+            payload,
+        )
+        os.unlink(temporary, dir_fd=archive_fd)
+        content = reconcile._canonical_json_bytes(payload)
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+            dir_fd=archive_fd,
+        )
+        try:
+            assert os.write(descriptor, content) == len(content)
+            os.fchmod(descriptor, 0o600)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        replacement_bytes.append(content)
+        return temporary, original_descriptor, original_identity
+
+    monkeypatch.setattr(
+        reconcile,
+        "_write_receipt_temp",
+        replace_temporary_receipt,
+    )
+    with pytest.raises(
+        reconcile.ArchiveCommitError,
+        match="receipt identity, mode or bytes changed",
+    ):
+        run_reconciliation(project)
+
+    marker = project / reconcile.MARKER_BASENAME
+    archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    temporary_entries = list(archive.glob(".*.tmp.*"))
+    assert marker.read_bytes() == MARKER_BYTES
+    assert marker.stat().st_nlink == 1
+    assert len(temporary_entries) == 1
+    assert temporary_entries[0].read_bytes() == replacement_bytes[0]
+    assert stat.S_IMODE(temporary_entries[0].stat().st_mode) == 0o600
+
+
+def test_final_receipt_mode_change_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The committed audit receipt must remain the bound read-only inode."""
+
+    project = installation(tmp_path)
+    original_rename_noreplace = reconcile._rename_noreplace
+
+    def rename_then_make_writable(
+        source_basename: str,
+        destination_basename: str,
+        *,
+        source_directory_fd: int,
+        destination_directory_fd: int,
+        label: str,
+    ) -> None:
+        original_rename_noreplace(
+            source_basename,
+            destination_basename,
+            source_directory_fd=source_directory_fd,
+            destination_directory_fd=destination_directory_fd,
+            label=label,
+        )
+        os.chmod(destination_basename, 0o600, dir_fd=destination_directory_fd)
+
+    monkeypatch.setattr(
+        reconcile,
+        "_rename_noreplace",
+        rename_then_make_writable,
+    )
+    with pytest.raises(
+        reconcile.ArchiveCommitError,
+        match="receipt identity, mode or bytes changed",
+    ):
+        run_reconciliation(project)
+
+    marker = project / reconcile.MARKER_BASENAME
+    archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    assert marker.read_bytes() == MARKER_BYTES
+    assert marker.stat().st_nlink == 1
+    assert not list(archive.glob("ambiguous_post_outcome.*"))
+
+
+def test_final_receipt_identity_change_is_rejected_and_not_deleted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A replacement at the final basename cannot inherit receipt authority."""
+
+    project = installation(tmp_path)
+    original_rename_noreplace = reconcile._rename_noreplace
+    replacement = b"unrelated replacement receipt\n"
+
+    def rename_then_replace_receipt(
+        source_basename: str,
+        destination_basename: str,
+        *,
+        source_directory_fd: int,
+        destination_directory_fd: int,
+        label: str,
+    ) -> None:
+        original_rename_noreplace(
+            source_basename,
+            destination_basename,
+            source_directory_fd=source_directory_fd,
+            destination_directory_fd=destination_directory_fd,
+            label=label,
+        )
+        os.unlink(destination_basename, dir_fd=destination_directory_fd)
+        descriptor = os.open(
+            destination_basename,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o400,
+            dir_fd=destination_directory_fd,
+        )
+        try:
+            assert os.write(descriptor, replacement) == len(replacement)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    monkeypatch.setattr(
+        reconcile,
+        "_rename_noreplace",
+        rename_then_replace_receipt,
+    )
+    with pytest.raises(
+        reconcile.ArchiveCommitError,
+        match="receipt identity, mode or bytes changed",
+    ):
+        run_reconciliation(project)
+
+    marker = project / reconcile.MARKER_BASENAME
+    archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    receipt = archive / (
+        f"ambiguous_post_outcome.{MARKER_SHA256}.json.reconciliation.json"
+    )
+    assert marker.read_bytes() == MARKER_BYTES
+    assert marker.stat().st_nlink == 1
+    assert receipt.read_bytes() == replacement
+    assert not (
+        archive / f"ambiguous_post_outcome.{MARKER_SHA256}.json"
+    ).exists()
 
 
 def test_reconciliation_rejects_non_private_archive_directory(
@@ -1014,11 +1352,11 @@ def test_uncatchable_exit_before_active_marker_removal_keeps_barrier(
     assert (archive / receipt_name).exists() is receipt_expected
 
 
-def test_interrupt_after_archive_link_discovers_and_rolls_back_link(
+def test_interrupt_before_archive_link_return_preserves_unowned_link(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Post-link interruption cannot strand an unresumable second link."""
+    """A link is not cleanup-owned until the no-replace helper returns."""
 
     project = installation(tmp_path)
     original_link_noreplace = reconcile._link_noreplace
@@ -1033,9 +1371,12 @@ def test_interrupt_after_archive_link_discovers_and_rolls_back_link(
 
     source = project / reconcile.MARKER_BASENAME
     assert source.read_bytes() == MARKER_BYTES
-    assert source.stat().st_nlink == 1
     archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
-    assert not list(archive.glob("ambiguous_post_outcome.*"))
+    archived = archive / f"ambiguous_post_outcome.{MARKER_SHA256}.json"
+    assert archived.read_bytes() == MARKER_BYTES
+    assert archived.stat().st_ino == source.stat().st_ino
+    assert source.stat().st_nlink == 2
+    assert not list(archive.glob("*.reconciliation.json"))
 
 
 def test_interrupt_after_receipt_rename_removes_only_own_receipt(

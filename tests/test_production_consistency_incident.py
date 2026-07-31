@@ -69,6 +69,9 @@ def isolated_incident_paths(
         "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE": tmp_path / "context_outbox.json",
         "CONFIRMED_REPLY_RECEIPT_FILE": tmp_path / "confirmed_reply_receipt.json",
         "AMBIGUOUS_POST_OUTCOME_FILE": tmp_path / "ambiguous_post_outcome.json",
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE": (
+            tmp_path / "ambiguous_post_outcome.restart_barrier.json"
+        ),
         "CONTROL_FILE": tmp_path / "control.json",
         "COMPLETED_QUOTE_RESEARCH_FILE": tmp_path / "research_packets.json",
         "HISTORICAL_CONTEXT_RESEARCH_DIR": tmp_path / "research",
@@ -1396,17 +1399,21 @@ def test_context_runtime_unavailable_does_not_require_outbox_for_main_post(
     assert bot._HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
 
 
-@pytest.mark.parametrize("existing_name", ["outbox", "outbox_lock"])
-def test_installation_initialisation_refuses_existing_context_outbox_state(
+@pytest.mark.parametrize(
+    "existing_name",
+    ["outbox", "outbox_lock", "remote_write_restart_barrier"],
+)
+def test_installation_initialisation_refuses_existing_durable_state(
     existing_name: str,
 ) -> None:
-    path = (
-        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE
-        if existing_name == "outbox"
-        else bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.with_name(
+    if existing_name == "outbox":
+        path = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE
+    elif existing_name == "outbox_lock":
+        path = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.with_name(
             f"{bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.name}.lock"
         )
-    )
+    else:
+        path = bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
     path.write_text("durable sentinel\n", encoding="utf-8")
 
     with pytest.raises(RuntimeError, match="Refusing to initialise"):

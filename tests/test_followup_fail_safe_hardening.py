@@ -23,6 +23,11 @@ def install_paths(monkeypatch: pytest.MonkeyPatch, base: Path) -> None:
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", base / "ambiguous_post_outcome.json")
     monkeypatch.setattr(
         bot,
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
+        base / "ambiguous_post_outcome.restart_barrier.json",
+    )
+    monkeypatch.setattr(
+        bot,
         "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE",
         base / "historical_context_reply_history.json",
     )
@@ -66,6 +71,31 @@ def test_explicit_initialisation_and_missing_file_matrix(tmp_path, monkeypatch):
         path.write_bytes(content)
         for backup, backup_content in removed_backups:
             backup.write_bytes(backup_content)
+
+
+@pytest.mark.parametrize(
+    "barrier_attribute",
+    (
+        "AMBIGUOUS_POST_OUTCOME_FILE",
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
+    ),
+)
+def test_initialisation_rejects_dangling_safety_barrier_namespace(
+    barrier_attribute: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dangling barrier symlink is existing state, not an absent pathname."""
+
+    install_paths(monkeypatch, tmp_path)
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
+    barrier = Path(getattr(bot, barrier_attribute))
+    barrier.symlink_to(tmp_path / "missing-barrier-target")
+
+    with pytest.raises(RuntimeError, match="Refusing to initialise"):
+        bot.initialise_installation()
+
+    assert barrier.is_symlink()
 
 
 def test_state_backup_is_an_existing_recovery_candidate(tmp_path, monkeypatch):

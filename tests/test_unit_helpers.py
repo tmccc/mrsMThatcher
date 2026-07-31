@@ -389,6 +389,11 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     )
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", tmp_path / "ambiguous_post_outcome.json")
+    monkeypatch.setattr(
+        bot,
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
+        tmp_path / "ambiguous_post_outcome.restart_barrier.json",
+    )
     monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
     monkeypatch.setattr(
         bot,
@@ -4169,7 +4174,7 @@ def test_regular_ambiguous_create_without_marker_uses_durable_attempt_barrier(
         value: object,
         **kwargs: object,
     ) -> None:
-        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
             raise OSError("marker failed")
         original_atomic_write(path, value, **kwargs)
 
@@ -4429,7 +4434,7 @@ def test_regular_total_persistence_loss_latches_when_marker_write_also_fails(
         value: object,
         **kwargs: object,
     ) -> None:
-        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
             raise OSError("marker failed")
         original_atomic_write(path, value, **kwargs)
 
@@ -7486,7 +7491,7 @@ def test_meme_ambiguous_create_without_marker_uses_durable_attempt_barrier(
         value: object,
         **kwargs: object,
     ) -> None:
-        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
             raise OSError("marker failed")
         original_atomic_write(path, value, **kwargs)
 
@@ -7643,7 +7648,7 @@ def test_meme_total_persistence_and_marker_loss_uses_durable_attempt_barrier(
         value: object,
         **kwargs: object,
     ) -> None:
-        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
             raise OSError("marker failed")
         original_atomic_write(path, value, **kwargs)
 
@@ -10636,7 +10641,7 @@ def test_reply_ambiguity_marker_and_state_failure_preserve_restart_barrier(
         data: object,
         **kwargs: object,
     ) -> None:
-        if path == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+        if path == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
             raise OSError("marker failed")
         original_atomic_write(path, data, **kwargs)
 
@@ -10691,7 +10696,7 @@ def test_reply_promotion_state_and_marker_failure_blocks_restart_duplicate(
         data: object,
         **kwargs: object,
     ) -> None:
-        if path == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+        if path == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
             raise OSError("marker failed")
         original_atomic_write(path, data, **kwargs)
 

@@ -308,12 +308,12 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
         "status": "unknown",
         "value": None,
         "explanation": (
-            "The 2ad0f79 evidence cut-off repairs the lock-namespace and "
-            "continuous-ownership defect recorded as DEF-0033, but that "
-            "candidate was rejected for the separate fresh-process marker/latch "
-            "defect recorded as DEF-0034. A final replacement candidate identity "
-            "and its external validation are deliberately supplied after the "
-            "candidate is frozen."
+            "The debc079 evidence cut-off retains the lock-namespace and "
+            "continuous-ownership repair recorded as DEF-0033, but that "
+            "candidate was rejected for the separate literal second-restart "
+            "durable-barrier defect recorded as DEF-0035. A final replacement "
+            "candidate identity and its external validation are deliberately "
+            "supplied after the candidate is frozen."
         ),
     }
     statement = invariant["statement"]
@@ -345,7 +345,7 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
     } <= set(invariant["enforcement"]["tests"])
 
 
-def test_transaction_invariants_cover_fresh_process_marker_only_restart() -> None:
+def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> None:
     registry = strict_json.load(REGISTRY_PATH)
     records = {item["id"]: item for item in registry["invariants"]}
     required_tests = {
@@ -361,6 +361,12 @@ def test_transaction_invariants_cover_fresh_process_marker_only_restart() -> Non
         "test_durability_uncertainty_blocks_x_and_provider_transports",
         "tests/test_pending_receipt_directory_fsync.py::"
         "test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks",
+        "tests/test_remote_write_safety_second_restart.py::"
+        "test_literal_second_process_blocks_all_remote_lanes_after_marker_loss_"
+        "and_hard_exit",
+        "tests/test_remote_write_safety_second_restart.py::"
+        "test_literal_clean_process_allows_preflight_after_supported_offline_"
+        "reconciliation",
     }
 
     for invariant_id in (
@@ -372,14 +378,21 @@ def test_transaction_invariants_cover_fresh_process_marker_only_restart() -> Non
         statement = invariant["statement"]
         rationale = invariant["status_rationale"]
         assert "marker namespace entry" in statement
+        assert "ambiguous_post_outcome.restart_barrier.json" in statement
+        assert "process-local latch alone does not satisfy restart safety" in statement
+        assert "final synchronised namespace transition" in statement
         assert "either" in statement
         assert (
             "block every remote-write lane" in statement
             or "block all remote writes" in statement
         )
-        assert "marker-durability uncertainty" in rationale
+        assert "same-inode successor" in rationale
         assert required_tests <= set(invariant["enforcement"]["tests"])
-        assert "DEF-0034" in invariant["last_verified_commit"]["explanation"]
+        assert "DEF-0035" in invariant["last_verified_commit"]["explanation"]
+        assert (
+            "ambiguous_post_outcome.restart_barrier.json"
+            in invariant["runtime_consumed_artifacts"]["artifacts"]
+        )
 
     cross_lane_test = (
         "tests/test_followup_fail_safe_hardening.py::"

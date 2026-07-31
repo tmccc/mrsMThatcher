@@ -286,6 +286,9 @@ REGULAR_POST_RECEIPT_FILE = BASE_DIR / "regular_post_receipt.json"
 MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
 CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
 AMBIGUOUS_POST_OUTCOME_FILE = BASE_DIR / "ambiguous_post_outcome.json"
+AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE = (
+    BASE_DIR / "ambiguous_post_outcome.restart_barrier.json"
+)
 REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES = 64 * 1024
 _AMBIGUOUS_REMOTE_POST_SEEN = False
 _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
@@ -1759,6 +1762,7 @@ def initialise_installation() -> int:
             MEME_POST_RECEIPT_FILE,
             CONFIRMED_REPLY_RECEIPT_FILE,
             AMBIGUOUS_POST_OUTCOME_FILE,
+            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
             HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
@@ -1767,7 +1771,18 @@ def initialise_installation() -> int:
             ),
         )
     )
-    existing = [path for path in candidates if path.exists()]
+    existing: list[Path] = []
+    for path in candidates:
+        try:
+            os.lstat(path)
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise RuntimeError(
+                "Refusing to initialise because an existing-state namespace "
+                f"entry cannot be inspected: {path}"
+            ) from exc
+        existing.append(path)
     if existing:
         raise RuntimeError(
             "Refusing to initialise over an existing or partially established installation: "
@@ -5304,7 +5319,9 @@ def block_if_remote_write_safety_incident_latched() -> None:
     if marker_exists:
         raise AmbiguousRemotePostOutcome(
             "Unreconciled ambiguous/confirmed-persistence remote-write safety "
-            f"barrier blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
+            "barrier blocks further posting: "
+            f"{AMBIGUOUS_POST_OUTCOME_FILE} or "
+            f"{AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE}",
             service="x",
         )
     raise AmbiguousRemotePostOutcome(
@@ -5467,26 +5484,33 @@ def latch_remote_write_safety_marker_observation() -> None:
 
 
 def remote_write_safety_marker_path_present_or_unsafe() -> bool:
-    """Treat every marker namespace entry or inspection error as blocking.
+    """Treat either barrier namespace entry or inspection error as blocking.
 
     ``Path.exists()`` follows symlinks and therefore reports a dangling link as
     absent.  A malformed, replaced, unreadable or otherwise unusual entry is
     not evidence that the remote-write incident has been reconciled.
     """
-    try:
-        os.lstat(AMBIGUOUS_POST_OUTCOME_FILE)
-    except FileNotFoundError:
-        return False
-    except Exception:
+    found = False
+    for path in (
+        AMBIGUOUS_POST_OUTCOME_FILE,
+        AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+    ):
+        try:
+            os.lstat(path)
+        except FileNotFoundError:
+            continue
+        except Exception:
+            latch_remote_write_safety_marker_observation()
+            log.critical(
+                "A remote-write safety barrier namespace cannot be inspected; "
+                "treating all remote writes as blocked path=%s",
+                path,
+                exc_info=True,
+            )
+            return True
         latch_remote_write_safety_marker_observation()
-        log.critical(
-            "The remote-write safety marker namespace cannot be inspected; "
-            "treating all remote writes as blocked",
-            exc_info=True,
-        )
-        return True
-    latch_remote_write_safety_marker_observation()
-    return True
+        found = True
+    return found
 
 
 def require_remote_write_marker_removal_protocol() -> None:
@@ -5503,9 +5527,13 @@ def require_remote_write_marker_removal_protocol() -> None:
     )
 
 
-def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, bytes]:
+def read_remote_write_safety_marker_snapshot(
+    path: Path | None = None,
+    *,
+    accepted_link_counts: frozenset[int] = frozenset({1}),
+) -> tuple[int, int, int, int, bytes]:
     """Read one bounded, no-follow marker snapshot with stable file identity."""
-    path = AMBIGUOUS_POST_OUTCOME_FILE
+    path = AMBIGUOUS_POST_OUTCOME_FILE if path is None else Path(path)
     before = os.lstat(path)
     # A marker pathname is the surviving restart barrier.  Seed both
     # process-local barriers before any later open, read, fsync or revalidation
@@ -5513,9 +5541,9 @@ def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, byte
     latch_remote_write_safety_marker_observation()
     if not stat.S_ISREG(before.st_mode):
         raise RuntimeError("Remote-write safety marker is not a regular file")
-    if before.st_nlink != 1:
+    if before.st_nlink not in accepted_link_counts:
         raise RuntimeError(
-            "Remote-write safety marker must have exactly one filesystem link"
+            "Remote-write safety marker has an unsupported filesystem-link count"
         )
     if before.st_size > REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES:
         raise RuntimeError("Remote-write safety marker exceeds the size limit")
@@ -5529,7 +5557,7 @@ def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, byte
         opened = os.fstat(fd)
         if (
             not stat.S_ISREG(opened.st_mode)
-            or opened.st_nlink != 1
+            or opened.st_nlink != before.st_nlink
             or opened.st_dev != before.st_dev
             or opened.st_ino != before.st_ino
         ):
@@ -5550,7 +5578,7 @@ def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, byte
         if (
             after_read.st_dev != opened.st_dev
             or after_read.st_ino != opened.st_ino
-            or after_read.st_nlink != 1
+            or after_read.st_nlink != opened.st_nlink
             or after_read.st_size != opened.st_size
             or after_read.st_ctime_ns != opened.st_ctime_ns
             or after_read.st_mtime_ns != opened.st_mtime_ns
@@ -5563,8 +5591,8 @@ def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, byte
         after_path = os.lstat(path)
         if (
             not stat.S_ISREG(after_path.st_mode)
-            or after_sync.st_nlink != 1
-            or after_path.st_nlink != 1
+            or after_sync.st_nlink != opened.st_nlink
+            or after_path.st_nlink != opened.st_nlink
             or after_sync.st_dev != opened.st_dev
             or after_sync.st_ino != opened.st_ino
             or after_sync.st_size != opened.st_size
@@ -5593,13 +5621,135 @@ def read_remote_write_safety_marker_snapshot() -> tuple[int, int, int, int, byte
     )
 
 
+def read_remote_write_safety_barrier_snapshot(
+    *,
+    establish_successor: bool,
+) -> tuple[Path, tuple[int, int, int, int, bytes]]:
+    """Return one exact supported marker/successor state.
+
+    The only supported two-name state is the fixed original/successor pair
+    referring to one inode with exactly two links.  A sole successor with one
+    link is the expected restart state after loss of the original pathname.
+    Any other hard link, replacement, type change or identity split fails
+    closed.
+    """
+
+    entries: dict[Path, os.stat_result] = {}
+    for path in (
+        AMBIGUOUS_POST_OUTCOME_FILE,
+        AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+    ):
+        try:
+            entries[path] = os.lstat(path)
+        except FileNotFoundError:
+            continue
+        except Exception:
+            latch_remote_write_safety_marker_observation()
+            raise
+
+    if not entries:
+        raise FileNotFoundError("No remote-write safety barrier exists")
+    latch_remote_write_safety_marker_observation()
+
+    original = entries.get(AMBIGUOUS_POST_OUTCOME_FILE)
+    successor = entries.get(AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE)
+
+    if original is not None and successor is None:
+        if not stat.S_ISREG(original.st_mode) or original.st_nlink != 1:
+            raise RuntimeError(
+                "A sole remote-write safety marker must be one ordinary "
+                "single-link file"
+            )
+        # This is migration of a marker written by an older release.  The
+        # process-lifetime instance lock excludes every supported removal path,
+        # but no local algorithm can recover a legacy-only name deleted by a
+        # non-cooperating actor before it can be opened and linked.  New
+        # incidents are therefore created at the successor pathname first.
+        before = read_remote_write_safety_marker_snapshot(
+            AMBIGUOUS_POST_OUTCOME_FILE,
+        )
+        if not establish_successor:
+            return AMBIGUOUS_POST_OUTCOME_FILE, before
+        os.link(
+            AMBIGUOUS_POST_OUTCOME_FILE,
+            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            follow_symlinks=False,
+        )
+        # Commit the second namespace entry before any acknowledgement can
+        # expose the original name to a fallible parent-directory operation.
+        fsync_parent_dir(
+            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            strict=True,
+        )
+        active_path, after = read_remote_write_safety_barrier_snapshot(
+            establish_successor=False,
+        )
+        committed_successor = os.lstat(
+            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+        )
+        if (
+            before[:3] != after[:3]
+            or before[-1] != after[-1]
+            or not stat.S_ISREG(committed_successor.st_mode)
+            or committed_successor.st_dev != before[0]
+            or committed_successor.st_ino != before[1]
+        ):
+            raise RuntimeError(
+                "Remote-write safety marker changed while its restart "
+                "successor was established"
+            )
+        return active_path, after
+
+    if original is None and successor is not None:
+        if not stat.S_ISREG(successor.st_mode) or successor.st_nlink != 1:
+            raise RuntimeError(
+                "A sole remote-write safety successor must be one ordinary "
+                "single-link file"
+            )
+        return (
+            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            read_remote_write_safety_marker_snapshot(
+                AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            ),
+        )
+
+    assert original is not None and successor is not None
+    if (
+        not stat.S_ISREG(original.st_mode)
+        or not stat.S_ISREG(successor.st_mode)
+        or original.st_nlink != 2
+        or successor.st_nlink != 2
+        or original.st_dev != successor.st_dev
+        or original.st_ino != successor.st_ino
+    ):
+        raise RuntimeError(
+            "Remote-write safety marker and successor are not one exact "
+            "two-link ordinary-file pair"
+        )
+    original_snapshot = read_remote_write_safety_marker_snapshot(
+        AMBIGUOUS_POST_OUTCOME_FILE,
+        accepted_link_counts=frozenset({2}),
+    )
+    successor_snapshot = read_remote_write_safety_marker_snapshot(
+        AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+        accepted_link_counts=frozenset({2}),
+    )
+    if original_snapshot != successor_snapshot:
+        raise RuntimeError(
+            "Remote-write safety marker and successor snapshots differ"
+        )
+    return AMBIGUOUS_POST_OUTCOME_FILE, original_snapshot
+
+
 def acknowledge_durable_remote_write_safety_marker(
     *,
     expected_bytes: bytes | None = None,
 ) -> bool:
     """Synchronise and revalidate one unchanged marker namespace entry."""
     require_remote_write_marker_removal_protocol()
-    before = read_remote_write_safety_marker_snapshot()
+    active_path, before = read_remote_write_safety_barrier_snapshot(
+        establish_successor=True,
+    )
     if expected_bytes is not None and before[-1] != expected_bytes:
         raise RuntimeError(
             "Remote-write safety marker does not match the expected incident"
@@ -5608,9 +5758,19 @@ def acknowledge_durable_remote_write_safety_marker(
     # File contents are synchronised by the snapshot helper.  The directory
     # fsync makes the name-to-inode binding durable; the second no-follow read
     # proves that the name still identifies the same ordinary file afterwards.
-    fsync_parent_dir(AMBIGUOUS_POST_OUTCOME_FILE, strict=True)
-    after = read_remote_write_safety_marker_snapshot()
-    if before != after:
+    fsync_parent_dir(active_path, strict=True)
+    after_path, after = read_remote_write_safety_barrier_snapshot(
+        establish_successor=False,
+    )
+    # Removing the legacy hard-link name legitimately changes inode ctime.
+    # The separately synchronised successor remains a complete restart
+    # barrier when its device, inode, type and exact bytes are unchanged.
+    unchanged_successor_survivor = (
+        after_path == AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
+        and before[:3] == after[:3]
+        and before[-1] == after[-1]
+    )
+    if before != after and not unchanged_successor_survivor:
         raise RuntimeError(
             "Remote-write safety marker disappeared, changed or was replaced "
             "during durability acknowledgement"
@@ -5628,12 +5788,24 @@ def acknowledge_durable_remote_write_safety_marker(
 def ensure_durable_remote_write_safety_marker(marker: dict) -> bool:
     """Write or acknowledge a marker without trusting atomic-write return alone."""
     expected_bytes = canonical_atomic_json_bytes(marker)
+    original_exists = False
+    successor_exists = False
     try:
         os.lstat(AMBIGUOUS_POST_OUTCOME_FILE)
     except FileNotFoundError:
+        pass
+    else:
+        original_exists = True
+    try:
+        os.lstat(AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE)
+    except FileNotFoundError:
+        pass
+    else:
+        successor_exists = True
+    if not original_exists and not successor_exists:
         try:
             atomic_write_json(
-                AMBIGUOUS_POST_OUTCOME_FILE,
+                AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
                 marker,
                 durable=True,
             )
@@ -5642,6 +5814,32 @@ def ensure_durable_remote_write_safety_marker(marker: dict) -> bool:
             # The central acknowledgement below decides whether exact durable
             # bytes now exist; the writer's return status is not authoritative.
             pass
+        # Prove the successor's exact bytes and parent-directory durability
+        # before exposing the optional legacy name to any later fallible step.
+        # A hard exit from this point onward therefore leaves a complete
+        # restart barrier even if the legacy hard-link is never created.
+        acknowledge_durable_remote_write_safety_marker(
+            expected_bytes=expected_bytes,
+        )
+        try:
+            os.link(
+                AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+                AMBIGUOUS_POST_OUTCOME_FILE,
+                follow_symlinks=False,
+            )
+        except FileExistsError:
+            # The exact namespace is revalidated below.  Never replace an
+            # entry which appeared after the initial absence check.
+            pass
+        except Exception:
+            # The successor is the restart barrier.  A legacy display name is
+            # useful for compatibility, but inability to add it must not
+            # discard an otherwise exact durable successor.
+            log.warning(
+                "Could not add the legacy remote-write safety marker name; "
+                "retaining the successor-only barrier",
+                exc_info=True,
+            )
     return acknowledge_durable_remote_write_safety_marker(
         expected_bytes=expected_bytes,
     )
@@ -5650,17 +5848,7 @@ def ensure_durable_remote_write_safety_marker(marker: dict) -> bool:
 def durable_remote_write_safety_marker_exists() -> bool:
     """Return whether restart safety survives loss of the in-process latch."""
     global _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
-    try:
-        os.lstat(AMBIGUOUS_POST_OUTCOME_FILE)
-    except FileNotFoundError:
-        return False
-    except Exception:
-        latch_remote_write_safety_marker_observation()
-        log.critical(
-            "The remote-write safety marker cannot be inspected; its durability "
-            "cannot be relied upon",
-            exc_info=True,
-        )
+    if not remote_write_safety_marker_path_present_or_unsafe():
         return False
 
     # Once a namespace entry is observed, only an unchanged, ordinary,

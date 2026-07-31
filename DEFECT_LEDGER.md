@@ -15,21 +15,21 @@ independently reproduced candidate-lineage defects.
 
 - Production baseline commit: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
 - Production baseline tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
-- Ledger evidence cut-off commit: `2ad0f79feb0d54be1b1687546449deac6bd1a0c1`
-- Ledger evidence cut-off tree: `cdc99dee117817a72b4954c24172242c351ad1b7`
+- Ledger evidence cut-off commit: `debc079949b567362ce7c451ea43fd52ffedfa4d`
+- Ledger evidence cut-off tree: `a4364db80dfc0b5f96e7ce3c7f9355c14c621d23`
 - Evidence valid through: `2026-07-31`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated 2ad0f79 candidate. That candidate incorporates the durable-attempt, schedule, conservative-response, post-replacement parent-fsync, daemon-loop recheck, marker-identity and process-lock ownership repairs recorded through DEF-0033. Independent review then established the distinct fresh-process marker-observation/latch defect recorded as DEF-0034. This ledger does not claim that the candidate or any repair was merged, deployed or loaded.
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated debc079 candidate. That candidate incorporates the durable-attempt, schedule, conservative-response, post-replacement parent-fsync, daemon-loop recheck, marker-identity, process-lock ownership and first fresh-process latch repairs recorded through DEF-0034. Independent review then established the distinct literal second-restart durable-barrier defect recorded as DEF-0035. This ledger does not claim that the candidate or any repair was merged, deployed or loaded.
 - Status-claim boundary: Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The 2ad0f79 evidence cut-off was never deployed; it repairs DEF-0032 and DEF-0033 but was independently rejected for DEF-0034. The replacement candidate remains external until frozen.
+- Candidate identity rule: A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The debc079 evidence cut-off was never deployed; it repairs DEF-0034 only within the process which observes the marker and was independently rejected for the literal second-restart durable-barrier defect recorded as DEF-0035. The replacement candidate remains external until frozen.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final fresh-process marker-observation and uncertainty-barrier remediation commit must replace DEF-0034's external unknown fix identity and bind its committed regressions before any post-merge assurance claim.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final restart-persistent successor-barrier remediation commit must replace DEF-0035's external unknown fix identity and bind its literal multi-process regressions before any post-merge assurance claim.
 
 ## Status taxonomy
 
@@ -121,6 +121,7 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0032` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `cross-cutting-remote-write-barrier`; `controlled-service-stop` | false — The defect is present in the observed production lineage and the unactivated ee7539c candidate, but is repaired by the unactivated 2ad0f79 evidence cut-off. The review proved a missing restart barrier rather than an actual live duplicate. Evidence: Independent local fault injection removed the marker inside the parent-directory fsync hook and reproduced false durability acknowledgement without a network, provider or X action; no production incident or duplicate post was established. |
 | `DEF-0033` | runtime-defect | `mrsMThatcher2.py` | `process-bootstrap`; `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `one-shot-operations`; `offline-marker-reconciliation` | false — This is a latent critical runtime defect present in the observed production lineage and the unactivated ee7539c candidate, repaired by the unactivated 2ad0f79 evidence cut-off. It is not evidence that two production processes actually posted concurrently. Evidence: The final local source audit established the path-following, namespace-replacement and same-descriptor re-acquisition gaps without a network, provider or X action; no production concurrency incident, duplicate post or state race was established. |
 | `DEF-0034` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `provider-request`; `cross-cutting-remote-write-barrier` | false — The defect was reproduced in the unactivated 2ad0f79 candidate. It establishes an open remote-write barrier after restart, not an observed production post or duplicate. Evidence: Independent fresh-process fault injection reproduced a path to the local historical-context remote boundary with every network/provider operation replaced by a sentinel. No production, provider or X action occurred. |
+| `DEF-0035` | runtime-defect | `mrsMThatcher2.py`; `tools/reconcile_remote_write_safety_marker.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `provider-request`; `cross-cutting-remote-write-barrier` | false — The defect was reproduced in the unactivated debc079 candidate. It establishes loss of an unresolved-outcome barrier after a further hard process exit, not an observed production post or duplicate. Evidence: Independent review used two literal Python interpreters and a disposable state directory. The second interpreter reached local direct, shared and historical-context scheduler boundaries with all HTTP, X, media and provider operations replaced by sentinels. |
 
 ## Chronology projection
 
@@ -207,6 +208,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0033` | 2026-07-31 | `ee7539c2` | The final remediation audit established that path replacement and same-descriptor re-flocking could not prove one continuous lock namespace across daemon writes and offline reconciliation. | Independent final source audit of the ee7539c evidence cut-off |
 | `DEF-0033` | 2026-07-31 | `2ad0f79f` | The replacement candidate bound the process to state-directory identity, a no-follow single-link lock, independent OFD ownership and a directory-identity singleton enforced before remote writes and by offline reconciliation. | Committed lock-ownership implementation and adversarial runtime/reconciler regressions |
 | `DEF-0034` | 2026-07-31 | `2ad0f79f` | Independent review began from false globals and a valid marker, removed the marker during real parent-directory fsync, then reached the historical-context remote lane because the surviving uncertainty flag was not blocking. | Independent IR-2AD0F79-01 fresh-process reproduction |
+| `DEF-0034` | 2026-07-31 | `debc0799` | The replacement candidate seeded both process-local barriers on marker observation, made either barrier block direct and scheduler paths, and retained them on every marker inspection or acknowledgement failure. | Committed source and same-process fresh-start regressions |
+| `DEF-0035` | 2026-07-31 | `debc0799` | Independent review removed the legacy marker during real parent-directory fsync in one interpreter, terminated that correctly latched process through os._exit, then showed a literal second interpreter with false globals and no durable marker could enter the historical-context scheduler lane. | Independent IR-DEBC079-01 literal two-process reproduction |
 
 ## Summary
 
@@ -245,7 +248,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0031` | repaired-not-deployed | critical | Daemon stopped rechecking delayed remote-write marker durability | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `dd8aa52c` | `30ca2b50` | not-deployed; observed `be882e81` |
 | `DEF-0032` | repaired-not-deployed | critical | Remote-write marker disappearance was acknowledged as durable | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `7f76c113` | `2ad0f79f` | not-deployed; observed `be882e81` |
 | `DEF-0033` | repaired-not-deployed | critical | Instance-lock namespace and continuous ownership were not proved | `INV-PROC-002` | `f0be0b5d` | `2ad0f79f` | not-deployed; observed `be882e81` |
-| `DEF-0034` | active | critical | Fresh-process marker observation did not establish a blocking in-memory barrier | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `2ad0f79f`, bounded | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0034` | repaired-not-deployed | critical | Fresh-process marker observation did not establish a blocking in-memory barrier | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `2ad0f79f`, bounded | `debc0799` | not-deployed; observed `be882e81` |
+| `DEF-0035` | active | critical | A second restart could lose the sole remote-write barrier after marker disappearance | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `debc0799`, bounded | unfixed | not deployed; absent from observed production `be882e81` |
 
 ## Records
 
@@ -710,11 +714,29 @@ incident latch before fallible inspection, and marker-durability uncertainty
 was not itself a blocking predicate. Independent fault injection began with a
 valid pre-existing marker, removed it during the real parent-directory
 `fsync`, and then reached a sentinel historical-context remote boundary.
-No network, provider, X or production action occurred. The replacement must
-latch both process barriers as soon as any marker namespace entry is observed,
-treat either barrier as independently blocking, preserve them across every
-inspection and acknowledgement failure, and prove direct preflight plus
-multiple real scheduler ticks cannot reach any remote lane.
+No network, provider, X or production action occurred. Commit `debc079`
+repairs that same-process defect: observation seeds both process barriers,
+either barrier blocks direct and scheduler paths, and inspection or
+acknowledgement failure retains them. The repair is not deployed. Independent
+literal-process review then showed that those memory-only barriers do not
+survive an additional abrupt process loss; that distinct defect is
+`DEF-0035`.
+
+### DEF-0035 — Literal second-restart durable-barrier loss
+
+The unactivated `debc079` candidate correctly blocked the process which
+observed a pre-existing ambiguity marker disappear during its real
+parent-directory `fsync`. Independent review then terminated that process
+through `os._exit` and started a literal second interpreter against the same
+marker-free state. Both process globals began false, no restart-persistent
+namespace entry remained, and direct preflight, the shared receipt barrier and
+the historical-context scheduler lane opened. No HTTP, media, provider, X or
+production action occurred. A replacement must synchronise a same-inode
+successor at `ambiguous_post_outcome.restart_barrier.json` before legacy-marker
+acknowledgement begins, make every restart block on either namespace entry and
+permit only lock-bound offline reconciliation to retire the successor as its
+final durable transition. The replacement identity remains external until
+frozen.
 
 ## Unknown-value policy
 
@@ -726,7 +748,7 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- Every active record through `DEF-0034`: no repair commit exists at the ledger
+- Every active record through `DEF-0035`: no repair commit exists at the ledger
   evidence cut-off where that JSON record has
   `fix.state=unfixed`.
 

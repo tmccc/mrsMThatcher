@@ -5,9 +5,10 @@ This command does not decide whether an ambiguous X outcome has been
 reconciled.  An operator must establish that separately and supply the expected
 marker SHA-256.  The command then proves that the bot's process-lifetime lock is
 available, creates and synchronises a private hard-linked archive of the exact
-marker inode, commits a read-only audit receipt, and only then removes and
-synchronises the active marker name.  A hard process loss before the archive
-and receipt are durable therefore leaves the active fail-closed marker present.
+active-barrier inode, commits a read-only audit receipt, and only then removes
+and synchronises the active names.  A paired restart barrier is retired last.
+A hard process loss before the archive and receipt are durable therefore
+leaves at least one active fail-closed name present.
 
 The live daemon owns an exclusive lock on the state-directory inode, a
 supplementary directory-identity-bound Linux abstract socket, and BSD plus
@@ -41,6 +42,7 @@ from typing import Callable, Sequence
 
 LOCK_BASENAME = "mrsMThatcher.lock"
 MARKER_BASENAME = "ambiguous_post_outcome.json"
+RESTART_BARRIER_BASENAME = "ambiguous_post_outcome.restart_barrier.json"
 DEFAULT_ARCHIVE_BASENAME = "remote_write_safety_marker_archive"
 MAX_MARKER_BYTES = 64 * 1024
 MAX_LOCK_RECORD_BYTES = 128
@@ -79,6 +81,8 @@ class MarkerArchiveResult:
     operation: str
     project_root: str
     source_marker: str
+    active_barrier_names: tuple[str, ...]
+    restart_barrier_present_before_reconciliation: bool
     archive_path: str
     receipt_path: str
     marker_sha256: str
@@ -93,12 +97,16 @@ class MarkerArchiveResult:
     archive_inode_preserved: bool
     archive_and_receipt_durable_before_source_removal: bool
     active_marker_removal_is_final_transition: bool
+    restart_barrier_retired_last: bool
     successful_return_requires_source_absent: bool
+    successful_return_requires_all_active_barriers_absent: bool
 
     def to_dict(self) -> dict[str, object]:
         """Return a deterministic JSON-compatible representation."""
 
-        return asdict(self)
+        value = asdict(self)
+        value["active_barrier_names"] = list(self.active_barrier_names)
+        return value
 
 
 def instance_lock_abstract_socket_name(project_root: Path) -> bytes:
@@ -217,7 +225,12 @@ def _validate_basename(value: str, *, label: str) -> str:
 def _open_project_directory_without_symlinks(path: Path) -> tuple[Path, int]:
     """Open every absolute project component with ``openat`` and no-follow."""
 
-    absolute = Path(os.path.abspath(os.fspath(path)))
+    supplied = Path(path)
+    if ".." in supplied.parts:
+        raise UnsafeReconciliationPathError(
+            "project root must not contain parent-directory traversal"
+        )
+    absolute = Path(os.path.abspath(os.fspath(supplied)))
     if not absolute.is_absolute():
         raise UnsafeReconciliationPathError("project root must be absolute")
     flags = (
@@ -368,6 +381,132 @@ def _entry_absent(directory_fd: int, basename: str) -> bool:
     except FileNotFoundError:
         return True
     return False
+
+
+@dataclass(frozen=True)
+class _ActiveBarrierSet:
+    """Bind the complete supported active-barrier namespace to one inode."""
+
+    source_name: str
+    names: tuple[str, ...]
+    descriptor: int
+    identity: os.stat_result
+
+
+def _open_active_barrier_set(project_fd: int) -> _ActiveBarrierSet:
+    """Open the legacy marker, its successor, or their exact hard-link pair.
+
+    These are the only supported active layouts:
+
+    * a legacy one-link marker awaiting migration by the daemon;
+    * the exact two-link marker/restart-barrier pair;
+    * the one-link restart barrier surviving loss of the legacy name.
+
+    A different inode, extra hard link, symbolic link or special file fails
+    closed rather than being treated as reconciled evidence.
+    """
+
+    marker_present = not _entry_absent(project_fd, MARKER_BASENAME)
+    successor_present = not _entry_absent(
+        project_fd,
+        RESTART_BARRIER_BASENAME,
+    )
+    if not marker_present and not successor_present:
+        raise MarkerIdentityError(
+            "no active remote-write safety marker or restart barrier exists"
+        )
+
+    names = tuple(
+        name
+        for name, present in (
+            (MARKER_BASENAME, marker_present),
+            (RESTART_BARRIER_BASENAME, successor_present),
+        )
+        if present
+    )
+    source_name = (
+        MARKER_BASENAME if marker_present else RESTART_BARRIER_BASENAME
+    )
+    descriptor, identity = _open_verified_regular(
+        project_fd,
+        source_name,
+        label="active remote-write safety barrier",
+        flags=os.O_RDONLY,
+        require_single_link=False,
+    )
+    try:
+        expected_links = len(names)
+        opened = os.fstat(descriptor)
+        current_entries: list[os.stat_result] = []
+        for name in names:
+            current = _require_regular_entry(
+                project_fd,
+                name,
+                label=f"active remote-write safety barrier {name}",
+            )
+            current_entries.append(current)
+            if not _same_inode(identity, current):
+                raise UnsafeReconciliationPathError(
+                    "active remote-write safety names are not the exact expected "
+                    "same-inode set"
+                )
+        if opened.st_nlink != expected_links or any(
+            current.st_nlink != expected_links
+            for current in current_entries
+        ):
+            raise UnsafeReconciliationPathError(
+                "active remote-write safety barrier must have exactly one "
+                "filesystem link per supported active name"
+            )
+        return _ActiveBarrierSet(
+            source_name=source_name,
+            names=names,
+            descriptor=descriptor,
+            identity=identity,
+        )
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _require_active_barrier_identity(
+    project_fd: int,
+    *,
+    expected_names: tuple[str, ...],
+    expected_identity: os.stat_result,
+    opened_descriptor: int,
+    expected_total_links: int,
+) -> None:
+    """Revalidate every supported active name and reject namespace drift."""
+
+    expected = set(expected_names)
+    for name in (MARKER_BASENAME, RESTART_BARRIER_BASENAME):
+        if name not in expected:
+            if not _entry_absent(project_fd, name):
+                raise MarkerIdentityError(
+                    f"unexpected active remote-write safety name appeared: {name}"
+                )
+            continue
+        current = _require_regular_entry(
+            project_fd,
+            name,
+            label=f"active remote-write safety barrier {name}",
+        )
+        if (
+            not _same_inode(expected_identity, current)
+            or current.st_nlink != expected_total_links
+        ):
+            raise MarkerIdentityError(
+                "active remote-write safety barrier identity changed"
+            )
+    opened = os.fstat(opened_descriptor)
+    if (
+        not _same_inode(expected_identity, opened)
+        or opened.st_nlink != expected_total_links
+    ):
+        raise MarkerIdentityError(
+            "opened remote-write safety barrier identity changed"
+        )
 
 
 def _fsync_directory(descriptor: int) -> None:
@@ -697,18 +836,19 @@ def _write_receipt_temp(
     archive_fd: int,
     basename: str,
     payload: dict[str, object],
-) -> str:
+) -> tuple[str, int, os.stat_result]:
     """Write and synchronise a private receipt temporary file."""
 
     temporary = f".{basename}.tmp.{os.getpid()}"
     flags = (
-        os.O_WRONLY
+        os.O_RDWR
         | os.O_CREAT
         | os.O_EXCL
         | getattr(os, "O_NOFOLLOW", 0)
         | getattr(os, "O_CLOEXEC", 0)
     )
     descriptor = os.open(temporary, flags, 0o600, dir_fd=archive_fd)
+    identity: os.stat_result | None = None
     try:
         content = _canonical_json_bytes(payload)
         view = memoryview(content)
@@ -720,15 +860,74 @@ def _write_receipt_temp(
         os.fsync(descriptor)
         os.fchmod(descriptor, 0o400)
         os.fsync(descriptor)
+        identity = os.fstat(descriptor)
+        current = _require_regular_entry(
+            archive_fd,
+            temporary,
+            label="temporary marker archive receipt",
+        )
+        if (
+            not _same_inode(identity, current)
+            or identity.st_nlink != 1
+            or current.st_nlink != 1
+            or identity.st_uid != os.geteuid()
+            or current.st_uid != os.geteuid()
+            or stat.S_IMODE(identity.st_mode) != 0o400
+            or stat.S_IMODE(current.st_mode) != 0o400
+        ):
+            raise ArchiveCommitError(
+                "temporary marker archive receipt identity or mode changed"
+            )
     except BaseException:
-        os.close(descriptor)
         try:
-            os.unlink(temporary, dir_fd=archive_fd)
-        except FileNotFoundError:
+            identity = os.fstat(descriptor)
+        except OSError:
             pass
+        try:
+            if identity is not None:
+                try:
+                    current = _entry_stat(archive_fd, temporary)
+                except FileNotFoundError:
+                    pass
+                else:
+                    if _same_inode(identity, current):
+                        os.unlink(temporary, dir_fd=archive_fd)
+        finally:
+            os.close(descriptor)
         raise
-    os.close(descriptor)
-    return temporary
+    assert identity is not None
+    return temporary, descriptor, identity
+
+
+def _require_bound_readonly_receipt(
+    archive_fd: int,
+    basename: str,
+    descriptor: int,
+    expected_identity: os.stat_result,
+    expected_content: bytes,
+) -> None:
+    """Require one exact, single-link, current-user-owned 0400 receipt."""
+
+    opened = os.fstat(descriptor)
+    current = _require_regular_entry(
+        archive_fd,
+        basename,
+        label="marker archive receipt",
+    )
+    if (
+        not _same_inode(expected_identity, opened)
+        or not _same_inode(opened, current)
+        or opened.st_nlink != 1
+        or current.st_nlink != 1
+        or opened.st_uid != os.geteuid()
+        or current.st_uid != os.geteuid()
+        or stat.S_IMODE(opened.st_mode) != 0o400
+        or stat.S_IMODE(current.st_mode) != 0o400
+        or _read_all(descriptor, maximum=MAX_MARKER_BYTES) != expected_content
+    ):
+        raise ArchiveCommitError(
+            "marker archive receipt identity, mode or bytes changed"
+        )
 
 
 def reconcile_marker_offline(
@@ -739,13 +938,13 @@ def reconcile_marker_offline(
     archive_basename: str = DEFAULT_ARCHIVE_BASENAME,
     now: Callable[[], int] | None = None,
 ) -> MarkerArchiveResult:
-    """Retire one marker only after its archive and receipt are durable.
+    """Retire the complete active barrier set after durable archival.
 
     The function is intentionally strict: any precondition, identity, hash,
-    synchronisation or archive collision failure leaves the marker in place
-    whenever rollback remains possible.  The active marker name is the last
-    namespace mutation, after the same-inode archive and receipt are durable,
-    so an uncatchable process loss cannot expose an unrecorded removal window.
+    synchronisation or archive collision failure restores the original active
+    names whenever rollback remains possible.  For the current paired layout,
+    the restart barrier is the last active name removed, after the same-inode
+    archive and receipt are durable.
     """
 
     expected_hash = _normalise_sha256(expected_marker_sha256)
@@ -771,14 +970,15 @@ def reconcile_marker_offline(
     instance_socket: socket.socket | None = None
     lock_fd: int | None = None
     marker_fd: int | None = None
+    initial_active_names: tuple[str, ...] = ()
+    source_name = MARKER_BASENAME
     archive_fd: int | None = None
     receipt_temporary: str | None = None
     receipt_temporary_identity: os.stat_result | None = None
+    receipt_verification_fd: int | None = None
     archive_name = f"ambiguous_post_outcome.{expected_hash}.json"
     receipt_name = f"{archive_name}.reconciliation.json"
     archive_link_created = False
-    archive_link_attempted = False
-    receipt_finalized = False
     marker_mode: int | None = None
     try:
         try:
@@ -851,13 +1051,11 @@ def reconcile_marker_offline(
                 ) from exc
             raise
 
-        marker_fd, marker_stat = _open_verified_regular(
-            project_fd,
-            MARKER_BASENAME,
-            label="remote-write safety marker",
-            flags=os.O_RDONLY,
-            require_single_link=True,
-        )
+        active_barriers = _open_active_barrier_set(project_fd)
+        marker_fd = active_barriers.descriptor
+        marker_stat = active_barriers.identity
+        source_name = active_barriers.source_name
+        initial_active_names = active_barriers.names
         marker_mode = stat.S_IMODE(marker_stat.st_mode)
         original = _read_all(marker_fd, maximum=MAX_MARKER_BYTES)
         actual_hash = hashlib.sha256(original).hexdigest()
@@ -887,10 +1085,14 @@ def reconcile_marker_offline(
 
         timestamp = int((now or time.time)())
         result = MarkerArchiveResult(
-            schema_version=2,
+            schema_version=3,
             operation="offline_remote_write_safety_marker_archive",
             project_root=str(project),
-            source_marker=MARKER_BASENAME,
+            source_marker=source_name,
+            active_barrier_names=initial_active_names,
+            restart_barrier_present_before_reconciliation=(
+                RESTART_BARRIER_BASENAME in initial_active_names
+            ),
             archive_path=f"{archive_basename}/{archive_name}",
             receipt_path=f"{archive_basename}/{receipt_name}",
             marker_sha256=expected_hash,
@@ -904,35 +1106,33 @@ def reconcile_marker_offline(
             bot_instance_lock_acquired=True,
             archive_inode_preserved=True,
             archive_and_receipt_durable_before_source_removal=True,
-            active_marker_removal_is_final_transition=True,
+            active_marker_removal_is_final_transition=(
+                RESTART_BARRIER_BASENAME not in initial_active_names
+            ),
+            restart_barrier_retired_last=(
+                RESTART_BARRIER_BASENAME in initial_active_names
+            ),
             successful_return_requires_source_absent=True,
+            successful_return_requires_all_active_barriers_absent=True,
         )
-        receipt_temporary = _write_receipt_temp(
+        (
+            receipt_temporary,
+            receipt_verification_fd,
+            receipt_temporary_identity,
+        ) = _write_receipt_temp(
             archive_fd,
             receipt_name,
             result.to_dict(),
         )
-        receipt_temporary_identity = _require_regular_entry(
-            archive_fd,
-            receipt_temporary,
-            label="temporary marker archive receipt",
-        )
+        receipt_content = _canonical_json_bytes(result.to_dict())
 
-        current_marker_stat = _require_regular_entry(
+        _require_active_barrier_identity(
             project_fd,
-            MARKER_BASENAME,
-            label="remote-write safety marker",
+            expected_names=initial_active_names,
+            expected_identity=marker_stat,
+            opened_descriptor=marker_fd,
+            expected_total_links=len(initial_active_names),
         )
-        opened_marker_stat = os.fstat(marker_fd)
-        if (
-            not _same_inode(marker_stat, current_marker_stat)
-            or not _same_inode(marker_stat, opened_marker_stat)
-            or current_marker_stat.st_nlink != 1
-            or opened_marker_stat.st_nlink != 1
-        ):
-            raise MarkerIdentityError(
-                "remote-write safety marker identity changed before archival"
-            )
         if _read_all(marker_fd, maximum=MAX_MARKER_BYTES) != original:
             raise MarkerIdentityError(
                 "remote-write safety marker content changed before archival"
@@ -952,9 +1152,8 @@ def reconcile_marker_offline(
             archive_stat,
         )
 
-        archive_link_attempted = True
         _link_noreplace(
-            MARKER_BASENAME,
+            source_name,
             archive_name,
             source_directory_fd=project_fd,
             destination_directory_fd=archive_fd,
@@ -968,14 +1167,22 @@ def reconcile_marker_offline(
         )
         if not _same_inode(marker_stat, archived_stat):
             raise ArchiveCommitError("archive link did not preserve marker identity")
-        if archived_stat.st_nlink != 2 or os.fstat(marker_fd).st_nlink != 2:
+        expected_links_with_archive = len(initial_active_names) + 1
+        if (
+            archived_stat.st_nlink != expected_links_with_archive
+            or os.fstat(marker_fd).st_nlink != expected_links_with_archive
+        ):
             raise ArchiveCommitError(
-                "marker and archive do not form exactly one same-inode link pair"
+                "active barriers and archive do not form the exact expected "
+                "same-inode link set"
             )
-        if _entry_absent(project_fd, MARKER_BASENAME):
-            raise ArchiveCommitError(
-                "active safety marker disappeared before archive commitment"
-            )
+        _require_active_barrier_identity(
+            project_fd,
+            expected_names=initial_active_names,
+            expected_identity=marker_stat,
+            opened_descriptor=marker_fd,
+            expected_total_links=expected_links_with_archive,
+        )
         if _read_all(marker_fd, maximum=MAX_MARKER_BYTES) != original:
             raise ArchiveCommitError("archived marker bytes changed during linking")
 
@@ -996,6 +1203,13 @@ def reconcile_marker_offline(
             socket_name,
         )
         _require_project_path_identity(project, project_fd, project_identity)
+        _require_bound_readonly_receipt(
+            archive_fd,
+            receipt_temporary,
+            receipt_verification_fd,
+            receipt_temporary_identity,
+            receipt_content,
+        )
         _rename_noreplace(
             receipt_temporary,
             receipt_name,
@@ -1004,7 +1218,6 @@ def reconcile_marker_offline(
             label="reviewed marker archive receipt",
         )
         receipt_temporary = None
-        receipt_finalized = True
         _fsync_directory(archive_fd)
         _require_archive_path_identity(
             project_fd,
@@ -1013,45 +1226,35 @@ def reconcile_marker_offline(
             archive_stat,
         )
 
-        # The archive name and receipt are now both durable while the active
-        # marker still exists.  Revalidate every identity before making marker
-        # removal the final namespace transition.
-        current_marker_stat = _require_regular_entry(
-            project_fd,
-            MARKER_BASENAME,
-            label="remote-write safety marker",
-        )
+        # The archive name and receipt are now both durable while every active
+        # barrier still exists. Revalidate every identity before retiring the
+        # legacy name first and the restart barrier last.
         archived_stat = _require_regular_entry(
             archive_fd,
             archive_name,
             label="archived remote-write safety marker",
         )
-        receipt_fd, _receipt_stat = _open_verified_regular(
+        _require_bound_readonly_receipt(
             archive_fd,
             receipt_name,
-            label="reviewed marker archive receipt",
-            flags=os.O_RDONLY,
-            require_single_link=True,
+            receipt_verification_fd,
+            receipt_temporary_identity,
+            receipt_content,
         )
-        try:
-            if _read_all(receipt_fd, maximum=MAX_MARKER_BYTES) != (
-                _canonical_json_bytes(result.to_dict())
-            ):
-                raise ArchiveCommitError(
-                    "final marker archive receipt bytes differ from the reviewed record"
-                )
-        finally:
-            os.close(receipt_fd)
+        _require_active_barrier_identity(
+            project_fd,
+            expected_names=initial_active_names,
+            expected_identity=marker_stat,
+            opened_descriptor=marker_fd,
+            expected_total_links=expected_links_with_archive,
+        )
         if (
-            not _same_inode(marker_stat, current_marker_stat)
-            or not _same_inode(marker_stat, archived_stat)
-            or current_marker_stat.st_nlink != 2
-            or archived_stat.st_nlink != 2
-            or os.fstat(marker_fd).st_nlink != 2
+            not _same_inode(marker_stat, archived_stat)
+            or archived_stat.st_nlink != expected_links_with_archive
             or _read_all(marker_fd, maximum=MAX_MARKER_BYTES) != original
         ):
             raise ArchiveCommitError(
-                "marker/archive identity changed before active-marker retirement"
+                "barrier/archive identity changed before active-barrier retirement"
             )
         _revalidate_locked_instance_lock(
             project_fd,
@@ -1068,21 +1271,54 @@ def reconcile_marker_offline(
             archive_stat,
         )
 
-        os.unlink(MARKER_BASENAME, dir_fd=project_fd)
-        _fsync_directory(project_fd)
+        remaining_names = list(initial_active_names)
+        if MARKER_BASENAME in remaining_names:
+            os.unlink(MARKER_BASENAME, dir_fd=project_fd)
+            remaining_names.remove(MARKER_BASENAME)
+            _fsync_directory(project_fd)
+            _require_active_barrier_identity(
+                project_fd,
+                expected_names=tuple(remaining_names),
+                expected_identity=marker_stat,
+                opened_descriptor=marker_fd,
+                expected_total_links=len(remaining_names) + 1,
+            )
+            archived_stat = _require_regular_entry(
+                archive_fd,
+                archive_name,
+                label="archived remote-write safety marker",
+            )
+            if (
+                not _same_inode(marker_stat, archived_stat)
+                or archived_stat.st_nlink != len(remaining_names) + 1
+            ):
+                raise ArchiveCommitError(
+                    "legacy marker retirement did not preserve every successor "
+                    "and archive link"
+                )
+        if RESTART_BARRIER_BASENAME in remaining_names:
+            # This is deliberately the final active-barrier namespace
+            # transition. The legacy marker is already absent and the archive
+            # plus receipt are durable.
+            os.unlink(RESTART_BARRIER_BASENAME, dir_fd=project_fd)
+            remaining_names.remove(RESTART_BARRIER_BASENAME)
+            _fsync_directory(project_fd)
+
         archived_stat = _require_regular_entry(
             archive_fd,
             archive_name,
             label="archived remote-write safety marker",
         )
         if (
-            not _entry_absent(project_fd, MARKER_BASENAME)
+            remaining_names
+            or not _entry_absent(project_fd, MARKER_BASENAME)
+            or not _entry_absent(project_fd, RESTART_BARRIER_BASENAME)
             or not _same_inode(marker_stat, archived_stat)
             or archived_stat.st_nlink != 1
             or os.fstat(marker_fd).st_nlink != 1
         ):
             raise ArchiveCommitError(
-                "active marker retirement did not leave one immutable archive inode"
+                "active barrier retirement did not leave one immutable archive inode"
             )
         _require_project_path_identity(project, project_fd, project_identity)
         _require_archive_path_identity(
@@ -1095,7 +1331,7 @@ def reconcile_marker_offline(
     except BaseException as exc:
         archive_link_is_ours = False
         if (
-            archive_link_attempted
+            archive_link_created
             and archive_fd is not None
             and marker_fd is not None
         ):
@@ -1114,44 +1350,63 @@ def reconcile_marker_offline(
                 )
         if archive_link_is_ours and archive_fd is not None:
             try:
-                try:
-                    restored_source = _require_regular_entry(
-                        project_fd,
-                        MARKER_BASENAME,
-                        label="restored remote-write safety marker",
-                    )
-                except UnsafeReconciliationPathError as source_error:
-                    if not _entry_absent(project_fd, MARKER_BASENAME):
-                        raise source_error
-                    _link_noreplace(
-                        archive_name,
-                        MARKER_BASENAME,
-                        source_directory_fd=archive_fd,
-                        destination_directory_fd=project_fd,
-                        label="restored remote-write safety marker",
-                    )
-                    _fsync_directory(project_fd)
-                    restored_source = _require_regular_entry(
-                        project_fd,
-                        MARKER_BASENAME,
-                        label="restored remote-write safety marker",
-                    )
+                for active_name in initial_active_names:
+                    try:
+                        restored_source = _require_regular_entry(
+                            project_fd,
+                            active_name,
+                            label=f"restored remote-write safety barrier {active_name}",
+                        )
+                    except UnsafeReconciliationPathError as source_error:
+                        if not _entry_absent(project_fd, active_name):
+                            raise source_error
+                        _link_noreplace(
+                            archive_name,
+                            active_name,
+                            source_directory_fd=archive_fd,
+                            destination_directory_fd=project_fd,
+                            label=(
+                                "restored remote-write safety barrier "
+                                f"{active_name}"
+                            ),
+                        )
+                        _fsync_directory(project_fd)
+                        restored_source = _require_regular_entry(
+                            project_fd,
+                            active_name,
+                            label=(
+                                "restored remote-write safety barrier "
+                                f"{active_name}"
+                            ),
+                        )
+                    if not _same_inode(restored_source, os.fstat(marker_fd)):
+                        raise ArchiveCommitError(
+                            "rollback found a changed active barrier identity"
+                        )
                 archived_source = _require_regular_entry(
                     archive_fd,
                     archive_name,
                     label="archived remote-write safety marker",
                 )
+                restored_link_count = len(initial_active_names) + 1
                 if (
                     marker_fd is None
-                    or not _same_inode(restored_source, archived_source)
-                    or not _same_inode(restored_source, os.fstat(marker_fd))
-                    or restored_source.st_nlink != 2
-                    or archived_source.st_nlink != 2
+                    or not _same_inode(archived_source, os.fstat(marker_fd))
+                    or archived_source.st_nlink != restored_link_count
+                    or os.fstat(marker_fd).st_nlink != restored_link_count
                     or _read_all(marker_fd, maximum=MAX_MARKER_BYTES) != original
                 ):
                     raise ArchiveCommitError(
-                        "rollback could not prove the exact active marker was restored"
+                        "rollback could not prove the exact active barrier set "
+                        "was restored"
                     )
+                _require_active_barrier_identity(
+                    project_fd,
+                    expected_names=initial_active_names,
+                    expected_identity=marker_stat,
+                    opened_descriptor=marker_fd,
+                    expected_total_links=restored_link_count,
+                )
                 if marker_fd is not None and marker_mode is not None:
                     os.fchmod(marker_fd, marker_mode)
                     os.fsync(marker_fd)
@@ -1162,7 +1417,9 @@ def reconcile_marker_offline(
                         receipt_name,
                         label="reviewed marker archive receipt",
                     )
-                except UnsafeReconciliationPathError:
+                except UnsafeReconciliationPathError as receipt_error:
+                    if not _entry_absent(archive_fd, receipt_name):
+                        raise receipt_error
                     final_receipt = None
                 if (
                     final_receipt is not None
@@ -1170,15 +1427,17 @@ def reconcile_marker_offline(
                     and _same_inode(final_receipt, receipt_temporary_identity)
                 ):
                     os.unlink(receipt_name, dir_fd=archive_fd)
-                    receipt_finalized = False
-                elif receipt_finalized:
-                    raise ArchiveCommitError(
-                        "final marker receipt identity changed during rollback"
-                    )
                 os.unlink(archive_name, dir_fd=archive_fd)
                 archive_link_created = False
                 _fsync_directory(archive_fd)
                 _fsync_directory(project_fd)
+                _require_active_barrier_identity(
+                    project_fd,
+                    expected_names=initial_active_names,
+                    expected_identity=marker_stat,
+                    opened_descriptor=marker_fd,
+                    expected_total_links=len(initial_active_names),
+                )
             except BaseException as rollback_error:
                 if not isinstance(exc, Exception):
                     try:
@@ -1202,12 +1461,34 @@ def reconcile_marker_offline(
             raise
         raise ArchiveCommitError("offline marker archival failed") from exc
     finally:
-        if receipt_temporary is not None and archive_fd is not None:
+        if (
+            receipt_temporary is not None
+            and receipt_temporary_identity is not None
+            and archive_fd is not None
+        ):
             try:
-                os.unlink(receipt_temporary, dir_fd=archive_fd)
+                current_temporary = _entry_stat(
+                    archive_fd,
+                    receipt_temporary,
+                )
             except OSError:
                 pass
-        for descriptor in (archive_fd, marker_fd, lock_fd, project_fd):
+            else:
+                if _same_inode(
+                    current_temporary,
+                    receipt_temporary_identity,
+                ):
+                    try:
+                        os.unlink(receipt_temporary, dir_fd=archive_fd)
+                    except OSError:
+                        pass
+        for descriptor in (
+            receipt_verification_fd,
+            archive_fd,
+            marker_fd,
+            lock_fd,
+            project_fd,
+        ):
             if descriptor is not None:
                 try:
                     os.close(descriptor)

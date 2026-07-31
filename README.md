@@ -396,9 +396,12 @@ runway is a maximum-throughput minimum: it assumes generated selection whenever
 spacing permits.
 
 An X POST transport timeout is not proof of failure: X may have accepted the
-write. Such an ambiguous outcome creates `ambiguous_post_outcome.json` and
-blocks further posting until an operator reconciles it; the bot does not claim
-exactly-once delivery.
+write. A new ambiguous outcome first creates and synchronises
+`ambiguous_post_outcome.restart_barrier.json`, then adds the same-inode
+compatibility name `ambiguous_post_outcome.json`. Older installations with only
+the compatibility name migrate it to the successor while holding the instance
+lock. Either name blocks further posting until an operator reconciles the
+incident; the bot does not claim exactly-once delivery.
 
 The safety marker must never be removed while the daemon is running. After an
 operator has independently reconciled the remote outcome, stop the service and
@@ -408,16 +411,27 @@ wait for its process to exit, record the marker's SHA-256, then use
 daemon's shared state-directory, abstract-socket, open-file-description or
 BSD-flock boundaries is held and rejects symbolic links. It creates a
 no-replace same-inode archive link, makes that archive and its audit receipt
-durable while the active marker still exists, and only then removes and
-synchronises the active marker name as the final transition. An uncatchable
-exit before that final transition therefore leaves the fail-closed marker
-present. A running process latches immediately when it observes any marker
-namespace entry; failed inspection or durability acknowledgement remains an
-independent in-memory blocker even if the pathname then disappears. If marker
-durability must be recovered while the daemon is alive, restore or replace the
-marker atomically; never delete it. The archival command records an operator
-reference but does not itself determine whether the X outcome has been
-reconciled.
+durable while every active barrier still exists, removes the legacy marker
+first, and retires the restart barrier last. A successor which alone survives
+legacy-marker loss remains an active, reconcilable barrier. A running process
+latches immediately when it observes either namespace entry; failed inspection
+or durability acknowledgement remains an independent in-memory blocker. Never
+remove or replace either active name outside the stopped, lock-bound
+reconciler. The archival command records an operator reference but does not
+itself determine whether the X outcome has been reconciled.
+
+An abrupt loss of the reconciliation command after its archive or receipt has
+become durable remains fail-closed: a surviving active name or extra archive
+link still blocks the daemon. The command does not automatically resume that
+partially completed archival state; an operator must preserve and review its
+archive, receipt and active-name evidence before a separately reviewed
+recovery. This is an availability limitation, not permission to delete either
+barrier manually.
+
+A legacy-only marker from an older release must remain in place until its first
+successful migration. The instance lock excludes every supported removal path;
+deleting that sole legacy name beforehand is an unsupported external mutation
+which no later process can reconstruct from the filesystem.
 
 The daemon first opens and exclusively locks the state-directory inode. That
 kernel file lock is shared across lexical aliases and network namespaces. It

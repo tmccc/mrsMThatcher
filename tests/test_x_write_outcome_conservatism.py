@@ -56,6 +56,11 @@ def isolate_remote_write_state(
     )
     monkeypatch.setattr(
         bot,
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
+        tmp_path / "ambiguous_post_outcome.restart_barrier.json",
+    )
+    monkeypatch.setattr(
+        bot,
         "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE",
         tmp_path / "historical_context_reply_history.json",
     )

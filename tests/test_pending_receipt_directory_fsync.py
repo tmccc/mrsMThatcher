@@ -56,6 +56,11 @@ def isolate_transaction_files(
     )
     monkeypatch.setattr(
         bot,
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
+        tmp_path / "ambiguous_post_outcome.restart_barrier.json",
+    )
+    monkeypatch.setattr(
+        bot,
         "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE",
         tmp_path / "historical_context_reply_history.json",
     )
@@ -476,7 +481,7 @@ def test_persistent_pending_parent_fsync_failure_latches_before_other_writes(
             *,
             durable: bool = False,
         ) -> None:
-            if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
+            if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
                 raise OSError("injected ambiguity-marker failure")
             original_atomic_write_json(path, value, durable=durable)
 
@@ -491,7 +496,7 @@ def test_persistent_pending_parent_fsync_failure_latches_before_other_writes(
             strict: bool = False,
         ) -> None:
             if (
-                Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE
+                Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
                 and Path(path).exists()
             ):
                 raise OSError(
@@ -513,8 +518,11 @@ def test_persistent_pending_parent_fsync_failure_latches_before_other_writes(
         assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is (
             marker_failure_mode != "none"
         )
-        assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists() is (
+        assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists() is (
             marker_failure_mode != "before_write"
+        )
+        assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists() is (
+            marker_failure_mode == "none"
         )
         if marker_failure_mode != "none":
             leaked_handler = signal.getsignal(signal.SIGINT)
@@ -879,14 +887,16 @@ def test_marker_disappearance_during_fsync_keeps_durable_helper_fail_closed(
     )
 
     try:
-        assert bot.durable_remote_write_safety_marker_exists() is False
+        assert bot.durable_remote_write_safety_marker_exists() is True
         assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
         assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+        assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.stat().st_nlink == 1
         assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
-        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
-        assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is guard
-        assert getattr(signal.getsignal(signal.SIGINT), "__self__", None) is guard
-        assert delivered == []
+        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
+        assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
+        assert signal.getsignal(signal.SIGINT) is delivered_handler
+        assert delivered == [signal.SIGINT]
     finally:
         signal.signal(signal.SIGINT, original_signal_handler)
 
@@ -908,11 +918,13 @@ def test_fresh_process_marker_disappearance_latches_and_blocks_preflight(
         monkeypatch
     )
 
-    assert bot.durable_remote_write_safety_marker_exists() is False
+    assert bot.durable_remote_write_safety_marker_exists() is True
     assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
     assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.stat().st_nlink == 1
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
-    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
     assert bot.ambiguous_remote_post_is_blocking() is True
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.block_if_ambiguous_remote_post()
@@ -1106,11 +1118,13 @@ def test_marker_disappearance_during_fsync_keeps_confirmed_latch_fail_closed(
         monkeypatch
     )
 
-    assert bot.latch_confirmed_post_persistence_failure(**marker_arguments) is False
+    assert bot.latch_confirmed_post_persistence_failure(**marker_arguments) is True
     assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
     assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.stat().st_nlink == 1
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
-    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
 
 
 def test_marker_disappearance_during_fsync_keeps_ambiguous_record_fail_closed(
@@ -1129,8 +1143,10 @@ def test_marker_disappearance_during_fsync_keeps_ambiguous_record_fail_closed(
     bot.record_ambiguous_remote_post(payload)
     assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
     assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.stat().st_nlink == 1
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
-    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
 
 
 @pytest.mark.parametrize("mutation", ["disappear", "replace"])
@@ -1138,7 +1154,7 @@ def test_new_marker_atomic_write_mutation_keeps_ambiguous_record_fail_closed(
     mutation: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The exact newly written marker must still exist when it is acknowledged."""
+    """The exact newly written successor must exist when it is acknowledged."""
     actual_create_post = bot.create_post
     original_signal_handler = signal.getsignal(signal.SIGINT)
     original_atomic_write_json = bot.atomic_write_json
@@ -1163,7 +1179,7 @@ def test_new_marker_atomic_write_mutation_keeps_ambiguous_record_fail_closed(
     ) -> None:
         original_atomic_write_json(path, value, durable=durable)
         resolved = Path(path)
-        if resolved != bot.AMBIGUOUS_POST_OUTCOME_FILE:
+        if resolved != bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
             return
         if mutation == "disappear":
             resolved.unlink()
@@ -1825,19 +1841,22 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
         marker_payload,
         durable=True,
     )
-    original_fsync_parent_dir, removed = (
-        _install_marker_disappearance_during_parent_fsync(monkeypatch)
-    )
-    marker_fsync_attempts = 0
-    injected_fsync = bot.fsync_parent_dir
+    original_fsync_parent_dir = bot.fsync_parent_dir
+    parent_fsync_paths: list[Path] = []
 
-    def count_marker_fsync(path: Path, *, strict: bool = False) -> None:
-        nonlocal marker_fsync_attempts
-        if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE:
-            marker_fsync_attempts += 1
-        injected_fsync(path, strict=strict)
+    def fail_first_successor_fsync(
+        path: Path,
+        *,
+        strict: bool = False,
+    ) -> None:
+        resolved = Path(path)
+        parent_fsync_paths.append(resolved)
+        original_fsync_parent_dir(path, strict=strict)
+        if len(parent_fsync_paths) == 1:
+            assert resolved == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
+            raise OSError("successor parent fsync reported a transient failure")
 
-    monkeypatch.setattr(bot, "fsync_parent_dir", count_marker_fsync)
+    monkeypatch.setattr(bot, "fsync_parent_dir", fail_first_successor_fsync)
 
     class TwoBlockedTicksComplete(Exception):
         pass
@@ -1851,16 +1870,8 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
             assert delivered == []
             assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is guard
             assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
-            assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
-            bot.AMBIGUOUS_POST_OUTCOME_FILE.write_bytes(
-                bot.canonical_atomic_json_bytes(marker_payload)
-            )
-            with open(bot.AMBIGUOUS_POST_OUTCOME_FILE, "rb") as handle:
-                os.fsync(handle.fileno())
-            original_fsync_parent_dir(
-                bot.AMBIGUOUS_POST_OUTCOME_FILE,
-                strict=True,
-            )
+            assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+            assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
             return
         raise TwoBlockedTicksComplete
 
@@ -1869,10 +1880,13 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
     try:
         with pytest.raises(TwoBlockedTicksComplete):
             bot.main()
-        assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
-        assert marker_fsync_attempts == 2
+        assert parent_fsync_paths == [
+            bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        ]
         assert sleep_calls == 2
         assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
         assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
         assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
         assert signal.getsignal(signal.SIGINT) is delivered_handler
@@ -1949,14 +1963,15 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
     bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
     bot.AMBIGUOUS_POST_OUTCOME_FILE.write_text("{}\n", encoding="utf-8")
 
-    fsync_attempts = 0
+    fsync_paths: list[Path] = []
+    real_fsync_parent_dir = bot.fsync_parent_dir
 
     def transient_parent_fsync(path: Path, *, strict: bool = False) -> None:
-        nonlocal fsync_attempts
-        assert path == bot.AMBIGUOUS_POST_OUTCOME_FILE
         assert strict is True
-        fsync_attempts += 1
-        if fsync_attempts == 1:
+        fsync_paths.append(Path(path))
+        real_fsync_parent_dir(path, strict=strict)
+        if len(fsync_paths) == 1:
+            assert Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
             raise OSError("first parent-directory fsync failed")
 
     monkeypatch.setattr(bot, "fsync_parent_dir", transient_parent_fsync)
@@ -1977,13 +1992,17 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
     try:
         with pytest.raises(TwoBlockedTicksComplete):
             bot.main()
-        assert fsync_attempts == 2
+        assert fsync_paths == [
+            bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        ]
         assert sleep_calls == 2
         assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
         assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
         assert signal.getsignal(signal.SIGINT) is delivered_handler
         assert delivered == [signal.SIGINT]
         assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
         assert bot.ambiguous_remote_post_is_blocking() is True
         assert sum(
             "All remote posting and reply lanes are paused" in record.getMessage()
@@ -2096,6 +2115,8 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
     assert removed == [bot.AMBIGUOUS_POST_OUTCOME_FILE]
     assert sleep_calls == 3
     assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.stat().st_nlink == 1
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
-    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is True
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
     assert remote_actions == []
