@@ -232,88 +232,45 @@ def new_barrier_fault_before_legacy_link(
     return 76
 
 
-def install_regular_sending_receipt(bot) -> None:
-    """Install one genuine durable pre-send regular-post transaction."""
-
-    quote_hash = bot.quote_text_hash("Offline receipt-backed quote.")
-    attempt = bot.build_main_post_attempt(
-        lane="quote_image",
-        text="Offline receipt-backed quote.",
-        media_ids=["offline-media-1"],
-        made_with_ai=False,
-        selected_identity={
-            "quote_hash": quote_hash,
-            "line_no": 0,
-            "source_line_number": 1,
-            "image_basename": "t01.jpg",
-            "image_no": 0,
-        },
-        recovery_plan={
-            "quote_delay_seconds": 7_200,
-            "meme_delay_seconds": None,
-            "quote_history_after": [quote_hash],
-            "image_history_after": ["t01.jpg"],
-        },
-        attempt_epoch=1_800_000_000,
-    )
-    bot.write_main_post_attempt(attempt)
-
-
-def legacy_prelink_loss_with_receipt(
+def inactive_protocol_legacy_loss(
     bot,
     source_path: Path,
     state_directory: Path,
 ) -> int:
-    """Lose a legacy-only name before migration, retaining its real receipt."""
+    """Lose a legacy marker, hard-exit, and rely only on protocol inactivity."""
 
     marker = Path(bot.AMBIGUOUS_POST_OUTCOME_FILE)
     successor = state_directory / RESTART_BARRIER_BASENAME
-    real_lstat = bot.os.lstat
-    removed = False
-
-    install_regular_sending_receipt(bot)
-    bot.require_remote_write_marker_removal_protocol = lambda: None
-
-    def unlink_after_observation(
-        path: object,
-        *args: object,
-        **kwargs: object,
-    ):
-        nonlocal removed
-        metadata = real_lstat(path, *args, **kwargs)
-        if Path(path) == marker and not removed:
-            removed = True
-            marker.unlink()
-            descriptor = os.open(
-                state_directory,
-                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
-            )
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
-        return metadata
-
-    bot.os.lstat = unlink_after_observation
-    durable = bot.durable_remote_write_safety_marker_exists()
+    blocked_before_loss = bot.ambiguous_remote_post_is_blocking()
+    marker.unlink()
+    descriptor = os.open(
+        state_directory,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
     emit(
         {
-            "durable_marker": durable,
+            "blocked_before_loss": blocked_before_loss,
             "legacy_marker_present": os.path.lexists(marker),
-            "phase": "legacy_prelink_loss_with_receipt",
+            "phase": "inactive_protocol_legacy_loss",
+            "protocol_active": bot.remote_write_safety_protocol_is_active(),
             "receipts_present": receipt_presence(bot),
-            "remote_seen": bool(bot._AMBIGUOUS_REMOTE_POST_SEEN),
             "source_sha256": source_sha256(source_path),
             "successor_present": os.path.lexists(successor),
-            "uncertain": bool(
-                bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
-            ),
         }
     )
     os._exit(77)
 
 
-def exercise_direct_preflights(bot, state_directory: Path) -> tuple[
+def exercise_direct_preflights(
+    bot,
+    state_directory: Path,
+    *,
+    include_receipt_bound_control: bool = False,
+) -> tuple[
     dict[str, str],
     list[str],
 ]:
@@ -399,6 +356,39 @@ def exercise_direct_preflights(bot, state_directory: Path) -> tuple[
             results[label] = f"unexpected:{type(exc).__name__}"
         else:
             results[label] = "returned"
+    if include_receipt_bound_control:
+        receipt = {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "123",
+            "quote_id": "a" * 64,
+            "reply_text": "offline receipt-bound post",
+            "reply_epoch": 123,
+            "started_at": "2026-07-31T12:00:00Z",
+            "attempt_number": 1,
+        }
+        bot.atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            receipt,
+        )
+        try:
+            bot.create_post(
+                "offline receipt-bound post",
+                reply_to_id="123",
+                prepared_historical_context_reply_receipt=receipt,
+            )
+        except LocalTransportBoundary:
+            results["receipt_bound_create_post"] = "local_transport_reached"
+        except BaseException as exc:
+            results["receipt_bound_create_post"] = (
+                f"unexpected:{type(exc).__name__}"
+            )
+        else:
+            results["receipt_bound_create_post"] = "returned"
+        finally:
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.unlink(
+                missing_ok=True
+            )
     return results, transport_calls
 
 
@@ -511,6 +501,7 @@ def inspect_process(
             bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
         ),
         "marker_present": os.path.lexists(marker),
+        "protocol_active": bot.remote_write_safety_protocol_is_active(),
         "receipts_present": receipt_presence(bot),
         "remote_seen": bool(bot._AMBIGUOUS_REMOTE_POST_SEEN),
         "successor_present": os.path.lexists(successor),
@@ -519,6 +510,7 @@ def inspect_process(
     direct_results, transport_calls = exercise_direct_preflights(
         bot,
         state_directory,
+        include_receipt_bound_control=clean,
     )
     scheduler_entries, run_scheduler = configure_main_probe(bot, state_directory)
     sleep_calls = run_scheduler()
@@ -617,8 +609,8 @@ def main(argv: list[str] | None = None) -> int:
             source_path,
             state_directory,
         )
-    if mode == "legacy_receipt_fault":
-        return legacy_prelink_loss_with_receipt(
+    if mode == "inactive_legacy_loss":
+        return inactive_protocol_legacy_loss(
             bot,
             source_path,
             state_directory,
@@ -636,12 +628,6 @@ def main(argv: list[str] | None = None) -> int:
             source_path,
             state_directory,
             clean=True,
-        )
-    if mode == "receipt_blocked":
-        return inspect_receipt_backed_process(
-            bot,
-            source_path,
-            state_directory,
         )
     raise SystemExit(f"unknown mode: {mode}")
 

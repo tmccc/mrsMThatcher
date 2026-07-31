@@ -641,6 +641,12 @@ def test_long_reply_is_sent_unchanged_through_existing_post_path(tmp_path):
         now_epoch=lambda: 123,
     )
     assert result["status"] == "completed"
+    prepared = calls[0].pop("prepared_historical_context_reply_receipt")
+    assert (
+        prepared["lifecycle_state"],
+        prepared["parent_post_id"],
+        prepared["reply_text"],
+    ) == ("sending", "111", reply)
     assert calls == [{
         "text": reply,
         "media_ids": None,
@@ -979,6 +985,149 @@ def test_confirmed_receipt_reconciles_after_restart_without_posting(tmp_path):
     result = restarted.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context",
         create_post=lambda **kwargs: pytest.fail("reconciled receipt must prevent duplicate"), now_epoch=lambda: 124)
     assert result["status"] == "already_completed"
+
+
+def test_context_receipt_reader_rejects_symlink_without_following_it(tmp_path):
+    target = tmp_path / "target.json"
+    receipt = {
+        "schema_version": 1,
+        "parent_post_id": "111",
+        "reply_post_id": "222",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 123,
+        "confirmed_at": "now",
+    }
+    target.write_text(json.dumps(receipt), encoding="utf-8")
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.symlink_to(target.name)
+    store = HistoricalContextReplyStore(tmp_path / "history.json", receipt_path)
+
+    with pytest.raises(RuntimeError, match="unsafe filesystem metadata"):
+        store.reconcile_receipt()
+
+    assert receipt_path.is_symlink()
+    assert json.loads(target.read_text(encoding="utf-8")) == receipt
+    assert not store.history_path.exists()
+
+
+def test_context_receipt_reader_rejects_same_byte_aba_replacement(
+    tmp_path,
+    monkeypatch,
+):
+    receipt = {
+        "schema_version": 1,
+        "parent_post_id": "111",
+        "reply_post_id": "222",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 123,
+        "confirmed_at": "now",
+    }
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    store = HistoricalContextReplyStore(tmp_path / "history.json", receipt_path)
+    real_lstat = context_module.os.lstat
+    receipt_lstats = 0
+
+    def replace_before_final_lstat(path):
+        nonlocal receipt_lstats
+        if Path(path) == receipt_path:
+            receipt_lstats += 1
+            if receipt_lstats == 2:
+                replacement = tmp_path / "replacement.json"
+                replacement.write_bytes(receipt_path.read_bytes())
+                replacement.replace(receipt_path)
+        return real_lstat(path)
+
+    monkeypatch.setattr(context_module.os, "lstat", replace_before_final_lstat)
+
+    with pytest.raises(RuntimeError, match="changed while it was read"):
+        store.reconcile_receipt()
+
+    assert receipt_lstats >= 2
+    assert receipt_path.exists()
+    assert not store.history_path.exists()
+
+
+def test_context_receipt_duplicate_lifecycle_cannot_fabricate_confirmation(
+    tmp_path,
+):
+    """Duplicate names cannot retire a sending ambiguity as confirmed."""
+
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(
+        """{
+  "schema_version": 1,
+  "lifecycle_state": "sending",
+  "parent_post_id": "111",
+  "quote_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "reply_text": "Context",
+  "reply_epoch": 1800000000,
+  "started_at": "2026-07-31T12:00:00Z",
+  "attempt_number": 1,
+  "lifecycle_state": "confirmed",
+  "reply_post_id": "999",
+  "confirmed_at": "2026-07-31T12:00:01Z"
+}
+""",
+        encoding="utf-8",
+    )
+    receipt_bytes = receipt_path.read_bytes()
+    store = HistoricalContextReplyStore(tmp_path / "history.json", receipt_path)
+
+    assert (
+        HistoricalContextReplyStore.receipt_parent_for_safe_local_reconciliation(
+            receipt_path
+        )
+        is None
+    )
+    with pytest.raises(RuntimeError, match="invalid context reply receipt JSON"):
+        store.reconcile_receipt()
+
+    assert receipt_path.read_bytes() == receipt_bytes
+    assert not store.history_path.exists()
+
+
+def test_context_receipt_retirement_preserves_barrier_on_path_replacement(
+    tmp_path,
+    monkeypatch,
+):
+    receipt = {
+        "schema_version": 1,
+        "parent_post_id": "111",
+        "reply_post_id": "222",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 123,
+        "confirmed_at": "now",
+    }
+    replacement = {**receipt, "parent_post_id": "333", "reply_post_id": "444"}
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    store = HistoricalContextReplyStore(tmp_path / "history.json", receipt_path)
+    real_exchange = context_module._rename_exchange_at
+
+    def replace_then_exchange(directory_fd, left, right):
+        replacement_path = tmp_path / "replacement.json"
+        replacement_path.write_text(json.dumps(replacement), encoding="utf-8")
+        replacement_path.replace(receipt_path)
+        return real_exchange(directory_fd, left, right)
+
+    monkeypatch.setattr(
+        context_module,
+        "_rename_exchange_at",
+        replace_then_exchange,
+    )
+
+    with pytest.raises(RuntimeError, match="namespace changed during retirement"):
+        store.reconcile_receipt()
+
+    assert receipt_path.read_bytes() == context_module._RECEIPT_RETIREMENT_TOMBSTONE
+    displaced = list(tmp_path.glob(".receipt.json.retiring.*"))
+    assert len(displaced) == 1
+    assert json.loads(displaced[0].read_text(encoding="utf-8")) == replacement
+    assert store.history()["items"]["111"]["status"] == "completed"
 
 
 @pytest.mark.parametrize(

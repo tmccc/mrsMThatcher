@@ -29,7 +29,7 @@ independently reproduced candidate-lineage defects.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final restart-persistent successor-barrier remediation commit must replace DEF-0035's external unknown fix identity and bind its literal multi-process regressions before any post-merge assurance claim.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final restart-persistent successor-first protocol and clean-activation remediation commit must replace DEF-0035's external unknown fix identity and bind its literal multi-process, inactive-protocol and offline-activation regressions before any post-merge assurance claim.
 
 ## Status taxonomy
 
@@ -122,6 +122,8 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0033` | runtime-defect | `mrsMThatcher2.py` | `process-bootstrap`; `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `one-shot-operations`; `offline-marker-reconciliation` | false — This is a latent critical runtime defect present in the observed production lineage and the unactivated ee7539c candidate, repaired by the unactivated 2ad0f79 evidence cut-off. It is not evidence that two production processes actually posted concurrently. Evidence: The final local source audit established the path-following, namespace-replacement and same-descriptor re-acquisition gaps without a network, provider or X action; no production concurrency incident, duplicate post or state race was established. |
 | `DEF-0034` | runtime-defect | `mrsMThatcher2.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `provider-request`; `cross-cutting-remote-write-barrier` | false — The defect was reproduced in the unactivated 2ad0f79 candidate. It establishes an open remote-write barrier after restart, not an observed production post or duplicate. Evidence: Independent fresh-process fault injection reproduced a path to the local historical-context remote boundary with every network/provider operation replaced by a sentinel. No production, provider or X action occurred. |
 | `DEF-0035` | runtime-defect | `mrsMThatcher2.py`; `tools/reconcile_remote_write_safety_marker.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `provider-request`; `cross-cutting-remote-write-barrier` | false — The defect was reproduced in the unactivated debc079 candidate. It establishes loss of an unresolved-outcome barrier after a further hard process exit, not an observed production post or duplicate. Evidence: Independent review used two literal Python interpreters and a disposable state directory. The second interpreter reached local direct, shared and historical-context scheduler boundaries with all HTTP, X, media and provider operations replaced by sentinels. |
+| `DEF-0036` | runtime-defect | `mrsMThatcher2.py`; `historical_context_formatter.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `provider-request`; `cross-cutting-remote-write-barrier` | false — This is a pre-freeze offline defect reproduction, not evidence of a live duplicate or production incident. Evidence: A disposable active-protocol state with a schema-valid historical-context sending receipt left shared and raw transport preflight open. Separate source inspection showed that prepared regular, meme and conversational records were accepted from memory when their durable receipt path was absent. No network, provider, X or production action occurred. |
+| `DEF-0037` | runtime-defect | `mrsMThatcher2.py`; `remote_write_safety_protocol.py`; `tools/activate_remote_write_safety_protocol.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `provider-request`; `cross-cutting-remote-write-barrier` | false — These are pre-freeze adversarial reproductions, not production incidents. Evidence: A disposable established-state directory used the shipped unaudited new-install helper and opened all local remote-lane sentinels. A separate deterministic namespace race composed a previously read valid sentinel with a later valid audit even though no valid pair existed at return. No network, X, provider, service or production action occurred. |
 
 ## Chronology projection
 
@@ -210,6 +212,9 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0034` | 2026-07-31 | `2ad0f79f` | Independent review began from false globals and a valid marker, removed the marker during real parent-directory fsync, then reached the historical-context remote lane because the surviving uncertainty flag was not blocking. | Independent IR-2AD0F79-01 fresh-process reproduction |
 | `DEF-0034` | 2026-07-31 | `debc0799` | The replacement candidate seeded both process-local barriers on marker observation, made either barrier block direct and scheduler paths, and retained them on every marker inspection or acknowledgement failure. | Committed source and same-process fresh-start regressions |
 | `DEF-0035` | 2026-07-31 | `debc0799` | Independent review removed the legacy marker during real parent-directory fsync in one interpreter, terminated that correctly latched process through os._exit, then showed a literal second interpreter with false globals and no durable marker could enter the historical-context scheduler lane. | Independent IR-DEBC079-01 literal two-process reproduction |
+| `DEF-0036` | 2026-07-31 | `debc0799` | A fresh pre-freeze review created a valid historical-context sending receipt and proved that the shared predicate and raw transport/provider preflights remained open. | Disposable receipt-bound direct and scheduler reproduction |
+| `DEF-0036` | 2026-07-31 | `debc0799` | Source review additionally proved that prepared main and conversational records were not required to match a currently present durable receipt. | block_if_ambiguous_remote_post control-flow inspection and red regression |
+| `DEF-0037` | 2026-07-31 | `debc0799` | A final pre-freeze adversarial review activated an established fixture through the unaudited helper and separately reproduced a torn sentinel/audit read through the actual shared preflight. | Disposable activation-helper and namespace-generation reproductions |
 
 ## Summary
 
@@ -250,6 +255,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0033` | repaired-not-deployed | critical | Instance-lock namespace and continuous ownership were not proved | `INV-PROC-002` | `f0be0b5d` | `2ad0f79f` | not-deployed; observed `be882e81` |
 | `DEF-0034` | repaired-not-deployed | critical | Fresh-process marker observation did not establish a blocking in-memory barrier | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `2ad0f79f`, bounded | `debc0799` | not-deployed; observed `be882e81` |
 | `DEF-0035` | active | critical | A second restart could lose the sole remote-write barrier after marker disappearance | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | `debc0799`, bounded | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0036` | active | critical | Prepared receipt authority and historical-context receipts did not close the global preflight | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0037` | active | critical | Unaudited activation and torn pair inspection could open remote-write permission | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
 
 ## Records
 
@@ -738,6 +745,33 @@ permit only lock-bound offline reconciliation to retire the successor as its
 final durable transition. The replacement identity remains external until
 frozen.
 
+### DEF-0036 — Prepared receipt and historical-context global-barrier gaps
+
+The pre-freeze replacement initially treated an in-memory prepared regular,
+meme or conversational-reply record as sufficient authority even when its
+durable sending file had disappeared. It also omitted the
+historical-context sending receipt from the shared barrier, allowing unrelated
+remote lanes to proceed while that reply outcome was unresolved. The current
+worktree requires exact live durable receipt identity for the prepared lane,
+blocks every unrelated lane on any historical-context receipt namespace entry
+and permits only the historical-context worker's non-transmitting local
+reconciliation path to inspect its own interrupted attempt. This finding
+remains active at the ledger evidence cut-off; any replacement fix identity
+must be supplied by a later frozen external attestation.
+
+### DEF-0037 — Unaudited activation and torn pair inspection
+
+The pre-freeze replacement exposed an unaudited `new_install` activation helper
+which could open an established state directory without the stopped,
+lock-bound external-attestation protocol. It also read the activation sentinel
+and audit independently without cross-revalidating both pathname identities
+after both reads, so files from different namespace generations could be
+composed into permission. The replacement removes supported unaudited
+activation: `--initialise` leaves remote writes disabled and every installation
+must use the stopped activator. Runtime inspection now cross-revalidates both
+pair identities. This finding remains active at the ledger evidence cut-off;
+the frozen fix identity must be supplied by a later external attestation.
+
 ## Unknown-value policy
 
 The following are intentionally unknown rather than inferred:
@@ -748,7 +782,7 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- Every active record through `DEF-0035`: no repair commit exists at the ledger
+- Every active record through `DEF-0037`: no repair commit exists at the ledger
   evidence cut-off where that JSON record has
   `fix.state=unfixed`.
 

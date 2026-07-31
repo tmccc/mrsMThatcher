@@ -14,6 +14,7 @@ from typing import Callable
 
 import pytest
 
+from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.test_unit_helpers import (
     UNIT_REPLY_REPOSITORY,
     bot,
@@ -25,6 +26,24 @@ from tests.test_unit_helpers import (
 
 
 CONFIRMATION_EPOCH = 1_800_000_000
+
+
+def _establish_current_barrier_pair() -> None:
+    """Add and synchronise the successor for a test-created legacy pathname."""
+
+    os.link(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE,
+        bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+        follow_symlinks=False,
+    )
+    descriptor = os.open(
+        bot.AMBIGUOUS_POST_OUTCOME_FILE.parent,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 @pytest.fixture(autouse=True)
@@ -58,6 +77,14 @@ def isolate_transaction_files(
         bot,
         "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
         tmp_path / "ambiguous_post_outcome.restart_barrier.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
+        tmp_path / ".mrs_remote_write_safety_protocol_v1",
+    )
+    create_test_protocol_activation(
+        bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
     )
     monkeypatch.setattr(
         bot,
@@ -849,6 +876,7 @@ def test_recovered_marker_delivers_deferred_sigint_once() -> None:
     bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = guard
     bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
     bot.AMBIGUOUS_POST_OUTCOME_FILE.write_text("{}\n", encoding="utf-8")
+    _establish_current_barrier_pair()
 
     try:
         with pytest.raises(KeyboardInterrupt):
@@ -882,6 +910,7 @@ def test_marker_disappearance_during_fsync_keeps_durable_helper_fail_closed(
         _ambiguous_marker_payload(),
         durable=True,
     )
+    _establish_current_barrier_pair()
     _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(
         monkeypatch
     )
@@ -912,6 +941,7 @@ def test_fresh_process_marker_disappearance_latches_and_blocks_preflight(
         marker_payload,
         durable=True,
     )
+    _establish_current_barrier_pair()
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
     assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
     _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(
@@ -1079,6 +1109,7 @@ def test_marker_namespace_mutation_during_fsync_keeps_acknowledgement_fail_close
         _ambiguous_marker_payload(),
         durable=True,
     )
+    _establish_current_barrier_pair()
     mutations = _install_marker_namespace_mutation_during_parent_fsync(
         monkeypatch,
         mutation,
@@ -1269,6 +1300,7 @@ def test_production_acknowledgement_rejects_replaced_instance_lock_path(
         _ambiguous_marker_payload(),
         durable=True,
     )
+    _establish_current_barrier_pair()
 
     try:
         assert bot.durable_remote_write_safety_marker_exists() is True
@@ -1333,7 +1365,10 @@ def test_test_mode_custom_external_endpoint_cannot_bypass_instance_lock(
         lambda *_args, **_kwargs: transmitted.append("sent"),
     )
 
-    with pytest.raises(RuntimeError, match="instance lock"):
+    with pytest.raises(
+        (RuntimeError, bot.AmbiguousRemotePostOutcome),
+        match="instance lock|internal exact-receipt authorization",
+    ):
         bot.x_request("POST", "/2/tweets", json={"text": "never sent"})
     assert transmitted == []
 
@@ -1841,10 +1876,11 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
         marker_payload,
         durable=True,
     )
+    _establish_current_barrier_pair()
     original_fsync_parent_dir = bot.fsync_parent_dir
     parent_fsync_paths: list[Path] = []
 
-    def fail_first_successor_fsync(
+    def fail_first_barrier_fsync(
         path: Path,
         *,
         strict: bool = False,
@@ -1853,10 +1889,10 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
         parent_fsync_paths.append(resolved)
         original_fsync_parent_dir(path, strict=strict)
         if len(parent_fsync_paths) == 1:
-            assert resolved == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
-            raise OSError("successor parent fsync reported a transient failure")
+            assert resolved == bot.AMBIGUOUS_POST_OUTCOME_FILE
+            raise OSError("barrier parent fsync reported a transient failure")
 
-    monkeypatch.setattr(bot, "fsync_parent_dir", fail_first_successor_fsync)
+    monkeypatch.setattr(bot, "fsync_parent_dir", fail_first_barrier_fsync)
 
     class TwoBlockedTicksComplete(Exception):
         pass
@@ -1881,7 +1917,7 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
         with pytest.raises(TwoBlockedTicksComplete):
             bot.main()
         assert parent_fsync_paths == [
-            bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            bot.AMBIGUOUS_POST_OUTCOME_FILE,
             bot.AMBIGUOUS_POST_OUTCOME_FILE,
         ]
         assert sleep_calls == 2
@@ -1898,6 +1934,54 @@ def test_later_valid_marker_recovery_releases_sigint_once_without_remote_actions
         assert remote_actions == []
     finally:
         signal.signal(signal.SIGINT, original_signal_handler)
+
+
+@pytest.mark.parametrize("activation_state", ["absent", "malformed"])
+def test_inactive_protocol_is_not_an_incident_specific_durable_acknowledgement(
+    activation_state: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Generic protocol refusal blocks fresh writes but cannot release a guard."""
+
+    activation = bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
+    activation.unlink()
+    if activation_state == "malformed":
+        activation.write_bytes(b"malformed protocol activation\n")
+        activation.chmod(0o400)
+
+    retained_guard = object()
+    bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = retained_guard
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = True
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
+
+    assert bot.remote_write_safety_protocol_is_active() is False
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.block_if_remote_write_safety_incident_latched()
+    assert bot.durable_remote_write_safety_barrier_exists() is False
+    assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is retained_guard
+
+    class StillWaitingForIncidentBarrier(Exception):
+        pass
+
+    def stop_wait(_seconds: float) -> None:
+        raise StillWaitingForIncidentBarrier
+
+    monkeypatch.setattr(bot, "sleep", stop_wait)
+    with pytest.raises(StillWaitingForIncidentBarrier):
+        bot.wait_for_durable_barrier_before_one_shot_exit(
+            lane="inactive-protocol-regression",
+        )
+    assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is retained_guard
+
+    # A genuinely fresh process has no incident-specific guard, but the same
+    # absent or malformed protocol permission still fails closed for writes.
+    bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD = None
+    bot._AMBIGUOUS_REMOTE_POST_SEEN = False
+    bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.block_if_ambiguous_remote_post()
 
 
 def test_main_rechecks_marker_durability_on_every_blocked_tick(
@@ -1962,6 +2046,7 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
     bot._AMBIGUOUS_REMOTE_POST_SEEN = True
     bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
     bot.AMBIGUOUS_POST_OUTCOME_FILE.write_text("{}\n", encoding="utf-8")
+    _establish_current_barrier_pair()
 
     fsync_paths: list[Path] = []
     real_fsync_parent_dir = bot.fsync_parent_dir
@@ -1971,7 +2056,7 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
         fsync_paths.append(Path(path))
         real_fsync_parent_dir(path, strict=strict)
         if len(fsync_paths) == 1:
-            assert Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
+            assert Path(path) == bot.AMBIGUOUS_POST_OUTCOME_FILE
             raise OSError("first parent-directory fsync failed")
 
     monkeypatch.setattr(bot, "fsync_parent_dir", transient_parent_fsync)
@@ -1993,7 +2078,7 @@ def test_main_rechecks_marker_durability_on_every_blocked_tick(
         with pytest.raises(TwoBlockedTicksComplete):
             bot.main()
         assert fsync_paths == [
-            bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            bot.AMBIGUOUS_POST_OUTCOME_FILE,
             bot.AMBIGUOUS_POST_OUTCOME_FILE,
         ]
         assert sleep_calls == 2
@@ -2091,6 +2176,7 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
         marker_payload,
         durable=True,
     )
+    _establish_current_barrier_pair()
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
     assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
     _original_fsync, removed = _install_marker_disappearance_during_parent_fsync(

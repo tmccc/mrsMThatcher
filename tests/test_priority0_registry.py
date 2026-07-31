@@ -365,8 +365,9 @@ def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> 
         "test_literal_second_process_blocks_all_remote_lanes_after_marker_loss_"
         "and_hard_exit",
         "tests/test_remote_write_safety_second_restart.py::"
-        "test_literal_clean_process_allows_preflight_after_supported_offline_"
-        "reconciliation",
+        "test_literal_protocol_absence_survives_legacy_loss_and_second_process",
+        "tests/test_remote_write_safety_second_restart.py::"
+        "test_offline_activation_refuses_legacy_then_opens_after_reconciliation",
     }
 
     for invariant_id in (
@@ -386,13 +387,24 @@ def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> 
             "block every remote-write lane" in statement
             or "block all remote writes" in statement
         )
-        assert "same marker inode" in statement
+        assert "activation" in statement
+        assert "protocol inactivity" in statement
         assert "successor" in rationale
+        assert "activation" in rationale
         assert required_tests <= set(invariant["enforcement"]["tests"])
         assert "DEF-0035" in invariant["last_verified_commit"]["explanation"]
         assert (
             "ambiguous_post_outcome.restart_barrier.json"
             in invariant["runtime_consumed_artifacts"]["artifacts"]
+        )
+        assert (
+            ".mrs_remote_write_safety_protocol_v1"
+            in invariant["runtime_consumed_artifacts"]["artifacts"]
+        )
+        assert "remote_write_safety_protocol.py" in invariant["affected_paths"]
+        assert (
+            "tools/activate_remote_write_safety_protocol.py"
+            in invariant["affected_paths"]
         )
 
     cross_lane_test = (

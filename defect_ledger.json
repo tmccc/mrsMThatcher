@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final restart-persistent successor-barrier remediation commit must replace DEF-0035's external unknown fix identity and bind its literal multi-process regressions before any post-merge assurance claim."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final restart-persistent successor-first protocol and clean-activation remediation commit must replace DEF-0035's external unknown fix identity and bind its literal multi-process, inactive-protocol and offline-activation regressions before any post-merge assurance claim."
     }
   },
   "external_evidence": [
@@ -4230,7 +4230,7 @@
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "The replacement candidate must durably link and revalidate a same-inode successor at ambiguous_post_outcome.restart_barrier.json before legacy-marker acknowledgement begins, make every restart block on either name, prohibit live successor retirement, retire it last through supported lock-bound offline reconciliation, and prove the transition and clean control with literal independent interpreters."
+        "summary": "The replacement candidate must make the successor-first protocol itself a restart-persistent migration boundary. New incidents must durably publish and revalidate ambiguous_post_outcome.restart_barrier.json before the optional legacy name. Pre-protocol installations must remain blocked while an exact activation sentinel is absent or invalid; the running daemon must refuse legacy-only migration, and only stopped lock-bound reconciliation followed by explicit clean activation may open remote lanes. The candidate must prohibit live successor retirement, retire it last through supported lock-bound offline reconciliation, refuse activation in the presence of either marker or any unresolved receipt, and prove the no-receipt legacy-loss transition, hard process exit, second interpreter and clean activated control with literal processes."
       },
       "deployment": {
         "state": "not-applicable",
@@ -4262,8 +4262,13 @@
         },
         {
           "type": "test",
-          "reference": "tests/test_remote_write_safety_second_restart.py::test_literal_clean_process_allows_preflight_after_supported_offline_reconciliation",
-          "claim": "The replacement clean control retires the same successor through supported offline reconciliation before proving a third literal process can continue locally."
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_literal_protocol_absence_survives_legacy_loss_and_second_process",
+          "claim": "The replacement regression uses no receipt and no successor: protocol inactivity remains the sole durable barrier after legacy-marker loss and a hard process exit, and the second literal interpreter reaches no remote boundary."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_offline_activation_refuses_legacy_then_opens_after_reconciliation",
+          "claim": "The replacement clean control refuses activation while a legacy marker exists, archives it through supported stopped reconciliation, creates the exact activation sentinel under the complete lock boundary and then proves a clean literal process can continue locally."
         }
       ],
       "unknowns": [
@@ -4285,6 +4290,285 @@
           "DEF-0032",
           "DEF-0033",
           "DEF-0034"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0036",
+      "title": "Prepared receipt authority and historical-context receipts did not close the global preflight",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "prefreeze-cross-lane-receipt-authority-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+                "shared remote-write preflight",
+                "prepared transaction authority",
+                "historical-context sending receipt",
+                "historical-context receipt strict JSON",
+                "raw X and provider transports",
+                "normalised X create-route classification"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "provider-request",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "A disposable active-protocol state with a schema-valid historical-context sending receipt left shared and raw transport preflight open. Separate source inspection showed that prepared regular, meme and conversational records were accepted from memory when their durable receipt path was absent. No network, provider, X or production action occurred.",
+        "explanation": "This is a pre-freeze offline defect reproduction, not evidence of a live duplicate or production incident."
+      },
+    "summary": "The shared barrier omitted historical_context_reply_receipt.json, while the prepared main-post and conversational exceptions did not require their supplied in-memory record to remain the exact durable sending receipt. Raw transport and provider entry points used a marker-only preflight, and create-route checks did not cover encoded or dot-segment targets after Requests normalisation. Historical-context receipt parsing accepted duplicate JSON object names, allowing a crafted sending/confirmed collision to fabricate confirmation and retire the barrier.",
+      "impact": "An unresolved context reply could coexist with another remote-write preflight, or an in-memory prepared record could authorise a create after its durable file vanished, contradicting the global single-transaction barrier.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "confidence": "bounded",
+        "explanation": "The exact behaviour is present in the debc079 evidence-cut-off source. This review did not establish the earlier introducing commit and does not guess one."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "A fresh pre-freeze review created a valid historical-context sending receipt and proved that the shared predicate and raw transport/provider preflights remained open.",
+          "commit": "debc079949b567362ce7c451ea43fd52ffedfa4d",
+          "evidence": "Disposable receipt-bound direct and scheduler reproduction"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "Source review additionally proved that prepared main and conversational records were not required to match a currently present durable receipt.",
+          "commit": "debc079949b567362ce7c451ea43fd52ffedfa4d",
+          "evidence": "block_if_ambiguous_remote_post control-flow inspection and red regression"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "scope": "All four receipt lanes, raw X/media/provider preflight, exact prepared-receipt ownership and real scheduler entry.",
+        "exclusions": "No real network boundary, provider, X action, production state or service was used.",
+        "source": "Fresh adversarial review before freezing the IR-DEBC079 remediation"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "method": "Install an exact protocol sentinel and valid historical-context sending receipt in an isolated state directory, then invoke shared, raw transport and scheduler entry points with local transport sentinels. Separately pass valid prepared records after leaving their owning durable paths absent.",
+        "reproducer": "The historical-context receipt did not make the global predicate block, and missing prepared receipt paths did not invalidate their in-memory authorities.",
+        "source": "Pre-freeze activation and literal-process attacks"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The replacement candidate must treat every historical-context receipt namespace entry or inspection failure as a global barrier, permit only the exact schema-valid owner receipt and payload, require regular, meme and conversational prepared records to match their live durable files, and give raw X/media/provider entry points no receipt bypass. The frozen candidate identity and closure evidence must be supplied externally rather than self-embedded."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Production remained at be882e8. This pre-freeze correction is isolated and has not been merged, pushed, deployed or activated."
+      },
+    "residual_risk": "The correction is not deployed. The replacement candidate strictly parses historical-context receipts, but regular, meme and conversational receipt decoders still accept duplicate JSON object names, tracked separately by DEF-0017.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "be882e8121a7b4348a57b61b1cf526401a36f5c0:mrsMThatcher2.py",
+          "claim": "Direct inspection of the deployed production baseline confirms that the shared blocker omitted the historical-context receipt and that raw create helpers had no exact durable receipt-owner requirement."
+        },
+        {
+          "type": "code",
+          "reference": "debc079:mrsMThatcher2.py",
+          "claim": "The shared blocker inspected regular, meme and conversational receipts but omitted the historical-context receipt and did not reject absent prepared receipt paths."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_literal_context_sending_receipt_blocks_every_unrelated_remote_lane",
+          "claim": "A literal process proves a valid historical-context sending receipt blocks seven direct entry points and every scheduler lane without mutating the receipt."
+        },
+      {
+        "type": "test",
+        "reference": "tests/test_x_write_outcome_conservatism.py::test_prepared_receipt_authority_requires_the_exact_durable_file",
+        "claim": "Each in-memory prepared authority is rejected when its exact owning durable file is absent."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_x_write_outcome_conservatism.py::test_normalised_raw_and_bearer_x_create_variants_require_authority",
+        "claim": "Encoded, dot-segment and separator aliases which Requests or an upstream router can normalise to POST /2/tweets cannot bypass exact receipt authority."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_historical_context_reply.py::test_context_receipt_duplicate_lifecycle_cannot_fabricate_confirmation",
+        "claim": "Duplicate sending/confirmed lifecycle keys and fabricated reply fields remain an invalid blocking receipt and cannot be written to history or retired."
+      }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review established the defect at the ledger evidence cut-off but did not reconstruct its introducing history."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier commit was established as free of the cross-lane receipt-authority defect."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The final frozen remediation commit is supplied by the external attestation to avoid self-reference."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0017",
+          "DEF-0033",
+          "DEF-0035"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0037",
+      "title": "Unaudited activation and torn pair inspection could open remote-write permission",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "prefreeze-protocol-activation-adversarial-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "remote-write protocol activation",
+        "new-install initialisation",
+        "activation sentinel/audit inspection",
+        "cross-lane remote-write preflight"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "remote_write_safety_protocol.py",
+        "tools/activate_remote_write_safety_protocol.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "provider-request",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "A disposable established-state directory used the shipped unaudited new-install helper and opened all local remote-lane sentinels. A separate deterministic namespace race composed a previously read valid sentinel with a later valid audit even though no valid pair existed at return. No network, X, provider, service or production action occurred.",
+        "explanation": "These are pre-freeze adversarial reproductions, not production incidents."
+      },
+      "summary": "The candidate exposed a helper which could label an activation as new_install without proving that the directory was not an established installation. Runtime inspection also read the sentinel and audit independently without cross-revalidating both pathname identities after both reads, so a torn namespace generation could be accepted.",
+      "impact": "An established installation could bypass the stopped external-attestation activator, or one remote preflight could accept permission composed from activation files which were never simultaneously valid.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "confidence": "bounded",
+        "explanation": "The underlying production baseline had no successor-first activation protocol. The exact defects were reproduced in the unactivated remediation worktree before its final freeze, so no earlier introducing commit is guessed."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "A final pre-freeze adversarial review activated an established fixture through the unaudited helper and separately reproduced a torn sentinel/audit read through the actual shared preflight.",
+          "commit": "debc079949b567362ce7c451ea43fd52ffedfa4d",
+          "evidence": "Disposable activation-helper and namespace-generation reproductions"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "unknown",
+        "scope": "Supported activation entry points, hard exit after activation publication, sentinel/audit cross-file identity, direct preflight and all scheduler lanes.",
+        "exclusions": "No live service, production state, network, X or provider boundary was used.",
+        "source": "Independent pre-freeze adversarial protocol review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "unknown",
+        "method": "Create established durable-state names and invoke the public new-install helper, then run a literal clean process. Separately replace the audit and remove the sentinel between the two stable reads and invoke both the protocol inspector and actual shared remote preflight.",
+        "reproducer": "The helper produced active permission without external attestation, and the torn-pair inspector returned active from files belonging to different namespace generations.",
+        "source": "Pre-freeze protocol adversary"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "The replacement candidate must remove all supported unaudited activation: --initialise leaves remote writes disabled and every installation uses the stopped, lock-bound external-attestation activator. Runtime inspection must cross-revalidate both sentinel and audit path identities after both stable reads. The frozen fix identity is supplied externally."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-31T00:00:00+01:00",
+        "evidence": "The activation protocol candidate was never merged, pushed, deployed or loaded by production."
+      },
+      "residual_risk": "Active at the ledger evidence cut-off. The final replacement identity and exact external validation are deliberately not self-embedded in this ledger.",
+      "evidence": [
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_unaudited_new_install_helper_is_permanently_refused",
+          "claim": "The old public shortcut refuses even when established durable-state names exist and creates neither activation file."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_pair_cannot_compose_different_namespace_generations",
+          "claim": "A valid sentinel read and later valid audit cannot be composed after the sentinel namespace entry is removed."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_remote_preflight_rejects_activation_pair_torn_during_inspection",
+          "claim": "The actual shared remote preflight remains blocked when either activation path changes during pair inspection."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "first_review_scope.reviewed_revision",
+          "explanation": "The adversarial review examined an uncommitted replacement worktree based on debc079; no frozen reviewed revision existed yet."
+        },
+        {
+          "field": "detection.revision",
+          "explanation": "The reproductions preceded the replacement candidate's freeze, so a precise detection commit is intentionally unavailable."
+        },
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The exact defects existed only in an uncommitted replacement candidate; an introducing Git commit is therefore unavailable."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No committed predecessor is claimed to contain this not-yet-frozen activation design or to prove the complete replacement protocol safe."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The final frozen replacement commit is supplied by the external attestation to avoid self-reference."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0035",
+          "DEF-0036"
         ]
       }
     }

@@ -15,6 +15,7 @@ import logging
 import math
 import mimetypes
 import os
+import posixpath
 import random
 import re
 import signal
@@ -30,11 +31,18 @@ from glob import glob
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from time import sleep
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 import requests
 from requests_oauthlib import OAuth1
 from urllib3.util import Timeout
+
+from remote_write_safety_protocol import (
+    ACTIVATION_AUDIT_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_AUDIT_BASENAME,
+    ACTIVATION_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
+    ProtocolActivationError,
+    inspect_protocol_activation,
+)
 
 
 SELF_TEST_REQUESTED = "--self-test" in sys.argv
@@ -288,6 +296,9 @@ CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
 AMBIGUOUS_POST_OUTCOME_FILE = BASE_DIR / "ambiguous_post_outcome.json"
 AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE = (
     BASE_DIR / "ambiguous_post_outcome.restart_barrier.json"
+)
+REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE = (
+    BASE_DIR / REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME
 )
 REMOTE_WRITE_SAFETY_MARKER_MAX_BYTES = 64 * 1024
 _AMBIGUOUS_REMOTE_POST_SEEN = False
@@ -1763,6 +1774,10 @@ def initialise_installation() -> int:
             CONFIRMED_REPLY_RECEIPT_FILE,
             AMBIGUOUS_POST_OUTCOME_FILE,
             AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE.with_name(
+                REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_AUDIT_BASENAME
+            ),
+            REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE,
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
             HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
@@ -1821,7 +1836,11 @@ def initialise_installation() -> int:
             except FileNotFoundError:
                 pass
         raise
-    print(f"Initialised durable MrsMThatcher state in {BASE_DIR}; production was not started")
+    print(
+        f"Initialised durable MrsMThatcher state in {BASE_DIR}; production was "
+        "not started. Remote writes remain disabled until the stopped "
+        "external-attestation protocol activator succeeds."
+    )
     return 0
 
 
@@ -2274,13 +2293,25 @@ def api_error_proves_remote_non_success(error: BaseException) -> bool:
     return False
 
 
-def require_remote_operation_unpaused(operation: str) -> None:
+_REMOTE_WRITE_PREFLIGHT_AUTHORIZATION = object()
+
+
+def require_remote_operation_unpaused(
+    operation: str,
+    *,
+    transaction_authorization: object | None = None,
+) -> None:
     """Fail before a remote boundary while a global pause is active."""
     require_instance_lock_for_remote_write(operation)
-    # This marker/latch-only check is intentionally separate from receipt
-    # validation: prepared transactions need narrow receipt exceptions, but no
-    # remote operation may bypass a process-wide safety incident.
-    block_if_remote_write_safety_incident_latched()
+    if transaction_authorization is _REMOTE_WRITE_PREFLIGHT_AUTHORIZATION:
+        # The exact transaction receipt was validated immediately before this
+        # internal authorization was issued. Recheck the process-wide protocol,
+        # marker and latches without making the transaction block itself.
+        block_if_remote_write_safety_incident_latched()
+    else:
+        # Direct transport/provider calls have no prepared-receipt authority.
+        # Every unresolved transaction lane must therefore block them.
+        block_if_ambiguous_remote_post()
     if not global_remote_writes_paused():
         return
     log.warning(
@@ -3614,6 +3645,60 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
 # X API helpers
 # ---------------------------------------------------------------------
 
+def normalised_prepared_x_request_path(method: str, path: str) -> str:
+    """Return the conservative path which Requests will place on the wire.
+
+    ``requests`` normalises dot segments and some percent-encoded characters
+    while preparing a request.  Security decisions made against the caller's
+    unprepared string can therefore misclassify a tweet-create target.  Decode
+    repeatedly as a conservative allowance for an upstream HTTP router doing
+    another decoding pass, normalise separators/dot segments, and collapse
+    repeated slashes before comparing protected endpoints.
+    """
+
+    try:
+        prepared = requests.Request(
+            method=str(method).upper(),
+            url=f"{X_BASE}{path}",
+        ).prepare()
+    except requests.RequestException as exc:
+        raise AmbiguousRemotePostOutcome(
+            "X request target could not be prepared safely",
+            service="x",
+            request_method=method,
+            request_path=path,
+        ) from exc
+    prepared_url = prepared.url
+    if not isinstance(prepared_url, str) or not prepared_url:
+        raise AmbiguousRemotePostOutcome(
+            "X request target preparation returned no usable URL",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    normalised = urlsplit(prepared_url).path
+    for _pass in range(4):
+        decoded = unquote(normalised)
+        if decoded == normalised:
+            break
+        normalised = decoded
+    normalised = normalised.replace("\\", "/")
+    normalised = posixpath.normpath(normalised)
+    normalised = re.sub(r"/+", "/", normalised)
+    if not normalised.startswith("/"):
+        normalised = f"/{normalised}"
+    return normalised
+
+
+def x_request_targets_tweet_create(method: str, path: str) -> bool:
+    """Return whether one prepared X request targets the tweet-create route."""
+
+    return bool(
+        str(method).upper() == "POST"
+        and normalised_prepared_x_request_path(method, path).rstrip("/")
+        == "/2/tweets"
+    )
+
 def print_rate_limit_headers(response: requests.Response) -> int | None:
     """Log rate limit headers."""
     log.warning("Rate Limit: %s", response.headers.get("x-rate-limit-limit"))
@@ -3638,9 +3723,29 @@ def print_rate_limit_headers(response: requests.Response) -> int | None:
         return None
 
 
-def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs) -> dict:
+def x_request(
+    method: str,
+    path: str,
+    *,
+    ambiguous_write: bool = False,
+    _remote_write_authorization: object | None = None,
+    **kwargs,
+) -> dict:
     """Send an authenticated X API request with bounded retries."""
     url = f"{X_BASE}{path}"
+    is_post_create = x_request_targets_tweet_create(method, path)
+    if is_post_create and (
+        _remote_write_authorization
+        is not _REMOTE_WRITE_PREFLIGHT_AUTHORIZATION
+        or not ambiguous_write
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "X post creation requires the internal exact-receipt authorization "
+            "and ambiguous-write handling",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
 
     log.debug("X request: %s %s", method, url)
 
@@ -3657,7 +3762,10 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
         log.debug("X request includes files: %s", list(kwargs["files"].keys()))
 
     if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
-        require_remote_operation_unpaused(f"X {method.upper()} {path}")
+        require_remote_operation_unpaused(
+            f"X {method.upper()} {path}",
+            transaction_authorization=_remote_write_authorization,
+        )
 
     if ambiguous_write:
         # A redirect can turn one create into an untracked follow-up request.
@@ -3764,6 +3872,14 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
 
 def x_bearer_request(method: str, path: str, **kwargs) -> dict:
     """Send a bearer-authenticated X API request with bounded retries."""
+    if x_request_targets_tweet_create(method, path):
+        raise AmbiguousRemotePostOutcome(
+            "Bearer-authenticated X post creation has no durable transaction "
+            "authority",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
     if not X_BEARER_TOKEN:
         raise ApiError("X_BEARER_TOKEN is not set", service="x")
 
@@ -5307,8 +5423,125 @@ def remote_write_safety_incident_is_latched() -> bool:
     )
 
 
+def remote_write_safety_protocol_is_active() -> bool:
+    """Return whether the exact restart-persistent protocol is activated.
+
+    Absence, malformed bytes, unsafe metadata and inspection failure all mean
+    that no remote-write lane may open.  This deliberately durable negative
+    condition survives arbitrary process loss without relying on Python
+    globals or an ambiguity marker which another process could remove.
+    """
+    try:
+        inspect_protocol_activation(
+            REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
+        )
+    except (ProtocolActivationError, OSError):
+        return False
+    return True
+
+
+def historical_context_receipt_path_present_or_unsafe() -> bool:
+    """Treat any historical-context receipt namespace entry as blocking."""
+
+    try:
+        os.lstat(HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE)
+    except FileNotFoundError:
+        return False
+    except Exception:
+        log.critical(
+            "The historical-context receipt namespace cannot be inspected; "
+            "treating every remote write as blocked",
+            exc_info=True,
+        )
+        return True
+    return True
+
+
+def historical_context_receipt_parent_for_local_reconciliation() -> str | None:
+    """Return the parent bound by a stable no-follow transaction receipt."""
+
+    from historical_context_formatter import HistoricalContextReplyStore
+
+    return HistoricalContextReplyStore.receipt_parent_for_safe_local_reconciliation(
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+
+
+def exact_historical_context_sending_receipt_matches(
+    receipt: dict | None,
+) -> bool:
+    """Match the owning sending receipt by schema, identity and exact bytes."""
+
+    if receipt is None:
+        return False
+    from historical_context_formatter import HistoricalContextReplyStore
+
+    if not HistoricalContextReplyStore._valid_sending_receipt(receipt):
+        return False
+    expected = (
+        json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    ).encode("utf-8")
+    path = HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    try:
+        before = os.lstat(path)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_uid != os.geteuid()
+            or before.st_size != len(expected)
+        ):
+            return False
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        if not nofollow:
+            return False
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+        )
+        try:
+            opened = os.fstat(descriptor)
+            chunks: list[bytes] = []
+            total = 0
+            while total <= len(expected):
+                chunk = os.read(descriptor, len(expected) + 1 - total)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+            after_read = os.fstat(descriptor)
+            after_path = os.lstat(path)
+        finally:
+            os.close(descriptor)
+    except Exception:
+        return False
+    return bool(
+        stat.S_ISREG(opened.st_mode)
+        and opened.st_nlink == 1
+        and opened.st_uid == os.geteuid()
+        and opened.st_dev == before.st_dev == after_read.st_dev == after_path.st_dev
+        and opened.st_ino == before.st_ino == after_read.st_ino == after_path.st_ino
+        and opened.st_size == before.st_size == after_read.st_size == after_path.st_size
+        and opened.st_ctime_ns
+        == before.st_ctime_ns
+        == after_read.st_ctime_ns
+        == after_path.st_ctime_ns
+        and opened.st_mtime_ns
+        == before.st_mtime_ns
+        == after_read.st_mtime_ns
+        == after_path.st_mtime_ns
+        and b"".join(chunks) == expected
+    )
+
+
 def block_if_remote_write_safety_incident_latched() -> None:
     """Fail before remote work when a marker or either process latch exists."""
+    if not remote_write_safety_protocol_is_active():
+        raise AmbiguousRemotePostOutcome(
+            "Remote-write safety protocol is not durably activated; every "
+            "remote operation remains blocked: "
+            f"{REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE}",
+            service="x",
+        )
     marker_exists = remote_write_safety_marker_path_present_or_unsafe()
     # Re-read after the namespace probe: observing or failing to inspect the
     # marker seeds both process latches, and a concurrent signal-path latch
@@ -5334,23 +5567,31 @@ def block_if_remote_write_safety_incident_latched() -> None:
 def block_if_ambiguous_remote_post(
     *,
     prepared_conversational_reply_receipt: dict | None = None,
+    prepared_historical_context_reply_receipt: dict | None = None,
     prepared_main_post_attempt: dict | None = None,
     allow_confirmed_pending_schedule_reconciliation: bool = False,
+    allow_historical_context_receipt_reconciliation: bool = False,
 ) -> None:
     """Refuse posting while a remote-write safety incident is unresolved."""
-    if (
-        prepared_conversational_reply_receipt is not None
-        and prepared_main_post_attempt is not None
-    ):
+    prepared_receipt_count = sum(
+        item is not None
+        for item in (
+            prepared_conversational_reply_receipt,
+            prepared_historical_context_reply_receipt,
+            prepared_main_post_attempt,
+        )
+    )
+    if prepared_receipt_count > 1:
         raise AmbiguousRemotePostOutcome(
-            "One remote write cannot be authorised by both reply and main-post "
-            "attempt records",
+            "One remote write cannot be authorised by multiple transaction "
+            "receipts or attempt records",
             service="x",
         )
     block_if_remote_write_safety_incident_latched()
 
     regular_status, regular_receipt = load_regular_post_receipt()
     meme_status, meme_receipt = load_meme_post_receipt()
+    prepared_main_authorized = prepared_main_post_attempt is None
     blocking_main_receipts = [
         ("regular", regular_status, regular_receipt),
         ("meme", meme_status, meme_receipt),
@@ -5382,34 +5623,73 @@ def block_if_ambiguous_remote_post(
             and receipt == prepared_main_post_attempt
             and prepared_main_post_attempt.get("lifecycle_state") == "sending"
         ):
+            prepared_main_authorized = True
             continue
         raise AmbiguousRemotePostOutcome(
             "An unresolved main-post sending, confirmed pending-schedule, or "
             "invalid receipt blocks further posting",
             service="x",
         )
+    if not prepared_main_authorized:
+        raise AmbiguousRemotePostOutcome(
+            "Prepared main-post attempt is not the exact durable sending receipt",
+            service="x",
+        )
 
     status, receipt = load_confirmed_reply_receipt()
+    if prepared_conversational_reply_receipt is not None:
+        if not (
+            status == "sending"
+            and receipt == prepared_conversational_reply_receipt
+        ):
+            raise AmbiguousRemotePostOutcome(
+                "Prepared conversational-reply receipt is not the exact "
+                "durable sending receipt",
+                service="x",
+            )
+    elif status in {"sending", "invalid"}:
+        raise AmbiguousRemotePostOutcome(
+            "An unresolved conversational-reply sending or invalid receipt blocks "
+            f"further posting: {CONFIRMED_REPLY_RECEIPT_FILE}",
+            service="x",
+        )
+
+    if not historical_context_receipt_path_present_or_unsafe():
+        if prepared_historical_context_reply_receipt is not None:
+            raise AmbiguousRemotePostOutcome(
+                "Prepared historical-context receipt is not durably present",
+                service="x",
+            )
+        return
     if (
-        status == "sending"
-        and prepared_conversational_reply_receipt is not None
-        and receipt == prepared_conversational_reply_receipt
+        allow_historical_context_receipt_reconciliation
+        and historical_context_receipt_parent_for_local_reconciliation()
+        is not None
+    ):
+        # This exception reaches only the outbox worker's local receipt
+        # reconciler.  The worker must re-run the ordinary fail-closed check
+        # before claiming or transmitting any other context attempt.
+        return
+    if exact_historical_context_sending_receipt_matches(
+        prepared_historical_context_reply_receipt
     ):
         return
-    if status not in {"sending", "invalid"}:
-        return
     raise AmbiguousRemotePostOutcome(
-        "An unresolved conversational-reply sending or invalid receipt blocks "
-        f"further posting: {CONFIRMED_REPLY_RECEIPT_FILE}",
+        "An unresolved or unsafe historical-context reply receipt blocks "
+        f"further posting: {HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE}",
         service="x",
     )
 
 
 def ambiguous_remote_post_is_blocking() -> bool:
     """Return the global write barrier state without starting any remote work."""
+    if not remote_write_safety_protocol_is_active():
+        return True
     if remote_write_safety_incident_is_latched():
         return True
     if remote_write_safety_marker_path_present_or_unsafe():
+        return True
+    if historical_context_receipt_path_present_or_unsafe():
         return True
     try:
         return (
@@ -5622,8 +5902,6 @@ def read_remote_write_safety_marker_snapshot(
 
 
 def read_remote_write_safety_barrier_snapshot(
-    *,
-    establish_successor: bool,
 ) -> tuple[Path, tuple[int, int, int, int, bytes]]:
     """Return one exact supported marker/successor state.
 
@@ -5660,45 +5938,15 @@ def read_remote_write_safety_barrier_snapshot(
                 "A sole remote-write safety marker must be one ordinary "
                 "single-link file"
             )
-        # This is migration of a marker written by an older release.  The
-        # process-lifetime instance lock excludes every supported removal path,
-        # but no local algorithm can recover a legacy-only name deleted by a
-        # non-cooperating actor before it can be opened and linked.  New
-        # incidents are therefore created at the successor pathname first.
-        before = read_remote_write_safety_marker_snapshot(
-            AMBIGUOUS_POST_OUTCOME_FILE,
+        # A running process must never migrate this legacy-only state.  The
+        # pathname could disappear before the successor link is committed,
+        # leaving no restart-persistent barrier after a hard process loss.
+        # Only the stopped, lock-bound reconciler may first establish the
+        # successor; activation is permitted only after all markers are gone.
+        raise RuntimeError(
+            "A legacy-only remote-write safety marker requires stopped "
+            "offline reconciliation before protocol activation"
         )
-        if not establish_successor:
-            return AMBIGUOUS_POST_OUTCOME_FILE, before
-        os.link(
-            AMBIGUOUS_POST_OUTCOME_FILE,
-            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
-            follow_symlinks=False,
-        )
-        # Commit the second namespace entry before any acknowledgement can
-        # expose the original name to a fallible parent-directory operation.
-        fsync_parent_dir(
-            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
-            strict=True,
-        )
-        active_path, after = read_remote_write_safety_barrier_snapshot(
-            establish_successor=False,
-        )
-        committed_successor = os.lstat(
-            AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
-        )
-        if (
-            before[:3] != after[:3]
-            or before[-1] != after[-1]
-            or not stat.S_ISREG(committed_successor.st_mode)
-            or committed_successor.st_dev != before[0]
-            or committed_successor.st_ino != before[1]
-        ):
-            raise RuntimeError(
-                "Remote-write safety marker changed while its restart "
-                "successor was established"
-            )
-        return active_path, after
 
     if original is None and successor is not None:
         if not stat.S_ISREG(successor.st_mode) or successor.st_nlink != 1:
@@ -5747,9 +5995,7 @@ def acknowledge_durable_remote_write_safety_marker(
 ) -> bool:
     """Synchronise and revalidate one unchanged marker namespace entry."""
     require_remote_write_marker_removal_protocol()
-    active_path, before = read_remote_write_safety_barrier_snapshot(
-        establish_successor=True,
-    )
+    active_path, before = read_remote_write_safety_barrier_snapshot()
     if expected_bytes is not None and before[-1] != expected_bytes:
         raise RuntimeError(
             "Remote-write safety marker does not match the expected incident"
@@ -5759,9 +6005,7 @@ def acknowledge_durable_remote_write_safety_marker(
     # fsync makes the name-to-inode binding durable; the second no-follow read
     # proves that the name still identifies the same ordinary file afterwards.
     fsync_parent_dir(active_path, strict=True)
-    after_path, after = read_remote_write_safety_barrier_snapshot(
-        establish_successor=False,
-    )
+    after_path, after = read_remote_write_safety_barrier_snapshot()
     # Removing the legacy hard-link name legitimately changes inode ctime.
     # The separately synchronised successor remains a complete restart
     # barrier when its device, inode, type and exact bytes are unchanged.
@@ -5787,6 +6031,11 @@ def acknowledge_durable_remote_write_safety_marker(
 
 def ensure_durable_remote_write_safety_marker(marker: dict) -> bool:
     """Write or acknowledge a marker without trusting atomic-write return alone."""
+    if not remote_write_safety_protocol_is_active():
+        raise RuntimeError(
+            "Cannot record a remote-write incident while the restart-persistent "
+            "safety protocol is inactive"
+        )
     expected_bytes = canonical_atomic_json_bytes(marker)
     original_exists = False
     successor_exists = False
@@ -5848,6 +6097,8 @@ def ensure_durable_remote_write_safety_marker(marker: dict) -> bool:
 def durable_remote_write_safety_marker_exists() -> bool:
     """Return whether restart safety survives loss of the in-process latch."""
     global _AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN
+    if not remote_write_safety_protocol_is_active():
+        return False
     if not remote_write_safety_marker_path_present_or_unsafe():
         return False
 
@@ -5870,7 +6121,15 @@ def durable_remote_write_safety_marker_exists() -> bool:
 
 def durable_remote_write_safety_barrier_exists() -> bool:
     """Return whether restart safety survives loss of the process latch."""
-    if durable_remote_write_safety_marker_exists():
+    # Protocol inactivity blocks every compatible process, but it is not
+    # incident-specific durable evidence and must not by itself acknowledge an
+    # in-flight transaction or release a retained confirmed-post signal guard.
+    # Supported clean activation can occur only after every receipt and marker
+    # has been reconciled.
+    if (
+        remote_write_safety_protocol_is_active()
+        and durable_remote_write_safety_marker_exists()
+    ):
         return True
     try:
         if unresolved_main_post_attempt_is_blocking():
@@ -6041,10 +6300,29 @@ def create_post(
     made_with_ai: bool = False,
     *,
     prepared_conversational_reply_receipt: dict | None = None,
+    prepared_historical_context_reply_receipt: dict | None = None,
     prepared_main_post_attempt: dict | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
-    require_remote_operation_unpaused("X post creation")
+    prepared_receipt_count = sum(
+        item is not None
+        for item in (
+            prepared_conversational_reply_receipt,
+            prepared_historical_context_reply_receipt,
+            prepared_main_post_attempt,
+        )
+    )
+    if prepared_receipt_count != 1:
+        # Preserve the strongest existing failure reason.  An unresolved
+        # transaction or process-wide incident must remain visible as the
+        # reason this unbound call cannot proceed; only a genuinely clean
+        # process reports the missing transaction authority below.
+        block_if_ambiguous_remote_post()
+        raise AmbiguousRemotePostOutcome(
+            "X post creation requires exactly one prepared durable transaction "
+            "receipt",
+            service="x",
+        )
     if prepared_conversational_reply_receipt is not None:
         prepared = prepared_conversational_reply_receipt
         if (
@@ -6072,11 +6350,34 @@ def create_post(
                 "write",
                 service="x",
             )
+    if prepared_historical_context_reply_receipt is not None:
+        prepared = prepared_historical_context_reply_receipt
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        if (
+            not HistoricalContextReplyStore._valid_sending_receipt(prepared)
+            or str(prepared.get("parent_post_id") or "") != str(reply_to_id or "")
+            or str(prepared.get("reply_text") or "") != str(text)
+            or bool(media_ids)
+            or made_with_ai
+        ):
+            raise AmbiguousRemotePostOutcome(
+                "Prepared historical-context receipt does not exactly bind the "
+                "requested remote write",
+                service="x",
+            )
     block_if_ambiguous_remote_post(
         prepared_conversational_reply_receipt=(
             prepared_conversational_reply_receipt
         ),
+        prepared_historical_context_reply_receipt=(
+            prepared_historical_context_reply_receipt
+        ),
         prepared_main_post_attempt=prepared_main_post_attempt,
+    )
+    require_remote_operation_unpaused(
+        "X post creation",
+        transaction_authorization=_REMOTE_WRITE_PREFLIGHT_AUTHORIZATION,
     )
     log.info(
         "Creating X post. reply_to_id=%s media_count=%d made_with_ai=%s text=%r",
@@ -6137,7 +6438,13 @@ def create_post(
         return result
 
     try:
-        result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
+        result = x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=_REMOTE_WRITE_PREFLIGHT_AUTHORIZATION,
+        )
         validate_created_post_response(result)
         log.info("Created X post successfully. response=%s", result)
         return result
@@ -8688,9 +8995,13 @@ def recover_interrupted_historical_context_attempt(
     obligation: dict,
     *,
     recovered_epoch: int,
+    receipt_was_observed: bool = False,
 ) -> dict:
     """Resolve a durable interrupted claim without repeating its remote work."""
-    from historical_context_formatter import HistoricalContextReplyStore
+    from historical_context_formatter import (
+        AmbiguousContextReplyOutcome,
+        HistoricalContextReplyStore,
+    )
 
     parent_id = str(obligation["parent_post_id"])
     context = obligation["context_reply"]
@@ -8707,6 +9018,20 @@ def recover_interrupted_historical_context_attempt(
     context_store.reconcile_receipt()
     history = context_store.history()
     previous = history["items"].get(parent_id)
+    if (
+        receipt_was_observed
+        and not (
+            isinstance(previous, dict)
+            and previous.get("quote_id") == context["quote_id"]
+            and previous.get("status") in {"completed", "failed"}
+        )
+    ):
+        raise AmbiguousContextReplyOutcome(
+            "an observed historical-context receipt disappeared before its "
+            "outcome could be reconciled",
+            parent_post_id=parent_id,
+            reply_text=str(context.get("reply_text") or ""),
+        )
     if isinstance(previous, dict) and previous.get("quote_id") != context["quote_id"]:
         raise RuntimeError(
             "context history identity conflicts with interrupted outbox attempt"
@@ -8760,6 +9085,7 @@ def _process_due_historical_context_obligations(
     parent_post_id: str | None = None,
     limit: int = 1,
     runtime_state: dict | None = None,
+    historical_context_receipt_reconciliation_only: bool = False,
 ) -> list[dict]:
     """Retry only auxiliary context work; never invoke the main-post path."""
     global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
@@ -8846,6 +9172,9 @@ def _process_due_historical_context_obligations(
                     store,
                     obligation,
                     recovered_epoch=now_epoch(),
+                    receipt_was_observed=(
+                        historical_context_receipt_reconciliation_only
+                    ),
                 )
             except Exception as exc:
                 if type(exc).__name__ == "AmbiguousContextReplyOutcome":
@@ -8882,7 +9211,27 @@ def _process_due_historical_context_obligations(
                 **recovered,
             )
             results.append(recovered)
+            if historical_context_receipt_reconciliation_only:
+                break
             continue
+        if (
+            historical_context_receipt_reconciliation_only
+            or historical_context_receipt_path_present_or_unsafe()
+        ):
+            log.critical(
+                "A historical-context receipt may be reconciled only against "
+                "its already-attempting outbox record; no new context attempt "
+                "was claimed. parent_post_id=%s",
+                parent_id,
+            )
+            results.append(
+                {
+                    "parent_post_id": parent_id,
+                    "status": "blocked_by_unresolved_context_receipt",
+                    "context_reply_state": str(context.get("state") or ""),
+                }
+            )
+            break
         try:
             claimed = store.claim_attempt(
                 parent_id,
@@ -9131,8 +9480,20 @@ def process_due_historical_context_obligations(
     """Serialise complete context attempts across claims and remote outcomes."""
     from historical_context_outbox import OutboxWorkerBusy
 
+    receipt_reconciliation_only = (
+        historical_context_receipt_path_present_or_unsafe()
+    )
+    reconciliation_parent_id = (
+        historical_context_receipt_parent_for_local_reconciliation()
+        if receipt_reconciliation_only
+        else None
+    )
     try:
-        block_if_ambiguous_remote_post()
+        block_if_ambiguous_remote_post(
+            allow_historical_context_receipt_reconciliation=(
+                receipt_reconciliation_only
+            ),
+        )
     except (
         AmbiguousRemotePostOutcome,
         InvalidRegularPostReceipt,
@@ -9143,6 +9504,22 @@ def process_due_historical_context_obligations(
             "global remote-write ambiguity barrier"
         )
         return []
+    if receipt_reconciliation_only:
+        if reconciliation_parent_id is None:
+            return []
+        if (
+            parent_post_id is not None
+            and str(parent_post_id) != reconciliation_parent_id
+        ):
+            log.critical(
+                "Historical-context receipt reconciliation was requested for "
+                "a different parent; no outbox work was performed. "
+                "receipt_parent_id=%s requested_parent_id=%s",
+                reconciliation_parent_id,
+                parent_post_id,
+            )
+            return []
+        parent_post_id = reconciliation_parent_id
     store = historical_context_outbox_store()
     try:
         with store.worker_lock():
@@ -9151,6 +9528,9 @@ def process_due_historical_context_obligations(
                 parent_post_id=parent_post_id,
                 limit=limit,
                 runtime_state=runtime_state,
+                historical_context_receipt_reconciliation_only=(
+                    receipt_reconciliation_only
+                ),
             )
     except OutboxWorkerBusy:
         log.info(
@@ -15948,6 +16328,7 @@ def main() -> None:
     maintenance_pause_logged = global_remote_writes_paused()
     while True:
         if ambiguous_remote_post_is_blocking():
+            protocol_active = remote_write_safety_protocol_is_active()
             try:
                 # Recheck durability on every blocked tick.  A previous
                 # marker-directory fsync may have failed transiently, and this
@@ -15964,7 +16345,14 @@ def main() -> None:
                     exc_info=True,
                 )
             if not ambiguity_pause_logged:
-                if durable_marker_confirmed:
+                if not protocol_active:
+                    log.critical(
+                        "All remote posting and reply lanes are paused because "
+                        "the restart-persistent remote-write protocol is not "
+                        "activated or its sentinel is invalid; stopped clean-state "
+                        "activation or repair is required"
+                    )
+                elif durable_marker_confirmed:
                     log.critical(
                         "All remote posting and reply lanes are paused by the durable "
                         "remote-write safety barrier; manual reconciliation is required "
@@ -15972,9 +16360,9 @@ def main() -> None:
                     )
                 else:
                     log.critical(
-                        "All remote posting and reply lanes are paused by an in-process-only "
-                        "remote-write safety latch because its durable marker could not be "
-                        "written; do not restart before manual reconciliation"
+                        "All remote posting and reply lanes are paused by an "
+                        "unresolved transaction receipt, marker, or process latch; "
+                        "do not restart before exact reconciliation"
                     )
                 ambiguity_pause_logged = True
             sleep(60)

@@ -16,6 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.helpers.protocol_activation import create_test_protocol_activation
 
 UNIT_BASE_DIRECTORY = tempfile.TemporaryDirectory(
     prefix=f"mrsMThatcher-unit-import-{os.getpid()}-"
@@ -305,6 +306,40 @@ def unit_sending_reply_receipt(**kwargs: object) -> dict[str, object]:
     return receipt
 
 
+def unit_historical_context_sending_receipt(
+    *,
+    text: str = "Context",
+    parent_post_id: str = "111",
+) -> dict[str, object]:
+    """Build the compact durable owner for low-level create_post tests."""
+
+    return {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_post_id,
+        "quote_id": "a" * 64,
+        "reply_text": text,
+        "reply_epoch": 123,
+        "started_at": "2026-07-31T12:00:00Z",
+        "attempt_number": 1,
+    }
+
+
+def prepare_unit_historical_context_create(
+    *,
+    text: str = "Context",
+    parent_post_id: str = "111",
+) -> dict[str, object]:
+    """Persist and return one exact historical-context sending receipt."""
+
+    receipt = unit_historical_context_sending_receipt(
+        text=text,
+        parent_post_id=parent_post_id,
+    )
+    bot.atomic_write_json(bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE, receipt)
+    return receipt
+
+
 def unit_confirmed_v3_reply_receipt(**kwargs: object) -> dict[str, object]:
     """Build the schema-v3 confirmed form of a unit reply receipt."""
     receipt = unit_sending_reply_receipt(**kwargs)
@@ -393,6 +428,14 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         bot,
         "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
         tmp_path / "ambiguous_post_outcome.restart_barrier.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
+        tmp_path / ".mrs_remote_write_safety_protocol_v1",
+    )
+    create_test_protocol_activation(
+        bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
     )
     monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
     monkeypatch.setattr(
@@ -8547,8 +8590,13 @@ def test_control_bool_missing_value_is_false() -> None:
 @pytest.mark.parametrize("post_id", ["123456", 123456])
 def test_create_post_accepts_valid_numeric_ids(monkeypatch: pytest.MonkeyPatch, post_id: object) -> None:
     monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": post_id}})
+    receipt = prepare_unit_historical_context_create(text="hello")
 
-    assert bot.create_post("hello") == {"data": {"id": post_id}}
+    assert bot.create_post(
+        "hello",
+        reply_to_id=str(receipt["parent_post_id"]),
+        prepared_historical_context_reply_receipt=receipt,
+    ) == {"data": {"id": post_id}}
 
 
 def test_create_post_passes_long_text_without_280_character_truncation(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -8560,8 +8608,16 @@ def test_create_post_passes_long_text_without_280_character_truncation(monkeypat
         "x_request",
         lambda *args, **kwargs: requests.append((args, kwargs)) or {"data": {"id": "123456"}},
     )
+    receipt = prepare_unit_historical_context_create(
+        text=text,
+        parent_post_id="654321",
+    )
 
-    bot.create_post(text, reply_to_id="654321")
+    bot.create_post(
+        text,
+        reply_to_id="654321",
+        prepared_historical_context_reply_receipt=receipt,
+    )
 
     assert requests[0][0] == ("POST", "/2/tweets")
     assert requests[0][1]["json"]["text"] == text
@@ -8587,9 +8643,14 @@ def test_create_post_rejects_invalid_or_missing_ids(
     marker = tmp_path / "ambiguous_post.json"
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", marker)
     monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: response)
+    receipt = prepare_unit_historical_context_create(text="hello")
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
-        bot.create_post("hello")
+        bot.create_post(
+            "hello",
+            reply_to_id=str(receipt["parent_post_id"]),
+            prepared_historical_context_reply_receipt=receipt,
+        )
 
     assert json.loads(marker.read_text(encoding="utf-8"))["outcome"] == "ambiguous_remote_post"
 

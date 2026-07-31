@@ -9,9 +9,20 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_log_digest as digest
+import remote_write_safety_protocol as protocol
+from remote_write_safety_protocol import (
+    ACTIVATION_AUDIT_BASENAME,
+    ACTIVATION_BASENAME,
+)
+from tests.helpers.protocol_activation import create_test_protocol_activation
 
 
-def install_paths(monkeypatch: pytest.MonkeyPatch, base: Path) -> None:
+def install_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    base: Path,
+    *,
+    activate_protocol: bool = True,
+) -> None:
     monkeypatch.setattr(bot, "BASE_DIR", base)
     monkeypatch.setattr(bot, "STATE_FILE", base / "bot_state.json")
     monkeypatch.setattr(bot, "LINES_USED_FILE", base / "lines_used.json")
@@ -25,6 +36,12 @@ def install_paths(monkeypatch: pytest.MonkeyPatch, base: Path) -> None:
         bot,
         "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
         base / "ambiguous_post_outcome.restart_barrier.json",
+    )
+    activation = base / ACTIVATION_BASENAME
+    monkeypatch.setattr(
+        bot,
+        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
+        activation,
     )
     monkeypatch.setattr(
         bot,
@@ -45,14 +62,60 @@ def install_paths(monkeypatch: pytest.MonkeyPatch, base: Path) -> None:
     monkeypatch.setattr(bot, "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN", False)
     monkeypatch.setattr(bot, "_RETAINED_CONFIRMED_POST_SIGINT_GUARD", None)
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
+    if activate_protocol:
+        create_test_protocol_activation(activation)
+
+
+def prepare_context_create(
+    *,
+    text: str = "test",
+    parent_post_id: str = "123",
+) -> dict[str, object]:
+    """Persist the minimal exact owner used by low-level create tests."""
+
+    receipt: dict[str, object] = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_post_id,
+        "quote_id": "a" * 64,
+        "reply_text": text,
+        "reply_epoch": 123,
+        "started_at": "2026-07-31T12:00:00Z",
+        "attempt_number": 1,
+    }
+    bot.atomic_write_json(bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE, receipt)
+    return receipt
+
+
+def create_bound_context_post(
+    text: str = "test",
+    *,
+    receipt: dict[str, object] | None = None,
+) -> dict:
+    """Call create_post through one exact durable historical-context owner."""
+
+    prepared = receipt or prepare_context_create(text=text)
+    return bot.create_post(
+        text,
+        reply_to_id=str(prepared["parent_post_id"]),
+        prepared_historical_context_reply_receipt=prepared,
+    )
 
 
 def test_explicit_initialisation_and_missing_file_matrix(tmp_path, monkeypatch):
-    install_paths(monkeypatch, tmp_path)
+    install_paths(monkeypatch, tmp_path, activate_protocol=False)
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
     assert bot.initialise_installation() == 0
-    for name in ("bot_state.json", "lines_used.json", "images_used.json", ".mrsMThatcher.initialised.json"):
+    for name in (
+        "bot_state.json",
+        "lines_used.json",
+        "images_used.json",
+        ".mrsMThatcher.initialised.json",
+    ):
         assert (tmp_path / name).is_file()
+    assert not os.path.lexists(tmp_path / ACTIVATION_AUDIT_BASENAME)
+    assert not os.path.lexists(tmp_path / ACTIVATION_BASENAME)
+    assert bot.remote_write_safety_protocol_is_active() is False
     bot.require_established_installation()
     with pytest.raises(RuntimeError, match="Refusing to initialise"):
         bot.initialise_installation()
@@ -87,7 +150,7 @@ def test_initialisation_rejects_dangling_safety_barrier_namespace(
 ) -> None:
     """A dangling barrier symlink is existing state, not an absent pathname."""
 
-    install_paths(monkeypatch, tmp_path)
+    install_paths(monkeypatch, tmp_path, activate_protocol=False)
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
     barrier = Path(getattr(bot, barrier_attribute))
     barrier.symlink_to(tmp_path / "missing-barrier-target")
@@ -96,6 +159,72 @@ def test_initialisation_rejects_dangling_safety_barrier_namespace(
         bot.initialise_installation()
 
     assert barrier.is_symlink()
+
+
+def test_initialisation_refuses_preexisting_activation_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A crash-left audit is existing installation state, not a fresh root."""
+
+    install_paths(monkeypatch, tmp_path, activate_protocol=False)
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
+    audit = tmp_path / ACTIVATION_AUDIT_BASENAME
+    audit.write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="Refusing to initialise"):
+        bot.initialise_installation()
+
+    assert audit.read_bytes() == b"{}\n"
+
+
+def test_initialisation_never_uses_the_unaudited_activation_shortcut(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """New durable state remains write-disabled pending stopped activation."""
+
+    install_paths(monkeypatch, tmp_path, activate_protocol=False)
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
+    assert bot.initialise_installation() == 0
+
+    assert not os.path.lexists(tmp_path / ACTIVATION_AUDIT_BASENAME)
+    assert not os.path.lexists(tmp_path / ACTIVATION_BASENAME)
+    assert bot.remote_write_safety_protocol_is_active() is False
+
+
+def test_remote_preflight_rejects_activation_pair_torn_during_inspection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pair namespace race cannot open the actual shared remote preflight."""
+
+    install_paths(monkeypatch, tmp_path, activate_protocol=True)
+    real_inspect = protocol._inspect_stable_regular_at
+
+    def inspect_then_remove_sentinel(
+        directory_fd: int,
+        basename: str,
+        **kwargs,
+    ):
+        inspected = real_inspect(directory_fd, basename, **kwargs)
+        if basename == protocol.ACTIVATION_AUDIT_BASENAME:
+            os.unlink(protocol.ACTIVATION_BASENAME, dir_fd=directory_fd)
+        return inspected
+
+    monkeypatch.setattr(
+        protocol,
+        "_inspect_stable_regular_at",
+        inspect_then_remove_sentinel,
+    )
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="protocol is not durably activated",
+    ):
+        bot.require_remote_operation_unpaused("synthetic remote lane")
+
+    assert not os.path.lexists(tmp_path / ACTIVATION_BASENAME)
+    assert os.path.lexists(tmp_path / ACTIVATION_AUDIT_BASENAME)
 
 
 def test_state_backup_is_an_existing_recovery_candidate(tmp_path, monkeypatch):
@@ -205,7 +334,7 @@ def test_ambiguous_remote_post_creates_durable_blocker(tmp_path, monkeypatch):
         lambda *_a, **_k: (_ for _ in ()).throw(bot.AmbiguousRemotePostOutcome("timeout", service="x")),
     )
     with pytest.raises(bot.AmbiguousRemotePostOutcome):
-        bot.create_post("test")
+        create_bound_context_post()
     marker = json.loads((tmp_path / "ambiguous_post_outcome.json").read_text())
     assert marker["outcome"] == "ambiguous_remote_post"
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Unreconciled ambiguous"):
@@ -223,6 +352,7 @@ def test_ambiguous_remote_post_blocks_process_when_marker_write_fails(tmp_path, 
         raise bot.AmbiguousRemotePostOutcome("timeout", service="x")
 
     monkeypatch.setattr(bot, "x_request", ambiguous_request)
+    receipt = prepare_context_create(text="first")
     monkeypatch.setattr(
         bot,
         "atomic_write_json",
@@ -230,9 +360,9 @@ def test_ambiguous_remote_post_blocks_process_when_marker_write_fails(tmp_path, 
     )
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="timeout"):
-        bot.create_post("first")
+        create_bound_context_post("first", receipt=receipt)
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="in-process remote-write safety latch"):
-        bot.create_post("second")
+        create_bound_context_post("first", receipt=receipt)
 
     assert calls == 1
 
@@ -255,7 +385,7 @@ def test_x_server_error_on_post_creates_durable_ambiguity_barrier(
     monkeypatch.setattr(bot.requests, "request", lambda *_args, **_kwargs: Response(status_code))
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
-        bot.create_post("test")
+        create_bound_context_post()
 
     assert caught.value.status_code == status_code
     marker = json.loads((tmp_path / "ambiguous_post_outcome.json").read_text(encoding="utf-8"))
@@ -281,7 +411,7 @@ def test_x_client_error_without_provider_contract_creates_ambiguity_barrier(
     monkeypatch.setattr(bot.requests, "request", lambda *_args, **_kwargs: Response(status_code))
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
-        bot.create_post("test")
+        create_bound_context_post()
 
     assert caught.value.status_code == status_code
     marker = json.loads(
@@ -365,7 +495,8 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
         )
     elif lane == "direct_create":
         monkeypatch.setattr(bot, "x_request", lambda *_args, **_kwargs: prepared("X request"))
-        invoke = lambda: bot.create_post("test")
+        receipt = prepare_context_create()
+        invoke = lambda: create_bound_context_post(receipt=receipt)
     else:
         monkeypatch.setattr(bot, "upload_media_v2", lambda *_args, **_kwargs: prepared("media upload"))
         monkeypatch.setattr(bot, "upload_media_v1_1", lambda *_args, **_kwargs: prepared("media upload fallback"))
@@ -381,14 +512,28 @@ def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
     ("body", "message"),
     [(b"not json", "non-JSON"), (b"[]", "JSON object")],
 )
-def test_success_status_malformed_body_is_ambiguous_only_for_writes(monkeypatch, body, message):
+def test_success_status_malformed_body_is_ambiguous_only_for_writes(
+    monkeypatch,
+    tmp_path,
+    body,
+    message,
+):
+    install_paths(monkeypatch, tmp_path)
     response = bot.requests.Response()
     response.status_code = 200
     response._content = body
     monkeypatch.setattr(bot.requests, "request", lambda *args, **kwargs: response)
 
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match=message):
-        bot.x_request("POST", "/2/tweets", ambiguous_write=True, json={"text": "test"})
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            ambiguous_write=True,
+            json={"text": "test"},
+            _remote_write_authorization=(
+                bot._REMOTE_WRITE_PREFLIGHT_AUTHORIZATION
+            ),
+        )
     with pytest.raises(bot.ApiError, match=message) as exc_info:
         bot.x_request("GET", "/2/users/me")
     monkeypatch.setattr(bot, "X_BEARER_TOKEN", "test-token")

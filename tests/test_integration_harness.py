@@ -13,7 +13,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from remote_write_safety_protocol import (
+    ACTIVATION_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
+)
 from tests.fake_api_server import FakeApiServer, load_scenario
+from tests.helpers.protocol_activation import create_test_protocol_activation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -216,6 +220,9 @@ def prepare_base_dir(
 ) -> Path:
     base_dir = tmp_path / "mrs-test-state"
     base_dir.mkdir(parents=True)
+    create_test_protocol_activation(
+        base_dir / REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME
+    )
     (base_dir / "mrsMThatcher.txt").write_text("A test quote.\n", encoding="utf-8")
     (base_dir / "images").mkdir()
     (base_dir / "images" / "t01.jpg").write_bytes(b"fake image bytes")

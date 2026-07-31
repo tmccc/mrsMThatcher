@@ -398,7 +398,7 @@ def _open_active_barrier_set(project_fd: int) -> _ActiveBarrierSet:
 
     These are the only supported active layouts:
 
-    * a legacy one-link marker awaiting migration by the daemon;
+    * a legacy one-link marker awaiting stopped offline reconciliation;
     * the exact two-link marker/restart-barrier pair;
     * the one-link restart barrier surviving loss of the legacy name.
 

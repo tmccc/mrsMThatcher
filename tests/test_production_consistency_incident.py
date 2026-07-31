@@ -10,6 +10,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from remote_write_safety_protocol import (
+    ACTIVATION_BASENAME as REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
+)
+from tests.helpers.protocol_activation import create_test_protocol_activation
 
 _IMPORT_TEMPORARY = tempfile.TemporaryDirectory(
     prefix="mrsMThatcher-production-consistency-import-"
@@ -72,6 +76,9 @@ def isolated_incident_paths(
         "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE": (
             tmp_path / "ambiguous_post_outcome.restart_barrier.json"
         ),
+        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE": (
+            tmp_path / REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME
+        ),
         "CONTROL_FILE": tmp_path / "control.json",
         "COMPLETED_QUOTE_RESEARCH_FILE": tmp_path / "research_packets.json",
         "HISTORICAL_CONTEXT_RESEARCH_DIR": tmp_path / "research",
@@ -80,6 +87,9 @@ def isolated_incident_paths(
     }
     for name, value in paths.items():
         monkeypatch.setattr(bot, name, value)
+    create_test_protocol_activation(
+        bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
+    )
 
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
@@ -1243,6 +1253,203 @@ def test_interrupted_outbox_claim_preserves_sending_receipt_as_global_ambiguity(
     ) == []
 
 
+def test_observed_context_receipt_disappearance_remains_globally_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Losing the observed receipt cannot downgrade the attempt to retryable."""
+
+    from historical_context_formatter import HistoricalContextReplyStore
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "830007",
+        main_post_confirmed_epoch=8_300,
+        quote_id="9" * 64,
+        quote_text="The receipt must remain the authoritative barrier.",
+    )
+    store.claim_attempt("830007", started_epoch=8_301)
+    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "lifecycle_state": "sending",
+                "parent_post_id": "830007",
+                "quote_id": "9" * 64,
+                "reply_text": "Context — The outcome remains unknown.",
+                "reply_epoch": 8_301,
+                "started_at": "2026-07-23T20:00:00Z",
+                "attempt_number": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
+
+    def disappear_after_observation(_self):
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.unlink()
+        return None
+
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "_load_receipt_safely",
+        disappear_after_observation,
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="830007",
+    )
+
+    assert result[0]["status"] == "interrupted_attempt_recovery_failed"
+    assert result[0]["error_type"] == "AmbiguousContextReplyOutcome"
+    assert (
+        store.get("830007")["context_reply"]["state"]
+        == "context_reply_attempting"
+    )
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+def test_context_receipt_reconciliation_exception_cannot_claim_another_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The worker may inspect its old attempt, never start unrelated work."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "830003",
+        main_post_confirmed_epoch=8_300,
+        quote_id="5" * 64,
+        quote_text="A different due historical-context quotation.",
+    )
+    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "lifecycle_state": "sending",
+                "parent_post_id": "830002",
+                "quote_id": "4" * 64,
+                "reply_text": "Context — An unresolved earlier attempt.",
+                "reply_epoch": 8_301,
+                "started_at": "2026-07-23T20:00:00Z",
+                "attempt_number": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
+    monkeypatch.setattr(
+        store,
+        "claim_attempt",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an unresolved context receipt must prevent a new claim"
+        ),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="830003",
+    )
+
+    assert result == []
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert (
+        store.get("830003")["context_reply"]["state"]
+        == "context_reply_pending"
+    )
+
+
+def test_confirmed_context_receipt_reconciliation_ends_the_worker_tick(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A locally reconciled receipt cannot lend authority to the next item."""
+
+    store = bot.historical_context_outbox_store()
+    for parent_id, quote_id in (("830004", "6" * 64), ("830005", "7" * 64)):
+        store.enqueue(
+            parent_id,
+            main_post_confirmed_epoch=8_300,
+            quote_id=quote_id,
+            quote_text=f"Historical-context quotation {parent_id}.",
+        )
+    store.claim_attempt("830004", started_epoch=8_301)
+    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "lifecycle_state": "confirmed",
+                "parent_post_id": "830004",
+                "reply_post_id": "930004",
+                "quote_id": "6" * 64,
+                "reply_text": "Context — The first attempt was confirmed.",
+                "reply_epoch": 8_301,
+                "confirmed_at": "2026-07-23T20:00:00Z",
+                "started_at": "2026-07-23T19:59:59Z",
+                "attempt_number": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        lambda **_kwargs: pytest.fail(
+            "receipt reconciliation cannot authorise the next item"
+        ),
+    )
+
+    result = bot.process_due_historical_context_obligations(limit=2)
+
+    assert [item["parent_post_id"] for item in result] == ["830004"]
+    assert result[0]["status"] == "recovered_confirmed_history"
+    assert (
+        store.get("830005")["context_reply"]["state"]
+        == "context_reply_pending"
+    )
+
+
+def test_symlink_context_receipt_never_enters_local_reconciliation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The narrow exception must not follow an unsafe receipt namespace."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "830006",
+        main_post_confirmed_epoch=8_300,
+        quote_id="8" * 64,
+        quote_text="A pending item behind an unsafe receipt.",
+    )
+    target = tmp_path / "outside-context-receipt.json"
+    target.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "parent_post_id": "830006",
+                "reply_post_id": "930006",
+                "quote_id": "8" * 64,
+                "reply_text": "Context — Unsafe receipt target.",
+                "reply_epoch": 8_301,
+                "confirmed_at": "2026-07-23T20:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.symlink_to(target)
+    monkeypatch.setattr(
+        store,
+        "claim_attempt",
+        lambda *_args, **_kwargs: pytest.fail(
+            "unsafe receipt must prevent worker entry"
+        ),
+    )
+
+    assert bot.process_due_historical_context_obligations(limit=2) == []
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.is_symlink()
+    assert target.exists()
+
+
 def test_main_acquires_process_lock_before_context_reconciliation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1406,6 +1613,10 @@ def test_context_runtime_unavailable_does_not_require_outbox_for_main_post(
 def test_installation_initialisation_refuses_existing_durable_state(
     existing_name: str,
 ) -> None:
+    # This test exercises refusal caused by the selected pre-existing durable
+    # target.  Remove the fixture's normal active-protocol sentinel so it
+    # cannot mask that target-specific refusal.
+    bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE.unlink()
     if existing_name == "outbox":
         path = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE
     elif existing_name == "outbox_lock":

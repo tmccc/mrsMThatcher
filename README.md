@@ -398,10 +398,49 @@ spacing permits.
 An X POST transport timeout is not proof of failure: X may have accepted the
 write. A new ambiguous outcome first creates and synchronises
 `ambiguous_post_outcome.restart_barrier.json`, then adds the same-inode
-compatibility name `ambiguous_post_outcome.json`. Older installations with only
-the compatibility name migrate it to the successor while holding the instance
-lock. Either name blocks further posting until an operator reconciles the
-incident; the bot does not claim exactly-once delivery.
+compatibility name `ambiguous_post_outcome.json`. Either name blocks further
+posting until an operator reconciles the incident; the bot does not claim
+exactly-once delivery.
+
+The successor-first protocol is enabled by the exact read-only runtime pair
+`.mrs_remote_write_safety_protocol_v1` and
+`.mrs_remote_write_safety_protocol_v1.activation_audit.json`. Missing,
+malformed, replaced, unreadable or mismatched pair state blocks every remote
+lane in every process; a bare sentinel is not silently treated as activation.
+The pair is cross-revalidated after both stable no-follow reads, so files from
+different namespace generations cannot be composed into permission. Local
+namespace absence is not accepted as proof that an installation is new:
+`--initialise` creates durable state but deliberately leaves every remote lane
+disabled. Every installation must then be activated only while the user
+service, wrapper and Python child are all stopped. First reconcile every active
+ambiguity marker and transaction receipt and create an external canonical
+clean-state/reconciliation attestation. That immutable 0400 file must name the
+exact project path/device/inode, the exact activator CLI SHA-256 and an operator
+reconciliation reference. Run
+`tools/activate_remote_write_safety_protocol.py` with its exact SHA-256, the
+preflight-bound project identity and both explicit confirmations. The
+activator validates the attestation's bytes and bindings but does not pretend
+to prove the operator's clean-state assertion. It takes the complete
+instance-lock boundary, refuses either marker name or any regular, meme,
+conversational-reply or historical-context receipt, publishes the hash-bound
+activation audit first and the sentinel last. A legacy-only marker is never
+migrated by the running daemon.
+
+Protocol activation is a one-way runtime compatibility boundary. Never start a
+pre-protocol binary against that activated state directory; any rollback must
+remain stopped until its marker, receipt and activation pair have been reviewed
+under the same lock-bound offline procedure. The activation pair is mutable
+runtime state rather than repository content. When the state directory is also a Git
+checkout, record a deployment-local exclusion in that checkout's
+`.git/info/exclude`; do not modify or overwrite an unrelated tracked
+`.gitignore` change merely to hide it.
+
+Every regular, meme, conversational-reply and historical-context reply receipt
+is a global remote-write barrier. The one transaction which durably wrote an
+exact sending receipt receives a narrow in-process authority for its matching
+payload; missing, changed, malformed or unrelated receipts block it. Raw X,
+media and provider transports receive no such authority and cannot bypass an
+unresolved receipt.
 
 The safety marker must never be removed while the daemon is running. After an
 operator has independently reconciled the remote outcome, stop the service and
@@ -428,10 +467,15 @@ archive, receipt and active-name evidence before a separately reviewed
 recovery. This is an availability limitation, not permission to delete either
 barrier manually.
 
-A legacy-only marker from an older release must remain in place until its first
-successful migration. The instance lock excludes every supported removal path;
-deleting that sole legacy name beforehand is an unsupported external mutation
-which no later process can reconstruct from the filesystem.
+A legacy-only marker from an older release must remain in place until exact
+stopped reconciliation. The running daemon refuses to migrate or acknowledge
+it. If the sole legacy name is lost before reconciliation, protocol activation
+remains absent, so every later compatible process stays blocked without relying
+on process memory. Only the stopped, lock-bound activator may establish the
+clean activation pair after all marker and receipt evidence is absent or has
+been reconciled and an external hash-bound operator attestation records that
+conclusion. Pathname absence alone is not treated as proof that an older marker
+was never lost.
 
 The daemon first opens and exclusively locks the state-directory inode. That
 kernel file lock is shared across lexical aliases and network namespaces. It

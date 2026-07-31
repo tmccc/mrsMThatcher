@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import copy
+import ctypes
 import hashlib
 import json
 import os
 import re
+import secrets
+import stat
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +20,11 @@ from urllib.parse import urlsplit
 DEFAULT_RESEARCH_DIR = Path("semantic_alignment_research/quote_research_full_001")
 DEFAULT_MAXIMUM_LENGTH = 4000
 MAXIMUM_SUPPORTED_LENGTH = 25_000
+MAXIMUM_TRANSACTION_RECEIPT_BYTES = 256 * 1024
+_RENAME_EXCHANGE = 2
+_RECEIPT_RETIREMENT_TOMBSTONE = (
+    b"historical-context receipt retirement in progress\n"
+)
 VERIFICATION_LABELS = {
     "exact": "Exact wording",
     "normalised": "Normalised wording",
@@ -166,6 +174,39 @@ def durable_unlink(path: Path) -> None:
     directory = os.open(path.parent, os.O_RDONLY)
     try: os.fsync(directory)
     finally: os.close(directory)
+
+
+def _rename_exchange_at(
+    directory_fd: int,
+    left_basename: str,
+    right_basename: str,
+) -> None:
+    """Atomically exchange two direct children or fail before changing either."""
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise RuntimeError(
+            "atomic historical-context receipt retirement is unavailable"
+        )
+    renameat2.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    result = renameat2(
+        directory_fd,
+        os.fsencode(left_basename),
+        directory_fd,
+        os.fsencode(right_basename),
+        _RENAME_EXCHANGE,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number))
 
 
 def load_and_validate_corpus_core(
@@ -1184,6 +1225,348 @@ class HistoricalContextReplyStore:
     def _save_history(self, value: dict[str, Any]) -> None: atomic_write_json(self.history_path, value)
 
     @staticmethod
+    def _parse_receipt_json(data: bytes) -> Any:
+        """Parse receipt JSON without last-object-name-wins ambiguity."""
+
+        def reject_duplicate_names(
+            pairs: list[tuple[str, Any]],
+        ) -> dict[str, Any]:
+            value: dict[str, Any] = {}
+            for name, item in pairs:
+                if name in value:
+                    raise ValueError(
+                        f"duplicate historical-context receipt object name: {name}"
+                    )
+                value[name] = item
+            return value
+
+        def reject_nonfinite_constant(value: str) -> Any:
+            raise ValueError(
+                "non-finite historical-context receipt JSON constant: "
+                f"{value}"
+            )
+
+        return json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_names,
+            parse_constant=reject_nonfinite_constant,
+        )
+
+    @staticmethod
+    def _read_stable_receipt_bytes(path: Path) -> bytes:
+        """Read one owned, single-link ordinary receipt without following links."""
+
+        path = Path(path)
+        before = os.lstat(path)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_uid != os.geteuid()
+            or before.st_size > MAXIMUM_TRANSACTION_RECEIPT_BYTES
+        ):
+            raise RuntimeError(
+                "historical context reply receipt has unsafe filesystem metadata"
+            )
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        if not nofollow:
+            raise RuntimeError(
+                "historical context reply receipt inspection requires O_NOFOLLOW"
+            )
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+        )
+        try:
+            opened = os.fstat(descriptor)
+            chunks: list[bytes] = []
+            total = 0
+            while total <= MAXIMUM_TRANSACTION_RECEIPT_BYTES:
+                chunk = os.read(
+                    descriptor,
+                    min(
+                        65536,
+                        MAXIMUM_TRANSACTION_RECEIPT_BYTES + 1 - total,
+                    ),
+                )
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+            after_read = os.fstat(descriptor)
+            after_path = os.lstat(path)
+        finally:
+            os.close(descriptor)
+        if (
+            total > MAXIMUM_TRANSACTION_RECEIPT_BYTES
+            or not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_uid != os.geteuid()
+            or not (
+                opened.st_dev
+                == before.st_dev
+                == after_read.st_dev
+                == after_path.st_dev
+            )
+            or not (
+                opened.st_ino
+                == before.st_ino
+                == after_read.st_ino
+                == after_path.st_ino
+            )
+            or not (
+                opened.st_nlink
+                == before.st_nlink
+                == after_read.st_nlink
+                == after_path.st_nlink
+            )
+            or not (
+                opened.st_size
+                == before.st_size
+                == after_read.st_size
+                == after_path.st_size
+            )
+            or not (
+                opened.st_ctime_ns
+                == before.st_ctime_ns
+                == after_read.st_ctime_ns
+                == after_path.st_ctime_ns
+            )
+            or not (
+                opened.st_mtime_ns
+                == before.st_mtime_ns
+                == after_read.st_mtime_ns
+                == after_path.st_mtime_ns
+            )
+        ):
+            raise RuntimeError(
+                "historical context reply receipt changed while it was read"
+            )
+        return b"".join(chunks)
+
+    @classmethod
+    def receipt_path_is_safe_regular(cls, path: Path) -> bool:
+        """Return whether local reconciliation may inspect this exact path."""
+
+        try:
+            cls._read_stable_receipt_bytes(path)
+        except (FileNotFoundError, OSError, RuntimeError):
+            return False
+        return True
+
+    @classmethod
+    def receipt_parent_for_safe_local_reconciliation(
+        cls,
+        path: Path,
+    ) -> str | None:
+        """Return the parent bound by one stable, valid transaction receipt."""
+
+        try:
+            data = cls._read_stable_receipt_bytes(path)
+            receipt = cls._parse_receipt_json(data)
+        except (
+            FileNotFoundError,
+            OSError,
+            RuntimeError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            ValueError,
+        ):
+            return None
+        if not (
+            cls._valid_sending_receipt(receipt)
+            or cls._valid_receipt(receipt)
+        ):
+            return None
+        return str(receipt["parent_post_id"])
+
+    def _load_receipt_safely(self) -> tuple[Any, bytes] | None:
+        """Load the receipt through its stable no-follow filesystem identity."""
+
+        try:
+            data = self._read_stable_receipt_bytes(self.receipt_path)
+        except FileNotFoundError:
+            return None
+        try:
+            return self._parse_receipt_json(data), data
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            raise RuntimeError("invalid context reply receipt JSON") from exc
+
+    @staticmethod
+    def _write_all(descriptor: int, data: bytes) -> None:
+        """Write complete bytes or raise without treating a short write as success."""
+
+        view = memoryview(data)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError("short write while staging receipt tombstone")
+            view = view[written:]
+
+    def _retire_exact_receipt(self, expected_bytes: bytes) -> None:
+        """Retire only the exact receipt, leaving a barrier across every crash.
+
+        An atomic exchange first replaces the live receipt pathname with a
+        durable tombstone.  The displaced entry is then compared with an open
+        descriptor, so a concurrent pathname replacement is never mistaken
+        for the receipt whose outcome was reconciled.  The tombstone is the
+        final name removed; until that final directory synchronisation, every
+        restart still sees a fail-closed receipt namespace entry.
+        """
+
+        path = Path(self.receipt_path)
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        directory_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | nofollow
+            | getattr(os, "O_CLOEXEC", 0)
+        )
+        if not nofollow:
+            raise RuntimeError(
+                "historical context receipt retirement requires O_NOFOLLOW"
+            )
+        directory_fd = os.open(path.parent, directory_flags)
+        receipt_fd: int | None = None
+        tombstone_fd: int | None = None
+        exchanged = False
+        tombstone_name = (
+            f".{path.name}.retiring.{os.getpid()}.{secrets.token_hex(12)}"
+        )
+        try:
+            before = os.stat(
+                path.name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_nlink != 1
+                or before.st_uid != os.geteuid()
+                or before.st_size != len(expected_bytes)
+            ):
+                raise RuntimeError(
+                    "historical context receipt changed before retirement"
+                )
+            receipt_fd = os.open(
+                path.name,
+                os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+                dir_fd=directory_fd,
+            )
+            opened = os.fstat(receipt_fd)
+            observed = bytearray()
+            while len(observed) <= len(expected_bytes):
+                chunk = os.read(
+                    receipt_fd,
+                    len(expected_bytes) + 1 - len(observed),
+                )
+                if not chunk:
+                    break
+                observed.extend(chunk)
+            after_read = os.fstat(receipt_fd)
+            before_exchange = os.stat(
+                path.name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+            if (
+                bytes(observed) != expected_bytes
+                or not (
+                    opened.st_dev
+                    == before.st_dev
+                    == after_read.st_dev
+                    == before_exchange.st_dev
+                )
+                or not (
+                    opened.st_ino
+                    == before.st_ino
+                    == after_read.st_ino
+                    == before_exchange.st_ino
+                )
+                or not (
+                    opened.st_ctime_ns
+                    == before.st_ctime_ns
+                    == after_read.st_ctime_ns
+                    == before_exchange.st_ctime_ns
+                )
+                or not (
+                    opened.st_mtime_ns
+                    == before.st_mtime_ns
+                    == after_read.st_mtime_ns
+                    == before_exchange.st_mtime_ns
+                )
+            ):
+                raise RuntimeError(
+                    "historical context receipt changed before retirement"
+                )
+
+            tombstone_fd = os.open(
+                tombstone_name,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | nofollow
+                | getattr(os, "O_CLOEXEC", 0),
+                0o600,
+                dir_fd=directory_fd,
+            )
+            self._write_all(
+                tombstone_fd,
+                _RECEIPT_RETIREMENT_TOMBSTONE,
+            )
+            os.fsync(tombstone_fd)
+            tombstone_identity = os.fstat(tombstone_fd)
+            os.close(tombstone_fd)
+            tombstone_fd = None
+            os.fsync(directory_fd)
+
+            _rename_exchange_at(
+                directory_fd,
+                path.name,
+                tombstone_name,
+            )
+            exchanged = True
+            os.fsync(directory_fd)
+            displaced = os.stat(
+                tombstone_name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+            live_tombstone = os.stat(
+                path.name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+            if (
+                (displaced.st_dev, displaced.st_ino)
+                != (opened.st_dev, opened.st_ino)
+                or (live_tombstone.st_dev, live_tombstone.st_ino)
+                != (
+                    tombstone_identity.st_dev,
+                    tombstone_identity.st_ino,
+                )
+            ):
+                raise RuntimeError(
+                    "historical context receipt namespace changed during retirement; "
+                    "the canonical tombstone remains a restart barrier"
+                )
+
+            os.unlink(tombstone_name, dir_fd=directory_fd)
+            os.fsync(directory_fd)
+            os.unlink(path.name, dir_fd=directory_fd)
+            os.fsync(directory_fd)
+        finally:
+            if receipt_fd is not None:
+                os.close(receipt_fd)
+            if tombstone_fd is not None:
+                os.close(tombstone_fd)
+            if not exchanged:
+                try:
+                    os.unlink(tombstone_name, dir_fd=directory_fd)
+                except FileNotFoundError:
+                    pass
+            os.close(directory_fd)
+
+    @staticmethod
     def _valid_formatter_metadata(value: Any) -> bool:
         if not isinstance(value, dict):
             return False
@@ -1311,8 +1694,10 @@ class HistoricalContextReplyStore:
 
     def reconcile_receipt(self) -> bool:
         """Reconcile receipt."""
-        if not self.receipt_path.exists(): return False
-        receipt = json.loads(self.receipt_path.read_text())
+        loaded = self._load_receipt_safely()
+        if loaded is None:
+            return False
+        receipt, receipt_bytes = loaded
         if self._valid_sending_receipt(receipt):
             history = self.history()
             previous = history["items"].get(str(receipt["parent_post_id"]))
@@ -1323,7 +1708,7 @@ class HistoricalContextReplyStore:
                 and previous.get("reply_text") == receipt["reply_text"]
                 and previous.get("attempt_count") == receipt["attempt_number"]
             ):
-                durable_unlink(self.receipt_path)
+                self._retire_exact_receipt(receipt_bytes)
                 return False
             raise AmbiguousContextReplyOutcome(
                 "historical context reply was interrupted while sending; manual reconciliation required",
@@ -1340,7 +1725,9 @@ class HistoricalContextReplyStore:
             if comparable != receipt:
                 raise RuntimeError("historical context reply receipt conflicts with completed history")
         history["items"][parent_post_id] = {**receipt, "status": "completed"}
-        self._save_history(history); durable_unlink(self.receipt_path); return True
+        self._save_history(history)
+        self._retire_exact_receipt(receipt_bytes)
+        return True
 
     def record_failure(self, parent_post_id: str, quote_id: str, text: str, error: BaseException,
                        formatter_metadata: dict[str, Any] | None = None) -> None:
@@ -1426,6 +1813,7 @@ class HistoricalContextReplyStore:
                 media_ids=None,
                 reply_to_id=str(parent_post_id),
                 made_with_ai=False,
+                prepared_historical_context_reply_receipt=sending,
             )
         except Exception as exc:
             if type(exc).__name__ == "AmbiguousRemotePostOutcome":

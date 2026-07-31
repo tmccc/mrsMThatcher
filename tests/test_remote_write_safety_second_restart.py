@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -10,6 +11,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+import remote_write_safety_protocol as protocol
+from tests.helpers.protocol_activation import create_test_protocol_activation
+from tools import activate_remote_write_safety_protocol as activate
 from tools import reconcile_remote_write_safety_marker as reconcile
 
 
@@ -65,6 +71,16 @@ NEW_MARKER_BYTES = (
     )
     + "\n"
 ).encode("utf-8")
+CONTEXT_SENDING_RECEIPT = {
+    "attempt_number": 1,
+    "lifecycle_state": "sending",
+    "parent_post_id": "111",
+    "quote_id": "a" * 64,
+    "reply_epoch": 1_800_000_000,
+    "reply_text": "Context — exact transaction owner.",
+    "schema_version": 1,
+    "started_at": "2026-07-31T09:00:00Z",
+}
 
 
 def _fsync_directory(path: Path) -> None:
@@ -80,8 +96,8 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def _write_marker(state_directory: Path) -> Path:
-    """Create and synchronise the sole initial restart barrier."""
+def _write_legacy_marker(state_directory: Path) -> Path:
+    """Create and synchronise one legacy-only initial barrier."""
 
     marker = state_directory / MARKER_BASENAME
     descriptor = os.open(
@@ -96,6 +112,102 @@ def _write_marker(state_directory: Path) -> Path:
         os.close(descriptor)
     _fsync_directory(state_directory)
     return marker
+
+
+def _write_barrier_pair(state_directory: Path) -> tuple[Path, Path]:
+    """Create the exact two-link active barrier used by the new protocol."""
+
+    marker = _write_legacy_marker(state_directory)
+    successor = state_directory / RESTART_BARRIER_BASENAME
+    os.link(marker, successor, follow_symlinks=False)
+    _fsync_directory(state_directory)
+    return marker, successor
+
+
+def _write_context_sending_receipt(state_directory: Path) -> Path:
+    """Create and synchronise one exact historical-context sending receipt."""
+
+    receipt = state_directory / "historical_context_reply_receipt.json"
+    payload = (
+        json.dumps(
+            CONTEXT_SENDING_RECEIPT,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    descriptor = os.open(
+        receipt,
+        os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+        0o600,
+    )
+    try:
+        assert os.write(descriptor, payload) == len(payload)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    _fsync_directory(state_directory)
+    return receipt
+
+
+def _activate_protocol(state_directory: Path) -> Path:
+    """Create the exact test-owned protocol activation sentinel."""
+
+    path = state_directory / activate.ACTIVATION_BASENAME
+    create_test_protocol_activation(path)
+    return path
+
+
+def _write_established_activation_state(state_directory: Path) -> None:
+    """Create the direct regular files which bind a real existing install."""
+
+    for basename in activate.ESTABLISHED_STATE_BASENAMES:
+        (state_directory / basename).write_text("{}\n", encoding="utf-8")
+
+
+def _activation_kwargs(state_directory: Path) -> dict[str, object]:
+    """Bind the API to exact project and external-attestation identities."""
+
+    identity = os.stat(state_directory, follow_symlinks=False)
+    cli_sha256 = activate._stable_cli_sha256()
+    attestation_bytes = activate.build_clean_state_attestation_bytes(
+        project_root=state_directory,
+        project_device=int(identity.st_dev),
+        project_inode=int(identity.st_ino),
+        activator_cli_sha256=cli_sha256,
+        reconciliation_reference="test-reviewed-clean-state",
+    )
+    attestation = state_directory.parent / (
+        f"{state_directory.name}.clean-state-attestation.json"
+    )
+    if attestation.exists():
+        assert attestation.read_bytes() == attestation_bytes
+    else:
+        descriptor = os.open(
+            attestation,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            assert os.write(descriptor, attestation_bytes) == len(attestation_bytes)
+            os.fsync(descriptor)
+            os.fchmod(descriptor, activate.CLEAN_STATE_ATTESTATION_MODE)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        _fsync_directory(attestation.parent)
+    return {
+        "project_root": state_directory,
+        "expected_project_root": state_directory.resolve(strict=True),
+        "expected_project_device": int(identity.st_dev),
+        "expected_project_inode": int(identity.st_ino),
+        "supervisor_stopped_confirmed": True,
+        "clean_state_attestation_path": attestation,
+        "expected_clean_state_attestation_sha256": hashlib.sha256(
+            attestation_bytes
+        ).hexdigest(),
+    }
 
 
 def _child_environment(state_directory: Path) -> dict[str, str]:
@@ -189,8 +301,8 @@ def test_literal_second_process_blocks_all_remote_lanes_after_marker_loss_and_ha
 
     state_directory = tmp_path / "state"
     state_directory.mkdir()
-    marker = _write_marker(state_directory)
-    successor = state_directory / RESTART_BARRIER_BASENAME
+    marker, successor = _write_barrier_pair(state_directory)
+    _activate_protocol(state_directory)
 
     first, first_record = _run_child("fault", state_directory)
     assert first.returncode == 73, first.stderr
@@ -244,6 +356,7 @@ def test_literal_second_process_blocks_all_remote_lanes_after_marker_loss_and_ha
     assert second_record["initial"] == {
         "durability_uncertain": False,
         "marker_present": False,
+        "protocol_active": True,
         "receipts_present": expected_receipts,
         "remote_seen": False,
         "successor_present": True,
@@ -265,6 +378,7 @@ def test_literal_new_barrier_survives_hard_exit_before_legacy_link(
     state_directory.mkdir()
     marker = state_directory / MARKER_BASENAME
     successor = state_directory / RESTART_BARRIER_BASENAME
+    _activate_protocol(state_directory)
 
     first, first_record = _run_child("new_fault", state_directory)
     assert first.returncode == 75, first.stderr
@@ -297,64 +411,121 @@ def test_literal_new_barrier_survives_hard_exit_before_legacy_link(
     assert second_record["blocking_after_scheduler"] is True
 
 
-def test_literal_legacy_prelink_loss_remains_blocked_by_real_sending_receipt(
+def test_literal_protocol_absence_survives_legacy_loss_and_second_process(
     tmp_path: Path,
 ) -> None:
-    """A legacy migration race cannot repeat its scheduled X transaction."""
+    """Protocol inactivity remains the sole barrier after marker and process loss."""
 
     state_directory = tmp_path / "state"
     state_directory.mkdir()
-    marker = _write_marker(state_directory)
+    _write_established_activation_state(state_directory)
+    marker = _write_legacy_marker(state_directory)
     successor = state_directory / RESTART_BARRIER_BASENAME
 
-    first, first_record = _run_child("legacy_receipt_fault", state_directory)
+    first, first_record = _run_child("inactive_legacy_loss", state_directory)
     assert first.returncode == 77, first.stderr
-    assert first_record["durable_marker"] is False
-    assert first_record["legacy_marker_present"] is False
-    assert first_record["successor_present"] is False
-    assert first_record["remote_seen"] is True
-    assert first_record["uncertain"] is True
-    assert first_record["receipts_present"]["regular"] is True
+    assert first_record == {
+        "blocked_before_loss": True,
+        "legacy_marker_present": False,
+        "phase": "inactive_protocol_legacy_loss",
+        "protocol_active": False,
+        "receipts_present": {
+            "confirmed_reply": False,
+            "historical_context": False,
+            "meme": False,
+            "regular": False,
+        },
+        "source_sha256": _source_sha256(),
+        "successor_present": False,
+    }
     assert not marker.exists()
     assert not successor.exists()
-
-    second, second_record = _run_child("receipt_blocked", state_directory)
-    assert second.returncode == 0, second.stderr
-    assert second_record["phase"] == "receipt_backed_second_process"
-    assert second_record["regular_receipt_status"] == "sending"
-    assert second_record["blocking_before_direct"] is True
-    assert second_record["runtime_results"] == {
-        "create_post": "blocked",
-        "media_upload": "blocked",
-        "shared_barrier": "blocked",
+    assert _active_receipts(state_directory) == {
+        "confirmed_reply": False,
+        "historical_context": False,
+        "meme": False,
+        "regular": False,
     }
+
+    second, second_record = _run_child("blocked", state_directory)
+    assert second.returncode == 0, second.stderr
+    assert second_record["phase"] == "blocked_second_process"
+    assert second_record["initial"]["protocol_active"] is False
+    assert second_record["blocking_before_direct"] is True
+    assert set(second_record["direct_results"].values()) == {"blocked"}
     assert second_record["transport_sentinel_calls"] == []
     assert second_record["scheduler_sleep_calls"] == 3
     assert second_record["scheduler_entries"] == []
     assert second_record["blocking_after_scheduler"] is True
 
 
-def test_literal_clean_process_allows_preflight_after_supported_offline_reconciliation(
+def test_literal_context_sending_receipt_blocks_every_unrelated_remote_lane(
     tmp_path: Path,
 ) -> None:
-    """Supported offline reconciliation must reopen a later clean interpreter."""
+    """A context transaction may not leave unrelated writes or schedulers open."""
 
     state_directory = tmp_path / "state"
     state_directory.mkdir()
-    marker = _write_marker(state_directory)
-    successor = state_directory / RESTART_BARRIER_BASENAME
+    _activate_protocol(state_directory)
+    receipt = _write_context_sending_receipt(state_directory)
+    receipt_bytes = receipt.read_bytes()
 
-    first, first_record = _run_child("fault", state_directory)
-    assert first.returncode == 73, first.stderr
-    assert first_record["marker_removed"] is True
-    assert not marker.exists()
-    assert successor.read_bytes() == MARKER_BYTES
-    assert successor.stat().st_nlink == 1
+    child, record = _run_child("blocked", state_directory)
+    assert child.returncode == 0, child.stderr
+    assert record["phase"] == "blocked_second_process"
+    assert record["initial"] == {
+        "durability_uncertain": False,
+        "marker_present": False,
+        "protocol_active": True,
+        "receipts_present": {
+            "confirmed_reply": False,
+            "historical_context": True,
+            "meme": False,
+            "regular": False,
+        },
+        "remote_seen": False,
+        "successor_present": False,
+    }
+    assert record["blocking_before_direct"] is True
+    assert record["direct_results"] == {
+        "create_post": "blocked",
+        "media_upload": "blocked",
+        "provider_request": "blocked",
+        "remote_operation_preflight": "blocked",
+        "shared_barrier": "blocked",
+        "x_bearer_request": "blocked",
+        "x_request": "blocked",
+    }
+    assert record["transport_sentinel_calls"] == []
+    assert record["scheduler_sleep_calls"] == 3
+    assert record["scheduler_entries"] == []
+    assert record["blocking_after_scheduler"] is True
+    assert receipt.read_bytes() == receipt_bytes
+
+
+def test_offline_activation_refuses_legacy_then_opens_after_reconciliation(
+    tmp_path: Path,
+) -> None:
+    """Only stopped reconciliation followed by activation opens a clean install."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    marker = _write_legacy_marker(state_directory)
+    successor = state_directory / RESTART_BARRIER_BASENAME
 
     (state_directory / reconcile.LOCK_BASENAME).write_text(
         f"pid={STOPPED_DAEMON_PID}\n",
         encoding="ascii",
     )
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="ambiguous_post_outcome.json",
+    ):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+    assert marker.read_bytes() == MARKER_BYTES
+    assert not successor.exists()
+
     result = reconcile.reconcile_marker_offline(
         project_root=state_directory,
         expected_marker_sha256=MARKER_SHA256,
@@ -372,6 +543,48 @@ def test_literal_clean_process_allows_preflight_after_supported_offline_reconcil
     assert receipt.exists()
     assert stat.S_IMODE(receipt.stat().st_mode) == 0o400
 
+    activation = activate.activate_protocol_offline(
+        **_activation_kwargs(state_directory)
+    )
+    assert activation.activation_sha256 == hashlib.sha256(
+        activate.ACTIVATION_BYTES
+    ).hexdigest()
+    assert (
+        state_directory / activate.ACTIVATION_BASENAME
+    ).read_bytes() == activate.ACTIVATION_BYTES
+    assert activation.activation_reused_existing is False
+    assert activation.activation_kind == protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+    activation_audit = state_directory / protocol.ACTIVATION_AUDIT_BASENAME
+    activation_audit_value = json.loads(
+        activation_audit.read_text(encoding="utf-8")
+    )
+    assert activation_audit_value["activation_kind"] == (
+        protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+    )
+    assert activation_audit_value["clean_state_attestation_sha256"] == (
+        activation.clean_state_attestation_sha256
+    )
+    assert activation_audit_value["activator_cli_sha256"] == (
+        activation.activator_cli_sha256
+    )
+    assert activation_audit_value["operator_clean_state_claim_locally_proven"] is False
+    assert activation.activation_audit_sha256 == hashlib.sha256(
+        activation_audit.read_bytes()
+    ).hexdigest()
+    assert activation.activation_audit_durable_before_sentinel is True
+    assert activation.external_operator_attestation_used is True
+    assert activation.operator_clean_state_claim_locally_proven is False
+    assert activation.supervisor_stopped_precondition_declared is True
+    assert activation.supervisor_stopped_locally_proved is False
+    assert activation.rollback_to_protocol_unaware_runtime_prohibited is True
+
+    repeated = activate.activate_protocol_offline(
+        **_activation_kwargs(state_directory)
+    )
+    assert repeated.activation_reused_existing is True
+    assert repeated.activation_device == activation.activation_device
+    assert repeated.activation_inode == activation.activation_inode
+
     clean, clean_record = _run_child("clean", state_directory)
     assert clean.returncode == 0, clean.stderr
     assert clean_record["phase"] == "clean_process"
@@ -379,6 +592,7 @@ def test_literal_clean_process_allows_preflight_after_supported_offline_reconcil
     assert clean_record["initial"] == {
         "durability_uncertain": False,
         "marker_present": False,
+        "protocol_active": True,
         "receipts_present": {
             "confirmed_reply": False,
             "historical_context": False,
@@ -390,20 +604,19 @@ def test_literal_clean_process_allows_preflight_after_supported_offline_reconcil
     }
     assert clean_record["blocking_before_direct"] is False
     assert clean_record["direct_results"] == {
-        "create_post": "local_transport_reached",
+        "create_post": "blocked",
         "media_upload": "local_transport_reached",
         "provider_request": "local_transport_reached",
+        "receipt_bound_create_post": "local_transport_reached",
         "remote_operation_preflight": "returned",
         "shared_barrier": "returned",
-        "x_bearer_request": "local_transport_reached",
-        "x_request": "local_transport_reached",
+        "x_bearer_request": "blocked",
+        "x_request": "blocked",
     }
     assert clean_record["transport_sentinel_calls"] == [
         "requests.request",
-        "requests.request",
-        "requests.request",
-        "requests.request",
         "requests.post",
+        "requests.request",
     ]
     assert clean_record["scheduler_sleep_calls"] == 3
     assert clean_record["scheduler_entries"] == [
@@ -421,3 +634,550 @@ def test_literal_clean_process_allows_preflight_after_supported_offline_reconcil
         "meme",
     ]
     assert clean_record["blocking_after_scheduler"] is False
+
+
+def test_protocol_activation_never_exposes_partial_final_and_retry_succeeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A staging write failure leaves no final permission sentinel."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    activation = state_directory / protocol.ACTIVATION_BASENAME
+    real_write = protocol.os.write
+    writes = 0
+
+    def fail_after_prefix(descriptor: int, value) -> int:
+        nonlocal writes
+        writes += 1
+        if writes == 1:
+            prefix = bytes(value[:7])
+            return real_write(descriptor, prefix)
+        raise OSError("injected staging write failure")
+
+    monkeypatch.setattr(protocol.os, "write", fail_after_prefix)
+    with pytest.raises(OSError, match="injected staging write failure"):
+        create_test_protocol_activation(activation)
+    assert not os.path.lexists(activation)
+
+    monkeypatch.setattr(protocol.os, "write", real_write)
+    snapshot = create_test_protocol_activation(activation)
+    assert snapshot.size == len(protocol.ACTIVATION_BYTES)
+    assert activation.read_bytes() == protocol.ACTIVATION_BYTES
+
+
+def test_protocol_activation_persists_audit_before_sentinel_and_retry_succeeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hard stop cannot publish the permission sentinel before its audit."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    activation = state_directory / protocol.ACTIVATION_BASENAME
+    directory_identity = os.stat(state_directory)
+    real_fsync = protocol.os.fsync
+    directory_fsyncs = 0
+
+    def fail_first_directory_fsync(descriptor: int) -> None:
+        nonlocal directory_fsyncs
+        identity = os.fstat(descriptor)
+        if (
+            stat.S_ISDIR(identity.st_mode)
+            and identity.st_dev == directory_identity.st_dev
+            and identity.st_ino == directory_identity.st_ino
+        ):
+            directory_fsyncs += 1
+            if directory_fsyncs == 1:
+                raise OSError("injected post-rename directory fsync failure")
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(protocol.os, "fsync", fail_first_directory_fsync)
+    with pytest.raises(OSError, match="post-rename directory fsync failure"):
+        create_test_protocol_activation(activation)
+    assert not os.path.lexists(activation)
+    audit = state_directory / protocol.ACTIVATION_AUDIT_BASENAME
+    audit_value = json.loads(audit.read_text(encoding="utf-8"))
+    assert audit_value["activation_kind"] == (
+        protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+    )
+    assert stat.S_IMODE(audit.stat().st_mode) == protocol.ACTIVATION_AUDIT_MODE
+
+    monkeypatch.setattr(protocol.os, "fsync", real_fsync)
+    snapshot = create_test_protocol_activation(activation)
+    assert activation.read_bytes() == protocol.ACTIVATION_BYTES
+    assert snapshot.activation_kind == protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+    assert snapshot.audit_sha256 == hashlib.sha256(audit.read_bytes()).hexdigest()
+
+
+def test_protocol_activation_refuses_malformed_existing_final(
+    tmp_path: Path,
+) -> None:
+    """Idempotence never blesses last-key, partial or otherwise wrong bytes."""
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    activation.write_bytes(protocol.ACTIVATION_BYTES[:-1])
+    activation.chmod(protocol.ACTIVATION_MODE)
+    with pytest.raises(
+        protocol.ProtocolActivationError,
+        match="unsafe metadata|unexpected existing bytes",
+    ):
+        create_test_protocol_activation(activation)
+
+
+@pytest.mark.parametrize(
+    "unsafe_layout",
+    ("wrong_bytes", "wrong_mode", "symlink", "hardlink"),
+)
+def test_unsafe_protocol_sentinel_blocks_direct_and_scheduler_lanes(
+    tmp_path: Path,
+    unsafe_layout: str,
+) -> None:
+    """Every unsafe activation entry remains a cross-lane runtime barrier."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    activation = state_directory / protocol.ACTIVATION_BASENAME
+    if unsafe_layout == "wrong_bytes":
+        activation.write_bytes(b"not the protocol activation\n")
+        activation.chmod(protocol.ACTIVATION_MODE)
+    elif unsafe_layout == "wrong_mode":
+        activation.write_bytes(protocol.ACTIVATION_BYTES)
+        activation.chmod(0o600)
+    elif unsafe_layout == "symlink":
+        target = state_directory / "activation-target"
+        target.write_bytes(protocol.ACTIVATION_BYTES)
+        target.chmod(protocol.ACTIVATION_MODE)
+        activation.symlink_to(target.name)
+    else:
+        create_test_protocol_activation(activation)
+        os.link(activation, state_directory / "activation-hardlink")
+
+    child, record = _run_child("blocked", state_directory)
+    assert child.returncode == 0, child.stderr
+    assert record["initial"]["protocol_active"] is False
+    assert record["blocking_before_direct"] is True
+    assert set(record["direct_results"].values()) == {"blocked"}
+    assert record["transport_sentinel_calls"] == []
+    assert record["scheduler_sleep_calls"] == 3
+    assert record["scheduler_entries"] == []
+    assert record["blocking_after_scheduler"] is True
+
+
+def test_offline_activation_binds_expected_root_and_established_state(
+    tmp_path: Path,
+) -> None:
+    """A typo or empty directory cannot be reported as production activation."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    kwargs = _activation_kwargs(state_directory)
+    with pytest.raises(activate.MarkerReconciliationError):
+        activate.activate_protocol_offline(**kwargs)
+
+    _write_established_activation_state(state_directory)
+    with pytest.raises(
+        activate.UnsafeReconciliationPathError,
+        match="preflight identity token",
+    ):
+        activate.activate_protocol_offline(
+            **{
+                **kwargs,
+                "expected_project_inode": int(kwargs["expected_project_inode"]) + 1,
+            }
+        )
+
+
+def test_offline_activation_requires_supervisor_stopped_declaration(
+    tmp_path: Path,
+) -> None:
+    """Daemon locks do not falsely claim the service wrapper is stopped."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="supervisor-stopped",
+    ):
+        activate.activate_protocol_offline(
+            **{
+                **_activation_kwargs(state_directory),
+                "supervisor_stopped_confirmed": False,
+            }
+        )
+
+
+@pytest.mark.parametrize("receipt_basename", activate.RECEIPT_BASENAMES)
+def test_offline_activation_refuses_each_unresolved_receipt(
+    tmp_path: Path,
+    receipt_basename: str,
+) -> None:
+    """No transaction lane can be silently omitted from activation preflight."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    (state_directory / receipt_basename).write_text("{}\n", encoding="utf-8")
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match=receipt_basename,
+    ):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+    assert not os.path.lexists(
+        state_directory / protocol.ACTIVATION_BASENAME
+    )
+
+
+def test_offline_activation_refuses_held_state_directory_lock(
+    tmp_path: Path,
+) -> None:
+    """A live instance's actual directory flock excludes activation."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    descriptor = os.open(
+        state_directory,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(
+            activate.BotStillRunningError,
+            match="state-directory lock is held",
+        ):
+            activate.activate_protocol_offline(
+                **_activation_kwargs(state_directory)
+            )
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+    assert not os.path.lexists(
+        state_directory / protocol.ACTIVATION_BASENAME
+    )
+
+
+def test_established_activation_after_unexplained_marker_loss_requires_attestation(
+    tmp_path: Path,
+) -> None:
+    """Clean pathname absence alone cannot bless lost incident evidence."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    marker = _write_legacy_marker(state_directory)
+    marker.unlink()
+    _fsync_directory(state_directory)
+    kwargs = _activation_kwargs(state_directory)
+    kwargs["clean_state_attestation_path"] = None
+    kwargs["expected_clean_state_attestation_sha256"] = None
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="external clean-state/reconciliation attestation is required",
+    ):
+        activate.activate_protocol_offline(**kwargs)
+
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_BASENAME)
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_AUDIT_BASENAME)
+
+
+def test_runtime_requires_hash_bound_companion_audit(tmp_path: Path) -> None:
+    """A bare legacy permission sentinel cannot activate the runtime."""
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    activation.write_bytes(protocol.ACTIVATION_BYTES)
+    activation.chmod(protocol.ACTIVATION_MODE)
+
+    with pytest.raises(
+        protocol.ProtocolActivationError,
+        match="activation audit is missing",
+    ):
+        protocol.inspect_protocol_activation(activation)
+
+
+@pytest.mark.parametrize("mutation", ("missing", "wrong_bytes", "wrong_mode", "symlink"))
+def test_runtime_fails_closed_for_unsafe_activation_audit(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    """The runtime never treats the sentinel independently from its audit."""
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    create_test_protocol_activation(activation)
+    audit = tmp_path / protocol.ACTIVATION_AUDIT_BASENAME
+    if mutation == "missing":
+        audit.unlink()
+    elif mutation == "wrong_bytes":
+        audit.chmod(0o600)
+        audit.write_text("{}\n", encoding="utf-8")
+        audit.chmod(protocol.ACTIVATION_AUDIT_MODE)
+    elif mutation == "wrong_mode":
+        audit.chmod(0o600)
+    else:
+        audit.unlink()
+        target = tmp_path / "audit-target"
+        target.write_text("{}\n", encoding="utf-8")
+        target.chmod(protocol.ACTIVATION_AUDIT_MODE)
+        audit.symlink_to(target.name)
+
+    with pytest.raises(protocol.ProtocolActivationError):
+        protocol.inspect_protocol_activation(activation)
+
+
+def test_unaudited_new_install_helper_is_permanently_refused(
+    tmp_path: Path,
+) -> None:
+    """Namespace absence alone can never manufacture runtime permission."""
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    _write_established_activation_state(tmp_path)
+    (tmp_path / ".mrsMThatcher.initialised.json").write_text(
+        "{}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        protocol.ProtocolActivationError,
+        match="unaudited new-install protocol activation is unsupported",
+    ):
+        protocol.create_protocol_activation_noreplace(activation)
+
+    assert not os.path.lexists(activation)
+    assert not os.path.lexists(tmp_path / protocol.ACTIVATION_AUDIT_BASENAME)
+
+
+def test_activation_pair_revalidates_sentinel_after_audit_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Removal between the two stable reads cannot yield active permission."""
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    create_test_protocol_activation(activation)
+    real_inspect = protocol._inspect_stable_regular_at
+
+    def inspect_then_remove_sentinel(
+        directory_fd: int,
+        basename: str,
+        **kwargs,
+    ):
+        inspected = real_inspect(directory_fd, basename, **kwargs)
+        if basename == protocol.ACTIVATION_AUDIT_BASENAME:
+            os.unlink(protocol.ACTIVATION_BASENAME, dir_fd=directory_fd)
+        return inspected
+
+    monkeypatch.setattr(
+        protocol,
+        "_inspect_stable_regular_at",
+        inspect_then_remove_sentinel,
+    )
+    with pytest.raises(
+        protocol.ProtocolActivationError,
+        match="sentinel changed while the activation pair was inspected",
+    ):
+        protocol.inspect_protocol_activation(activation)
+
+
+def test_activation_pair_cannot_compose_different_namespace_generations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid sentinel read and later valid audit never form a torn pair."""
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    create_test_protocol_activation(activation)
+    audit = tmp_path / protocol.ACTIVATION_AUDIT_BASENAME
+    valid_audit = audit.read_bytes()
+    audit.chmod(0o600)
+    audit.write_text("{}\n", encoding="utf-8")
+    audit.chmod(protocol.ACTIVATION_AUDIT_MODE)
+    real_sentinel_inspect = protocol._inspect_activation_sentinel_at
+
+    def inspect_sentinel_then_swap_generation(
+        directory_fd: int,
+        *,
+        fsync_file: bool = False,
+    ):
+        inspected = real_sentinel_inspect(
+            directory_fd,
+            fsync_file=fsync_file,
+        )
+        os.unlink(protocol.ACTIVATION_BASENAME, dir_fd=directory_fd)
+        replacement = tmp_path / "valid-audit-replacement"
+        replacement.write_bytes(valid_audit)
+        replacement.chmod(protocol.ACTIVATION_AUDIT_MODE)
+        os.replace(replacement, audit)
+        return inspected
+
+    monkeypatch.setattr(
+        protocol,
+        "_inspect_activation_sentinel_at",
+        inspect_sentinel_then_swap_generation,
+    )
+    with pytest.raises(
+        protocol.ProtocolActivationError,
+        match="sentinel changed while the activation pair was inspected",
+    ):
+        protocol.inspect_protocol_activation(activation)
+
+    assert not os.path.lexists(activation)
+    assert audit.read_bytes() == valid_audit
+
+
+def test_established_activation_rejects_attestation_with_wrong_cli_hash(
+    tmp_path: Path,
+) -> None:
+    """An operator file for another activator source cannot open this install."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    identity = os.stat(state_directory)
+    attestation = tmp_path / "wrong-cli-attestation.json"
+    data = activate.build_clean_state_attestation_bytes(
+        project_root=state_directory,
+        project_device=int(identity.st_dev),
+        project_inode=int(identity.st_ino),
+        activator_cli_sha256="0" * 64,
+        reconciliation_reference="wrong-cli-review",
+    )
+    attestation.write_bytes(data)
+    attestation.chmod(activate.CLEAN_STATE_ATTESTATION_MODE)
+    kwargs = _activation_kwargs(state_directory)
+    kwargs.update(
+        clean_state_attestation_path=attestation,
+        expected_clean_state_attestation_sha256=hashlib.sha256(data).hexdigest(),
+    )
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="fields do not bind this activation",
+    ):
+        activate.activate_protocol_offline(**kwargs)
+
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_BASENAME)
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_AUDIT_BASENAME)
+
+
+@pytest.mark.parametrize("unsafe", ("symlink", "hardlink"))
+def test_established_activation_rejects_unsafe_external_attestation(
+    tmp_path: Path,
+    unsafe: str,
+) -> None:
+    """External evidence is a stable, single-link, no-follow ordinary file."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    kwargs = _activation_kwargs(state_directory)
+    original = Path(kwargs["clean_state_attestation_path"])
+    unsafe_path = tmp_path / f"unsafe-{unsafe}.json"
+    if unsafe == "symlink":
+        unsafe_path.symlink_to(original.name)
+    else:
+        os.link(original, unsafe_path)
+    kwargs["clean_state_attestation_path"] = unsafe_path
+
+    with pytest.raises(activate.MarkerReconciliationError):
+        activate.activate_protocol_offline(**kwargs)
+
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_BASENAME)
+
+
+def test_established_activation_audit_survives_crash_before_sentinel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Established activation publishes its operator-bound audit first."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    kwargs = _activation_kwargs(state_directory)
+    real_rename = protocol._rename_noreplace_at
+
+    def fail_sentinel_publish(
+        directory_fd: int,
+        source_basename: str,
+        destination_basename: str,
+    ) -> None:
+        if destination_basename == protocol.ACTIVATION_BASENAME:
+            raise OSError("injected stop before sentinel publication")
+        real_rename(directory_fd, source_basename, destination_basename)
+
+    monkeypatch.setattr(protocol, "_rename_noreplace_at", fail_sentinel_publish)
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="offline protocol activation failed",
+    ):
+        activate.activate_protocol_offline(**kwargs)
+
+    audit = state_directory / protocol.ACTIVATION_AUDIT_BASENAME
+    assert audit.is_file()
+    value = json.loads(audit.read_text(encoding="utf-8"))
+    assert value["activation_kind"] == protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+    assert value["operator_clean_state_claim_locally_proven"] is False
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_BASENAME)
+    with pytest.raises(protocol.ProtocolActivationError, match="sentinel is missing"):
+        protocol.inspect_protocol_activation(
+            state_directory / protocol.ACTIVATION_BASENAME
+        )
+
+    monkeypatch.setattr(protocol, "_rename_noreplace_at", real_rename)
+    result = activate.activate_protocol_offline(**kwargs)
+    assert result.activation_kind == protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+    assert result.activation_audit_sha256 == hashlib.sha256(audit.read_bytes()).hexdigest()
+
+
+def test_activation_cli_requires_external_attestation_arguments() -> None:
+    """The CLI cannot downgrade to a bare clean-state checkbox."""
+
+    parser = activate.build_parser()
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(
+            [
+                "--project-root",
+                "/nonexistent",
+                "--expected-project-root",
+                "/nonexistent",
+                "--expected-project-device",
+                "1",
+                "--expected-project-inode",
+                "2",
+            ]
+        )
+    assert exc_info.value.code == 2
