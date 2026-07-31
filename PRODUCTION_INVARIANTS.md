@@ -30,7 +30,7 @@ Priority-0 production safety contracts for quotation eligibility and evidence, d
 | `ARTIFACT-CLASS-V3-AUDIT-001` | `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json` | `historical_build_time` | no | no | `a9161f1a6da83d8327b51d7ef211fa88e5b28ed160b1093050733f120ddf579d` |
 
 - **ARTIFACT-CLASS-V3-AUDIT-001 rationale:** The audit remains immutable evidence for the manifest built at commit 25b427b; later reviewed transitions changed the configured manifest and supplied separate transition evidence. No runtime loader or configuration consumes this audit.
-- Observed current bound-artifact SHA-256: `6dd8eaf84bd913c359caf55bb213c79dbefaeeb5b0bbe4d9b0ad7f4414869d32`
+- Observed current bound-artifact SHA-256: `fa10a7d8bc4df00385c2a1acb29c1bfda46ecf0de8764c92107f49b8b46ae514`
 - Historical build commit: `25b427b4cb87a6b234bc93aca40fae5531c943ad`
 - Policy version: `affirmative-material-contradiction-rules-v3-runtime-eligible-611-coverage-v3`; owner: `quote_image_semantic_veto`
 - Builder evidence: `code` `quote_attribution_cleanup.py` — prepare_v3_shadow_manifest writes this audit and its checksum package as offline build evidence; it is not a runtime loader.

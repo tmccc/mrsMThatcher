@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 
 import mrsMThatcher2 as bot
+from remote_write_safety_protocol import ACTIVATION_BASENAME
+from tests.helpers.protocol_activation import create_test_protocol_activation
 
 
 OPERATIONAL_ENTRY_POINTS = (
@@ -287,11 +289,73 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
     tmp_path,
     monkeypatch,
 ):
+    activation_path = tmp_path / ACTIVATION_BASENAME
+    monkeypatch.setattr(
+        bot,
+        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
+        activation_path,
+    )
+    monkeypatch.setattr(
+        bot,
+        "AMBIGUOUS_POST_OUTCOME_FILE",
+        tmp_path / "ambiguous_post_outcome.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE",
+        tmp_path / "ambiguous_post_outcome.restart_barrier.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "REGULAR_POST_RECEIPT_FILE",
+        tmp_path / "regular_post_receipt.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "MEME_POST_RECEIPT_FILE",
+        tmp_path / "meme_post_receipt.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "CONFIRMED_REPLY_RECEIPT_FILE",
+        tmp_path / "confirmed_reply_receipt.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
+        tmp_path / "historical_context_reply_receipt.json",
+    )
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    monkeypatch.setattr(
+        bot,
+        "_AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN",
+        False,
+    )
+    create_test_protocol_activation(activation_path)
+
     path = tmp_path / "control.json"
     path.write_text(json.dumps({"disable_all": False}))
     monkeypatch.setattr(bot, "CONTROL_FILE", path)
     reset_control_cache(monkeypatch)
     assert bot.global_remote_writes_paused() is False
+
+    historical_context_receipt = None
+    if boundary == "post":
+        historical_context_receipt = {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "123",
+            "quote_id": "a" * 64,
+            "reply_text": "blocked",
+            "reply_epoch": 1,
+            "started_at": "2026-07-31T12:00:00Z",
+            "attempt_number": 1,
+        }
+        bot.atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            historical_context_receipt,
+            durable=True,
+        )
 
     path.write_text(json.dumps({"disable_all": True, "generation": 2}))
     remote_calls: list[str] = []
@@ -308,7 +372,11 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
 
     with pytest.raises(bot.RemoteOperationsPaused, match="Global runtime control"):
         if boundary == "x_write":
-            bot.x_request("POST", "/2/tweets", json={"text": "blocked"})
+            bot.x_request(
+                "POST",
+                "/2/users/123/likes",
+                json={"tweet_id": "456"},
+            )
         elif boundary == "media":
             image_path = tmp_path / "image.jpg"
             image_path.write_bytes(b"not sent")
@@ -325,9 +393,17 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
                 media_context=None,
             )
         else:
-            bot.create_post("blocked")
+            bot.create_post(
+                "blocked",
+                reply_to_id="123",
+                prepared_historical_context_reply_receipt=(
+                    historical_context_receipt
+                ),
+            )
 
     assert remote_calls == []
+    if boundary == "post":
+        assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.is_file()
 
 
 def test_import_from_foreign_cwd_ignores_live_local_config(tmp_path):
