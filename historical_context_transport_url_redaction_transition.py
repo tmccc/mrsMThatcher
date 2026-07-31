@@ -10,6 +10,7 @@ The resulting manifest contains hashes and identifiers, never URL values.
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import hashlib
 import json
@@ -144,6 +145,42 @@ REQUIRED_INVARIANT_LABELS = frozenset({
     "unresolved",
 })
 
+# The immutable transport-redaction transition predates one reviewed,
+# provenance-only refresh of the semantic-veto manifest.  The formatter gained
+# receipt-durability code without changing the attribution predicate, pair
+# judgements, policy, population or counts.  Keep this compatibility tuple
+# deliberately exact: it must never become a generic source-pin bypass.
+SEMANTIC_VETO_REPOSITORY_PATH = (
+    "semantic_alignment_research/quote_attribution_cleanup_001/"
+    "deployment_candidate/material_veto_v3_shadow_manifest.json"
+)
+SEMANTIC_VETO_HISTORICAL_SHA256 = (
+    "6dd8eaf84bd913c359caf55bb213c79dbefaeeb5b0bbe4d9b0ad7f4414869d32"
+)
+SEMANTIC_VETO_SUCCESSOR_SHA256 = (
+    "fa10a7d8bc4df00385c2a1acb29c1bfda46ecf0de8764c92107f49b8b46ae514"
+)
+SEMANTIC_VETO_HISTORICAL_CANONICAL_SHA256 = (
+    "ab4ac8138ee2faad2e761796df4a43fc04af63f39d08befbb437fb50322319c7"
+)
+ATTRIBUTION_PREDICATE_PATH = "historical_context_formatter.py"
+ATTRIBUTION_PREDICATE_HISTORICAL_SHA256 = (
+    "8b9848106390806ceefb282630ad4ffbce59af40e2f4a16eeb16f398a1d4a04d"
+)
+ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256 = (
+    "38cbf7d7989c8c6cf8f7612e004f2a9c1dec4ddc8714579ee8a31a282109b056"
+)
+ATTRIBUTION_PREDICATE_AST_PROJECTION_SHA256 = (
+    "66e7912a6b2891e42cc7fce27c773c602ad81abd4448d6b5b38921475e6b668c"
+)
+ATTRIBUTION_PREDICATE_FUNCTION = (
+    "packet_is_attributed_to_margaret_thatcher"
+)
+ATTRIBUTION_PREDICATE_GLOBALS = (
+    "_MARGARET_THATCHER_CANONICAL_SPEAKER",
+    "THATCHER_ATTRIBUTION_RULE_VERSION",
+)
+
 
 class TransitionError(RuntimeError):
     """Raised when the transition is broader than the reviewed redaction."""
@@ -171,18 +208,26 @@ def _reject_constant(value: str) -> None:
     raise TransitionError(f"non-finite JSON constant is forbidden: {value}")
 
 
-def _load_json(path: Path) -> dict[str, Any]:
+def _load_json_bytes(data: bytes, *, source_name: str) -> dict[str, Any]:
     try:
         value = json.loads(
-            path.read_text(encoding="utf-8"),
+            data,
             object_pairs_hook=_reject_duplicate,
             parse_constant=_reject_constant,
         )
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise TransitionError(f"invalid JSON input: {path.name}") from exc
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise TransitionError(f"invalid JSON input: {source_name}") from exc
     if not isinstance(value, dict):
-        raise TransitionError(f"expected a JSON object: {path.name}")
+        raise TransitionError(f"expected a JSON object: {source_name}")
     return value
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise TransitionError(f"invalid JSON input: {path.name}") from exc
+    return _load_json_bytes(data, source_name=path.name)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -922,6 +967,196 @@ def _resolved_beneath(root: Path, relative: str) -> Path:
     return candidate
 
 
+def _expected_semantic_veto_historical_binding() -> dict[str, Any]:
+    return {
+        "after_sha256": SEMANTIC_VETO_HISTORICAL_SHA256,
+        "before_sha256": SEMANTIC_VETO_HISTORICAL_SHA256,
+        "bytes_unchanged": True,
+        "repository_path": SEMANTIC_VETO_REPOSITORY_PATH,
+        "semantic_summary": {
+            "canonical_json_sha256":
+                SEMANTIC_VETO_HISTORICAL_CANONICAL_SHA256,
+        },
+        "unchanged": True,
+    }
+
+
+def _attribution_predicate_ast_projection_sha256(source: bytes) -> str:
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError) as exc:
+        raise TransitionError(
+            "semantic_veto attribution-predicate source is invalid"
+        ) from exc
+
+    assignments: dict[str, ast.AST] = {}
+    functions: list[ast.AST] = []
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = (
+                node.targets
+                if isinstance(node, ast.Assign)
+                else [node.target]
+            )
+            for target in targets:
+                if (
+                    isinstance(target, ast.Name)
+                    and target.id in ATTRIBUTION_PREDICATE_GLOBALS
+                ):
+                    if target.id in assignments:
+                        raise TransitionError(
+                            "semantic_veto attribution-predicate global "
+                            "is duplicated"
+                        )
+                    assignments[target.id] = node
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == ATTRIBUTION_PREDICATE_FUNCTION
+        ):
+            functions.append(node)
+    if (
+        set(assignments) != set(ATTRIBUTION_PREDICATE_GLOBALS)
+        or len(functions) != 1
+    ):
+        raise TransitionError(
+            "semantic_veto attribution-predicate projection is incomplete"
+        )
+
+    nodes = [
+        assignments[name]
+        for name in ATTRIBUTION_PREDICATE_GLOBALS
+    ] + functions
+    projection = [
+        ast.dump(node, annotate_fields=True, include_attributes=False)
+        for node in nodes
+    ]
+    return _sha256_json(projection)
+
+
+def _validate_attribution_predicate_source(
+    *,
+    root: Path,
+    expected_sha256: str,
+) -> None:
+    formatter_path = _resolved_beneath(root, ATTRIBUTION_PREDICATE_PATH)
+    try:
+        formatter_bytes = formatter_path.read_bytes()
+    except OSError as exc:
+        raise TransitionError(
+            "semantic_veto attribution-predicate source cannot be read"
+        ) from exc
+    if _sha256_bytes(formatter_bytes) != expected_sha256:
+        raise TransitionError(
+            "semantic_veto attribution-predicate source hash differs"
+        )
+    if _attribution_predicate_ast_projection_sha256(formatter_bytes) != (
+        ATTRIBUTION_PREDICATE_AST_PROJECTION_SHA256
+    ):
+        raise TransitionError(
+            "semantic_veto attribution-predicate semantics differ"
+        )
+
+
+def _validate_semantic_veto_historical_source(
+    *,
+    root: Path,
+    current_bytes: bytes,
+    current_value: dict[str, Any],
+    item: dict[str, Any],
+) -> None:
+    if item != _expected_semantic_veto_historical_binding():
+        raise TransitionError(
+            "semantic_veto historical invariant binding differs"
+        )
+    if _sha256_bytes(current_bytes) != SEMANTIC_VETO_HISTORICAL_SHA256:
+        raise TransitionError("semantic_veto historical manifest hash differs")
+    if current_value.get("source_file_hashes", {}).get(
+        "attribution_predicate"
+    ) != {
+        "path": ATTRIBUTION_PREDICATE_PATH,
+        "sha256": ATTRIBUTION_PREDICATE_HISTORICAL_SHA256,
+    }:
+        raise TransitionError(
+            "semantic_veto historical attribution-predicate binding differs"
+        )
+    _validate_attribution_predicate_source(
+        root=root,
+        expected_sha256=ATTRIBUTION_PREDICATE_HISTORICAL_SHA256,
+    )
+
+
+def _validate_semantic_veto_provenance_successor(
+    *,
+    root: Path,
+    current_bytes: bytes,
+    current_value: dict[str, Any],
+    item: dict[str, Any],
+) -> None:
+    """Accept one exact source-pin-only successor to a historical invariant.
+
+    Replacing the successor formatter hash with the historically bound hash
+    must reproduce both the historical raw manifest SHA-256 and its canonical
+    semantic summary.  This proves that no policy, pair, count, quotation,
+    image or other provenance field changed.
+    """
+    if item != _expected_semantic_veto_historical_binding():
+        raise TransitionError(
+            "semantic_veto historical invariant binding differs"
+        )
+    if _sha256_bytes(current_bytes) != SEMANTIC_VETO_SUCCESSOR_SHA256:
+        raise TransitionError(
+            "semantic_veto provenance successor hash differs"
+        )
+
+    source_hashes = current_value.get("source_file_hashes")
+    if not isinstance(source_hashes, dict):
+        raise TransitionError(
+            "semantic_veto provenance successor source hashes are invalid"
+        )
+    predicate_binding = source_hashes.get("attribution_predicate")
+    if predicate_binding != {
+        "path": ATTRIBUTION_PREDICATE_PATH,
+        "sha256": ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256,
+    }:
+        raise TransitionError(
+            "semantic_veto attribution-predicate successor binding differs"
+        )
+    _validate_attribution_predicate_source(
+        root=root,
+        expected_sha256=ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256,
+    )
+
+    successor_hash = ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256.encode("ascii")
+    historical_hash = ATTRIBUTION_PREDICATE_HISTORICAL_SHA256.encode("ascii")
+    if (
+        current_bytes.count(successor_hash) != 1
+        or historical_hash in current_bytes
+    ):
+        raise TransitionError(
+            "semantic_veto provenance successor byte binding is ambiguous"
+        )
+    reconstructed_bytes = current_bytes.replace(
+        successor_hash,
+        historical_hash,
+        1,
+    )
+    if _sha256_bytes(reconstructed_bytes) != SEMANTIC_VETO_HISTORICAL_SHA256:
+        raise TransitionError(
+            "semantic_veto provenance successor changes additional bytes"
+        )
+
+    reconstructed_value = copy.deepcopy(current_value)
+    reconstructed_value["source_file_hashes"]["attribution_predicate"][
+        "sha256"
+    ] = ATTRIBUTION_PREDICATE_HISTORICAL_SHA256
+    if _sha256_json(reconstructed_value) != (
+        SEMANTIC_VETO_HISTORICAL_CANONICAL_SHA256
+    ):
+        raise TransitionError(
+            "semantic_veto provenance successor changes semantics"
+        )
+
+
 def load_and_validate_transition(
     path: Path,
     *,
@@ -1076,9 +1311,58 @@ def load_and_validate_transition(
         ):
             raise TransitionError(f"{label} invariant binding is invalid")
         current_path = _resolved_beneath(root, item["repository_path"])
-        if item.get("after_sha256") != _sha256_file(current_path):
-            raise TransitionError(f"{label} invariant hash differs")
-        value = _load_json(current_path)
+        try:
+            current_bytes = current_path.read_bytes()
+        except OSError as exc:
+            raise TransitionError(
+                f"{label} invariant cannot be read"
+            ) from exc
+        value = _load_json_bytes(
+            current_bytes,
+            source_name=current_path.name,
+        )
+        current_sha256 = _sha256_bytes(current_bytes)
+        exact_semantic_veto_binding = (
+            label == "semantic_veto"
+            and (
+                item.get("repository_path")
+                == SEMANTIC_VETO_REPOSITORY_PATH
+                or item.get("after_sha256") in {
+                    SEMANTIC_VETO_HISTORICAL_SHA256,
+                    SEMANTIC_VETO_SUCCESSOR_SHA256,
+                }
+                or current_sha256 in {
+                    SEMANTIC_VETO_HISTORICAL_SHA256,
+                    SEMANTIC_VETO_SUCCESSOR_SHA256,
+                }
+            )
+        )
+        if exact_semantic_veto_binding:
+            if current_sha256 == SEMANTIC_VETO_HISTORICAL_SHA256:
+                _validate_semantic_veto_historical_source(
+                    root=root,
+                    current_bytes=current_bytes,
+                    current_value=value,
+                    item=item,
+                )
+            else:
+                _validate_semantic_veto_provenance_successor(
+                    root=root,
+                    current_bytes=current_bytes,
+                    current_value=value,
+                    item=item,
+                )
+            continue
+        if item.get("after_sha256") != current_sha256:
+            if label != "semantic_veto":
+                raise TransitionError(f"{label} invariant hash differs")
+            _validate_semantic_veto_provenance_successor(
+                root=root,
+                current_bytes=current_bytes,
+                current_value=value,
+                item=item,
+            )
+            continue
         if item.get("semantic_summary") != _invariant_summary(label, value):
             raise TransitionError(f"{label} invariant semantics differ")
     return manifest

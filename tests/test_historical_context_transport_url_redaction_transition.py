@@ -416,6 +416,137 @@ def _rebind_fixture(tmp_path: Path) -> dict[str, Path]:
     }
 
 
+def _provenance_successor_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    """Create a small exact analogue of the source-pin-only successor."""
+    paths = _fixture(tmp_path / "inputs")
+    root = tmp_path / "root"
+    research = root / "research"
+    research.mkdir(parents=True)
+    for name, source in (
+        (transition.RESOLUTION_FILENAME, paths["current_resolution"]),
+        (transition.OPENAI_RESEARCH_FILENAME, paths["current_openai"]),
+        (transition.AUDIT_FILENAME, paths["current_audit"]),
+    ):
+        (research / name).write_bytes(source.read_bytes())
+    (root / transition.PREDECESSOR_TRANSITION_FILENAME).write_bytes(
+        paths["predecessor_transition"].read_bytes()
+    )
+    for pair in paths["invariant_pairs"].values():
+        target = root / pair.repository_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(pair.after.read_bytes())
+
+    predicate_path = "fixture_formatter.py"
+    predicate = root / predicate_path
+    predicate_body = (
+        '_MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"\n'
+        'THATCHER_ATTRIBUTION_RULE_VERSION = "fixture-rule-v1"\n'
+        "\n"
+        "def packet_is_attributed_to_margaret_thatcher(packet):\n"
+        "    return bool(packet)\n"
+    )
+    historical_predicate_bytes = (
+        "# historical formatter bytes\n" + predicate_body
+    ).encode("utf-8")
+    predicate.write_text(
+        "# successor receipt-only bytes\n" + predicate_body,
+        encoding="utf-8",
+    )
+    successor_pin = _sha(predicate)
+    historical_pin = hashlib.sha256(historical_predicate_bytes).hexdigest()
+    semantic_pair = paths["invariant_pairs"]["semantic_veto"]
+    historical_value = json.loads(semantic_pair.before.read_text())
+    historical_value["source_file_hashes"] = {
+        "attribution_predicate": {
+            "path": predicate_path,
+            "sha256": historical_pin,
+        },
+    }
+    successor_value = copy.deepcopy(historical_value)
+    successor_value["source_file_hashes"]["attribution_predicate"][
+        "sha256"
+    ] = successor_pin
+    historical_path = _write(
+        tmp_path / "historical-semantic-veto.json",
+        historical_value,
+    )
+    current_path = root / semantic_pair.repository_path
+    _write(current_path, successor_value)
+
+    manifest = _build(paths)
+    historical_binding = {
+        "after_sha256": _sha(historical_path),
+        "before_sha256": _sha(historical_path),
+        "bytes_unchanged": True,
+        "repository_path": semantic_pair.repository_path,
+        "semantic_summary": {
+            "canonical_json_sha256": hashlib.sha256(
+                _canonical(historical_value)
+            ).hexdigest(),
+        },
+        "unchanged": True,
+    }
+    manifest["unchanged_invariants"]["semantic_veto"] = historical_binding
+    manifest_path = _write(root / transition.MANIFEST_FILENAME, manifest)
+
+    monkeypatch.setattr(
+        transition,
+        "SEMANTIC_VETO_REPOSITORY_PATH",
+        semantic_pair.repository_path,
+    )
+    monkeypatch.setattr(
+        transition,
+        "SEMANTIC_VETO_HISTORICAL_SHA256",
+        _sha(historical_path),
+    )
+    monkeypatch.setattr(
+        transition,
+        "SEMANTIC_VETO_SUCCESSOR_SHA256",
+        _sha(current_path),
+    )
+    monkeypatch.setattr(
+        transition,
+        "SEMANTIC_VETO_HISTORICAL_CANONICAL_SHA256",
+        historical_binding["semantic_summary"]["canonical_json_sha256"],
+    )
+    monkeypatch.setattr(
+        transition,
+        "ATTRIBUTION_PREDICATE_PATH",
+        predicate_path,
+    )
+    monkeypatch.setattr(
+        transition,
+        "ATTRIBUTION_PREDICATE_HISTORICAL_SHA256",
+        historical_pin,
+    )
+    monkeypatch.setattr(
+        transition,
+        "ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256",
+        successor_pin,
+    )
+    monkeypatch.setattr(
+        transition,
+        "ATTRIBUTION_PREDICATE_AST_PROJECTION_SHA256",
+        transition._attribution_predicate_ast_projection_sha256(
+            predicate.read_bytes()
+        ),
+    )
+    return {
+        **paths,
+        "root": root,
+        "research": research,
+        "manifest": manifest,
+        "manifest_path": manifest_path,
+        "historical_value": historical_value,
+        "current_path": current_path,
+        "predicate": predicate,
+        "historical_predicate_bytes": historical_predicate_bytes,
+    }
+
+
 def test_manifest_is_deterministic_scoped_and_secret_free(tmp_path):
     paths = _fixture(tmp_path)
     first = _build(paths)
@@ -552,6 +683,207 @@ def test_unchanged_corpus_cycle_and_gate_are_bound_and_rechecked(tmp_path):
         transition.load_and_validate_transition(
             manifest_path, research_dir=research, root=root
         )
+
+
+def test_exact_semantic_veto_provenance_successor_is_accepted_deterministically(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _provenance_successor_fixture(tmp_path, monkeypatch)
+
+    first = transition.load_and_validate_transition(
+        paths["manifest_path"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    )
+    second = transition.load_and_validate_transition(
+        paths["manifest_path"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    )
+
+    assert first == second == paths["manifest"]
+
+
+def test_semantic_veto_provenance_successor_rejects_another_field_change(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _provenance_successor_fixture(tmp_path, monkeypatch)
+    current = json.loads(paths["current_path"].read_text())
+    current["mode"] = "changed"
+    _write(paths["current_path"], current)
+    monkeypatch.setattr(
+        transition,
+        "SEMANTIC_VETO_SUCCESSOR_SHA256",
+        _sha(paths["current_path"]),
+    )
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="changes additional bytes",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest_path"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_historical_semantic_veto_manifest_rejects_successor_formatter(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _provenance_successor_fixture(tmp_path, monkeypatch)
+    historical_bytes = _write(
+        tmp_path / "historical-copy.json",
+        paths["historical_value"],
+    ).read_bytes()
+    paths["current_path"].write_bytes(historical_bytes)
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="source hash differs",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest_path"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_historical_semantic_veto_manifest_accepts_historical_formatter(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _provenance_successor_fixture(tmp_path, monkeypatch)
+    paths["current_path"].write_bytes(
+        _write(
+            tmp_path / "historical-copy.json",
+            paths["historical_value"],
+        ).read_bytes()
+    )
+    paths["predicate"].write_bytes(paths["historical_predicate_bytes"])
+
+    assert transition.load_and_validate_transition(
+        paths["manifest_path"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    ) == paths["manifest"]
+
+
+def test_semantic_veto_successor_rejects_predicate_ast_drift(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _provenance_successor_fixture(tmp_path, monkeypatch)
+    paths["predicate"].write_text(
+        '_MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"\n'
+        'THATCHER_ATTRIBUTION_RULE_VERSION = "fixture-rule-v1"\n'
+        "\n"
+        "def packet_is_attributed_to_margaret_thatcher(packet):\n"
+        "    return not bool(packet)\n",
+        encoding="utf-8",
+    )
+    changed_pin = _sha(paths["predicate"])
+    current = json.loads(paths["current_path"].read_text())
+    current["source_file_hashes"]["attribution_predicate"]["sha256"] = (
+        changed_pin
+    )
+    _write(paths["current_path"], current)
+    monkeypatch.setattr(
+        transition,
+        "ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256",
+        changed_pin,
+    )
+    monkeypatch.setattr(
+        transition,
+        "SEMANTIC_VETO_SUCCESSOR_SHA256",
+        _sha(paths["current_path"]),
+    )
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="predicate semantics differ",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest_path"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    (
+        ("source_path", "successor binding differs"),
+        ("source_pin", "successor binding differs"),
+        ("formatter_bytes", "source hash differs"),
+        ("ambiguous_pin", "byte binding is ambiguous"),
+    ),
+)
+def test_semantic_veto_provenance_successor_rejects_binding_drift(
+    tmp_path,
+    monkeypatch,
+    mutation,
+    error,
+):
+    paths = _provenance_successor_fixture(tmp_path, monkeypatch)
+    current = json.loads(paths["current_path"].read_text())
+    if mutation == "source_path":
+        current["source_file_hashes"]["attribution_predicate"]["path"] = (
+            "other.py"
+        )
+        _write(paths["current_path"], current)
+        monkeypatch.setattr(
+            transition,
+            "SEMANTIC_VETO_SUCCESSOR_SHA256",
+            _sha(paths["current_path"]),
+        )
+    elif mutation == "source_pin":
+        current["source_file_hashes"]["attribution_predicate"]["sha256"] = (
+            "7" * 64
+        )
+        _write(paths["current_path"], current)
+        monkeypatch.setattr(
+            transition,
+            "SEMANTIC_VETO_SUCCESSOR_SHA256",
+            _sha(paths["current_path"]),
+        )
+    elif mutation == "formatter_bytes":
+        paths["predicate"].write_bytes(b"changed formatter bytes\n")
+    else:
+        current["unrelated_duplicate_pin"] = (
+            transition.ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256
+        )
+        _write(paths["current_path"], current)
+        monkeypatch.setattr(
+            transition,
+            "SEMANTIC_VETO_SUCCESSOR_SHA256",
+            _sha(paths["current_path"]),
+        )
+
+    with pytest.raises(transition.TransitionError, match=error):
+        transition.load_and_validate_transition(
+            paths["manifest_path"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_current_repository_uses_exact_source_pin_successor_only():
+    manifest = transition.ROOT / transition.MANIFEST_FILENAME
+    assert _sha(manifest) == (
+        "4a08dda2241ac9cef89659f68bf99b27307f9525cbfdf4aee5290b9788058180"
+    )
+    assert transition.load_and_validate_transition(
+        manifest,
+        research_dir=(
+            transition.ROOT
+            / "semantic_alignment_research/quote_research_full_001"
+        ),
+        root=transition.ROOT,
+    )
 
 
 def test_gate_disposition_and_suppressed_reply_changes_are_rejected(tmp_path):

@@ -277,6 +277,8 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         "INV-PROC-002",
         "INV-PROC-004",
         "INV-API-001",
+        "INV-ART-001",
+        "INV-HCTX-001",
         "INV-REL-001",
         "INV-REL-ART-001",
         "INV-REL-CMD-001",

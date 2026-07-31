@@ -383,9 +383,9 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `code` `historical_context_formatter.py` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_historical_context_reply_semantic_gate.py::test_gate_closes_on_coherently_rehashed_correction_drift` — Focused automated evidence for the principal recorded boundary.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The exact provenance-successor enforcement and focused tests postdate the recorded production baseline. Their final candidate identity and verification must be supplied by a frozen external attestation.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `unknown` (`unknown`) — No final replacement tree is embedded self-referentially in this registry; post-merge regeneration must bind the externally attested candidate and deployed observation.
 
 **Accepted residual risk.** `none` — No residual risk is accepted within this invariant's stated scope; adjacent or conditional risks are expressed as explicit preconditions or separate invariant IDs.
 
@@ -393,16 +393,19 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `historical_context_formatter.py`
 - `historical_context_packet_corrections.py`
+- `historical_context_transport_url_redaction_transition.py`
 - `historical_context_reply_semantic_gate.py`
 - `historical_context_evidence_truth_audit.json`
 - `historical_context_public_projection_review.json`
 - `historical_context_published_reply_semantic_review.json`
 - `semantic_alignment_research/quote_research_full_001/historical_context_packet_corrections.json`
 - `semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json`
+- `tests/test_historical_context_transport_url_redaction_transition.py`
 
 **Enforcement files.**
 
 - `historical_context_formatter.py`
+- `historical_context_transport_url_redaction_transition.py`
 - `historical_context_reply_semantic_gate.py`
 - `historical_context_evidence_truth_audit.json`
 - `historical_context_published_reply_semantic_review.json`
@@ -412,10 +415,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_historical_context_reply_semantic_gate.py::test_gate_closes_on_coherently_rehashed_correction_drift`
 - `tests/test_historical_context_reply_semantic_gate.py::test_gate_binds_the_actual_runtime_formatter_options`
 - `tests/test_historical_context_reply_semantic_gate.py::test_bot_passes_live_context_formatter_options_to_the_gate`
+- `tests/test_historical_context_transport_url_redaction_transition.py::test_current_repository_uses_exact_source_pin_successor_only`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_historical_context_reply_semantic_gate.py`, `tests/test_historical_context_packet_corrections.py` — Revalidate the complete context evidence and deployed-render dependency closure.
+- `pytest` — `tests/test_historical_context_reply_semantic_gate.py`, `tests/test_historical_context_packet_corrections.py`, `tests/test_historical_context_transport_url_redaction_transition.py` — Revalidate the complete context evidence and deployed-render dependency closure.
 
 **Known gaps.**
 
@@ -462,15 +466,16 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `report` `defect_ledger.json#DEF-0014` — Evidence-cut-off defect or assurance record linked to this invariant.
 - `report` `defect_ledger.json#DEF-0016` — Evidence-cut-off defect or assurance record linked to this invariant.
 
-**Last verified commit.** `be882e8121a7b4348a57b61b1cf526401a36f5c0` (`known`) — The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment.
+**Last verified commit.** `unknown` (`unknown`) — The exact provenance-successor enforcement and focused tests postdate the recorded production baseline. Their final candidate identity and verification must be supplied by a frozen external attestation.
 
-**Last verified tree.** `7965dbb935f2a9f993d14aa37d93283e16bc298a` (`known`) — This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status.
+**Last verified tree.** `unknown` (`unknown`) — No final replacement tree is embedded self-referentially in this registry; post-merge regeneration must bind the externally attested candidate and deployed observation.
 
 **Accepted residual risk.** `unaccepted` — No acceptance is recorded. Open risk: No single builder emits and validates one inventory covering every eligibility, historical-context, and semantic-veto input and output. The material-veto manifest still fingerprints the multi-purpose historical_context_formatter.py rather than a narrow versioned policy module.
 
 **Affected paths.**
 
 - `historical_context_formatter.py`
+- `historical_context_transport_url_redaction_transition.py`
 - `mrsMThatcher2.py`
 - `semantic_quote_image_veto.py`
 - `semantic_alignment/quote_image_semantic_veto.py`
@@ -480,10 +485,12 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/v3_shadow_manifest_audit.json`
 - `tools/release_gate.py`
 - `tools/release_gate_pytest_plugin.py`
+- `tests/test_historical_context_transport_url_redaction_transition.py`
 - `tests/test_release_gate.py`
 
 **Enforcement files.**
 
+- `historical_context_transport_url_redaction_transition.py`
 - `semantic_quote_image_veto.py`
 - `mrsMThatcher2.py`
 - `generated_image_analysis.json`
@@ -495,11 +502,12 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_quote_image_semantic_veto_shadow.py::test_manifest_compilation_is_deterministic`
 - `tests/test_quote_image_semantic_veto_shadow.py::test_attribution_cleaned_v3_policy_is_strictly_validated`
 - `tests/test_quote_image_semantic_veto_shadow.py::test_shadow_status_rejects_manifest_with_missing_recorded_sources`
+- `tests/test_historical_context_transport_url_redaction_transition.py::test_current_repository_uses_exact_source_pin_successor_only`
 - `tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename`
 
 **Validation requests.**
 
-- `pytest` — `tests/test_quote_image_semantic_veto_shadow.py`, `tests/test_runtime_ordinary_eligibility_integrity.py`, `tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename` — Check deterministic/fresh generated evidence and fail-closed generated-image provenance while exposing the absent cross-artifact transaction.
+- `pytest` — `tests/test_historical_context_transport_url_redaction_transition.py`, `tests/test_quote_image_semantic_veto_shadow.py`, `tests/test_runtime_ordinary_eligibility_integrity.py`, `tests/test_unit_helpers.py::test_generated_image_pool_fails_closed_on_unclassifiable_basename` — Check deterministic/fresh generated evidence and fail-closed generated-image provenance while exposing the absent cross-artifact transaction.
 
 **Known gaps.**
 
