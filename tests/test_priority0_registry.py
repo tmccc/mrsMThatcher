@@ -386,7 +386,8 @@ def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> 
             "block every remote-write lane" in statement
             or "block all remote writes" in statement
         )
-        assert "same-inode successor" in rationale
+        assert "same marker inode" in statement
+        assert "successor" in rationale
         assert required_tests <= set(invariant["enforcement"]["tests"])
         assert "DEF-0035" in invariant["last_verified_commit"]["explanation"]
         assert (
