@@ -1212,7 +1212,7 @@ def test_context_receipt_retirement_preserves_barrier_on_path_replacement(
     receipt_path = tmp_path / "receipt.json"
     context_module.atomic_write_json(receipt_path, receipt)
     store = _historical_store(tmp_path / "history.json", receipt_path)
-    real_retire = context_module.retire_exact_receipt
+    real_retire = context_module.retire_or_resume_exact_receipt
 
     def replace_then_retire(path, expected_bytes, **kwargs):
         context_module.atomic_write_json(receipt_path, replacement)
@@ -1220,7 +1220,7 @@ def test_context_receipt_retirement_preserves_barrier_on_path_replacement(
 
     monkeypatch.setattr(
         context_module,
-        "retire_exact_receipt",
+        "retire_or_resume_exact_receipt",
         replace_then_retire,
     )
 
@@ -1424,11 +1424,13 @@ def test_failure_history_write_failure_retains_sending_barrier(tmp_path, monkeyp
 
 def test_recorded_failure_reconciles_stale_sending_marker_by_attempt_number(tmp_path, monkeypatch):
     store = _historical_store(tmp_path / "history.json", tmp_path / "receipt.json")
-    real_retire = context_module.retire_exact_receipt
+    real_retire = context_module.retire_or_resume_exact_receipt
     monkeypatch.setattr(
         context_module,
-        "retire_exact_receipt",
-        lambda path, expected: (_ for _ in ()).throw(OSError("directory fsync failed")),
+        "retire_or_resume_exact_receipt",
+        lambda path, expected, **_kwargs: (_ for _ in ()).throw(
+            OSError("directory fsync failed")
+        ),
     )
 
     with pytest.raises(AmbiguousContextReplyOutcome, match="clear context reply sending record"):
@@ -1445,7 +1447,11 @@ def test_recorded_failure_reconciles_stale_sending_marker_by_attempt_number(tmp_
     failed = store.history()["items"]["111"]
     assert sending["attempt_number"] == failed["attempt_count"] == 1
 
-    monkeypatch.setattr(context_module, "retire_exact_receipt", real_retire)
+    monkeypatch.setattr(
+        context_module,
+        "retire_or_resume_exact_receipt",
+        real_retire,
+    )
     assert store.reconcile_receipt() is False
     assert not store.receipt_path.exists()
 

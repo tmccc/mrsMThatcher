@@ -801,7 +801,7 @@ def test_pending_schedule_receipt_blocks_actual_conversational_create_preflight(
     # Production performs its narrow local-only confirmed-transaction
     # reconciliation before consulting this global barrier; every X-create
     # preflight must remain blocked in the meantime.
-    assert bot.unresolved_main_post_attempt_is_blocking() is False
+    assert bot.unresolved_main_post_attempt_is_blocking() is True
     assert bot.ambiguous_remote_post_is_blocking() is True
 
     _actual_conversational_create_is_blocked(monkeypatch, actual_create_post)

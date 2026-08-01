@@ -1001,7 +1001,10 @@
           "tests/test_pending_receipt_directory_fsync.py::test_duplicate_receipt_object_names_fail_closed",
           "tests/test_pending_receipt_directory_fsync.py::test_final_retirement_directory_fsync_failure_latches_current_daemon",
           "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
-          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "validations": [
           {
@@ -1050,7 +1053,10 @@
           "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
           "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
           "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
-          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "purpose": "Exercise durable pre-send intent, hard-death ambiguity retention, exact bound schedule after-state, pending-schedule recovery, conservative post-transmission status handling and at-most-once restart behavior."
           }
@@ -1270,9 +1276,12 @@
           "tests/test_remote_write_safety_second_restart.py::test_offline_activation_refuses_legacy_then_opens_after_reconciliation",
           "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
         "tests/test_remote_write_safety_marker_reconciliation.py",
-        "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry",
-        "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
-        "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
+          "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry",
+          "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "validations": [
           {
@@ -1323,7 +1332,10 @@
           "tests/test_pending_receipt_directory_fsync.py::test_duplicate_receipt_object_names_fail_closed",
           "tests/test_pending_receipt_directory_fsync.py::test_final_retirement_directory_fsync_failure_latches_current_daemon",
           "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
-          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "purpose": "Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay."
           }
@@ -1495,7 +1507,10 @@
           "tests/test_unit_helpers.py::test_generic_reply_rejection_preserves_sending_receipt",
           "tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry",
           "tests/test_x_write_outcome_conservatism.py::test_prepared_receipt_authority_requires_the_exact_durable_file",
-          "tests/test_x_write_outcome_conservatism.py::test_raw_and_bearer_x_create_require_receipt_bound_internal_authority"
+          "tests/test_x_write_outcome_conservatism.py::test_raw_and_bearer_x_create_require_receipt_bound_internal_authority",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "validations": [
           {
@@ -1504,10 +1519,13 @@
           "tests/test_unit_helpers.py::test_conversational_reply_receipt_is_durable_before_remote_write",
           "tests/test_unit_helpers.py::test_sending_reply_receipt_blocks_each_remote_lane_before_preparation",
           "tests/test_unit_helpers.py::test_confirmed_reply_receipt_reconciliation_is_idempotent",
-          "tests/test_unit_helpers.py::test_generic_reply_rejection_preserves_sending_receipt",
-          "tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry",
-          "tests/test_x_write_outcome_conservatism.py::test_prepared_receipt_authority_requires_the_exact_durable_file",
-          "tests/test_x_write_outcome_conservatism.py::test_raw_and_bearer_x_create_require_receipt_bound_internal_authority"
+              "tests/test_unit_helpers.py::test_generic_reply_rejection_preserves_sending_receipt",
+              "tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry",
+              "tests/test_x_write_outcome_conservatism.py::test_prepared_receipt_authority_requires_the_exact_durable_file",
+              "tests/test_x_write_outcome_conservatism.py::test_raw_and_bearer_x_create_require_receipt_bound_internal_authority",
+              "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+              "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+              "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "purpose": "Exercise reply receipt ordering, conservative post-transmission status handling, global ambiguity blocking and idempotent recovery."
           }
@@ -1627,17 +1645,23 @@
           "tests/test_historical_context_reply_semantic_gate.py::test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate",
           "tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry",
           "tests/test_production_consistency_incident.py::test_confirmed_context_receipt_reconciliation_ends_the_worker_tick",
-          "tests/test_production_consistency_incident.py::test_observed_context_receipt_disappearance_remains_globally_blocking"
+          "tests/test_production_consistency_incident.py::test_observed_context_receipt_disappearance_remains_globally_blocking",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "validations": [
           {
             "validation_id": "pytest",
             "selectors": [
           "tests/test_historical_context_reply.py",
-          "tests/test_historical_context_reply_semantic_gate.py",
-          "tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry",
-          "tests/test_production_consistency_incident.py::test_confirmed_context_receipt_reconciliation_ends_the_worker_tick",
-          "tests/test_production_consistency_incident.py::test_observed_context_receipt_disappearance_remains_globally_blocking"
+              "tests/test_historical_context_reply_semantic_gate.py",
+              "tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry",
+              "tests/test_production_consistency_incident.py::test_confirmed_context_receipt_reconciliation_ends_the_worker_tick",
+              "tests/test_production_consistency_incident.py::test_observed_context_receipt_disappearance_remains_globally_blocking",
+              "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+              "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+              "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "purpose": "Exercise context reply durability, conservative post-transmission status handling, ambiguity preservation and gate-independent reconciliation."
           }
@@ -2019,7 +2043,10 @@
           "tests/test_pending_receipt_directory_fsync.py::test_duplicate_receipt_object_names_fail_closed",
           "tests/test_pending_receipt_directory_fsync.py::test_final_retirement_directory_fsync_failure_latches_current_daemon",
           "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
-          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "validations": [
           {
@@ -2052,7 +2079,10 @@
           "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
           "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
           "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
-          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
+          "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
+          "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
         ],
         "purpose": "Exercise the cross-lane ambiguity barrier, pending-schedule compatibility, conservative post-transmission status handling and safe retirement order."
           }
@@ -2521,14 +2551,14 @@
       "id": "INV-API-001",
       "category": "configuration_process",
       "title": "Bounded requests and conservative write outcomes",
-      "statement": "Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, disable redirects for writes, and classify every unproved post-transmission response or failure—including generic HTTP 3xx, 4xx and 5xx—as ambiguous without automatic reposting. A transmitted or possibly transmitted POST /2/media/upload whose outcome is not proved successful must retain its exact durable media receipt/fence barrier and must never be retried through the legacy v1.1 upload endpoint or any alternate endpoint.",
+      "statement": "Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, disable redirects for writes, and classify every unproved post-transmission response or failure—including generic HTTP 3xx, 4xx and 5xx—as ambiguous without automatic reposting. X API and upload bases must be origins only, and the literal request URL and prepared endpoint classification must agree for tweet and media creates. A transmitted or possibly transmitted POST /2/media/upload whose outcome is not proved successful must retain its exact durable media receipt/fence barrier and must never be retried through the legacy v1.1 upload endpoint or any alternate endpoint.",
       "failure_if_violated": "Shutdown can exceed the supervisor budget, or an uncertain remote write can be repeated and create duplicate public content.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "The request timeout parser caps the total budget, urllib3 receives a combined total timeout, and X create requests do not follow redirects. X post and v2 media-upload paths publish and revalidate exact durable transport barriers before transmission and preserve those barriers for every post-transmission outcome not proved successful or definitely unsent. The legacy v1.1 media helper refuses before transport, so an ambiguous v2 outcome cannot become a second upload through a different endpoint.",
+      "status_rationale": "The request timeout parser caps the total budget, urllib3 receives a combined total timeout, and X create requests do not follow redirects. X API and upload configuration rejects paths, queries, fragments and user information; create transport also fails closed if literal and prepared route classifications disagree. X post and v2 media-upload paths publish and revalidate exact durable transport barriers before transmission and preserve those barriers for every post-transmission outcome not proved successful or definitely unsent. The legacy v1.1 media helper refuses before transport, so an ambiguous v2 outcome cannot become a second upload through a different endpoint. The separate xAI provider base deliberately retains its versioned /v1 path.",
       "verification": {
         "status": "verified",
-        "rationale": "Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, generic non-2xx responses and redirects, and prove ambiguous writes and made-with-AI rejection text are not retried. Literal-process media tests cover every v2 upload hard-exit boundary and prove a fresh process remains globally blocked, while a focused regression proves the legacy v1.1 helper refuses before any transport call."
+        "rationale": "Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, generic non-2xx responses and redirects, and prove ambiguous writes and made-with-AI rejection text are not retried. Literal-process media tests cover every v2 upload hard-exit boundary and prove a fresh process remains globally blocked, while a focused regression proves the legacy v1.1 helper refuses before any transport call. Configuration and unit regressions reject pathful or otherwise non-origin X bases, preserve the versioned xAI provider base and require prepared/literal tweet and media route classifications to agree before transport."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -2559,7 +2589,11 @@
           "tests/test_x_write_outcome_conservatism.py::test_made_with_ai_generic_400_never_triggers_second_create",
           "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
           "tests/test_media_upload_transaction_integration.py::test_legacy_v1_1_helper_refuses_before_any_transport",
-          "tests/test_remote_media_upload_receipt.py::test_transport_proof_is_immutable_bytes_not_a_file_name"
+          "tests/test_remote_media_upload_receipt.py::test_transport_proof_is_immutable_bytes_not_a_file_name",
+          "tests/test_x_write_outcome_conservatism.py::test_x_api_bases_must_be_origin_only",
+          "tests/test_x_write_outcome_conservatism.py::test_xai_versioned_provider_base_remains_supported",
+          "tests/test_x_write_outcome_conservatism.py::test_prepared_and_literal_create_routes_must_agree",
+          "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments"
         ],
         "validations": [
           {
@@ -2571,7 +2605,11 @@
             "tests/test_x_write_outcome_conservatism.py",
             "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
             "tests/test_media_upload_transaction_integration.py::test_legacy_v1_1_helper_refuses_before_any_transport",
-            "tests/test_remote_media_upload_receipt.py::test_transport_proof_is_immutable_bytes_not_a_file_name"
+            "tests/test_remote_media_upload_receipt.py::test_transport_proof_is_immutable_bytes_not_a_file_name",
+            "tests/test_x_write_outcome_conservatism.py::test_x_api_bases_must_be_origin_only",
+            "tests/test_x_write_outcome_conservatism.py::test_xai_versioned_provider_base_remains_supported",
+            "tests/test_x_write_outcome_conservatism.py::test_prepared_and_literal_create_routes_must_agree",
+            "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments"
           ],
           "purpose": "Exercise bounded total request time, single-hop writes, restart-visible v2 media ambiguity and non-retry of every unproved post-transmission outcome, including refusal of the alternate legacy upload endpoint."
           }

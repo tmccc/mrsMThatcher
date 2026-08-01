@@ -31,8 +31,7 @@ from remote_write_transport_journal import (
 from exact_receipt_retirement import (
     prepare_exact_receipt_retirement,
     retirement_auxiliary_barrier_exists,
-    resume_interrupted_receipt_retirement,
-    retire_exact_receipt,
+    retire_or_resume_exact_receipt,
 )
 from transaction_mutation_authority import TransactionMutationAuthority
 
@@ -1215,11 +1214,13 @@ class HistoricalContextReplyStore:
         mutation_authority_provider: (
             Callable[[str], TransactionMutationAuthority] | None
         ) = None,
+        retirement_uncertainty_callback: Callable[[], None] | None = None,
     ):
         """Initialise the historical context reply store."""
         self.history_path = history_path
         self.receipt_path = receipt_path
         self._mutation_authority_provider = mutation_authority_provider
+        self._retirement_uncertainty_callback = retirement_uncertainty_callback
 
     def _mutation_authority(self, operation: str) -> TransactionMutationAuthority:
         if self._mutation_authority_provider is None:
@@ -1442,21 +1443,14 @@ class HistoricalContextReplyStore:
         """Retire only the exact receipt through the shared crash protocol."""
 
         path = Path(self.receipt_path)
-        if retirement_auxiliary_barrier_exists(path):
-            resume_interrupted_receipt_retirement(
-                path,
-                mutation_authority=self._mutation_authority(
-                    "historical-context receipt retirement resume"
-                ),
-            )
-        else:
-            retire_exact_receipt(
-                path,
-                expected_bytes,
-                mutation_authority=self._mutation_authority(
-                    "historical-context receipt retirement"
-                ),
-            )
+        retire_or_resume_exact_receipt(
+            path,
+            expected_bytes,
+            mutation_authority=self._mutation_authority(
+                "historical-context exact receipt retirement"
+            ),
+            on_retirement_uncertainty=self._retirement_uncertainty_callback,
+        )
 
     @staticmethod
     def _valid_formatter_metadata(value: Any) -> bool:

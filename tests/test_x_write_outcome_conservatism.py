@@ -245,7 +245,7 @@ def test_normalised_raw_and_bearer_x_create_variants_require_authority(
     )
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
-        match="exact literal method and path",
+        match="Prepared and literal X create-route classifications disagree",
     ):
         bot.x_request(
             "POST",
@@ -262,6 +262,49 @@ def test_normalised_raw_and_bearer_x_create_variants_require_authority(
             path,
             json={"text": "unbound"},
         )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "https://api.x.invalid/prefix",
+        "https://api.x.invalid?query=yes",
+        "https://api.x.invalid#fragment",
+        "https://user@api.x.invalid",
+        "https://user:password@api.x.invalid",
+    ],
+)
+def test_x_api_bases_must_be_origin_only(raw: str) -> None:
+    with pytest.raises(ValueError):
+        bot.normalise_base_url(raw, require_origin=True)
+
+
+def test_xai_versioned_provider_base_remains_supported() -> None:
+    assert (
+        bot.normalise_base_url("https://api.x.ai/v1")
+        == "https://api.x.ai/v1"
+    )
+
+
+@pytest.mark.parametrize("path", ["/2/tweets", "/2/media/upload"])
+def test_prepared_and_literal_create_routes_must_agree(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "X_BASE", "https://api.x.invalid/prefix")
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "route disagreement must stop before transport"
+        ),
+    )
+
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="Prepared and literal X create-route classifications disagree",
+    ):
+        bot.x_request("POST", path)
 
 
 def test_direct_media_upload_requires_explicit_ambiguous_write_handling(

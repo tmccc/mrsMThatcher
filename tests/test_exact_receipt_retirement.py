@@ -44,6 +44,32 @@ def write_receipt(path: Path, data: bytes = RECEIPT) -> None:
     path.chmod(0o600)
 
 
+def test_shared_retirement_boundary_latches_even_for_process_control_exception(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SystemExit/KeyboardInterrupt cannot bypass the caller's safety latch."""
+
+    source = tmp_path / "receipt.json"
+    write_receipt(source)
+    callbacks: list[str] = []
+    monkeypatch.setattr(
+        retirement,
+        "retire_exact_receipt",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        retirement.retire_or_resume_exact_receipt(
+            source,
+            RECEIPT,
+            mutation_authority=_authority(),
+            on_retirement_uncertainty=lambda: callbacks.append("latched"),
+        )
+
+    assert callbacks == ["latched"]
+
+
 def phase(path: Path) -> str:
     return retirement.inspect_exact_receipt_retirement(path, RECEIPT).phase
 

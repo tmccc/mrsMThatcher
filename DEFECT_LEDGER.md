@@ -18,18 +18,18 @@ independently reproduced candidate-lineage defects.
 - Ledger evidence cut-off commit: `7ebcc09699a13848d55a33fd84d66cc8ce56d95c`
 - Ledger evidence cut-off tree: `b83abb7af53f925eb8686825e09f4654a55ff40a`
 - Evidence valid through: `2026-08-01`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0046. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0048. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.
 - Status-claim boundary: Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0046, remain external and unfixed in ledger truth until merge and post-merge regeneration.
+- Candidate identity rule: The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0048, remain external and unfixed in ledger truth until merge and post-merge regeneration.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0046 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0048 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
 
 ## Status taxonomy
 
@@ -133,6 +133,8 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0044` | assurance-weakness | `tools/release_gate.py`; `tools/release_gate_pytest_plugin.py` | `release-assurance` | false — This is an assurance trust-root weakness, not evidence that a production release was actually forged. Evidence: The review constructed only local evidence-forgery scenarios against the exact candidate tree; it did not issue or rely on a real release attestation. |
 | `DEF-0045` | runtime-defect | `remote_write_transport_journal.py`; `remote_media_upload_receipt.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `cross-cutting-remote-write-barrier` | false — This record is explicitly an availability and manual-recovery weakness in a fail-closed path; it does not classify safe blocking as a duplicate-safety failure. Evidence: The review considered hard exits before and after local RENAME_EXCHANGE staging transitions. No remote transport, production action or duplicate was observed. |
 | `DEF-0046` | runtime-defect | `mrsMThatcher2.py`; `tests/test_unit_helpers.py` | `regular-quote-image-post`; `daily-meme-post`; `cross-cutting-remote-write-barrier` | false — The replay defect is reproducible offline; no duplicate live meme, quotation or image reuse is inferred. Evidence: A pre-freeze adversarial review used synthetic stale schema-v2/v3 receipts and newer in-memory state. It made no network, X, provider, service or production request. |
+| `DEF-0047` | runtime-defect | `mrsMThatcher2.py`; `README.md`; `tests/test_integration_harness.py`; `tests/test_x_write_outcome_conservatism.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `cross-cutting-remote-write-barrier` | false — This is a cutoff-bound configuration and route-classification reproducer, not evidence that production used a path-bearing endpoint or bypassed an authority check. Evidence: The defect was reproduced with synthetic path-bearing X base values and a local transport sentinel. No network, X, provider, service or production action occurred. |
+| `DEF-0048` | runtime-defect | `mrsMThatcher2.py`; `tests/test_unit_helpers.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `provider-request`; `cross-cutting-remote-write-barrier` | false — This establishes an omitted global barrier state, not a live duplicate or provider incident. Evidence: The defect was reproduced with synthetic, schema-valid legacy regular, meme and confirmed reply receipts in an isolated state directory. No network, X, provider, service or production action occurred. |
 
 ## Chronology projection
 
@@ -240,6 +242,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0044` | 2026-07-31 | `7ebcc096` | Independent exact-cut-off review showed that the candidate controlled the pytest hook code and knew the evidence outputs whose internal consistency the gate later accepted. | Candidate-owned pytest evidence capability analysis |
 | `DEF-0045` | 2026-07-31 | `7ebcc096` | Exact-cut-off review confirmed that hard exit can preserve an intentionally blocking transition staging entry for which no strict automatic resumer or complete operator procedure existed. | RENAME_EXCHANGE staging and restart-liveness review |
 | `DEF-0046` | 2026-08-01 | `7ebcc096` | Pre-freeze schedule and recovery review reproduced stale regular-history erasure and stale meme-state rollback against the 7ebcc096 cut-off. | Synthetic stale-receipt replay with a strictly newer quote/meme state |
+| `DEF-0047` | 2026-08-01 | `7ebcc096` | Post-cutoff adversarial review combined path-bearing X bases with protected create paths and established disagreement between prepared and literal route identity at 7ebcc096. | Synthetic origin/path configuration and pre-transport route-classification fixture |
+| `DEF-0048` | 2026-08-01 | `7ebcc096` | Focused cutoff review installed simultaneous valid legacy regular, meme and confirmed conversational receipts and found the global auxiliary barrier open at 7ebcc096. | Synthetic simultaneous accepted-receipt preflight fixture with a clean-state negative control |
 
 ## Summary
 
@@ -291,6 +295,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0044` | assurance-weakness | assurance | Candidate-owned pytest hooks could forge internally consistent release evidence | `INV-REL-TRUST-001` | unknown | unfixed | not applicable |
 | `DEF-0045` | active | medium | Exact exchange staging could require manual recovery after a safe hard exit | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
 | `DEF-0046` | active | critical | Stale confirmed receipt replay could regress newer post state | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0047` | active | critical | Path-bearing X bases could desynchronise prepared and literal create-route classification | `INV-API-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0048` | active | critical | Accepted legacy confirmed receipts could leave auxiliary provider work unblocked | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
 
 ## Records
 
@@ -881,6 +887,24 @@ Synthetic replay reproduced both behaviours without any remote operation. The
 post-cut-off monotonic replay proposal remains external and this defect remains
 active at the ledger evidence cut-off.
 
+### DEF-0047 — Path-bearing X base route disagreement
+
+At `7ebcc096`, the X API and upload base normaliser accepted path-bearing
+values and Requests classified protected create routes from the concatenated
+prepared URL while other authority checks retained the caller's literal path.
+A path prefix could therefore make tweet or media create-route classifications
+disagree. The origin-only and prepared/literal agreement repair and its focused
+tests remain external; this defect is active at the ledger evidence cut-off.
+
+### DEF-0048 — Accepted legacy receipt global-barrier gap
+
+At `7ebcc096`, the global main and conversational receipt predicates blocked
+only sending or invalid states. Accepted legacy full regular/meme receipts and
+confirmed conversational receipts could therefore remain pending local
+reconciliation while unrelated auxiliary provider or scheduler work was not
+globally blocked. The narrow sole-owner reconciliation repair and its focused
+tests remain external; this defect is active at the ledger evidence cut-off.
+
 ## Unknown-value policy
 
 The following are intentionally unknown rather than inferred:
@@ -891,7 +915,7 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- `DEF-0040` through `DEF-0046`: introduction bounds and fixing commits are not
+- `DEF-0040` through `DEF-0048`: introduction bounds and fixing commits are not
   inferred from post-cut-off worktree proposals. Their explicit affected
   ranges end at `7ebcc096`; each fix remains unknown until post-merge
   regeneration.

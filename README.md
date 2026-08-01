@@ -110,8 +110,8 @@ Safety guards:
 
 Endpoint override convention:
 
-- `X_API_BASE_URL` may be the fake server root or may end in `/2`; a terminal `/2` is normalised away because the bot appends `/2/...` endpoint paths.
-- `X_UPLOAD_BASE_URL` may be the fake server root or may end in `/1.1`; a terminal `/1.1` is normalised away because the bot appends `/1.1/media/upload.json`.
+- `X_API_BASE_URL` must be an origin only (scheme, host and optional port), with no path, query, fragment or user information; the bot appends `/2/...` endpoint paths.
+- `X_UPLOAD_BASE_URL` must likewise be an origin only; the bot appends `/2/media/upload` and does not fall back to a second legacy upload endpoint after an uncertain outcome.
 - `XAI_API_BASE_URL` should include `/v1` when the fake server exposes `/v1/chat/completions`.
 
 Scenario fixtures live in `tests/fixtures/scenarios/`. The fake server implements only the endpoints the bot currently uses:
@@ -122,7 +122,6 @@ Scenario fixtures live in `tests/fixtures/scenarios/`. The fake server implement
 - `GET /2/tweets/{id}`
 - `POST /2/tweets`
 - `POST /2/media/upload`
-- `POST /1.1/media/upload.json`
 - `POST /v1/chat/completions`
 
 ## Files To Keep Together

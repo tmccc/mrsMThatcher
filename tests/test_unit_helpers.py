@@ -42,6 +42,7 @@ ORIGINAL_ENV = {key: os.environ.get(key) for key in IMPORT_ENV}
 os.environ.update(IMPORT_ENV)
 
 import mrsMThatcher2 as bot  # noqa: E402
+import exact_receipt_retirement as exact_retirement_module  # noqa: E402
 import remote_write_transport_journal as transport_journal_module  # noqa: E402
 
 SOURCE_DEFAULT_AI_FIRST_REPLY_STRATEGY = copy.deepcopy(bot.ai_first_reply_strategy)
@@ -11701,6 +11702,77 @@ def test_remove_reply_receipt_refuses_changed_transaction() -> None:
     assert bot.load_confirmed_reply_receipt() == ("sending", sending)
 
 
+@pytest.mark.parametrize(
+    "lane",
+    [
+        "quote_image",
+        "daily_meme",
+        "conversational_reply",
+        "historical_context_reply",
+    ],
+)
+def test_final_receipt_cleanup_fsync_failure_latches_every_public_lane(
+    lane: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pathname absence cannot reopen provider work after uncertain cleanup."""
+
+    if lane == "quote_image":
+        path = bot.REGULAR_POST_RECEIPT_FILE
+        receipt = {"unit": lane}
+        bot.atomic_write_json(path, receipt, durable=True)
+        retire = lambda: bot.remove_regular_post_receipt(receipt)
+    elif lane == "daily_meme":
+        path = bot.MEME_POST_RECEIPT_FILE
+        receipt = {"unit": lane}
+        bot.atomic_write_json(path, receipt, durable=True)
+        retire = lambda: bot.remove_meme_post_receipt(receipt)
+    elif lane == "conversational_reply":
+        path = bot.CONFIRMED_REPLY_RECEIPT_FILE
+        receipt = unit_confirmed_reply_receipt()
+        bot.atomic_write_json(path, receipt, durable=True)
+        retire = lambda: bot.remove_confirmed_reply_receipt(receipt)
+    else:
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        path = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        receipt = {"unit": lane}
+        bot.atomic_write_json(path, receipt, durable=True)
+        store = HistoricalContextReplyStore(
+            tmp_path / "context-history.json",
+            path,
+            mutation_authority_provider=bot.transaction_mutation_authority,
+            retirement_uncertainty_callback=(
+                bot.latch_source_receipt_retirement_uncertainty
+            ),
+        )
+        retire = lambda: store._retire_exact_receipt(path.read_bytes())
+
+    paths = exact_retirement_module.retirement_barrier_paths(path)
+    real_fsync = exact_retirement_module._fsync_directory
+
+    def fail_after_final_namespace_cleanup(directory_fd: int) -> None:
+        real_fsync(directory_fd)
+        if not any(os.path.lexists(candidate) for candidate in paths):
+            raise OSError("final receipt namespace fsync failed")
+
+    monkeypatch.setattr(
+        exact_retirement_module,
+        "_fsync_directory",
+        fail_after_final_namespace_cleanup,
+    )
+
+    with pytest.raises(OSError, match="final receipt namespace fsync failed"):
+        retire()
+
+    assert not any(os.path.lexists(candidate) for candidate in paths)
+    assert bot.remote_write_safety_incident_is_latched() is True
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.require_remote_operation_unpaused("auxiliary provider request")
+
+
 def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -13608,6 +13680,44 @@ def test_simultaneous_regular_and_meme_receipts_block_reconciliation(
         bot.reconcile_main_post_receipts(lines_used, images_used, state)
 
 
+def test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    regular = valid_regular_receipt()
+    meme = {
+        "schema_version": 1,
+        "post_id": "970001",
+        "meme_basename": "001_meme.png",
+        "meme_post_epoch": 1_800_000_000,
+        "next_meme_post_epoch": 1_800_086_400,
+    }
+    reply = unit_confirmed_reply_receipt()
+    bot.atomic_write_json(bot.REGULAR_POST_RECEIPT_FILE, regular, durable=True)
+    bot.atomic_write_json(bot.MEME_POST_RECEIPT_FILE, meme, durable=True)
+    bot.atomic_write_json(bot.CONFIRMED_REPLY_RECEIPT_FILE, reply, durable=True)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "unresolved legacy receipts must block auxiliary transport"
+        ),
+    )
+
+    assert bot.load_regular_post_receipt()[0] == "valid"
+    assert bot.load_meme_post_receipt()[0] == "valid"
+    assert bot.load_confirmed_reply_receipt()[0] == "valid"
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.require_remote_operation_unpaused("auxiliary provider request")
+
+
+def test_fully_reconciled_receipt_namespace_does_not_create_false_barrier() -> None:
+    assert bot.load_regular_post_receipt() == ("absent", None)
+    assert bot.load_meme_post_receipt() == ("absent", None)
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
 def test_post_next_meme_rejects_simultaneous_receipts_without_removing_either(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -13636,7 +13746,7 @@ def test_post_next_meme_rejects_simultaneous_receipts_without_removing_either(
         },
     )
 
-    with pytest.raises(bot.InvalidMemePostReceipt):
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.post_next_meme({})
 
     assert receipt_file.exists()

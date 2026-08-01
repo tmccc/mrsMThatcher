@@ -4833,20 +4833,33 @@ def test_invalid_request_timeout_env_falls_back_safely_in_test_mode(tmp_path: Pa
 
 
 @pytest.mark.parametrize("fake_server", ["normal_mention_reply.json"], indirect=True)
-def test_endpoint_overrides_tolerate_terminal_version_segments(tmp_path: Path, fake_server: FakeApiServer) -> None:
+def test_x_endpoint_overrides_reject_terminal_version_segments(
+    tmp_path: Path,
+    fake_server: FakeApiServer,
+) -> None:
     base_dir = prepare_base_dir(tmp_path)
-    result = run_bot_command(
+    x_result = run_bot_command(
         base_dir,
         fake_server,
         "--test-cycle",
         x_api_base_url=f"{fake_server.url}/2",
+        x_upload_base_url=fake_server.url,
+        xai_api_base_url=f"{fake_server.url}/v1",
+    )
+    upload_result = run_bot_command(
+        base_dir,
+        fake_server,
+        "--test-cycle",
+        x_api_base_url=fake_server.url,
         x_upload_base_url=f"{fake_server.url}/1.1",
         xai_api_base_url=f"{fake_server.url}/v1",
     )
 
-    assert result.returncode == 0, result.stderr + result.stdout
-    assert len(fake_server.posts) == 1
-    assert fake_server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
+    assert x_result.returncode != 0
+    assert "X API bases must be origin-only" in x_result.stderr
+    assert upload_result.returncode != 0
+    assert "X API bases must be origin-only" in upload_result.stderr
+    assert fake_server.posts == []
 
 
 @pytest.mark.parametrize(

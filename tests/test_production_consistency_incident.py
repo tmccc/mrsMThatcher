@@ -264,9 +264,10 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receipt = _regular_receipt()
-    bot.REGULAR_POST_RECEIPT_FILE.write_text(
-        json.dumps(receipt),
-        encoding="utf-8",
+    bot.atomic_write_json(
+        bot.REGULAR_POST_RECEIPT_FILE,
+        receipt,
+        durable=True,
     )
     monkeypatch.setattr(
         bot,
@@ -294,9 +295,10 @@ def test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repos
         order.append("context_obligation_enqueued")
         return obligation
 
-    def tracked_remove():
+    def tracked_remove(receipt_to_remove: dict):
+        assert receipt_to_remove == receipt
         assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.exists()
-        original_remove()
+        original_remove(receipt_to_remove)
         order.append("main_receipt_removed")
 
     def context_only_attempt(**_kwargs):
@@ -354,9 +356,10 @@ def test_confirmed_main_reconciliation_survives_unexpected_auxiliary_worker_faul
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receipt = _regular_receipt(post_id="950002")
-    bot.REGULAR_POST_RECEIPT_FILE.write_text(
-        json.dumps(receipt),
-        encoding="utf-8",
+    bot.atomic_write_json(
+        bot.REGULAR_POST_RECEIPT_FILE,
+        receipt,
+        durable=True,
     )
     monkeypatch.setattr(
         bot,
@@ -440,9 +443,10 @@ def test_main_receipt_replay_accepts_all_existing_outbox_terminal_and_active_sta
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receipt = _regular_receipt(post_id="950002")
-    bot.REGULAR_POST_RECEIPT_FILE.write_text(
-        json.dumps(receipt),
-        encoding="utf-8",
+    bot.atomic_write_json(
+        bot.REGULAR_POST_RECEIPT_FILE,
+        receipt,
+        durable=True,
     )
     store = bot.historical_context_outbox_store()
     if existing_context_state == "not_required":
@@ -1372,22 +1376,21 @@ def test_confirmed_context_receipt_reconciliation_ends_the_worker_tick(
             quote_text=f"Historical-context quotation {parent_id}.",
         )
     store.claim_attempt("830004", started_epoch=8_301)
-    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "lifecycle_state": "confirmed",
-                "parent_post_id": "830004",
-                "reply_post_id": "930004",
-                "quote_id": "6" * 64,
-                "reply_text": "Context — The first attempt was confirmed.",
-                "reply_epoch": 8_301,
-                "confirmed_at": "2026-07-23T20:00:00Z",
-                "started_at": "2026-07-23T19:59:59Z",
-                "attempt_number": 1,
-            }
-        ),
-        encoding="utf-8",
+    bot.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "confirmed",
+            "parent_post_id": "830004",
+            "reply_post_id": "930004",
+            "quote_id": "6" * 64,
+            "reply_text": "Context — The first attempt was confirmed.",
+            "reply_epoch": 8_301,
+            "confirmed_at": "2026-07-23T20:00:00Z",
+            "started_at": "2026-07-23T19:59:59Z",
+            "attempt_number": 1,
+        },
+        durable=True,
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
     monkeypatch.setattr(

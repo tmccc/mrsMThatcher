@@ -91,7 +91,7 @@ from exact_receipt_retirement import (
     retirement_auxiliary_barrier_exists,
     retirement_auxiliary_paths,
     resume_interrupted_receipt_retirement,
-    retire_exact_receipt,
+    retire_or_resume_exact_receipt,
 )
 from transaction_mutation_authority import (
     TransactionMutationAuthority,
@@ -1700,6 +1700,9 @@ def production_bootstrap(
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
             mutation_authority_provider=transaction_mutation_authority,
+            retirement_uncertainty_callback=(
+                latch_source_receipt_retirement_uncertainty
+            ),
         )
         try:
             context_store.history()
@@ -1780,6 +1783,9 @@ def reconcile_runtime_historical_context_state() -> None:
         HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         mutation_authority_provider=transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            latch_source_receipt_retirement_uncertainty
+        ),
     )
     defer_to_confirmed_transport_recovery = False
     if maintenance_paused:
@@ -2231,26 +2237,45 @@ AUTH = OAuth1(
 )
 
 
-def normalise_base_url(raw: str, *, strip_trailing_segments: tuple[str, ...] = ()) -> str:
-    """Return a stable API root URL for endpoint overrides.
+def normalise_base_url(raw: str, *, require_origin: bool = False) -> str:
+    """Return one validated API base or fail during configuration.
 
-    The production code appends endpoint paths such as /2/users/... and
-    /1.1/media/upload.json itself. For convenience in tests, tolerate values
-    such as http://127.0.0.1:8765/2 or http://127.0.0.1:8765/1.1 by
-    stripping those terminal version segments.
+    Route classification is performed against paths which this module appends
+    itself.  A configured path prefix, query, fragment or user-info component
+    could make the literal route and the prepared on-wire route disagree, so
+    the X request and upload bases must be origins.  The xAI provider retains
+    its explicit ``/v1`` base because it does not participate in X route
+    classification.
     """
-    value = str(raw or "").rstrip("/")
+
+    value = str(raw or "").strip()
+    if not value or any(ord(character) < 0x20 for character in value):
+        raise ValueError("API base URL is empty or contains control characters")
     parsed = urlsplit(value)
-    path = parsed.path.rstrip("/")
-
-    for segment in strip_trailing_segments:
-        suffix = "/" + segment.strip("/")
-        if path == suffix or path.endswith(suffix):
-            path = path[: -len(suffix)].rstrip("/")
-            value = urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment)).rstrip("/")
-            break
-
-    return value
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("API base URL has an invalid port") from exc
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("API base URL must use http or https")
+    if not parsed.hostname or parsed.username is not None or parsed.password is not None:
+        raise ValueError("API base URL must be an origin without user information")
+    if (
+        (require_origin and parsed.path not in {"", "/"})
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "API base URL must not contain a query or fragment, and X API "
+            "bases must be origin-only"
+        )
+    if not require_origin:
+        return value.rstrip("/")
+    host = parsed.hostname
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    netloc = host if port is None else f"{host}:{port}"
+    return urlunsplit((parsed.scheme.lower(), netloc, "", "", ""))
 
 
 def endpoint_host(url: str) -> str:
@@ -2275,10 +2300,13 @@ def endpoint_is_loopback(url: str) -> bool:
         return False
 
 
-X_BASE = normalise_base_url(os.getenv("X_API_BASE_URL", "https://api.x.com"), strip_trailing_segments=("2",))
+X_BASE = normalise_base_url(
+    os.getenv("X_API_BASE_URL", "https://api.x.com"),
+    require_origin=True,
+)
 X_UPLOAD_BASE = normalise_base_url(
     os.getenv("X_UPLOAD_BASE_URL", "https://upload.twitter.com"),
-    strip_trailing_segments=("1.1",),
+    require_origin=True,
 )
 XAI_BASE = normalise_base_url(os.getenv("XAI_API_BASE_URL", "https://api.x.ai/v1"))
 LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE = "I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X"
@@ -3803,21 +3831,26 @@ def normalised_prepared_x_request_path(method: str, path: str) -> str:
 def x_request_targets_tweet_create(method: str, path: str) -> bool:
     """Return whether one prepared X request targets the tweet-create route."""
 
-    return bool(
-        str(method).upper() == "POST"
-        and normalised_prepared_x_request_path(method, path).rstrip("/")
-        == "/2/tweets"
-    )
+    return prepared_x_create_route(method, path) == "tweet"
 
 
 def x_request_targets_media_upload(method: str, path: str) -> bool:
     """Return whether one prepared X request targets the v2 media-create route."""
 
-    return bool(
-        str(method).upper() == "POST"
-        and normalised_prepared_x_request_path(method, path).rstrip("/")
-        == "/2/media/upload"
-    )
+    return prepared_x_create_route(method, path) == "media"
+
+
+def prepared_x_create_route(method: str, path: str) -> str | None:
+    """Classify the create route produced by Requests preparation."""
+
+    if str(method).upper() != "POST":
+        return None
+    prepared_path = normalised_prepared_x_request_path(method, path).rstrip("/")
+    if prepared_path == "/2/tweets":
+        return "tweet"
+    if prepared_path == "/2/media/upload":
+        return "media"
+    return None
 
 
 def exact_x_create_route(method: str, path: str) -> str | None:
@@ -3902,9 +3935,17 @@ def x_request(
 ) -> dict:
     """Send an authenticated X API request with bounded retries."""
     url = f"{X_BASE}{path}"
-    is_post_create = x_request_targets_tweet_create(method, path)
-    is_media_upload = x_request_targets_media_upload(method, path)
+    prepared_create_route = prepared_x_create_route(method, path)
     exact_create_route = exact_x_create_route(method, path)
+    if prepared_create_route != exact_create_route:
+        raise AmbiguousRemotePostOutcome(
+            "Prepared and literal X create-route classifications disagree",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    is_post_create = prepared_create_route == "tweet"
+    is_media_upload = prepared_create_route == "media"
     method_upper = str(method).upper()
     if (is_post_create or is_media_upload) and exact_create_route is None:
         raise AmbiguousRemotePostOutcome(
@@ -5776,17 +5817,14 @@ def upload_media(image_path: str, *, lane: str) -> str:
 def unresolved_conversational_reply_receipt_is_blocking() -> bool:
     """Return whether a reply receipt forbids another remote write."""
     status, _receipt = load_confirmed_reply_receipt()
-    return status in {"sending", "invalid"}
+    return status != "absent"
 
 
 def unresolved_main_post_attempt_is_blocking() -> bool:
     """Return whether a main-post attempt forbids another remote write."""
     regular_status, _regular = load_regular_post_receipt()
     meme_status, _meme = load_meme_post_receipt()
-    return regular_status in {"sending", "invalid"} or meme_status in {
-        "sending",
-        "invalid",
-    }
+    return regular_status != "absent" or meme_status != "absent"
 
 
 def remote_write_safety_incident_is_latched() -> bool:
@@ -6179,6 +6217,9 @@ def resume_interrupted_source_receipt_retirement_if_present() -> bool:
                 HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
                 HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
                 mutation_authority_provider=transaction_mutation_authority,
+                retirement_uncertainty_callback=(
+                    latch_source_receipt_retirement_uncertainty
+                ),
             )._load_receipt_safely()
             receipt = loaded[0] if loaded is not None else None
             receipt_bytes = loaded[1] if loaded is not None else b""
@@ -6227,27 +6268,27 @@ def resume_source_receipt_retirement_for_control_snapshot(
         raise
 
 
+def latch_source_receipt_retirement_uncertainty() -> None:
+    """Keep this process fail closed after any uncertain receipt retirement."""
+
+    global _AMBIGUOUS_REMOTE_POST_SEEN
+    _AMBIGUOUS_REMOTE_POST_SEEN = True
+
+
 def retire_current_source_receipt(
     receipt_path: Path,
     expected_receipt_bytes: bytes,
 ) -> None:
     """Resume a prepared removal, or start retirement when no journal existed."""
 
-    if retirement_auxiliary_barrier_exists(receipt_path):
-        resume_interrupted_receipt_retirement(
-            receipt_path,
-            mutation_authority=transaction_mutation_authority(
-                "source receipt retirement resume"
-            ),
-        )
-    else:
-        retire_exact_receipt(
-            receipt_path,
-            expected_receipt_bytes,
-            mutation_authority=transaction_mutation_authority(
-                "source receipt retirement"
-            ),
-        )
+    retire_or_resume_exact_receipt(
+        receipt_path,
+        expected_receipt_bytes,
+        mutation_authority=transaction_mutation_authority(
+            "source receipt exact retirement"
+        ),
+        on_retirement_uncertainty=latch_source_receipt_retirement_uncertainty,
+    )
 
 
 def block_if_remote_receipt_retirement_exists() -> None:
@@ -6641,13 +6682,14 @@ def block_if_ambiguous_remote_post(
             "receipts or attempt records",
             service="x",
         )
+    local_main_reconciliation_authorised = bool(
+        allow_confirmed_pending_schedule_reconciliation
+        and confirmed_main_receipt_is_sole_local_recovery_barrier()
+    )
     block_if_remote_write_safety_incident_latched()
     block_if_remote_receipt_retirement_exists()
     if prepared_transport_authority is None:
-        if not (
-            allow_confirmed_pending_schedule_reconciliation
-            and confirmed_main_receipt_is_sole_local_recovery_barrier()
-        ):
+        if not local_main_reconciliation_authorised:
             block_if_remote_write_transport_journal_exists()
     else:
         expected_journal = Path(prepared_transport_authority.journal_path)
@@ -6684,11 +6726,11 @@ def block_if_ambiguous_remote_post(
         ("meme", meme_status, meme_receipt),
     ]
     for lane_name, status, receipt in blocking_main_receipts:
-        if status not in {"sending", "pending_schedule", "invalid"}:
+        if status == "absent":
             continue
         if (
-            status == "pending_schedule"
-            and allow_confirmed_pending_schedule_reconciliation
+            status in {"pending_schedule", "valid"}
+            and local_main_reconciliation_authorised
         ):
             # Main-lane entry points may pass this narrow exception solely to
             # reach their local receipt reconciler.  Every remote-create
@@ -6739,9 +6781,9 @@ def block_if_ambiguous_remote_post(
                 "durable sending receipt",
                 service="x",
             )
-    elif status in {"sending", "invalid"}:
+    elif status != "absent":
         raise AmbiguousRemotePostOutcome(
-            "An unresolved conversational-reply sending or invalid receipt blocks "
+            "An unresolved conversational-reply source receipt blocks "
             f"further posting: {CONFIRMED_REPLY_RECEIPT_FILE}",
             service="x",
         )
@@ -7262,6 +7304,9 @@ def durable_remote_write_safety_barrier_exists() -> bool:
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
             mutation_authority_provider=transaction_mutation_authority,
+            retirement_uncertainty_callback=(
+                latch_source_receipt_retirement_uncertainty
+            ),
         )._load_receipt_safely()
         if historical_loaded is not None and (
             HistoricalContextReplyStore._valid_sending_receipt(
@@ -10487,6 +10532,9 @@ def maybe_post_historical_context_reply(
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
             mutation_authority_provider=transaction_mutation_authority,
+            retirement_uncertainty_callback=(
+                latch_source_receipt_retirement_uncertainty
+            ),
         )
         if not dry_run:
             # Reconcile before every policy/configuration exit. A durable
@@ -10859,6 +10907,9 @@ def recover_interrupted_historical_context_attempt(
         HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         mutation_authority_provider=transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            latch_source_receipt_retirement_uncertainty
+        ),
     )
     # The sending receipt is the authoritative ambiguity barrier.  It must be
     # reconciled (confirmed, definitely failed, or left ambiguous) before an
@@ -11663,6 +11714,9 @@ def reconcile_confirmed_transactions_before_global_barrier(
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
             mutation_authority_provider=transaction_mutation_authority,
+            retirement_uncertainty_callback=(
+                latch_source_receipt_retirement_uncertainty
+            ),
         )._load_receipt_safely()
         needs_transport_promotion = bool(
             loaded is not None
@@ -11708,6 +11762,9 @@ def reconcile_confirmed_transactions_before_global_barrier(
                 HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
                 HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
                 mutation_authority_provider=transaction_mutation_authority,
+                retirement_uncertainty_callback=(
+                    latch_source_receipt_retirement_uncertainty
+                ),
             ).promote_sending_receipt_from_confirmed_transport(
                 source_receipt,
                 reply_post_id=details.post_id,
@@ -11726,6 +11783,9 @@ def reconcile_confirmed_transactions_before_global_barrier(
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
             mutation_authority_provider=transaction_mutation_authority,
+            retirement_uncertainty_callback=(
+                latch_source_receipt_retirement_uncertainty
+            ),
         )
         result["historical_context"] = (
             store.reconcile_confirmed_receipt_if_present()
@@ -19169,7 +19229,9 @@ def run_test_post_quote() -> int:
 
     acquire_instance_lock()
     reconcile_runtime_historical_context_state()
-    block_if_ambiguous_remote_post()
+    block_if_ambiguous_remote_post(
+        allow_confirmed_pending_schedule_reconciliation=True
+    )
 
     log.info("Running one test quote/image post cycle")
     state = load_runtime_state()

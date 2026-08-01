@@ -33,7 +33,7 @@ import re
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Callable, Final
 
 from transaction_mutation_authority import (
     TransactionMutationAuthority,
@@ -1207,6 +1207,42 @@ def retire_exact_receipt(
         independently_authorised_absence=independently_authorised_absence,
         require_interrupted=False,
     )
+
+
+def retire_or_resume_exact_receipt(
+    source_path: Path,
+    expected_receipt_bytes: bytes,
+    *,
+    mutation_authority: TransactionMutationAuthority,
+    on_retirement_uncertainty: Callable[[], None] | None = None,
+) -> ReceiptRetirementResult:
+    """Retire one source through the shared fail-closed call boundary.
+
+    A final namespace unlink can complete before the parent-directory fsync
+    reports failure.  In that state the pathname barriers may all be absent,
+    so callers cannot rely on a later namespace scan to stop remote work.
+    Every application call path therefore uses this one wrapper and supplies
+    its current-process incident latch callback.  The callback is deliberately
+    invoked for every retirement exception: distinguishing a harmless error
+    from an uncertain namespace transition after the fact would itself be an
+    unsafe availability optimisation.
+    """
+
+    try:
+        if retirement_auxiliary_barrier_exists(source_path):
+            return resume_interrupted_receipt_retirement(
+                source_path,
+                mutation_authority=mutation_authority,
+            )
+        return retire_exact_receipt(
+            source_path,
+            expected_receipt_bytes,
+            mutation_authority=mutation_authority,
+        )
+    except BaseException:
+        if on_retirement_uncertainty is not None:
+            on_retirement_uncertainty()
+        raise
 
 
 def resume_interrupted_receipt_retirement(

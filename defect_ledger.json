@@ -13,7 +13,7 @@
       "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
       "tree": "b83abb7af53f925eb8686825e09f4654a55ff40a",
       "as_of": "2026-08-01",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0046. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0048. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
       "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0046, remain external and unfixed in ledger truth until merge and post-merge regeneration."
+      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0048, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0046 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0048 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -78,7 +78,7 @@
   },
   "markdown": {
     "title": "MrsMThatcher defect ledger",
-      "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related runtime, liveness and release-assurance gaps through the exact 7ebcc096 release base.",
+      "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related runtime, liveness and release-assurance gaps through the exact 7ebcc096 release base, including later evidence-backed discovery against that frozen cutoff.",
     "source_of_truth": "defect_ledger.json",
     "sort_key": "id",
     "unknown_policy": "Render the literal word unknown and its recorded explanation; never infer a missing commit, deployment or test.",
@@ -5733,6 +5733,255 @@
           "DEF-0027",
           "DEF-0028",
           "DEF-0030"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0047",
+      "title": "Path-bearing X bases could desynchronise prepared and literal create-route classification",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-endpoint-authority-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-API-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "X API base configuration",
+        "X upload base configuration",
+        "prepared request route classification",
+        "literal create-route authority"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "README.md",
+        "tests/test_integration_harness.py",
+        "tests/test_x_write_outcome_conservatism.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The defect was reproduced with synthetic path-bearing X base values and a local transport sentinel. No network, X, provider, service or production action occurred.",
+        "explanation": "This is a cutoff-bound configuration and route-classification reproducer, not evidence that production used a path-bearing endpoint or bypassed an authority check."
+      },
+      "summary": "At 7ebcc096, X API and upload bases could contain path components which were combined with literal endpoint paths. Create-route authority was decided from the Requests-prepared URL, while other checks and error identity continued to use the caller's literal path. A path-bearing base could therefore make those classifications disagree at the protected tweet or media create boundary.",
+      "impact": "A configured path prefix, query, fragment or user-information component could make one layer treat a request as a protected create while another did not, weakening the exact receipt-authority and conservative-write checks at a public transport boundary.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The mismatch was established against the exact 7ebcc096 evidence cutoff. Its introducing commit and an earlier good implementation were not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Post-cutoff adversarial review combined path-bearing X bases with protected create paths and established disagreement between prepared and literal route identity at 7ebcc096.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Synthetic origin/path configuration and pre-transport route-classification fixture"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "X API and upload base parsing, prepared Requests URL normalisation, literal path classification, tweet-create and v2 media-create preflight.",
+        "exclusions": "The separate xAI provider base intentionally includes /v1 and was not treated as an X public-create origin. No live endpoint was contacted.",
+        "source": "Focused endpoint-authority review of the frozen cutoff"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Supply X API or upload bases with paths and compare the caller's literal protected endpoint with the URL path produced by Requests preparation before allowing any transport.",
+        "reproducer": "A prefixed X base changes the prepared URL path for POST /2/tweets or POST /2/media/upload while the literal caller path remains a protected create route.",
+        "source": "Focused origin-only and prepared/literal route regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An external post-cutoff candidate requires X API and upload values to be origins only and refuses tweet or media transport when prepared and literal create-route classifications disagree, while preserving the versioned xAI provider base. It remains unresolved in ledger truth until committed and externally attested."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "No descendant repair is recorded as deployed. Production remained observed at be882e81 and was not inspected or changed by this focused review."
+      },
+      "residual_risk": "Until a descendant repair is frozen and attested, release validation must reject path-bearing X API/upload bases and cannot rely on prepared and literal create-route identity agreeing by construction.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:mrsMThatcher2.py",
+          "claim": "The cutoff normaliser accepts and rewrites path-bearing X bases, and prepared request classification is derived from the concatenated base and caller path."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_x_api_bases_must_be_origin_only",
+          "claim": "The external post-cutoff candidate regression rejects path, query, fragment and user-information components for X API/upload bases."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_prepared_and_literal_create_routes_must_agree",
+          "claim": "The external post-cutoff candidate regression refuses tweet and media transport when prepared and literal create-route classifications disagree."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments",
+          "claim": "The external post-cutoff integration fixture rejects formerly tolerated path-bearing X endpoint overrides before transport."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision accepting path-bearing X create bases was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier origin-only implementation was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The current repair and focused tests are uncommitted candidate material and require external frozen-candidate attestation."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0036",
+          "DEF-0038",
+          "DEF-0039"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0048",
+      "title": "Accepted legacy confirmed receipts could leave auxiliary provider work unblocked",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-legacy-receipt-global-barrier-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "legacy full regular receipt",
+        "legacy full meme receipt",
+        "confirmed conversational-reply receipt",
+        "global auxiliary provider barrier",
+        "scheduler preflight"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "tests/test_unit_helpers.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "provider-request",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The defect was reproduced with synthetic, schema-valid legacy regular, meme and confirmed reply receipts in an isolated state directory. No network, X, provider, service or production action occurred.",
+        "explanation": "This establishes an omitted global barrier state, not a live duplicate or provider incident."
+      },
+      "summary": "At 7ebcc096, the global helper classified only sending and invalid regular, meme and conversational receipts as blocking. Schema-valid legacy full or confirmed receipts were accepted as locally reconcilable and therefore did not block unrelated auxiliary provider work or the global scheduler predicate before that local reconciliation completed.",
+      "impact": "A scheduler or provider lane could begin while one or more confirmed source receipts still required durable local reconciliation. Multiple simultaneous accepted receipts could therefore coexist with auxiliary work even though the transaction policy requires unresolved source state to block unrelated remote activity.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The accepted-receipt barrier omission was established against the exact 7ebcc096 evidence cutoff. Its introducing commit was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Focused cutoff review installed simultaneous valid legacy regular, meme and confirmed conversational receipts and found the global auxiliary barrier open at 7ebcc096.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Synthetic simultaneous accepted-receipt preflight fixture with a clean-state negative control"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Global main and conversational receipt predicates for accepted legacy full/confirmed states, simultaneous receipt combinations, auxiliary provider preflight and clean-state false-positive behaviour.",
+        "exclusions": "The test did not perform local reconciliation, contact a provider, call X, alter production state or infer a production incident.",
+        "source": "Focused accepted-receipt global-barrier review of the frozen cutoff"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Persist schema-valid legacy full regular and meme receipts plus a confirmed conversational receipt, prove each reader accepts its record, then evaluate the global barrier and auxiliary provider preflight before reconciliation.",
+        "reproducer": "All three accepted receipts remained present while unresolved_main_post_attempt_is_blocking and unresolved_conversational_reply_receipt_is_blocking returned false.",
+        "source": "Focused simultaneous accepted-receipt regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An external post-cutoff candidate treats every non-absent main or conversational source receipt as a global barrier and permits only a narrow sole-owner main receipt exception to reach local reconciliation. It remains unresolved in ledger truth until committed and externally attested."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "No descendant repair is recorded as deployed. Production remained observed at be882e81 and was not inspected or changed by this focused review."
+      },
+      "residual_risk": "Until a descendant repair is frozen and attested, an accepted legacy full or confirmed source receipt cannot be treated as globally resolved merely because it is valid enough for local replay.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:mrsMThatcher2.py",
+          "claim": "The cutoff global predicates return blocking only for sending or invalid main and conversational receipt statuses, excluding accepted full/confirmed states."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "claim": "The external post-cutoff candidate regression keeps auxiliary provider preflight closed while accepted regular, meme and conversational source receipts await reconciliation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_fully_reconciled_receipt_namespace_does_not_create_false_barrier",
+          "claim": "The paired negative control proves a fully reconciled empty receipt namespace does not create a false global barrier."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision which excluded accepted legacy full/confirmed states from the global barrier was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was established as blocking every unresolved accepted source receipt globally."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The current repair and focused tests are uncommitted candidate material and require external frozen-candidate attestation."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0036",
+          "DEF-0041",
+          "DEF-0043"
         ]
       }
     }
