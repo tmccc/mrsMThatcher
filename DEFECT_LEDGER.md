@@ -18,18 +18,18 @@ independently reproduced candidate-lineage defects.
 - Ledger evidence cut-off commit: `4e548b0a5723a1f0c75e9646953b3f92c7db89ad`
 - Ledger evidence cut-off tree: `a751f4b488ee20d268a082c7daf835d5786e7e23`
 - Evidence valid through: `2026-08-01`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0060. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0062. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.
 - Status-claim boundary: Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 4e548b0a are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0060, remain external and unfixed in ledger truth until merge and post-merge regeneration.
+- Candidate identity rule: The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0062, remain external and unfixed in ledger truth until merge and post-merge regeneration.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0060 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0062 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
 
 ## Status taxonomy
 
@@ -147,6 +147,8 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0058` | runtime-defect | `mrsMThatcher2.py`; `historical_context_outbox.py`; `tests/test_x_write_outcome_conservatism.py` | `historical-context-reply`; `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `media-upload`; `cross-cutting-remote-write-barrier` | false — This establishes that an outbox-only possibly transmitted attempt could fail to block another lane; it does not establish that a deployed historical-context reply or unrelated remote write was repeated. Evidence: The barrier gap was reproduced with isolated outbox state after removing independent source-receipt and transport-journal authority and making the historical-context runtime unavailable. No remote transport, network, production state, X or provider was accessed. |
 | `DEF-0059` | runtime-defect | `mrsMThatcher2.py`; `tests/test_followup_fail_safe_hardening.py` | `production-bootstrap`; `scheduler-state-recovery`; `ordinary-cycle-history`; `regular-quote-image-post`; `daily-meme-post` | false — This establishes acceptance or following of under-proved local filesystem authority; it does not establish that deployed state or history was substituted or corrupted. Evidence: The namespace gaps were reproduced with isolated symlink, multi-link, ownership and same-inode mutation fixtures for required installation state and used histories. No production file, service, network, X or provider was accessed. |
 | `DEF-0060` | runtime-defect | `exact_receipt_retirement.py`; `mrsMThatcher2.py`; `remote_write_safety_protocol.py`; `tools/activate_remote_write_safety_protocol.py`; `tests/test_exact_receipt_retirement.py`; `tests/test_followup_fail_safe_hardening.py`; `tests/test_remote_write_safety_second_restart.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `production-bootstrap`; `cross-cutting-remote-write-barrier` | false — This establishes a safety-proof gap at the evidence cut-off and a separate availability deadlock in the first post-cutoff ledger proposal; it does not establish that a deployed post was duplicated or that a production startup was stranded. Evidence: The missing permanent completion authority and the post-cutoff startup ordering problem were established with isolated receipt namespaces, crash injection and fresh-process fixtures. No production durable file, remote transport, network, X or provider was accessed. |
+| `DEF-0061` | runtime-defect | `mrsMThatcher2.py`; `tests/test_fail_safe_bootstrap_and_control.py` | `production-bootstrap`; `command-line-dispatch`; `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply` | false — This establishes that invalid invocation could start normal operation or perform import-time local construction, and that an explicit dispatcher argv could disagree with process-wide mode authority; it does not establish that an invalid production invocation actually posted or changed deployed state. Evidence: The fall-through, import-before-rejection boundary and explicit-argv/global-mode disagreement were reproduced against the exact cutoff with isolated command-line drivers, literal child processes and local operational recorders. No production state, network, X, provider or remote transport was accessed. |
+| `DEF-0062` | runtime-defect | `tools/activate_remote_write_safety_protocol.py`; `mrsMThatcher2.py`; `tests/test_remote_write_safety_second_restart.py` | `offline-protocol-activation`; `production-bootstrap`; `cross-cutting-remote-write-barrier` | false — The cutoff activator could publish an activation pair over the known interrupted install, but the runtime still rejected the installation sentinel. This is a false clean-state attestation and availability problem, not evidence that remote-write fail-closed behavior opened. Evidence: The omission was reproduced in an isolated state directory containing the real interrupted-installation sentinel and the minimum established files required by the stopped activator. No production state, service, remote transport, network, X or provider was accessed. |
 
 ## Chronology projection
 
@@ -279,6 +281,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0059` | 2026-08-01 | `4e548b0a` | Cutoff review replaced required state and used-history paths with symlinks and exercised unstable or non-single-link authorities, establishing that discovery and loading did not share one strict no-follow file-generation proof. | Isolated core-state symlink, owner/link and same-inode mutation matrix |
 | `DEF-0060` | 2026-08-01 | `4e548b0a` | Exact-cutoff source review established that the final cleanup path could unlink the last receipt-retirement auxiliary without publishing a permanent generation-bound completion record. | 4e548b0a exact_receipt_retirement.py final cleanup and all-absent inspection paths |
 | `DEF-0060` | 2026-08-01 | unknown | Post-cutoff crash injection against the proposed permanent ledger found that an exact recoverable exchange could be rejected as an incomplete installation before the daemon's authorised startup resumer was called. | Uncommitted startup ledger-exchange ordering regression and fresh-process recovery fixtures |
+| `DEF-0061` | 2026-08-01 | `4e548b0a` | Exact-cutoff CLI review supplied unknown, positional, duplicate and multiple-mode argument vectors and observed that they were not rejected as one complete command before import-time construction and operational dispatch; it also established that explicit dispatcher argv was not bound to the process argv which created mode-sensitive globals. | Isolated complete-argv parser and literal-subprocess dispatch matrix |
+| `DEF-0062` | 2026-08-01 | `4e548b0a` | Exact-cutoff activator review placed .mrsMThatcher.initialising.json beside otherwise acceptable established state and observed that the clean-state refusal inventory did not cover it before activation publication. | Isolated first-activation, pre-ledger, current and audit-only activation-state matrix |
 
 ## Summary
 
@@ -344,6 +348,8 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0058` | active | critical | Remote-started historical-context outbox attempts were absent from the global remote-write barrier | `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
 | `DEF-0059` | active | critical | Core state and used-history readers followed or incompletely proved filesystem authorities | `INV-TXN-HIST-001`, `INV-PROC-002` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
 | `DEF-0060` | active | critical | Exact source-receipt retirement lacked a permanent completion proof and recoverable ledger exchanges could block startup | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0061` | active | critical | Command-line authority was parsed late, incompletely and inconsistently | `INV-PROC-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0062` | active | high | Stopped protocol activation omitted the interrupted-installation sentinel | `INV-TXN-RECEIPT-001`, `INV-PROC-002` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
 
 ## Records
 
@@ -1099,6 +1105,33 @@ malformed or unrelated ledger states remain blocking. No fixing commit is
 inside the evidence boundary, so the defect remains active; arbitrary hostile
 same-UID namespace mutation is outside the cooperative/crash safety claim.
 
+### DEF-0061 — Command-line authority was parsed late, incompletely and inconsistently
+
+At `4e548b0a`, command modes were independent membership tests over `sys.argv`.
+Unknown and positional arguments could fall through to the production daemon,
+duplicates were indistinguishable from one flag and simultaneous documented
+modes were resolved by source order instead of rejected. Review of the first
+post-cutoff repair also found that rejection happened only after full module
+import and that a programmatically supplied argv could disagree with the
+import-time mode flags used by bootstrap. The current uncommitted proposal
+validates the real process argv before application imports, requires an exact
+zero-or-one-mode grammar and refuses any explicit argv which differs from the
+process command line. No fixing commit is inside the ledger boundary, so the
+critical defect remains active and undeployed.
+
+### DEF-0062 — Interrupted-installation activation exclusion
+
+At `4e548b0a`, the stopped remote-write protocol activator's exact refused-state
+inventory omitted `.mrsMThatcher.initialising.json`. An interrupted first
+installation with the activator's narrower required files could therefore
+receive a schema-3 activation pair and misleading clean-state attestation.
+Runtime installation validation still rejected the sentinel, so this produced
+false assurance and fail-closed availability obstruction rather than opening a
+remote-write lane. The current uncommitted proposal refuses the sentinel before
+any activation mutation for absent, pre-ledger, current and audit-only states.
+No fixing commit is inside the ledger boundary; the defect remains active and
+undeployed.
+
 ## Unknown-value policy
 
 The following are intentionally unknown rather than inferred:
@@ -1112,7 +1145,7 @@ The following are intentionally unknown rather than inferred:
 - `DEF-0040` through `DEF-0043` and `DEF-0046` through `DEF-0051`: introduction
   bounds remain unknown, but their exact fixing commits, fix parents and bound
   regressions are recorded rather than inferred.
-- `DEF-0044`, `DEF-0045`, and `DEF-0052` through `DEF-0059`: introduction and
+- `DEF-0044`, `DEF-0045`, and `DEF-0052` through `DEF-0062`: introduction and
   fix commits remain unknown. Their explicit unfixed ranges end at exact
   evidence cut-off `4e548b0a` until post-merge regeneration records a fix.
 

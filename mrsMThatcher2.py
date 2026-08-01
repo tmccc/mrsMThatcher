@@ -4,6 +4,57 @@
 
 from __future__ import annotations
 
+import sys
+
+
+DOCUMENTED_CLI_MODE_FLAGS = (
+    "--initialise",
+    "--self-test",
+    "--test-cycle",
+    "--test-main-tick",
+    "--test-post-quote",
+    "--test-post-meme",
+)
+CLI_USAGE = (
+    "usage: mrsMThatcher2.py ["
+    + " | ".join(DOCUMENTED_CLI_MODE_FLAGS)
+    + "]"
+)
+
+
+class CliUsageError(ValueError):
+    """The command line is not one exact documented execution mode."""
+
+
+def parse_cli_mode(argv: list[str] | tuple[str, ...]) -> str | None:
+    """Return the sole requested mode, rejecting every ambiguous argv."""
+
+    arguments = tuple(argv)
+    if not arguments:
+        return None
+    if len(arguments) != 1:
+        raise CliUsageError(
+            "exactly one documented command mode may be supplied"
+        )
+    mode = arguments[0]
+    if type(mode) is not str or mode not in DOCUMENTED_CLI_MODE_FLAGS:
+        raise CliUsageError(f"unknown command mode: {mode!r}")
+    return mode
+
+
+# A directly executed bot validates its complete argv before importing third-
+# party or application modules, constructing runtime globals, inspecting
+# credentials, configuring logging, or touching the filesystem.  Imports used
+# by tests and tools remain side-effect compatible with ordinary Python module
+# loading; their callable entry point separately requires the supplied argv to
+# equal the process argv.
+if __name__ == "__main__":
+    try:
+        parse_cli_mode(sys.argv[1:])
+    except CliUsageError as exc:
+        print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
+
 import html
 import copy
 import errno
@@ -22,7 +73,6 @@ import signal
 import socket
 import stat
 import struct
-import sys
 import tempfile
 import threading
 from collections.abc import Callable
@@ -120,7 +170,6 @@ TEST_POST_QUOTE_REQUESTED = "--test-post-quote" in sys.argv
 TEST_POST_MEME_REQUESTED = "--test-post-meme" in sys.argv
 INITIALISE_REQUESTED = "--initialise" in sys.argv
 TEST_MODE = os.getenv("MRS_TEST_MODE") == "1"
-
 
 # ---------------------------------------------------------------------
 # Quote/image posting schedule
@@ -21402,22 +21451,46 @@ def run_test_post_meme() -> int:
     return 0
 
 
+def run_cli(argv: list[str] | tuple[str, ...] | None = None) -> int | None:
+    """Validate one complete command line, then bootstrap and dispatch it."""
+
+    process_arguments = tuple(sys.argv[1:])
+    arguments = process_arguments if argv is None else tuple(argv)
+    try:
+        if argv is not None and arguments != process_arguments:
+            raise CliUsageError(
+                "explicit argv must exactly match the process command line"
+            )
+        mode = parse_cli_mode(arguments)
+    except CliUsageError as exc:
+        print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
+        return 2
+
+    # Argument validation is deliberately complete before this call.  No
+    # invalid or ambiguous argv may reach configuration loading, the instance
+    # lock, durable state, or any remote-operation boundary.
+    production_bootstrap()
+    if mode == "--initialise":
+        return initialise_installation()
+    if mode == "--self-test":
+        return run_self_test()
+    if mode == "--test-cycle":
+        return run_test_cycle()
+    if mode == "--test-main-tick":
+        return run_test_main_tick()
+    if mode == "--test-post-quote":
+        return run_test_post_quote()
+    if mode == "--test-post-meme":
+        return run_test_post_meme()
+    main()
+    return None
+
+
 if __name__ == "__main__":
     try:
-        production_bootstrap()
-        if INITIALISE_REQUESTED:
-            sys.exit(initialise_installation())
-        if SELF_TEST_REQUESTED:
-            sys.exit(run_self_test())
-        if TEST_CYCLE_REQUESTED:
-            sys.exit(run_test_cycle())
-        if TEST_MAIN_TICK_REQUESTED:
-            sys.exit(run_test_main_tick())
-        if TEST_POST_QUOTE_REQUESTED:
-            sys.exit(run_test_post_quote())
-        if TEST_POST_MEME_REQUESTED:
-            sys.exit(run_test_post_meme())
-        main()
+        cli_status = run_cli()
+        if cli_status is not None:
+            sys.exit(cli_status)
     except KeyboardInterrupt:
         log.warning("Bot stopped by KeyboardInterrupt")
     except Exception:

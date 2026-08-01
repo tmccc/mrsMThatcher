@@ -13,7 +13,7 @@
       "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
       "tree": "a751f4b488ee20d268a082c7daf835d5786e7e23",
       "as_of": "2026-08-01",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0060. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0062. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.",
       "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 4e548b0a are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0060, remain external and unfixed in ledger truth until merge and post-merge regeneration."
+      "explanation": "The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0062, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0060 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0062 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -7886,6 +7886,264 @@
           "DEF-0054",
           "DEF-0056",
           "DEF-0058"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0061",
+      "title": "Command-line authority was parsed late, incompletely and inconsistently",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-cli-dispatch-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-PROC-001"
+      ],
+      "components": [
+        "top-level command-line parsing",
+        "pre-import argv validation",
+        "import-time mode globals and logging construction",
+        "explicit run_cli argv authority",
+        "one-shot mode dispatch",
+        "production bootstrap",
+        "operational daemon entry",
+        "remote scheduler activation"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "tests/test_fail_safe_bootstrap_and_control.py"
+      ],
+      "runtime_lanes": [
+        "production-bootstrap",
+        "command-line-dispatch",
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The fall-through, import-before-rejection boundary and explicit-argv/global-mode disagreement were reproduced against the exact cutoff with isolated command-line drivers, literal child processes and local operational recorders. No production state, network, X, provider or remote transport was accessed.",
+        "explanation": "This establishes that invalid invocation could start normal operation or perform import-time local construction, and that an explicit dispatcher argv could disagree with process-wide mode authority; it does not establish that an invalid production invocation actually posted or changed deployed state."
+      },
+      "summary": "At 4e548b0a, mode selection was implemented as independent membership tests against sys.argv. Unknown arguments were ignored, duplicate modes were not rejected and multiple documented modes selected the first matching branch. When no recognised branch terminated the process, a healthy installation proceeded to operational main instead of returning a usage error. Any later rejection still occurred only after the complete module import had already constructed logging and other mode-sensitive globals. A callable dispatcher taking explicit argv could also select a mode different from the import-time sys.argv used to derive global mode and bootstrap decisions.",
+      "impact": "An operator typo, unsupported positional argument, duplicated flag or simultaneous mode selection could run the production scheduler rather than fail closed. If the installation was otherwise healthy and work was due, the unintended process could reach remote-write lanes despite the caller having supplied an invalid command. Even a rejected invocation could create local logging or other import-time side effects first, while divergent explicit and process argv could make dispatch authority disagree with the configuration and safeguards established during import.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The first revision using independent sys.argv membership flags without one complete grammar was not reconstructed; the behavior is established at exact 4e548b0a."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Exact-cutoff CLI review supplied unknown, positional, duplicate and multiple-mode argument vectors and observed that they were not rejected as one complete command before import-time construction and operational dispatch; it also established that explicit dispatcher argv was not bound to the process argv which created mode-sensitive globals.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated complete-argv parser and literal-subprocess dispatch matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Every documented daemon and one-shot mode, unknown and positional arguments, duplicate flags, simultaneous modes, pre-import side effects, explicit-versus-process argv authority, bootstrap ordering and operational-entry reachability.",
+        "exclusions": "The review replaced operational entry points with local recorders and made no production, service, network, X or provider action.",
+        "source": "Independent exact-4e548b0a command-line dispatch review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Invoke the cutoff module with each invalid complete argv shape as the real script and through an isolated dispatcher, instrument filesystem/log creation, bootstrap and every operational mode, then call the explicit-argv dispatcher with process argv naming a different mode.",
+        "reproducer": "Unknown and positional arguments could leave every mode flag false and reach main; duplicates were indistinguishable from one flag; simultaneous modes selected a branch by source order; rejection could occur only after import-time construction; and explicit dispatcher argv could disagree with the sys.argv-derived mode globals used before dispatch.",
+        "source": "Focused CLI grammar and dispatch fault matrix"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An uncommitted post-cutoff candidate proposal validates the real script argv before importing the operational module, parses the complete argv against one exact allowlist, rejects unknown, positional, duplicate and multiple modes with status 2, and refuses an explicit dispatcher argv which differs from the process argv that established import-time mode authority. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "not-established",
+        "evidence": "The CLI fall-through is established at the 4e548b0a evidence cut-off. The complete-parser proposal remains uncommitted post-cutoff material; no production invocation or deployment was inspected or changed."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, every invocation must be treated as operational unless its complete process argv is independently verified before module import to contain exactly zero or one supported mode and no other argument, and any explicit dispatcher argv is proved identical to that process authority.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff derives independent Boolean mode flags during full module import from sys.argv membership, constructs logging and globals before top-level dispatch, and reaches main when no earlier recognised branch exits."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_cli_parser_rejects_unknown_duplicate_and_multiple_modes",
+          "claim": "The post-cutoff candidate regression requires one exact parser to reject unknown, positional, duplicate and simultaneous command modes."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_literal_subprocess_rejects_complete_invalid_argv_before_bootstrap",
+          "claim": "Literal candidate child processes must return usage status 2 for every invalid complete argv before production bootstrap or operational dispatch."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_invalid_cli_argv_reaches_no_bootstrap_or_operational_boundary",
+          "claim": "The candidate in-process regression instruments every dispatch boundary and requires invalid argv to reach none of them."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_real_script_rejects_invalid_argv_before_import_side_effects",
+          "claim": "The candidate real-script regression requires each invalid argv to return usage status before importing the operational module, creating its configured base directory or opening its configured log."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_run_cli_refuses_mode_different_from_process_argv_before_bootstrap",
+          "claim": "The candidate dispatcher regression requires explicit argv to match the process argv which established mode-sensitive import authority before bootstrap or any operational boundary."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision whose command-line mode flags ignored the complete argv grammar was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier exact complete-argv parser and dispatcher was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The complete CLI parser and dispatch changes remain uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0045",
+          "DEF-0056"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0062",
+      "title": "Stopped protocol activation omitted the interrupted-installation sentinel",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-activation-interrupted-install-review",
+      "status": "active",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-TXN-RECEIPT-001",
+        "INV-PROC-002"
+      ],
+      "components": [
+        "stopped remote-write protocol activator",
+        ".mrsMThatcher.initialising.json",
+        "clean-state refusal inventory",
+        "schema-3 activation publication",
+        "runtime installation completeness check"
+      ],
+      "affected_files": [
+        "tools/activate_remote_write_safety_protocol.py",
+        "mrsMThatcher2.py",
+        "tests/test_remote_write_safety_second_restart.py"
+      ],
+      "runtime_lanes": [
+        "offline-protocol-activation",
+        "production-bootstrap",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The omission was reproduced in an isolated state directory containing the real interrupted-installation sentinel and the minimum established files required by the stopped activator. No production state, service, remote transport, network, X or provider was accessed.",
+        "explanation": "The cutoff activator could publish an activation pair over the known interrupted install, but the runtime still rejected the installation sentinel. This is a false clean-state attestation and availability problem, not evidence that remote-write fail-closed behavior opened."
+      },
+      "summary": "At 4e548b0a, the stopped activation tool's exact refused-state inventory did not include .mrsMThatcher.initialising.json. If an interrupted first-install namespace also contained the three established files inspected by the activator, it could publish a protocol activation pair and describe the remote-write state as clean even though installation initialisation was explicitly incomplete. Runtime establishment continued to reject the sentinel, so remote writes remained fail closed.",
+      "impact": "The activation artefact could falsely attest that a known incomplete installation was eligible for activation, then leave the operator with a schema-3 activated namespace that the runtime correctly refused to start. That creates a misleading offline assurance record and an avoidable fail-closed availability obstruction, but it does not by itself bypass runtime installation validation or authorise an X action.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The first stopped-activator revision whose clean-state inventory omitted the first-install sentinel was not reconstructed; the omission is established at exact 4e548b0a."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Exact-cutoff activator review placed .mrsMThatcher.initialising.json beside otherwise acceptable established state and observed that the clean-state refusal inventory did not cover it before activation publication.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated first-activation, pre-ledger, current and audit-only activation-state matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Stopped activation clean-state inventory, interrupted first-install sentinel, every supported activation generation, pre-publication mutation boundaries and runtime installation refusal.",
+        "exclusions": "Runtime installation validation remained fail closed and no live activation, production state, service, X or provider was touched.",
+        "source": "Independent exact-4e548b0a stopped-activation state review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Construct each absent, pre-ledger, current and current-audit-only activation namespace with a durable interrupted-installation sentinel, snapshot the activation transaction namespace, and invoke the real stopped activator.",
+        "reproducer": "At the cutoff, .mrsMThatcher.initialising.json was not a refused exact basename, so it did not prevent the activator from proceeding once the narrower established-state and remote-transaction checks passed.",
+        "source": "Focused stopped-activation interrupted-install matrix"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An uncommitted post-cutoff candidate proposal adds the exact interrupted-installation basename to the activator's immutable refused-state inventory and requires every activation generation to refuse it before any namespace mutation. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "not-established",
+        "evidence": "The clean-state inventory omission is established at the 4e548b0a evidence cut-off. The refusal change remains uncommitted post-cutoff material, and no production activation or runtime was inspected or changed."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, stopped activation must be preceded by an independent exact check that .mrsMThatcher.initialising.json is absent. Any presence or inspection uncertainty must refuse activation without changing the existing activation namespace.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:tools/activate_remote_write_safety_protocol.py",
+          "claim": "The cutoff REFUSED_STATE_BASENAMES omits .mrsMThatcher.initialising.json while activation publication relies on that inventory as its clean-state exclusion."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "Runtime required-installation validation independently treats the first-install sentinel as blocking, so the omission yields false activation and availability impact rather than an opened remote lane."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
+          "claim": "The post-cutoff candidate regression covers first activation, pre-ledger migration, current activation and audit-only recovery, requiring the sentinel to remain byte-for-byte and the entire activation namespace to remain unchanged."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first activator revision whose exact refusal inventory omitted the interrupted-installation sentinel was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier stopped activator with an exact interrupted-installation exclusion was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The activator refusal-inventory change remains uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0045",
+          "DEF-0056",
+          "DEF-0060"
         ]
       }
     }

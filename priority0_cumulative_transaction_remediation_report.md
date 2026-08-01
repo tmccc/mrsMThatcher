@@ -1,24 +1,30 @@
-# Priority-0 cumulative transaction remediation — pre-freeze record
+# Priority-0 cumulative transaction remediation — round-1 rejection and replacement record
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation before
-the exact candidate is frozen. It is candidate-side evidence, not an external
-release attestation or an independent review.
+This document records the cumulative transaction-safety implementation, the
+rejection of the first frozen candidate, and the uncommitted replacement
+repairs before a new exact candidate is frozen. It is candidate-side evidence,
+not an external release attestation or an independent review.
 
 - release and defect-ledger evidence-cut-off base:
   `4e548b0a5723a1f0c75e9646953b3f92c7db89ad`;
 - implementation parent:
   `5eb518b5e7790d6b74559fa5c24fe05c417ef0ce`;
-- final candidate commit and tree: supplied externally after the freeze and
-  deliberately not embedded in this self-referential document.
+- rejected round-1 candidate commit:
+  `f61230fbad22f2b697ed62df325c0e8c17004687`;
+- rejected round-1 candidate tree:
+  `c73ec605ae168d56f8d11690fb4706c5eb6e7051`;
+- replacement candidate commit and tree: pending freeze and deliberately not
+  embedded in this self-referential document.
 
 The ledger base fixes the evidence cut-off against which defect status is
 interpreted. The implementation parent is the immediate committed tree on
-which this cumulative working diff was built. The ledger therefore continues
-to mark post-cut-off repairs as uncommitted and unfixed. Neither identity is a
-claim that the pending candidate passed the complete suite, the external gate,
-independent review, deployment or loaded-process verification.
+which this cumulative work was built. The ledger therefore continues to mark
+post-cut-off repairs as uncommitted and unfixed. The rejected candidate
+identity is historical review evidence only. None of these identities is a
+claim that the pending replacement passed the complete suite, the external
+gate, independent review, deployment or loaded-process verification.
 
 ## Cumulative remediation
 
@@ -117,11 +123,62 @@ as empty. When primary state and the latest valid backup are semantically
 divergent, restart refuses to guess which is newer; the current schema has no
 monotonic generation identifier.
 
-## Exact-candidate adversarial review gate
+## Rejected round-1 exact-candidate review
 
-The final application candidate has not yet been frozen. Four concurrent
-read-only review lanes must inspect the exact committed tree after all report,
-registry and test changes are present:
+The first frozen candidate, commit
+`f61230fbad22f2b697ed62df325c0e8c17004687` and tree
+`c73ec605ae168d56f8d11690fb4706c5eb6e7051`, was rejected during its first
+four-lane adversarial review. The transaction, historical-context and
+full-diff lanes reported no additional finding against that exact tree. The
+activation/CLI lane found two defects:
+
+1. unknown, duplicate and multiple command-line arguments could fall through
+   to operational `main()` and acquire the instance lock instead of failing
+   before bootstrap;
+2. offline protocol activation did not refuse the interrupted-install sentinel
+   `.mrsMThatcher.initialising.json`, so it could publish a false clean
+   installation attestation even though runtime operation remained fail
+   closed.
+
+The candidate is rejected notwithstanding the three clean lane results. Those
+results apply only to the immutable rejected tree and do not qualify its
+replacement.
+
+## Uncommitted replacement repairs
+
+The working replacement validates the complete argument vector before
+`production_bootstrap`. A single parser/dispatcher permits only daemon mode
+with no argument or exactly one documented CLI mode; positional, unknown,
+duplicate and mixed forms return a usage failure without reaching bootstrap or
+an operational boundary.
+
+A repair-level adversarial review then found two further CLI boundaries before
+the replacement was frozen. First, validation performed only inside the
+callable dispatcher would still occur after third-party and application imports
+and their possible configuration, logging or filesystem side effects. Second,
+an explicit `run_cli` argument vector could disagree with the real process
+arguments from which import-time mode and bootstrap state had been derived.
+The uncommitted repair now parses a directly executed script's actual argument
+vector at the top of the file before those imports or side effects, and the
+callable entry point refuses an explicit vector unless it exactly equals
+`sys.argv[1:]`.
+
+The offline protocol activator now treats
+`.mrsMThatcher.initialising.json` as refused state. Four pre-mutation fixtures
+cover first activation, pre-ledger activation, current activation and current
+audit-only crash state, and prove that refusal leaves the activation audit and
+all ledger/exchange artefacts byte-for-byte unchanged.
+The repair-level adversarial review found no further activator defect.
+
+These are uncommitted replacement repairs. Their future commit and tree must be
+recorded externally after freeze; this report does not anticipate those
+identities.
+
+## Replacement exact-candidate adversarial review gate
+
+The replacement application candidate has not yet been frozen. Four concurrent
+read-only review lanes must restart from zero and inspect its exact committed
+tree after all report, registry and test changes are present:
 
 1. public-create transaction phases, crash/restart, exact retirement and ABA;
 2. historical-context outbox, source lineage and reconciliation;
@@ -129,12 +186,14 @@ registry and test changes are present:
 4. full-diff claims, registry/ledger bindings and omitted failure boundaries.
 
 If any lane finds a defect and the candidate changes, every lane must restart
-against the new exact commit. No earlier partial or pre-report audit is called
-final-candidate approval here.
+against the new exact commit. None of the three clean lanes from the rejected
+candidate qualifies the replacement, and no earlier partial or pre-report
+audit is called final-candidate approval here.
 
 ## Focused validation checkpoint
 
-The following non-additive focused batches pass on the current pre-freeze tree:
+The following non-additive focused batches passed before the rejected candidate
+was frozen:
 
 - ledger, journal, media and source retirement: 265 passed;
 - restart, bootstrap, pause and remote-outcome safety: 320 passed;
@@ -148,14 +207,26 @@ The following non-additive focused batches pass on the current pre-freeze tree:
 - `git diff --check`: passed;
 - registry and ledger JSON/Markdown synchronisation: passed.
 
+The two round-1 repair modules also pass their full focused modules at the
+repair point:
+
+- CLI/bootstrap/control validation:
+  `tests/test_fail_safe_bootstrap_and_control.py` — 74 passed;
+- activation/restart-safety validation:
+  `tests/test_remote_write_safety_second_restart.py` — 99 passed;
+- changed-Python compilation: passed;
+- `git diff --check`: passed.
+
 These suites overlap and their counts must not be summed as a unique total.
-The complete isolated application suite has deliberately not run yet.
+The complete isolated application suite has deliberately not run yet. No
+external assurance run or packaging run has occurred for the replacement.
 
 ## Outstanding qualification work
 
-- freeze and commit the exact application candidate;
+- freeze and commit the replacement application candidate;
 - complete all four adversarial review lanes against that exact commit, and
-  repeat all four after any change until all report no finding;
+  repeat all four after any change until all report no finding, without
+  carrying forward a clean result from the rejected candidate;
 - update and freeze the separately owned release-assurance policy and runner;
 - run the complete isolated suite once through the exact external gate;
 - produce deterministic attestations and a portable package;
@@ -163,5 +234,6 @@ The complete isolated application suite has deliberately not run yet.
 
 ## Isolation record
 
-This pre-freeze remediation performed zero production-file or live-state
-mutation, service action, X action, provider action, merge, push or deployment.
+This remediation and round-1 repair performed zero production-file or
+live-state mutation, service action, X action, provider action, merge, push,
+deployment, external-assurance execution or packaging.

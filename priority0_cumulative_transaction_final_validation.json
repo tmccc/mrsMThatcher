@@ -4,6 +4,28 @@
     "exact_candidate_commit": null,
     "exact_candidate_tree": null,
     "findings": null,
+    "rejected_round_1": {
+      "candidate_commit": "f61230fbad22f2b697ed62df325c0e8c17004687",
+      "candidate_tree": "c73ec605ae168d56f8d11690fb4706c5eb6e7051",
+      "clean_lanes": [
+        "transaction_crash_restart_retirement_and_aba",
+        "historical_context_outbox_lineage_and_reconciliation",
+        "full_diff_claims_registry_bindings_and_omitted_boundaries"
+      ],
+      "finding_count": 2,
+      "findings": [
+        {
+          "description": "unknown, duplicate and multiple CLI arguments could reach operational main and acquire the instance lock",
+          "lane": "activation_installation_pause_recovery_and_rollback"
+        },
+        {
+          "description": "offline protocol activation did not refuse .mrsMThatcher.initialising.json and could falsely attest a clean installation while runtime remained fail-closed",
+          "lane": "activation_installation_pause_recovery_and_rollback"
+        }
+      ],
+      "status": "rejected"
+    },
+    "replacement_review_restarts_from_zero": true,
     "required_lanes": [
       "transaction_crash_restart_retirement_and_aba",
       "historical_context_outbox_lineage_and_reconciliation",
@@ -11,7 +33,16 @@
       "full_diff_claims_registry_bindings_and_omitted_boundaries"
     ],
     "restart_all_lanes_after_any_candidate_change": true,
-    "status": "pending exact candidate freeze"
+    "status": "pending replacement candidate freeze",
+    "unfrozen_repair_adversary": {
+      "activator_repair_review": "no further finding",
+      "cli_followup_finding_count": 2,
+      "cli_followup_findings": [
+        "invalid real-script argv was not yet rejected before third-party/application imports and configuration, logging or filesystem side effects",
+        "explicit run_cli argv could disagree with process sys.argv and therefore with import-time mode/bootstrap state"
+      ],
+      "status": "findings remediated before replacement freeze"
+    }
   },
   "candidate_identity": {
     "commit": null,
@@ -19,7 +50,7 @@
     "stored_in_candidate_document": false,
     "tree": null
   },
-  "conclusion_scope": "pre-freeze patch-local candidate evidence; exact review and external qualification pending",
+  "conclusion_scope": "patch-local replacement evidence after rejected round-1 candidate; replacement freeze, exact review and external qualification pending",
   "cumulative_remediation": {
     "confirmed_pending_receipt": {
       "exact_bytes_revalidated": true,
@@ -71,8 +102,12 @@
   },
   "document_kind": "priority0_cumulative_transaction_pre_freeze_validation",
   "focused_validation": {
+    "activation_restart_safety_module_passed": 99,
     "changed_python_compilation_passed": true,
+    "cli_bootstrap_control_module_passed": 74,
     "counts_are_non_additive": true,
+    "cumulative_checkpoint_candidate_commit": "f61230fbad22f2b697ed62df325c0e8c17004687",
+    "cumulative_existing_batches_apply_to_rejected_candidate": true,
     "defect_ledger_validation_passed": true,
     "git_diff_check_passed": true,
     "historical_context_passed": 296,
@@ -81,6 +116,7 @@
     "ledger_journal_media_source_retirement_passed": 265,
     "registry_and_ledger_tests_effectively_passed": 61,
     "registry_validation_passed": true,
+    "repair_module_results_apply_to_uncommitted_replacement": true,
     "restart_bootstrap_pause_outcome_passed": 320
   },
   "identity": {
@@ -96,10 +132,27 @@
     "final_assurance_freeze": true,
     "separate_independent_review": true
   },
-  "schema_version": 2,
+  "replacement_repairs": {
+    "activation_interrupted_install_sentinel": {
+      "pre_mutation_state_fixture_count": 4,
+      "refused_basename": ".mrsMThatcher.initialising.json",
+      "status": "implemented_uncommitted"
+    },
+    "complete_cli_argument_validation": {
+      "direct_script_validation_precedes_third_party_and_application_imports": true,
+      "explicit_argv_must_equal_process_argv": true,
+      "operational_boundary_reached_on_invalid_argv": false,
+      "status": "implemented_uncommitted",
+      "validation_precedes_production_bootstrap": true
+    },
+    "future_candidate_identity": "pending external recording after freeze"
+  },
+  "schema_version": 3,
   "scope": {
     "deployments": 0,
+    "external_assurance_runs_for_replacement": 0,
     "merges": 0,
+    "packaging_runs_for_replacement": 0,
     "production_file_mutations": 0,
     "provider_actions": 0,
     "pushes": 0,

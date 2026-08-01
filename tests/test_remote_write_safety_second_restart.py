@@ -172,6 +172,45 @@ def _write_established_activation_state(state_directory: Path) -> None:
         (state_directory / basename).write_text("{}\n", encoding="utf-8")
 
 
+def _activation_transaction_namespace_snapshot(
+    state_directory: Path,
+) -> dict[str, tuple[tuple[int, ...], bytes] | None]:
+    """Snapshot activation and permanent-ledger entries without following links."""
+
+    paths = (
+        state_directory / protocol.ACTIVATION_BASENAME,
+        state_directory / protocol.ACTIVATION_AUDIT_BASENAME,
+        *(
+            path
+            for receipt_basename in activate.RECEIPT_BASENAMES
+            for path in retirement.retirement_ledger_paths(
+                state_directory / receipt_basename
+            )
+        ),
+    )
+    snapshot: dict[str, tuple[tuple[int, ...], bytes] | None] = {}
+    for path in paths:
+        try:
+            identity = os.lstat(path)
+        except FileNotFoundError:
+            snapshot[path.name] = None
+            continue
+        snapshot[path.name] = (
+            (
+                int(identity.st_dev),
+                int(identity.st_ino),
+                int(identity.st_mode),
+                int(identity.st_nlink),
+                int(identity.st_uid),
+                int(identity.st_size),
+                int(identity.st_ctime_ns),
+                int(identity.st_mtime_ns),
+            ),
+            path.read_bytes(),
+        )
+    return snapshot
+
+
 def _write_legacy_protocol_activation(state_directory: Path) -> tuple[Path, Path]:
     """Publish the exact v1 pair which a stopped migration must retire."""
 
@@ -769,6 +808,54 @@ def test_runtime_rejects_pre_ledger_v2_activation_pair(tmp_path: Path) -> None:
         protocol.inspect_protocol_activation(
             tmp_path / protocol.ACTIVATION_BASENAME
         )
+
+
+@pytest.mark.parametrize(
+    "activation_state",
+    ("first_activation", "pre_ledger", "current", "current_audit_only"),
+)
+def test_activation_refuses_interrupted_initialisation_before_any_mutation(
+    tmp_path: Path,
+    activation_state: str,
+) -> None:
+    """The first-install sentinel excludes every activation generation."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+
+    if activation_state == "pre_ledger":
+        _write_pre_ledger_protocol_activation(state_directory)
+    elif activation_state in {"current", "current_audit_only"}:
+        activate.activate_protocol_offline(
+            **_activation_kwargs(state_directory)
+        )
+        if activation_state == "current_audit_only":
+            (state_directory / protocol.ACTIVATION_BASENAME).unlink()
+            _fsync_directory(state_directory)
+
+    initialising = state_directory / activate.INSTALLATION_IN_PROGRESS_BASENAME
+    initialising.write_text(
+        '{"schema_version":1,"started_at_epoch":1,"state":"initialising"}\n',
+        encoding="utf-8",
+    )
+    _fsync_directory(state_directory)
+    before = _activation_transaction_namespace_snapshot(state_directory)
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match=activate.INSTALLATION_IN_PROGRESS_BASENAME,
+    ):
+        activate.activate_protocol_offline(
+            **_activation_kwargs(state_directory)
+        )
+
+    assert initialising.is_file()
+    assert _activation_transaction_namespace_snapshot(state_directory) == before
 
 
 @pytest.mark.parametrize("audit_only", (False, True))

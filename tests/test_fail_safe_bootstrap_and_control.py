@@ -23,9 +23,196 @@ OPERATIONAL_ENTRY_POINTS = (
     "run_test_post_meme",
 )
 
+CLI_MODE_TO_ENTRY_POINT = {
+    None: "main",
+    "--initialise": "initialise_installation",
+    "--self-test": "run_self_test",
+    "--test-cycle": "run_test_cycle",
+    "--test-main-tick": "run_test_main_tick",
+    "--test-post-quote": "run_test_post_quote",
+    "--test-post-meme": "run_test_post_meme",
+}
+
+CLI_SUBPROCESS_DRIVER = r"""
+import json
+import sys
+
+import mrsMThatcher2 as bot
+
+events = []
+bot.production_bootstrap = lambda: events.append("production_bootstrap")
+for name in (
+    "main",
+    "initialise_installation",
+    "run_self_test",
+    "run_test_cycle",
+    "run_test_main_tick",
+    "run_test_post_quote",
+    "run_test_post_meme",
+):
+    setattr(
+        bot,
+        name,
+        (lambda selected: lambda: (events.append(selected), 0)[1])(name),
+    )
+status = bot.run_cli(sys.argv[1:])
+print(json.dumps({"events": events, "status": status}, sort_keys=True))
+raise SystemExit(0 if status is None else status)
+"""
+
 
 def reset_control_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot, "_CONTROL_CACHE", {"signature": None, "data": {}, "has_valid": False, "failure_signature": None})
+
+
+@pytest.mark.parametrize("mode", tuple(CLI_MODE_TO_ENTRY_POINT))
+def test_cli_parser_accepts_only_one_documented_mode(mode: str | None) -> None:
+    arguments = [] if mode is None else [mode]
+    assert bot.parse_cli_mode(arguments) == mode
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--unknown"],
+        ["positional"],
+        ["--self-test=1"],
+        ["--self-test", "--self-test"],
+        ["--initialise", "--self-test"],
+        ["--test-cycle", "--unknown"],
+    ],
+)
+def test_cli_parser_rejects_unknown_duplicate_and_multiple_modes(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(bot.CliUsageError):
+        bot.parse_cli_mode(arguments)
+
+
+@pytest.mark.parametrize("mode,entry_point", CLI_MODE_TO_ENTRY_POINT.items())
+def test_literal_subprocess_dispatches_each_documented_cli_mode(
+    mode: str | None,
+    entry_point: str,
+) -> None:
+    command = [sys.executable, "-c", CLI_SUBPROCESS_DRIVER]
+    if mode is not None:
+        command.append(mode)
+    result = subprocess.run(
+        command,
+        cwd=Path(bot.__file__).resolve().parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(bot.__file__).resolve().parent),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {
+        "events": ["production_bootstrap", entry_point],
+        "status": 0 if mode is not None else None,
+    }
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--unknown"],
+        ["positional"],
+        ["--self-test=1"],
+        ["--self-test", "--self-test"],
+        ["--initialise", "--self-test"],
+        ["--test-post-quote", "--unknown"],
+    ],
+)
+def test_literal_subprocess_rejects_complete_invalid_argv_before_bootstrap(
+    arguments: list[str],
+) -> None:
+    result = subprocess.run(
+        [sys.executable, "-c", CLI_SUBPROCESS_DRIVER, *arguments],
+        cwd=Path(bot.__file__).resolve().parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(bot.__file__).resolve().parent),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+    assert result.returncode == 2
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {"events": [], "status": 2}
+    assert bot.CLI_USAGE in result.stderr
+
+
+def test_invalid_cli_argv_reaches_no_bootstrap_or_operational_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    for name in ("production_bootstrap", *CLI_MODE_TO_ENTRY_POINT.values()):
+        monkeypatch.setattr(
+            bot,
+            name,
+            lambda *args, _name=name, **kwargs: calls.append(_name),
+        )
+
+    assert bot.run_cli(["--self-test", "--test-cycle"]) == 2
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--unknown"],
+        ["positional"],
+        ["--self-test=1"],
+        ["--self-test", "--self-test"],
+        ["--initialise", "--self-test"],
+        ["--test-post-quote", "--unknown"],
+    ],
+)
+def test_real_script_rejects_invalid_argv_before_import_side_effects(
+    tmp_path: Path,
+    arguments: list[str],
+) -> None:
+    base_directory = tmp_path / "must-not-be-created"
+    log_path = tmp_path / "must-not-be-created.log"
+    result = subprocess.run(
+        [sys.executable, str(Path(bot.__file__).resolve()), *arguments],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "MRS_BASE_DIR": str(base_directory),
+            "MRS_LOG_FILE": str(log_path),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr.startswith(f"{bot.CLI_USAGE}\n")
+    assert not base_directory.exists()
+    assert not log_path.exists()
+
+
+def test_run_cli_refuses_mode_different_from_process_argv_before_bootstrap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(sys, "argv", ["mrsMThatcher2.py"])
+    for name in ("production_bootstrap", *CLI_MODE_TO_ENTRY_POINT.values()):
+        monkeypatch.setattr(
+            bot,
+            name,
+            lambda *args, _name=name, **kwargs: calls.append(_name),
+        )
+
+    assert bot.run_cli(["--self-test"]) == 2
+    assert calls == []
 
 
 def test_absent_local_config_keeps_defaults(tmp_path, monkeypatch):
