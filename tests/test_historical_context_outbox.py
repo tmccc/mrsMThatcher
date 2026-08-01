@@ -302,10 +302,68 @@ def test_claim_enforces_due_time_and_cannot_reuse_an_interrupted_claim(
     claimed = outbox.claim_attempt("303", started_epoch=3_020)
     assert claimed["context_reply"]["state"] == CONTEXT_REPLY_ATTEMPTING
     assert claimed["context_reply"]["attempt_count"] == 2
+    assert claimed["context_reply"]["remote_transaction_started"] is False
     with pytest.raises(OutboxConflictError, match="already durably claimed"):
         outbox.claim_attempt("303", started_epoch=3_021)
     with pytest.raises(OutboxConflictError, match="already durably claimed"):
         outbox.next_attempt_number("303")
+
+
+def test_remote_transaction_phase_is_strict_durable_and_one_way(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "outbox.json"
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "306",
+        main_post_confirmed_epoch=3_000,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    claimed = outbox.claim_attempt("306", started_epoch=3_010)
+
+    assert claimed["context_reply"]["remote_transaction_started"] is False
+    started = outbox.mark_remote_transaction_started(
+        "306",
+        attempt_number=1,
+    )
+    assert started["context_reply"]["remote_transaction_started"] is True
+    assert json.loads(path.read_text(encoding="utf-8"))["obligations"]["306"][
+        "context_reply"
+    ]["remote_transaction_started"] is True
+
+    with pytest.raises(OutboxConflictError, match="already durably marked"):
+        outbox.mark_remote_transaction_started("306", attempt_number=1)
+    with pytest.raises(OutboxConflictError, match="does not match"):
+        outbox.mark_remote_transaction_started("306", attempt_number=2)
+
+
+def test_attempting_phase_accepts_only_boolean_and_legacy_is_not_upgradeable(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "outbox.json"
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "307",
+        main_post_confirmed_epoch=3_000,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("307", started_epoch=3_010)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    context = document["obligations"]["307"]["context_reply"]
+    context["remote_transaction_started"] = 1
+    outbox_module._atomic_write_json(path, document)
+    with pytest.raises(OutboxValidationError, match="attempting.*metadata"):
+        outbox.snapshot()
+
+    context.pop("remote_transaction_started")
+    outbox_module._atomic_write_json(path, document)
+    assert "remote_transaction_started" not in outbox.snapshot()["obligations"][
+        "307"
+    ]["context_reply"]
+    with pytest.raises(OutboxConflictError, match="legacy attempting record"):
+        outbox.mark_remote_transaction_started("307", attempt_number=1)
 
 
 def test_outcomes_require_a_durable_claim_and_reject_clock_regression(

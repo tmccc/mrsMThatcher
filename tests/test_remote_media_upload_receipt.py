@@ -209,6 +209,45 @@ def _prepared_handoff(
     return main_receipt_path, journal_path, handoff
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("basename", "."),
+        ("basename", ".."),
+        ("sha256", int("1" * 64)),
+    ),
+)
+def test_transport_handoff_owner_requires_exact_source_identity(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    _main_receipt, journal_path, _handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    document = json.loads(journal_path.read_bytes())
+    document["source_receipt"][field] = value
+    if field == "sha256":
+        document["source_validation"]["receipt_sha256"] = value
+    _durable_write(
+        journal_path,
+        media_receipt.canonical_json_bytes(document),
+        mode=media_receipt.RECEIPT_MODE,
+    )
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="transport handoff owner semantics are invalid",
+    ):
+        media_receipt._transport_owner_snapshot(
+            journal_path,
+            expected_kind="mrsMThatcher_remote_write_transport_journal",
+        )
+
+
 def test_sending_receipt_is_deterministic_and_contains_exact_image_identity(
     tmp_path: Path,
 ) -> None:
@@ -1015,6 +1054,36 @@ def test_media_receipt_requires_integer_schema_version(
         media_receipt.MediaUploadReceiptError,
         match="semantics are invalid",
     ):
+        media_receipt.inspect_media_upload_receipt(receipt_path)
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("payload_metadata_sha256", int("1" * 64)),
+        ("image.sha256", int("1" * 64)),
+        ("image.mime_type", 123),
+        ("image.basename", ""),
+        ("image.basename", "."),
+        ("image.basename", ".."),
+    ),
+)
+def test_media_receipt_requires_exact_string_hash_and_image_fields(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    _begin(receipt_path, image_path, metadata)
+    document = json.loads(receipt_path.read_bytes())
+    if field.startswith("image."):
+        document["image"][field.split(".", 1)[1]] = value
+    else:
+        document[field] = value
+    _durable_write(receipt_path, media_receipt.canonical_json_bytes(document))
+
+    with pytest.raises(media_receipt.MediaUploadReceiptError):
         media_receipt.inspect_media_upload_receipt(receipt_path)
     assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
 

@@ -1229,6 +1229,89 @@ def test_exact_owning_historical_context_create_is_allowed_once(
     assert completed["reply_post_id"] == "222"
 
 
+def test_historical_context_remote_phase_callback_runs_after_arm_before_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    )
+    events: list[str] = []
+    real_arm = bot.arm_transport_transaction
+
+    def recording_arm(*args: object, **kwargs: object) -> bot.TransportAuthority:
+        authority = real_arm(*args, **kwargs)
+        events.append("journal_armed")
+        return authority
+
+    def mark_remote_started() -> None:
+        assert bot.transport_journal_is_blocking(
+            bot.journal_path_for_receipt(store.receipt_path)
+        )
+        events.append("remote_phase_durable")
+
+    def accepted(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        events.append("transport")
+        return _x_response(201, {"data": {"id": "223"}})
+
+    monkeypatch.setattr(bot, "arm_transport_transaction", recording_arm)
+    monkeypatch.setattr(bot.requests, "request", accepted)
+
+    result = store.post(
+        parent_post_id="112",
+        quote_id="b" * 64,
+        reply_text="Context — durable remote phase ordering.",
+        create_post=bot.create_post,
+        now_epoch=lambda: 1_800_000_000,
+        on_remote_transaction_started=mark_remote_started,
+    )
+
+    assert result["status"] == "completed"
+    assert events == ["journal_armed", "remote_phase_durable", "transport"]
+
+
+def test_historical_context_remote_phase_failure_never_reaches_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "phase-persistence failure must stop before transport"
+        ),
+    )
+
+    with pytest.raises(
+        AmbiguousContextReplyOutcome,
+        match="remote context reply outcome is not proved",
+    ):
+        store.post(
+            parent_post_id="113",
+            quote_id="c" * 64,
+            reply_text="Context — phase persistence failed.",
+            create_post=bot.create_post,
+            now_epoch=lambda: 1_800_000_000,
+            on_remote_transaction_started=lambda: (_ for _ in ()).throw(
+                OSError("injected outbox phase write failure")
+            ),
+        )
+
+    assert bot.transport_journal_is_blocking(
+        bot.journal_path_for_receipt(store.receipt_path)
+    )
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
 def test_regular_success_retires_journal_before_lane_receipt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

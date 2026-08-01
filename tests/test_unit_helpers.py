@@ -9193,6 +9193,205 @@ def test_load_state_rejects_absurd_epoch_primary_and_recovers_backup(tmp_path: P
     assert recovered["next_quote_post_epoch"] == 1_800_000_000
 
 
+def test_load_state_refuses_valid_primary_latest_backup_divergence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two valid latest-generation candidates cannot be ordered by pathname."""
+
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
+    bot.atomic_write_json(
+        state_file,
+        {
+            "replied_to_ids": [],
+            "last_reply_epoch": 1_800_000_000,
+            "next_quote_post_epoch": 1_800_001_000,
+        },
+    )
+    bot.atomic_write_json(
+        tmp_path / "bot_state.json.bak1",
+        {
+            "replied_to_ids": ["950001"],
+            "last_reply_epoch": 1_800_000_100,
+            "next_quote_post_epoch": 1_800_002_000,
+        },
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Primary state and latest committed backup.*diverge",
+    ):
+        bot.load_state()
+
+
+def test_load_state_accepts_matching_primary_and_latest_backup_after_save(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
+    state = bot.default_state()
+    state["last_reply_epoch"] = 1_800_000_100
+
+    bot.save_state(state, durable=True)
+
+    assert state_file.read_bytes() == (tmp_path / "bot_state.json.bak1").read_bytes()
+    assert bot.load_state()["last_reply_epoch"] == 1_800_000_100
+
+
+def test_load_state_does_not_let_stale_older_backup_veto_usable_latest_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 3)
+    state = bot.default_state()
+    state["last_reply_epoch"] = 1_800_000_100
+    bot.save_state(state, durable=True)
+    bot.atomic_write_json(
+        tmp_path / "bot_state.json.bak2",
+        {
+            "pending_reply_drafts": {
+                "mention:100": {"reply_text": "obsolete draft"},
+            }
+        },
+    )
+
+    assert bot.load_state()["last_reply_epoch"] == 1_800_000_100
+
+
+def test_common_receipt_loader_requires_canonical_owned_private_file(
+    tmp_path: Path,
+) -> None:
+    receipt = tmp_path / "receipt.json"
+    receipt.write_bytes(b"{}")
+    receipt.chmod(0o600)
+    with pytest.raises(bot.UnsafeReceiptNamespace, match="not canonical"):
+        bot.load_receipt_json_no_follow(receipt)
+
+    receipt.write_bytes(bot.canonical_atomic_json_bytes({}))
+    receipt.chmod(0o644)
+    with pytest.raises(
+        bot.UnsafeReceiptNamespace,
+        match="unsafe ownership or permissions",
+    ):
+        bot.load_receipt_json_no_follow(receipt)
+
+
+def test_common_receipt_loader_rejects_same_inode_mutation_after_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = tmp_path / "receipt.json"
+    receipt.write_bytes(bot.canonical_atomic_json_bytes({}))
+    receipt.chmod(0o600)
+    real_lstat = bot.os.lstat
+    calls = {"count": 0}
+
+    def mutate_before_final_path_snapshot(path: os.PathLike[str] | str):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            receipt.write_bytes(
+                bot.canonical_atomic_json_bytes({"changed": True})
+            )
+        return real_lstat(path)
+
+    monkeypatch.setattr(bot.os, "lstat", mutate_before_final_path_snapshot)
+
+    with pytest.raises(bot.UnsafeReceiptNamespace, match="changed while reading"):
+        bot.load_receipt_json_no_follow(receipt)
+
+
+def test_current_main_attempt_requires_exact_string_identifiers() -> None:
+    attempt = bot.build_main_post_attempt(
+        lane="daily_meme",
+        text="A meme post.",
+        media_ids=["700001"],
+        made_with_ai=False,
+        selected_identity={"meme_basename": "001_meme.png"},
+        recovery_plan={
+            "next_schedule_mode": "fallback",
+            "meme_schedule_version": bot.MEME_SCHEDULE_VERSION,
+            "fallback_hour": 13,
+            "fallback_minute": 0,
+            "image_summary": "A meme image.",
+        },
+        attempt_epoch=1_800_000_000,
+    )
+    assert bot.main_post_attempt_is_semantically_valid(attempt)
+
+    changed = copy.deepcopy(attempt)
+    changed["attempt_id"] = int("1" * 64)
+    assert bot.main_post_attempt_is_semantically_valid(changed) is False
+
+    changed = copy.deepcopy(attempt)
+    changed["reply_to_id"] = 0
+    assert bot.main_post_attempt_is_semantically_valid(changed) is False
+
+    changed = copy.deepcopy(attempt)
+    changed["selected_identity"]["meme_basename"] = 123
+    assert bot.main_post_attempt_is_semantically_valid(changed) is False
+
+    attempting = {**attempt, "lifecycle_state": "attempting"}
+    pending = bot.build_confirmed_pending_schedule_receipt(
+        attempting,
+        post_id="950001",
+        confirmation_epoch=1_800_000_001,
+        image_summary="A meme image.",
+    )
+    pending["post_id"] = 950001
+    assert (
+        bot.confirmed_pending_schedule_receipt_is_semantically_valid(pending)
+        is False
+    )
+
+
+def test_current_conversational_receipt_requires_string_identifier_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "ai_reply_receipt_draft_is_valid", lambda *_: True)
+    receipt = {
+        "schema_version": 4,
+        "lifecycle_state": "sending",
+        "target_id": "111",
+        "author_id": "222",
+        "candidate_source": "mention",
+        "conversation_id": "111",
+        "reply_text": "A reviewed reply.",
+        "reply_context": {
+            "target_id": "111",
+            "thread_id": "111",
+            "lane": "mention",
+        },
+        "ai_reply_draft": {},
+        "attempt_epoch": 1_800_000_000,
+        "reply_epoch": 1_800_000_000,
+        "daily_reply_date": bot.epoch_date_str(1_800_000_000),
+    }
+    assert bot.sending_reply_receipt_is_semantically_valid(receipt)
+
+    for field in ("target_id", "author_id", "conversation_id"):
+        changed = copy.deepcopy(receipt)
+        changed[field] = 111
+        if field == "target_id":
+            changed["reply_context"]["target_id"] = 111
+        if field == "conversation_id":
+            changed["reply_context"]["thread_id"] = 111
+        assert bot.sending_reply_receipt_is_semantically_valid(changed) is False
+
+    confirmed = bot._confirmed_reply_receipt_from_sending(
+        receipt,
+        reply_post_id="950002",
+        confirmation_epoch=1_800_000_001,
+    )
+    confirmed["reply_post_id"] = 950002
+    assert bot.confirmed_reply_receipt_is_semantically_valid(confirmed) is False
+
+
 def test_load_state_rejects_malformed_tweet_cache_epoch_and_recovers_backup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     state_file = tmp_path / "bot_state.json"
     monkeypatch.setattr(bot, "STATE_FILE", state_file)

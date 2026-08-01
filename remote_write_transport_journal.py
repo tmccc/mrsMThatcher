@@ -302,6 +302,7 @@ def bind_transport_source(
     *,
     receipt_path: Path,
     expected_receipt: Mapping[str, Any],
+    expected_receipt_bytes: bytes | None = None,
     lane: str,
     payload: Mapping[str, Any],
     validator_id: str,
@@ -314,19 +315,34 @@ def bind_transport_source(
     expected dictionary is not semantic authority.
     """
 
-    if not _LANE_RE.fullmatch(str(lane)):
+    if type(lane) is not str or not _LANE_RE.fullmatch(lane):
         raise TransportJournalError("transport lane is invalid")
-    if not _VALIDATOR_ID_RE.fullmatch(str(validator_id)):
+    if type(validator_id) is not str or not _VALIDATOR_ID_RE.fullmatch(
+        validator_id
+    ):
         raise TransportJournalError("source validator ID is invalid")
     if not callable(validator):
         raise TransportJournalError("source validator is not callable")
     receipt_path = Path(receipt_path)
     try:
-        receipt = _read_stable_regular(receipt_path, maximum=JOURNAL_MAX_BYTES)
+        receipt = _read_stable_regular(
+            receipt_path,
+            maximum=JOURNAL_MAX_BYTES,
+            expected_mode=JOURNAL_MODE,
+        )
     except FileNotFoundError as exc:
         raise TransportJournalError("source receipt is not durably present") from exc
     parsed = _parse_strict_object_bytes(receipt.data, label="source receipt")
-    if parsed != dict(expected_receipt):
+    canonical_expected = (
+        canonical_json_bytes(dict(expected_receipt))
+        if expected_receipt_bytes is None
+        else expected_receipt_bytes
+    )
+    if (
+        type(canonical_expected) is not bytes
+        or receipt.data != canonical_expected
+        or parsed != dict(expected_receipt)
+    ):
         raise TransportJournalError("source receipt does not match prepared transaction")
     request = freeze_tweet_request(
         method="POST",
@@ -898,11 +914,13 @@ def _validate_document(
         or value.get("schema_version") != JOURNAL_SCHEMA_VERSION
         or value.get("document_kind") != expected_kind
         or value.get("lifecycle_state") not in {"prepared", "attempting", "confirmed"}
-        or not _LANE_RE.fullmatch(str(value.get("lane") or ""))
+        or type(value.get("lane")) is not str
+        or not _LANE_RE.fullmatch(value["lane"])
         or value.get("request_method") != "POST"
         or value.get("request_path") != "/2/tweets"
         or not isinstance(value.get("remote_payload"), dict)
-        or not _SHA256_RE.fullmatch(str(value.get("remote_payload_sha256") or ""))
+        or type(value.get("remote_payload_sha256")) is not str
+        or not _SHA256_RE.fullmatch(value["remote_payload_sha256"])
         or payload_sha256(value["remote_payload"]) != value["remote_payload_sha256"]
     ):
         raise TransportJournalError("transport journal semantics are invalid")
@@ -918,14 +936,19 @@ def _validate_document(
             "sha256",
         }
         or not isinstance(source.get("basename"), str)
+        or not source["basename"]
+        or source["basename"] in {".", ".."}
         or Path(source["basename"]).name != source["basename"]
         or type(source.get("device")) is not int
         or type(source.get("inode")) is not int
         or type(source.get("ctime_ns")) is not int
         or type(source.get("size")) is not int
+        or source["device"] < 0
+        or source["inode"] <= 0
         or source["ctime_ns"] < 0
         or source["size"] <= 0
-        or not _SHA256_RE.fullmatch(str(source.get("sha256") or ""))
+        or type(source.get("sha256")) is not str
+        or not _SHA256_RE.fullmatch(source["sha256"])
     ):
         raise TransportJournalError("transport journal source receipt is invalid")
     source_validation = value.get("source_validation")
@@ -936,9 +959,10 @@ def _validate_document(
             "receipt_sha256",
             "payload_sha256",
         }
-        or not _VALIDATOR_ID_RE.fullmatch(
-            str(source_validation.get("validator_id") or "")
-        )
+        or type(source_validation.get("validator_id")) is not str
+        or not _VALIDATOR_ID_RE.fullmatch(source_validation["validator_id"])
+        or type(source_validation.get("receipt_sha256")) is not str
+        or type(source_validation.get("payload_sha256")) is not str
         or source_validation.get("receipt_sha256") != source["sha256"]
         or source_validation.get("payload_sha256")
         != value["remote_payload_sha256"]
@@ -1163,6 +1187,7 @@ def begin_transport_transaction(
     *,
     receipt_path: Path,
     expected_receipt: Mapping[str, Any] | None = None,
+    expected_receipt_bytes: bytes | None = None,
     lane: str | None = None,
     payload: Mapping[str, Any] | None = None,
     source_binding: SourceReceiptBinding | None = None,
@@ -1188,6 +1213,7 @@ def begin_transport_transaction(
         source_binding = bind_transport_source(
             receipt_path=receipt_path,
             expected_receipt=expected_receipt,
+            expected_receipt_bytes=expected_receipt_bytes,
             lane=lane,
             payload=payload,
             validator_id=source_validator_id,
@@ -1197,6 +1223,7 @@ def begin_transport_transaction(
         item is not None
         for item in (
             expected_receipt,
+            expected_receipt_bytes,
             lane,
             payload,
             source_validator_id,

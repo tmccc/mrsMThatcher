@@ -1283,11 +1283,16 @@ class HistoricalContextReplyStore:
                 f"{value}"
             )
 
-        return json.loads(
+        value = json.loads(
             data.decode("utf-8"),
             object_pairs_hook=reject_duplicate_names,
             parse_constant=reject_nonfinite_constant,
         )
+        if canonical_json_bytes(value) != data:
+            raise ValueError(
+                "historical-context receipt is not canonical JSON"
+            )
+        return value
 
     @staticmethod
     def _read_stable_receipt_bytes(path: Path) -> bytes:
@@ -1299,6 +1304,7 @@ class HistoricalContextReplyStore:
             not stat.S_ISREG(before.st_mode)
             or before.st_nlink != 1
             or before.st_uid != os.geteuid()
+            or stat.S_IMODE(before.st_mode) != 0o600
             or before.st_size > MAXIMUM_TRANSACTION_RECEIPT_BYTES
         ):
             raise RuntimeError(
@@ -1309,10 +1315,15 @@ class HistoricalContextReplyStore:
             raise RuntimeError(
                 "historical context reply receipt inspection requires O_NOFOLLOW"
             )
-        descriptor = os.open(
-            path,
-            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
-        )
+        try:
+            descriptor = os.open(
+                path,
+                os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "historical context reply receipt disappeared after observation"
+            ) from exc
         try:
             opened = os.fstat(descriptor)
             chunks: list[bytes] = []
@@ -1330,7 +1341,12 @@ class HistoricalContextReplyStore:
                 chunks.append(chunk)
                 total += len(chunk)
             after_read = os.fstat(descriptor)
-            after_path = os.lstat(path)
+            try:
+                after_path = os.lstat(path)
+            except FileNotFoundError as exc:
+                raise RuntimeError(
+                    "historical context reply receipt disappeared while it was read"
+                ) from exc
         finally:
             os.close(descriptor)
         if (
@@ -1338,6 +1354,7 @@ class HistoricalContextReplyStore:
             or not stat.S_ISREG(opened.st_mode)
             or opened.st_nlink != 1
             or opened.st_uid != os.geteuid()
+            or stat.S_IMODE(opened.st_mode) != 0o600
             or not (
                 opened.st_dev
                 == before.st_dev
@@ -1374,6 +1391,8 @@ class HistoricalContextReplyStore:
                 == after_read.st_mtime_ns
                 == after_path.st_mtime_ns
             )
+            or after_path.st_uid != os.geteuid()
+            or stat.S_IMODE(after_path.st_mode) != 0o600
         ):
             raise RuntimeError(
                 "historical context reply receipt changed while it was read"
@@ -1548,11 +1567,20 @@ class HistoricalContextReplyStore:
             return False
         if "formatter_metadata" in receipt and not HistoricalContextReplyStore._valid_formatter_metadata(receipt["formatter_metadata"]):
             return False
-        if not re.fullmatch(r"\d{1,30}", str(receipt.get("parent_post_id") or "")):
+        if (
+            type(receipt.get("parent_post_id")) is not str
+            or not re.fullmatch(r"\d{1,30}", receipt["parent_post_id"])
+        ):
             return False
-        if not re.fullmatch(r"\d{1,30}", str(receipt.get("reply_post_id") or "")):
+        if (
+            type(receipt.get("reply_post_id")) is not str
+            or not re.fullmatch(r"\d{1,30}", receipt["reply_post_id"])
+        ):
             return False
-        if not re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("quote_id") or "")):
+        if (
+            type(receipt.get("quote_id")) is not str
+            or not re.fullmatch(r"[0-9a-f]{64}", receipt["quote_id"])
+        ):
             return False
         if not isinstance(receipt.get("reply_text"), str) or not receipt["reply_text"].strip():
             return False
@@ -1591,8 +1619,10 @@ class HistoricalContextReplyStore:
             and type(receipt.get("schema_version")) is int
             and receipt.get("schema_version") == 1
             and receipt.get("lifecycle_state") == "sending"
-            and re.fullmatch(r"\d{1,30}", str(receipt.get("parent_post_id") or ""))
-            and re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("quote_id") or ""))
+            and type(receipt.get("parent_post_id")) is str
+            and re.fullmatch(r"\d{1,30}", receipt["parent_post_id"])
+            and type(receipt.get("quote_id")) is str
+            and re.fullmatch(r"[0-9a-f]{64}", receipt["quote_id"])
             and isinstance(receipt.get("reply_text"), str)
             and receipt["reply_text"].strip()
             and type(receipt.get("reply_epoch")) is int
@@ -1613,9 +1643,9 @@ class HistoricalContextReplyStore:
             or type(receipt.get("schema_version")) is not int
             or receipt.get("schema_version") != 1
             or receipt.get("lifecycle_state") != "confirmed"
+            or type(receipt.get("source_receipt_sha256")) is not str
             or not re.fullmatch(
-                r"[0-9a-f]{64}",
-                str(receipt.get("source_receipt_sha256") or ""),
+                r"[0-9a-f]{64}", receipt["source_receipt_sha256"]
             )
         ):
             raise ValueError(
@@ -1833,18 +1863,26 @@ class HistoricalContextReplyStore:
              create_post: Callable[..., dict[str, Any]], now_epoch: Callable[[], int], dry_run: bool = False,
              formatter_metadata: dict[str, Any] | None = None,
              on_confirmed_receipt: Callable[[dict[str, Any]], None] | None = None,
+             on_remote_transaction_started: Callable[[], None] | None = None,
              remote_failure_is_definite_non_success: Callable[[BaseException], bool] | None = None,
              require_confirmed_transport: bool = False) -> dict[str, Any]:
         """Post and persist one historical-context reply transactionally."""
         if (
-            not re.fullmatch(r"\d{1,30}", str(parent_post_id or ""))
-            or not re.fullmatch(r"[0-9a-f]{64}", str(quote_id or ""))
+            type(parent_post_id) is not str
+            or not re.fullmatch(r"\d{1,30}", parent_post_id)
+            or type(quote_id) is not str
+            or not re.fullmatch(r"[0-9a-f]{64}", quote_id)
             or not isinstance(reply_text, str)
             or not reply_text.strip()
         ):
             raise ValueError("invalid historical context reply request")
         if formatter_metadata is not None and not self._valid_formatter_metadata(formatter_metadata):
             raise ValueError("invalid historical context formatter metadata")
+        if (
+            on_remote_transaction_started is not None
+            and not callable(on_remote_transaction_started)
+        ):
+            raise ValueError("invalid remote transaction phase callback")
         if dry_run:
             return {"status": "dry_run", "parent_post_id": str(parent_post_id), "quote_id": quote_id,
                     "reply_text": reply_text, "character_count": len(reply_text)}
@@ -1931,12 +1969,19 @@ class HistoricalContextReplyStore:
             return result
 
         try:
+            create_kwargs: dict[str, Any] = {
+                "text": reply_text,
+                "media_ids": None,
+                "reply_to_id": str(parent_post_id),
+                "made_with_ai": False,
+                "prepared_historical_context_reply_receipt": sending,
+            }
+            if on_remote_transaction_started is not None:
+                create_kwargs["on_remote_transaction_started"] = (
+                    on_remote_transaction_started
+                )
             response = create_post(
-                text=reply_text,
-                media_ids=None,
-                reply_to_id=str(parent_post_id),
-                made_with_ai=False,
-                prepared_historical_context_reply_receipt=sending,
+                **create_kwargs,
             )
         except BaseException as exc:
             definite = False

@@ -599,7 +599,8 @@ def _validate_document(
         or lane not in _ALLOWED_LANES
         or lifecycle not in {"sending", "confirmed"}
         or not isinstance(metadata, dict)
-        or not _SHA256_RE.fullmatch(str(metadata_hash or ""))
+        or type(metadata_hash) is not str
+        or not _SHA256_RE.fullmatch(metadata_hash)
         or _metadata_hash(metadata) != metadata_hash
     ):
         raise MediaUploadReceiptError("media receipt semantics are invalid")
@@ -617,6 +618,8 @@ def _validate_document(
             "mime_type",
         }
         or not isinstance(image.get("basename"), str)
+        or not image["basename"]
+        or image["basename"] in {".", ".."}
         or Path(image["basename"]).name != image["basename"]
         or type(image.get("device")) is not int
         or type(image.get("inode")) is not int
@@ -626,8 +629,10 @@ def _validate_document(
         or image["inode"] <= 0
         or image["ctime_ns"] < 0
         or image["size"] <= 0
-        or not _SHA256_RE.fullmatch(str(image.get("sha256") or ""))
-        or not _MIME_RE.fullmatch(str(image.get("mime_type") or ""))
+        or type(image.get("sha256")) is not str
+        or not _SHA256_RE.fullmatch(image["sha256"])
+        or type(image.get("mime_type")) is not str
+        or not _MIME_RE.fullmatch(image["mime_type"])
     ):
         raise MediaUploadReceiptError("media receipt image identity is invalid")
     expected_id = _transaction_id(
@@ -636,7 +641,7 @@ def _validate_document(
         image_size=image["size"],
         image_sha256=image["sha256"],
         mime_type=image["mime_type"],
-        payload_metadata_sha256=str(metadata_hash),
+        payload_metadata_sha256=metadata_hash,
     )
     if value.get("transaction_id") != expected_id:
         raise MediaUploadReceiptError("media receipt transaction ID is invalid")
@@ -1485,19 +1490,23 @@ def _transport_owner_snapshot(
         or type(value.get("schema_version")) is not int
         or value.get("schema_version") != 2
         or value.get("document_kind") != expected_kind
-        or not _SHA256_RE.fullmatch(str(value.get("transaction_id") or ""))
+        or type(value.get("transaction_id")) is not str
+        or not _SHA256_RE.fullmatch(value["transaction_id"])
         or value.get("lifecycle_state")
         not in {"prepared", "attempting", "confirmed"}
         or value.get("lane") not in _ALLOWED_LANES
         or value.get("request_method") != "POST"
         or value.get("request_path") != "/2/tweets"
         or not isinstance(payload, dict)
-        or not _SHA256_RE.fullmatch(str(value.get("remote_payload_sha256") or ""))
+        or type(value.get("remote_payload_sha256")) is not str
+        or not _SHA256_RE.fullmatch(value["remote_payload_sha256"])
         or _metadata_hash(payload) != value.get("remote_payload_sha256")
         or not isinstance(source, dict)
         or set(source)
         != {"basename", "device", "inode", "ctime_ns", "size", "sha256"}
         or not isinstance(source.get("basename"), str)
+        or not source["basename"]
+        or source["basename"] in {".", ".."}
         or Path(source["basename"]).name != source["basename"]
         or type(source.get("device")) is not int
         or type(source.get("inode")) is not int
@@ -1507,13 +1516,15 @@ def _transport_owner_snapshot(
         or source["inode"] <= 0
         or source["ctime_ns"] < 0
         or source["size"] <= 0
-        or not _SHA256_RE.fullmatch(str(source.get("sha256") or ""))
+        or type(source.get("sha256")) is not str
+        or not _SHA256_RE.fullmatch(source["sha256"])
         or not isinstance(source_validation, dict)
         or set(source_validation)
         != {"validator_id", "receipt_sha256", "payload_sha256"}
-        or not _VALIDATOR_ID_RE.fullmatch(
-            str(source_validation.get("validator_id") or "")
-        )
+        or type(source_validation.get("validator_id")) is not str
+        or not _VALIDATOR_ID_RE.fullmatch(source_validation["validator_id"])
+        or type(source_validation.get("receipt_sha256")) is not str
+        or type(source_validation.get("payload_sha256")) is not str
         or source_validation.get("receipt_sha256") != source["sha256"]
         or source_validation.get("payload_sha256")
         != value["remote_payload_sha256"]

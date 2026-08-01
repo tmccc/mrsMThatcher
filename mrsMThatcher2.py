@@ -26,6 +26,7 @@ import struct
 import sys
 import tempfile
 import threading
+from collections.abc import Callable
 from collections import Counter
 from datetime import datetime, timedelta
 from glob import glob
@@ -3218,10 +3219,12 @@ def load_state() -> dict:
     candidates.extend(STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}") for i in range(1, STATE_BACKUP_COUNT + 1))
 
     existing_candidates = False
-    for candidate in candidates:
+
+    def load_candidate(candidate: Path, *, reject_legacy: bool) -> dict | None:
+        nonlocal existing_candidates
         if not candidate.exists():
             log.warning("State file candidate does not exist: %s", candidate)
-            continue
+            return None
         existing_candidates = True
 
         try:
@@ -3229,28 +3232,54 @@ def load_state() -> dict:
                 state = json.load(f)
         except Exception:
             log.exception("Failed loading state candidate %s", candidate)
-            continue
+            return None
 
         if not isinstance(state, dict):
             log.error("State file candidate %s is not a JSON object; ignoring", candidate)
-            continue
+            return None
         legacy_drafts = state.get("pending_reply_drafts")
         if legacy_drafts not in (None, {}):
             message = (
                 f"Legacy V1 reply drafts remain in {candidate}; refusing to interpret or post them "
                 "through the AI-first strategy"
             )
-            log.critical(message)
-            raise RuntimeError(message)
+            if reject_legacy:
+                log.critical(message)
+                raise RuntimeError(message)
+            log.warning("%s; candidate is not needed because primary state is usable", message)
+            return None
         state.pop("pending_reply_drafts", None)
         normalised = normalise_state_candidate(state, path=candidate)
-        if normalised is None:
-            continue
-
-        if candidate != STATE_FILE:
-            log.warning("Recovered state from backup %s", candidate)
-        log_json_debug("Loaded state", normalised)
         return normalised
+
+    latest_backup_path = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
+    primary = load_candidate(STATE_FILE, reject_legacy=True)
+    if primary is not None:
+        latest_backup = load_candidate(latest_backup_path, reject_legacy=False)
+        if latest_backup is not None and latest_backup != primary:
+            message = (
+                "Primary state and latest committed backup are both valid but "
+                "diverge; refusing to guess which durable generation is newer"
+            )
+            log.critical(
+                "%s primary=%s backup=%s",
+                message,
+                STATE_FILE,
+                latest_backup_path,
+            )
+            raise RuntimeError(message)
+        log_json_debug("Loaded state", primary)
+        return primary
+
+    # Only inspect backups until the first usable generation is found.  Older
+    # snapshots are recovery fallbacks, not vetoes over a newer usable state.
+    for candidate in candidates[1:]:
+        recovered = load_candidate(candidate, reject_legacy=True)
+        if recovered is None:
+            continue
+        log.warning("Recovered state from backup %s", candidate)
+        log_json_debug("Loaded state", recovered)
+        return recovered
 
     if existing_candidates:
         message = "Existing state file(s) found but no usable state or backup; refusing to start with empty state"
@@ -5937,6 +5966,7 @@ def exact_historical_context_sending_receipt_matches(
             not stat.S_ISREG(before.st_mode)
             or before.st_nlink != 1
             or before.st_uid != os.geteuid()
+            or stat.S_IMODE(before.st_mode) != 0o600
             or before.st_size != len(expected)
         ):
             return False
@@ -5967,6 +5997,7 @@ def exact_historical_context_sending_receipt_matches(
         stat.S_ISREG(opened.st_mode)
         and opened.st_nlink == 1
         and opened.st_uid == os.geteuid()
+        and stat.S_IMODE(opened.st_mode) == 0o600
         and opened.st_dev == before.st_dev == after_read.st_dev == after_path.st_dev
         and opened.st_ino == before.st_ino == after_read.st_ino == after_path.st_ino
         and opened.st_size == before.st_size == after_read.st_size == after_path.st_size
@@ -5978,6 +6009,8 @@ def exact_historical_context_sending_receipt_matches(
         == before.st_mtime_ns
         == after_read.st_mtime_ns
         == after_path.st_mtime_ns
+        and after_path.st_uid == os.geteuid()
+        and stat.S_IMODE(after_path.st_mode) == 0o600
         and b"".join(chunks) == expected
     )
 
@@ -6092,9 +6125,19 @@ def bind_lane_transport_source(
 ) -> SourceReceiptBinding:
     """Create the only accepted semantic source binding for a public tweet."""
 
+    if lane == "historical_context_reply":
+        from historical_context_formatter import (
+            canonical_json_bytes as canonical_context_receipt_bytes,
+        )
+
+        expected_receipt_bytes = canonical_context_receipt_bytes(receipt)
+    else:
+        expected_receipt_bytes = canonical_atomic_json_bytes(receipt)
+
     return bind_transport_source(
         receipt_path=receipt_path,
         expected_receipt=receipt,
+        expected_receipt_bytes=expected_receipt_bytes,
         lane=lane,
         payload=payload,
         validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
@@ -7569,6 +7612,7 @@ def create_post(
     prepared_main_post_attempt: dict | None = None,
     prepared_transport_authority: TransportAuthority | None = None,
     prepared_transport_source: SourceReceiptBinding | None = None,
+    on_remote_transaction_started: Callable[[], None] | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
     prepared_receipt_count = sum(
@@ -7588,6 +7632,15 @@ def create_post(
         raise AmbiguousRemotePostOutcome(
             "X post creation requires exactly one prepared durable transaction "
             "receipt",
+            service="x",
+        )
+    if on_remote_transaction_started is not None and (
+        prepared_historical_context_reply_receipt is None
+        or not callable(on_remote_transaction_started)
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "Only a historical-context transaction may publish its remote "
+            "phase through this callback",
             service="x",
         )
     if prepared_conversational_reply_receipt is not None:
@@ -7825,6 +7878,12 @@ def create_post(
         return str(post_id)
 
     try:
+        if on_remote_transaction_started is not None:
+            # The outbox phase is published only after the restart-persistent
+            # transport pair is armed, and directly before the sole remote
+            # request boundary.  If this durable callback fails, the armed
+            # journal remains a global barrier and no request is attempted.
+            on_remote_transaction_started()
         result = x_request(
             "POST",
             "/2/tweets",
@@ -8533,6 +8592,10 @@ def load_receipt_json_no_follow(path: Path) -> tuple[bool, object | None]:
         raise UnsafeReceiptNamespace(
             "receipt namespace entry is not one single-link ordinary file"
         )
+    if before.st_uid != os.geteuid() or stat.S_IMODE(before.st_mode) != 0o600:
+        raise UnsafeReceiptNamespace(
+            "receipt namespace entry has unsafe ownership or permissions"
+        )
     if before.st_size > RECEIPT_JSON_MAX_BYTES:
         raise UnsafeReceiptNamespace("receipt exceeds its byte limit")
     nofollow = getattr(os, "O_NOFOLLOW", 0)
@@ -8550,6 +8613,8 @@ def load_receipt_json_no_follow(path: Path) -> tuple[bool, object | None]:
         if (
             not stat.S_ISREG(opened.st_mode)
             or opened.st_nlink != 1
+            or opened.st_uid != os.geteuid()
+            or stat.S_IMODE(opened.st_mode) != 0o600
             or opened.st_dev != before.st_dev
             or opened.st_ino != before.st_ino
         ):
@@ -8581,8 +8646,13 @@ def load_receipt_json_no_follow(path: Path) -> tuple[bool, object | None]:
             or after_fd.st_mtime_ns != opened.st_mtime_ns
             or not stat.S_ISREG(after_path.st_mode)
             or after_path.st_nlink != 1
+            or after_path.st_uid != os.geteuid()
+            or stat.S_IMODE(after_path.st_mode) != 0o600
             or after_path.st_dev != opened.st_dev
             or after_path.st_ino != opened.st_ino
+            or after_path.st_size != opened.st_size
+            or after_path.st_ctime_ns != opened.st_ctime_ns
+            or after_path.st_mtime_ns != opened.st_mtime_ns
         ):
             raise UnsafeReceiptNamespace("receipt changed while reading")
     finally:
@@ -8590,7 +8660,10 @@ def load_receipt_json_no_follow(path: Path) -> tuple[bool, object | None]:
     data = b"".join(chunks)
     if len(data) != opened.st_size:
         raise UnsafeReceiptNamespace("receipt read was incomplete")
-    return True, _strict_receipt_json_bytes(data)
+    value = _strict_receipt_json_bytes(data)
+    if canonical_atomic_json_bytes(value) != data:
+        raise UnsafeReceiptNamespace("receipt is not canonical JSON")
+    return True, value
 
 
 def durable_create_receipt_json(path: Path, value: object) -> None:
@@ -8681,6 +8754,11 @@ def valid_post_id(value: object) -> bool:
     return bool(re.fullmatch(r"\d{1,30}", str(value or "")))
 
 
+def valid_string_post_id(value: object) -> bool:
+    """Return whether a durable receipt stores an exact string post ID."""
+    return type(value) is str and valid_post_id(value)
+
+
 def valid_receipt_epoch(value: object) -> bool:
     """Return whether valid receipt epoch."""
     if type(value) is not int:
@@ -8713,7 +8791,9 @@ def safe_epoch_date_str(epoch: int) -> str | None:
 
 def valid_receipt_basename(value: object) -> bool:
     """Return whether valid receipt basename."""
-    basename = str(value or "")
+    if type(value) is not str:
+        return False
+    basename = value
     return bool(basename) and Path(basename).name == basename and basename not in {".", ".."}
 
 
@@ -8807,8 +8887,10 @@ def bound_meme_schedule_state_is_valid(value: object) -> bool:
         for epoch in (next_epoch, last_epoch, anchor_epoch)
     ):
         return False
-    mode = str(value["next_meme_schedule_mode"])
-    schedule_date = str(value["next_meme_schedule_date"])
+    mode = value["next_meme_schedule_mode"]
+    schedule_date = value["next_meme_schedule_date"]
+    if type(mode) is not str or type(schedule_date) is not str:
+        return False
     if next_epoch:
         if (
             int(value["meme_schedule_version"]) < 1
@@ -8837,7 +8919,9 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     """Return whether a pre-send regular or meme attempt is self-consistent."""
     if not isinstance(data, dict):
         return False
-    lane = str(data.get("lane") or "")
+    lane = data.get("lane")
+    if type(lane) is not str:
+        return False
     supported_schemas = {
         "quote_image": {3, 4},
         "daily_meme": {2, 3, 4},
@@ -8851,7 +8935,10 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         return False
     if data.get("lifecycle_state") not in {"sending", "attempting"}:
         return False
-    if re.fullmatch(r"[0-9a-f]{64}", str(data.get("attempt_id") or "")) is None:
+    if (
+        type(data.get("attempt_id")) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", data["attempt_id"]) is None
+    ):
         return False
     attempt_epoch = receipt_int(data.get("attempt_epoch"))
     if attempt_epoch is None or not valid_receipt_epoch(attempt_epoch):
@@ -8862,8 +8949,10 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     text = data.get("text")
     if not isinstance(text, str):
         return False
-    if hashlib.sha256(text.encode("utf-8")).hexdigest() != str(
-        data.get("text_sha256") or ""
+    if (
+        type(data.get("text_sha256")) is not str
+        or hashlib.sha256(text.encode("utf-8")).hexdigest()
+        != data["text_sha256"]
     ):
         return False
     media_ids = data.get("media_ids")
@@ -8875,7 +8964,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         or len(set(media_ids)) != len(media_ids)
     ):
         return False
-    if str(data.get("reply_to_id") or ""):
+    if type(data.get("reply_to_id")) is not str or data["reply_to_id"]:
         return False
     if not isinstance(data.get("made_with_ai"), bool):
         return False
@@ -8894,9 +8983,10 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             "image_no",
         }:
             return False
-        quote_hash = str(selected.get("quote_hash") or "")
+        quote_hash = selected.get("quote_hash")
         if (
-            re.fullmatch(r"[0-9a-f]{64}", quote_hash) is None
+            type(quote_hash) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", quote_hash) is None
             or quote_text_hash(text) != quote_hash
             or not valid_receipt_basename(selected.get("image_basename"))
             or type(selected.get("line_no")) is not int
@@ -8952,7 +9042,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             or len(image_history) > 10_000
             or len(set(image_history)) != len(image_history)
             or image_history != sorted(image_history)
-            or str(selected["image_basename"]) not in image_history
+            or selected["image_basename"] not in image_history
             or any(
                 not isinstance(value, str)
                 or not valid_receipt_basename(value)
@@ -9021,8 +9111,9 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     payload = main_post_attempt_payload(data)
     return (
         bool(payload.get("text") or payload.get("media"))
+        and type(data.get("payload_sha256")) is str
         and canonical_remote_post_payload_sha256(payload)
-        == str(data.get("payload_sha256") or "")
+        == data["payload_sha256"]
     )
 
 
@@ -9031,8 +9122,9 @@ def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
     return bool(
         main_post_attempt_is_semantically_valid(attempt)
         and main_post_attempt_payload(attempt) == payload
+        and type(attempt.get("payload_sha256")) is str
         and canonical_remote_post_payload_sha256(payload)
-        == str(attempt.get("payload_sha256") or "")
+        == attempt["payload_sha256"]
     )
 
 
@@ -9337,7 +9429,7 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         type(data.get("schema_version")) is not int
         or data.get("schema_version") != 1
         or data.get("receipt_type") != "confirmed_pending_schedule"
-        or not valid_post_id(data.get("post_id"))
+        or not valid_string_post_id(data.get("post_id"))
         or not isinstance(data.get("image_summary"), str)
     ):
         return False
@@ -9813,16 +9905,16 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     schema_version = data.get("schema_version")
     if type(schema_version) is not int or schema_version not in {1, 2, 3}:
         return False
-    post_id = str(data.get("post_id") or "")
-    quote_hash = str(data.get("quote_hash") or "")
-    image_basename = str(data.get("image_basename") or "")
+    post_id = data.get("post_id")
+    quote_hash = data.get("quote_hash")
+    image_basename = data.get("image_basename")
     text = data.get("text")
     quote_post_epoch = receipt_int(data.get("quote_post_epoch"))
     next_quote_post_epoch = receipt_int(data.get("next_quote_post_epoch"))
 
-    if not valid_post_id(post_id):
+    if not valid_string_post_id(post_id):
         return False
-    if not re.fullmatch(r"[0-9a-f]{64}", quote_hash):
+    if type(quote_hash) is not str or not re.fullmatch(r"[0-9a-f]{64}", quote_hash):
         return False
     if quote_post_epoch is None or not valid_receipt_epoch(quote_post_epoch):
         return False
@@ -9881,7 +9973,9 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
             return False
         if not valid_receipt_epoch(next_meme_epoch):
             return False
-        mode = str(data.get("next_meme_schedule_mode") or "")
+        mode = data.get("next_meme_schedule_mode")
+        if type(mode) is not str:
+            return False
         if mode not in MEME_SCHEDULE_MODES or not mode:
             return False
         anchor_int = receipt_int(data.get("meme_anchor_quote_post_epoch", 0), default=0)
@@ -9890,7 +9984,9 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         changed_by_quote = receipt_bool(data.get("meme_schedule_changed_by_quote"))
         if changed_by_quote is None:
             return False
-        schedule_date = str(data.get("next_meme_schedule_date") or "")
+        schedule_date = data.get("next_meme_schedule_date")
+        if type(schedule_date) is not str:
+            return False
         if mode == "after_first_quote_after_midday":
             if changed_by_quote:
                 if anchor_int != quote_post_epoch:
@@ -9920,7 +10016,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     present_lineage_fields = lineage_fields.intersection(data)
     if present_lineage_fields:
         source_attempt = data.get("source_attempt")
-        source_sha256 = str(data.get("source_attempt_sha256") or "")
+        source_sha256 = data.get("source_attempt_sha256")
         if (
             present_lineage_fields != lineage_fields
             or schema_version != 3
@@ -9932,6 +10028,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
             or source_attempt.get("lifecycle_state") != "attempting"
             or source_attempt.get("lane") != "quote_image"
             or not main_post_attempt_is_semantically_valid(source_attempt)
+            or type(source_sha256) is not str
             or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
             or hashlib.sha256(
                 canonical_atomic_json_bytes(source_attempt)
@@ -10099,7 +10196,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     schema_version = data.get("schema_version")
     if type(schema_version) is not int or schema_version not in {1, 2}:
         return False
-    if not valid_post_id(data.get("post_id")):
+    if not valid_string_post_id(data.get("post_id")):
         return False
     if not valid_receipt_basename(data.get("meme_basename")):
         return False
@@ -10124,7 +10221,9 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
         or schedule_version > MEME_SCHEDULE_VERSION
     ):
         return False
-    mode = str(data.get("next_meme_schedule_mode") or "fallback")
+    mode = data.get("next_meme_schedule_mode", "fallback")
+    if type(mode) is not str:
+        return False
     if mode not in MEME_SCHEDULE_MODES or mode == "after_first_quote_after_midday":
         return False
 
@@ -10132,7 +10231,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     present_lineage_fields = lineage_fields.intersection(data)
     if present_lineage_fields:
         source_attempt = data.get("source_attempt")
-        source_sha256 = str(data.get("source_attempt_sha256") or "")
+        source_sha256 = data.get("source_attempt_sha256")
         if (
             present_lineage_fields != lineage_fields
             or schema_version != 2
@@ -10141,6 +10240,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
             or source_attempt.get("lifecycle_state") != "attempting"
             or source_attempt.get("lane") != "daily_meme"
             or not main_post_attempt_is_semantically_valid(source_attempt)
+            or type(source_sha256) is not str
             or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
             or hashlib.sha256(
                 canonical_atomic_json_bytes(source_attempt)
@@ -10627,6 +10727,7 @@ def maybe_post_historical_context_reply(
     quote_text: str,
     parent_post_id: str,
     dry_run: bool = False,
+    on_remote_transaction_started: Callable[[], None] | None = None,
 ) -> dict:
     """Post an optional canonical context reply without affecting the main post."""
     if not dry_run:
@@ -10772,6 +10873,9 @@ def maybe_post_historical_context_reply(
                     lambda error: isinstance(error, RemoteOperationsPaused)
                 ),
                 require_confirmed_transport=not dry_run,
+                on_remote_transaction_started=(
+                    None if dry_run else on_remote_transaction_started
+                ),
             )
         finally:
             # Every post-start exit retains either the sending receipt, its
@@ -11023,10 +11127,19 @@ def recover_interrupted_historical_context_attempt(
             latch_source_receipt_retirement_uncertainty
         ),
     )
+    transport_journal_path = journal_path_for_receipt(
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+    journal_was_observed = transport_journal_is_blocking(
+        transport_journal_path
+    )
     # The sending receipt is the authoritative ambiguity barrier.  It must be
     # reconciled (confirmed, definitely failed, or left ambiguous) before an
     # interrupted outbox claim can be downgraded or retried.
     context_store.reconcile_receipt()
+    journal_is_blocking = transport_journal_is_blocking(
+        transport_journal_path
+    )
     history = context_store.history()
     previous = history["items"].get(parent_id)
     if (
@@ -11046,6 +11159,66 @@ def recover_interrupted_historical_context_attempt(
     if isinstance(previous, dict) and previous.get("quote_id") != context["quote_id"]:
         raise RuntimeError(
             "context history identity conflicts with interrupted outbox attempt"
+        )
+    proved_pre_remote = bool(
+        context.get("remote_transaction_started") is False
+        and not journal_was_observed
+        and not journal_is_blocking
+    )
+    if (
+        isinstance(previous, dict)
+        and previous.get("status") == "failed"
+        and not proved_pre_remote
+    ):
+        # A failed history row is keyed only by parent/quote identity.  The
+        # reply store and outbox deliberately have independent attempt
+        # ordinals, so an older definite failure cannot prove the outcome of a
+        # later attempt which may have reached transport.  Only an explicit
+        # current-schema pre-remote phase may consume that stale row safely.
+        raise AmbiguousContextReplyOutcome(
+            "an interrupted historical-context attempt may have reached its "
+            "remote transaction but only an older failed history outcome is "
+            "available",
+            parent_post_id=parent_id,
+            reply_text=str(context.get("reply_text") or ""),
+        )
+    if not isinstance(previous, dict):
+        if proved_pre_remote:
+            # A current-schema claim starts in a definite local-only phase.
+            # The only transition to True is durably written after the
+            # transport journal is armed and immediately before the request.
+            # With no receipt ever observed, no receipt now present, and no
+            # terminal history, an interruption in this phase is therefore a
+            # definite preparation failure rather than an unknown remote
+            # outcome.
+            state_name = _record_context_outbox_failure(
+                store,
+                parent_post_id=parent_id,
+                attempt_number=attempt_number,
+                error="context attempt was interrupted before remote transaction start",
+                failed_epoch=recovered_epoch,
+                force_terminal=attempt_number >= store.max_attempts,
+            )
+            updated = store.get(parent_id)
+            if updated is None or updated["context_reply"]["state"] != state_name:
+                raise RuntimeError("pre-remote context recovery was not durable")
+            return {
+                "parent_post_id": parent_id,
+                "status": "recovered_pre_remote_interruption",
+                "context_reply_state": state_name,
+                "attempt_number": attempt_number,
+                "remote_work_repeated": False,
+            }
+        # Missing phase metadata denotes a legacy record whose remote boundary
+        # is unknown. True denotes the current schema's explicit remote phase.
+        # A journal object or unsafe journal namespace likewise remains an
+        # independent fail-closed barrier even if the source receipt vanished.
+        raise AmbiguousContextReplyOutcome(
+            "an interrupted historical-context attempt may have reached its "
+            "remote transaction but has neither a durable transaction receipt "
+            "nor a recorded terminal outcome",
+            parent_post_id=parent_id,
+            reply_text=str(context.get("reply_text") or ""),
         )
     if isinstance(previous, dict) and previous.get("status") == "completed":
         # HistoricalContextReplyStore counts only attempts which reached its
@@ -11280,6 +11453,14 @@ def _process_due_historical_context_obligations(
                 quote_hash=str(context["quote_id"]),
                 quote_text=str(context["quote_text"]),
                 parent_post_id=parent_id,
+                on_remote_transaction_started=(
+                    lambda parent_id=parent_id, attempt_number=attempt_number: (
+                        store.mark_remote_transaction_started(
+                            parent_id,
+                            attempt_number=attempt_number,
+                        )
+                    )
+                ),
             )
         except Exception as exc:
             if type(exc).__name__ == "AmbiguousContextReplyOutcome":
@@ -15847,18 +16028,20 @@ def _conversational_reply_receipt_is_semantically_valid(
             return False
     elif data.get("lifecycle_state") != lifecycle_state:
         return False
-    if not valid_post_id(data.get("target_id")):
+    if not valid_string_post_id(data.get("target_id")):
         return False
-    if lifecycle_state == "confirmed" and not valid_post_id(
+    if lifecycle_state == "confirmed" and not valid_string_post_id(
         data.get("reply_post_id")
     ):
         return False
     if lifecycle_state == "sending" and "reply_post_id" in data:
         return False
     author_id = data.get("author_id")
-    if author_id is None or isinstance(author_id, (dict, list)):
+    if not valid_string_post_id(author_id):
         return False
-    source = str(data.get("candidate_source") or "")
+    source = data.get("candidate_source")
+    if type(source) is not str:
+        return False
     if source not in {"mention", "hot_post_reply", "quote_tweet"}:
         return False
     reply_epoch = receipt_int(data.get("reply_epoch"))
@@ -15900,7 +16083,7 @@ def _conversational_reply_receipt_is_semantically_valid(
     if not isinstance(text, str) or not text:
         return False
     conversation_id = data.get("conversation_id")
-    if not valid_post_id(conversation_id):
+    if not valid_string_post_id(conversation_id):
         return False
     if schema_version in {2, 3}:
         daily_reply_date = data.get("daily_reply_date")
@@ -15919,17 +16102,20 @@ def _conversational_reply_receipt_is_semantically_valid(
     if not isinstance(context, dict):
         return False
     if (
-        str(context.get("target_id") or "") != str(data["target_id"])
-        or str(context.get("thread_id") or "") != str(conversation_id)
+        type(context.get("target_id")) is not str
+        or type(context.get("thread_id")) is not str
+        or context.get("target_id") != data["target_id"]
+        or context.get("thread_id") != conversation_id
         or context.get("lane") != source
     ):
         return False
     if source == "quote_tweet":
         quoted_post = context.get("quoted_post")
         if (
-            not valid_post_id(original_post_id)
+            not valid_string_post_id(original_post_id)
             or not isinstance(quoted_post, dict)
-            or str(quoted_post.get("post_id") or "") != str(original_post_id)
+            or type(quoted_post.get("post_id")) is not str
+            or quoted_post.get("post_id") != original_post_id
         ):
             return False
     elif original_post_id is not None:
@@ -15945,13 +16131,13 @@ def _conversational_reply_receipt_is_semantically_valid(
         }:
             return False
         if any(
-            not valid_post_id(clarification.get(field))
+            not valid_string_post_id(clarification.get(field))
             for field in ("thread_id", "prior_bot_reply_id", "original_question_id")
         ):
             return False
         if clarification.get("trigger") not in {"explicit_correction", "restated_question"}:
             return False
-        if str(clarification.get("thread_id")) != str(conversation_id):
+        if clarification.get("thread_id") != conversation_id:
             return False
         draft = data.get("ai_reply_draft")
         if not isinstance(draft, dict) or draft.get("mode") != "direct_factual_answer":
@@ -15991,9 +16177,9 @@ def conversational_sending_receipt_from_confirmed(
         or type(confirmed_receipt.get("schema_version")) is not int
         or confirmed_receipt.get("schema_version") != 4
         or confirmed_receipt.get("lifecycle_state") != "confirmed"
+        or type(confirmed_receipt.get("source_receipt_sha256")) is not str
         or not re.fullmatch(
-            r"[0-9a-f]{64}",
-            str(confirmed_receipt.get("source_receipt_sha256") or ""),
+            r"[0-9a-f]{64}", confirmed_receipt["source_receipt_sha256"]
         )
     ):
         raise ValueError(

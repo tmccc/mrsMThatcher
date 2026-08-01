@@ -1011,14 +1011,18 @@ def test_v4_formatter_metadata_accepts_previous_source_role_policy(corpus):
     ("parent_post_id", "quote_id", "reply_text"),
     [
         ("not-numeric", "a" * 64, "Context"),
+        (111, "a" * 64, "Context"),
         ("111", "not-a-sha256", "Context"),
+        ("111", int("1" * 64), "Context"),
         ("111", "a" * 64, "   "),
     ],
 )
 def test_invalid_context_request_is_rejected_before_remote_post(
     tmp_path, parent_post_id, quote_id, reply_text
 ):
-    store = _historical_store(tmp_path / "history.json", tmp_path / "receipt.json")
+    history_path = tmp_path / "history.json"
+    receipt_path = tmp_path / "receipt.json"
+    store = _historical_store(history_path, receipt_path)
 
     with pytest.raises(ValueError, match="invalid historical context reply request"):
         store.post(
@@ -1027,7 +1031,12 @@ def test_invalid_context_request_is_rejected_before_remote_post(
             reply_text=reply_text,
             create_post=lambda **kwargs: pytest.fail("invalid request must not reach remote post"),
             now_epoch=lambda: 123,
+            on_confirmed_receipt=lambda _receipt: pytest.fail(
+                "invalid request must not reach the receipt callback"
+            ),
         )
+    assert not history_path.exists()
+    assert not receipt_path.exists()
 
 
 @pytest.mark.parametrize("raced_kind", ["file", "symlink"])
@@ -1131,7 +1140,7 @@ def test_context_receipt_reader_rejects_same_byte_aba_replacement(
         "confirmed_at": "now",
     }
     receipt_path = tmp_path / "receipt.json"
-    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    context_module.atomic_write_json(receipt_path, receipt)
     store = _historical_store(tmp_path / "history.json", receipt_path)
     real_lstat = context_module.os.lstat
     receipt_lstats = 0
@@ -1153,6 +1162,85 @@ def test_context_receipt_reader_rejects_same_byte_aba_replacement(
 
     assert receipt_lstats >= 2
     assert receipt_path.exists()
+    assert not store.history_path.exists()
+
+
+def test_context_receipt_reader_rejects_disappearance_after_observation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt_path = tmp_path / "receipt.json"
+    context_module.atomic_write_json(receipt_path, {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "111",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-07-31T12:00:00Z",
+        "attempt_number": 1,
+    })
+    store = _historical_store(tmp_path / "history.json", receipt_path)
+    real_lstat = context_module.os.lstat
+    receipt_lstats = 0
+
+    def remove_before_final_lstat(path):
+        nonlocal receipt_lstats
+        if Path(path) == receipt_path:
+            receipt_lstats += 1
+            if receipt_lstats == 2:
+                receipt_path.unlink()
+        return real_lstat(path)
+
+    monkeypatch.setattr(context_module.os, "lstat", remove_before_final_lstat)
+
+    with pytest.raises(RuntimeError, match="disappeared while it was read"):
+        store._load_receipt_safely()
+
+    assert receipt_lstats == 2
+
+
+def test_context_post_does_not_send_when_observed_receipt_disappears(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt_path = tmp_path / "receipt.json"
+    context_module.atomic_write_json(receipt_path, {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "111",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-07-31T12:00:00Z",
+        "attempt_number": 1,
+    })
+    store = _historical_store(tmp_path / "history.json", receipt_path)
+    real_lstat = context_module.os.lstat
+    receipt_lstats = 0
+    create_post_calls: list[dict[str, object]] = []
+
+    def remove_before_final_lstat(path):
+        nonlocal receipt_lstats
+        if Path(path) == receipt_path:
+            receipt_lstats += 1
+            if receipt_lstats == 2:
+                receipt_path.unlink()
+        return real_lstat(path)
+
+    monkeypatch.setattr(context_module.os, "lstat", remove_before_final_lstat)
+
+    with pytest.raises(RuntimeError, match="disappeared while it was read"):
+        store.post(
+            parent_post_id="111",
+            quote_id="a" * 64,
+            reply_text="Context",
+            create_post=lambda **kwargs: create_post_calls.append(kwargs),
+            now_epoch=lambda: 1_800_000_001,
+        )
+
+    assert receipt_lstats == 2
+    assert create_post_calls == []
     assert not store.history_path.exists()
 
 
@@ -1179,6 +1267,7 @@ def test_context_receipt_duplicate_lifecycle_cannot_fabricate_confirmation(
 """,
         encoding="utf-8",
     )
+    receipt_path.chmod(0o600)
     receipt_bytes = receipt_path.read_bytes()
     store = _historical_store(tmp_path / "history.json", receipt_path)
 
@@ -1252,7 +1341,7 @@ def test_malformed_context_receipt_is_blocked_without_mutating_history(tmp_path,
         **patch,
     }
     receipt_path = tmp_path / "receipt.json"
-    receipt_path.write_text(json.dumps(receipt))
+    context_module.atomic_write_json(receipt_path, receipt)
     store = _historical_store(tmp_path / "history.json", receipt_path)
 
     with pytest.raises(RuntimeError, match="invalid historical context reply receipt"):
@@ -1272,7 +1361,7 @@ def test_context_store_rejects_boolean_schema_versions(tmp_path):
         store.history()
 
     history_path.unlink()
-    receipt_path.write_text(json.dumps({
+    context_module.atomic_write_json(receipt_path, {
         "schema_version": True,
         "lifecycle_state": "sending",
         "parent_post_id": "111",
@@ -1281,9 +1370,63 @@ def test_context_store_rejects_boolean_schema_versions(tmp_path):
         "reply_epoch": 123,
         "started_at": "now",
         "attempt_number": 1,
-    }))
+    })
     with pytest.raises(RuntimeError, match="invalid historical context reply receipt"):
         store.reconcile_receipt()
+
+
+def test_historical_receipts_require_exact_string_identifiers() -> None:
+    sending = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "111",
+        "quote_id": "1" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-07-31T12:00:00Z",
+        "attempt_number": 1,
+    }
+    assert HistoricalContextReplyStore._valid_sending_receipt(sending)
+
+    changed = dict(sending)
+    changed["parent_post_id"] = 111
+    assert HistoricalContextReplyStore._valid_sending_receipt(changed) is False
+
+    changed = dict(sending)
+    changed["quote_id"] = int("1" * 64)
+    assert HistoricalContextReplyStore._valid_sending_receipt(changed) is False
+
+    confirmed = {
+        **sending,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": "222",
+        "confirmed_at": "2026-07-31T12:00:01Z",
+    }
+    assert HistoricalContextReplyStore._valid_receipt(confirmed)
+    confirmed["reply_post_id"] = 222
+    assert HistoricalContextReplyStore._valid_receipt(confirmed) is False
+
+
+def test_historical_receipt_loader_rejects_noncanonical_confirmed_bytes(
+    tmp_path: Path,
+) -> None:
+    receipt = {
+        "schema_version": 1,
+        "parent_post_id": "111",
+        "reply_post_id": "222",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 1_800_000_000,
+        "confirmed_at": "2026-07-31T12:00:01Z",
+    }
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    receipt_path.chmod(0o600)
+    store = _historical_store(tmp_path / "history.json", receipt_path)
+
+    with pytest.raises(RuntimeError, match="invalid context reply receipt JSON"):
+        store.reconcile_receipt()
+    assert not store.history_path.exists()
 
 
 def test_conflicting_completed_receipt_is_blocked_without_overwrite(tmp_path):
@@ -1305,7 +1448,7 @@ def test_conflicting_completed_receipt_is_blocked_without_overwrite(tmp_path):
     conflicting = {**existing["items"]["111"], "reply_post_id": "333"}
     conflicting.pop("status")
     history_path.write_text(json.dumps(existing))
-    receipt_path.write_text(json.dumps(conflicting))
+    context_module.atomic_write_json(receipt_path, conflicting)
     store = _historical_store(history_path, receipt_path)
 
     with pytest.raises(RuntimeError, match="conflicts with completed history"):

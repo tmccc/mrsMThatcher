@@ -15,21 +15,21 @@ independently reproduced candidate-lineage defects.
 
 - Production baseline commit: `be882e8121a7b4348a57b61b1cf526401a36f5c0`
 - Production baseline tree: `7965dbb935f2a9f993d14aa37d93283e16bc298a`
-- Ledger evidence cut-off commit: `7ebcc09699a13848d55a33fd84d66cc8ce56d95c`
-- Ledger evidence cut-off tree: `b83abb7af53f925eb8686825e09f4654a55ff40a`
+- Ledger evidence cut-off commit: `4e548b0a5723a1f0c75e9646953b3f92c7db89ad`
+- Ledger evidence cut-off tree: `a751f4b488ee20d268a082c7daf835d5786e7e23`
 - Evidence valid through: `2026-08-01`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0051. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.
-- Status-claim boundary: Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated.
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0055. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.
+- Status-claim boundary: Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 4e548b0a are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0051, remain external and unfixed in ledger truth until merge and post-merge regeneration.
+- Candidate identity rule: The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0055, remain external and unfixed in ledger truth until merge and post-merge regeneration.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0051 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0055 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
 
 ## Status taxonomy
 
@@ -138,6 +138,10 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0049` | runtime-defect | `mrsMThatcher2.py`; `README.md`; `tests/test_integration_harness.py`; `tests/test_x_write_outcome_conservatism.py` | `media-upload` | false — This is a cutoff-bound configuration-routing defect, not evidence that production configured or required a distinct upload origin. Evidence: The mismatch was reproduced with distinct synthetic loopback API and upload origins. No network, X, provider, service or production action occurred. |
 | `DEF-0050` | runtime-defect | `mrsMThatcher2.py`; `remote_media_upload_receipt.py`; `tests/test_remote_media_upload_receipt.py`; `tests/test_transaction_mutation_authority.py`; `tests/test_x_write_outcome_conservatism.py` | `regular-quote-image-post`; `daily-meme-post`; `media-upload`; `global-pause-control` | false — The durable pair remained fail closed and therefore did not create a duplicate-write opening; the established defect is unnecessary manual recovery of a definitely untransmitted transaction. Evidence: The availability boundary was reproduced using a synthetic pause transition after durable receipt/fence publication and before a local transport sentinel. No HTTP, network, X, provider, service or production action occurred. |
 | `DEF-0051` | runtime-defect | `mrsMThatcher2.py`; `remote_write_transport_journal.py`; `tests/test_media_upload_transaction_integration.py`; `tests/test_unit_helpers.py`; `tests/test_x_write_outcome_conservatism.py` | `regular-quote-image-post`; `daily-meme-post`; `media-upload-handoff`; `global-pause-control` | false — The source receipt remained fail closed in both pause phases. In the descendant handoff protocol under review, the initial create_post pause also left its still-prepared journal/fence pair, whereas the final x_request pause aborted that pair before escaping and left only the source unresolved. The established defect is unnecessary manual recovery after a tweet request proved untransmitted, not a duplicate-write opening. Evidence: The availability boundary was reproduced in isolated state directories with one local synthetic media-upload response and a tweet-transport sentinel. No tweet request, external network, X, provider, service or production action occurred. |
+| `DEF-0052` | runtime-defect | `mrsMThatcher2.py`; `tests/test_unit_helpers.py` | `regular-quote-image-post`; `daily-meme-post`; `scheduler-state-recovery` | false — This establishes a deterministic restart rollback path; it does not establish that deployed production held a newer backup or emitted a duplicate post. Evidence: The ordering gap was reproduced with isolated valid primary and bak1 documents containing different state generations. No production state, network or remote service was accessed. |
+| `DEF-0053` | runtime-defect | `historical_context_formatter.py`; `historical_context_outbox.py`; `mrsMThatcher2.py`; `tests/test_historical_context_outbox.py`; `tests/test_historical_context_reply.py`; `tests/test_production_consistency_incident.py` | `historical-context-reply`; `cross-cutting-remote-write-barrier` | false — The review establishes that recovery could not distinguish a definitely local interruption from a potentially transmitted one; it does not claim that a live historical-context reply was duplicated. Evidence: The phase gap was reproduced in isolated context stores by interrupting a claim before transport and by removing terminal history after a potentially transmitted claim. No X request, network or production state was used. |
+| `DEF-0054` | runtime-defect | `mrsMThatcher2.py`; `historical_context_formatter.py`; `remote_write_transport_journal.py`; `tests/test_unit_helpers.py`; `tests/test_historical_context_reply.py`; `tests/test_remote_write_transport_journal.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `cross-cutting-remote-write-barrier` | false — This establishes acceptance of under-specified local authority documents; it does not establish a live wrong-post or duplicate incident. Evidence: The gaps were reproduced with isolated receipt files using semantically equivalent noncanonical bytes, permissive modes, same-inode content mutation and disappearance at the final path check. Transport and all external access were forbidden. |
+| `DEF-0055` | runtime-defect | `mrsMThatcher2.py`; `historical_context_formatter.py`; `remote_write_transport_journal.py`; `remote_media_upload_receipt.py`; `tests/test_unit_helpers.py`; `tests/test_historical_context_reply.py`; `tests/test_remote_write_transport_journal.py`; `tests/test_remote_media_upload_receipt.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `cross-cutting-remote-write-barrier` | false — The review establishes incomplete validation of nested proof fields, not a demonstrated live authority bypass. Evidence: The type/range gaps were reproduced with synthetic main, conversational, historical, journal and media documents in an isolated directory. No transport, network, provider, X or production operation occurred. |
 
 ## Chronology projection
 
@@ -239,17 +243,31 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0039` | 2026-07-31 | `40ab83ef` | IR-40AB83E-02 identified that an ambiguous v2 acceptance could be followed automatically by a second v1.1 upload and that media identity lacked a durable owner across restart. | Cross-lane transport boundary matrix and media-upload source review |
 | `DEF-0039` | 2026-07-31 | `7ebcc096` | 7ebcc096 removed automatic legacy fallback, added an immutable media upload receipt/fence and handed the confirmed media ID into the main transaction journal before post transport. | Harden remote write transport boundaries |
 | `DEF-0040` | 2026-07-31 | `7ebcc096` | Independent review of the exact 7ebcc096 tree identified byte-identical inode replacement windows across receipt validation, transition and retirement. | Exact-cut-off filesystem identity and transition review |
+| `DEF-0040` | 2026-08-01 | `634fd6cd` | 634fd6cd committed the fix-bound implementation and regression evidence for DEF-0040. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0041` | 2026-07-31 | `7ebcc096` | Independent exact-cut-off review reproduced a final-barrier unlink followed by a failed parent-directory fsync and found no guaranteed latch before the destructive operation. | Receipt-retirement durability and latch review |
+| `DEF-0041` | 2026-08-01 | `634fd6cd` | 634fd6cd committed the fix-bound implementation and regression evidence for DEF-0041. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0042` | 2026-07-31 | `7ebcc096` | Independent exact-cut-off API review found that destructive receipt and journal helpers trusted caller convention rather than verifying current instance-lock authority. | Transaction helper call graph and process-lock authority review |
+| `DEF-0042` | 2026-08-01 | `634fd6cd` | 634fd6cd committed the fix-bound implementation and regression evidence for DEF-0042. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0043` | 2026-07-31 | `7ebcc096` | Independent review of 7ebcc096 separated the already repaired historical-context parser from unsafe namespace and permissive JSON handling still present in the other transaction receipt lanes. | Exact-cut-off receipt namespace and canonical-JSON review |
+| `DEF-0043` | 2026-08-01 | `634fd6cd` | 634fd6cd committed the fix-bound implementation and regression evidence for DEF-0043. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0044` | 2026-07-31 | `7ebcc096` | Independent exact-cut-off review showed that the candidate controlled the pytest hook code and knew the evidence outputs whose internal consistency the gate later accepted. | Candidate-owned pytest evidence capability analysis |
 | `DEF-0045` | 2026-07-31 | `7ebcc096` | Exact-cut-off review confirmed that hard exit can preserve an intentionally blocking transition staging entry for which no strict automatic resumer or complete operator procedure existed. | RENAME_EXCHANGE staging and restart-liveness review |
 | `DEF-0046` | 2026-08-01 | `7ebcc096` | Pre-freeze schedule and recovery review reproduced stale regular-history erasure and stale meme-state rollback against the 7ebcc096 cut-off. | Synthetic stale-receipt replay with a strictly newer quote/meme state |
+| `DEF-0046` | 2026-08-01 | `5a11bbf4` | 5a11bbf4 committed the fix-bound implementation and regression evidence for DEF-0046. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0047` | 2026-08-01 | `7ebcc096` | Post-cutoff adversarial review combined path-bearing X bases with protected create paths and established disagreement between prepared and literal route identity at 7ebcc096. | Synthetic origin/path configuration and pre-transport route-classification fixture |
+| `DEF-0047` | 2026-08-01 | `5a11bbf4` | 5a11bbf4 committed the fix-bound implementation and regression evidence for DEF-0047. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0048` | 2026-08-01 | `7ebcc096` | Focused cutoff review installed simultaneous valid legacy regular, meme and confirmed conversational receipts and found the global auxiliary barrier open at 7ebcc096. | Synthetic simultaneous accepted-receipt preflight fixture with a clean-state negative control |
+| `DEF-0048` | 2026-08-01 | `5a11bbf4` | 5a11bbf4 committed the fix-bound implementation and regression evidence for DEF-0048. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0049` | 2026-08-01 | `7ebcc096` | A four-way post-cutoff adversarial review used distinct local API and upload origins and established that media upload still selected X_BASE at the evidence cut-off. | Distinct loopback-origin routing fixture with separate media, tweet and read observations |
+| `DEF-0049` | 2026-08-01 | `ce970f81` | ce970f81 committed the fix-bound implementation and regression evidence for DEF-0049. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0050` | 2026-08-01 | `7ebcc096` | A four-way transaction review paused the media lane after durable pair publication but before transport and established that the definitely untransmitted pair remained as a manual blocker. | Final-pretransport pause fixture with a transport sentinel and exact receipt/fence inspection |
+| `DEF-0050` | 2026-08-01 | `ce970f81` | ce970f81 committed the fix-bound implementation and regression evidence for DEF-0050. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
 | `DEF-0051` | 2026-08-01 | `7ebcc096` | Focused application-boundary review exercised both main-post lanes after confirmed media handoff and established that locally proved tweet non-transmission did not retire the durable source transaction at the evidence cut-off. | Cutoff source review plus isolated initial- and final-preflight pause regressions with zero tweet transport |
+| `DEF-0051` | 2026-08-01 | `fb8eb25f` | fb8eb25f committed the fix-bound implementation and regression evidence for DEF-0051. | Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger |
+| `DEF-0052` | 2026-08-01 | `4e548b0a` | Independent cutoff review supplied divergent but individually valid primary and bak1 state and observed the older primary win without an ordering proof. | Isolated state-loader divergence fixture and exact 4e548b0a source review |
+| `DEF-0053` | 2026-08-01 | `4e548b0a` | Cutoff review showed that the same attempting-state shape represented both a definitely pre-remote interruption and a potentially transmitted claim, then removed terminal history and observed the latter become retryable instead of remaining blocked. | Isolated historical-context outbox phase and history-monotonicity fixtures |
+| `DEF-0054` | 2026-08-01 | `4e548b0a` | Application-boundary review fed noncanonical and non-private receipt documents through each production reader and changed or removed receipt content at the stable-read and source-binding boundaries. | Offline common, historical and journal stable-source document matrix |
+| `DEF-0055` | 2026-08-01 | `4e548b0a` | Cutoff review substituted numeric public identifiers, bool/negative/non-string nested source fields and the special basenames '.' and '..' in receipt, journal and media owner documents and found incomplete rejection. | Offline public receipt and journal/media nested-identity validation matrix |
 
 ## Summary
 
@@ -294,18 +312,22 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0037` | repaired-not-deployed | critical | Unaudited activation and torn pair inspection could open remote-write permission | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | `5b0b6108` | not-deployed; observed `be882e81` |
 | `DEF-0038` | repaired-not-deployed | critical | Transport could outlive disappearance of the validated source receipt | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | `7ebcc096` | not-deployed; observed `be882e81` |
 | `DEF-0039` | repaired-not-deployed | critical | Ambiguous v2 media upload could fall back to a second v1.1 upload | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | `7ebcc096` | not-deployed; observed `be882e81` |
-| `DEF-0040` | active | critical | Byte-identical pathname replacement could retain stale transport authority | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0041` | active | critical | Receipt retirement fsync failure could clear the last barrier without latching the daemon | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0042` | active | critical | Destructive transaction helpers lacked verified caller lock authority | `INV-PROC-002`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0043` | active | critical | Unsafe receipt namespaces and ambiguous JSON could be treated as absent or authoritative | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0040` | repaired-not-deployed | critical | Byte-identical pathname replacement could retain stale transport authority | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | `634fd6cd` | not-deployed; observed `be882e81` |
+| `DEF-0041` | repaired-not-deployed | critical | Receipt retirement fsync failure could clear the last barrier without latching the daemon | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | `634fd6cd` | not-deployed; observed `be882e81` |
+| `DEF-0042` | repaired-not-deployed | critical | Destructive transaction helpers lacked verified caller lock authority | `INV-PROC-002`, `INV-TXN-RECEIPT-001` | unknown | `634fd6cd` | not-deployed; observed `be882e81` |
+| `DEF-0043` | repaired-not-deployed | critical | Unsafe receipt namespaces and ambiguous JSON could be treated as absent or authoritative | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | `634fd6cd` | not-deployed; observed `be882e81` |
 | `DEF-0044` | assurance-weakness | assurance | Candidate-owned pytest hooks could forge internally consistent release evidence | `INV-REL-TRUST-001` | unknown | unfixed | not applicable |
 | `DEF-0045` | active | medium | Exact exchange staging could require manual recovery after a safe hard exit | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0046` | active | critical | Stale confirmed receipt replay could regress newer post state | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0047` | active | critical | Path-bearing X bases could desynchronise prepared and literal create-route classification | `INV-API-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0048` | active | critical | Accepted legacy confirmed receipts could leave auxiliary provider work unblocked | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0049` | active | medium | Configured X upload origin was ignored by v2 media requests | `INV-API-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0050` | active | medium | Final pretransport pause could strand a definitely untransmitted media barrier pair | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
-| `DEF-0051` | active | medium | Post-media-handoff tweet pauses stranded definitely untransmitted main-post transactions | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001`, `INV-PAUSE-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0046` | repaired-not-deployed | critical | Stale confirmed receipt replay could regress newer post state | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | `5a11bbf4` | not-deployed; observed `be882e81` |
+| `DEF-0047` | repaired-not-deployed | critical | Path-bearing X bases could desynchronise prepared and literal create-route classification | `INV-API-001`, `INV-TXN-RECEIPT-001` | unknown | `5a11bbf4` | not-deployed; observed `be882e81` |
+| `DEF-0048` | repaired-not-deployed | critical | Accepted legacy confirmed receipts could leave auxiliary provider work unblocked | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | `5a11bbf4` | not-deployed; observed `be882e81` |
+| `DEF-0049` | repaired-not-deployed | medium | Configured X upload origin was ignored by v2 media requests | `INV-API-001` | unknown | `ce970f81` | not-deployed; observed `be882e81` |
+| `DEF-0050` | repaired-not-deployed | medium | Final pretransport pause could strand a definitely untransmitted media barrier pair | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | `ce970f81` | not-deployed; observed `be882e81` |
+| `DEF-0051` | repaired-not-deployed | medium | Post-media-handoff tweet pauses stranded definitely untransmitted main-post transactions | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001`, `INV-PAUSE-001` | unknown | `fb8eb25f` | not-deployed; observed `be882e81` |
+| `DEF-0052` | active | critical | A valid primary state file could silently outrank a newer valid backup | `INV-TXN-HIST-001` | unknown | unfixed | present in observed production and at evidence cut-off |
+| `DEF-0053` | active | critical | Historical-context recovery lacked a durable pre-remote versus remote-started phase | `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0054` | active | critical | Receipt readers and source binding did not prove one stable canonical private file generation | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0055` | active | medium | Durable public identifiers and nested source identities lacked exact type, range and basename constraints | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
 
 ## Records
 
@@ -822,7 +844,8 @@ that pathname before remote transport. A hard exit after possible acceptance
 could therefore leave the next process without an independent barrier. Commit
 `7ebcc096` adds a payload-, source- and inode-bound transport journal and
 restart fence at the final transport boundary. The repair is committed at the
-exact evidence cut-off, tested there, and not deployed.
+earlier `7ebcc096` point in the current evidence-cutoff lineage, tested there,
+and not deployed.
 
 ### DEF-0039 — Ambiguous media fallback
 
@@ -830,8 +853,8 @@ At `40ab83e`, broad v2 media-upload exception handling could automatically
 attempt v1.1 after the v2 service might already have accepted the bytes.
 Commit `7ebcc096` removes that automatic fallback, adds an immutable durable
 media receipt/fence and hands the confirmed media ID into the main journal
-before post transport. The repair is committed at the exact evidence cut-off,
-tested there, and not deployed.
+before post transport. The repair is committed earlier in the current
+evidence-cutoff lineage, tested at `7ebcc096`, and not deployed.
 
 ### DEF-0040 — Byte-identical pathname replacement
 
@@ -839,25 +862,28 @@ Review of exact cut-off `7ebcc096` found transaction decisions that retained
 byte or digest authority without one filesystem identity across every later
 exchange, transport and retirement boundary. A cooperating process could
 replace a pathname with a byte-identical inode and preserve stale authority.
-A later worktree proposes descriptor and device/inode/change-time binding, but
-that proposal is external to this ledger and the defect remains active and
-unfixed until a descendant commit is reviewed and the ledger regenerated.
+Commit `634fd6c` binds source, journal, fence and retirement decisions to stable
+no-follow filesystem identities and rejects byte-identical replacement
+generations. Its affected range ends at `7ebcc096`; the fix-bound regressions
+are committed, but the repair is not deployed.
 
 ### DEF-0041 — Retirement fsync and latch ordering
 
 At `7ebcc096`, a destructive receipt or fence unlink could remove the final
 visible barrier before the following parent-directory `fsync` failed, without
 a guaranteed process-lifetime latch already set. This creates uncertainty for
-both later ticks and crash restart. A later latch-first, crash-resumable
-proposal is external; the defect remains active and unfixed at the cut-off.
+both later ticks and crash restart. Commit `634fd6c` latches before destructive
+retirement and leaves interrupted exact-retirement states restart-visible. Its
+affected range ends at `7ebcc096`; the repair is committed and not deployed.
 
 ### DEF-0042 — Caller lock authority
 
 At `7ebcc096`, destructive transaction helpers relied on call-site convention
 instead of requiring proof that the current process still owned the daemon's
 instance lock. This is a cooperative-process serialization defect, not an OS
-security promise against arbitrary same-UID mutation. A later mutation-token
-proposal is external; the defect remains active and unfixed at the cut-off.
+security promise against arbitrary same-UID mutation. Commit `634fd6c` requires
+a process-bound verifier-backed mutation authority at destructive entry points.
+The fix is committed with bound tests and is not deployed.
 
 ### DEF-0043 — Unsafe receipt namespaces and strict transaction JSON
 
@@ -866,8 +892,10 @@ used ordinary existence, open and JSON decoding operations. Unsafe namespace
 types and duplicate, non-finite or non-canonical JSON could be treated
 inconsistently, accepted as authority or overwritten. Historical-context
 strict parsing is already repaired under `DEF-0036`, and configuration/pause
-JSON remains `DEF-0017`. The later strict no-follow/canonical proposal is
-external; this defect remains active and unfixed.
+JSON remains `DEF-0017`. Commit `634fd6c` adds stable no-follow, owned ordinary
+single-link and canonical JSON enforcement across the remaining receipt
+surface. Its fix is committed and not deployed; narrower gaps found at
+`4e548b0a` are recorded as `DEF-0054` and `DEF-0055`.
 
 ### DEF-0044 — Candidate-owned pytest evidence forgery
 
@@ -884,7 +912,8 @@ At `7ebcc096`, hard exit around `RENAME_EXCHANGE` could leave a random staging
 entry which correctly blocked the next process but had no strict
 self-describing resumer or complete operator procedure. This is an
 availability/manual-recovery weakness: the observed state is fail-closed, and
-no duplicate-safety failure is claimed. No committed fix exists at the cut-off.
+no duplicate-safety failure is claimed. It remains active at `4e548b0a`; no
+committed automatic resumer or complete bounded operator procedure exists.
 
 ### DEF-0046 — Stale confirmed receipt replay
 
@@ -892,9 +921,9 @@ At `7ebcc096`, stale current-schema regular receipts could erase newer
 quote/image cycle histories, while stale confirmed meme receipts could move
 the current main identity, meme epoch and future schedule backward. The latter
 could clear the effective same-day guard and make another meme appear due.
-Synthetic replay reproduced both behaviours without any remote operation. The
-post-cut-off monotonic replay proposal remains external and this defect remains
-active at the ledger evidence cut-off.
+Synthetic replay reproduced both behaviours without any remote operation.
+Commit `5a11bbf` makes replay monotonic and binds both regressions to the fix.
+The repair is committed and not deployed.
 
 ### DEF-0047 — Path-bearing X base route disagreement
 
@@ -902,8 +931,9 @@ At `7ebcc096`, the X API and upload base normaliser accepted path-bearing
 values and Requests classified protected create routes from the concatenated
 prepared URL while other authority checks retained the caller's literal path.
 A path prefix could therefore make tweet or media create-route classifications
-disagree. The origin-only and prepared/literal agreement repair and its focused
-tests remain external; this defect is active at the ledger evidence cut-off.
+disagree. Commit `5a11bbf` requires origin-only X configuration and exact
+prepared/literal protected-create agreement. The repair is committed with
+fix-bound tests and is not deployed.
 
 ### DEF-0048 — Accepted legacy receipt global-barrier gap
 
@@ -911,8 +941,9 @@ At `7ebcc096`, the global main and conversational receipt predicates blocked
 only sending or invalid states. Accepted legacy full regular/meme receipts and
 confirmed conversational receipts could therefore remain pending local
 reconciliation while unrelated auxiliary provider or scheduler work was not
-globally blocked. The narrow sole-owner reconciliation repair and its focused
-tests remain external; this defect is active at the ledger evidence cut-off.
+globally blocked. Commit `5a11bbf` treats every non-absent source receipt as a
+global barrier, with only the exact sole-owner reconciliation path permitted.
+The repair is committed and not deployed.
 
 ### DEF-0049 — Configured upload origin ignored
 
@@ -920,9 +951,9 @@ At `7ebcc096`, `X_UPLOAD_BASE_URL` was parsed, normalised and displayed by
 configuration checks, but every X request URL was still constructed from
 `X_BASE`. A distinct configured v2 media-upload origin therefore had no
 effect. Local distinct-origin review reproduced the routing mismatch without
-contacting a remote endpoint. The exact media-only upload-origin repair and
-its focused tests remain external; this medium-severity configuration defect
-is active and unfixed at the ledger evidence cut-off.
+contacting a remote endpoint. Commit `ce970f8` routes only the exact media
+create to the upload origin, keeps reads and tweets on the API origin, and
+binds distinct-origin regressions. The repair is committed and not deployed.
 
 ### DEF-0050 — Final pretransport pause media-barrier recovery
 
@@ -930,11 +961,10 @@ At `7ebcc096`, a supported pause becoming active after durable media
 receipt/fence publication but before final transport correctly prevented the
 request, but left the definitely untransmitted pair as a global manual
 recovery barrier. The pair preserved duplicate safety; the defect is bounded
-to availability and avoidable operator recovery. A descendant proposal issues
-an exact process-only cleanup authority after durable publication and retains
-fail-closed barriers for reconstructed, consumed, unsafe or interrupted
-states. That proposal remains external, so this medium-severity defect is
-active and unfixed at the cut-off.
+to availability and avoidable operator recovery. Commit `ce970f8` issues an
+exact process-local, single-use cleanup authority after durable publication;
+reconstructed, consumed, unsafe and interrupted states remain fail-closed. The
+repair is committed and not deployed.
 
 ### DEF-0051 — Post-media-handoff tweet pause recovery
 
@@ -945,9 +975,50 @@ source therefore remained a global manual-recovery barrier although no tweet
 request was transmitted. In the descendant handoff protocol under review, an
 initial `create_post` pause left both the prepublished prepared pair and its
 source; at the final `x_request` pause the existing catch aborted the
-journal/fence pair, but the false caller predicate still left the source. The
-exact-abort and caller-cleanup proposal remains external, so this
-medium-severity availability defect is active and unfixed at the cut-off.
+journal/fence pair, but the false caller predicate still left the source.
+Commit `fb8eb25` classifies only the local pretransport pause as definite
+non-success, aborts the exact prepared pair and retires the exact main source.
+The repair is committed with lane-level regressions and is not deployed.
+
+### DEF-0052 — Valid primary versus newer valid backup ordering
+
+At `4e548b0a`, `load_state` returned a schema-valid primary immediately and
+consulted `bak1` only when the primary was absent or invalid. A valid but older
+primary could therefore silently outrank divergent newer recovery state and
+roll protected post identity, histories or schedules backward. The post-cutoff
+candidate refuses valid primary/latest-backup divergence, but no durable
+monotonic generation order yet permits safe automatic selection. The defect is
+active at the cut-off and no fix commit is recorded.
+
+### DEF-0053 — Historical interrupted-attempt monotonicity
+
+At `4e548b0a`, an interrupted historical-context claim could become retryable
+when the terminal history entry that had proved completion disappeared. If the
+original create succeeded remotely, local history loss could therefore expose
+the same obligation to another create. The post-cutoff regression preserves
+attempted status and keeps the worker blocked, but the proposal remains outside
+the evidence boundary. The defect is active and was never deployed in this
+candidate transaction shape.
+
+### DEF-0054 — Canonical private receipt sources and exact identifiers
+
+Review of `4e548b0a` found common, conversational and historical receipt readers
+and journal source binding that did not uniformly require canonical durable-
+writer bytes, current-owner private files and exact JSON string identifiers.
+Semantically valid alternate bytes, permissive modes or numeric IDs could be
+accepted as local recovery authority. Post-cutoff tests cover each boundary,
+but their repair has no committed identity in this ledger; the defect remains
+active and was not deployed.
+
+### DEF-0055 — Nested journal and media source identity constraints
+
+At `4e548b0a`, nested journal source identities and media handoff owners did not
+uniformly reject boolean, negative, oversized or non-string proof fields.
+Most mismatches remain blocking, but the implementation could not claim that
+every accepted nested proof was an exact canonical writer-produced object.
+Post-cutoff regressions require exact non-boolean bounded integers and string
+digests; no fixing commit is inside the evidence boundary, so the medium-
+severity defect remains active and was not deployed.
 
 ## Unknown-value policy
 
@@ -959,10 +1030,12 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- `DEF-0040` through `DEF-0051`: introduction bounds and fixing commits are not
-  inferred from post-cut-off worktree proposals. Their explicit affected
-  ranges end at `7ebcc096`; each fix remains unknown until post-merge
-  regeneration.
+- `DEF-0040` through `DEF-0043` and `DEF-0046` through `DEF-0051`: introduction
+  bounds remain unknown, but their exact fixing commits, fix parents and bound
+  regressions are recorded rather than inferred.
+- `DEF-0044`, `DEF-0045`, and `DEF-0052` through `DEF-0055`: introduction and
+  fix commits remain unknown. Their explicit unfixed ranges end at exact
+  evidence cut-off `4e548b0a` until post-merge regeneration records a fix.
 
 These explanations are recorded per field in `defect_ledger.json`; consumers
 must not replace them with guessed commits or deployment claims.

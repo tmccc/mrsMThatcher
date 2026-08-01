@@ -10,11 +10,11 @@
       "role": "Historical production and master state against which the defect records and invariant references were established."
     },
     "ledger_evidence_cutoff": {
-      "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
-      "tree": "b83abb7af53f925eb8686825e09f4654a55ff40a",
+      "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+      "tree": "a751f4b488ee20d268a082c7daf835d5786e7e23",
       "as_of": "2026-08-01",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0051. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
-      "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0055. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.",
+      "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 4e548b0a are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
       "identity_source": "external-release-attestation",
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0051, remain external and unfixed in ledger truth until merge and post-merge regeneration."
+      "explanation": "The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0055, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0051 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0055 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -78,7 +78,7 @@
   },
   "markdown": {
     "title": "MrsMThatcher defect ledger",
-      "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related runtime, liveness and release-assurance gaps through the exact 7ebcc096 release base, including later evidence-backed discovery against that frozen cutoff.",
+    "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related runtime, liveness and release-assurance gaps through the exact 4e548b0a release base, including later evidence-backed discovery against that frozen cutoff.",
     "source_of_truth": "defect_ledger.json",
     "sort_key": "id",
     "unknown_policy": "Render the literal word unknown and its recorded explanation; never infer a missing commit, deployment or test.",
@@ -1603,7 +1603,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "unknown",
         "explanation": "This is absence of an environmental control, not a code regression with a defensible first-bad commit."
       },
@@ -1720,7 +1720,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "unknown",
         "explanation": "This is an absent release control spanning Git, collaboration and deployment; repository history does not identify one introducing commit."
       },
@@ -1826,7 +1826,7 @@
       "introduced": {
         "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
         "explanation": "The production wrapper dates to 2179d71 and has never carried generation identity. Earlier service/process arrangements were not audited for this property."
       },
@@ -1937,7 +1937,7 @@
       "introduced": {
         "first_bad_commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
         "last_known_good_commit": "b267a330983c5db2aec2c5722ce9e994b43bbeda",
-        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "exact",
         "explanation": "Git -S history for historical_context_formatter.py in the material veto manifest identifies 2220df1e as the first pin."
       },
@@ -2044,7 +2044,7 @@
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
         "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
       },
@@ -2176,7 +2176,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
         "explanation": "The release-control parser first exists in the Priority-0 candidate lineage and the independent review reproduced the weakness at 305ac6b."
       },
@@ -2275,7 +2275,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "exact",
         "explanation": "The self-certifying gate was introduced in the Priority-0 candidate lineage and remains candidate-owned at 305ac6b."
       },
@@ -2373,7 +2373,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
         "explanation": "The containment design exists only in the Priority-0 candidate lineage and is reproduced at 305ac6b."
       },
@@ -2466,7 +2466,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
         "explanation": "The private validation environment was introduced with the candidate gate but still binds shared distribution roots at 305ac6b."
       },
@@ -2560,7 +2560,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "exact",
         "explanation": "Free-form invariant commands are part of the introduced Priority-0 registry and gate."
       },
@@ -2657,7 +2657,7 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "exact",
         "explanation": "Both incorrect comparisons are present in the Priority-0 candidate implementation."
       },
@@ -3966,7 +3966,7 @@
       "fix": {
         "state": "fixed",
         "commit": "2ad0f79feb0d54be1b1687546449deac6bd1a0c1",
-      "summary": "The 2ad0f79 candidate exclusively locks the state-directory inode across path and network namespaces, acquires a no-follow ordinary single-link file lock relative to that directory, binds its device/inode/PID identity, holds and independently verifies exclusive OFD ownership, retains a directory-identity-derived singleton, restricts test endpoint bypass, releases partial acquisitions and makes every non-read remote operation and the supported offline reconciler enforce the same namespace."
+        "summary": "The 2ad0f79 candidate exclusively locks the state-directory inode across path and network namespaces, acquires a no-follow ordinary single-link file lock relative to that directory, binds its device/inode/PID identity, holds and independently verifies exclusive OFD ownership, retains a directory-identity-derived singleton, restricts test endpoint bypass, releases partial acquisitions and makes every non-read remote operation and the supported offline reconciler enforce the same namespace."
       },
       "deployment": {
         "state": "not-deployed",
@@ -3974,7 +3974,7 @@
         "observed_at": "2026-07-28T23:40:14+01:00",
         "evidence": "The repair is present at the unactivated 2ad0f79 evidence cut-off, while production remained at be882e8. No deployment is recorded or authorised."
       },
-    "residual_risk": "The process-lock namespace and continuous-ownership defect is repaired but not deployed. Independent review of 2ad0f79 established the separate fresh-process marker/latch defect tracked as DEF-0034.",
+      "residual_risk": "The process-lock namespace and continuous-ownership defect is repaired but not deployed. Independent review of 2ad0f79 established the separate fresh-process marker/latch defect tracked as DEF-0034.",
       "evidence": [
         {
           "type": "code",
@@ -4347,12 +4347,12 @@
         "INV-TXN-RECEIPT-001"
       ],
       "components": [
-                "shared remote-write preflight",
-                "prepared transaction authority",
-                "historical-context sending receipt",
-                "historical-context receipt strict JSON",
-                "raw X and provider transports",
-                "normalised X create-route classification"
+        "shared remote-write preflight",
+        "prepared transaction authority",
+        "historical-context sending receipt",
+        "historical-context receipt strict JSON",
+        "raw X and provider transports",
+        "normalised X create-route classification"
       ],
       "affected_files": [
         "mrsMThatcher2.py",
@@ -4372,7 +4372,7 @@
         "evidence": "A disposable active-protocol state with a schema-valid historical-context sending receipt left shared and raw transport preflight open. Separate source inspection showed that prepared regular, meme and conversational records were accepted from memory when their durable receipt path was absent. No network, provider, X or production action occurred.",
         "explanation": "This is a pre-freeze offline defect reproduction, not evidence of a live duplicate or production incident."
       },
-    "summary": "The shared barrier omitted historical_context_reply_receipt.json, while the prepared main-post and conversational exceptions did not require their supplied in-memory record to remain the exact durable sending receipt. Raw transport and provider entry points used a marker-only preflight, and create-route checks did not cover encoded or dot-segment targets after Requests normalisation. Historical-context receipt parsing accepted duplicate JSON object names, allowing a crafted sending/confirmed collision to fabricate confirmation and retire the barrier.",
+      "summary": "The shared barrier omitted historical_context_reply_receipt.json, while the prepared main-post and conversational exceptions did not require their supplied in-memory record to remain the exact durable sending receipt. Raw transport and provider entry points used a marker-only preflight, and create-route checks did not cover encoded or dot-segment targets after Requests normalisation. Historical-context receipt parsing accepted duplicate JSON object names, allowing a crafted sending/confirmed collision to fabricate confirmation and retire the barrier.",
       "impact": "An unresolved context reply could coexist with another remote-write preflight, or an in-memory prepared record could authorise a create after its durable file vanished, contradicting the global single-transaction barrier.",
       "introduced": {
         "first_bad_commit": "unknown",
@@ -4463,21 +4463,21 @@
           "reference": "tests/test_remote_write_safety_second_restart.py::test_literal_context_sending_receipt_blocks_every_unrelated_remote_lane",
           "claim": "A literal process proves a valid historical-context sending receipt blocks seven direct entry points and every scheduler lane without mutating the receipt."
         },
-      {
-        "type": "test",
-        "reference": "tests/test_x_write_outcome_conservatism.py::test_prepared_receipt_authority_requires_the_exact_durable_file",
-        "claim": "Each in-memory prepared authority is rejected when its exact owning durable file is absent."
-      },
-      {
-        "type": "test",
-        "reference": "tests/test_x_write_outcome_conservatism.py::test_normalised_raw_and_bearer_x_create_variants_require_authority",
-        "claim": "Encoded, dot-segment and separator aliases which Requests or an upstream router can normalise to POST /2/tweets cannot bypass exact receipt authority."
-      },
-      {
-        "type": "test",
-        "reference": "tests/test_historical_context_reply.py::test_context_receipt_duplicate_lifecycle_cannot_fabricate_confirmation",
-        "claim": "Duplicate sending/confirmed lifecycle keys and fabricated reply fields remain an invalid blocking receipt and cannot be written to history or retired."
-      }
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_prepared_receipt_authority_requires_the_exact_durable_file",
+          "claim": "Each in-memory prepared authority is rejected when its exact owning durable file is absent."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_normalised_raw_and_bearer_x_create_variants_require_authority",
+          "claim": "Encoded, dot-segment and separator aliases which Requests or an upstream router can normalise to POST /2/tweets cannot bypass exact receipt authority."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_reply.py::test_context_receipt_duplicate_lifecycle_cannot_fabricate_confirmation",
+          "claim": "Duplicate sending/confirmed lifecycle keys and fabricated reply fields remain an invalid blocking receipt and cannot be written to history or retired."
+        }
       ],
       "unknowns": [
         {
@@ -4747,7 +4747,7 @@
         "observed_at": "2026-07-28T23:40:14+01:00",
         "evidence": "Observed production remained at be882e81. It does not contain 7ebcc096, and no merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "The repair is committed at the ledger evidence cut-off but is not deployed. The exact-cut-off review then found distinct same-byte pathname replacement, retirement durability, caller-authority and namespace/parser defects recorded as DEF-0040 through DEF-0043.",
+      "residual_risk": "The repair is committed earlier in the current evidence-cutoff lineage but is not deployed. Review of its exact 7ebcc096 fix tree then found distinct same-byte pathname replacement, retirement durability, caller-authority and namespace/parser defects recorded as DEF-0040 through DEF-0043.",
       "evidence": [
         {
           "type": "artifact",
@@ -4879,7 +4879,7 @@
         "observed_at": "2026-07-28T23:40:14+01:00",
         "evidence": "Observed production remained at be882e81. It does not contain 7ebcc096, and no merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "The repair is committed at the ledger evidence cut-off but is not deployed. The exact-cut-off review found separate same-byte replacement, retirement durability and safe-recovery liveness gaps recorded in DEF-0040, DEF-0041 and DEF-0045.",
+      "residual_risk": "The repair is committed earlier in the current evidence-cutoff lineage but is not deployed. Review of its exact 7ebcc096 fix tree found separate same-byte replacement, retirement durability and safe-recovery liveness gaps recorded in DEF-0040, DEF-0041 and DEF-0045.",
       "evidence": [
         {
           "type": "code",
@@ -4925,7 +4925,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-exact-transition-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -4974,6 +4974,12 @@
           "event": "Independent review of the exact 7ebcc096 tree identified byte-identical inode replacement windows across receipt validation, transition and retirement.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Exact-cut-off filesystem identity and transition review"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "634fd6cd committed the fix-bound implementation and regression evidence for DEF-0040.",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -4990,19 +4996,38 @@
         "reproducer": "The reviewed code could accept a later byte-identical namespace generation even though it was not the object whose earlier identity authorised the operation.",
         "source": "Post-cut-off adversarial filesystem review"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_confirmed_source_lineage.py",
+          "nodeid": "test_main_promotion_rejects_equal_byte_replacement_inode",
+          "kind": "integration",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        },
+        {
+          "path": "tests/test_remote_write_transport_journal.py",
+          "nodeid": "test_exact_source_document_replacement_rejects_same_bytes_new_inode_race",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        },
+        {
+          "path": "tests/test_remote_media_upload_receipt.py",
+          "nodeid": "test_same_byte_replacement_inside_confirmation_exchange_is_rejected",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "A post-7ebcc096 external proposal carries no-follow descriptors and stable device/inode/change-time/byte identity through each transition and adds exact-source exchange/retirement checks. It is not a ledger fix until committed on a descendant release base and the ledger is regenerated."
+        "state": "fixed",
+        "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+        "summary": "634fd6c binds source, journal, fence and retirement transitions to stable no-follow filesystem identities and rejects byte-identical replacement generations before they can retain authority."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "This active cut-off defect has no committed repair to deploy. The production observation remains be882e81, while the defect is independently established at the later 7ebcc096 evidence cut-off."
+        "evidence": "Observed production remained at be882e81, which predates 634fd6cd. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant repair is committed, fix-bound tests are recorded and the ledger is regenerated, byte equality alone cannot prove that a later namespace entry is the exact transaction object previously authorised.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -5023,10 +5048,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier commit was proved free of every same-byte ABA transition window."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
         }
       ],
       "relations": {
@@ -5048,7 +5069,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-exact-transition-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -5097,6 +5118,12 @@
           "event": "Independent exact-cut-off review reproduced a final-barrier unlink followed by a failed parent-directory fsync and found no guaranteed latch before the destructive operation.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Receipt-retirement durability and latch review"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "634fd6cd committed the fix-bound implementation and regression evidence for DEF-0041.",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -5113,19 +5140,26 @@
         "reproducer": "At a final-barrier boundary, the pathname could already be absent when fsync raised even though no prior permanent current-process latch had been established.",
         "source": "Post-cut-off adversarial durability review"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_final_retirement_directory_fsync_failure_latches_current_daemon",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "A post-7ebcc096 external proposal latches before destructive retirement and uses crash-resumable durable transition markers so a failed final fsync cannot open either the current process or the next one. It remains unresolved until committed and recorded by post-merge ledger regeneration."
+        "state": "fixed",
+        "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+        "summary": "634fd6c latches before destructive retirement and makes interrupted exact retirement retain a crash-visible barrier, including when the final parent-directory synchronisation fails."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "There is no committed repair to deploy. Production remains observed at be882e81, and the active defect is established at the 7ebcc096 cut-off."
+        "evidence": "Observed production remained at be882e81, which predates 634fd6cd. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a committed fix makes destructive retirement latch-first and crash-resumable, an injected local durability failure can make barrier absence and durability uncertainty coincide.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -5146,10 +5180,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier commit was established as free of the retirement fsync/latch defect."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
         }
       ],
       "relations": {
@@ -5170,7 +5200,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-transaction-authority-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-PROC-002",
@@ -5216,6 +5246,12 @@
           "event": "Independent exact-cut-off API review found that destructive receipt and journal helpers trusted caller convention rather than verifying current instance-lock authority.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Transaction helper call graph and process-lock authority review"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "634fd6cd committed the fix-bound implementation and regression evidence for DEF-0042.",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -5232,19 +5268,32 @@
         "reproducer": "Representative mutation APIs accepted ordinary arguments and reached durable namespace mutation without a verified current-lock capability.",
         "source": "Post-cut-off helper-authority adversary"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_transaction_mutation_authority.py",
+          "nodeid": "test_destructive_low_level_entry_points_fail_before_inspection_without_authority",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        },
+        {
+          "path": "tests/test_transaction_mutation_authority.py",
+          "nodeid": "test_authority_rechecks_bound_verifier_on_every_use",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "A post-7ebcc096 external proposal introduces a process-bound, verifier-backed transaction mutation capability and requires it at every destructive helper. That proposal is not fixed ledger truth until it is committed on a descendant base and the ledger is regenerated."
+        "state": "fixed",
+        "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+        "summary": "634fd6c introduces a process-bound mutation authority whose verifier re-proves current instance-lock ownership and requires it at destructive transaction entry points."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "There is no committed repair to deploy. Production remains observed at be882e81, and the active helper-authority defect is established at 7ebcc096."
+        "evidence": "Observed production remained at be882e81, which predates 634fd6cd. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until the capability requirement is committed and fix-bound at every mutation entry point, code review must treat caller-held-lock comments and conventions as insufficient proof of serialization.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -5265,10 +5314,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier revision was established as having a complete verified mutation-capability boundary."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
         }
       ],
       "relations": {
@@ -5288,7 +5333,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-receipt-parser-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -5334,6 +5379,12 @@
           "event": "Independent review of 7ebcc096 separated the already repaired historical-context parser from unsafe namespace and permissive JSON handling still present in the other transaction receipt lanes.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Exact-cut-off receipt namespace and canonical-JSON review"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "634fd6cd committed the fix-bound implementation and regression evidence for DEF-0043.",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -5350,19 +5401,38 @@
         "reproducer": "Cut-off code used ordinary existence/open/JSON operations on receipt paths for which every namespace entry or decoding ambiguity must instead remain a fail-closed barrier.",
         "source": "Post-cut-off receipt namespace adversary"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_unsafe_receipt_namespace_is_never_absent_or_overwritten",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        },
+        {
+          "path": "tests/test_pending_receipt_directory_fsync.py",
+          "nodeid": "test_duplicate_receipt_object_names_fail_closed",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        },
+        {
+          "path": "tests/test_remote_media_upload_receipt.py",
+          "nodeid": "test_strict_json_rejects_duplicate_nonfinite_and_noncanonical_documents",
+          "kind": "regression",
+          "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "A post-7ebcc096 external proposal uses stable O_NOFOLLOW inspection, requires owned ordinary single-link files, rejects duplicate names and non-finite values, requires canonical transaction bytes and refuses overwrite of any unsafe namespace entry. It remains unresolved until committed and captured by post-merge ledger regeneration."
+        "state": "fixed",
+        "commit": "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+        "summary": "634fd6c replaces permissive transaction receipt reads with stable no-follow inspection, owned ordinary single-link requirements and strict canonical JSON validation, while preserving unsafe namespace entries as blockers."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "There is no committed repair to deploy. The production observation remains be882e81, and the active parser/namespace defect is independently established at 7ebcc096."
+        "evidence": "Observed production remained at be882e81, which predates 634fd6cd. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant fix unifies receipt namespace inspection and strict canonical decoding, malformed or unsafe local receipt objects must be treated operationally as unresolved remote-write barriers rather than repaired automatically.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -5383,10 +5453,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier commit was established as having a uniformly strict transaction receipt surface."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
         }
       ],
       "relations": {
@@ -5434,7 +5500,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
         "explanation": "The concrete forgery capability was established against 7ebcc096. Its first introduction and an earlier independently observed good revision were not reconstructed."
       },
@@ -5551,7 +5617,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
         "explanation": "The liveness limitation was established at the exact 7ebcc096 cut-off. Its introducing revision and an earlier implementation with strict automatic resumption were not reconstructed."
       },
@@ -5633,7 +5699,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-stale-receipt-replay-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -5665,7 +5731,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
         "confidence": "bounded",
         "explanation": "The defect was reproduced against the exact 7ebcc096 evidence cut-off. Its first introducing revision was not reconstructed."
       },
@@ -5675,6 +5741,12 @@
           "event": "Pre-freeze schedule and recovery review reproduced stale regular-history erasure and stale meme-state rollback against the 7ebcc096 cut-off.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Synthetic stale-receipt replay with a strictly newer quote/meme state"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "5a11bbf4 committed the fix-bound implementation and regression evidence for DEF-0046.",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -5691,19 +5763,32 @@
         "reproducer": "The stale regular receipt removed newer quote/image identities; the stale meme receipt replaced the later main identity, meme epoch and future schedule and cleared the effective same-day guard.",
         "source": "Pre-freeze stale-receipt adversarial fixtures"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_stale_regular_receipt_cannot_erase_newer_cycle_histories",
+          "kind": "regression",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937"
+        },
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule",
+          "kind": "regression",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "A post-cut-off proposal makes replay monotonic: only a strictly newer current-schema receipt installs an exact cycle snapshot, stale replays union identities, and stale meme receipts preserve later main, epoch and schedule state. It is not ledger truth until committed and re-attested."
+        "state": "fixed",
+        "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+        "summary": "5a11bbf makes confirmed-receipt replay monotonic: stale regular replay preserves newer history identities and stale meme replay cannot move main identity, meme epoch or schedule backward."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "No committed descendant repair has been deployed. Production remains observed at be882e81 and was not inspected or changed by this pre-freeze review."
+        "evidence": "Observed production remained at be882e81, which predates 5a11bbf4. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant repair is frozen and validated, receipt recovery must not assume that a semantically valid older receipt may overwrite later histories, post identity or schedules.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -5719,10 +5804,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier commit was proved safe for both regular and meme stale-receipt replay."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The repair remains an uncommitted post-cut-off candidate."
         }
       ],
       "relations": {
@@ -5742,7 +5823,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-endpoint-authority-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-API-001",
@@ -5778,7 +5859,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
         "confidence": "bounded",
         "explanation": "The mismatch was established against the exact 7ebcc096 evidence cutoff. Its introducing commit and an earlier good implementation were not reconstructed."
       },
@@ -5788,6 +5869,12 @@
           "event": "Post-cutoff adversarial review combined path-bearing X bases with protected create paths and established disagreement between prepared and literal route identity at 7ebcc096.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Synthetic origin/path configuration and pre-transport route-classification fixture"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "5a11bbf4 committed the fix-bound implementation and regression evidence for DEF-0047.",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -5804,19 +5891,38 @@
         "reproducer": "A prefixed X base changes the prepared URL path for POST /2/tweets or POST /2/media/upload while the literal caller path remains a protected create route.",
         "source": "Focused origin-only and prepared/literal route regression design"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_x_write_outcome_conservatism.py",
+          "nodeid": "test_x_api_bases_must_be_origin_only",
+          "kind": "regression",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937"
+        },
+        {
+          "path": "tests/test_x_write_outcome_conservatism.py",
+          "nodeid": "test_prepared_and_literal_create_routes_must_agree",
+          "kind": "regression",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937"
+        },
+        {
+          "path": "tests/test_integration_harness.py",
+          "nodeid": "test_x_endpoint_overrides_reject_terminal_version_segments",
+          "kind": "integration",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "An external post-cutoff candidate requires X API and upload values to be origins only and refuses tweet or media transport when prepared and literal create-route classifications disagree, while preserving the versioned xAI provider base. It remains unresolved in ledger truth until committed and externally attested."
+        "state": "fixed",
+        "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+        "summary": "5a11bbf requires X API and upload configuration to be origin-only and refuses transport unless prepared and literal protected-create route classifications agree."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "No descendant repair is recorded as deployed. Production remained observed at be882e81 and was not inspected or changed by this focused review."
+        "evidence": "Observed production remained at be882e81, which predates 5a11bbf4. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant repair is frozen and attested, release validation must reject path-bearing X API/upload bases and cannot rely on prepared and literal create-route identity agreeing by construction.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -5826,17 +5932,17 @@
         {
           "type": "test",
           "reference": "tests/test_x_write_outcome_conservatism.py::test_x_api_bases_must_be_origin_only",
-          "claim": "The external post-cutoff candidate regression rejects path, query, fragment and user-information components for X API/upload bases."
+          "claim": "The fix-bound regression rejects path, query, fragment and user-information components for X API/upload bases."
         },
         {
           "type": "test",
           "reference": "tests/test_x_write_outcome_conservatism.py::test_prepared_and_literal_create_routes_must_agree",
-          "claim": "The external post-cutoff candidate regression refuses tweet and media transport when prepared and literal create-route classifications disagree."
+          "claim": "The fix-bound regression refuses tweet and media transport when prepared and literal create-route classifications disagree."
         },
         {
           "type": "test",
           "reference": "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments",
-          "claim": "The external post-cutoff integration fixture rejects formerly tolerated path-bearing X endpoint overrides before transport."
+          "claim": "The fix-bound integration fixture rejects formerly tolerated path-bearing X endpoint overrides before transport."
         }
       ],
       "unknowns": [
@@ -5847,10 +5953,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier origin-only implementation was established."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The current repair and focused tests are uncommitted candidate material and require external frozen-candidate attestation."
         }
       ],
       "relations": {
@@ -5869,7 +5971,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-legacy-receipt-global-barrier-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -5905,7 +6007,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
         "confidence": "bounded",
         "explanation": "The accepted-receipt barrier omission was established against the exact 7ebcc096 evidence cutoff. Its introducing commit was not reconstructed."
       },
@@ -5915,6 +6017,12 @@
           "event": "Focused cutoff review installed simultaneous valid legacy regular, meme and confirmed conversational receipts and found the global auxiliary barrier open at 7ebcc096.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Synthetic simultaneous accepted-receipt preflight fixture with a clean-state negative control"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "5a11bbf4 committed the fix-bound implementation and regression evidence for DEF-0048.",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -5931,19 +6039,32 @@
         "reproducer": "All three accepted receipts remained present while unresolved_main_post_attempt_is_blocking and unresolved_conversational_reply_receipt_is_blocking returned false.",
         "source": "Focused simultaneous accepted-receipt regression design"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "kind": "regression",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937"
+        },
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_fully_reconciled_receipt_namespace_does_not_create_false_barrier",
+          "kind": "regression",
+          "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "An external post-cutoff candidate treats every non-absent main or conversational source receipt as a global barrier and permits only a narrow sole-owner main receipt exception to reach local reconciliation. It remains unresolved in ledger truth until committed and externally attested."
+        "state": "fixed",
+        "commit": "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+        "summary": "5a11bbf treats every non-absent main or conversational source receipt as a global barrier and permits only the exact sole-owner reconciliation path to proceed locally."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "No descendant repair is recorded as deployed. Production remained observed at be882e81 and was not inspected or changed by this focused review."
+        "evidence": "Observed production remained at be882e81, which predates 5a11bbf4. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant repair is frozen and attested, an accepted legacy full or confirmed source receipt cannot be treated as globally resolved merely because it is valid enough for local replay.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -5953,7 +6074,7 @@
         {
           "type": "test",
           "reference": "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
-          "claim": "The external post-cutoff candidate regression keeps auxiliary provider preflight closed while accepted regular, meme and conversational source receipts await reconciliation."
+          "claim": "The fix-bound regression keeps auxiliary provider preflight closed while accepted regular, meme and conversational source receipts await reconciliation."
         },
         {
           "type": "test",
@@ -5969,10 +6090,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier revision was established as blocking every unresolved accepted source receipt globally."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The current repair and focused tests are uncommitted candidate material and require external frozen-candidate attestation."
         }
       ],
       "relations": {
@@ -5991,7 +6108,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-upload-origin-routing-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "medium",
       "invariant_ids": [
         "INV-API-001"
@@ -6020,7 +6137,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..5a11bbf4ef4b3e788f176d64fb8455763a09c937",
         "confidence": "bounded",
         "explanation": "The ignored upload-origin behaviour was established against the exact 7ebcc096 evidence cut-off. Its introducing revision was not reconstructed."
       },
@@ -6030,6 +6147,12 @@
           "event": "A four-way post-cutoff adversarial review used distinct local API and upload origins and established that media upload still selected X_BASE at the evidence cut-off.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Distinct loopback-origin routing fixture with separate media, tweet and read observations"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "ce970f81 committed the fix-bound implementation and regression evidence for DEF-0049.",
+          "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -6046,19 +6169,32 @@
         "reproducer": "POST /2/media/upload reached the API-origin sentinel rather than the configured upload-origin sentinel.",
         "source": "Focused distinct-origin integration review"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_integration_harness.py",
+          "nodeid": "test_distinct_upload_origin_receives_only_media_while_api_receives_tweet",
+          "kind": "integration",
+          "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6"
+        },
+        {
+          "path": "tests/test_x_write_outcome_conservatism.py",
+          "nodeid": "test_only_exact_literal_media_post_selects_upload_origin",
+          "kind": "regression",
+          "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "An external post-cutoff candidate routes only exact POST /2/media/upload requests to the configured upload origin, makes an unset upload origin inherit the effective API origin and keeps reads and tweet creates on the API origin. It remains unfixed in ledger truth until a descendant is frozen, attested and the ledger is regenerated."
+        "state": "fixed",
+        "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
+        "summary": "ce970f8 routes only exact POST /2/media/upload requests to the configured upload origin, inherits the API origin when upload origin is unset, and keeps reads and tweet creates on the API origin."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "No descendant routing repair is recorded as deployed. Production was not changed or contacted by this review."
+        "evidence": "Observed production remained at be882e81, which predates ce970f81. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant repair is frozen and attested, release validation cannot claim that a configured upload origin controls v2 media transport.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -6068,12 +6204,12 @@
         {
           "type": "test",
           "reference": "tests/test_integration_harness.py::test_distinct_upload_origin_receives_only_media_while_api_receives_tweet",
-          "claim": "The external descendant candidate regression proves media and tweet creates select their respective configured origins."
+          "claim": "The fix-bound integration regression proves media and tweet creates select their respective configured origins."
         },
         {
           "type": "test",
           "reference": "tests/test_x_write_outcome_conservatism.py::test_only_exact_literal_media_post_selects_upload_origin",
-          "claim": "The external descendant unit regression limits upload-origin selection to the exact protected media-create route."
+          "claim": "The fix-bound unit regression limits upload-origin selection to the exact protected media-create route."
         }
       ],
       "unknowns": [
@@ -6084,10 +6220,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier revision was proved to route distinct API and upload origins correctly."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The repair remains uncommitted descendant candidate material and requires external frozen-candidate attestation."
         }
       ],
       "relations": {
@@ -6105,7 +6237,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-pretransport-pause-media-recovery-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "medium",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -6141,7 +6273,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..5a11bbf4ef4b3e788f176d64fb8455763a09c937",
         "confidence": "bounded",
         "explanation": "The pause boundary was established against the exact 7ebcc096 evidence cut-off. Its first introducing revision was not reconstructed."
       },
@@ -6151,6 +6283,12 @@
           "event": "A four-way transaction review paused the media lane after durable pair publication but before transport and established that the definitely untransmitted pair remained as a manual blocker.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Final-pretransport pause fixture with a transport sentinel and exact receipt/fence inspection"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "ce970f81 committed the fix-bound implementation and regression evidence for DEF-0050.",
+          "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -6167,19 +6305,32 @@
         "reproducer": "RemoteOperationsPaused was raised before transport, but the exact sending pair remained and blocked later remote operations until manual recovery.",
         "source": "Focused final-pretransport pause-boundary fixture"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_remote_media_upload_receipt.py",
+          "nodeid": "test_exact_process_issued_unconsumed_authority_aborts_sending_pair",
+          "kind": "regression",
+          "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6"
+        },
+        {
+          "path": "tests/test_x_write_outcome_conservatism.py",
+          "nodeid": "test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "kind": "regression",
+          "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "An external post-cutoff candidate issues a process-local, exact-object, single-use cleanup authority only after durable pair publication and reread. A final pause before transport consumption can remove that definitely untransmitted pair with identity, content, lifecycle and durability checks; reconstructed, consumed, unsafe or interrupted cases remain fail closed. It remains unfixed in cutoff truth until frozen, attested and regenerated into a later ledger."
+        "state": "fixed",
+        "commit": "ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
+        "summary": "ce970f8 issues an exact process-local single-use cleanup authority after durable media pair publication, allowing a proved pretransport pause to retire only the definitely untransmitted pair while unsafe or interrupted states remain blocked."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "No descendant cleanup-authority repair is recorded as deployed. Production was not changed or contacted by this review."
+        "evidence": "Observed production remained at be882e81, which predates ce970f81. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant repair is frozen and attested, a final pretransport pause after media pair publication may require manual operator recovery; the existing pair must remain treated as a duplicate-safe global barrier.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -6189,12 +6340,12 @@
         {
           "type": "test",
           "reference": "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
-          "claim": "The external descendant regression proves a pre-consumption pause retires only the exact definitely untransmitted pair without creating an ambiguity marker."
+          "claim": "The fix-bound regression proves a pre-consumption pause retires only the exact definitely untransmitted pair without creating an ambiguity marker."
         },
         {
           "type": "test",
           "reference": "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
-          "claim": "The external descendant literal-process regression proves every interrupted cleanup state is either empty because no transport occurred or remains restart-blocking."
+          "claim": "The fix-bound literal-process regression proves every interrupted cleanup state is either empty because no transport occurred or remains restart-blocking."
         },
         {
           "type": "test",
@@ -6210,10 +6361,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier revision was proved to cleanly retire only definitely untransmitted media pairs at this pause boundary."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The repair remains uncommitted descendant candidate material and requires external frozen-candidate attestation."
         }
       ],
       "relations": {
@@ -6232,7 +6379,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "post-7ebcc096-post-media-handoff-pause-recovery-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "medium",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -6270,7 +6417,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "affected_range": "inclusive:unknown..ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
         "confidence": "bounded",
         "explanation": "The post-handoff pause interaction was established against the exact 7ebcc096 evidence cut-off. Its first introducing revision was not reconstructed."
       },
@@ -6280,6 +6427,12 @@
           "event": "Focused application-boundary review exercised both main-post lanes after confirmed media handoff and established that locally proved tweet non-transmission did not retire the durable source transaction at the evidence cut-off.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Cutoff source review plus isolated initial- and final-preflight pause regressions with zero tweet transport"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "fb8eb25f committed the fix-bound implementation and regression evidence for DEF-0051.",
+          "commit": "fb8eb25fefb4e4a8b281a152521c1b1f4e08eb04",
+          "evidence": "Fix commit, exact affected-range parent and bound regression nodes recorded in this ledger"
         }
       ],
       "first_review_scope": {
@@ -6296,19 +6449,44 @@
         "reproducer": "RemoteOperationsPaused escaped after media handoff with zero tweet requests. At the initial create_post pause the prepared pair and source remained; at the final x_request pause the journal/fence abort completed but the lane handler's always-false definite-non-success predicate left the source unresolved.",
         "source": "Focused two-lane pause-after-handoff regression design"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_media_upload_transaction_integration.py",
+          "nodeid": "test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "kind": "integration",
+          "commit": "fb8eb25fefb4e4a8b281a152521c1b1f4e08eb04"
+        },
+        {
+          "path": "tests/test_x_write_outcome_conservatism.py",
+          "nodeid": "test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+          "kind": "regression",
+          "commit": "fb8eb25fefb4e4a8b281a152521c1b1f4e08eb04"
+        },
+        {
+          "path": "tests/test_x_write_outcome_conservatism.py",
+          "nodeid": "test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+          "kind": "regression",
+          "commit": "fb8eb25fefb4e4a8b281a152521c1b1f4e08eb04"
+        },
+        {
+          "path": "tests/test_unit_helpers.py",
+          "nodeid": "test_only_local_pause_proves_remote_non_success",
+          "kind": "regression",
+          "commit": "fb8eb25fefb4e4a8b281a152521c1b1f4e08eb04"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "An external post-cutoff candidate classifies only RemoteOperationsPaused as definite non-success, aborts the exact still-prepared tweet pair at the initial pause, retains the existing exact final-preflight abort, and lets each production lane retire its exact main-post source. Any abort failure records or retains durable ambiguity barriers. The proposal remains unfixed in cutoff truth until a descendant is committed, frozen, attested and regenerated into a later ledger."
+        "state": "fixed",
+        "commit": "fb8eb25fefb4e4a8b281a152521c1b1f4e08eb04",
+        "summary": "fb8eb25 classifies only a local pretransport pause as definite non-success, aborts an exact still-prepared tweet pair, and lets each main-post lane retire its exact source after confirmed media handoff; all uncertain failures retain barriers."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "The reviewed post-media-handoff transaction shape and its descendant pause-recovery repair were never deployed and are absent from the observed production commit be882e81. Production was not inspected, contacted or changed by this review."
+        "evidence": "Observed production remained at be882e81, which predates fb8eb25f. No merge, deployment or loaded-process activation of this repair is claimed."
       },
-      "residual_risk": "Until a descendant repair is frozen and attested, a pause after confirmed media handoff must be expected to leave a duplicate-safe main-post barrier requiring manual recovery even when local evidence proves the tweet was not transmitted.",
+      "residual_risk": "The repair is committed by the ledger evidence cut-off but is not deployed. Production remains on be882e81, and the application candidate still requires external frozen-candidate validation and deployment evidence before operational reliance.",
       "evidence": [
         {
           "type": "code",
@@ -6318,7 +6496,7 @@
         {
           "type": "test",
           "reference": "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
-          "claim": "The external descendant literal-process matrix covers both lanes at the initial and final tweet pause windows and proves clean state in a fresh process with zero tweet transport."
+          "claim": "The fix-bound literal-process matrix covers both lanes at the initial and final tweet pause windows and proves clean state in a fresh process with zero tweet transport."
         },
         {
           "type": "test",
@@ -6328,17 +6506,17 @@
         {
           "type": "test",
           "reference": "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
-          "claim": "The external descendant high-level regression drives the production regular handler through real media confirmation, handoff and prepared tweet state, then proves its caller cleanup runs after a local pause."
+          "claim": "The fix-bound high-level regression drives the production regular handler through real media confirmation, handoff and prepared tweet state, then proves its caller cleanup runs after a local pause."
         },
         {
           "type": "test",
           "reference": "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
-          "claim": "The external descendant high-level regression drives the production meme handler through real media confirmation, handoff and prepared tweet state, then proves its caller cleanup runs after a local pause."
+          "claim": "The fix-bound high-level regression drives the production meme handler through real media confirmation, handoff and prepared tweet state, then proves its caller cleanup runs after a local pause."
         },
         {
           "type": "test",
           "reference": "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success",
-          "claim": "The external descendant predicate regression limits definite non-success to the local pretransport pause and keeps every other modeled exception fail closed."
+          "claim": "The fix-bound predicate regression limits definite non-success to the local pretransport pause and keeps every other modeled exception fail closed."
         }
       ],
       "unknowns": [
@@ -6349,10 +6527,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier revision was proved to retire the exact main-post transaction at both supported pretransport pause windows."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The repair and focused tests remain uncommitted descendant candidate material and require external frozen-candidate attestation."
         }
       ],
       "relations": {
@@ -6363,6 +6537,617 @@
           "DEF-0041",
           "DEF-0042",
           "DEF-0050"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0052",
+      "title": "A valid primary state file could silently outrank a newer valid backup",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-state-generation-ordering-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-HIST-001"
+      ],
+      "components": [
+        "bot_state.json primary",
+        "bot_state.json.bak1 recovery generation",
+        "state generation ordering",
+        "duplicate-suppression and schedule state"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "tests/test_unit_helpers.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "scheduler-state-recovery"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The ordering gap was reproduced with isolated valid primary and bak1 documents containing different state generations. No production state, network or remote service was accessed.",
+        "explanation": "This establishes a deterministic restart rollback path; it does not establish that deployed production held a newer backup or emitted a duplicate post."
+      },
+      "summary": "At 4e548b0a, load_state accepted a schema-valid primary immediately and consulted bak1 only when the primary was absent or invalid. If the primary represented an older durable generation while a newer valid bak1 remained, restart silently selected the older state because neither document carried a monotonic generation order.",
+      "impact": "A restart could roll last-post identity, meme timing, next schedule or duplicate-suppression histories backward even though newer valid recovery state remained on disk, potentially making already consumed work appear eligible again.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The primary-versus-latest-backup ordering gap was established against the exact 4e548b0a evidence cut-off; its first introduction was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Independent cutoff review supplied divergent but individually valid primary and bak1 state and observed the older primary win without an ordering proof.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated state-loader divergence fixture and exact 4e548b0a source review"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Primary and latest-backup bot state discovery, strict schema validity, restart selection and protected schedule/history fields.",
+        "exclusions": "No production files were read or changed, and no remote lane was opened.",
+        "source": "Independent 4e548b0a application state-recovery review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Persist an older valid primary beside a different newer valid bak1 candidate and load state through the production recovery path.",
+        "reproducer": "The loader returned the valid primary without comparing the valid latest backup or requiring a durable generation order.",
+        "source": "Focused valid-primary/latest-backup divergence review"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-cutoff worktree proposal refuses valid primary/latest-backup divergence instead of silently choosing one, accepts the ordinary durable-save case when primary and latest backup match, and does not let a stale older backup veto that usable pair. Durable monotonic generation metadata would still be required for safe automatic newest-state selection; no fix is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The state-loader behavior is present in the observed production commit be882e81 and remains present at the ledger evidence cut-off. No live rollback incident was established."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, divergent valid primary and latest-backup state must be treated as an operator-visible fail-closed recovery condition rather than silently preferring the primary.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff state loader returns the first valid primary before it evaluates whether the latest valid backup represents divergent recovery state."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_load_state_refuses_valid_primary_latest_backup_divergence",
+          "claim": "The post-cutoff candidate regression requires divergent valid primary and latest backup to fail closed."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_load_state_accepts_matching_primary_and_latest_backup_after_save",
+          "claim": "The candidate accepts the ordinary durable-save generation when the primary/latest pair matches."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_load_state_does_not_let_stale_older_backup_veto_usable_latest_pair",
+          "claim": "A stale older backup cannot veto a usable matching primary/latest pair."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision which preferred every valid primary over a divergent latest backup was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision with durable state-generation ordering was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The refusal regression is uncommitted post-cutoff candidate material and has no fix identity in this ledger."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0046"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0053",
+      "title": "Historical-context recovery lacked a durable pre-remote versus remote-started phase",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-historical-attempt-monotonicity-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "historical-context outbox claim",
+        "attempted state",
+        "remote_transaction_started phase",
+        "transport journal arming",
+        "terminal reply history",
+        "restart reconciliation"
+      ],
+      "affected_files": [
+        "historical_context_formatter.py",
+        "historical_context_outbox.py",
+        "mrsMThatcher2.py",
+        "tests/test_historical_context_outbox.py",
+        "tests/test_historical_context_reply.py",
+        "tests/test_production_consistency_incident.py"
+      ],
+      "runtime_lanes": [
+        "historical-context-reply",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The phase gap was reproduced in isolated context stores by interrupting a claim before transport and by removing terminal history after a potentially transmitted claim. No X request, network or production state was used.",
+        "explanation": "The review establishes that recovery could not distinguish a definitely local interruption from a potentially transmitted one; it does not claim that a live historical-context reply was duplicated."
+      },
+      "summary": "At 4e548b0a, an attempting historical-context outbox claim did not durably distinguish work interrupted before remote preparation from work whose journal had been armed and whose create could have started. Recovery could therefore treat an interrupted claim as retryable when terminal history was absent or when only an older failed row for the same parent and quote remained, even though the current attempt could have reached transport.",
+      "impact": "If a definitely pre-remote claim is always treated as ambiguous, recoverable local work is needlessly blocked. If a potentially transmitted claim is instead made retryable after terminal history disappears or an older failed row is mistaken for its outcome, the same historical-context obligation can reach another X create. The missing phase and unbound failed-history reuse prevented the transaction from choosing safely between those outcomes.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The absent pre-remote versus remote-started phase and attempted-to-retryable rollback were established against exact 4e548b0a historical-context state; their introducing revision was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Cutoff review showed that the same attempting-state shape represented both a definitely pre-remote interruption and a potentially transmitted claim, then removed terminal history and observed the latter become retryable instead of remaining blocked.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated historical-context outbox phase and history-monotonicity fixtures"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Historical-context claim state, journal-before-transport ordering, explicit remote phase, interrupted-attempt recovery, terminal-history disappearance and subsequent retry eligibility.",
+        "exclusions": "No transport was allowed, no production history was inspected and exact-transition staging liveness remains separately tracked by DEF-0045.",
+        "source": "Independent 4e548b0a historical-context recovery review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Interrupt one claimed obligation before transport, interrupt another after its transport journal is armed, remove terminal history from the potentially transmitted case, then repeat with only an older failed history row and compare restart recovery.",
+        "reproducer": "The cutoff record had no durable phase with which to permit only the definitely pre-remote case to retry while keeping the potentially transmitted case blocked, and a parent/quote-keyed older failure was not bound to the current attempt.",
+        "source": "Focused pre-remote/remote-started and terminal-history regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-cutoff worktree proposal records an exact one-way boolean phase on every new claim, changes it only after the transport journal is armed and immediately before transport, permits retry only for a proved pre-remote claim with no independent transport barrier, and keeps legacy, remote-started or lost-history cases blocked. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact 4e548b0a historical-context transaction shape and this repair proposal were never deployed; observed production remains be882e81 and was not contacted."
+      },
+      "residual_risk": "Until a descendant fix is committed and deployed, an interrupted historical-context attempt cannot be retried merely because no receipt or terminal history is present; only a durably proved pre-remote phase with no independent transport barrier can justify retry.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:historical_context_outbox.py",
+          "claim": "The cutoff attempting outbox record has no durable field distinguishing a local pre-remote interruption from a potentially transmitted attempt."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_outbox.py::test_remote_transaction_phase_is_strict_durable_and_one_way",
+          "claim": "The post-cutoff candidate regression requires an explicit durable one-way remote-started phase."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_historical_context_remote_phase_callback_runs_after_arm_before_transport",
+          "claim": "The candidate regression proves the outbox phase callback occurs after journal arming and before transport."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_historical_context_remote_phase_failure_never_reaches_transport",
+          "claim": "The candidate regression proves phase-persistence failure cannot reach transport and leaves a blocking journal."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_interrupted_pre_remote_context_claim_becomes_retryable_without_marker",
+          "claim": "The candidate permits a proved pre-remote interruption with no transport evidence to follow the bounded retry path."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_pre_remote_claim_with_transport_journal_stays_blocked",
+          "claim": "Independent transport evidence overrides the local-only phase and remains blocking."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_interrupted_remote_started_context_claim_without_history_stays_blocked",
+          "claim": "The candidate keeps a remote-started attempt blocked when terminal history is missing."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_legacy_interrupted_context_claim_without_phase_stays_blocked",
+          "claim": "A legacy attempting record with unknown phase remains fail closed."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_remote_started_claim_cannot_consume_stale_failed_history",
+          "claim": "An older failed row cannot prove the outcome of a later remote-started attempt."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_legacy_claim_cannot_consume_stale_failed_history",
+          "claim": "An older failed row cannot downgrade a legacy attempt whose remote phase is unknown."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_pre_remote_claim_cannot_consume_stale_failure_over_transport_journal",
+          "claim": "Independent journal evidence keeps even an explicit pre-remote claim blocked despite stale failed history."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision lacking a durable pre-remote versus remote-started phase was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier implementation with both monotonic attempted state and a durable remote-started phase was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The monotonic attempted-state repair remains uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0036",
+          "DEF-0045"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0054",
+      "title": "Receipt readers and source binding did not prove one stable canonical private file generation",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-receipt-source-document-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "common main receipt loader",
+        "conversational receipt loader",
+        "historical-context receipt loader",
+        "transport source binding",
+        "same-inode content stability",
+        "final-path presence and identity"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "remote_write_transport_journal.py",
+        "tests/test_unit_helpers.py",
+        "tests/test_historical_context_reply.py",
+        "tests/test_remote_write_transport_journal.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The gaps were reproduced with isolated receipt files using semantically equivalent noncanonical bytes, permissive modes, same-inode content mutation and disappearance at the final path check. Transport and all external access were forbidden.",
+        "explanation": "This establishes acceptance of under-specified local authority documents; it does not establish a live wrong-post or duplicate incident."
+      },
+      "summary": "At 4e548b0a, several production receipt readers and the journal source binder could accept a semantically valid document whose bytes were not the canonical durable-writer representation or whose mode was not private. Stable reads did not uniformly reject same-inode content mutation or disappearance/replacement at the final pathname check, and source binding did not require the exact lane-specific canonical writer bytes.",
+      "impact": "A locally altered, ambiguously represented or changed receipt generation could be treated as authoritative recovery state. This weakens exact source lineage and can mutate protected history from bytes or a pathname generation the durable writer did not authorise.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The remaining canonical-byte, private-mode, same-inode and final-path stability gaps were established against the exact 4e548b0a cutoff; their separate introduction histories were not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Application-boundary review fed noncanonical and non-private receipt documents through each production reader and changed or removed receipt content at the stable-read and source-binding boundaries.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Offline common, historical and journal stable-source document matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Canonical bytes, duplicate-safe parsing, owner/private mode, same-inode content stability, final-path presence/identity and journal binding of regular, meme, conversational and historical source receipts.",
+        "exclusions": "Configuration and pause-control duplicate names remain DEF-0017; public identifier and nested journal/media source-identity field constraints are recorded separately as DEF-0055.",
+        "source": "Independent 4e548b0a receipt-reader and source-binding review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Rewrite valid receipt objects with alternate whitespace or a non-private mode, mutate one inode after reading, remove a previously observed final path, then invoke the exact production loaders and source binder.",
+        "reproducer": "A reader or binder accepted bytes the canonical writer would not emit, accepted a non-private file, or failed to prove the same stable file generation remained at the final path.",
+        "source": "Focused strict receipt-source regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Post-cutoff worktree proposals require lane-specific canonical bytes, current-owner private single-link files, a stable opened inode/content snapshot and a matching final pathname generation across common, historical and source-binding paths. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The exact 4e548b0a source-binding transaction shape and its strict-document repair were never deployed; observed production remains be882e81 and no production file was inspected."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, only an exact canonical, current-owner private receipt generation proved stable through the final pathname check may be treated as recovery authority; any deviation must remain globally blocking.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff common receipt reader does not uniformly prove canonical private bytes and stable same-inode content through the final pathname check."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:historical_context_formatter.py",
+          "claim": "The cutoff historical receipt path does not uniformly prove canonical private bytes or reject disappearance at its final pathname check."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:remote_write_transport_journal.py",
+          "claim": "The cutoff source binder accepts source bytes without uniformly proving canonical writer representation and private mode."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_common_receipt_loader_requires_canonical_owned_private_file",
+          "claim": "The post-cutoff candidate regression rejects noncanonical, unowned or non-private common receipts."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_common_receipt_loader_rejects_same_inode_mutation_after_read",
+          "claim": "The candidate regression rejects same-inode content mutation observed at the common reader's final validation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_reply.py::test_context_receipt_reader_rejects_disappearance_after_observation",
+          "claim": "The candidate regression rejects disappearance of an observed historical receipt at the final pathname check."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_reply.py::test_context_post_does_not_send_when_observed_receipt_disappears",
+          "claim": "A final-path disappearance cannot reach the historical-context create callback."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_transport_journal.py::test_source_binding_rejects_noncanonical_receipt_bytes",
+          "claim": "The post-cutoff candidate regression rejects noncanonical source bytes at journal binding."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_transport_journal.py::test_source_binding_rejects_nonprivate_receipt_mode",
+          "claim": "The post-cutoff candidate regression rejects non-private source receipt mode at journal binding."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_transport_journal.py::test_source_binding_rejects_same_inode_content_change_and_restore",
+          "claim": "The candidate regression rejects same-inode mutation even when original content is restored after semantic binding."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision containing all remaining stable receipt-reader and source-binding gaps was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier uniformly canonical, private and stable receipt-source surface was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The strict receipt-source changes remain uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0036",
+          "DEF-0043"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0055",
+      "title": "Durable public identifiers and nested source identities lacked exact type, range and basename constraints",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-nested-source-identity-review",
+      "status": "active",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "main and conversational public post identifiers",
+        "historical-context parent, reply and quote identifiers",
+        "transport journal source_identity",
+        "transport handoff owner",
+        "media source owner",
+        "source and image basenames",
+        "device/inode/change-time/size fields",
+        "source SHA-256 field"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py",
+        "tests/test_unit_helpers.py",
+        "tests/test_historical_context_reply.py",
+        "tests/test_remote_write_transport_journal.py",
+        "tests/test_remote_media_upload_receipt.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The type/range gaps were reproduced with synthetic main, conversational, historical, journal and media documents in an isolated directory. No transport, network, provider, X or production operation occurred.",
+        "explanation": "The review establishes incomplete validation of nested proof fields, not a demonstrated live authority bypass."
+      },
+      "summary": "At 4e548b0a, durable main, conversational and historical public identifiers could be accepted through string coercion rather than exact JSON string types. Nested journal/media source identities did not uniformly require exact integer/string types and valid ranges, while the basename check could accept the special components '.' and '..'. These paths could therefore admit proof documents outside the writer schema.",
+      "impact": "A numeric value could be converted into a public identity during reconciliation, or malformed nested restart proof could be classified inconsistently across publication, restart inspection and handoff. Most mismatches remain blocking, but the implementation could not claim that every accepted identity was an exact canonical writer-produced authority object.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The durable public-identifier and nested source-identity type, range and basename gaps were established against exact 4e548b0a receipt, journal and media schemas; their first introduction was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Cutoff review substituted numeric public identifiers, bool/negative/non-string nested source fields and the special basenames '.' and '..' in receipt, journal and media owner documents and found incomplete rejection.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Offline public receipt and journal/media nested-identity validation matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Public post/source identifier types plus nested journal source_identity, transport handoff owner and media owner types, ranges and basenames used by restart barriers and confirmation.",
+        "exclusions": "Top-level source receipt canonical bytes, permissions and stable generation checks are recorded separately as DEF-0054.",
+        "source": "Independent 4e548b0a journal/media nested-proof review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Substitute numeric public IDs, booleans, negative or out-of-range integers, non-string digests and '.'/'..' basenames into durable receipt and nested source proof objects, then invoke production restart and handoff validators.",
+        "reproducer": "At least one durable receipt or nested proof validator accepted a value outside the exact writer type/range/basename contract instead of deterministically rejecting the document.",
+        "source": "Focused public-identifier and nested source-identity regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Post-cutoff worktree proposals require exact string public IDs and policy identifiers, exact non-boolean integer identity fields within writer ranges, exact string digests, and ordinary non-empty basenames other than '.' or '..' across main, conversational, historical, journal and media records. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The 4e548b0a journal/media nested-proof protocol and its strict-field repair were never deployed; observed production remains be882e81 and was not contacted."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, any durable public identifier or nested source identity outside exact writer types, ranges and basename constraints must remain a restart-visible blocker and cannot authorise transport, handoff or retirement.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff main and conversational validators coerce some durable public identifiers and basenames before validation."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:historical_context_formatter.py",
+          "claim": "The cutoff historical receipt validators coerce parent, reply, quote or source-digest identifiers."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:remote_write_transport_journal.py",
+          "claim": "The cutoff journal validators do not uniformly reject invalid ranges, non-string nested source fields or the special basenames '.' and '..'."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:remote_media_upload_receipt.py",
+          "claim": "The cutoff media handoff owner validation does not uniformly enforce the exact nested source digest type."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_transport_journal.py::test_restart_barrier_requires_exact_source_identity_types",
+          "claim": "The post-cutoff candidate regression requires exact source identity field types, ranges and basenames at restart."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_media_upload_receipt.py::test_transport_handoff_owner_requires_exact_source_identity",
+          "claim": "The candidate regression rejects non-string digests and '.'/'..' source basenames in media handoff ownership."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_media_upload_receipt.py::test_media_receipt_requires_exact_string_hash_and_image_fields",
+          "claim": "The candidate regression rejects coercive hashes, media metadata and special image basenames."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_current_main_attempt_requires_exact_string_identifiers",
+          "claim": "The candidate regression rejects non-string main attempt and confirmed post identifiers and basenames."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_current_conversational_receipt_requires_string_identifier_fields",
+          "claim": "The candidate regression rejects non-string conversational target, author, conversation, source and reply identifiers."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_reply.py::test_historical_receipts_require_exact_string_identifiers",
+          "claim": "The candidate regression rejects non-string historical parent, reply and quote identifiers."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision with each durable public-identifier or nested source-proof validation gap was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier uniformly exact durable public-identifier and nested source-identity schema was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The strict nested-proof changes remain uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0038",
+          "DEF-0039",
+          "DEF-0043"
         ]
       }
     }

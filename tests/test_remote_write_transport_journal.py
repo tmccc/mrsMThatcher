@@ -82,6 +82,7 @@ def _write_receipt(path: Path, value: dict[str, object]) -> None:
         json.dumps(value, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    path.chmod(journal.JOURNAL_MODE)
     with path.open("rb") as handle:
         os.fsync(handle.fileno())
     directory = os.open(path.parent, os.O_RDONLY)
@@ -172,6 +173,50 @@ def test_journal_survives_source_receipt_deletion_and_blocks_restart(
     assert snapshot is not None
     assert snapshot.document["lifecycle_state"] == "attempting"
     assert fence_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("basename", ""),
+        ("basename", "."),
+        ("basename", ".."),
+        ("device", -1),
+        ("inode", 0),
+        ("sha256", int("1" * 64)),
+    ),
+)
+def test_restart_barrier_requires_exact_source_identity_types(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    _begin_transport_transaction(
+        receipt_path=receipt_path,
+        expected_receipt=receipt,
+        lane="quote_image",
+        payload=payload,
+    )
+    journal_path = journal.journal_path_for_receipt(receipt_path)
+    fence_path = journal.fence_path_for_journal(journal_path)
+
+    for path in (journal_path, fence_path):
+        document = json.loads(path.read_bytes())
+        document["source_receipt"][field] = value
+        if field == "sha256":
+            document["source_validation"]["receipt_sha256"] = value
+        _durable_write_bytes(
+            path,
+            journal.canonical_json_bytes(document),
+            mode=journal.JOURNAL_MODE,
+        )
+
+    state = journal.inspect_transport_state(journal_path)
+    assert state.blocking is True
+    assert state.journal is None
+    assert state.fence is None
+    assert journal.transport_journal_has_valid_restart_barrier(journal_path) is False
 
 
 def test_authority_is_payload_bound_and_one_shot(tmp_path: Path) -> None:
@@ -341,6 +386,59 @@ def test_changed_source_receipt_cannot_publish_authority(tmp_path: Path) -> None
             lane="quote_image",
             payload=payload,
         )
+
+
+def test_source_binding_rejects_noncanonical_receipt_bytes(tmp_path: Path) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    _durable_write_bytes(
+        receipt_path,
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+    )
+
+    with pytest.raises(journal.TransportJournalError, match="does not match"):
+        _begin_transport_transaction(
+            receipt_path=receipt_path,
+            expected_receipt=receipt,
+            lane="quote_image",
+            payload=payload,
+        )
+
+
+def test_source_binding_rejects_nonprivate_receipt_mode(tmp_path: Path) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    receipt_path.chmod(0o644)
+
+    with pytest.raises(journal.TransportJournalError, match="unsafe metadata"):
+        _begin_transport_transaction(
+            receipt_path=receipt_path,
+            expected_receipt=receipt,
+            lane="quote_image",
+            payload=payload,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (("lane", 1), ("source_validator_id", 1)),
+)
+def test_source_binding_requires_string_policy_identifiers(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    kwargs = {
+        "receipt_path": receipt_path,
+        "expected_receipt": receipt,
+        "lane": "quote_image",
+        "payload": payload,
+        "source_validator_id": "tests.quote-image-source.v1",
+        "source_validator": _source_validator,
+    }
+    kwargs[field] = value
+
+    with pytest.raises(journal.TransportJournalError):
+        journal.begin_transport_transaction(**kwargs)
 
 
 def test_source_binding_rejects_same_inode_content_change_and_restore(

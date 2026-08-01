@@ -345,6 +345,13 @@ def _validate_context_reply(
             "started_epoch",
             "updated_epoch",
         }
+        # Older schema-v1 attempting records predate the explicit remote phase.
+        # Absence is accepted only for compatibility and is interpreted by the
+        # recovery path as potentially transmitted.  Every newly claimed
+        # attempt records an exact boolean before any formatter or transport
+        # work begins.
+        if "remote_transaction_started" in value:
+            permitted.add("remote_transaction_started")
         if "previous_failure" in value:
             permitted.add("previous_failure")
         if set(value) != permitted:
@@ -353,6 +360,10 @@ def _validate_context_reply(
             not 1 <= attempt_count <= policy["max_attempts"]
             or not _valid_epoch(value["started_epoch"])
             or value["started_epoch"] != updated_epoch
+            or (
+                "remote_transaction_started" in value
+                and type(value["remote_transaction_started"]) is not bool
+            )
         ):
             raise OutboxValidationError("invalid attempting context reply metadata")
         previous_failure = value.get("previous_failure")
@@ -850,6 +861,7 @@ class HistoricalContextOutbox:
                 **self._attempt_identity(context_reply),
                 "attempt_count": attempt_number,
                 "started_epoch": epoch,
+                "remote_transaction_started": False,
                 "updated_epoch": epoch,
             }
             if context_reply["state"] == FAILED_RETRYABLE:
@@ -857,6 +869,47 @@ class HistoricalContextOutbox:
                     context_reply["failure"]
                 )
             obligation["context_reply"] = claimed
+            self._write_unlocked(document)
+            return self._copy(obligation)
+
+    def mark_remote_transaction_started(
+        self,
+        parent_post_id: str | int,
+        *,
+        attempt_number: int,
+    ) -> dict[str, Any]:
+        """Durably mark the point after transport arming and before transmission.
+
+        This transition is intentionally one-way.  A legacy attempting record
+        without the field is treated as having an unknown (and therefore
+        potentially remote) phase; it cannot be upgraded by this method.
+        """
+
+        parent_id = _normalise_post_id(parent_post_id, "parent_post_id")
+        attempt = _require_attempt_number(attempt_number)
+        with self._locked():
+            document = self._read_unlocked()
+            obligation = document["obligations"].get(parent_id)
+            if obligation is None:
+                raise OutboxConflictError("unknown parent post obligation")
+            context_reply = obligation["context_reply"]
+            if context_reply["state"] != CONTEXT_REPLY_ATTEMPTING:
+                raise OutboxConflictError(
+                    "remote transaction start requires a durably claimed attempt"
+                )
+            if context_reply["attempt_count"] != attempt:
+                raise OutboxConflictError(
+                    "remote transaction start does not match the claimed attempt"
+                )
+            if "remote_transaction_started" not in context_reply:
+                raise OutboxConflictError(
+                    "legacy attempting record has no definite pre-remote phase"
+                )
+            if context_reply["remote_transaction_started"] is not False:
+                raise OutboxConflictError(
+                    "remote transaction is already durably marked as started"
+                )
+            context_reply["remote_transaction_started"] = True
             self._write_unlocked(document)
             return self._copy(obligation)
 

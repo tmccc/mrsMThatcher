@@ -289,6 +289,7 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         "INV-TEST-003",
         "INV-TEST-004",
         "INV-TXN-HCTX-001",
+        "INV-TXN-HIST-001",
         "INV-TXN-MEME-001",
         "INV-TXN-RECEIPT-001",
         "INV-TXN-REG-001",
@@ -719,11 +720,50 @@ def test_real_registry_is_valid_and_markdown_is_synchronised() -> None:
             "INV-TEST-004",
             "INV-PROC-002",
             "INV-TXN-HCTX-001",
+            "INV-TXN-HIST-001",
             "INV-TXN-MEME-001",
             "INV-TXN-RECEIPT-001",
             "INV-TXN-REG-001",
             "INV-TXN-REPLY-001",
         }
+
+
+def test_current_registry_binds_post_cutoff_state_and_receipt_regressions() -> None:
+    registry, _schema = _load_real_documents()
+    records = {item["id"]: item for item in registry["invariants"]}
+
+    histories = set(records["INV-TXN-HIST-001"]["enforcement"]["tests"])
+    assert {
+        "tests/test_unit_helpers.py::test_load_state_refuses_valid_primary_latest_backup_divergence",
+        "tests/test_unit_helpers.py::test_load_state_accepts_matching_primary_and_latest_backup_after_save",
+        "tests/test_unit_helpers.py::test_load_state_does_not_let_stale_older_backup_veto_usable_latest_pair",
+    } <= histories
+
+    context = set(records["INV-TXN-HCTX-001"]["enforcement"]["tests"])
+    assert {
+        "tests/test_historical_context_outbox.py::test_remote_transaction_phase_is_strict_durable_and_one_way",
+        "tests/test_x_write_outcome_conservatism.py::test_historical_context_remote_phase_callback_runs_after_arm_before_transport",
+        "tests/test_x_write_outcome_conservatism.py::test_historical_context_remote_phase_failure_never_reaches_transport",
+        "tests/test_production_consistency_incident.py::test_interrupted_pre_remote_context_claim_becomes_retryable_without_marker",
+        "tests/test_production_consistency_incident.py::test_interrupted_remote_started_context_claim_without_history_stays_blocked",
+        "tests/test_production_consistency_incident.py::test_legacy_interrupted_context_claim_without_phase_stays_blocked",
+        "tests/test_production_consistency_incident.py::test_remote_started_claim_cannot_consume_stale_failed_history",
+        "tests/test_production_consistency_incident.py::test_legacy_claim_cannot_consume_stale_failed_history",
+        "tests/test_production_consistency_incident.py::test_pre_remote_claim_cannot_consume_stale_failure_over_transport_journal",
+    } <= context
+
+    receipts = set(records["INV-TXN-RECEIPT-001"]["enforcement"]["tests"])
+    assert {
+        "tests/test_unit_helpers.py::test_common_receipt_loader_requires_canonical_owned_private_file",
+        "tests/test_unit_helpers.py::test_common_receipt_loader_rejects_same_inode_mutation_after_read",
+        "tests/test_historical_context_reply.py::test_context_receipt_reader_rejects_disappearance_after_observation",
+        "tests/test_remote_write_transport_journal.py::test_source_binding_rejects_same_inode_content_change_and_restore",
+        "tests/test_remote_write_transport_journal.py::test_restart_barrier_requires_exact_source_identity_types",
+        "tests/test_remote_media_upload_receipt.py::test_transport_handoff_owner_requires_exact_source_identity",
+        "tests/test_production_consistency_incident.py::test_remote_started_claim_cannot_consume_stale_failed_history",
+        "tests/test_production_consistency_incident.py::test_legacy_claim_cannot_consume_stale_failed_history",
+        "tests/test_production_consistency_incident.py::test_pre_remote_claim_cannot_consume_stale_failure_over_transport_journal",
+    } <= receipts
 
 
 def test_builtin_schema_fallback_accepts_valid_registry(tmp_path: Path) -> None:

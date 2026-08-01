@@ -800,6 +800,191 @@ def test_interrupted_claim_is_recovered_with_backoff_after_restart(
     ) == []
 
 
+def test_interrupted_pre_remote_context_claim_becomes_retryable_without_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A current claim interrupted before transport cannot have posted remotely."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800017",
+        main_post_confirmed_epoch=8_000,
+        quote_id="5" * 64,
+        quote_text="A context attempt interrupted before remote preparation.",
+    )
+    claimed = store.claim_attempt("800017", started_epoch=8_100)
+    assert claimed["context_reply"]["remote_transaction_started"] is False
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("repeating work while recovering the pre-remote claim"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="800017",
+    )
+
+    assert result == [
+        {
+            "parent_post_id": "800017",
+            "status": "recovered_pre_remote_interruption",
+            "context_reply_state": "context_reply_failed_retryable",
+            "attempt_number": 1,
+            "remote_work_repeated": False,
+        }
+    ]
+    recovered = store.get("800017")["context_reply"]
+    assert recovered["state"] == "context_reply_failed_retryable"
+    assert "before remote transaction start" in recovered["failure"]["error"]
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_pre_remote_claim_with_transport_journal_stays_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A journal or unsafe journal object overrides the local-only phase."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800016",
+        main_post_confirmed_epoch=8_000,
+        quote_id="4" * 64,
+        quote_text="An interrupted claim with independent transport evidence.",
+    )
+    store.claim_attempt("800016", started_epoch=8_100)
+    journal_path = bot.journal_path_for_receipt(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+    journal_path.write_bytes(b"invalid journal sentinel\n")
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("repeating a claim while its transport journal is unresolved"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="800016",
+    )
+
+    assert result == []
+    assert (
+        store.get("800016")["context_reply"]["state"]
+        == "context_reply_attempting"
+    )
+    assert journal_path.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+def test_interrupted_remote_started_context_claim_without_history_stays_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Loss of the sole completed-history record cannot make a reply retryable."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800018",
+        main_post_confirmed_epoch=8_000,
+        quote_id="6" * 64,
+        quote_text="A context reply whose completed history was lost.",
+    )
+    store.claim_attempt("800018", started_epoch=8_100)
+    store.mark_remote_transaction_started("800018", attempt_number=1)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800018": {
+                    "schema_version": 1,
+                    "parent_post_id": "800018",
+                    "reply_post_id": "900018",
+                    "quote_id": "6" * 64,
+                    "reply_text": "Rendered context text.",
+                    "reply_epoch": 8_101,
+                    "confirmed_at": "2026-07-24T00:00:00Z",
+                    "status": "completed",
+                }
+            },
+        },
+    )
+    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.unlink()
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("repeating a context reply without terminal history"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="800018",
+    )
+
+    assert result == [
+        {
+            "parent_post_id": "800018",
+            "status": "interrupted_attempt_recovery_failed",
+            "error_type": "AmbiguousContextReplyOutcome",
+        }
+    ]
+    assert (
+        store.get("800018")["context_reply"]["state"]
+        == "context_reply_attempting"
+    )
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.block_if_ambiguous_remote_post()
+
+
+def test_legacy_interrupted_context_claim_without_phase_stays_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pre-phase schema-v1 claim cannot be assumed to precede transmission."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800019",
+        main_post_confirmed_epoch=8_000,
+        quote_id="7" * 64,
+        quote_text="A legacy context attempt with an unknown remote phase.",
+    )
+    store.claim_attempt("800019", started_epoch=8_100)
+    document = json.loads(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_text(encoding="utf-8")
+    )
+    document["obligations"]["800019"]["context_reply"].pop(
+        "remote_transaction_started"
+    )
+    outbox_module._atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+        document,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("repeating a legacy attempt with unknown transmission state"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="800019",
+    )
+
+    assert result[0]["status"] == "interrupted_attempt_recovery_failed"
+    assert result[0]["error_type"] == "AmbiguousContextReplyOutcome"
+    assert (
+        store.get("800019")["context_reply"]["state"]
+        == "context_reply_attempting"
+    )
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
 def test_interrupted_claim_does_not_compare_distinct_store_attempt_ordinals(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -819,6 +1004,7 @@ def test_interrupted_claim_does_not_compare_distinct_store_attempt_ordinals(
     )
     claimed = store.claim_attempt("800010", started_epoch=8_200)
     assert claimed["context_reply"]["attempt_count"] == 2
+    assert claimed["context_reply"]["remote_transaction_started"] is False
     bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
         json.dumps(
             {
@@ -854,6 +1040,207 @@ def test_interrupted_claim_does_not_compare_distinct_store_attempt_ordinals(
     assert recovered["state"] == "context_reply_failed_retryable"
     assert recovered["attempt_count"] == 2
     assert "first reply-store attempt failed" in recovered["failure"]["error"]
+
+
+def test_remote_started_claim_cannot_consume_stale_failed_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An older failed row cannot prove a later transmitted attempt failed."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800020",
+        main_post_confirmed_epoch=8_000,
+        quote_id="a" * 64,
+        quote_text="A later remote-started attempt with stale failure history.",
+    )
+    store.claim_attempt("800020", started_epoch=8_000)
+    store.record_retryable_failure(
+        "800020",
+        attempt_number=1,
+        error="older definite failure",
+        failed_epoch=8_100,
+    )
+    store.claim_attempt("800020", started_epoch=8_200)
+    store.mark_remote_transaction_started("800020", attempt_number=2)
+    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "items": {
+                    "800020": {
+                        "parent_post_id": "800020",
+                        "quote_id": "a" * 64,
+                        "reply_text": "Rendered context text.",
+                        "status": "failed",
+                        "failure": "TimeoutError: older first attempt",
+                        "attempt_count": 1,
+                        "updated_at": "2026-08-01T00:00:00Z",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_300)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("repeating remote-started work with only stale failure history"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="800020",
+    )
+
+    assert result == [
+        {
+            "parent_post_id": "800020",
+            "status": "interrupted_attempt_recovery_failed",
+            "error_type": "AmbiguousContextReplyOutcome",
+        }
+    ]
+    assert (
+        store.get("800020")["context_reply"]["state"]
+        == "context_reply_attempting"
+    )
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_legacy_claim_cannot_consume_stale_failed_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A legacy unknown phase stays blocked despite an older failed row."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800021",
+        main_post_confirmed_epoch=8_000,
+        quote_id="b" * 64,
+        quote_text="A legacy later attempt with stale failure history.",
+    )
+    store.claim_attempt("800021", started_epoch=8_000)
+    store.record_retryable_failure(
+        "800021",
+        attempt_number=1,
+        error="older definite failure",
+        failed_epoch=8_100,
+    )
+    store.claim_attempt("800021", started_epoch=8_200)
+    document = json.loads(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_text(encoding="utf-8")
+    )
+    document["obligations"]["800021"]["context_reply"].pop(
+        "remote_transaction_started"
+    )
+    outbox_module._atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+        document,
+    )
+    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "items": {
+                    "800021": {
+                        "parent_post_id": "800021",
+                        "quote_id": "b" * 64,
+                        "reply_text": "Rendered context text.",
+                        "status": "failed",
+                        "failure": "TimeoutError: older first attempt",
+                        "attempt_count": 1,
+                        "updated_at": "2026-08-01T00:00:00Z",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_300)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("repeating legacy work with only stale failure history"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="800021",
+    )
+
+    assert result == [
+        {
+            "parent_post_id": "800021",
+            "status": "interrupted_attempt_recovery_failed",
+            "error_type": "AmbiguousContextReplyOutcome",
+        }
+    ]
+    assert (
+        store.get("800021")["context_reply"]["state"]
+        == "context_reply_attempting"
+    )
+    assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_pre_remote_claim_cannot_consume_stale_failure_over_transport_journal() -> None:
+    """Independent transport evidence overrides an explicit false phase."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800022",
+        main_post_confirmed_epoch=8_000,
+        quote_id="c" * 64,
+        quote_text="A pre-remote claim with stale history and a journal.",
+    )
+    store.claim_attempt("800022", started_epoch=8_000)
+    store.record_retryable_failure(
+        "800022",
+        attempt_number=1,
+        error="older definite failure",
+        failed_epoch=8_100,
+    )
+    claimed = store.claim_attempt("800022", started_epoch=8_200)
+    assert claimed["context_reply"]["remote_transaction_started"] is False
+    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "items": {
+                    "800022": {
+                        "parent_post_id": "800022",
+                        "quote_id": "c" * 64,
+                        "reply_text": "Rendered context text.",
+                        "status": "failed",
+                        "failure": "TimeoutError: older first attempt",
+                        "attempt_count": 1,
+                        "updated_at": "2026-08-01T00:00:00Z",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    journal_path = bot.journal_path_for_receipt(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+    journal_path.write_bytes(b"invalid but blocking journal namespace\n")
+
+    with pytest.raises(
+        context_formatter.AmbiguousContextReplyOutcome,
+        match="only an older failed history outcome",
+    ):
+        bot.recover_interrupted_historical_context_attempt(
+            store,
+            store.get("800022"),
+            recovered_epoch=8_300,
+        )
+
+    assert (
+        store.get("800022")["context_reply"]["state"]
+        == "context_reply_attempting"
+    )
+    assert journal_path.exists()
 
 
 def test_interrupted_claim_reconciles_completed_history_without_reposting(
@@ -1164,20 +1551,18 @@ def test_context_outbox_uses_endpoint_aware_terminal_classification(
 def test_bootstrap_refuses_ambiguous_context_sending_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "lifecycle_state": "sending",
-                "parent_post_id": "830001",
-                "quote_id": "2" * 64,
-                "reply_text": "Context reply text.",
-                "reply_epoch": 8_300,
-                "started_at": "2026-07-23T20:00:00Z",
-                "attempt_number": 1,
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "830001",
+            "quote_id": "2" * 64,
+            "reply_text": "Context reply text.",
+            "reply_epoch": 8_300,
+            "started_at": "2026-07-23T20:00:00Z",
+            "attempt_number": 1,
+        },
     )
     monkeypatch.setattr(bot, "TEST_MODE", False)
     monkeypatch.setattr(bot, "SELF_TEST_REQUESTED", False)
@@ -1211,6 +1596,26 @@ def test_bootstrap_refuses_ambiguous_context_sending_receipt(
     assert not bot.STATE_FILE.exists()
 
 
+def test_context_transport_source_requires_private_receipt_mode() -> None:
+    receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "830009",
+        "quote_id": "a" * 64,
+        "reply_text": "Context reply text.",
+        "reply_epoch": 8_300,
+        "started_at": "2026-07-23T20:00:00Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        receipt,
+    )
+    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.chmod(0o644)
+
+    assert bot.exact_historical_context_sending_receipt_matches(receipt) is False
+
+
 def test_interrupted_outbox_claim_preserves_sending_receipt_as_global_ambiguity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1223,20 +1628,18 @@ def test_interrupted_outbox_claim_preserves_sending_receipt_as_global_ambiguity(
         quote_text="The quotation attached to the ambiguous context reply.",
     )
     store.claim_attempt("830002", started_epoch=8_301)
-    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "lifecycle_state": "sending",
-                "parent_post_id": "830002",
-                "quote_id": "4" * 64,
-                "reply_text": reply_text,
-                "reply_epoch": 8_301,
-                "started_at": "2026-07-23T20:00:00Z",
-                "attempt_number": 1,
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "830002",
+            "quote_id": "4" * 64,
+            "reply_text": reply_text,
+            "reply_epoch": 8_301,
+            "started_at": "2026-07-23T20:00:00Z",
+            "attempt_number": 1,
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
 
@@ -1272,20 +1675,18 @@ def test_observed_context_receipt_disappearance_remains_globally_blocking(
         quote_text="The receipt must remain the authoritative barrier.",
     )
     store.claim_attempt("830007", started_epoch=8_301)
-    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "lifecycle_state": "sending",
-                "parent_post_id": "830007",
-                "quote_id": "9" * 64,
-                "reply_text": "Context — The outcome remains unknown.",
-                "reply_epoch": 8_301,
-                "started_at": "2026-07-23T20:00:00Z",
-                "attempt_number": 1,
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "830007",
+            "quote_id": "9" * 64,
+            "reply_text": "Context — The outcome remains unknown.",
+            "reply_epoch": 8_301,
+            "started_at": "2026-07-23T20:00:00Z",
+            "attempt_number": 1,
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
 
@@ -1326,20 +1727,18 @@ def test_context_receipt_reconciliation_exception_cannot_claim_another_attempt(
         quote_id="5" * 64,
         quote_text="A different due historical-context quotation.",
     )
-    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "lifecycle_state": "sending",
-                "parent_post_id": "830002",
-                "quote_id": "4" * 64,
-                "reply_text": "Context — An unresolved earlier attempt.",
-                "reply_epoch": 8_301,
-                "started_at": "2026-07-23T20:00:00Z",
-                "attempt_number": 1,
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "830002",
+            "quote_id": "4" * 64,
+            "reply_text": "Context — An unresolved earlier attempt.",
+            "reply_epoch": 8_301,
+            "started_at": "2026-07-23T20:00:00Z",
+            "attempt_number": 1,
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
     monkeypatch.setattr(
@@ -1376,7 +1775,7 @@ def test_confirmed_context_receipt_reconciliation_ends_the_worker_tick(
             quote_text=f"Historical-context quotation {parent_id}.",
         )
     store.claim_attempt("830004", started_epoch=8_301)
-    bot.atomic_write_json(
+    context_formatter.atomic_write_json(
         bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         {
             "schema_version": 1,
@@ -1390,7 +1789,6 @@ def test_confirmed_context_receipt_reconciliation_ends_the_worker_tick(
             "started_at": "2026-07-23T19:59:59Z",
             "attempt_number": 1,
         },
-        durable=True,
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
     monkeypatch.setattr(
@@ -1495,7 +1893,8 @@ def test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock(
     monkeypatch: pytest.MonkeyPatch,
     command_name: str,
 ) -> None:
-    receipt_bytes = json.dumps(
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         {
             "schema_version": 1,
             "lifecycle_state": "sending",
@@ -1505,11 +1904,9 @@ def test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock(
             "reply_epoch": 8_303,
             "started_at": "2026-07-27T19:00:00Z",
             "attempt_number": 1,
-        }
-    ).encode("utf-8")
-    bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.write_bytes(
-        receipt_bytes,
+        },
     )
+    receipt_bytes = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
     order: list[str] = []
     real_reconcile = bot.reconcile_runtime_historical_context_state
 

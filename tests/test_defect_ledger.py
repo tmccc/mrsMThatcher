@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
 
 import pytest
@@ -43,7 +42,7 @@ def _validate(
         invariants,
         repository_root=ROOT,
         markdown_path=MARKDOWN_PATH if markdown else None,
-        diagnosis_path=DIAGNOSIS_PATH if markdown else None,
+        diagnosis_path=None,
         force_fallback_schema=fallback,
         release_base=release_base,
     )
@@ -114,8 +113,8 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
     deployment = identity["production_deployment_observation"]
     regeneration = identity["post_merge_regeneration"]
 
-    assert cutoff["commit"] == "7ebcc09699a13848d55a33fd84d66cc8ce56d95c"
-    assert cutoff["tree"] == "b83abb7af53f925eb8686825e09f4654a55ff40a"
+    assert cutoff["commit"] == "4e548b0a5723a1f0c75e9646953b3f92c7db89ad"
+    assert cutoff["tree"] == "a751f4b488ee20d268a082c7daf835d5786e7e23"
     assert baseline["commit"] != cutoff["commit"]
     assert baseline["tree"] != cutoff["tree"]
     assert "does not claim" in cutoff["difference_from_production_baseline"]
@@ -127,7 +126,7 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
     assert deployment["loaded_process_identity_status"].endswith("-unattested")
     assert regeneration["required"] is True
     assert regeneration["release_base_must_equal_evidence_cutoff"] is True
-    assert "post-7ebcc096" in regeneration["requirement"]
+    assert "post-4e548b0a" in regeneration["requirement"]
 
     report = _validate(
         ledger,
@@ -730,14 +729,14 @@ def test_repaired_remote_write_defects_render_honestly() -> None:
     )
 
 
-def test_cutoff_only_pause_finding_is_not_reported_as_observed_production() -> None:
+def test_cutoff_pause_repair_is_recorded_not_deployed() -> None:
     ledger, _schema, _invariants = _documents()
     pause_finding = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0051"
     )
 
     assert ledger_tool._deployment_cell(pause_finding) == (
-        "not deployed; absent from observed production `be882e81`"
+        "not-deployed; observed `be882e81`"
     )
 
 
@@ -745,32 +744,76 @@ def test_transport_cutoff_repairs_and_post_cutoff_findings_remain_distinct() -> 
     ledger, _schema, _invariants = _documents()
     records = {item["id"]: item for item in ledger["defects"]}
     cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
-    parent = "40ab83ef77e75549a08ee0dc2082985ca36b361b"
+    transport_fix = "7ebcc09699a13848d55a33fd84d66cc8ce56d95c"
+    transport_parent = "40ab83ef77e75549a08ee0dc2082985ca36b361b"
 
     for defect_id in ("DEF-0038", "DEF-0039"):
         record = records[defect_id]
         assert record["status"] == "repaired-not-deployed"
         assert record["fix"] == {
             "state": "fixed",
-            "commit": cutoff,
+            "commit": transport_fix,
             "summary": record["fix"]["summary"],
         }
         assert record["introduced"]["affected_range"] == (
-            f"inclusive:unknown..{parent}"
+            f"inclusive:unknown..{transport_parent}"
         )
-        assert any(item["commit"] == cutoff for item in record["tests"])
-        assert any(item["commit"] == cutoff for item in record["chronology"])
+        assert any(item["commit"] == transport_fix for item in record["tests"])
+        assert any(item["commit"] == transport_fix for item in record["chronology"])
 
-    for defect_id in ("DEF-0040", "DEF-0041", "DEF-0042", "DEF-0043"):
+    repaired = {
+        "DEF-0040": (
+            "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+            "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        ),
+        "DEF-0041": (
+            "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+            "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        ),
+        "DEF-0042": (
+            "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+            "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        ),
+        "DEF-0043": (
+            "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+            "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        ),
+        "DEF-0046": (
+            "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+            "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+        ),
+        "DEF-0047": (
+            "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+            "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+        ),
+        "DEF-0048": (
+            "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+            "634fd6cd92b52a9ae8786f4b8c672dba42c58dcb",
+        ),
+        "DEF-0049": (
+            "ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
+            "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+        ),
+        "DEF-0050": (
+            "ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
+            "5a11bbf4ef4b3e788f176d64fb8455763a09c937",
+        ),
+        "DEF-0051": (
+            "fb8eb25fefb4e4a8b281a152521c1b1f4e08eb04",
+            "ce970f81f4d83e751936c9dae9261c72a2c5c0c6",
+        ),
+    }
+    for defect_id, (fix_commit, affected_parent) in repaired.items():
         record = records[defect_id]
-        assert record["status"] == "active"
-        assert record["fix"]["state"] == "unfixed"
-        assert record["fix"]["commit"] == "unknown"
-        assert record["tests"] == []
+        assert record["status"] == "repaired-not-deployed"
+        assert record["fix"]["state"] == "fixed"
+        assert record["fix"]["commit"] == fix_commit
+        assert record["deployment"]["state"] == "not-deployed"
         assert record["introduced"]["affected_range"] == (
-            f"inclusive:unknown..{cutoff}"
+            f"inclusive:unknown..{affected_parent}"
         )
-        assert "post-7ebcc096 external proposal" in record["fix"]["summary"]
+        assert any(item["commit"] == fix_commit for item in record["tests"])
+        assert any(item["commit"] == fix_commit for item in record["chronology"])
 
     assurance = records["DEF-0044"]
     assert assurance["status"] == "assurance-weakness"
@@ -790,6 +833,61 @@ def test_transport_cutoff_repairs_and_post_cutoff_findings_remain_distinct() -> 
     assert liveness["incident"]["occurred"] is False
     assert "fail-closed" in liveness["impact"]
     assert "does not claim" in liveness["impact"]
+
+    for defect_id in ("DEF-0052", "DEF-0053", "DEF-0054", "DEF-0055"):
+        record = records[defect_id]
+        assert record["status"] == "active"
+        assert record["fix"]["state"] == "unfixed"
+        assert record["fix"]["commit"] == "unknown"
+        assert record["tests"] == []
+        assert record["introduced"]["affected_range"] == (
+            f"inclusive:unknown..{cutoff}"
+        )
+        assert any(item["commit"] == cutoff for item in record["chronology"])
+
+    phase = records["DEF-0053"]
+    assert "pre-remote versus remote-started" in phase["title"]
+    assert "remote_transaction_started phase" in phase["components"]
+    assert any(
+        item["reference"].endswith(
+            "test_interrupted_remote_started_context_claim_without_history_stays_blocked"
+        )
+        for item in phase["evidence"]
+    )
+    assert any(
+        item["reference"].endswith(
+            "test_remote_started_claim_cannot_consume_stale_failed_history"
+        )
+        for item in phase["evidence"]
+    )
+    assert any(
+        item["reference"].endswith(
+            "test_pre_remote_claim_cannot_consume_stale_failure_over_transport_journal"
+        )
+        for item in phase["evidence"]
+    )
+
+    stable_source = records["DEF-0054"]
+    assert "stable canonical private file generation" in stable_source["title"]
+    assert "same-inode content stability" in stable_source["components"]
+    assert "final-path presence and identity" in stable_source["components"]
+    assert any(
+        item["reference"].endswith(
+            "test_common_receipt_loader_rejects_same_inode_mutation_after_read"
+        )
+        for item in stable_source["evidence"]
+    )
+
+    exact_identity = records["DEF-0055"]
+    assert "Durable public identifiers" in exact_identity["title"]
+    assert "source and image basenames" in exact_identity["components"]
+    assert "'.'/'..'" in exact_identity["detection"]["method"]
+    assert any(
+        item["reference"].endswith(
+            "test_transport_handoff_owner_requires_exact_source_identity"
+        )
+        for item in exact_identity["evidence"]
+    )
 
 
 def test_explicit_unfixed_ranges_end_at_the_evidence_cutoff() -> None:
