@@ -92,8 +92,12 @@ deserialised; if JSON history is missing while a legacy pickle exists, the bot
 fails closed until JSON history is restored or migrated manually from a trusted
 backup. They use `MRS_LOG_FILE` for logs.
 
-Effective production routing and the remaining defaults are unchanged when
-these environment variables are unset:
+The base-directory, log, primary X API, and xAI defaults remain as listed
+below. Media upload routing is the exception: `X_UPLOAD_BASE_URL` no longer
+defaults to the legacy `https://upload.twitter.com` origin used with
+`/1.1/media/upload.json`. When unset, it now inherits the resolved
+`X_API_BASE_URL`, and the exact `POST /2/media/upload` request uses that origin.
+X reads and `POST /2/tweets` continue to use `X_API_BASE_URL`.
 
 - `MRS_BASE_DIR` defaults to `/disks/disk1/etc/mrsMThatcher`
 - `MRS_LOG_FILE` defaults to `<MRS_BASE_DIR>/mrsMThatcher.log`
@@ -131,13 +135,31 @@ The production runtime and its operational support assume these files are
 deployed as a coherent set:
 
 - `mrsMThatcher2.py`
+- `remote_write_safety_protocol.py`
+- `remote_media_upload_receipt.py`
+- `remote_write_transport_journal.py`
+- `exact_receipt_retirement.py`
+- `transaction_mutation_authority.py`
 - `reply_strategy.py`
 - `reply_evidence.py`
 - `historical_context_formatter.py`
+- `historical_context_outbox.py`
+- `historical_context_packet_corrections.py`
+- `historical_context_published_reply_semantic_review.py`
+- `historical_context_reply_semantic_gate.py`
+- `historical_context_source_curated_evidence.py`
+- `historical_context_source_independent_review.py`
+- `historical_context_source_openai_manifest.py`
+- `historical_context_source_recovery.py`
+- `historical_context_source_research_manifest.py`
+- `historical_context_source_resolution.py`
+- `historical_context_source_roles.py`
 - `historical_context_reply_schema.json`
 - `shadow_lifecycle.py`
 - `shadow_feature_lifecycle.json`
 - `semantic_quote_image_veto.py`
+- `semantic_alignment/__init__.py`
+- `semantic_alignment/io.py`
 - `semantic_alignment/quote_image_semantic_veto.py`
 - `semantic_alignment/quote_research_schema.py`
 - `semantic_alignment_research/quote_research_full_001/corpus_manifest.json`
