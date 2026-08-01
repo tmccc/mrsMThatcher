@@ -489,6 +489,7 @@ def _load_clean_state_attestation(
         reference = value.get("reconciliation_reference")
         if (
             set(value) != required
+            or type(value.get("schema_version")) is not int
             or value.get("schema_version") != CLEAN_STATE_ATTESTATION_SCHEMA_VERSION
             or value.get("document_kind") != CLEAN_STATE_ATTESTATION_DOCUMENT_KIND
             or value.get("active_markers_absent_after_external_review") is not True

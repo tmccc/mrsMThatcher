@@ -8603,7 +8603,7 @@ def durable_create_receipt_json(path: Path, value: object) -> None:
         raise UnsafeReceiptNamespace("O_NOFOLLOW is required for receipt creation")
     descriptor = os.open(
         path,
-        os.O_WRONLY
+        os.O_RDWR
         | os.O_CREAT
         | os.O_EXCL
         | nofollow
@@ -8619,14 +8619,53 @@ def durable_create_receipt_json(path: Path, value: object) -> None:
                 raise OSError("short write while publishing receipt")
             offset += written
         os.fsync(descriptor)
+        created = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(created.st_mode)
+            or created.st_nlink != 1
+            or created.st_size != len(data)
+        ):
+            raise UnsafeReceiptNamespace(
+                "new receipt has unsafe metadata before publication acknowledgement"
+            )
+        fsync_parent_dir(path, strict=True)
+        try:
+            current = os.lstat(path)
+        except OSError as exc:
+            raise UnsafeReceiptNamespace(
+                "new receipt disappeared before publication acknowledgement"
+            ) from exc
+        reopened_data = os.pread(descriptor, len(data) + 1, 0)
+        after_read = os.fstat(descriptor)
+        try:
+            current_after_read = os.lstat(path)
+        except OSError as exc:
+            raise UnsafeReceiptNamespace(
+                "new receipt disappeared during publication acknowledgement"
+            ) from exc
+        stable_fields = (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_nlink",
+            "st_size",
+            "st_ctime_ns",
+            "st_mtime_ns",
+        )
+        if (
+            reopened_data != data
+            or any(
+                getattr(created, field) != getattr(after_read, field)
+                or getattr(created, field) != getattr(current, field)
+                or getattr(created, field) != getattr(current_after_read, field)
+                for field in stable_fields
+            )
+        ):
+            raise UnsafeReceiptNamespace(
+                "new receipt changed before publication acknowledgement"
+            )
     finally:
         os.close(descriptor)
-    fsync_parent_dir(path, strict=True)
-    present, parsed = load_receipt_json_no_follow(path)
-    if not present or parsed != value:
-        raise UnsafeReceiptNamespace(
-            "new receipt changed before publication acknowledgement"
-        )
 
 
 def atomic_json_file_exactly_matches(path: Path, value: object) -> bool:

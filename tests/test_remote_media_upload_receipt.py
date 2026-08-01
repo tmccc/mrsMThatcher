@@ -1052,6 +1052,55 @@ def test_media_handoff_owner_requires_integer_schema_version(
         )
 
 
+def test_confirmed_media_receipt_requires_string_remote_media_id(
+    tmp_path: Path,
+) -> None:
+    receipt_path, _image_path, _metadata, _confirmation = _confirmed(tmp_path)
+    document = json.loads(receipt_path.read_bytes())
+    document["remote_media_id"] = 780001
+    _durable_write(
+        receipt_path,
+        media_receipt.canonical_json_bytes(document),
+    )
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="no valid media ID",
+    ):
+        media_receipt.inspect_media_upload_receipt(receipt_path)
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+def test_confirmed_handoff_owner_requires_string_remote_post_id(
+    tmp_path: Path,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    _source_path, journal_path, _handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    document = json.loads(journal_path.read_bytes())
+    document.update(
+        lifecycle_state="confirmed",
+        remote_post_id=123,
+        confirmation_epoch=1_800_000_010,
+    )
+    _durable_write(
+        journal_path,
+        media_receipt.canonical_json_bytes(document),
+    )
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="confirmed transport handoff owner is invalid",
+    ):
+        media_receipt._transport_owner_snapshot(
+            journal_path,
+            expected_kind="mrsMThatcher_remote_write_transport_journal",
+        )
+
+
 def test_existing_unknown_receipt_is_never_overwritten(tmp_path: Path) -> None:
     receipt_path, image_path, metadata = _fixture(tmp_path)
     _durable_write(receipt_path, b"not-json")

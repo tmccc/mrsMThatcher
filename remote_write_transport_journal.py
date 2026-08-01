@@ -960,7 +960,8 @@ def _validate_document(
     confirmation_epoch = value.get("confirmation_epoch")
     if value["lifecycle_state"] == "confirmed":
         if (
-            not _POST_ID_RE.fullmatch(str(remote_post_id or ""))
+            type(remote_post_id) is not str
+            or not _POST_ID_RE.fullmatch(remote_post_id)
             or type(confirmation_epoch) is not int
             or confirmation_epoch < 0
         ):

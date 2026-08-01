@@ -1638,6 +1638,41 @@ def test_established_activation_rejects_attestation_with_wrong_cli_hash(
     assert not os.path.lexists(state_directory / protocol.ACTIVATION_AUDIT_BASENAME)
 
 
+def test_external_clean_state_attestation_requires_integer_schema_version(
+    tmp_path: Path,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    identity = state_directory.stat()
+    activator_sha256 = "a" * 64
+    attestation = tmp_path / "float-schema-attestation.json"
+    value = json.loads(
+        activate.build_clean_state_attestation_bytes(
+            project_root=state_directory,
+            project_device=int(identity.st_dev),
+            project_inode=int(identity.st_ino),
+            activator_cli_sha256=activator_sha256,
+            reconciliation_reference="float-schema-review",
+        )
+    )
+    value["schema_version"] = float(activate.CLEAN_STATE_ATTESTATION_SCHEMA_VERSION)
+    data = activate._canonical_json_bytes(value)
+    attestation.write_bytes(data)
+    attestation.chmod(activate.CLEAN_STATE_ATTESTATION_MODE)
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="fields do not bind this activation",
+    ):
+        activate._load_clean_state_attestation(
+            attestation,
+            expected_sha256=hashlib.sha256(data).hexdigest(),
+            project=state_directory,
+            project_identity=identity,
+            activator_cli_sha256=activator_sha256,
+        )
+
+
 @pytest.mark.parametrize("unsafe", ("symlink", "hardlink"))
 def test_established_activation_rejects_unsafe_external_attestation(
     tmp_path: Path,

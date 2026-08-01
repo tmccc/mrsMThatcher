@@ -2871,6 +2871,33 @@ def valid_regular_receipt_v2(**overrides: object) -> dict:
     return receipt
 
 
+def test_durable_receipt_creation_rejects_replaced_coercion_equal_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "receipt.json"
+
+    def replace_during_parent_sync(
+        target: Path,
+        *,
+        strict: bool = False,
+    ) -> None:
+        assert strict is True
+        target.unlink()
+        target.write_bytes(bot.canonical_atomic_json_bytes({"field": True}))
+        target.chmod(0o600)
+
+    monkeypatch.setattr(bot, "fsync_parent_dir", replace_during_parent_sync)
+
+    with pytest.raises(
+        bot.UnsafeReceiptNamespace,
+        match="changed before publication acknowledgement",
+    ):
+        bot.durable_create_receipt_json(path, {"field": 1})
+
+    assert path.read_bytes() == bot.canonical_atomic_json_bytes({"field": True})
+
+
 def test_regular_receipt_v2_restores_authoritative_post_cycle_histories(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -644,7 +644,7 @@ def _validate_document(
     if expected_kind == FENCE_DOCUMENT_KIND and lifecycle != "sending":
         raise MediaUploadReceiptError("immutable media fence lifecycle is invalid")
     if lifecycle == "confirmed":
-        if not _MEDIA_ID_RE.fullmatch(str(media_id or "")):
+        if type(media_id) is not str or not _MEDIA_ID_RE.fullmatch(media_id):
             raise MediaUploadReceiptError("confirmed media receipt has no valid media ID")
     elif media_id is not None:
         raise MediaUploadReceiptError("sending media receipt contains a media ID")
@@ -1537,7 +1537,8 @@ def _transport_owner_snapshot(
         )
     if value["lifecycle_state"] == "confirmed":
         if (
-            not _POST_ID_RE.fullmatch(str(remote_post_id or ""))
+            type(remote_post_id) is not str
+            or not _POST_ID_RE.fullmatch(remote_post_id)
             or type(confirmation_epoch) is not int
             or confirmation_epoch < 0
         ):
@@ -1663,7 +1664,8 @@ def bind_media_handoff_to_transport(
         or journal["source_receipt"]["basename"] != source_receipt_path.name
         or not isinstance(media_ids, list)
         or len(media_ids) != 1
-        or not _MEDIA_ID_RE.fullmatch(str(media_ids[0]))
+        or type(media_ids[0]) is not str
+        or not _MEDIA_ID_RE.fullmatch(media_ids[0])
     ):
         raise MediaUploadReceiptError(
             "tweet transport pair does not bind one confirmed media upload"

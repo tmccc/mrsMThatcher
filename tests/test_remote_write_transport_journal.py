@@ -294,6 +294,42 @@ def test_transport_journal_requires_integer_schema_version(
     assert journal.transport_journal_is_blocking(journal_path) is True
 
 
+def test_confirmed_transport_journal_requires_string_remote_post_id(
+    tmp_path: Path,
+) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    prepared = _begin_transport_transaction(
+        receipt_path=receipt_path,
+        expected_receipt=receipt,
+        lane="quote_image",
+        payload=payload,
+    )
+    journal_path = journal.journal_path_for_receipt(receipt_path)
+    armed = _arm_transport_transaction(journal_path, prepared)
+    journal.consume_transport_authority(
+        journal_path,
+        armed,
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+    )
+    _confirm_transport_transaction(journal_path, armed, post_id="123")
+    document = json.loads(journal_path.read_bytes())
+    document["remote_post_id"] = 123
+    _durable_write_bytes(
+        journal_path,
+        journal.canonical_json_bytes(document),
+        mode=journal.JOURNAL_MODE,
+    )
+
+    with pytest.raises(
+        journal.TransportJournalError,
+        match="no valid post ID",
+    ):
+        journal.inspect_transport_journal(journal_path)
+    assert journal.transport_journal_is_blocking(journal_path) is True
+
+
 def test_changed_source_receipt_cannot_publish_authority(tmp_path: Path) -> None:
     receipt_path, receipt, payload = _transaction(tmp_path)
     changed = {**receipt, "attempt_epoch": 1_800_000_001}
