@@ -178,8 +178,11 @@ def _activation_transaction_namespace_snapshot(
     """Snapshot activation and permanent-ledger entries without following links."""
 
     paths = (
+        state_directory / activate.INSTALLATION_IN_PROGRESS_BASENAME,
         state_directory / protocol.ACTIVATION_BASENAME,
         state_directory / protocol.ACTIVATION_AUDIT_BASENAME,
+        state_directory / protocol.LEGACY_ACTIVATION_BASENAME,
+        state_directory / protocol.LEGACY_ACTIVATION_AUDIT_BASENAME,
         *(
             path
             for receipt_basename in activate.RECEIPT_BASENAMES
@@ -812,7 +815,14 @@ def test_runtime_rejects_pre_ledger_v2_activation_pair(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "activation_state",
-    ("first_activation", "pre_ledger", "current", "current_audit_only"),
+    (
+        "first_activation",
+        "legacy",
+        "legacy_audit_only",
+        "pre_ledger",
+        "current",
+        "current_audit_only",
+    ),
 )
 def test_activation_refuses_interrupted_initialisation_before_any_mutation(
     tmp_path: Path,
@@ -828,7 +838,14 @@ def test_activation_refuses_interrupted_initialisation_before_any_mutation(
         encoding="ascii",
     )
 
-    if activation_state == "pre_ledger":
+    if activation_state in {"legacy", "legacy_audit_only"}:
+        legacy_sentinel, _legacy_audit = _write_legacy_protocol_activation(
+            state_directory
+        )
+        if activation_state == "legacy_audit_only":
+            legacy_sentinel.unlink()
+            _fsync_directory(state_directory)
+    elif activation_state == "pre_ledger":
         _write_pre_ledger_protocol_activation(state_directory)
     elif activation_state in {"current", "current_audit_only"}:
         activate.activate_protocol_offline(

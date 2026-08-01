@@ -43,6 +43,8 @@ TEST_SELECTOR = re.compile(
     r"^tests/[A-Za-z0-9_./-]+\.py"
     r"(?:::[A-Za-z_][A-Za-z0-9_]*(?:\[[A-Za-z0-9_.:/=-]+\])?)*$"
 )
+GIT_METADATA_TIMEOUT_SECONDS = 10
+MAXIMUM_HISTORICAL_TEST_BYTES = 2 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,110 @@ def git_blob_sha256(
     if result.returncode:
         return None, "historical Git blob is unavailable"
     return hashlib.sha256(result.stdout).hexdigest(), None
+
+
+def _git_commit_tree(
+    repository_root: Path,
+    commit: str,
+) -> tuple[str | None, str | None]:
+    """Return the exact tree for one existing commit without reading history."""
+
+    if HEX40.fullmatch(commit) is None:
+        return None, "historical commit is malformed"
+    try:
+        exists = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_root),
+                "cat-file",
+                "-e",
+                f"{commit}^{{commit}}",
+            ],
+            shell=False,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=GIT_METADATA_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"historical commit inspection failed: {type(exc).__name__}"
+    if exists.returncode:
+        return None, "historical commit does not exist"
+    try:
+        resolved = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository_root),
+                "rev-parse",
+                "--verify",
+                f"{commit}^{{tree}}",
+            ],
+            shell=False,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=GIT_METADATA_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"historical tree inspection failed: {type(exc).__name__}"
+    if resolved.returncode or len(resolved.stdout) > 64:
+        return None, "historical commit tree is unavailable"
+    tree = resolved.stdout.decode("ascii", errors="strict").strip()
+    if HEX40.fullmatch(tree) is None:
+        return None, "historical commit tree is malformed"
+    return tree, None
+
+
+def _git_blob_bytes_bounded(
+    repository_root: Path,
+    commit: str,
+    relative: str,
+    *,
+    maximum_bytes: int = MAXIMUM_HISTORICAL_TEST_BYTES,
+) -> tuple[bytes | None, str | None]:
+    """Read one historical blob only after Git proves its bounded byte size."""
+
+    path, path_error = _safe_repository_path(repository_root, relative)
+    if path_error is not None or path is None:
+        return None, path_error or "historical path is invalid"
+    specifier = f"{commit}:{relative}"
+    try:
+        sized = subprocess.run(
+            ["git", "-C", str(repository_root), "cat-file", "-s", specifier],
+            shell=False,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=GIT_METADATA_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"historical test path inspection failed: {type(exc).__name__}"
+    if sized.returncode or len(sized.stdout) > 32:
+        return None, f"historical test file does not exist: {relative}"
+    try:
+        size = int(sized.stdout.strip())
+    except ValueError:
+        return None, f"historical test size is malformed: {relative}"
+    if size < 0 or size > maximum_bytes:
+        return None, (
+            f"historical test file exceeds {maximum_bytes} bytes: {relative}"
+        )
+    try:
+        loaded = subprocess.run(
+            ["git", "-C", str(repository_root), "cat-file", "blob", specifier],
+            shell=False,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=GIT_METADATA_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"historical test read failed: {type(exc).__name__}"
+    if loaded.returncode or len(loaded.stdout) != size:
+        return None, f"historical test blob read is incomplete: {relative}"
+    return loaded.stdout, None
 
 
 def _json_type_matches(value: Any, expected: str) -> bool:
@@ -396,6 +502,90 @@ def test_node_exists(
                 return False, f"test node is not pytest-collectable: {nodeid}"
         elif not name.startswith("test"):
             return False, f"test node is not pytest-collectable: {nodeid}"
+        current_nodes = getattr(node, "body", ())
+    return True, ""
+
+
+def historical_test_selector_exists(
+    repository_root: Path,
+    commit: str,
+    selector: str,
+    *,
+    blob_cache: dict[tuple[str, str], tuple[bytes | None, str]] | None = None,
+    tree_cache: dict[tuple[str, str], tuple[ast.Module | None, str]] | None = None,
+) -> tuple[bool, str]:
+    """Prove that one current enforcement selector exists in an exact commit.
+
+    Historical verification is deliberately structural.  It reads at most one
+    bounded Git blob per referenced test path and never imports or executes the
+    historical candidate.
+    """
+
+    if not isinstance(selector, str):
+        return False, "historical test selector is not a string"
+    parts = selector.split("::")
+    relative = parts[0]
+    blob_key = (commit, relative)
+    cached_blob = blob_cache.get(blob_key) if blob_cache is not None else None
+    if cached_blob is None:
+        data, error = _git_blob_bytes_bounded(
+            repository_root,
+            commit,
+            relative,
+        )
+        cached_blob = (data, error or "")
+        if blob_cache is not None:
+            blob_cache[blob_key] = cached_blob
+    data, blob_error = cached_blob
+    if data is None:
+        return False, blob_error
+    if len(parts) == 1:
+        return True, ""
+
+    cached_tree = tree_cache.get(blob_key) if tree_cache is not None else None
+    if cached_tree is None:
+        try:
+            source = data.decode("utf-8")
+            tree = ast.parse(source, filename=f"{commit}:{relative}")
+        except (UnicodeDecodeError, SyntaxError) as exc:
+            parse_error = (
+                f"historical test file cannot be parsed: {relative}: "
+                f"{type(exc).__name__}"
+            )
+            cached_tree = (None, parse_error)
+        else:
+            cached_tree = (tree, "")
+        if tree_cache is not None:
+            tree_cache[blob_key] = cached_tree
+    tree, parse_error = cached_tree
+    if tree is None:
+        return False, parse_error
+
+    current_nodes: Iterable[ast.AST] = tree.body
+    for index, raw_name in enumerate(parts[1:]):
+        name = raw_name.split("[", 1)[0]
+        node = _named_ast_child(current_nodes, name)
+        if node is None:
+            return False, f"historical test node does not exist: {selector}"
+        if index == 0:
+            if isinstance(node, ast.ClassDef):
+                if not name.startswith("Test"):
+                    return False, (
+                        f"historical test node is not pytest-collectable: {selector}"
+                    )
+            elif not name.startswith("test"):
+                return False, (
+                    f"historical test node is not pytest-collectable: {selector}"
+                )
+        elif isinstance(node, ast.ClassDef):
+            if not name.startswith("Test"):
+                return False, (
+                    f"historical test node is not pytest-collectable: {selector}"
+                )
+        elif not name.startswith("test"):
+            return False, (
+                f"historical test node is not pytest-collectable: {selector}"
+            )
         current_nodes = getattr(node, "body", ())
     return True, ""
 
@@ -1006,6 +1196,10 @@ def validate_registry(
     collection_references: dict[str, set[str]] = {}
     test_tree_cache: dict[Path, tuple[ast.Module | None, str]] = {}
     test_node_cache: dict[str, tuple[bool, str]] = {}
+    historical_blob_cache: dict[tuple[str, str], tuple[bytes | None, str]] = {}
+    historical_tree_cache: dict[
+        tuple[str, str], tuple[ast.Module | None, str]
+    ] = {}
 
     def require_collected(selector: str, context: str) -> None:
         collection_references.setdefault(selector, set()).add(context)
@@ -1126,6 +1320,36 @@ def validate_registry(
             errors.append(
                 f"{invariant_id}: verified commit and tree knowledge status differ"
             )
+        historical_commit: str | None = None
+        if (
+            revision_values.get("last_verified_commit", (None,))[0] == "known"
+            and revision_values.get("last_verified_tree", (None,))[0] == "known"
+        ):
+            declared_commit = revision_values["last_verified_commit"][1]
+            declared_tree = revision_values["last_verified_tree"][1]
+            if (
+                isinstance(declared_commit, str)
+                and HEX40.fullmatch(declared_commit) is not None
+                and isinstance(declared_tree, str)
+                and HEX40.fullmatch(declared_tree) is not None
+            ):
+                actual_tree, history_error = _git_commit_tree(
+                    repository_root,
+                    declared_commit,
+                )
+                if history_error is not None:
+                    errors.append(
+                        f"{invariant_id}: last verified {history_error}: "
+                        f"{declared_commit}"
+                    )
+                elif actual_tree != declared_tree:
+                    errors.append(
+                        f"{invariant_id}: last verified tree mismatch for "
+                        f"{declared_commit}: declared {declared_tree}, "
+                        f"actual {actual_tree}"
+                    )
+                else:
+                    historical_commit = declared_commit
 
         residual = invariant.get("accepted_residual_risk", {})
         if isinstance(residual, Mapping):
@@ -1249,6 +1473,37 @@ def validate_registry(
                     errors.append(
                         f"{invariant_id}: {validation_id} does not accept selectors"
                     )
+
+            if historical_commit is not None:
+                historical_selectors = {
+                    selector
+                    for selector in enforcement.get("tests", [])
+                    if isinstance(selector, str)
+                }
+                for validation in enforcement.get("validations", []):
+                    if (
+                        not isinstance(validation, Mapping)
+                        or validation.get("validation_id") != "pytest"
+                    ):
+                        continue
+                    historical_selectors.update(
+                        selector
+                        for selector in validation.get("selectors", [])
+                        if isinstance(selector, str)
+                    )
+                for selector in sorted(historical_selectors):
+                    exists, reason = historical_test_selector_exists(
+                        repository_root,
+                        historical_commit,
+                        selector,
+                        blob_cache=historical_blob_cache,
+                        tree_cache=historical_tree_cache,
+                    )
+                    if not exists:
+                        errors.append(
+                            f"{invariant_id}: last verified commit "
+                            f"{historical_commit}: {reason}"
+                        )
 
         for evidence in invariant.get("evidence_references", []):
             if not isinstance(evidence, Mapping) or evidence.get("type") != "test":

@@ -366,8 +366,11 @@ def test_sending_receipt_is_deterministic_and_contains_exact_image_identity(
     assert first.fence_inode == fence_path.stat().st_ino
     assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
 
-    receipt_path.unlink()
-    fence_path.unlink()
+    # Retire the first untransmitted transaction through its exact one-shot
+    # authority.  Raw unlinking leaves that live authority in the process
+    # registry and makes the test depend on whether the filesystem immediately
+    # reuses an inode/ctime tuple for the replacement receipt.
+    _abort_untransmitted_media_upload(receipt_path, first)
     second = _begin(receipt_path, image_path, metadata)
     assert receipt_path.read_bytes() == first_bytes
     assert second.transaction_id == first.transaction_id

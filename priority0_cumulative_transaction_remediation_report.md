@@ -1,4 +1,4 @@
-# Priority-0 cumulative transaction remediation — round-1 rejection and replacement record
+# Priority-0 cumulative transaction remediation — round-A rejection and replacement record
 
 ## Identity and conclusion boundary
 
@@ -15,7 +15,11 @@ not an external release attestation or an independent review.
   `f61230fbad22f2b697ed62df325c0e8c17004687`;
 - rejected round-1 candidate tree:
   `c73ec605ae168d56f8d11690fb4706c5eb6e7051`;
-- replacement candidate commit and tree: pending freeze and deliberately not
+- rejected round-A candidate commit:
+  `e0e6e8cf123c4887042eefc8f72ba7042b34e10b`;
+- rejected round-A candidate tree:
+  `f7ee598bdbb5065299e8e6efb6ae73cda1b2f131`;
+- next replacement candidate commit and tree: pending freeze and deliberately not
   embedded in this self-referential document.
 
 The ledger base fixes the evidence cut-off against which defect status is
@@ -42,14 +46,14 @@ to repeat the upload through another endpoint. Its exact receipt/fence and
 transport handoff retain a durable barrier until the owning public-create
 transaction has a proved outcome.
 
-### Permanent exact-retirement ledger
+### Persistent exact-retirement ledger under supported writers
 
-Each of the four fixed source-receipt basenames has a strict permanent ledger
+Each of the four fixed source-receipt basenames has a strict persistent ledger
 and fixed ledger-exchange pathname. Terminal source retirement atomically
-advances the ledger from the exact predecessor to a monotonic, hash-chained
+advances the ledger from the exact predecessor to a sequence- and hash-chained
 completion generation bound to the retired receipt before the final transient
 guard can be removed. Same-inode cleanup mutation and cleanup ABA cannot erase
-that completion proof.
+that completion proof along supported lock-authorised writer paths.
 
 The protocol-v2 schema-3 activation audit binds the immutable four-ledger
 contract. A missing, malformed or unrelated ledger remains a global barrier
@@ -60,9 +64,13 @@ establishment validation. Invalid activation never authorises recovery, and
 recovering one ledger cannot mask damage to another.
 
 This is a cooperative single-instance crash-safety protocol. It does not claim
-protection against arbitrary hostile same-UID namespace mutation. Unrelated
-journal, media and source-generation exchanges remain deliberate fail-closed
-states which may require bounded operator reconciliation.
+protection against arbitrary out-of-protocol same-UID namespace mutation. In
+particular, restoring or replacing the ledger with an earlier internally valid
+record is not rollback-detected; monotonicity is the sequence/hash-chain
+property maintained by supported lock-authorised writers, not a general
+filesystem permanence claim. Unrelated journal, media and source-generation
+exchanges remain deliberate fail-closed states which may require bounded
+operator reconciliation.
 
 ### Pause linearisation
 
@@ -144,9 +152,9 @@ The candidate is rejected notwithstanding the three clean lane results. Those
 results apply only to the immutable rejected tree and do not qualify its
 replacement.
 
-## Uncommitted replacement repairs
+## Round-1 repairs incorporated in the rejected round-A candidate
 
-The working replacement validates the complete argument vector before
+The round-A candidate validates the complete argument vector before
 `production_bootstrap`. A single parser/dispatcher permits only daemon mode
 with no argument or exactly one documented CLI mode; positional, unknown,
 duplicate and mixed forms return a usage failure without reaching bootstrap or
@@ -158,25 +166,95 @@ callable dispatcher would still occur after third-party and application imports
 and their possible configuration, logging or filesystem side effects. Second,
 an explicit `run_cli` argument vector could disagree with the real process
 arguments from which import-time mode and bootstrap state had been derived.
-The uncommitted repair now parses a directly executed script's actual argument
+The round-A repair parses a directly executed script's actual argument
 vector at the top of the file before those imports or side effects, and the
 callable entry point refuses an explicit vector unless it exactly equals
 `sys.argv[1:]`.
 
-The offline protocol activator now treats
+The round-A offline protocol activator treats
 `.mrsMThatcher.initialising.json` as refused state. Four pre-mutation fixtures
 cover first activation, pre-ledger activation, current activation and current
 audit-only crash state, and prove that refusal leaves the activation audit and
 all ledger/exchange artefacts byte-for-byte unchanged.
 The repair-level adversarial review found no further activator defect.
 
-These are uncommitted replacement repairs. Their future commit and tree must be
-recorded externally after freeze; this report does not anticipate those
-identities.
+Those repairs were incorporated in the now-rejected round-A candidate. Their
+focused results remain historical evidence for that exact tree and do not
+qualify the next replacement.
+
+## Rejected round-A exact-candidate review
+
+The replacement was frozen as commit
+`e0e6e8cf123c4887042eefc8f72ba7042b34e10b` and tree
+`f7ee598bdbb5065299e8e6efb6ae73cda1b2f131`, then rejected after all four
+adversarial lanes completed:
+
+- the root/full-diff lane found stale `last_verified` pins on the strengthened
+  `INV-PROC-001` and `INV-PAUSE-001` registry records;
+- the activation/CLI lane found that mutation of `sys.argv` after import could
+  desynchronise `run_cli` dispatch from the import-time mode globals;
+- the historical-context lane found no duplicate path, but found assurance
+  wording which overclaimed rollback-detecting monotonic
+  permanence. The actual property is persistent completion evidence with
+  sequence/hash-chain monotonicity under supported lock-authorised writers;
+  arbitrary out-of-protocol same-UID mutation is outside the threat model and
+  restoration of an earlier internally valid record is not detected;
+- the transaction lane found no safety escape, but identified one media test
+  which was sensitive to immediate inode/ctime identity reuse after raw
+  unlink.
+
+The focused review runs were deliberately non-additive: the transaction lane
+ran batches of 76, 78 and 22 passing tests; the historical-context lane ran 19
+passing tests; and the activation lane ran batches of 173 and 11 passing tests.
+These results qualify neither the rejected candidate nor its future
+replacement.
+
+## Implemented consolidated repairs
+
+The next replacement consolidation is implemented in the worktree but remains
+uncommitted and has no frozen identity:
+
+- CLI mode authority is one immutable `sys.argv[1:]` snapshot captured before
+  application imports. `run_cli` rejects both current-process drift and an
+  explicit vector which differs from that snapshot, while `argv[0]` cannot
+  impersonate a documented mode;
+- the interrupted-install activation regression now covers six states: first
+  activation, legacy-v1 pair, legacy audit-only, pre-ledger, current and
+  current audit-only, requiring pre-mutation refusal in each;
+- strengthened `INV-PROC-001` and `INV-PAUSE-001` verification identities are
+  `unknown` until an external frozen-candidate gate supplies the exact commit
+  and tree. The registry validator now reconstructs known commit/tree objects
+  and checks their historical enforcement selectors rather than attributing
+  current-worktree evidence to a stale pin;
+- ledger and historical-context wording now describes a persistent,
+  sequence/hash-chained property only for supported lock-authorised writers.
+  It explicitly is not an externally anchored tamper-evident record and does
+  not detect arbitrary out-of-protocol rollback or replacement; and
+- the allocation-sensitive media regression now retires the first receipt via
+  its exact authority instead of raw unlink, avoiding accidental immediate
+  inode/ctime identity reuse without weakening the production assertion.
+
+Focused consolidation results are deliberately non-additive:
+
+- combined CLI and activation modules: 179 passed;
+- allocation-sensitive media target: 25 of 25 repeated runs passed;
+- complete media-receipt module: 107 passed;
+- Priority-0 registry module: 33 passed, with registry validation clean;
+- defect-ledger module: 33 passed, with defect-ledger validation clean;
+- the CLI/activation-scoped Python compilation and diff check passed at their
+  repair point;
+- all six changed Python files compiled successfully; and
+- the global `git diff --check` passed.
+
+These are focused pre-freeze results. The complete application suite and
+external release gate remain deliberately deferred until the unchanged
+candidate survives the adversarial review rounds below.
+
+No future replacement commit or tree is anticipated in this report.
 
 ## Replacement exact-candidate adversarial review gate
 
-The replacement application candidate has not yet been frozen. Four concurrent
+The next replacement application candidate has not yet been frozen. Four concurrent
 read-only review lanes must restart from zero and inspect its exact committed
 tree after all report, registry and test changes are present:
 
@@ -186,7 +264,7 @@ tree after all report, registry and test changes are present:
 4. full-diff claims, registry/ledger bindings and omitted failure boundaries.
 
 If any lane finds a defect and the candidate changes, every lane must restart
-against the new exact commit. None of the three clean lanes from the rejected
+against the new exact commit. No clean or no-escape result from either rejected
 candidate qualifies the replacement, and no earlier partial or pre-report
 audit is called final-candidate approval here.
 
@@ -208,7 +286,7 @@ was frozen:
 - registry and ledger JSON/Markdown synchronisation: passed.
 
 The two round-1 repair modules also pass their full focused modules at the
-repair point:
+rejected round-A candidate:
 
 - CLI/bootstrap/control validation:
   `tests/test_fail_safe_bootstrap_and_control.py` — 74 passed;
@@ -234,6 +312,7 @@ external assurance run or packaging run has occurred for the replacement.
 
 ## Isolation record
 
-This remediation and round-1 repair performed zero production-file or
-live-state mutation, service action, X action, provider action, merge, push,
-deployment, external-assurance execution or packaging.
+This remediation, the rejected review rounds and the uncommitted consolidation
+performed zero production-file or live-state mutation, service action, X
+action, provider action, merge, push, deployment, external-assurance execution
+or packaging.

@@ -7,6 +7,12 @@ from __future__ import annotations
 import sys
 
 
+# Command-mode authority is fixed before any application import or bootstrap
+# work.  Neither a later mutation of ``sys.argv`` nor the executable name may
+# silently change the mode whose module-level configuration was constructed.
+IMPORT_TIME_CLI_ARGUMENTS = tuple(sys.argv[1:])
+
+
 DOCUMENTED_CLI_MODE_FLAGS = (
     "--initialise",
     "--self-test",
@@ -46,11 +52,11 @@ def parse_cli_mode(argv: list[str] | tuple[str, ...]) -> str | None:
 # party or application modules, constructing runtime globals, inspecting
 # credentials, configuring logging, or touching the filesystem.  Imports used
 # by tests and tools remain side-effect compatible with ordinary Python module
-# loading; their callable entry point separately requires the supplied argv to
-# equal the process argv.
+# loading; their callable entry point separately requires both the current and
+# any explicitly supplied argv to equal the immutable import-time arguments.
 if __name__ == "__main__":
     try:
-        parse_cli_mode(sys.argv[1:])
+        parse_cli_mode(IMPORT_TIME_CLI_ARGUMENTS)
     except CliUsageError as exc:
         print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
@@ -163,12 +169,18 @@ from transaction_mutation_authority import (
 )
 
 
-SELF_TEST_REQUESTED = "--self-test" in sys.argv
-TEST_CYCLE_REQUESTED = "--test-cycle" in sys.argv
-TEST_MAIN_TICK_REQUESTED = "--test-main-tick" in sys.argv
-TEST_POST_QUOTE_REQUESTED = "--test-post-quote" in sys.argv
-TEST_POST_MEME_REQUESTED = "--test-post-meme" in sys.argv
-INITIALISE_REQUESTED = "--initialise" in sys.argv
+SELF_TEST_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == ("--self-test",)
+TEST_CYCLE_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == ("--test-cycle",)
+TEST_MAIN_TICK_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == (
+    "--test-main-tick",
+)
+TEST_POST_QUOTE_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == (
+    "--test-post-quote",
+)
+TEST_POST_MEME_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == (
+    "--test-post-meme",
+)
+INITIALISE_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == ("--initialise",)
 TEST_MODE = os.getenv("MRS_TEST_MODE") == "1"
 
 # ---------------------------------------------------------------------
@@ -21457,11 +21469,13 @@ def run_cli(argv: list[str] | tuple[str, ...] | None = None) -> int | None:
     process_arguments = tuple(sys.argv[1:])
     arguments = process_arguments if argv is None else tuple(argv)
     try:
-        if argv is not None and arguments != process_arguments:
+        if process_arguments != IMPORT_TIME_CLI_ARGUMENTS:
+            raise CliUsageError("process argv changed after module import")
+        if argv is not None and arguments != IMPORT_TIME_CLI_ARGUMENTS:
             raise CliUsageError(
-                "explicit argv must exactly match the process command line"
+                "explicit argv must exactly match the import-time command line"
             )
-        mode = parse_cli_mode(arguments)
+        mode = parse_cli_mode(IMPORT_TIME_CLI_ARGUMENTS)
     except CliUsageError as exc:
         print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
         return 2

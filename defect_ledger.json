@@ -7717,7 +7717,7 @@
     },
     {
       "id": "DEF-0060",
-      "title": "Exact source-receipt retirement lacked a permanent completion proof and recoverable ledger exchanges could block startup",
+      "title": "Exact source-receipt retirement lacked a persistent completion proof and recoverable ledger exchanges could block startup",
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "cutoff-4e548b0-permanent-source-receipt-retirement-proof-review",
@@ -7733,7 +7733,7 @@
       "components": [
         "exact source-receipt retirement",
         "final retirement cleanup unlink",
-        "permanent monotonic completion ledger",
+        "persistent completion ledger with writer-scoped sequence/hash-chain monotonicity",
         "crash-left ledger exchange",
         "startup recovery before installation validation",
         "global remote-write barrier"
@@ -7757,11 +7757,11 @@
       ],
       "incident": {
         "occurred": false,
-        "evidence": "The missing permanent completion authority and the post-cutoff startup ordering problem were established with isolated receipt namespaces, crash injection and fresh-process fixtures. No production durable file, remote transport, network, X or provider was accessed.",
+        "evidence": "The missing persistent completion authority and the post-cutoff startup ordering problem were established with isolated receipt namespaces, crash injection and fresh-process fixtures. No production durable file, remote transport, network, X or provider was accessed.",
         "explanation": "This establishes a safety-proof gap at the evidence cut-off and a separate availability deadlock in the first post-cutoff ledger proposal; it does not establish that a deployed post was duplicated or that a production startup was stranded."
       },
-      "summary": "At 4e548b0a, exact source-receipt retirement ended by unlinking its last cleanup or commit auxiliary and had no permanent monotonic record binding the completed source generation. A crash or cooperative namespace race at that final boundary could therefore remove the last durable completion proof and leave later code unable to distinguish exact completion from lost authority. The first post-cutoff permanent-ledger proposal closed that safety gap but exposed a distinct availability problem: establishment validation treated an exact crash-left ledger exchange as blocking before the startup resumer had authority to complete it.",
-      "impact": "All four public-create lanes reuse fixed source-receipt pathnames. Without a permanent exact completion witness, final cleanup cannot prove across restart that the retired generation, rather than a replacement or incomplete transaction, was consumed. Conversely, rejecting a recoverable permanent-ledger exchange before its exact resumer runs can strand a healthy installation in fail-closed startup even though no remote-write safety evidence is ambiguous.",
+      "summary": "At 4e548b0a, exact source-receipt retirement ended by unlinking its last cleanup or commit auxiliary and had no persistent record binding the completed source generation. A crash or cooperative namespace race at that final boundary could therefore remove the last durable completion proof and leave later code unable to distinguish exact completion from lost authority. The first post-cutoff ledger proposal closed that safety gap for supported lock-authorised writers, with monotonic sequence and predecessor-hash transitions, but exposed a distinct availability problem: establishment validation treated an exact crash-left ledger exchange as blocking before the startup resumer had authority to complete it. It does not detect an out-of-protocol restoration or replacement with an earlier internally valid record.",
+      "impact": "All four public-create lanes reuse fixed source-receipt pathnames. Without a persistent exact completion witness, final cleanup cannot prove across restart that the retired generation, rather than a replacement or incomplete transaction, was consumed. Conversely, rejecting a recoverable ledger exchange before its exact resumer runs can strand a healthy installation in fail-closed startup even though no remote-write safety evidence is ambiguous. The proposed sequence/hash-chain property is not a claim of rollback detection against arbitrary out-of-protocol same-UID namespace mutation.",
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
@@ -7772,13 +7772,13 @@
       "chronology": [
         {
           "date": "2026-08-01",
-          "event": "Exact-cutoff source review established that the final cleanup path could unlink the last receipt-retirement auxiliary without publishing a permanent generation-bound completion record.",
+          "event": "Exact-cutoff source review established that the final cleanup path could unlink the last receipt-retirement auxiliary without publishing a persistent generation-bound completion record.",
           "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
           "evidence": "4e548b0a exact_receipt_retirement.py final cleanup and all-absent inspection paths"
         },
         {
           "date": "2026-08-01",
-          "event": "Post-cutoff crash injection against the proposed permanent ledger found that an exact recoverable exchange could be rejected as an incomplete installation before the daemon's authorised startup resumer was called.",
+          "event": "Post-cutoff crash injection against the proposed persistent writer-scoped ledger found that an exact recoverable exchange could be rejected as an incomplete installation before the daemon's authorised startup resumer was called.",
           "commit": "unknown",
           "evidence": "Uncommitted startup ledger-exchange ordering regression and fresh-process recovery fixtures"
         }
@@ -7786,41 +7786,41 @@
       "first_review_scope": {
         "date": "2026-08-01",
         "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
-        "scope": "The last exact source-receipt cleanup boundary for all four public-create lanes, pathname reuse, crash persistence, permanent completion authority, activation binding, startup recovery ordering and the global remote-write barrier.",
+        "scope": "The last exact source-receipt cleanup boundary for all four public-create lanes, pathname reuse, crash persistence, persistent completion authority, supported lock-authorised writer ordering, activation binding, startup recovery ordering and the global remote-write barrier.",
         "exclusions": "The cooperative/crash safety model assumes supported mutation paths hold the process and transaction authority locks. Arbitrary hostile same-UID namespace mutation is not claimed to be prevented, and no production receipt or runtime was inspected.",
-        "source": "Exact-4e548b0a retirement-proof audit plus post-cutoff crash-recovery review"
+        "source": "Exact-4e548b0a persistent-retirement-proof audit plus post-cutoff crash-recovery review"
       },
       "detection": {
         "date": "2026-08-01",
         "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
-        "method": "Trace the final source, guard, commit and cleanup namespace transitions at the cutoff; inject hard exits and same-inode or ABA changes at the final unlink in a post-cutoff permanent-ledger design; then leave each exact ledger-exchange crash state and exercise the real startup ordering in a fresh process.",
-        "reproducer": "The cutoff had no surviving monotonic completion authority after final cleanup. In the initial post-cutoff proposal, exchange_staged and exchange_committed were exact and recoverable but establishment validation rejected them before recovery could run.",
-        "source": "Focused permanent-retirement-ledger and startup-resumer fault matrix"
+        "method": "Trace the final source, guard, commit and cleanup namespace transitions at the cutoff; inject hard exits and same-inode or ABA changes at the final unlink in a post-cutoff persistent-ledger design; then leave each exact ledger-exchange crash state and exercise the real startup ordering in a fresh process.",
+        "reproducer": "The cutoff had no surviving persistent completion authority after final cleanup. In the initial post-cutoff proposal, exchange_staged and exchange_committed were exact and recoverable but establishment validation rejected them before recovery could run.",
+        "source": "Focused persistent-retirement-ledger and startup-resumer fault matrix"
       },
       "tests": [],
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "An uncommitted post-cutoff candidate proposal publishes a required monotonic hash-chained ledger before final auxiliary cleanup, detects same-inode and ABA changes, binds the four ledger contracts into a new activation audit, refuses missing or malformed ledgers, and under the already-held singleton lock recovers only exact crash-left exchanges before establishment validation. No fixing commit is inside this ledger boundary."
+        "summary": "An uncommitted post-cutoff candidate proposal publishes a required persistent ledger before final auxiliary cleanup, enforces monotonic sequence and predecessor-hash transitions for supported lock-authorised writers, detects same-inode and ABA changes on supported cleanup paths, binds the four ledger contracts into a new activation audit, refuses missing or malformed ledgers, and under the already-held singleton lock recovers only exact crash-left exchanges before establishment validation. An externally restored or replaced earlier internally valid record is not rollback-detected, and arbitrary out-of-protocol same-UID mutation remains outside the cooperative crash model. No fixing commit is inside this ledger boundary."
       },
       "deployment": {
         "state": "not-applicable",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
         "production_presence_at_observed_commit": "not-established",
-        "evidence": "The permanent-proof absence is established at the 4e548b0a evidence cut-off. The proposed ledger, activation migration and startup recovery remain uncommitted post-cutoff worktree material; no deployment, loaded-process identity or production occurrence is claimed."
+        "evidence": "The persistent-proof absence is established at the 4e548b0a evidence cut-off. The proposed ledger, activation migration and startup recovery remain uncommitted post-cutoff worktree material; no deployment, loaded-process identity or production occurrence is claimed."
       },
-      "residual_risk": "Until a descendant repair is committed and deployed, final source-receipt retirement lacks permanent generation-bound completion evidence. Any replacement must also recover only exact crash-left ledger exchanges before installation completeness checks, while every missing, malformed or unrelated ledger state remains fail closed.",
+      "residual_risk": "Until a descendant repair is committed and deployed, final source-receipt retirement lacks persistent generation-bound completion evidence. Any replacement must also recover only exact crash-left ledger exchanges before installation completeness checks, while every missing, malformed or unrelated ledger state remains fail closed. Sequence/hash-chain monotonicity applies only to supported lock-authorised writers; an externally restored earlier internally valid record is not rollback-detected.",
       "evidence": [
         {
           "type": "code",
           "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:exact_receipt_retirement.py",
-          "claim": "The cutoff final cleanup removes the last transient receipt-retirement entries without advancing a permanent generation-bound completion ledger."
+          "claim": "The cutoff final cleanup removes the last transient receipt-retirement entries without advancing a persistent generation-bound completion ledger."
         },
         {
           "type": "code",
           "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
-          "claim": "Cutoff startup validates established durable files before any permanent-ledger exchange recovery path, because that ledger protocol does not yet exist."
+          "claim": "Cutoff startup validates established durable files before any persistent-ledger exchange recovery path, because that ledger protocol does not yet exist."
         },
         {
           "type": "test",
@@ -7830,7 +7830,7 @@
         {
           "type": "test",
           "reference": "tests/test_exact_receipt_retirement.py::test_cleanup_aba_never_erases_the_permanent_completion_proof",
-          "claim": "The post-cutoff candidate regression requires every final-cleanup ABA injection either to preserve a blocker or leave the permanent exact completion proof."
+          "claim": "The post-cutoff candidate regression requires every supported final-cleanup ABA injection either to preserve a blocker or leave the persistent exact completion proof."
         },
         {
           "type": "test",
@@ -7865,11 +7865,11 @@
         },
         {
           "field": "introduced.last_known_good_commit",
-          "explanation": "No earlier permanent generation-bound completion ledger was established."
+          "explanation": "No earlier persistent generation-bound completion ledger was established."
         },
         {
           "field": "fix.commit",
-          "explanation": "The permanent-ledger, activation-migration and startup-recovery changes remain uncommitted post-cutoff candidate material."
+          "explanation": "The persistent-ledger, activation-migration and startup-recovery changes remain uncommitted post-cutoff candidate material."
         },
         {
           "field": "chronology[1].commit",
@@ -7903,6 +7903,7 @@
       "components": [
         "top-level command-line parsing",
         "pre-import argv validation",
+        "immutable process-argv authority snapshot",
         "import-time mode globals and logging construction",
         "explicit run_cli argv authority",
         "one-shot mode dispatch",
@@ -7924,11 +7925,11 @@
       ],
       "incident": {
         "occurred": false,
-        "evidence": "The fall-through, import-before-rejection boundary and explicit-argv/global-mode disagreement were reproduced against the exact cutoff with isolated command-line drivers, literal child processes and local operational recorders. No production state, network, X, provider or remote transport was accessed.",
-        "explanation": "This establishes that invalid invocation could start normal operation or perform import-time local construction, and that an explicit dispatcher argv could disagree with process-wide mode authority; it does not establish that an invalid production invocation actually posted or changed deployed state."
+        "evidence": "The fall-through, import-before-rejection boundary and explicit-argv/global-mode disagreement were reproduced against the exact cutoff with isolated command-line drivers, literal child processes and local operational recorders. Exact review of rejected post-cutoff candidate e0e6e8cf then established that run_cli reread mutable sys.argv after import rather than consuming one immutable pre-import authority snapshot. No production state, network, X, provider or remote transport was accessed.",
+        "explanation": "This establishes that invalid invocation could start normal operation or perform import-time local construction, that an explicit dispatcher argv could disagree with process-wide mode authority, and that later sys.argv mutation could desynchronise dispatch from import-time mode globals; it does not establish that an invalid production invocation actually posted or changed deployed state."
       },
-      "summary": "At 4e548b0a, mode selection was implemented as independent membership tests against sys.argv. Unknown arguments were ignored, duplicate modes were not rejected and multiple documented modes selected the first matching branch. When no recognised branch terminated the process, a healthy installation proceeded to operational main instead of returning a usage error. Any later rejection still occurred only after the complete module import had already constructed logging and other mode-sensitive globals. A callable dispatcher taking explicit argv could also select a mode different from the import-time sys.argv used to derive global mode and bootstrap decisions.",
-      "impact": "An operator typo, unsupported positional argument, duplicated flag or simultaneous mode selection could run the production scheduler rather than fail closed. If the installation was otherwise healthy and work was due, the unintended process could reach remote-write lanes despite the caller having supplied an invalid command. Even a rejected invocation could create local logging or other import-time side effects first, while divergent explicit and process argv could make dispatch authority disagree with the configuration and safeguards established during import.",
+      "summary": "At 4e548b0a, mode selection was implemented as independent membership tests against sys.argv. Unknown arguments were ignored, duplicate modes were not rejected and multiple documented modes selected the first matching branch. When no recognised branch terminated the process, a healthy installation proceeded to operational main instead of returning a usage error. Any later rejection still occurred only after the complete module import had already constructed logging and other mode-sensitive globals. A callable dispatcher taking explicit argv could also select a mode different from the import-time sys.argv used to derive global mode and bootstrap decisions. Rejected post-cutoff candidate e0e6e8cf added early validation but run_cli reread mutable sys.argv after import, so a post-import mutation could still make dispatch disagree with the already-created mode globals.",
+      "impact": "An operator typo, unsupported positional argument, duplicated flag or simultaneous mode selection could run the production scheduler rather than fail closed. If the installation was otherwise healthy and work was due, the unintended process could reach remote-write lanes despite the caller having supplied an invalid command. Even a rejected invocation could create local logging or other import-time side effects first, while divergent explicit and process argv, including mutation after import, could make dispatch authority disagree with the configuration and safeguards established during import.",
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
@@ -7942,36 +7943,42 @@
           "event": "Exact-cutoff CLI review supplied unknown, positional, duplicate and multiple-mode argument vectors and observed that they were not rejected as one complete command before import-time construction and operational dispatch; it also established that explicit dispatcher argv was not bound to the process argv which created mode-sensitive globals.",
           "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
           "evidence": "Isolated complete-argv parser and literal-subprocess dispatch matrix"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "Exact round-A review of rejected candidate e0e6e8cf established that early validation was not retained as immutable authority: run_cli reread mutable sys.argv after import, allowing dispatch to diverge from mode globals derived earlier.",
+          "commit": "unknown",
+          "evidence": "Post-import sys.argv mutation and dispatch-authority review"
         }
       ],
       "first_review_scope": {
         "date": "2026-08-01",
         "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
-        "scope": "Every documented daemon and one-shot mode, unknown and positional arguments, duplicate flags, simultaneous modes, pre-import side effects, explicit-versus-process argv authority, bootstrap ordering and operational-entry reachability.",
+        "scope": "Every documented daemon and one-shot mode, unknown and positional arguments, duplicate flags, simultaneous modes, pre-import side effects, explicit-versus-process argv authority, post-import sys.argv mutation, immutable authority retention, bootstrap ordering and operational-entry reachability.",
         "exclusions": "The review replaced operational entry points with local recorders and made no production, service, network, X or provider action.",
         "source": "Independent exact-4e548b0a command-line dispatch review"
       },
       "detection": {
         "date": "2026-08-01",
         "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
-        "method": "Invoke the cutoff module with each invalid complete argv shape as the real script and through an isolated dispatcher, instrument filesystem/log creation, bootstrap and every operational mode, then call the explicit-argv dispatcher with process argv naming a different mode.",
-        "reproducer": "Unknown and positional arguments could leave every mode flag false and reach main; duplicates were indistinguishable from one flag; simultaneous modes selected a branch by source order; rejection could occur only after import-time construction; and explicit dispatcher argv could disagree with the sys.argv-derived mode globals used before dispatch.",
+        "method": "Invoke the cutoff module with each invalid complete argv shape as the real script and through an isolated dispatcher, instrument filesystem/log creation, bootstrap and every operational mode, then call the explicit-argv dispatcher with process argv naming a different mode. Against rejected candidate e0e6e8cf, mutate sys.argv after import and compare run_cli dispatch with the earlier mode globals.",
+        "reproducer": "Unknown and positional arguments could leave every mode flag false and reach main; duplicates were indistinguishable from one flag; simultaneous modes selected a branch by source order; rejection could occur only after import-time construction; explicit dispatcher argv could disagree with the sys.argv-derived mode globals used before dispatch; and e0e6e8cf did not retain the validated pre-import argv as immutable dispatch authority.",
         "source": "Focused CLI grammar and dispatch fault matrix"
       },
       "tests": [],
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "An uncommitted post-cutoff candidate proposal validates the real script argv before importing the operational module, parses the complete argv against one exact allowlist, rejects unknown, positional, duplicate and multiple modes with status 2, and refuses an explicit dispatcher argv which differs from the process argv that established import-time mode authority. No fixing commit is inside this ledger boundary."
+        "summary": "Rejected post-cutoff candidate e0e6e8cf validates the real script argv before importing the operational module, parses the complete argv against one exact allowlist and rejects unknown, positional, duplicate and multiple modes with status 2, but it rereads mutable sys.argv during dispatch. A future uncommitted replacement must capture one immutable process-argv snapshot before imports, derive import-time mode state and run_cli dispatch from that same snapshot, reject any explicit mismatch, and add a post-import sys.argv mutation regression. No fixing commit is inside this ledger boundary."
       },
       "deployment": {
         "state": "not-applicable",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
         "production_presence_at_observed_commit": "not-established",
-        "evidence": "The CLI fall-through is established at the 4e548b0a evidence cut-off. The complete-parser proposal remains uncommitted post-cutoff material; no production invocation or deployment was inspected or changed."
+        "evidence": "The CLI fall-through is established at the 4e548b0a evidence cut-off. The incomplete complete-parser repair exists only in rejected post-cutoff candidate e0e6e8cf, and the immutable-snapshot replacement remains pending and uncommitted; no production invocation or deployment was inspected or changed."
       },
-      "residual_risk": "Until a descendant repair is committed and deployed, every invocation must be treated as operational unless its complete process argv is independently verified before module import to contain exactly zero or one supported mode and no other argument, and any explicit dispatcher argv is proved identical to that process authority.",
+      "residual_risk": "Until a descendant repair is committed and deployed, every invocation must be treated as operational unless its complete process argv is independently verified before module import to contain exactly zero or one supported mode and no other argument, retained as immutable authority for all mode-sensitive globals and dispatch, and any explicit dispatcher argv is proved identical to that authority.",
       "evidence": [
         {
           "type": "code",
@@ -8002,6 +8009,11 @@
           "type": "test",
           "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_run_cli_refuses_mode_different_from_process_argv_before_bootstrap",
           "claim": "The candidate dispatcher regression requires explicit argv to match the process argv which established mode-sensitive import authority before bootstrap or any operational boundary."
+        },
+        {
+          "type": "code",
+          "reference": "e0e6e8cf123c4887042eefc8f72ba7042b34e10b:mrsMThatcher2.py",
+          "claim": "The rejected round-A candidate validates direct-script argv before imports but run_cli later reconstructs process_arguments from mutable sys.argv, rather than using one retained immutable pre-import authority snapshot."
         }
       ],
       "unknowns": [
@@ -8014,8 +8026,12 @@
           "explanation": "No earlier exact complete-argv parser and dispatcher was established."
         },
         {
+          "field": "chronology[1].commit",
+          "explanation": "The rejected e0e6e8cf review is post-cutoff evidence and is therefore named in the event text rather than asserted as a release-line ancestor of the exact 4e548b0a ledger evidence cutoff."
+        },
+        {
           "field": "fix.commit",
-          "explanation": "The complete CLI parser and dispatch changes remain uncommitted post-cutoff candidate material."
+          "explanation": "The complete immutable-snapshot CLI authority repair remains pending and uncommitted post-cutoff candidate material."
         }
       ],
       "relations": {

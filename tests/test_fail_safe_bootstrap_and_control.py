@@ -60,6 +60,77 @@ print(json.dumps({"events": events, "status": status}, sort_keys=True))
 raise SystemExit(0 if status is None else status)
 """
 
+CLI_ARGV_MUTATION_DRIVER = r"""
+import json
+import sys
+
+initial_arguments = json.loads(sys.argv[1])
+replacement_arguments = json.loads(sys.argv[2])
+explicit_arguments = None if len(sys.argv) < 4 else json.loads(sys.argv[3])
+sys.argv = ["mrsMThatcher2.py", *initial_arguments]
+
+import mrsMThatcher2 as bot
+
+events = []
+bot.production_bootstrap = lambda: events.append("production_bootstrap")
+for name in (
+    "main",
+    "initialise_installation",
+    "run_self_test",
+    "run_test_cycle",
+    "run_test_main_tick",
+    "run_test_post_quote",
+    "run_test_post_meme",
+):
+    setattr(
+        bot,
+        name,
+        (lambda selected: lambda: (events.append(selected), 0)[1])(name),
+    )
+
+sys.argv = ["mrsMThatcher2.py", *replacement_arguments]
+status = (
+    bot.run_cli()
+    if explicit_arguments is None
+    else bot.run_cli(explicit_arguments)
+)
+print(
+    json.dumps(
+        {
+            "events": events,
+            "import_time_arguments": bot.IMPORT_TIME_CLI_ARGUMENTS,
+            "self_test_requested": bot.SELF_TEST_REQUESTED,
+            "status": status,
+        },
+        sort_keys=True,
+    )
+)
+"""
+
+CLI_ARGV_ZERO_IMPERSONATION_DRIVER = r"""
+import json
+import sys
+
+sys.argv = ["--self-test"]
+import mrsMThatcher2 as bot
+
+events = []
+bot.production_bootstrap = lambda: events.append("production_bootstrap")
+bot.main = lambda: events.append("main")
+status = bot.run_cli()
+print(
+    json.dumps(
+        {
+            "events": events,
+            "import_time_arguments": bot.IMPORT_TIME_CLI_ARGUMENTS,
+            "self_test_requested": bot.SELF_TEST_REQUESTED,
+            "status": status,
+        },
+        sort_keys=True,
+    )
+)
+"""
+
 
 def reset_control_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot, "_CONTROL_CACHE", {"signature": None, "data": {}, "has_valid": False, "failure_signature": None})
@@ -213,6 +284,101 @@ def test_run_cli_refuses_mode_different_from_process_argv_before_bootstrap(
 
     assert bot.run_cli(["--self-test"]) == 2
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    "initial_arguments,replacement_arguments,self_test_requested",
+    [
+        ([], ["--self-test"], False),
+        (["--self-test"], [], True),
+    ],
+)
+def test_run_cli_refuses_both_directions_of_post_import_argv_mutation(
+    initial_arguments: list[str],
+    replacement_arguments: list[str],
+    self_test_requested: bool,
+) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            CLI_ARGV_MUTATION_DRIVER,
+            json.dumps(initial_arguments),
+            json.dumps(replacement_arguments),
+        ],
+        cwd=Path(bot.__file__).resolve().parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(bot.__file__).resolve().parent),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {
+        "events": [],
+        "import_time_arguments": initial_arguments,
+        "self_test_requested": self_test_requested,
+        "status": 2,
+    }
+    assert "process argv changed after module import" in result.stderr
+
+
+def test_argv_zero_cannot_impersonate_a_documented_command_mode() -> None:
+    result = subprocess.run(
+        [sys.executable, "-c", CLI_ARGV_ZERO_IMPERSONATION_DRIVER],
+        cwd=Path(bot.__file__).resolve().parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(bot.__file__).resolve().parent),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {
+        "events": ["production_bootstrap", "main"],
+        "import_time_arguments": [],
+        "self_test_requested": False,
+        "status": None,
+    }
+
+
+def test_run_cli_refuses_explicit_argv_different_from_import_time_argv() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            CLI_ARGV_MUTATION_DRIVER,
+            "[]",
+            "[]",
+            '["--self-test"]',
+        ],
+        cwd=Path(bot.__file__).resolve().parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(bot.__file__).resolve().parent),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {
+        "events": [],
+        "import_time_arguments": [],
+        "self_test_requested": False,
+        "status": 2,
+    }
+    assert "explicit argv must exactly match" in result.stderr
 
 
 def test_absent_local_config_keeps_defaults(tmp_path, monkeypatch):

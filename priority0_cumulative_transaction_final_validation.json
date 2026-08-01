@@ -25,6 +25,46 @@
       ],
       "status": "rejected"
     },
+    "rejected_round_a": {
+      "candidate_commit": "e0e6e8cf123c4887042eefc8f72ba7042b34e10b",
+      "candidate_tree": "f7ee598bdbb5065299e8e6efb6ae73cda1b2f131",
+      "finding_count": 4,
+      "findings": [
+        {
+          "description": "strengthened INV-PROC-001 and INV-PAUSE-001 retained stale last_verified pins",
+          "lane": "full_diff_claims_registry_bindings_and_omitted_boundaries"
+        },
+        {
+          "description": "post-import sys.argv mutation could desynchronise run_cli dispatch from import-time mode globals",
+          "lane": "activation_installation_pause_recovery_and_rollback",
+          "severity": "P1"
+        },
+        {
+          "description": "assurance wording overclaimed rollback-detecting monotonic permanence; only supported lock-authorised writer sequence/hash-chain monotonicity is established, with arbitrary out-of-protocol same-UID mutation outside the threat model",
+          "duplicate_path_found": false,
+          "lane": "historical_context_outbox_lineage_and_reconciliation"
+        },
+        {
+          "description": "one media test was sensitive to immediate inode/ctime identity reuse after raw unlink",
+          "lane": "transaction_crash_restart_retirement_and_aba",
+          "safety_escape_found": false
+        }
+      ],
+      "focused_validation": {
+        "activation_batches_passed": [
+          173,
+          11
+        ],
+        "counts_are_non_additive": true,
+        "historical_context_passed": 19,
+        "transaction_batches_passed": [
+          76,
+          78,
+          22
+        ]
+      },
+      "status": "rejected"
+    },
     "replacement_review_restarts_from_zero": true,
     "required_lanes": [
       "transaction_crash_restart_retirement_and_aba",
@@ -33,7 +73,7 @@
       "full_diff_claims_registry_bindings_and_omitted_boundaries"
     ],
     "restart_all_lanes_after_any_candidate_change": true,
-    "status": "pending replacement candidate freeze",
+    "status": "pending next replacement candidate freeze",
     "unfrozen_repair_adversary": {
       "activator_repair_review": "no further finding",
       "cli_followup_finding_count": 2,
@@ -50,7 +90,7 @@
     "stored_in_candidate_document": false,
     "tree": null
   },
-  "conclusion_scope": "patch-local replacement evidence after rejected round-1 candidate; replacement freeze, exact review and external qualification pending",
+  "conclusion_scope": "patch-local evidence after rejected round-1 and round-A candidates; next replacement consolidation implemented but uncommitted, with freeze, exact review and external qualification pending",
   "cumulative_remediation": {
     "confirmed_pending_receipt": {
       "exact_bytes_revalidated": true,
@@ -116,7 +156,23 @@
     "ledger_journal_media_source_retirement_passed": 265,
     "registry_and_ledger_tests_effectively_passed": 61,
     "registry_validation_passed": true,
-    "repair_module_results_apply_to_uncommitted_replacement": true,
+    "round_a_consolidation": {
+      "cli_activation_combined_passed": 179,
+      "cli_activation_scoped_diff_check_passed": true,
+      "cli_activation_scoped_python_compilation_passed": true,
+      "counts_are_non_additive": true,
+      "defect_ledger_module_passed": 33,
+      "defect_ledger_validation_passed": true,
+      "final_global_diff_check_passed": true,
+      "final_global_python_compilation_file_count": 6,
+      "final_global_python_compilation_passed": true,
+      "media_full_module_passed": 107,
+      "media_target_repeat_iterations": 25,
+      "media_target_repeat_passed": 25,
+      "priority0_registry_module_passed": 33,
+      "registry_validation_passed": true
+    },
+    "round_1_repair_results_apply_to_rejected_round_a_candidate": true,
     "restart_bootstrap_pause_outcome_passed": 320
   },
   "identity": {
@@ -136,16 +192,36 @@
     "activation_interrupted_install_sentinel": {
       "pre_mutation_state_fixture_count": 4,
       "refused_basename": ".mrsMThatcher.initialising.json",
-      "status": "implemented_uncommitted"
+      "status": "incorporated_in_rejected_round_a_candidate"
     },
     "complete_cli_argument_validation": {
       "direct_script_validation_precedes_third_party_and_application_imports": true,
       "explicit_argv_must_equal_process_argv": true,
       "operational_boundary_reached_on_invalid_argv": false,
-      "status": "implemented_uncommitted",
+      "status": "incorporated_in_rejected_round_a_candidate",
       "validation_precedes_production_bootstrap": true
     },
-    "future_candidate_identity": "pending external recording after freeze"
+    "future_candidate_identity": "pending external recording after freeze",
+    "round_a_consolidation": {
+      "activation_fixture_count": 6,
+      "activation_fixture_states": [
+        "first_activation",
+        "legacy_v1_pair",
+        "legacy_audit_only",
+        "pre_ledger",
+        "current",
+        "current_audit_only"
+      ],
+      "argv_zero_cannot_impersonate_mode": true,
+      "current_argv_drift_refused": true,
+      "explicit_argv_drift_refused": true,
+      "immutable_pre_import_process_argv_snapshot": true,
+      "media_fixture_retirement": "exact_authority_instead_of_raw_unlink",
+      "qualified_cooperative_writer_monotonicity_wording": "implemented_non_tamper_evident",
+      "registry_known_pin_validation_reconstructs_exact_commit_tree_and_historical_selectors": true,
+      "strengthened_invariant_last_verified_pins": "unknown_pending_external_frozen_candidate",
+      "status": "implemented_uncommitted"
+    }
   },
   "schema_version": 3,
   "scope": {

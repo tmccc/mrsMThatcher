@@ -172,6 +172,63 @@ def _minimal_registry(tmp_path: Path) -> tuple[dict, dict]:
     return registry, schema
 
 
+def _git(tmp_path: Path, *arguments: str) -> str:
+    """Run one bounded fixture-repository Git command without a shell."""
+
+    result = subprocess.run(
+        ["git", "-C", str(tmp_path), *arguments],
+        shell=False,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=10,
+    )
+    return result.stdout.strip()
+
+
+def _commit_minimal_registry_fixture(tmp_path: Path) -> tuple[str, str]:
+    """Commit the current synthetic fixture and return its commit and tree."""
+
+    _git(tmp_path, "init", "--quiet")
+    _git(tmp_path, "add", "--", "code.py", "tests/test_sample.py")
+    _git(
+        tmp_path,
+        "-c",
+        "user.name=Priority-0 fixture",
+        "-c",
+        "user.email=priority0-fixture@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "Create historical registry fixture",
+    )
+    return _git(tmp_path, "rev-parse", "HEAD"), _git(
+        tmp_path,
+        "rev-parse",
+        "HEAD^{tree}",
+    )
+
+
+def _bind_last_verified(
+    invariant: dict,
+    commit: str,
+    tree: str,
+) -> None:
+    """Bind one synthetic invariant to an exact historical fixture tree."""
+
+    invariant["last_verified_commit"] = {
+        "status": "known",
+        "value": commit,
+        "explanation": "The synthetic historical commit is exact.",
+    }
+    invariant["last_verified_tree"] = {
+        "status": "known",
+        "value": tree,
+        "explanation": "The synthetic historical tree is exact.",
+    }
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -275,6 +332,8 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         for invariant_id, invariant in records.items()
         if invariant["last_verified_commit"]["status"] == "unknown"
     } == {
+        "INV-PAUSE-001",
+        "INV-PROC-001",
         "INV-PROC-002",
         "INV-PROC-004",
         "INV-API-001",
@@ -349,6 +408,89 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
     } <= set(invariant["enforcement"]["tests"])
     assert all("purely local" not in gap for gap in invariant["known_gaps"])
     assert any("automatically completed" in gap for gap in invariant["known_gaps"])
+    assert "six-state activation regression" in invariant["verification"]["rationale"]
+    assert {
+        "tests/test_fail_safe_bootstrap_and_control.py::"
+        "test_run_cli_refuses_both_directions_of_post_import_argv_mutation",
+        "tests/test_fail_safe_bootstrap_and_control.py::"
+        "test_argv_zero_cannot_impersonate_a_documented_command_mode",
+        "tests/test_fail_safe_bootstrap_and_control.py::"
+        "test_run_cli_refuses_explicit_argv_different_from_import_time_argv",
+    } <= set(invariant["enforcement"]["tests"])
+
+
+def test_bootstrap_invariant_uses_external_identity_and_immutable_argv_snapshot() -> None:
+    registry = strict_json.load(REGISTRY_PATH)
+    invariant = next(
+        item
+        for item in registry["invariants"]
+        if item["id"] == "INV-PROC-001"
+    )
+
+    assert invariant["last_verified_commit"]["status"] == "unknown"
+    assert invariant["last_verified_commit"]["value"] is None
+    assert "external frozen-candidate gate" in invariant[
+        "last_verified_commit"
+    ]["explanation"]
+    assert "immutable argument snapshot" in invariant["statement"]
+    assert "current process arguments" in invariant["statement"]
+    assert "explicit argument vector" in invariant["statement"]
+    assert {
+        "tests/test_fail_safe_bootstrap_and_control.py::"
+        "test_run_cli_refuses_both_directions_of_post_import_argv_mutation",
+        "tests/test_fail_safe_bootstrap_and_control.py::"
+        "test_argv_zero_cannot_impersonate_a_documented_command_mode",
+        "tests/test_fail_safe_bootstrap_and_control.py::"
+        "test_run_cli_refuses_explicit_argv_different_from_import_time_argv",
+    } <= set(invariant["enforcement"]["tests"])
+
+
+def test_transaction_ledger_contracts_are_cooperative_and_not_externally_anchored() -> None:
+    registry = strict_json.load(REGISTRY_PATH)
+    records = {item["id"]: item for item in registry["invariants"]}
+    activation_test = (
+        "tests/test_remote_write_safety_second_restart.py::"
+        "test_activation_refuses_interrupted_initialisation_before_any_mutation"
+    )
+
+    for invariant_id in (
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001",
+    ):
+        invariant = records[invariant_id]
+        combined = " ".join(
+            (
+                invariant["statement"],
+                invariant["status_rationale"],
+                invariant["verification"]["rationale"],
+                *invariant["preconditions"],
+            )
+        ).lower()
+        assert "supported lock-authorised writers" in combined
+        assert "cooperative crash-recovery model" in combined
+        assert "sequence/hash-chain" in combined
+        assert "not an externally anchored tamper-evident record" in combined
+        assert "out-of-protocol rollback or replacement is not detected" in combined
+        assert "permanent ledger" not in combined
+        assert "permanent-ledger" not in combined
+        assert activation_test in invariant["enforcement"]["tests"]
+
+    receipt_verification = records["INV-TXN-RECEIPT-001"]["verification"][
+        "rationale"
+    ]
+    assert "six-state activation test" in receipt_verification
+    for state_name in (
+        "first activation",
+        "legacy-v1-pair",
+        "legacy-audit-only",
+        "pre-ledger",
+        "current",
+        "current-audit-only",
+    ):
+        assert state_name in receipt_verification
 
 
 def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> None:
@@ -935,6 +1077,75 @@ def test_validator_rejects_missing_pytest_validation_selector_file(
         "test file does not exist: tests/test_missing.py" in error
         for error in report.errors
     )
+
+
+def test_validator_rejects_current_test_node_absent_from_last_verified_commit(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    commit, tree = _commit_minimal_registry_fixture(tmp_path)
+    new_node = "tests/test_sample.py::test_strengthened_contract"
+    (tmp_path / "tests" / "test_sample.py").write_text(
+        "def test_contract():\n"
+        "    assert True\n\n"
+        "def test_strengthened_contract():\n"
+        "    assert True\n",
+        encoding="utf-8",
+    )
+    invariant = registry["invariants"][0]
+    invariant["enforcement"]["tests"] = [new_node]
+    invariant["enforcement"]["validations"][0]["selectors"] = [new_node]
+    _bind_last_verified(invariant, commit, tree)
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert (
+        f"INV-DEMO-001: last verified commit {commit}: "
+        f"historical test node does not exist: {new_node}"
+        in report.errors
+    )
+
+
+def test_validator_rejects_last_verified_tree_mismatch(tmp_path: Path) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    commit, tree = _commit_minimal_registry_fixture(tmp_path)
+    declared_tree = "0" * 40
+    assert tree != declared_tree
+    _bind_last_verified(registry["invariants"][0], commit, declared_tree)
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert (
+        f"INV-DEMO-001: last verified tree mismatch for {commit}: "
+        f"declared {declared_tree}, actual {tree}"
+        in report.errors
+    )
+
+
+def test_validator_accepts_test_node_in_exact_last_verified_commit(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    commit, tree = _commit_minimal_registry_fixture(tmp_path)
+    _bind_last_verified(registry["invariants"][0], commit, tree)
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert report.ok, "\n".join(report.errors)
 
 
 def test_validator_collects_all_references_once_in_sanitized_subprocess(
