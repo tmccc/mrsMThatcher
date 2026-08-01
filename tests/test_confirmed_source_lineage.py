@@ -370,6 +370,28 @@ def test_historical_confirmed_receipt_cannot_retire_different_source(
         )
 
 
+@pytest.mark.parametrize("schema_version", (1.0, True))
+def test_historical_source_lineage_helper_requires_integer_schema(
+    schema_version: object,
+) -> None:
+    source = _historical_sending(attempt_number=1)
+    confirmed = {
+        **copy.deepcopy(source),
+        "lifecycle_state": "confirmed",
+        "reply_post_id": "950003",
+        "confirmed_at": "2027-01-15T08:00:10Z",
+        "source_receipt_sha256": hashlib.sha256(
+            context.canonical_json_bytes(source)
+        ).hexdigest(),
+    }
+    confirmed["schema_version"] = schema_version
+
+    with pytest.raises(ValueError, match="exact source lineage"):
+        context.HistoricalContextReplyStore.sending_receipt_from_confirmed(
+            confirmed
+        )
+
+
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
 def test_main_confirmed_receipt_rejects_derived_field_tampering(lane: str) -> None:
     receipt = _main_confirmed(
@@ -383,6 +405,29 @@ def test_main_confirmed_receipt_rejects_derived_field_tampering(lane: str) -> No
     else:
         changed["next_meme_post_epoch"] += 1
         assert not bot.meme_post_receipt_is_semantically_valid(changed)
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    (
+        ("line_no", False),
+        ("line_no", 0.0),
+        ("source_line_number", True),
+        ("source_line_number", 1.0),
+        ("image_no", False),
+        ("image_no", 0.0),
+    ),
+)
+def test_regular_confirmed_source_lineage_requires_exact_integer_fields(
+    field: str,
+    invalid_value: object,
+) -> None:
+    attempt = _main_attempt("quote_image", attempt_id_seed="typed-lineage")
+    confirmed = _main_confirmed(attempt, post_id="950005")
+    confirmed[field] = invalid_value
+
+    assert bot.regular_post_receipt_is_semantically_valid(confirmed) is False
+    assert bot.confirmed_receipt_matches_main_attempt(confirmed, attempt) is False
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])

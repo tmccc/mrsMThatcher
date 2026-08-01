@@ -425,6 +425,26 @@ def test_schema_v4_source_lineage_accepts_real_ai_reply_string_subclass() -> Non
     assert reconstructed == sending
 
 
+@pytest.mark.parametrize("schema_version", (4.0, True))
+def test_conversational_source_lineage_helpers_require_integer_schema(
+    schema_version: object,
+) -> None:
+    sending = unit_sending_v4_reply_receipt()
+    confirmed = bot._confirmed_reply_receipt_from_sending(
+        sending,
+        reply_post_id="999",
+        confirmation_epoch=2_000_000_005,
+    )
+    confirmed["schema_version"] = schema_version
+    with pytest.raises(ValueError, match="exact source lineage"):
+        bot.conversational_sending_receipt_from_confirmed(confirmed)
+
+    template = unit_v4_reply_receipt_template()
+    template["schema_version"] = schema_version
+    with pytest.raises(RuntimeError, match="schema-v4 sending template"):
+        bot.bind_conversational_reply_attempt_time(template)
+
+
 @pytest.fixture(autouse=True)
 def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Operational command tests model the supported post-bootstrap dispatch path.
@@ -4067,6 +4087,70 @@ def test_current_attempt_schema_rejects_absurd_bound_schedule_values() -> None:
         bot.MEME_SCHEDULE_VERSION + 1
     )
     assert bot.main_post_attempt_is_semantically_valid(future_meme) is False
+
+
+@pytest.mark.parametrize("lane", ("quote_image", "daily_meme"))
+def test_main_attempt_requires_integer_schema_version(lane: str) -> None:
+    attempt = schema_current_main_attempt(lane)
+    for invalid_schema in (float(attempt["schema_version"]), True):
+        changed = copy.deepcopy(attempt)
+        changed["schema_version"] = invalid_schema
+        assert bot.main_post_attempt_is_semantically_valid(changed) is False
+
+
+@pytest.mark.parametrize("source_line_number", (1.0, True))
+def test_main_attempt_requires_integer_source_line_number(
+    source_line_number: object,
+) -> None:
+    attempt = schema_current_main_attempt("quote_image")
+    attempt["selected_identity"]["source_line_number"] = source_line_number
+    assert bot.main_post_attempt_is_semantically_valid(attempt) is False
+
+
+@pytest.mark.parametrize(
+    ("lane", "expected_schema"),
+    (("quote_image", 3), ("daily_meme", 2)),
+)
+def test_main_attempt_keeps_supported_legacy_integer_schemas(
+    lane: str,
+    expected_schema: int,
+) -> None:
+    if lane == "quote_image":
+        quote_hash = bot.quote_text_hash("Good quote.")
+        attempt = bot.build_main_post_attempt(
+            lane=lane,
+            text="Good quote.",
+            media_ids=["media-1"],
+            made_with_ai=False,
+            selected_identity={
+                "quote_hash": quote_hash,
+                "line_no": 0,
+                "source_line_number": 1,
+                "image_basename": "t01.jpg",
+                "image_no": 0,
+            },
+            recovery_plan={
+                "quote_delay_seconds": 7200,
+                "meme_delay_seconds": None,
+                "quote_history_after": [quote_hash],
+                "image_history_after": ["t01.jpg"],
+            },
+            attempt_epoch=1_800_000_000,
+        )
+    else:
+        attempt = bot.build_main_post_attempt(
+            lane=lane,
+            text=bot.MEME_POST_TEXT,
+            media_ids=["media-1"],
+            made_with_ai=False,
+            selected_identity={"meme_basename": "001_meme.png"},
+            recovery_plan={"next_schedule_mode": "fallback"},
+            attempt_epoch=1_800_000_000,
+        )
+
+    assert type(attempt["schema_version"]) is int
+    assert attempt["schema_version"] == expected_schema
+    assert bot.main_post_attempt_is_semantically_valid(attempt) is True
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])

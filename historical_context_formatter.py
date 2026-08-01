@@ -1610,6 +1610,7 @@ class HistoricalContextReplyStore:
 
         if (
             not isinstance(receipt, dict)
+            or type(receipt.get("schema_version")) is not int
             or receipt.get("schema_version") != 1
             or receipt.get("lifecycle_state") != "confirmed"
             or not re.fullmatch(

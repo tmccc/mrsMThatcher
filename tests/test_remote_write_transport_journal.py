@@ -268,6 +268,32 @@ def test_invalid_or_torn_journal_fails_closed(tmp_path: Path) -> None:
     assert journal.transport_journal_is_blocking(path) is True
 
 
+@pytest.mark.parametrize("schema_version", (2.0, True))
+def test_transport_journal_requires_integer_schema_version(
+    tmp_path: Path,
+    schema_version: object,
+) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    authority = _begin_transport_transaction(
+        receipt_path=receipt_path,
+        expected_receipt=receipt,
+        lane="quote_image",
+        payload=payload,
+    )
+    journal_path = Path(authority.journal_path)
+    document = json.loads(journal_path.read_bytes())
+    document["schema_version"] = schema_version
+    _durable_write_bytes(
+        journal_path,
+        journal.canonical_json_bytes(document),
+        mode=journal.JOURNAL_MODE,
+    )
+
+    with pytest.raises(journal.TransportJournalError, match="semantics are invalid"):
+        journal.inspect_transport_journal(journal_path)
+    assert journal.transport_journal_is_blocking(journal_path) is True
+
+
 def test_changed_source_receipt_cannot_publish_authority(tmp_path: Path) -> None:
     receipt_path, receipt, payload = _transaction(tmp_path)
     changed = {**receipt, "attempt_epoch": 1_800_000_001}

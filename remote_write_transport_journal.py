@@ -894,7 +894,8 @@ def _validate_document(
     if set(value) != required:
         raise TransportJournalError("transport journal fields are invalid")
     if (
-        value.get("schema_version") != JOURNAL_SCHEMA_VERSION
+        type(value.get("schema_version")) is not int
+        or value.get("schema_version") != JOURNAL_SCHEMA_VERSION
         or value.get("document_kind") != expected_kind
         or value.get("lifecycle_state") not in {"prepared", "attempting", "confirmed"}
         or not _LANE_RE.fullmatch(str(value.get("lane") or ""))

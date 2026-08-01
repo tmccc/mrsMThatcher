@@ -997,6 +997,61 @@ def test_strict_json_rejects_duplicate_nonfinite_and_noncanonical_documents(
     assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
 
 
+@pytest.mark.parametrize("schema_version", (1.0, True))
+def test_media_receipt_requires_integer_schema_version(
+    tmp_path: Path,
+    schema_version: object,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    _begin(receipt_path, image_path, metadata)
+    document = json.loads(receipt_path.read_bytes())
+    document["schema_version"] = schema_version
+    _durable_write(
+        receipt_path,
+        media_receipt.canonical_json_bytes(document),
+    )
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="semantics are invalid",
+    ):
+        media_receipt.inspect_media_upload_receipt(receipt_path)
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+@pytest.mark.parametrize("schema_version", (2.0, True))
+def test_media_handoff_owner_requires_integer_schema_version(
+    tmp_path: Path,
+    schema_version: object,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    source_path, journal_path, _handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    document = json.loads(journal_path.read_bytes())
+    document["schema_version"] = schema_version
+    _durable_write(
+        journal_path,
+        media_receipt.canonical_json_bytes(document),
+    )
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="owner semantics are invalid",
+    ):
+        media_receipt.bind_media_handoff_to_transport(
+            receipt_path,
+            confirmation,
+            transport_journal_path=journal_path,
+            transport_fence_path=(
+                transport_journal.fence_path_for_journal(journal_path)
+            ),
+            source_receipt_path=source_path,
+        )
+
+
 def test_existing_unknown_receipt_is_never_overwritten(tmp_path: Path) -> None:
     receipt_path, image_path, metadata = _fixture(tmp_path)
     _durable_write(receipt_path, b"not-json")

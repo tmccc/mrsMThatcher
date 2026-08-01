@@ -354,10 +354,12 @@ def _parse_activation_audit_version(
             "protocol activation audit has unexpected or missing fields"
         )
     if (
-        value.get("schema_version") != schema_version
+        type(value.get("schema_version")) is not int
+        or value.get("schema_version") != schema_version
         or value.get("document_kind") != document_kind
         or value.get("activation_sha256")
         != hashlib.sha256(activation_bytes).hexdigest()
+        or type(value.get("activation_size")) is not int
         or value.get("activation_size") != len(activation_bytes)
         or value.get("activation_mode") != oct(ACTIVATION_MODE)
         or type(value.get("project_device")) is not int
@@ -370,7 +372,8 @@ def _parse_activation_audit_version(
             "protocol activation audit has invalid relationship fields"
         )
     if protocol_version >= 2 and (
-        value.get("protocol_version") != protocol_version
+        type(value.get("protocol_version")) is not int
+        or value.get("protocol_version") != protocol_version
         or value.get("legacy_activation_basename")
         != LEGACY_ACTIVATION_BASENAME
         or value.get("legacy_activation_sha256")

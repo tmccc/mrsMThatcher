@@ -1446,6 +1446,60 @@ def test_runtime_fails_closed_for_unsafe_activation_audit(
         protocol.inspect_protocol_activation(activation)
 
 
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    (
+        ("schema_version", 2.0),
+        ("schema_version", True),
+        ("protocol_version", 2.0),
+        ("protocol_version", True),
+        ("activation_size", float(len(protocol.ACTIVATION_BYTES))),
+        ("activation_size", True),
+    ),
+)
+def test_runtime_activation_audit_requires_exact_integer_fields(
+    tmp_path: Path,
+    field: str,
+    invalid_value: object,
+) -> None:
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    create_test_protocol_activation(activation)
+    audit_path = tmp_path / protocol.ACTIVATION_AUDIT_BASENAME
+    audit = json.loads(audit_path.read_bytes())
+    audit[field] = invalid_value
+    audit_path.chmod(0o600)
+    audit_path.write_bytes(protocol._canonical_json_bytes(audit))
+    audit_path.chmod(protocol.ACTIVATION_AUDIT_MODE)
+
+    with pytest.raises(protocol.ProtocolActivationError):
+        protocol.inspect_protocol_activation(activation)
+
+
+@pytest.mark.parametrize("invalid_schema", (1.0, True))
+def test_legacy_activation_audit_keeps_integer_v1_and_rejects_nonintegers(
+    tmp_path: Path,
+    invalid_schema: object,
+) -> None:
+    identity = tmp_path.stat()
+    audit_bytes = protocol.build_legacy_established_install_activation_audit_bytes(
+        project_device=identity.st_dev,
+        project_inode=identity.st_ino,
+        clean_state_attestation_sha256="1" * 64,
+        clean_state_attestation_size=1,
+        activator_cli_sha256="2" * 64,
+        reconciliation_reference="isolated-legacy-test-fixture",
+    )
+    parsed = protocol._parse_legacy_activation_audit(audit_bytes)
+    assert type(parsed["schema_version"]) is int
+    assert parsed["schema_version"] == 1
+
+    parsed["schema_version"] = invalid_schema
+    with pytest.raises(protocol.ProtocolActivationError):
+        protocol._parse_legacy_activation_audit(
+            protocol._canonical_json_bytes(parsed)
+        )
+
+
 def test_unaudited_new_install_helper_is_permanently_refused(
     tmp_path: Path,
 ) -> None:

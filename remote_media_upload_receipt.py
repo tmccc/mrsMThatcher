@@ -593,7 +593,8 @@ def _validate_document(
     metadata = value.get("payload_metadata")
     metadata_hash = value.get("payload_metadata_sha256")
     if (
-        value.get("schema_version") != SCHEMA_VERSION
+        type(value.get("schema_version")) is not int
+        or value.get("schema_version") != SCHEMA_VERSION
         or value.get("document_kind") != expected_kind
         or lane not in _ALLOWED_LANES
         or lifecycle not in {"sending", "confirmed"}
@@ -1481,6 +1482,7 @@ def _transport_owner_snapshot(
     payload = value.get("remote_payload")
     if (
         set(value) != required
+        or type(value.get("schema_version")) is not int
         or value.get("schema_version") != 2
         or value.get("document_kind") != expected_kind
         or not _SHA256_RE.fullmatch(str(value.get("transaction_id") or ""))

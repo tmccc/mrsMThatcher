@@ -8804,7 +8804,11 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
         "daily_meme": {2, 3, 4},
     }.get(lane)
     schema_version = data.get("schema_version")
-    if supported_schemas is None or schema_version not in supported_schemas:
+    if (
+        supported_schemas is None
+        or type(schema_version) is not int
+        or schema_version not in supported_schemas
+    ):
         return False
     if data.get("lifecycle_state") not in {"sending", "attempting"}:
         return False
@@ -8858,6 +8862,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             or not valid_receipt_basename(selected.get("image_basename"))
             or type(selected.get("line_no")) is not int
             or int(selected["line_no"]) < 0
+            or type(selected.get("source_line_number")) is not int
             or selected.get("source_line_number") != int(selected["line_no"]) + 1
             or type(selected.get("image_no")) is not int
             or int(selected["image_no"]) < 0
@@ -9252,7 +9257,10 @@ def confirmed_receipt_matches_main_attempt(receipt: dict, attempt: dict) -> bool
     selected = attempt["selected_identity"]
     if attempt["lane"] == "quote_image":
         return bool(
-            str(receipt.get("quote_hash") or "") == selected["quote_hash"]
+            type(receipt.get("line_no")) is int
+            and type(receipt.get("source_line_number")) is int
+            and type(receipt.get("image_no")) is int
+            and str(receipt.get("quote_hash") or "") == selected["quote_hash"]
             and receipt.get("line_no") == selected["line_no"]
             and receipt.get("source_line_number")
             == selected["source_line_number"]
@@ -9877,6 +9885,9 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
         if (
             present_lineage_fields != lineage_fields
             or schema_version != 3
+            or type(data.get("line_no")) is not int
+            or type(data.get("source_line_number")) is not int
+            or type(data.get("image_no")) is not int
             or not isinstance(source_attempt, dict)
             or source_attempt.get("schema_version") != 4
             or source_attempt.get("lifecycle_state") != "attempting"
@@ -15938,6 +15949,7 @@ def conversational_sending_receipt_from_confirmed(
 
     if (
         not isinstance(confirmed_receipt, dict)
+        or type(confirmed_receipt.get("schema_version")) is not int
         or confirmed_receipt.get("schema_version") != 4
         or confirmed_receipt.get("lifecycle_state") != "confirmed"
         or not re.fullmatch(
@@ -16082,6 +16094,7 @@ def bind_conversational_reply_attempt_time(receipt_template: dict) -> dict:
     """Bind a schema-v4 reply template to its immediately pre-send time."""
     if (
         not isinstance(receipt_template, dict)
+        or type(receipt_template.get("schema_version")) is not int
         or receipt_template.get("schema_version") != 4
         or receipt_template.get("lifecycle_state") != "sending"
     ):
@@ -16661,7 +16674,10 @@ def post_conversational_reply_with_durable_identity(
     """
     if "reply_post_id" in receipt_template:
         raise ValueError("reply receipt template must not contain reply_post_id")
-    if receipt_template.get("schema_version") != 4:
+    if (
+        type(receipt_template.get("schema_version")) is not int
+        or receipt_template.get("schema_version") != 4
+    ):
         raise RuntimeError(
             "Conversational X writes require a current schema-v4 source receipt"
         )
