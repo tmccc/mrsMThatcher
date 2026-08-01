@@ -974,6 +974,121 @@ def test_meme_generic_4xx_retains_attempt_and_blocks_retry(
     assert bot.MEME_POST_RECEIPT_FILE.read_bytes() == receipt_bytes
 
 
+def test_regular_handler_retires_transaction_when_pause_follows_media_handoff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production quote handler owns definite pretransport cleanup."""
+
+    actual_create_post = bot.create_post
+    actual_upload_media = bot.upload_media
+    actual_handoff = bot.handoff_confirmed_media_upload_to_main_attempt
+    lines_used, images_used, state, *_paths = configure_simple_quote_post(
+        tmp_path,
+        monkeypatch,
+    )
+    quote_hash = bot.quote_text_hash("Good quote.")
+    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: {quote_hash})
+    monkeypatch.setattr(bot, "create_post", actual_create_post)
+    monkeypatch.setattr(bot, "upload_media", actual_upload_media)
+    paused = False
+    handoffs = 0
+    transport_calls: list[str] = []
+
+    def handoff_then_pause(
+        attempt: dict,
+        authority: bot.TransportAuthority,
+    ) -> None:
+        nonlocal handoffs, paused
+        actual_handoff(attempt, authority)
+        handoffs += 1
+        paused = True
+
+    def local_media_transport(
+        method: str,
+        url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        transport_calls.append(f"{method.upper()} {url}")
+        assert method.upper() == "POST"
+        assert url.endswith("/2/media/upload")
+        return _x_response(201, {"data": {"id": "780001"}})
+
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        handoff_then_pause,
+    )
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: paused)
+    monkeypatch.setattr(bot.requests, "request", local_media_transport)
+
+    with pytest.raises(bot.RemoteOperationsPaused):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert handoffs == 1
+    assert len(transport_calls) == 1
+    assert transport_calls[0].endswith("/2/media/upload")
+    assert not bot.MEDIA_UPLOAD_RECEIPT_FILE.exists()
+    assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
+    assert not bot.journal_path_for_receipt(bot.REGULAR_POST_RECEIPT_FILE).exists()
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_meme_handler_retires_transaction_when_pause_follows_media_handoff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production meme handler owns definite pretransport cleanup."""
+
+    actual_create_post = bot.create_post
+    actual_upload_media = bot.upload_media
+    actual_handoff = bot.handoff_confirmed_media_upload_to_main_attempt
+    state, _receipt_path = configure_simple_meme_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(bot, "create_post", actual_create_post)
+    monkeypatch.setattr(bot, "upload_media", actual_upload_media)
+    paused = False
+    handoffs = 0
+    transport_calls: list[str] = []
+
+    def handoff_then_pause(
+        attempt: dict,
+        authority: bot.TransportAuthority,
+    ) -> None:
+        nonlocal handoffs, paused
+        actual_handoff(attempt, authority)
+        handoffs += 1
+        paused = True
+
+    def local_media_transport(
+        method: str,
+        url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        transport_calls.append(f"{method.upper()} {url}")
+        assert method.upper() == "POST"
+        assert url.endswith("/2/media/upload")
+        return _x_response(201, {"data": {"id": "780001"}})
+
+    monkeypatch.setattr(
+        bot,
+        "handoff_confirmed_media_upload_to_main_attempt",
+        handoff_then_pause,
+    )
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: paused)
+    monkeypatch.setattr(bot.requests, "request", local_media_transport)
+
+    with pytest.raises(bot.RemoteOperationsPaused):
+        bot.post_next_meme(state)
+
+    assert handoffs == 1
+    assert len(transport_calls) == 1
+    assert transport_calls[0].endswith("/2/media/upload")
+    assert not bot.MEDIA_UPLOAD_RECEIPT_FILE.exists()
+    assert not bot.MEME_POST_RECEIPT_FILE.exists()
+    assert not bot.journal_path_for_receipt(bot.MEME_POST_RECEIPT_FILE).exists()
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
 def test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

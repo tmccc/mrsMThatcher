@@ -13,7 +13,7 @@
       "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
       "tree": "b83abb7af53f925eb8686825e09f4654a55ff40a",
       "as_of": "2026-08-01",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0050. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0051. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
       "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0050, remain external and unfixed in ledger truth until merge and post-merge regeneration."
+      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0051, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0050 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0051 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -6223,6 +6223,146 @@
           "DEF-0039",
           "DEF-0040",
           "DEF-0042"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0051",
+      "title": "Post-media-handoff tweet pauses stranded definitely untransmitted main-post transactions",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-post-media-handoff-pause-recovery-review",
+      "status": "active",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001",
+        "INV-PAUSE-001"
+      ],
+      "components": [
+        "confirmed media-upload handoff",
+        "regular and meme main-post source receipts",
+        "initial and final tweet pretransport pause checks",
+        "tweet transport journal and fence",
+        "definite remote non-success classification"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "remote_write_transport_journal.py",
+        "tests/test_media_upload_transaction_integration.py",
+        "tests/test_unit_helpers.py",
+        "tests/test_x_write_outcome_conservatism.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "media-upload-handoff",
+        "global-pause-control"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The availability boundary was reproduced in isolated state directories with one local synthetic media-upload response and a tweet-transport sentinel. No tweet request, external network, X, provider, service or production action occurred.",
+        "explanation": "The source receipt remained fail closed in both pause phases. In the descendant handoff protocol under review, the initial create_post pause also left its still-prepared journal/fence pair, whereas the final x_request pause aborted that pair before escaping and left only the source unresolved. The established defect is unnecessary manual recovery after a tweet request proved untransmitted, not a duplicate-write opening."
+      },
+      "summary": "At 7ebcc096, the regular quote and daily meme lanes handed a confirmed media upload to a durable main-post source before calling create_post, while api_error_proves_remote_non_success returned false even for RemoteOperationsPaused. The durable source therefore survived a pause that proved no tweet request was transmitted. In the descendant handoff protocol under review, an initial create_post pause left both the prepublished prepared pair and its source; at the final x_request preflight, the existing catch aborted the journal/fence pair but the caller still retained the source because the predicate remained false.",
+      "impact": "A supported maintenance pause after media handoff could leave either main-post lane conservatively blocked on its durable source and require operator reconciliation despite proof that the tweet request never reached transport. At the descendant initial pause the prepared pair adds another blocker; at the final pause that pair is cleanly aborted and the source alone remains. Every retained object preserves duplicate safety, so the demonstrated impact is availability and recovery rather than a remote duplicate.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The post-handoff pause interaction was established against the exact 7ebcc096 evidence cut-off. Its first introducing revision was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Focused application-boundary review exercised both main-post lanes after confirmed media handoff and established that locally proved tweet non-transmission did not retire the durable source transaction at the evidence cut-off.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Cutoff source review plus isolated initial- and final-preflight pause regressions with zero tweet transport"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Regular and meme confirmed-media handoff, durable main-post source ownership, initial and final tweet pause checks, transport-journal cleanup, caller exception classification and restart-visible barriers.",
+        "exclusions": "No remote tweet request occurred, no production state was inspected or changed, and post-consumption transport uncertainty was not reclassified as definite non-success.",
+        "source": "Pre-freeze application-boundary and transaction-recovery review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Confirm one synthetic media upload, hand it to the durable regular or meme source, activate the supported pause at each tweet pretransport window, forbid tweet transport, and inspect the source receipt, journal, ambiguity marker and global barrier in the current and a fresh process.",
+        "reproducer": "RemoteOperationsPaused escaped after media handoff with zero tweet requests. At the initial create_post pause the prepared pair and source remained; at the final x_request pause the journal/fence abort completed but the lane handler's always-false definite-non-success predicate left the source unresolved.",
+        "source": "Focused two-lane pause-after-handoff regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An external post-cutoff candidate classifies only RemoteOperationsPaused as definite non-success, aborts the exact still-prepared tweet pair at the initial pause, retains the existing exact final-preflight abort, and lets each production lane retire its exact main-post source. Any abort failure records or retains durable ambiguity barriers. The proposal remains unfixed in cutoff truth until a descendant is committed, frozen, attested and regenerated into a later ledger."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "The reviewed post-media-handoff transaction shape and its descendant pause-recovery repair were never deployed and are absent from the observed production commit be882e81. Production was not inspected, contacted or changed by this review."
+      },
+      "residual_risk": "Until a descendant repair is frozen and attested, a pause after confirmed media handoff must be expected to leave a duplicate-safe main-post barrier requiring manual recovery even when local evidence proves the tweet was not transmitted.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:mrsMThatcher2.py",
+          "claim": "The cutoff hands confirmed media to a durable regular or meme source before create_post, but its definite-non-success predicate returns false even for a pretransport RemoteOperationsPaused exception."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "claim": "The external descendant literal-process matrix covers both lanes at the initial and final tweet pause windows and proves clean state in a fresh process with zero tweet transport."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "claim": "The paired failure regression proves an abort error cannot be misclassified as definite and retains a restart-visible source, transport pair and ambiguity marker."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+          "claim": "The external descendant high-level regression drives the production regular handler through real media confirmation, handoff and prepared tweet state, then proves its caller cleanup runs after a local pause."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+          "claim": "The external descendant high-level regression drives the production meme handler through real media confirmation, handoff and prepared tweet state, then proves its caller cleanup runs after a local pause."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success",
+          "claim": "The external descendant predicate regression limits definite non-success to the local pretransport pause and keeps every other modeled exception fail closed."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision which combined confirmed-media handoff with incomplete definitely-untransmitted tweet cleanup was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was proved to retire the exact main-post transaction at both supported pretransport pause windows."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The repair and focused tests remain uncommitted descendant candidate material and require external frozen-candidate attestation."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0038",
+          "DEF-0041",
+          "DEF-0042",
+          "DEF-0050"
         ]
       }
     }

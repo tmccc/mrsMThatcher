@@ -18,18 +18,18 @@ independently reproduced candidate-lineage defects.
 - Ledger evidence cut-off commit: `7ebcc09699a13848d55a33fd84d66cc8ce56d95c`
 - Ledger evidence cut-off tree: `b83abb7af53f925eb8686825e09f4654a55ff40a`
 - Evidence valid through: `2026-08-01`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0050. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0051. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.
 - Status-claim boundary: Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0050, remain external and unfixed in ledger truth until merge and post-merge regeneration.
+- Candidate identity rule: The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0051, remain external and unfixed in ledger truth until merge and post-merge regeneration.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0050 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0051 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
 
 ## Status taxonomy
 
@@ -137,6 +137,7 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0048` | runtime-defect | `mrsMThatcher2.py`; `tests/test_unit_helpers.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `provider-request`; `cross-cutting-remote-write-barrier` | false — This establishes an omitted global barrier state, not a live duplicate or provider incident. Evidence: The defect was reproduced with synthetic, schema-valid legacy regular, meme and confirmed reply receipts in an isolated state directory. No network, X, provider, service or production action occurred. |
 | `DEF-0049` | runtime-defect | `mrsMThatcher2.py`; `README.md`; `tests/test_integration_harness.py`; `tests/test_x_write_outcome_conservatism.py` | `media-upload` | false — This is a cutoff-bound configuration-routing defect, not evidence that production configured or required a distinct upload origin. Evidence: The mismatch was reproduced with distinct synthetic loopback API and upload origins. No network, X, provider, service or production action occurred. |
 | `DEF-0050` | runtime-defect | `mrsMThatcher2.py`; `remote_media_upload_receipt.py`; `tests/test_remote_media_upload_receipt.py`; `tests/test_transaction_mutation_authority.py`; `tests/test_x_write_outcome_conservatism.py` | `regular-quote-image-post`; `daily-meme-post`; `media-upload`; `global-pause-control` | false — The durable pair remained fail closed and therefore did not create a duplicate-write opening; the established defect is unnecessary manual recovery of a definitely untransmitted transaction. Evidence: The availability boundary was reproduced using a synthetic pause transition after durable receipt/fence publication and before a local transport sentinel. No HTTP, network, X, provider, service or production action occurred. |
+| `DEF-0051` | runtime-defect | `mrsMThatcher2.py`; `remote_write_transport_journal.py`; `tests/test_media_upload_transaction_integration.py`; `tests/test_unit_helpers.py`; `tests/test_x_write_outcome_conservatism.py` | `regular-quote-image-post`; `daily-meme-post`; `media-upload-handoff`; `global-pause-control` | false — The source receipt remained fail closed in both pause phases. In the descendant handoff protocol under review, the initial create_post pause also left its still-prepared journal/fence pair, whereas the final x_request pause aborted that pair before escaping and left only the source unresolved. The established defect is unnecessary manual recovery after a tweet request proved untransmitted, not a duplicate-write opening. Evidence: The availability boundary was reproduced in isolated state directories with one local synthetic media-upload response and a tweet-transport sentinel. No tweet request, external network, X, provider, service or production action occurred. |
 
 ## Chronology projection
 
@@ -248,6 +249,7 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0048` | 2026-08-01 | `7ebcc096` | Focused cutoff review installed simultaneous valid legacy regular, meme and confirmed conversational receipts and found the global auxiliary barrier open at 7ebcc096. | Synthetic simultaneous accepted-receipt preflight fixture with a clean-state negative control |
 | `DEF-0049` | 2026-08-01 | `7ebcc096` | A four-way post-cutoff adversarial review used distinct local API and upload origins and established that media upload still selected X_BASE at the evidence cut-off. | Distinct loopback-origin routing fixture with separate media, tweet and read observations |
 | `DEF-0050` | 2026-08-01 | `7ebcc096` | A four-way transaction review paused the media lane after durable pair publication but before transport and established that the definitely untransmitted pair remained as a manual blocker. | Final-pretransport pause fixture with a transport sentinel and exact receipt/fence inspection |
+| `DEF-0051` | 2026-08-01 | `7ebcc096` | Focused application-boundary review exercised both main-post lanes after confirmed media handoff and established that locally proved tweet non-transmission did not retire the durable source transaction at the evidence cut-off. | Cutoff source review plus isolated initial- and final-preflight pause regressions with zero tweet transport |
 
 ## Summary
 
@@ -303,6 +305,7 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0048` | active | critical | Accepted legacy confirmed receipts could leave auxiliary provider work unblocked | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
 | `DEF-0049` | active | medium | Configured X upload origin was ignored by v2 media requests | `INV-API-001` | unknown | unfixed | observed in production `be882e81` |
 | `DEF-0050` | active | medium | Final pretransport pause could strand a definitely untransmitted media barrier pair | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0051` | active | medium | Post-media-handoff tweet pauses stranded definitely untransmitted main-post transactions | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001`, `INV-PAUSE-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
 
 ## Records
 
@@ -933,6 +936,19 @@ fail-closed barriers for reconstructed, consumed, unsafe or interrupted
 states. That proposal remains external, so this medium-severity defect is
 active and unfixed at the cut-off.
 
+### DEF-0051 — Post-media-handoff tweet pause recovery
+
+At `7ebcc096`, the regular quote and daily meme lanes handed confirmed media
+to a durable main-post source before `create_post`, but the definite
+non-success predicate returned false even for a local pretransport pause. The
+source therefore remained a global manual-recovery barrier although no tweet
+request was transmitted. In the descendant handoff protocol under review, an
+initial `create_post` pause left both the prepublished prepared pair and its
+source; at the final `x_request` pause the existing catch aborted the
+journal/fence pair, but the false caller predicate still left the source. The
+exact-abort and caller-cleanup proposal remains external, so this
+medium-severity availability defect is active and unfixed at the cut-off.
+
 ## Unknown-value policy
 
 The following are intentionally unknown rather than inferred:
@@ -943,7 +959,7 @@ The following are intentionally unknown rather than inferred:
   audited last-known-good implementation exists for the stated property.
 - `DEF-0013`, `DEF-0014`: an absent environment/release control has no
   defensible introducing Git commit.
-- `DEF-0040` through `DEF-0050`: introduction bounds and fixing commits are not
+- `DEF-0040` through `DEF-0051`: introduction bounds and fixing commits are not
   inferred from post-cut-off worktree proposals. Their explicit affected
   ranges end at `7ebcc096`; each fix remains unknown until post-merge
   regeneration.

@@ -2423,13 +2423,12 @@ def api_error_proves_remote_non_success(error: BaseException) -> bool:
     HTTP status alone is not an idempotency or reconciliation contract.  In
     particular, the project has no provider-contract evidence which proves
     that every ``POST /2/tweets`` 4xx response excludes an accepted write.
-    Only failures raised before transmission (for example
-    :class:`RemoteOperationsPaused`) may currently retire a durable attempt.
-    Keep this compatibility predicate fail-closed until a narrowly specified,
+    :class:`RemoteOperationsPaused` is the only currently modelled exception
+    which proves that the final local preflight stopped before transmission.
+    Keep every other exception fail-closed until a narrowly specified,
     externally bound provider rejection contract exists.
     """
-    del error
-    return False
+    return isinstance(error, RemoteOperationsPaused)
 
 
 def require_remote_operation_unpaused(
@@ -7696,12 +7695,37 @@ def create_post(
             service="x",
         )
 
-    # This check is still before the transport journal is published, so a
-    # local pause can stop cleanly without creating an unresolved attempt.
     # The final transport helper repeats the pause and instance-lock checks.
+    # Main-image lanes may already have published a ``prepared`` transport pair
+    # so confirmed media can be handed off before this call.  That exact pair
+    # is still provably untransmitted and must be retired before a local pause
+    # is allowed to escape; otherwise a temporary maintenance pause strands the
+    # source receipt and journal for manual recovery.
     require_instance_lock_for_remote_write("X post creation")
     block_if_remote_write_safety_incident_latched()
     if global_remote_writes_paused():
+        if prepared_transport_authority is not None:
+            try:
+                if prepared_transport_source is None:
+                    raise TransportJournalError(
+                        "prepared transport authority has no semantic source"
+                    )
+                abort_untransmitted_transport_transaction(
+                    source_binding=prepared_transport_source,
+                    authority=prepared_transport_authority,
+                    mutation_authority=transaction_mutation_authority(
+                        "initially paused transport journal abort"
+                    ),
+                )
+            except Exception as abort_exc:
+                record_ambiguous_remote_post(payload)
+                raise AmbiguousRemotePostOutcome(
+                    "An initially paused tweet left an unresolved transport "
+                    "barrier",
+                    service="x",
+                    request_method="POST",
+                    request_path="/2/tweets",
+                ) from abort_exc
         raise RemoteOperationsPaused(
             "Global runtime control pause blocks operation: X post creation"
         )

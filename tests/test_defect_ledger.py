@@ -730,6 +730,17 @@ def test_repaired_remote_write_defects_render_honestly() -> None:
     )
 
 
+def test_cutoff_only_pause_finding_is_not_reported_as_observed_production() -> None:
+    ledger, _schema, _invariants = _documents()
+    pause_finding = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0051"
+    )
+
+    assert ledger_tool._deployment_cell(pause_finding) == (
+        "not deployed; absent from observed production `be882e81`"
+    )
+
+
 def test_transport_cutoff_repairs_and_post_cutoff_findings_remain_distinct() -> None:
     ledger, _schema, _invariants = _documents()
     records = {item["id"]: item for item in ledger["defects"]}

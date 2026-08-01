@@ -1013,7 +1013,11 @@
           "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
           "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
           "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
-          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker",
+          "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
         ],
         "validations": [
           {
@@ -1074,7 +1078,11 @@
           "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
           "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
           "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
-          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker",
+          "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
         ],
         "purpose": "Exercise durable pre-send intent, hard-death ambiguity retention, exact bound schedule after-state, pending-schedule recovery, conservative post-transmission status handling and at-most-once restart behavior."
           }
@@ -1308,7 +1316,11 @@
           "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
           "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
           "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
-          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker",
+          "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
         ],
         "validations": [
           {
@@ -1371,7 +1383,11 @@
           "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
           "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
           "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
-          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker",
+          "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
         ],
         "purpose": "Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay."
           }
@@ -2091,7 +2107,12 @@
           "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
           "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
           "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
-          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker",
+          "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
         ],
         "validations": [
           {
@@ -2136,7 +2157,12 @@
           "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
           "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
           "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
-          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker",
+          "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
         ],
         "purpose": "Exercise the cross-lane ambiguity barrier, pending-schedule compatibility, conservative post-transmission status handling and safe retirement order."
           }
@@ -2511,7 +2537,10 @@
       "affected_paths": [
         "mrsMThatcher2.py",
         "tests/fixtures/scenarios/runtime_control_pause.json",
-        "tests/test_fail_safe_bootstrap_and_control.py"
+        "tests/test_fail_safe_bootstrap_and_control.py",
+        "tests/test_media_upload_transaction_integration.py",
+        "tests/test_unit_helpers.py",
+        "tests/test_x_write_outcome_conservatism.py"
       ],
       "enforcement": {
         "files": [
@@ -2520,13 +2549,23 @@
         "tests": [
           "tests/test_fail_safe_bootstrap_and_control.py::test_unknown_runtime_control_keys_fail_closed",
           "tests/test_fail_safe_bootstrap_and_control.py::test_control_malformed_preserves_prior_pause_and_repair_recovers",
-          "tests/test_fail_safe_bootstrap_and_control.py::test_global_pause_is_rechecked_at_remote_boundaries"
+          "tests/test_fail_safe_bootstrap_and_control.py::test_global_pause_is_rechecked_at_remote_boundaries",
+          "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+          "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+          "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+          "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
         ],
         "validations": [
           {
             "validation_id": "pytest",
             "selectors": [
-              "tests/test_fail_safe_bootstrap_and_control.py"
+              "tests/test_fail_safe_bootstrap_and_control.py",
+              "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
+              "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
+              "tests/test_x_write_outcome_conservatism.py::test_regular_handler_retires_transaction_when_pause_follows_media_handoff",
+              "tests/test_x_write_outcome_conservatism.py::test_meme_handler_retires_transaction_when_pause_follows_media_handoff",
+              "tests/test_unit_helpers.py::test_only_local_pause_proves_remote_non_success"
             ],
             "purpose": "Exercise runtime-control allowlisting, failure preservation, and boundary rechecks."
           }

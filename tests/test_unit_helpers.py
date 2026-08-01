@@ -4370,9 +4370,13 @@ def test_regular_generic_4xx_retains_sending_attempt(
             ),
             False,
         ),
+        (
+            bot.RemoteOperationsPaused("local maintenance pause"),
+            True,
+        ),
     ],
 )
-def test_api_error_proves_remote_non_success_only_for_bound_create_rejection(
+def test_only_local_pause_proves_remote_non_success(
     error: BaseException,
     expected: bool,
 ) -> None:

@@ -264,6 +264,13 @@ def _state_record(bot: Any, lane: str) -> dict[str, Any]:
     return {
         "blocking": bool(bot.ambiguous_remote_post_is_blocking()),
         "lane": lane,
+        "marker_present": any(
+            os.path.lexists(path)
+            for path in (
+                bot.AMBIGUOUS_POST_OUTCOME_FILE,
+                bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
+            )
+        ),
         "main_receipt_present": main_path.exists(),
         "main_status": main_status,
         "main_lifecycle": (
@@ -430,18 +437,35 @@ def _initial_phase(bot: Any, lane: str, phase: str) -> int:
         transport_authority,
     )
 
-    if phase == "pause_after_handoff":
-        bot.atomic_write_json(
-            bot.CONTROL_FILE,
-            {"disable_all": True, "generation": 2},
-            durable=True,
-        )
-        bot._CONTROL_CACHE = {
-            "signature": None,
-            "data": {},
-            "has_valid": False,
-            "failure_signature": None,
-        }
+    if phase in {
+        "pause_at_initial_tweet_preflight",
+        "pause_at_initial_tweet_preflight_abort_failure",
+        "pause_at_final_tweet_preflight",
+    }:
+        if phase in {
+            "pause_at_initial_tweet_preflight",
+            "pause_at_initial_tweet_preflight_abort_failure",
+        }:
+            bot.atomic_write_json(
+                bot.CONTROL_FILE,
+                {"disable_all": True, "generation": 2},
+                durable=True,
+            )
+            bot._CONTROL_CACHE = {
+                "signature": None,
+                "data": {},
+                "has_valid": False,
+                "failure_signature": None,
+            }
+            if phase == "pause_at_initial_tweet_preflight_abort_failure":
+                bot.abort_untransmitted_transport_transaction = (
+                    lambda **_kwargs: (_ for _ in ()).throw(
+                        OSError("synthetic initially-paused abort failure")
+                    )
+                )
+        else:
+            pause_observations = iter((False, True))
+            bot.global_remote_writes_paused = lambda: next(pause_observations)
         try:
             bot.create_post(
                 text=str(attempt["text"]),
@@ -451,10 +475,35 @@ def _initial_phase(bot: Any, lane: str, phase: str) -> int:
                 prepared_transport_authority=transport_authority,
                 prepared_transport_source=source_binding,
             )
-        except bot.RemoteOperationsPaused:
-            pass
+        except bot.RemoteOperationsPaused as pause_error:
+            if phase == "pause_at_initial_tweet_preflight_abort_failure":
+                raise AssertionError("abort failure was misreported as a clean pause")
+            if not bot.api_error_proves_remote_non_success(pause_error):
+                raise AssertionError("local pause was not classified as definite")
+            bot.remove_main_post_attempt(
+                attempt,
+                sending_disposition="definite_non_success",
+            )
+        except bot.AmbiguousRemotePostOutcome as ambiguous_error:
+            if phase != "pause_at_initial_tweet_preflight_abort_failure":
+                raise
+            if bot.api_error_proves_remote_non_success(ambiguous_error):
+                raise AssertionError("ambiguous abort failure became definite")
         else:
             raise AssertionError("post create was not stopped by the pause")
+        if phase == "pause_at_final_tweet_preflight":
+            bot.atomic_write_json(
+                bot.CONTROL_FILE,
+                {"disable_all": True, "generation": 2},
+                durable=True,
+            )
+            bot._CONTROL_CACHE = {
+                "signature": None,
+                "data": {},
+                "has_valid": False,
+                "failure_signature": None,
+            }
+            bot.global_remote_writes_paused = lambda: True
         try:
             bot.upload_media(str(image), lane=lane)
         except (bot.RemoteOperationsPaused, bot.AmbiguousRemotePostOutcome):
@@ -803,14 +852,22 @@ def test_main_attempt_write_or_handoff_failure_leaves_restart_barrier(
 
 
 @pytest.mark.parametrize("lane", LANES)
-def test_pause_after_handoff_keeps_main_receipt_and_never_reuploads(
+@pytest.mark.parametrize(
+    "phase",
+    (
+        "pause_at_initial_tweet_preflight",
+        "pause_at_final_tweet_preflight",
+    ),
+)
+def test_pause_after_media_handoff_retires_untransmitted_main_transaction(
     tmp_path: Path,
     lane: str,
+    phase: str,
 ) -> None:
-    state_directory = tmp_path / f"{lane}-pause"
+    state_directory = tmp_path / f"{lane}-{phase}"
     state_directory.mkdir()
     paused = _run_driver(
-        "pause_after_handoff",
+        phase,
         lane=lane,
         state_directory=state_directory,
     )
@@ -819,16 +876,53 @@ def test_pause_after_handoff_keeps_main_receipt_and_never_reuploads(
     assert paused_result["transport_calls"] == 1
     assert paused_result["media_present"] is False
     assert paused_result["media_fence_present"] is False
-    assert paused_result["main_status"] == "sending"
-    assert paused_result["main_lifecycle"] == "attempting"
-    assert paused_result["blocking"] is True
+    assert paused_result["main_status"] == "absent"
+    assert paused_result["main_lifecycle"] is None
+    assert paused_result["main_receipt_present"] is False
+    assert paused_result["transport_journal_state"] == "clear"
+    assert paused_result["blocking"] is False
 
     inspect = _run_driver("inspect", lane=lane, state_directory=state_directory)
     assert inspect.returncode == 0, (inspect.stdout, inspect.stderr)
     inspected = _result(inspect)
     assert inspected["media_present"] is False
     assert inspected["media_fence_present"] is False
-    assert inspected["main_status"] == "sending"
+    assert inspected["main_status"] == "absent"
+    assert inspected["main_receipt_present"] is False
+    assert inspected["transport_journal_state"] == "clear"
+    assert inspected["blocking"] is False
+    assert inspected["transport_calls"] == []
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_initial_pause_abort_failure_retains_source_and_durable_blockers(
+    tmp_path: Path,
+    lane: str,
+) -> None:
+    phase = "pause_at_initial_tweet_preflight_abort_failure"
+    state_directory = tmp_path / f"{lane}-{phase}"
+    state_directory.mkdir()
+
+    failed = _run_driver(phase, lane=lane, state_directory=state_directory)
+    assert failed.returncode == 0, (failed.stdout, failed.stderr)
+    result = _result(failed)
+    assert result["transport_calls"] == 1
+    assert result["media_present"] is False
+    assert result["media_fence_present"] is False
+    assert result["main_status"] == "sending"
+    assert result["main_lifecycle"] == "attempting"
+    assert result["main_receipt_present"] is True
+    assert result["transport_journal_state"] == "prepared_pair"
+    assert result["marker_present"] is True
+    assert result["blocking"] is True
+
+    inspect = _run_driver("inspect", lane=lane, state_directory=state_directory)
+    assert inspect.returncode == 0, (inspect.stdout, inspect.stderr)
+    inspected = _result(inspect)
+    assert inspected["main_receipt_present"] is True
+    assert inspected["transport_journal_state"] == "prepared_pair"
+    assert inspected["marker_present"] is True
+    assert inspected["blocking"] is True
     assert inspected["transport_calls"] == []
 
 
