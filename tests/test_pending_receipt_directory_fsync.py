@@ -8,12 +8,16 @@ import os
 import signal
 import fcntl
 import socket
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Callable
 
 import pytest
 
+import exact_receipt_retirement as exact
+import historical_context_formatter as context_formatter
+import remote_write_transport_journal as journal
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.test_unit_helpers import (
     UNIT_REPLY_REPOSITORY,
@@ -81,7 +85,7 @@ def isolate_transaction_files(
     monkeypatch.setattr(
         bot,
         "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
-        tmp_path / ".mrs_remote_write_safety_protocol_v1",
+        tmp_path / bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
     )
     create_test_protocol_activation(
         bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
@@ -223,10 +227,10 @@ def _load_lane_receipt(lane: str) -> tuple[str, dict | None]:
     )
 
 
-def _install_pending_receipt(lane: str) -> dict:
+def _new_main_attempt(lane: str) -> dict:
     if lane == "quote_image":
         quote_hash = bot.quote_text_hash("Good quote.")
-        attempt = bot.build_main_post_attempt(
+        return bot.build_main_post_attempt(
             lane=lane,
             text="Good quote.",
             media_ids=["media-1"],
@@ -250,23 +254,60 @@ def _install_pending_receipt(lane: str) -> dict:
             },
             attempt_epoch=CONFIRMATION_EPOCH,
         )
-    else:
-        attempt = bot.build_main_post_attempt(
-            lane=lane,
-            text=bot.MEME_POST_TEXT,
-            media_ids=["media-1"],
-            made_with_ai=False,
-            selected_identity={"meme_basename": "001_meme.png"},
-            recovery_plan={
-                "next_schedule_mode": "fallback",
-                "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
-                "fallback_hour": int(bot.MEME_FALLBACK_HOUR),
-                "fallback_minute": int(bot.MEME_FALLBACK_MINUTE),
-            },
-            attempt_epoch=CONFIRMATION_EPOCH,
-        )
+    return bot.build_main_post_attempt(
+        lane=lane,
+        text=bot.MEME_POST_TEXT,
+        media_ids=["media-1"],
+        made_with_ai=False,
+        selected_identity={"meme_basename": "001_meme.png"},
+        recovery_plan={
+            "next_schedule_mode": "fallback",
+            "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+            "fallback_hour": int(bot.MEME_FALLBACK_HOUR),
+            "fallback_minute": int(bot.MEME_FALLBACK_MINUTE),
+        },
+        attempt_epoch=CONFIRMATION_EPOCH,
+    )
+
+
+def _install_pending_receipt(lane: str) -> dict:
+    attempt = _new_main_attempt(lane)
     bot.write_main_post_attempt(attempt)
     attempting = bot.mark_main_post_attempt_attempting(attempt)
+    payload = bot.main_post_attempt_payload(attempting)
+    source = bot.bind_lane_transport_source(
+        receipt_path=_receipt_path(lane),
+        receipt=attempting,
+        lane=lane,
+        payload=payload,
+    )
+    authority = bot.begin_transport_transaction(
+        receipt_path=_receipt_path(lane),
+        source_binding=source,
+    )
+    authority = bot.arm_transport_transaction(
+        Path(authority.journal_path),
+        authority,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused transport arming"
+        ),
+    )
+    bot.consume_transport_authority(
+        Path(authority.journal_path),
+        authority,
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+    )
+    bot.confirm_transport_transaction(
+        Path(authority.journal_path),
+        authority,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused transport confirmation"
+        ),
+        post_id="950001" if lane == "quote_image" else "970001",
+        confirmation_epoch=CONFIRMATION_EPOCH,
+    )
     pending = bot.promote_main_post_attempt_to_confirmed_pending_schedule(
         attempting,
         post_id="950001" if lane == "quote_image" else "970001",
@@ -275,6 +316,120 @@ def _install_pending_receipt(lane: str) -> dict:
     )
     assert _load_lane_receipt(lane) == ("pending_schedule", pending)
     return pending
+
+
+@pytest.mark.parametrize(
+    "lane",
+    ("quote_image", "daily_meme", "conversational_reply"),
+)
+@pytest.mark.parametrize("entry_type", ("dangling_symlink", "directory", "fifo"))
+def test_unsafe_receipt_namespace_is_never_absent_or_overwritten(
+    lane: str,
+    entry_type: str,
+) -> None:
+    """Lexical receipt entries fail closed before any durable publication."""
+
+    if lane == "quote_image":
+        path = bot.REGULAR_POST_RECEIPT_FILE
+        loader = bot.load_regular_post_receipt
+        writer = lambda: bot.write_main_post_attempt(_new_main_attempt(lane))
+    elif lane == "daily_meme":
+        path = bot.MEME_POST_RECEIPT_FILE
+        loader = bot.load_meme_post_receipt
+        writer = lambda: bot.write_main_post_attempt(_new_main_attempt(lane))
+    else:
+        path = bot.CONFIRMED_REPLY_RECEIPT_FILE
+        loader = bot.load_confirmed_reply_receipt
+        receipt = unit_sending_v4_reply_receipt(
+            attempt_epoch=CONFIRMATION_EPOCH,
+            target_id="880001",
+        )
+        writer = lambda: bot.write_sending_reply_receipt(receipt)
+
+    if entry_type == "dangling_symlink":
+        path.symlink_to(path.with_name("missing-target"))
+    elif entry_type == "directory":
+        path.mkdir()
+    else:
+        os.mkfifo(path, 0o600)
+    before = os.lstat(path)
+
+    assert loader() == ("invalid", None)
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(Exception):
+        writer()
+
+    after = os.lstat(path)
+    assert (after.st_dev, after.st_ino, stat.S_IFMT(after.st_mode)) == (
+        before.st_dev,
+        before.st_ino,
+        stat.S_IFMT(before.st_mode),
+    )
+
+
+@pytest.mark.parametrize(
+    ("path_name", "loader"),
+    (
+        ("REGULAR_POST_RECEIPT_FILE", "load_regular_post_receipt"),
+        ("MEME_POST_RECEIPT_FILE", "load_meme_post_receipt"),
+        ("CONFIRMED_REPLY_RECEIPT_FILE", "load_confirmed_reply_receipt"),
+    ),
+)
+def test_duplicate_receipt_object_names_fail_closed(
+    path_name: str,
+    loader: str,
+) -> None:
+    path = Path(getattr(bot, path_name))
+    path.write_text('{"schema_version":1,"schema_version":4}\n', encoding="utf-8")
+
+    assert getattr(bot, loader)() == ("invalid", None)
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+def test_final_retirement_directory_fsync_failure_latches_current_daemon(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No barrier-free scheduler tick follows an unproved final unlink."""
+
+    source = bot.REGULAR_POST_RECEIPT_FILE
+    receipt_bytes = b'{"confirmed":true}\n'
+    source.write_bytes(receipt_bytes)
+    source.chmod(0o600)
+    exact.prepare_exact_receipt_retirement(
+        source,
+        receipt_bytes,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused receipt retirement preparation"
+        ),
+    )
+    real_fsync = exact._fsync_directory
+    injected = False
+
+    def fail_after_final_unlink(directory_fd: int) -> None:
+        nonlocal injected
+        if (
+            not injected
+            and not os.path.lexists(source)
+            and not any(
+                os.path.lexists(path)
+                for path in exact.retirement_auxiliary_paths(source)
+            )
+        ):
+            injected = True
+            raise OSError("injected final retirement directory fsync failure")
+        real_fsync(directory_fd)
+
+    monkeypatch.setattr(exact, "_fsync_directory", fail_after_final_unlink)
+
+    with pytest.raises(OSError, match="final retirement"):
+        bot.resume_source_receipt_retirement_for_control_snapshot(
+            maintenance_paused=False,
+        )
+
+    assert injected is True
+    assert bot.remote_receipt_retirement_is_blocking() is False
+    assert bot.remote_write_safety_incident_is_latched() is True
+    assert bot.ambiguous_remote_post_is_blocking() is True
 
 
 def _configure_confirmed_lane(
@@ -311,16 +466,21 @@ def _configure_confirmed_lane(
 def _inject_pending_parent_fsync_failure(
     monkeypatch: pytest.MonkeyPatch,
     receipt_path: Path,
-    *,
-    once: bool,
 ) -> list[dict]:
-    """Fail only after replacement has made the pending receipt visible."""
-    original_fsync_parent_dir = bot.fsync_parent_dir
+    """Fail after the identity-bound exchange made the pending receipt visible.
+
+    Pending promotion now uses a directory-level ``RENAME_EXCHANGE`` instead
+    of ``atomic_write_json``.  Inject at that boundary so the test continues to
+    exercise the caller's fail-closed response to an exchange whose completion
+    was not acknowledged.
+    """
+    original_replace = bot.replace_bound_source_receipt
     failures: list[dict] = []
 
-    def adversarial_fsync(path: Path, *, strict: bool = False) -> None:
-        resolved = Path(path)
-        if resolved == receipt_path and resolved.exists():
+    def adversarial_replace(binding: object, replacement: bytes, **kwargs) -> None:
+        original_replace(binding, replacement, **kwargs)
+        resolved = Path(receipt_path)
+        if resolved.exists():
             try:
                 current = json.loads(resolved.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
@@ -328,15 +488,13 @@ def _inject_pending_parent_fsync_failure(
             if (
                 isinstance(current, dict)
                 and current.get("receipt_type") == "confirmed_pending_schedule"
-                and (not once or not failures)
             ):
                 failures.append(current)
-                raise OSError(
-                    "injected parent-directory fsync failure after pending replace"
+                raise bot.BoundSourceReceiptTransitionError(
+                    "injected unacknowledged identity-bound pending exchange"
                 )
-        original_fsync_parent_dir(path, strict=strict)
 
-    monkeypatch.setattr(bot, "fsync_parent_dir", adversarial_fsync)
+    monkeypatch.setattr(bot, "replace_bound_source_receipt", adversarial_replace)
     return failures
 
 
@@ -453,172 +611,34 @@ def _install_marker_namespace_mutation_during_parent_fsync(
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
-def test_one_shot_pending_parent_fsync_failure_is_revalidated_and_completed(
+def test_unacknowledged_identity_bound_pending_exchange_fails_closed(
     lane: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A visible exact pending receipt must survive one failed directory fsync."""
-    original_signal_handler = signal.getsignal(signal.SIGINT)
-    invoke, receipt_path = _configure_confirmed_lane(lane, tmp_path, monkeypatch)
-    failures = _inject_pending_parent_fsync_failure(
-        monkeypatch,
-        receipt_path,
-        once=True,
-    )
-
-    try:
-        invoke()
-        assert len(failures) == 1
-        assert not receipt_path.exists()
-        assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
-        assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
-        assert signal.getsignal(signal.SIGINT) == original_signal_handler
-    finally:
-        signal.signal(signal.SIGINT, original_signal_handler)
-
-
-@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
-@pytest.mark.parametrize(
-    "marker_failure_mode",
-    ["none", "before_write", "after_replace"],
-)
-def test_persistent_pending_parent_fsync_failure_latches_before_other_writes(
-    lane: str,
-    marker_failure_mode: str,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Uncertain receipt durability must latch before any unrelated X create."""
+    """An unacknowledged source exchange remains blocked by its journal."""
     actual_create_post = bot.create_post
     original_signal_handler = signal.getsignal(signal.SIGINT)
     invoke, receipt_path = _configure_confirmed_lane(lane, tmp_path, monkeypatch)
     failures = _inject_pending_parent_fsync_failure(
         monkeypatch,
         receipt_path,
-        once=False,
     )
-    marker_recovery_fsync: Callable[..., None] | None = None
-    if marker_failure_mode == "before_write":
-        original_atomic_write_json = bot.atomic_write_json
-
-        def marker_fails(
-            path: Path,
-            value: object,
-            *,
-            durable: bool = False,
-        ) -> None:
-            if Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE:
-                raise OSError("injected ambiguity-marker failure")
-            original_atomic_write_json(path, value, durable=durable)
-
-        monkeypatch.setattr(bot, "atomic_write_json", marker_fails)
-    elif marker_failure_mode == "after_replace":
-        receipt_fsync = bot.fsync_parent_dir
-        marker_recovery_fsync = receipt_fsync
-
-        def marker_parent_fsync_fails(
-            path: Path,
-            *,
-            strict: bool = False,
-        ) -> None:
-            if (
-                Path(path) == bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
-                and Path(path).exists()
-            ):
-                raise OSError(
-                    "injected ambiguity-marker parent fsync failure after replace"
-                )
-            receipt_fsync(path, strict=strict)
-
-        monkeypatch.setattr(bot, "fsync_parent_dir", marker_parent_fsync_fails)
 
     try:
-        with pytest.raises(bot.UnrecoverableConfirmedPostPersistenceError):
+        with pytest.raises(bot.ConfirmedPendingScheduleDurabilityUncertain):
             invoke()
-
-        assert failures
+        assert len(failures) == 1
         status, pending = _load_lane_receipt(lane)
         assert status == "pending_schedule"
         assert pending == failures[0]
         assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
-        assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is (
-            marker_failure_mode != "none"
-        )
-        assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists() is (
-            marker_failure_mode != "before_write"
-        )
-        assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists() is (
-            marker_failure_mode == "none"
-        )
-        if marker_failure_mode != "none":
-            leaked_handler = signal.getsignal(signal.SIGINT)
-            assert getattr(leaked_handler, "__self__", None).__class__ is (
-                bot.ConfirmedPostSigintDeferral
-            )
-            assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is getattr(
-                leaked_handler,
-                "__self__",
-                None,
-            )
-        else:
-            marker = json.loads(
-                bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8")
-            )
-            assert marker["outcome"] == (
-                "confirmed_remote_post_local_persistence_failed"
-            )
-            assert marker["lane"] == lane
-            assert marker["post_id"] == (
-                "950001" if lane == "quote_image" else "970001"
-            )
-            assert "pending_schedule_parent_fsync" in marker["failure_components"]
-            assert signal.getsignal(signal.SIGINT) == original_signal_handler
-
-        assert bot.durable_remote_write_safety_barrier_exists() is (
-            marker_failure_mode == "none"
-        )
-        if marker_failure_mode == "after_replace":
-            # A restart forgets the process-local uncertainty flag.  Marker
-            # visibility must still require a fresh successful parent fsync.
-            bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False
-            assert bot.durable_remote_write_safety_barrier_exists() is False
-            bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = True
-        if marker_failure_mode == "none":
-            bot.wait_for_durable_barrier_before_one_shot_exit(lane=lane)
-        else:
-            def stop_instead_of_waiting(_seconds: int) -> None:
-                raise RuntimeError("one-shot process remained alive")
-
-            monkeypatch.setattr(bot, "sleep", stop_instead_of_waiting)
-            with pytest.raises(RuntimeError, match="remained alive"):
-                bot.wait_for_durable_barrier_before_one_shot_exit(lane=lane)
+        assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot.durable_remote_write_safety_barrier_exists() is True
         _actual_conversational_create_is_blocked(
             monkeypatch,
             actual_create_post,
         )
-        if marker_failure_mode == "after_replace":
-            assert marker_recovery_fsync is not None
-            retained = bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD
-            assert isinstance(retained, bot.ConfirmedPostSigintDeferral)
-            delivered: list[int] = []
-
-            def delivered_handler(signum: int, _frame: object | None) -> None:
-                delivered.append(signum)
-
-            retained.previous_handler = delivered_handler
-            retained.handle(signal.SIGINT, None)
-            monkeypatch.setattr(
-                bot,
-                "fsync_parent_dir",
-                marker_recovery_fsync,
-            )
-
-            assert bot.durable_remote_write_safety_barrier_exists() is True
-            assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
-            assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
-            assert signal.getsignal(signal.SIGINT) is delivered_handler
-            assert delivered == [signal.SIGINT]
     finally:
         signal.signal(signal.SIGINT, original_signal_handler)
 
@@ -633,34 +653,37 @@ def test_changed_pending_receipt_bytes_fail_closed_before_other_writes(
     actual_create_post = bot.create_post
     prior_handler = signal.getsignal(signal.SIGINT)
     invoke, receipt_path = _configure_confirmed_lane(lane, tmp_path, monkeypatch)
-    original_fsync_parent_dir = bot.fsync_parent_dir
+    original_exchange = journal._rename_exchange
     changed = False
 
-    def corrupt_after_replace(path: Path, *, strict: bool = False) -> None:
+    def corrupt_after_exchange(
+        directory_fd: int,
+        first: str,
+        second: str,
+    ) -> None:
         nonlocal changed
-        resolved = Path(path)
-        if resolved == receipt_path and resolved.exists() and not changed:
-            current = json.loads(resolved.read_text(encoding="utf-8"))
+        original_exchange(directory_fd, first, second)
+        if first == receipt_path.name and receipt_path.exists() and not changed:
+            current = json.loads(receipt_path.read_text(encoding="utf-8"))
             if current.get("receipt_type") == "confirmed_pending_schedule":
                 current["post_id"] = "999999"
-                resolved.write_text(
+                receipt_path.write_text(
                     json.dumps(current, indent=2, sort_keys=True) + "\n",
                     encoding="utf-8",
                 )
                 changed = True
-                raise OSError("injected changed pending receipt after replace")
-        original_fsync_parent_dir(path, strict=strict)
 
-    monkeypatch.setattr(bot, "fsync_parent_dir", corrupt_after_replace)
+    monkeypatch.setattr(journal, "_rename_exchange", corrupt_after_exchange)
     try:
         with pytest.raises(bot.ConfirmedPendingScheduleDurabilityUncertain):
             invoke()
         assert changed is True
         assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
-        marker = json.loads(
-            bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8")
-        )
-        assert "pending_schedule_receipt_identity" in marker["failure_components"]
+        # The still-confirmed transport journal and surviving exchange staging
+        # entry are already restart-safe barriers; no weaker legacy marker is
+        # needed for this identity-bound transition failure.
+        assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+        assert bot.durable_remote_write_safety_barrier_exists() is True
         _actual_conversational_create_is_blocked(
             monkeypatch,
             actual_create_post,
@@ -679,23 +702,25 @@ def test_semantically_identical_noncanonical_pending_bytes_fail_closed(
     actual_create_post = bot.create_post
     prior_handler = signal.getsignal(signal.SIGINT)
     invoke, receipt_path = _configure_confirmed_lane(lane, tmp_path, monkeypatch)
-    original_fsync_parent_dir = bot.fsync_parent_dir
+    original_exchange = journal._rename_exchange
     reformatted: list[dict] = []
 
-    def reformat_after_replace(path: Path, *, strict: bool = False) -> None:
-        resolved = Path(path)
-        if resolved == receipt_path and resolved.exists() and not reformatted:
-            current = json.loads(resolved.read_text(encoding="utf-8"))
+    def reformat_after_exchange(
+        directory_fd: int,
+        first: str,
+        second: str,
+    ) -> None:
+        original_exchange(directory_fd, first, second)
+        if first == receipt_path.name and receipt_path.exists() and not reformatted:
+            current = json.loads(receipt_path.read_text(encoding="utf-8"))
             if current.get("receipt_type") == "confirmed_pending_schedule":
                 reformatted.append(current)
-                resolved.write_text(
+                receipt_path.write_text(
                     json.dumps(current, separators=(",", ":")) + "\n",
                     encoding="utf-8",
                 )
-                raise OSError("injected noncanonical bytes after replace")
-        original_fsync_parent_dir(path, strict=strict)
 
-    monkeypatch.setattr(bot, "fsync_parent_dir", reformat_after_replace)
+    monkeypatch.setattr(journal, "_rename_exchange", reformat_after_exchange)
     try:
         with pytest.raises(bot.ConfirmedPendingScheduleDurabilityUncertain):
             invoke()
@@ -714,43 +739,39 @@ def test_semantically_identical_noncanonical_pending_bytes_fail_closed(
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
-def test_pending_bytes_changed_between_refsync_and_second_read_fail_closed(
+def test_pending_bytes_changed_before_exchange_snapshot_fail_closed(
     lane: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The post-fsync exact-byte reread must detect a concurrent byte change."""
+    """The exchange's post-fsync stable snapshot detects a byte change."""
     actual_create_post = bot.create_post
     prior_handler = signal.getsignal(signal.SIGINT)
     invoke, receipt_path = _configure_confirmed_lane(lane, tmp_path, monkeypatch)
-    original_fsync_parent_dir = bot.fsync_parent_dir
-    pending_fsync_calls = 0
+    original_read_stable = journal._read_stable_regular
+    pending_snapshot_calls = 0
     rewritten: list[dict] = []
 
-    def mutate_after_recovery_fsync(path: Path, *, strict: bool = False) -> None:
-        nonlocal pending_fsync_calls
+    def mutate_before_current_snapshot(path: Path, *args: object, **kwargs: object):
+        nonlocal pending_snapshot_calls
         resolved = Path(path)
         if resolved == receipt_path and resolved.exists():
             current = json.loads(resolved.read_text(encoding="utf-8"))
             if current.get("receipt_type") == "confirmed_pending_schedule":
-                pending_fsync_calls += 1
-                if pending_fsync_calls == 1:
-                    raise OSError("injected initial pending parent-fsync failure")
-                if pending_fsync_calls == 2:
-                    original_fsync_parent_dir(path, strict=strict)
+                pending_snapshot_calls += 1
+                if pending_snapshot_calls == 1:
                     rewritten.append(current)
                     resolved.write_text(
                         json.dumps(current, separators=(",", ":")) + "\n",
                         encoding="utf-8",
                     )
-                    return
-        original_fsync_parent_dir(path, strict=strict)
+        return original_read_stable(path, *args, **kwargs)
 
-    monkeypatch.setattr(bot, "fsync_parent_dir", mutate_after_recovery_fsync)
+    monkeypatch.setattr(journal, "_read_stable_regular", mutate_before_current_snapshot)
     try:
         with pytest.raises(bot.ConfirmedPendingScheduleDurabilityUncertain):
             invoke()
-        assert pending_fsync_calls == 2
+        assert pending_snapshot_calls == 1
         assert rewritten
         assert json.loads(receipt_path.read_text(encoding="utf-8")) == rewritten[0]
         assert receipt_path.read_bytes() != bot.canonical_atomic_json_bytes(
@@ -776,11 +797,12 @@ def test_pending_schedule_receipt_blocks_actual_conversational_create_preflight(
     assert _load_lane_receipt(lane) == ("pending_schedule", pending)
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
     assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
-    # Scheduler-level ambiguity detection must remain false so the owning lane
-    # can reach local-only reconciliation; every X-create preflight still
-    # treats the pending receipt as a cross-lane barrier.
+    # The confirmed transport journal is itself a scheduler-level barrier.
+    # Production performs its narrow local-only confirmed-transaction
+    # reconciliation before consulting this global barrier; every X-create
+    # preflight must remain blocked in the meantime.
     assert bot.unresolved_main_post_attempt_is_blocking() is False
-    assert bot.ambiguous_remote_post_is_blocking() is False
+    assert bot.ambiguous_remote_post_is_blocking() is True
 
     _actual_conversational_create_is_blocked(monkeypatch, actual_create_post)
     assert _load_lane_receipt(lane) == ("pending_schedule", pending)
@@ -2206,3 +2228,92 @@ def test_fresh_process_marker_disappearance_blocks_multiple_real_daemon_ticks(
     assert bot._AMBIGUOUS_REMOTE_POST_SEEN is True
     assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
     assert remote_actions == []
+
+
+def test_unproved_blockers_never_release_retained_sigint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unknown/unsafe state blocks writes without masquerading as durability."""
+
+    releases: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "release_retained_sigint_deferral_after_durable_barrier",
+        lambda: releases.append("released"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "durable_remote_write_safety_marker_exists",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        bot,
+        "remote_write_transport_journal_paths",
+        lambda: (Path("unavailable.transport.json"),),
+    )
+    monkeypatch.setattr(
+        bot,
+        "transport_journal_has_valid_restart_barrier",
+        lambda _path: False,
+    )
+    monkeypatch.setattr(
+        bot,
+        "media_upload_has_valid_restart_barrier",
+        lambda _path: False,
+    )
+    # These conservative predicates may all be true for an inspection error;
+    # none is accepted by the durability acknowledgement path.
+    monkeypatch.setattr(
+        bot,
+        "remote_write_transport_journal_is_blocking",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        bot,
+        "remote_media_upload_receipt_is_blocking",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        bot,
+        "remote_receipt_retirement_is_blocking",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        context_formatter.HistoricalContextReplyStore,
+        "_load_receipt_safely",
+        lambda _self: (_ for _ in ()).throw(
+            RuntimeError("unsafe historical receipt namespace")
+        ),
+    )
+    monkeypatch.setattr(bot, "load_regular_post_receipt", lambda: ("invalid", None))
+    monkeypatch.setattr(bot, "load_meme_post_receipt", lambda: ("invalid", None))
+    monkeypatch.setattr(bot, "load_confirmed_reply_receipt", lambda: ("invalid", None))
+    assert bot.durable_remote_write_safety_barrier_exists() is False
+    assert releases == []
+
+
+def test_strict_transaction_object_releases_retained_sigint_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A strict journal/fence snapshot remains sufficient restart authority."""
+
+    releases: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "release_retained_sigint_deferral_after_durable_barrier",
+        lambda: releases.append("released"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "durable_remote_write_safety_marker_exists",
+        lambda: False,
+    )
+    journal_paths = (Path("valid.transport.json"), Path("absent.transport.json"))
+    monkeypatch.setattr(bot, "remote_write_transport_journal_paths", lambda: journal_paths)
+    monkeypatch.setattr(
+        bot,
+        "transport_journal_has_valid_restart_barrier",
+        lambda path: path == journal_paths[0],
+    )
+    assert bot.durable_remote_write_safety_barrier_exists() is True
+    assert releases == ["released"]

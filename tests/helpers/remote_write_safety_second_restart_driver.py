@@ -294,6 +294,20 @@ def exercise_direct_preflights(
     image = state_directory / "synthetic-image.jpg"
     image.write_bytes(b"offline synthetic image")
 
+    def clear_untransmitted_fixture_barriers(*paths: Path) -> None:
+        """Retire only barriers whose local sentinel proves no request left."""
+
+        for path in paths:
+            path.unlink(missing_ok=True)
+            descriptor = os.open(
+                state_directory,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+            )
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+
     checks: tuple[tuple[str, Callable[[], object]], ...] = (
         ("shared_barrier", bot.block_if_ambiguous_remote_post),
         (
@@ -323,10 +337,6 @@ def exercise_direct_preflights(
             lambda: bot.create_post("offline synthetic post"),
         ),
         (
-            "media_upload",
-            lambda: bot.upload_media(str(image), lane="quote_image"),
-        ),
-        (
             "provider_request",
             lambda: bot.xai_structured_reply_call(
                 stage="literal_second_restart",
@@ -343,19 +353,16 @@ def exercise_direct_preflights(
                 media_context=None,
             ),
         ),
+        (
+            "media_upload",
+            lambda: bot.upload_media(str(image), lane="quote_image"),
+        ),
     )
     results: dict[str, str] = {}
-    for label, check in checks:
-        try:
-            check()
-        except bot.AmbiguousRemotePostOutcome:
-            results[label] = "blocked"
-        except LocalTransportBoundary:
-            results[label] = "local_transport_reached"
-        except BaseException as exc:
-            results[label] = f"unexpected:{type(exc).__name__}"
-        else:
-            results[label] = "returned"
+    # Exercise the clean receipt-bound create before the media transport probe.
+    # The latter intentionally leaves a durable ambiguous media receipt when
+    # the local transport sentinel aborts, and that barrier must not make this
+    # independent positive control order-dependent.
     if include_receipt_bound_control:
         receipt = {
             "schema_version": 1,
@@ -379,6 +386,10 @@ def exercise_direct_preflights(
             )
         except LocalTransportBoundary:
             results["receipt_bound_create_post"] = "local_transport_reached"
+            clear_untransmitted_fixture_barriers(
+                state_directory / "remote_write_transport_journal.json",
+                state_directory / "remote_write_transport_fence.json",
+            )
         except BaseException as exc:
             results["receipt_bound_create_post"] = (
                 f"unexpected:{type(exc).__name__}"
@@ -389,6 +400,22 @@ def exercise_direct_preflights(
             bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.unlink(
                 missing_ok=True
             )
+    for label, check in checks:
+        try:
+            check()
+        except bot.AmbiguousRemotePostOutcome:
+            results[label] = "blocked"
+        except LocalTransportBoundary:
+            results[label] = "local_transport_reached"
+            if label == "media_upload" and include_receipt_bound_control:
+                clear_untransmitted_fixture_barriers(
+                    Path(bot.MEDIA_UPLOAD_RECEIPT_FILE),
+                    Path(str(bot.MEDIA_UPLOAD_RECEIPT_FILE) + ".fence.json"),
+                )
+        except BaseException as exc:
+            results[label] = f"unexpected:{type(exc).__name__}"
+        else:
+            results[label] = "returned"
     return results, transport_calls
 
 

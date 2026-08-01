@@ -36,7 +36,21 @@
     "why_code_reviews_continue_to_find_major_problems.md",
     "diagnosis_measurements.json",
     "tools/strict_json.py",
-    "independent_review_blocker_reproductions.json"
+    "independent_review_blocker_reproductions.json",
+    "remote_write_transport_journal.py",
+    "remote_media_upload_receipt.py",
+    "exact_receipt_retirement.py",
+    "transaction_mutation_authority.py",
+    "ir_40ab83e_cross_lane_boundary_matrix.json",
+    "ir_40ab83e_media_upload_boundary_matrix.json",
+    "tests/test_remote_write_transport_journal.py",
+    "tests/test_remote_media_upload_receipt.py",
+    "tests/test_media_upload_transaction_integration.py",
+    "tests/test_exact_receipt_retirement.py",
+    "tests/test_source_receipt_retirement_integration.py",
+    "tests/test_confirmed_source_lineage.py",
+    "tests/test_transaction_mutation_authority.py",
+    "tests/test_ir_40ab83e_cross_lane_transport_boundary.py"
   ],
   "generated_artifact_classifications": [
     {
@@ -887,10 +901,10 @@
       "failure_if_violated": "A hard process death after X accepts a post but before the first confirmed receipt can duplicate the post, or a later recovery can reconstruct different local cycle state from the state that followed the confirmed post.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The regular-lane state machine writes a durable sending receipt before transmission and atomically consumes it into attempting state. Every remote preflight also requires the exact read-only protocol activation sentinel; absence, malformed bytes, unsafe metadata or inspection failure remain a process-independent barrier. New ambiguity recording publishes and synchronises the successor first, so hard exit before legacy-link creation leaves the authoritative barrier. The running daemon refuses legacy-only migration. A pre-protocol installation therefore remains blocked even if its legacy marker disappears and the observing process dies; only stopped, lock-bound reconciliation followed by explicit clean activation may open it. A valid remote response is promoted to a confirmed pending-schedule receipt before fallible schedule work. Marker acknowledgement uses no-follow ordinary-file inspection and stable device, inode, type and exact bytes; if the legacy name disappears later on an activated installation, the successor survives abrupt process loss and is discovered by the next process. The daemon never removes the successor. Supported offline reconciliation rejects split marker identities, unsafe lexical paths and unowned archive or receipt collisions; it binds receipt inode, mode and bytes, commits exact archive and receipt under the process-lifetime locks, removes the legacy marker first and retires the successor only as its final synchronised namespace transition. Reconciliation derives exact schedules from the pre-send plan and never repeats the X create. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017. Interrupted reconciliation states fail closed, but the command does not automatically resume every safe partial archive state.",
+      "status_rationale": "The regular lane writes a strict, no-follow durable source receipt and revalidates its identity and bytes while publishing a payload/source/inode-bound journal and immutable fence. The final one-shot transport authority revalidates and consumes the journal/fence pair immediately before the exact POST /2/tweets transport. Within the cooperative single-instance, same-state-owner protocol, supported writers of reserved transaction names hold the same instance lock and serialize destructive transaction mutations within the owning process. A mutation already visible at a documented revalidation boundary refuses transport, while source loss after journal/fence publication leaves an independent durable restart barrier. Concurrent same-UID mutation inside a validation-to-pathname-syscall interval, or mutation of the state directory outside the lock protocol, is outside this guarantee. Malformed JSON, duplicate names, non-finite values and unsafe types fail closed. A valid response confirms the journal before confirmed-source lineage permits promotion and later history, schedule or retirement changes. Retirement validates the identity presented at every observed phase, is crash-visible and verifier-gated by the process-lifetime instance lock, and relies on cooperative exclusive namespace ownership for its final pathname unlink. Media upload uses a separate exact receipt/fence and can hand off only beneath an already prepared main-post journal/fence. The v2 protocol activation sentinel inventories these additional barriers and treats its v1 namespace as forbidden legacy state. Interrupted exchange staging and offline reconciliation states remain fail closed, but not every exact safe staging/archive state is automatically resumed.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests use hard process exits at transaction and receipt-retirement boundaries. Literal interpreters prove a newly created successor survives hard exit before the legacy link. A separate no-receipt migration regression starts with a legacy-only pre-protocol state, removes its marker, hard-exits the observing process and proves the next literal interpreter remains blocked solely because clean protocol activation has never occurred. Offline activation refuses the legacy marker, then succeeds only after exact stopped reconciliation and allows a clean control process. The original two-process test also proves a successor blocks after legacy-name loss. Reconciler tests cover split-inode pairs, same-inode collision ownership, lexical symlink/parent-traversal rejection, receipt temporary/final inode, mode and byte binding, and crash states which preserve a barrier. Existing tests retain exact cycle-reset, schedule, conservative-response, restart and idempotent-reconciliation coverage. No duplicate-object-name receipt regression exists, and automatic resumption of every safe partial reconciliation state is not implemented, so verification remains partial."
+        "rationale": "Tests use hard process exits at transaction, final-authority and receipt-retirement boundaries; delete or replace the source, journal and fence in fresh processes; reject duplicate/nonfinite/noncanonical receipt JSON and unsafe namespace types; and exercise same-byte post-bind ABA, verifier-gated mutation and confirmed-source lineage before protected state changes. Literal interpreters retain the successor-first and protocol-migration proofs, while media tests require a durable upload barrier beneath the prepared main-post transaction. Strict durable-proof tests distinguish an exact transaction object which may release retained SIGINT from a merely conservative inspection blocker which may not. Exact exchange staging and safe partial offline reconciliation remain fail closed but are not automatically completed, so verification remains partial."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -908,13 +922,31 @@
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_production_consistency_incident.py",
         "tests/test_historical_context_reply.py",
-        "tests/test_x_write_outcome_conservatism.py"
+        "tests/test_x_write_outcome_conservatism.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py",
+        "exact_receipt_retirement.py",
+        "transaction_mutation_authority.py",
+        "ir_40ab83e_cross_lane_boundary_matrix.json",
+        "ir_40ab83e_media_upload_boundary_matrix.json",
+        "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+        "tests/test_remote_write_transport_journal.py",
+        "tests/test_remote_media_upload_receipt.py",
+        "tests/test_media_upload_transaction_integration.py",
+        "tests/test_exact_receipt_retirement.py",
+        "tests/test_source_receipt_retirement_integration.py",
+        "tests/test_confirmed_source_lineage.py",
+        "tests/test_transaction_mutation_authority.py"
       ],
       "enforcement": {
         "files": [
           "mrsMThatcher2.py",
           "historical_context_formatter.py",
           "remote_write_safety_protocol.py",
+          "remote_write_transport_journal.py",
+          "remote_media_upload_receipt.py",
+          "exact_receipt_retirement.py",
+          "transaction_mutation_authority.py",
           "tools/activate_remote_write_safety_protocol.py",
           "tools/reconcile_remote_write_safety_marker.py"
         ],
@@ -954,7 +986,22 @@
           "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost",
-          "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry"
+          "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_peer_path_mutation_at_final_authority_remains_restart_safe",
+          "tests/test_remote_write_transport_journal.py::test_journal_survives_source_receipt_deletion_and_blocks_restart",
+          "tests/test_remote_write_transport_journal.py::test_byte_identical_journal_replacement_is_not_the_authorised_generation",
+          "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "tests/test_remote_media_upload_receipt.py::test_strict_json_rejects_duplicate_nonfinite_and_noncanonical_documents",
+          "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume",
+          "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resumes_every_production_lane_crash_boundary",
+          "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
+          "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "tests/test_pending_receipt_directory_fsync.py::test_unsafe_receipt_namespace_is_never_absent_or_overwritten",
+          "tests/test_pending_receipt_directory_fsync.py::test_duplicate_receipt_object_names_fail_closed",
+          "tests/test_pending_receipt_directory_fsync.py::test_final_retirement_directory_fsync_failure_latches_current_daemon",
+          "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
         ],
         "validations": [
           {
@@ -994,14 +1041,23 @@
             "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
         "tests/test_remote_write_safety_marker_reconciliation.py",
           "tests/test_production_consistency_incident.py::test_confirmed_main_receipt_replay_has_exact_decoupling_order_and_no_x_repost",
-          "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry"
+          "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "tests/test_remote_write_transport_journal.py::test_journal_survives_source_receipt_deletion_and_blocks_restart",
+          "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume",
+          "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resumes_every_production_lane_crash_boundary",
+          "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
+          "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
         ],
         "purpose": "Exercise durable pre-send intent, hard-death ambiguity retention, exact bound schedule after-state, pending-schedule recovery, conservative post-transmission status handling and at-most-once restart behavior."
           }
         ]
       },
       "known_gaps": [
-        "The shared receipt decoder accepts duplicate JSON object names; complete fail-closed receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017.",
+        "A hard exit around an identity-bound RENAME_EXCHANGE can leave an exact staging barrier which requires deterministic operator inspection; automatic resumption of every legitimate journal/source transition is not yet implemented.",
         "Interrupted offline reconciliation remains fail-closed, but the command does not automatically resume every safe partial archive state; an operator may need to inspect and rerun recovery."
       ],
       "rationale": "Regular-post at-most-once transaction and exact replay is explicit because a crash after remote confirmation can duplicate a post or reconstruct different local cycle state from the state that followed the confirmed post.",
@@ -1010,25 +1066,40 @@
         "status": "direct",
         "artifacts": [
           "regular_post_receipt.json",
+          ".regular_post_receipt.json.retirement.guard.json",
+          ".regular_post_receipt.json.retirement.commit.json",
+          ".regular_post_receipt.json.retirement.cleanup",
+          ".regular_post_receipt.json.retirement.guard.json.staging",
+          ".regular_post_receipt.json.retirement.commit.json.staging",
+          "remote_write_transport_journal.json",
+          "remote_write_transport_fence.json",
+          ".remote_write_transport_journal.json.transition.*",
+          ".remote_write_transport_journal.json.retirement-guard.*",
+          "remote_media_upload_receipt.json",
+          "remote_media_upload_receipt.json.fence.json",
+          ".remote-media-upload.transition.*",
+          ".remote-media-upload.main-post-guard.*",
           "lines_used.json",
           "images_used.json",
           "bot_state.json",
         "ambiguous_post_outcome.json",
         "ambiguous_post_outcome.restart_barrier.json",
+        ".mrs_remote_write_safety_protocol_v2",
+        ".mrs_remote_write_safety_protocol_v2.activation_audit.json",
         ".mrs_remote_write_safety_protocol_v1",
         ".mrs_remote_write_safety_protocol_v1.activation_audit.json",
         "historical_context_reply_receipt.json",
         "mrsMThatcher.lock"
       ],
-      "explanation": "The regular receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; the histories and bot state represent its exact protected local after-state. The exact activation sentinel and companion audit are the durable migration-generation boundary: absence, invalidity or a broken hash/project relationship blocks every restart. On activated installations, the legacy ambiguity marker and its same-inode restart successor supply incident-specific restart-persistent barriers, while the process-lifetime instance lock excludes supported online retirement and unsafe activation."
+      "explanation": "The source receipt, transport journal/fence, media receipt/fence and every transition or exact-retirement auxiliary are independently inspected restart barriers; histories and bot state are the protected local after-state. The v2 sentinel/audit pair is the current permission boundary. Both v1 names remain consumed only as forbidden legacy namespace: their presence beside or instead of v2 blocks until the stopped v1-to-v2 migration durably disables the old runtime. The ambiguity pair supplies incident-specific barriers, while the process-lifetime instance lock and verifier-bound mutation authority exclude supported online retirement."
       },
       "preconditions": [
         "Exactly one healthy process holds the instance lock and no unresolved conflicting regular, meme, conversational-reply or historical-context receipt exists before preparation.",
-        "The exact .mrs_remote_write_safety_protocol_v1 sentinel and its hash-bound companion activation audit were created only by the lock-bound clean-state activator after the user service, wrapper and Python child were all stopped, every active marker and unresolved receipt was absent, and an external canonical clean-state/reconciliation attestation bound the project identity and exact activator CLI hash. New-install initialisation deliberately leaves remote writes disabled because local namespace absence cannot prove that state was never lost. Runtime inspection cross-revalidates both pair identities after both stable no-follow reads. The activator validates the external bindings but does not claim to prove the operator assertion itself.",
+        "The exact .mrs_remote_write_safety_protocol_v2 sentinel and its hash-bound companion activation audit were created only by the lock-bound clean-state activator after the user service, wrapper and Python child were all stopped, every active marker, source receipt, transport journal/fence, media receipt/fence and retirement auxiliary was absent, and an external canonical clean-state/reconciliation attestation bound the project identity and exact activator CLI hash. New-install initialisation deliberately leaves remote writes disabled because local namespace absence cannot prove that state was never lost. Runtime inspection cross-revalidates both pair identities after both stable no-follow reads. The activator validates the external bindings but does not claim to prove the operator assertion itself.",
         "Protocol inactivity is a cross-process permission denial, not incident-specific durable acknowledgement; it cannot by itself release a retained confirmed-post signal guard.",
         "After activation, no legacy runtime which ignores the protocol sentinel may be started against the same state directory; rollback must preserve the fail-closed migration boundary.",
         "Supported mutation never removes either remote-write safety pathname while the daemon is alive; offline retirement requires exact-hash reconciliation and exclusive acquisition of the same instance lock, removes the legacy name first and removes the restart successor last.",
-        "A non-cooperating actor deleting both barrier names or the state directory outside the lock-bound protocol is outside this local transaction guarantee; loss of the legacy name alone is covered.",
+        "Enumerated one-path fault coverage applies when mutation is complete before the next documented revalidation boundary or after an independent barrier is durable. A non-cooperating same-UID actor mutating a reserved pathname inside a validation-to-pathname-syscall interval, or mutating the state directory itself, is outside this local guarantee; separately enumerated loss of the legacy ambiguity name alone remains covered.",
         "Any legacy schema-v1 receipt is inspected or reconciled before relying on exact schema-v2 after-state semantics."
       ],
       "failure_mode": {
@@ -1044,7 +1115,7 @@
         "checks": [
           "Before activation, inspect any deployed regular_post_receipt.json; sending, attempting or confirmed pending-schedule state must be reconciled without another X create.",
           "Block deployment on invalid state and manually reconcile any schema-v1 receipt before relying on v2 exact replay.",
-          "Verify the deployed protocol module, activator and reconciler hashes match the committed files; require the user service, wrapper and Python child all stopped; bind the activator to the preflight project path/device/inode and an external canonical clean-state/reconciliation attestation with an independently recorded SHA-256 and exact activator CLI hash; refuse activation until both ambiguity names and every transaction receipt are absent or exactly reconciled; then create and re-read the exact .mrs_remote_write_safety_protocol_v1 sentinel/audit pair under the established locks before starting only the compatible runtime.",
+          "Verify the deployed protocol module, activator and reconciler hashes match the committed files; require the user service, wrapper and Python child all stopped; bind the activator to the preflight project path/device/inode and an external canonical clean-state/reconciliation attestation with an independently recorded SHA-256 and exact activator CLI hash; refuse activation until both ambiguity names and every source receipt, transport journal/fence, media receipt/fence and retirement auxiliary are absent or exactly reconciled; then create and re-read the exact .mrs_remote_write_safety_protocol_v2 sentinel/audit pair under the established locks before starting only the compatible runtime.",
           "Inspect ambiguous_post_outcome.json and mrsMThatcher.lock without mutation and require any retirement plan to use the exact-hash offline protocol only after the daemon has exited."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
@@ -1084,12 +1155,22 @@
         "type": "test",
         "reference": "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry",
         "claim": "A generic post-transmission 4xx preserves the exact attempt and blocks automatic retry."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_unit_helpers.py::test_stale_regular_receipt_cannot_erase_newer_cycle_histories",
+        "claim": "Schema-v2/v3 replay is monotonic when local histories, main identity and schedules already represent a newer regular post."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_unit_helpers.py::test_main_sending_to_attempting_rejects_same_bytes_new_inode_race",
+        "claim": "The sending-to-attempting lifecycle transition rejects a byte-identical replacement generation and leaves a restart-visible barrier."
       }
     ],
     "last_verified_commit": {
       "status": "unknown",
       "value": null,
-        "explanation": "The debc079 evidence cut-off repairs the fresh-process latch/uncertainty defect recorded as DEF-0034 within the observing process, but independent review rejected it for the second-restart durable-barrier defect recorded as DEF-0035. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
+        "explanation": "The cutoff-bound registry does not self-attest the follow-on transport-authority remediation candidate; its exact identity and verification result remain supplied only by the external frozen-candidate gate."
     },
     "last_verified_tree": {
       "status": "unknown",
@@ -1098,7 +1179,7 @@
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017. At-most-once safety deliberately costs availability: a sending, attempting, confirmed pending-schedule, or otherwise uncertain record blocks unrelated remote writes until local or manual reconciliation; that fail-closed availability cost is intended behaviour, not accepted corruption risk."
+        "explanation": "No duplicate-write risk is accepted. At-most-once safety deliberately costs availability: an uncertain source, journal, fence, media object, transition staging entry or offline reconciliation record blocks unrelated remote writes until exact local or manual reconciliation. Automatic completion of every legitimate partial state is not claimed."
       }
     },
     {
@@ -1109,10 +1190,10 @@
       "failure_if_violated": "A hard process death after X accepts a meme but before the first confirmed receipt can duplicate it, lose its future schedule, or corrupt ordering between meme and regular main posts.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The meme-lane state machine writes its durable sending receipt before transmission and atomically consumes it into attempting state. Every remote preflight also requires the exact read-only protocol activation sentinel; absence, malformed bytes, unsafe metadata or inspection failure remain a process-independent barrier. New ambiguity recording publishes and synchronises the successor first, so hard exit before legacy-link creation leaves the authoritative barrier. The running daemon refuses legacy-only migration. A pre-protocol installation therefore remains blocked even if its legacy marker disappears and the observing process dies; only stopped, lock-bound reconciliation followed by explicit clean activation may open it. A valid remote response is promoted to confirmed pending-schedule state before fallible schedule work. Marker acknowledgement uses no-follow ordinary-file inspection and stable device, inode, type and exact bytes; if the legacy name disappears later on an activated installation, the successor survives abrupt process loss and is discovered by the next process. The daemon never removes the successor. Supported offline reconciliation rejects split marker identities, unsafe lexical paths and unowned archive or receipt collisions; it binds receipt inode, mode and bytes, commits exact archive and receipt under the process-lifetime locks, removes the legacy marker first and retires the successor only as its final synchronised namespace transition. The next-local-date schedule retains its independent same-date guard. The cross-cutting receipt decoder still accepts duplicate JSON object names, so the contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017. Interrupted reconciliation states fail closed, but the command does not automatically resume every safe partial archive state.",
+      "status_rationale": "The meme lane writes a strict, no-follow durable source receipt and revalidates its identity and bytes while publishing a payload/source/inode-bound journal and immutable fence. The final one-shot transport authority revalidates and consumes the journal/fence pair immediately before the exact POST /2/tweets transport. Within the cooperative single-instance, same-state-owner protocol, supported writers of reserved transaction names hold the same instance lock and serialize destructive transaction mutations within the owning process. A mutation already visible at a documented revalidation boundary refuses transport, while source loss after journal/fence publication leaves an independent durable restart barrier. Concurrent same-UID mutation inside a validation-to-pathname-syscall interval, or mutation of the state directory outside the lock protocol, is outside this guarantee. Malformed JSON, duplicate names, non-finite values and unsafe types fail closed. A valid response confirms the journal before confirmed-source lineage permits promotion and later history, next-local-date schedule or retirement changes. Retirement validates the identity presented at every observed phase, is crash-visible and verifier-gated by the process-lifetime instance lock, and relies on cooperative exclusive namespace ownership for its final pathname unlink. Media upload uses a separate exact receipt/fence, has no ambiguous v1.1 fallback and can hand off only beneath an already prepared meme journal/fence. The v2 protocol activation sentinel inventories these additional barriers and treats its v1 namespace as forbidden legacy state. Interrupted exchange staging and offline reconciliation states remain fail closed, but not every exact safe staging/archive state is automatically resumed.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover hard process exits across all transaction boundaries. Literal interpreters prove a newly created successor survives hard exit before the legacy link. A separate no-receipt migration regression starts with a legacy-only pre-protocol state, removes its marker, hard-exits the observing process and proves the next literal interpreter remains blocked solely because clean protocol activation has never occurred. Offline activation refuses the legacy marker, then succeeds only after exact stopped reconciliation and allows a clean control process. The original two-process test also proves a successor blocks after legacy-name loss. Reconciler tests cover split-inode pairs, same-inode collision ownership, lexical symlink/parent-traversal rejection, receipt temporary/final inode, mode and byte binding, and crash states which preserve a barrier. Existing coverage retains pending-schedule failure and local-only retry, the same-local-date guard, generic-4xx handling and stable restart pause. No duplicate-object-name receipt regression exists, and automatic resumption of every safe partial reconciliation state is not implemented, so verification remains partial."
+        "rationale": "Tests use hard process exits at transaction, media, final-authority and receipt-retirement boundaries; delete or replace the source, journal and fence in fresh processes; reject duplicate/nonfinite/noncanonical receipt JSON and unsafe namespace types; and exercise same-byte post-bind ABA, verifier-gated mutation and confirmed-source lineage before schedule changes. Literal interpreters retain the successor-first and v1-to-v2 protocol-migration proofs, while the media suite proves ambiguous upload never falls back to v1.1. Strict durable-proof tests distinguish an exact transaction object which may release retained SIGINT from a merely conservative inspection blocker which may not. Exact exchange staging and safe partial offline reconciliation remain fail closed but are not automatically completed, so verification remains partial."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -1129,13 +1210,31 @@
         "tools/activate_remote_write_safety_protocol.py",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_historical_context_reply.py",
-        "tests/test_x_write_outcome_conservatism.py"
+        "tests/test_x_write_outcome_conservatism.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py",
+        "exact_receipt_retirement.py",
+        "transaction_mutation_authority.py",
+        "ir_40ab83e_cross_lane_boundary_matrix.json",
+        "ir_40ab83e_media_upload_boundary_matrix.json",
+        "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+        "tests/test_remote_write_transport_journal.py",
+        "tests/test_remote_media_upload_receipt.py",
+        "tests/test_media_upload_transaction_integration.py",
+        "tests/test_exact_receipt_retirement.py",
+        "tests/test_source_receipt_retirement_integration.py",
+        "tests/test_confirmed_source_lineage.py",
+        "tests/test_transaction_mutation_authority.py"
       ],
       "enforcement": {
         "files": [
           "mrsMThatcher2.py",
           "historical_context_formatter.py",
           "remote_write_safety_protocol.py",
+          "remote_write_transport_journal.py",
+          "remote_media_upload_receipt.py",
+          "exact_receipt_retirement.py",
+          "transaction_mutation_authority.py",
           "tools/activate_remote_write_safety_protocol.py",
           "tools/reconcile_remote_write_safety_marker.py"
         ],
@@ -1171,7 +1270,9 @@
           "tests/test_remote_write_safety_second_restart.py::test_offline_activation_refuses_legacy_then_opens_after_reconciliation",
           "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
         "tests/test_remote_write_safety_marker_reconciliation.py",
-        "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry"
+        "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry",
+        "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
+        "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
         ],
         "validations": [
           {
@@ -1207,14 +1308,29 @@
             "tests/test_remote_write_safety_second_restart.py::test_offline_activation_refuses_legacy_then_opens_after_reconciliation",
             "tests/test_followup_fail_safe_hardening.py::test_existing_ambiguity_marker_blocks_each_lane_before_preparation",
         "tests/test_remote_write_safety_marker_reconciliation.py",
-          "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry"
+          "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_peer_path_mutation_at_final_authority_remains_restart_safe",
+          "tests/test_remote_write_transport_journal.py::test_journal_survives_source_receipt_deletion_and_blocks_restart",
+          "tests/test_remote_write_transport_journal.py::test_byte_identical_journal_replacement_is_not_the_authorised_generation",
+          "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "tests/test_remote_media_upload_receipt.py::test_strict_json_rejects_duplicate_nonfinite_and_noncanonical_documents",
+          "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume",
+          "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resumes_every_production_lane_crash_boundary",
+          "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
+          "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "tests/test_pending_receipt_directory_fsync.py::test_unsafe_receipt_namespace_is_never_absent_or_overwritten",
+          "tests/test_pending_receipt_directory_fsync.py::test_duplicate_receipt_object_names_fail_closed",
+          "tests/test_pending_receipt_directory_fsync.py::test_final_retirement_directory_fsync_failure_latches_current_daemon",
+          "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
         ],
         "purpose": "Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay."
           }
         ]
       },
       "known_gaps": [
-        "The shared receipt decoder accepts duplicate JSON object names; complete fail-closed receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017.",
+        "A hard exit around an identity-bound RENAME_EXCHANGE can leave an exact staging barrier which requires deterministic operator inspection; automatic resumption of every legitimate journal/source transition is not yet implemented.",
         "Interrupted offline reconciliation remains fail-closed, but the command does not automatically resume every safe partial archive state; an operator may need to inspect and rerun recovery."
       ],
       "rationale": "Meme-post at-most-once transaction is explicit because a crash or persistence failure can duplicate the meme, lose its future schedule, or corrupt the ordering between meme and regular main posts.",
@@ -1223,23 +1339,38 @@
         "status": "direct",
         "artifacts": [
           "meme_post_receipt.json",
+          ".meme_post_receipt.json.retirement.guard.json",
+          ".meme_post_receipt.json.retirement.commit.json",
+          ".meme_post_receipt.json.retirement.cleanup",
+          ".meme_post_receipt.json.retirement.guard.json.staging",
+          ".meme_post_receipt.json.retirement.commit.json.staging",
+          "remote_write_transport_journal.json",
+          "remote_write_transport_fence.json",
+          ".remote_write_transport_journal.json.transition.*",
+          ".remote_write_transport_journal.json.retirement-guard.*",
+          "remote_media_upload_receipt.json",
+          "remote_media_upload_receipt.json.fence.json",
+          ".remote-media-upload.transition.*",
+          ".remote-media-upload.main-post-guard.*",
           "bot_state.json",
           "ambiguous_post_outcome.json",
           "ambiguous_post_outcome.restart_barrier.json",
+          ".mrs_remote_write_safety_protocol_v2",
+          ".mrs_remote_write_safety_protocol_v2.activation_audit.json",
           ".mrs_remote_write_safety_protocol_v1",
           ".mrs_remote_write_safety_protocol_v1.activation_audit.json",
           "historical_context_reply_receipt.json",
           "mrsMThatcher.lock"
         ],
-        "explanation": "The meme receipt represents pre-send sending/attempting state, confirmed pending-schedule state and the materialised confirmed state; bot state represents confirmed history and the validated next-local-date schedule. The exact activation sentinel and companion audit are the durable migration-generation boundary: absence, invalidity or a broken hash/project relationship blocks every restart. On activated installations, the legacy ambiguity marker and its same-inode restart successor supply incident-specific restart-persistent barriers, while the process-lifetime instance lock excludes supported online retirement and unsafe activation."
+        "explanation": "The source receipt, transport journal/fence, media receipt/fence and every transition or exact-retirement auxiliary are independently inspected restart barriers; bot state is the protected confirmed history and next-local-date schedule. The v2 sentinel/audit pair is the current permission boundary. Both v1 names remain consumed only as forbidden legacy namespace: their presence beside or instead of v2 blocks until the stopped v1-to-v2 migration durably disables the old runtime. The ambiguity pair supplies incident-specific barriers, while the process-lifetime instance lock and verifier-bound mutation authority exclude supported online retirement."
       },
       "preconditions": [
         "Exactly one healthy process holds the instance lock and no unresolved regular, meme, conversational-reply or historical-context receipt exists before preparation.",
-        "The exact .mrs_remote_write_safety_protocol_v1 sentinel and its hash-bound companion activation audit were created only by the lock-bound clean-state activator after the user service, wrapper and Python child were all stopped, every active marker and unresolved receipt was absent, and an external canonical clean-state/reconciliation attestation bound the project identity and exact activator CLI hash. New-install initialisation deliberately leaves remote writes disabled because local namespace absence cannot prove that state was never lost. Runtime inspection cross-revalidates both pair identities after both stable no-follow reads. The activator validates the external bindings but does not claim to prove the operator assertion itself.",
+        "The exact .mrs_remote_write_safety_protocol_v2 sentinel and its hash-bound companion activation audit were created only by the lock-bound clean-state activator after the user service, wrapper and Python child were all stopped, every active marker, source receipt, transport journal/fence, media receipt/fence and retirement auxiliary was absent, and an external canonical clean-state/reconciliation attestation bound the project identity and exact activator CLI hash. New-install initialisation deliberately leaves remote writes disabled because local namespace absence cannot prove that state was never lost. Runtime inspection cross-revalidates both pair identities after both stable no-follow reads. The activator validates the external bindings but does not claim to prove the operator assertion itself.",
         "Protocol inactivity is a cross-process permission denial, not incident-specific durable acknowledgement; it cannot by itself release a retained confirmed-post signal guard.",
         "After activation, no legacy runtime which ignores the protocol sentinel may be started against the same state directory; rollback must preserve the fail-closed migration boundary.",
         "Supported mutation never removes either remote-write safety pathname while the daemon is alive; offline retirement requires exact-hash reconciliation and exclusive acquisition of the same instance lock, removes the legacy name first and removes the restart successor last.",
-        "A non-cooperating actor deleting both barrier names or the state directory outside the lock-bound protocol is outside this local transaction guarantee; loss of the legacy name alone is covered.",
+        "Enumerated one-path fault coverage applies when mutation is complete before the next documented revalidation boundary or after an independent barrier is durable. A non-cooperating same-UID actor mutating a reserved pathname inside a validation-to-pathname-syscall interval, or mutating the state directory itself, is outside this local guarantee; separately enumerated loss of the legacy ambiguity name alone remains covered.",
         "The future meme schedule is receipt-compatible and derived from confirmed time."
       ],
       "failure_mode": {
@@ -1255,7 +1386,7 @@
         "checks": [
         "Before activation, inspect any deployed meme_post_receipt.json; sending, attempting or confirmed pending-schedule state must be reconciled without another X create.",
         "Reject invalid, simultaneous, non-future or same-local-date post-confirmation meme schedule state.",
-        "Verify the deployed protocol module, activator and reconciler hashes match the committed files; require the user service, wrapper and Python child all stopped; bind the activator to the preflight project path/device/inode and an external canonical clean-state/reconciliation attestation with an independently recorded SHA-256 and exact activator CLI hash; refuse activation until both ambiguity names and every transaction receipt are absent or exactly reconciled; then create and re-read the exact .mrs_remote_write_safety_protocol_v1 sentinel/audit pair under the established locks before starting only the compatible runtime.",
+        "Verify the deployed protocol module, activator and reconciler hashes match the committed files; require the user service, wrapper and Python child all stopped; bind the activator to the preflight project path/device/inode and an external canonical clean-state/reconciliation attestation with an independently recorded SHA-256 and exact activator CLI hash; refuse activation until both ambiguity names and every source receipt, transport journal/fence, media receipt/fence and retirement auxiliary are absent or exactly reconciled; then create and re-read the exact .mrs_remote_write_safety_protocol_v2 sentinel/audit pair under the established locks before starting only the compatible runtime.",
         "Inspect ambiguous_post_outcome.json and mrsMThatcher.lock without mutation and require any retirement plan to use the exact-hash offline protocol only after the daemon has exited."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
@@ -1300,12 +1431,22 @@
         "type": "test",
         "reference": "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry",
         "claim": "A generic post-transmission 4xx retains the meme attempt and prevents automatic retry."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_unit_helpers.py::test_stale_meme_receipt_replay_preserves_newer_daily_guard_and_schedule",
+        "claim": "A stale confirmed meme receipt cannot regress a newer main identity, local-date guard, future schedule or recent-post ordering."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_unit_helpers.py::test_main_sending_to_attempting_rejects_same_bytes_new_inode_race",
+        "claim": "The meme sending-to-attempting transition rejects a byte-identical replacement generation and leaves a restart-visible barrier."
       }
     ],
     "last_verified_commit": {
       "status": "unknown",
       "value": null,
-        "explanation": "The debc079 evidence cut-off repairs the fresh-process latch/uncertainty defect recorded as DEF-0034 within the observing process, but independent review rejected it for the second-restart durable-barrier defect recorded as DEF-0035. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
+        "explanation": "The cutoff-bound registry does not self-attest the follow-on transport-authority remediation candidate; its exact identity and verification result remain supplied only by the external frozen-candidate gate."
     },
     "last_verified_tree": {
       "status": "unknown",
@@ -1314,7 +1455,7 @@
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017. At-most-once safety deliberately costs availability: a sending, attempting, confirmed pending-schedule, or otherwise uncertain record blocks unrelated remote writes until local or manual reconciliation; that fail-closed availability cost is intended behaviour, not accepted corruption risk."
+        "explanation": "No duplicate-write risk is accepted. At-most-once safety deliberately costs availability: an uncertain source, journal, fence, media object, transition staging entry or offline reconciliation record blocks unrelated remote writes until exact local or manual reconciliation. Automatic completion of every legitimate partial state is not claimed."
       }
     },
     {
@@ -1325,10 +1466,10 @@
       "failure_if_violated": "A crash near the reply request can duplicate a reply, apply confirmation-time accounting incorrectly, or advance pagination beyond an unreconciled target.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The versioned reply receipt is written before the request, promoted after confirmation, semantically validated, and reconciled before new remote writes. The create boundary requires exactly one prepared receipt, rechecks that the conversational receipt is the exact currently durable sending file, and raw or bearer-authenticated POST /2/tweets calls have no public bypass. Every historical-context receipt namespace entry is also a cross-lane barrier. A post-transmission HTTP status is treated as ambiguous unless a separately bound provider contract proves non-success; the sending receipt remains and prevents retry. The shared receipt decoder still accepts duplicate JSON object names, so the complete exact-binding contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.",
+      "status_rationale": "The versioned conversational receipt is created as one strict, no-follow, canonical single-link file before the request. A payload/source/inode-bound journal and immutable fence are re-read and consumed immediately before the exact POST /2/tweets transport. Duplicate names, non-finite values, unsafe namespace types, source replacement and post-bind ABA fail closed. Confirmation binds the remote ID and epoch in the journal before identity-bound promotion of the exact source inode; reconciliation revalidates that lineage before state or receipt retirement changes. Raw and bearer-authenticated write calls have no public bypass, every other lane remains blocked, and every post-transmission status remains ambiguous without a separately bound provider contract. Interrupted exchange staging remains a deliberate fail-closed manual-recovery state, so the contract remains partial rather than claiming automatic completion of every crash point.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover durable pre-send state, exact live-file ownership, rejection of unbound and raw post-create calls, v4 timing semantics, pagination provenance, generic-4xx ambiguity retention, all-receipt global lane blocking, restart replay and idempotent reconciliation. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap."
+        "rationale": "Tests cover strict durable pre-send state, exact live-file ownership, duplicate/nonfinite/noncanonical rejection, unsafe namespace types, source replacement and post-bind ABA, rejection of unbound and raw post-create calls, v4 timing semantics, pagination provenance, generic-4xx ambiguity retention, global lane blocking, confirmed-source replay and verifier-gated retirement. A hard exit can leave an exact duplicate-safe staging barrier which is not yet automatically completed, so verification remains partial."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -1373,7 +1514,7 @@
         ]
       },
       "known_gaps": [
-        "The shared receipt decoder accepts duplicate JSON object names; complete fail-closed conversational-reply receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017."
+        "A hard exit around source-receipt RENAME_EXCHANGE can leave an exact staging barrier which is duplicate-safe but not yet automatically resumed."
       ],
       "rationale": "Conversational-reply lifecycle and ambiguity barrier is explicit because a crash near the reply request can duplicate a reply, apply confirmation-time accounting incorrectly, or advance pagination beyond an unreconciled target.",
       "owner_subsystem": "conversational_reply_transaction",
@@ -1386,6 +1527,8 @@
           "historical_context_reply_receipt.json",
           "ambiguous_post_outcome.json",
           "ambiguous_post_outcome.restart_barrier.json",
+          ".mrs_remote_write_safety_protocol_v2",
+          ".mrs_remote_write_safety_protocol_v2.activation_audit.json",
           ".mrs_remote_write_safety_protocol_v1",
           ".mrs_remote_write_safety_protocol_v1.activation_audit.json",
           "bot_state.json"
@@ -1441,7 +1584,7 @@
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017."
+        "explanation": "No duplicate-write risk is accepted. A hard exit around the identity-bound source-receipt exchange preserves an exact staging barrier, but automatic completion of every legitimate staging state is not claimed; deterministic operator inspection and rerun can remain necessary."
       }
     },
     {
@@ -1452,10 +1595,10 @@
       "failure_if_violated": "An optional context reply can be duplicated or its ambiguous outcome can be hidden by policy disablement, missing packets, or later main-post work.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The context store uses separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips. The shared preflight treats every context receipt namespace entry as a global barrier; only a stable no-follow valid receipt may enter the local reconciler, and one reconciliation-only invocation cannot claim a later item. The create boundary requires the exact durable sending bytes. Receipt retirement atomically exchanges the reconciled receipt with a durable canonical tombstone before removing either entry, so pathname replacement cannot be deleted as the reviewed receipt. Generic post-transmission HTTP errors and observed-receipt disappearance retain ambiguity. The shared receipt decoder still accepts duplicate JSON object names, so the complete fail-closed receipt/history contract remains partial under INV-TXN-RECEIPT-001 and DEF-0017.",
+      "status_rationale": "The context store uses strict separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips. The shared preflight treats every context receipt namespace entry as a global barrier; only a stable no-follow canonical receipt may enter the local reconciler, and one reconciliation-only invocation cannot claim a later item. A payload/source/inode-bound journal and immutable fence are re-read and consumed immediately before the exact POST /2/tweets transport. Confirmation binds the remote ID and epoch in the journal before identity-bound promotion of the exact source inode. Reconciliation verifies confirmed source lineage before history mutation, then uses the shared crash-visible exact retirement protocol. Duplicate names, non-finite values, unsafe types, pathname replacement and post-bind ABA fail closed. Interrupted exchange staging remains duplicate-safe but is not yet automatically resumed, so the contract remains partial.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover restart reconciliation, duplicate prevention, receipt-write failure, symlink and same-byte ABA rejection, identity-bound retirement under pathname replacement, single-item reconciliation-only worker behaviour, observed-receipt disappearance, exact durable ownership, global lane blocking, generic-4xx ambiguity retention, and ambiguity that remains visible across policy and packet failures. No duplicate-object-name receipt regression exists, so verification is conditional on the active INV-TXN-RECEIPT-001 gap."
+        "rationale": "Tests cover strict restart reconciliation, duplicate/nonfinite/noncanonical rejection, receipt-write failure, unsafe namespace types, same-byte and post-bind ABA rejection, confirmed-source lineage, verifier-gated identity-bound retirement, single-item reconciliation-only worker behaviour, observed-receipt disappearance, global lane blocking, generic-4xx ambiguity retention, and ambiguity that remains visible across policy and packet failures. A hard exit can leave an exact duplicate-safe staging barrier which is not yet automatically completed, so verification remains partial."
       },
       "affected_paths": [
         "historical_context_formatter.py",
@@ -1501,7 +1644,7 @@
         ]
       },
       "known_gaps": [
-        "The shared receipt decoder accepts duplicate JSON object names; complete fail-closed historical-context receipt parsing remains tracked by INV-TXN-RECEIPT-001 and DEF-0017."
+        "A hard exit around source-receipt RENAME_EXCHANGE can leave an exact staging barrier which is duplicate-safe but not yet automatically resumed."
       ],
       "rationale": "Historical-context reply at-most-once transaction is explicit because an optional context reply can be duplicated or its ambiguous outcome can be hidden by policy disablement, missing packets, or later main-post work.",
       "owner_subsystem": "historical_context_reply_transaction",
@@ -1516,6 +1659,8 @@
           "confirmed_reply_receipt.json",
           "ambiguous_post_outcome.json",
           "ambiguous_post_outcome.restart_barrier.json",
+          ".mrs_remote_write_safety_protocol_v2",
+          ".mrs_remote_write_safety_protocol_v2.activation_audit.json",
           ".mrs_remote_write_safety_protocol_v1",
           ".mrs_remote_write_safety_protocol_v1.activation_audit.json"
         ],
@@ -1524,7 +1669,7 @@
       "preconditions": [
         "The main post is already durably confirmed before the optional context obligation runs.",
         "Any existing context receipt is reconciled through a stable no-follow ordinary-file identity before gate or policy skips.",
-        "A reconciliation-only worker invocation never claims or transmits another item, and unsupported namespace mutation leaves a canonical tombstone or global incident barrier.",
+        "A reconciliation-only worker invocation never claims or transmits another item, and unsupported namespace mutation observed at a documented validation boundary leaves a canonical tombstone or global incident barrier.",
         "Only the exact currently durable sending receipt may authorise the historical-context X create."
       ],
       "failure_mode": {
@@ -1557,6 +1702,11 @@
         "type": "test",
         "reference": "tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry",
         "claim": "A generic post-transmission 4xx preserves the context sending barrier and prevents automatic retry or terminal misclassification."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_historical_context_reply.py::test_initial_sending_publication_does_not_overwrite_raced_entry",
+        "claim": "Initial historical-context receipt publication uses exclusive creation and preserves a raced regular file or symbolic link without reaching transport."
       }
     ],
     "last_verified_commit": {
@@ -1571,7 +1721,7 @@
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "The shared duplicate-object-name receipt-decoder gap remains unaccepted under INV-TXN-RECEIPT-001 and DEF-0017."
+        "explanation": "No duplicate-write risk is accepted. A hard exit around the identity-bound source-receipt exchange preserves an exact staging barrier, but automatic completion of every legitimate staging state is not claimed; deterministic operator inspection and rerun can remain necessary."
       }
     },
     {
@@ -1777,10 +1927,10 @@
       "failure_if_violated": "A later lane can post while an earlier outcome is unknown, overwrite recovery evidence, retire the only durable barrier before local commit is complete, or interpret a visually ambiguous duplicate-key receipt by last-wins ordering.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "Global pre-write checks require the exact activation sentinel and include both marker namespace entries, either process-local remote-write safety barrier, reply receipts and confirmed pending-schedule main receipts; main receipts are mutually exclusive. Absence, malformed activation bytes, unsafe metadata or inspection failure is a stable fail-closed state in every new process. New incident recording writes and synchronises the successor before creating the legacy alias. The running daemon refuses legacy conversion; a pre-protocol installation remains blocked even after legacy marker loss, and only the separate stopped activator can establish the exact sentinel after verifying both markers and all four receipts are absent under the complete instance-lock boundary. Marker acknowledgement uses no-follow ordinary-file snapshots and stable device, inode, type and exact bytes. If the legacy marker disappears later on an activated installation, the successor survives process loss and blocks every later process without relying on memory. The offline reconciler owns the only supported removal path, refuses the live instance lock, rejects split barrier inodes, lexical symlink/parent-traversal spellings and archive or receipt collisions it does not own, and binds the temporary and final receipt inode, mode and bytes. It removes the legacy name first and the successor only as its final synchronised transition. Interrupted states retain a fail-closed barrier, although the command cannot yet automatically resume every safe partial archive state. Regular, meme and conversational receipt JSON readers still use a decoder that accepts duplicate object names; historical-context receipt parsing is strict.",
+      "status_rationale": "Global pre-write checks require the exact v2 activation sentinel and inventory both ambiguity names, every strict source receipt, every payload-bound journal/fence pair, the media receipt/fence pair and all exact-retirement auxiliaries. Each public create lane validates one canonical, no-follow, single-link source receipt while publishing its independent journal/fence pair; the final authority consumes the pair rather than depending on continued source-path presence. Duplicate names, non-finite or noncanonical documents, unsafe types and replacement before binding refuse transport. Within the cooperative single-instance, same-state-owner protocol, supported writers of reserved transaction names hold the same instance lock and serialize destructive transaction mutations within the owning process. A mutation already visible at a documented revalidation boundary refuses transport, while source loss after independent journal/fence publication leaves an independent durable restart barrier. Concurrent same-UID mutation inside a validation-to-pathname-syscall interval, including exact-retirement cleanup, or mutation of the state directory outside the lock protocol, is outside this guarantee. Journal and media lifecycle mutations use identity-bound exchange. Exact retirement validates every observed phase, requires a PID-bound verifier which re-proves current instance-lock ownership on every call, and relies on cooperative exclusive namespace ownership for its final pathname unlink. A conservative inspection error remains blocking but is not treated as proved durability for releasing a retained signal guard. New incident recording writes and synchronises the successor before creating the legacy alias, and the stopped activator treats every v1 namespace entry or unresolved v2 transaction object as forbidden. Supported cleanup cannot run beneath the live daemon lock. Before final committed cleanup removal, interrupted exchange, retirement and offline reconciliation states retain a fail-closed restart barrier, although not every exact legitimate staging/archive state is automatically resumed; an unacknowledged final retirement directory-fsync failure latches the current daemon.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover absent, malformed and exact activation sentinels; fresh-process marker failure, disappearance, replacement, mutation and type substitution; both process-local barriers independently blocking direct preflight and every remote lane; repeated daemon ticks without remote actions; simultaneous receipts; exact pending-schedule recovery; generic-4xx retention; semantic receipt rejection and protected save ordering. Literal interpreters prove a newly created successor survives hard exit before the legacy link and a second process with false globals and no receipts remains blocked solely by the successor after legacy loss and os._exit. The decisive migration regression uses no receipt and no successor: a legacy-only pre-protocol marker disappears, the observing process hard-exits and a second interpreter remains blocked solely by the persistently absent activation sentinel. The offline activator refuses that legacy state, succeeds only after stopped exact reconciliation and then permits a clean control process. Reconciler tests cover split-inode pairs, same-inode collision ownership, lexical symlink/parent-traversal rejection, temporary/final receipt inode, mode and byte binding, and crash states which preserve a barrier. Historical-context duplicate lifecycle names have a strict-parser regression; regular, meme and conversational receipt decoders still lack equivalent duplicate-name regressions. Safe partial reconciliation states require operator inspection and rerun rather than automatic command resumption."
+        "rationale": "Tests cover absent, malformed and exact activation sentinels; fresh-process marker failure, disappearance, replacement, mutation and type substitution; both process-local barriers independently blocking direct preflight and every remote lane; repeated daemon ticks without remote actions; simultaneous source/journal/fence/media/retirement barriers; exact pending-schedule recovery; generic-4xx retention; strict duplicate/nonfinite/noncanonical receipt rejection; symlink, directory and FIFO rejection; post-bind same-byte ABA; protected save ordering; verifier-gated destructive calls; and literal fresh-process retirement recovery. Four-lane hard-exit tests delete or replace the source, journal or fence at the final transport authority boundary and require a surviving restart barrier. Literal interpreters retain the older successor/protocol migration proofs. A strict durable-object test also proves that an inspection-error blocker cannot release retained SIGINT. Exact staging left by a hard exit around RENAME_EXCHANGE and safe partial offline reconciliation states still require operator inspection rather than automatic completion."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -1797,13 +1947,31 @@
         "tools/activate_remote_write_safety_protocol.py",
         "tests/test_remote_write_safety_marker_reconciliation.py",
         "tests/test_historical_context_reply.py",
-        "tests/test_x_write_outcome_conservatism.py"
+        "tests/test_x_write_outcome_conservatism.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py",
+        "exact_receipt_retirement.py",
+        "transaction_mutation_authority.py",
+        "ir_40ab83e_cross_lane_boundary_matrix.json",
+        "ir_40ab83e_media_upload_boundary_matrix.json",
+        "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+        "tests/test_remote_write_transport_journal.py",
+        "tests/test_remote_media_upload_receipt.py",
+        "tests/test_media_upload_transaction_integration.py",
+        "tests/test_exact_receipt_retirement.py",
+        "tests/test_source_receipt_retirement_integration.py",
+        "tests/test_confirmed_source_lineage.py",
+        "tests/test_transaction_mutation_authority.py"
       ],
       "enforcement": {
         "files": [
           "mrsMThatcher2.py",
           "historical_context_formatter.py",
           "remote_write_safety_protocol.py",
+          "remote_write_transport_journal.py",
+          "remote_media_upload_receipt.py",
+          "exact_receipt_retirement.py",
+          "transaction_mutation_authority.py",
           "tools/activate_remote_write_safety_protocol.py",
           "tools/reconcile_remote_write_safety_marker.py"
         ],
@@ -1836,7 +2004,22 @@
         "tests/test_x_write_outcome_conservatism.py::test_regular_generic_4xx_retains_attempt_and_blocks_retry",
           "tests/test_x_write_outcome_conservatism.py::test_meme_generic_4xx_retains_attempt_and_blocks_retry",
           "tests/test_x_write_outcome_conservatism.py::test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry",
-          "tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry"
+          "tests/test_x_write_outcome_conservatism.py::test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_peer_path_mutation_at_final_authority_remains_restart_safe",
+          "tests/test_remote_write_transport_journal.py::test_journal_survives_source_receipt_deletion_and_blocks_restart",
+          "tests/test_remote_write_transport_journal.py::test_byte_identical_journal_replacement_is_not_the_authorised_generation",
+          "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "tests/test_remote_media_upload_receipt.py::test_strict_json_rejects_duplicate_nonfinite_and_noncanonical_documents",
+          "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume",
+          "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resumes_every_production_lane_crash_boundary",
+          "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
+          "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "tests/test_pending_receipt_directory_fsync.py::test_unsafe_receipt_namespace_is_never_absent_or_overwritten",
+          "tests/test_pending_receipt_directory_fsync.py::test_duplicate_receipt_object_names_fail_closed",
+          "tests/test_pending_receipt_directory_fsync.py::test_final_retirement_directory_fsync_failure_latches_current_daemon",
+          "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
         ],
         "validations": [
           {
@@ -1860,14 +2043,23 @@
             "tests/test_remote_write_safety_second_restart.py::test_literal_protocol_absence_survives_legacy_loss_and_second_process",
             "tests/test_remote_write_safety_second_restart.py::test_offline_activation_refuses_legacy_then_opens_after_reconciliation",
             "tests/test_remote_write_safety_marker_reconciliation.py",
-          "tests/test_x_write_outcome_conservatism.py"
+          "tests/test_x_write_outcome_conservatism.py",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "tests/test_remote_write_transport_journal.py::test_journal_survives_source_receipt_deletion_and_blocks_restart",
+          "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume",
+          "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resumes_every_production_lane_crash_boundary",
+          "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
+          "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "tests/test_pending_receipt_directory_fsync.py::test_unproved_blockers_never_release_retained_sigint",
+          "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once"
         ],
         "purpose": "Exercise the cross-lane ambiguity barrier, pending-schedule compatibility, conservative post-transmission status handling and safe retirement order."
           }
         ]
       },
       "known_gaps": [
-        "Receipt and state JSON decoding does not yet reject duplicate object names before semantic validation.",
+        "A hard exit around an identity-bound journal, media or source-receipt RENAME_EXCHANGE can leave an exact staging barrier which is duplicate-safe but not yet automatically resumed.",
         "Interrupted offline reconciliation remains fail-closed, but the command does not automatically resume every safe partial archive state; an operator may need to inspect and rerun recovery."
       ],
       "rationale": "Global receipt compatibility and unambiguous remote-write barrier is explicit because a later lane can post while an earlier outcome is unknown, overwrite recovery evidence, retire the only durable barrier before local commit is complete, or interpret a visually ambiguous duplicate-key receipt by last-wins ordering.",
@@ -1876,29 +2068,59 @@
         "status": "direct",
         "artifacts": [
           "regular_post_receipt.json",
+          ".regular_post_receipt.json.retirement.guard.json",
+          ".regular_post_receipt.json.retirement.commit.json",
+          ".regular_post_receipt.json.retirement.cleanup",
+          ".regular_post_receipt.json.retirement.guard.json.staging",
+          ".regular_post_receipt.json.retirement.commit.json.staging",
           "meme_post_receipt.json",
+          ".meme_post_receipt.json.retirement.guard.json",
+          ".meme_post_receipt.json.retirement.commit.json",
+          ".meme_post_receipt.json.retirement.cleanup",
+          ".meme_post_receipt.json.retirement.guard.json.staging",
+          ".meme_post_receipt.json.retirement.commit.json.staging",
           "confirmed_reply_receipt.json",
+          ".confirmed_reply_receipt.json.retirement.guard.json",
+          ".confirmed_reply_receipt.json.retirement.commit.json",
+          ".confirmed_reply_receipt.json.retirement.cleanup",
+          ".confirmed_reply_receipt.json.retirement.guard.json.staging",
+          ".confirmed_reply_receipt.json.retirement.commit.json.staging",
           "historical_context_reply_receipt.json",
+          ".historical_context_reply_receipt.json.retirement.guard.json",
+          ".historical_context_reply_receipt.json.retirement.commit.json",
+          ".historical_context_reply_receipt.json.retirement.cleanup",
+          ".historical_context_reply_receipt.json.retirement.guard.json.staging",
+          ".historical_context_reply_receipt.json.retirement.commit.json.staging",
+          "remote_write_transport_journal.json",
+          "remote_write_transport_fence.json",
+          ".remote_write_transport_journal.json.transition.*",
+          ".remote_write_transport_journal.json.retirement-guard.*",
+          "remote_media_upload_receipt.json",
+          "remote_media_upload_receipt.json.fence.json",
+          ".remote-media-upload.transition.*",
+          ".remote-media-upload.main-post-guard.*",
           "ambiguous_post_outcome.json",
           "ambiguous_post_outcome.restart_barrier.json",
+          ".mrs_remote_write_safety_protocol_v2",
+          ".mrs_remote_write_safety_protocol_v2.activation_audit.json",
           ".mrs_remote_write_safety_protocol_v1",
           ".mrs_remote_write_safety_protocol_v1.activation_audit.json",
           "mrsMThatcher.lock"
         ],
-        "explanation": "Every remote-write lane first validates the exact activation sentinel and its hash/project-bound companion audit, then consults the relevant receipt, both ambiguity-marker namespace entries and both process-local barriers. Protocol inactivity preserves the migration barrier across arbitrary process loss; on activated installations, the same-inode successor preserves an incident barrier after legacy-marker loss and another restart. The process-lifetime instance lock is the mutual-exclusion boundary for supported offline retirement and clean activation."
+        "explanation": "Every remote-write lane validates the current v2 activation sentinel/audit, every strict source receipt, the shared transport journal/fence, the media receipt/fence, all transition prefixes, all 20 fixed source-retirement auxiliaries, both ambiguity names and both process-local barriers. The v1 sentinel/audit remain consumed only as forbidden legacy namespace: either name blocks v2 runtime and activation until the stopped migration durably disables the old writer. Protocol inactivity and incident successors preserve restart barriers, while the process-lifetime lock and verifier-bound mutation authority are the mutual-exclusion boundary for supported retirement and activation."
       },
       "preconditions": [
         "All receipt and ambiguity paths are resolved within the active production state directory.",
-        "The exact .mrs_remote_write_safety_protocol_v1 sentinel and its hash-bound companion activation audit were created only by the lock-bound clean-state activator after the user service, wrapper and Python child were all stopped, every active marker and unresolved receipt was absent, and an external canonical clean-state/reconciliation attestation bound the project identity and exact activator CLI hash. New-install initialisation deliberately leaves remote writes disabled because local namespace absence cannot prove that state was never lost. Runtime inspection cross-revalidates both pair identities after both stable no-follow reads. The activator validates the external bindings but does not claim to prove the operator assertion itself.",
+        "The exact .mrs_remote_write_safety_protocol_v2 sentinel and its hash-bound companion activation audit were created only by the lock-bound clean-state activator after the user service, wrapper and Python child were all stopped, every active marker, source receipt, transport journal/fence, media receipt/fence and retirement auxiliary was absent, and an external canonical clean-state/reconciliation attestation bound the project identity and exact activator CLI hash. New-install initialisation deliberately leaves remote writes disabled because local namespace absence cannot prove that state was never lost. Runtime inspection cross-revalidates both pair identities after both stable no-follow reads. The activator validates the external bindings but does not claim to prove the operator assertion itself.",
         "Protocol inactivity is a cross-process permission denial, not incident-specific durable acknowledgement; it cannot by itself release a retained confirmed-post signal guard.",
         "After activation, no legacy runtime which ignores the protocol sentinel may be started against the same state directory; rollback must preserve the fail-closed migration boundary.",
         "The running daemon owns the process-lifetime instance lock; supported barrier removal occurs only after shutdown through exact-hash offline reconciliation under that same lock, with the restart successor removed last.",
-        "A non-cooperating actor deleting both barrier names or the state directory outside the lock-bound protocol is outside this local transaction guarantee; loss of the legacy name alone is covered.",
+        "Enumerated one-path fault coverage applies when mutation is complete before the next documented revalidation boundary or after an independent barrier is durable. A non-cooperating same-UID actor mutating a reserved pathname inside a validation-to-pathname-syscall interval, or mutating the state directory itself, is outside this local guarantee; separately enumerated loss of the legacy ambiguity name alone remains covered.",
         "Receipt retirement occurs only after protected durable writes complete."
       ],
       "failure_mode": {
         "mode": "mixed",
-        "explanation": "Malformed and incompatible receipts block writes, but duplicate JSON object names are not yet rejected before semantic validation."
+        "explanation": "Strict transaction receipts and auxiliaries fail closed, but exact transition staging left at a hard-exit boundary may still require deterministic operator reconciliation."
       },
       "full_suite_relevance": {
         "status": "required",
@@ -1908,9 +2130,9 @@
         "status": "required",
         "checks": [
           "Inspect all deployed receipt and ambiguity paths before service restart; simultaneous, malformed, or unresolved records block activation.",
-          "Verify the deployed protocol module, activator and reconciler hashes match the committed files; require the user service, wrapper and Python child all stopped; bind the activator to the preflight project path/device/inode and an external canonical clean-state/reconciliation attestation with an independently recorded SHA-256 and exact activator CLI hash; refuse activation until both ambiguity names and every transaction receipt are absent or exactly reconciled; then create and re-read the exact .mrs_remote_write_safety_protocol_v1 sentinel/audit pair under the established locks before starting only the compatible runtime.",
+          "Verify the deployed protocol module, activator and reconciler hashes match the committed files; require the user service, wrapper and Python child all stopped; bind the activator to the preflight project path/device/inode and an external canonical clean-state/reconciliation attestation with an independently recorded SHA-256 and exact activator CLI hash; refuse activation until both ambiguity names and every source receipt, transport journal/fence, media receipt/fence and retirement auxiliary are absent or exactly reconciled; then create and re-read the exact .mrs_remote_write_safety_protocol_v2 sentinel/audit pair under the established locks before starting only the compatible runtime.",
           "Inspect ambiguous_post_outcome.json and mrsMThatcher.lock without mutation and require any retirement plan to use the exact-hash offline protocol only after the daemon has exited.",
-          "Any rollback to a runtime which does not validate the .mrs_remote_write_safety_protocol_v1 sentinel/audit pair must remain stopped until both activation files, both marker names and all receipts have been reviewed under the same lock-bound offline protocol; never run an incompatible writer against an activated state directory."
+          "Any rollback to a runtime which does not validate the .mrs_remote_write_safety_protocol_v2 sentinel/audit pair must remain stopped until both activation files, both marker names and all transaction barriers have been reviewed under the same lock-bound offline protocol; never run an incompatible writer against an activated state directory."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -1927,7 +2149,7 @@
         },
       {
         "type": "report",
-        "reference": "defect_ledger.json#DEF-0017",
+        "reference": "defect_ledger.json#DEF-0043",
         "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
       },
       {
@@ -1944,21 +2166,31 @@
         "type": "test",
         "reference": "tests/test_x_write_outcome_conservatism.py",
         "claim": "All four X create lanes preserve their durable barrier when a generic post-transmission 4xx leaves remote success unproved."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_remote_write_transport_journal.py::test_exact_source_document_replacement_rejects_same_bytes_new_inode_race",
+        "claim": "The shared exact-source transition preserves a raced generation and an independent blocking staging entry."
+      },
+      {
+        "type": "test",
+        "reference": "tests/test_remote_write_transport_journal.py::test_exact_source_document_publication_never_overwrites_existing_entry",
+        "claim": "Exclusive source-receipt publication refuses rather than overwrites an existing namespace entry."
       }
     ],
     "last_verified_commit": {
       "status": "unknown",
       "value": null,
-        "explanation": "The debc079 evidence cut-off repairs the fresh-process latch/uncertainty defect recorded as DEF-0034 within the observing process, but independent review rejected it because a further abrupt process loss erased that memory-only barrier after legacy-marker disappearance, as recorded in DEF-0035. The replacement candidate identity and verification remain supplied only by a later frozen external attestation."
+        "explanation": "The cutoff-bound registry does not self-attest the follow-on transport-authority remediation candidate; its exact identity and verification result remain supplied only by the external frozen-candidate gate."
     },
     "last_verified_tree": {
       "status": "unknown",
       "value": null,
-      "explanation": "The final replacement tree is intentionally external to this committed registry; the duplicate-key gap remains explicitly partial."
+      "explanation": "The final remediation tree is intentionally external to this committed registry; the remaining partial status records fail-closed states which can require manual completion."
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "No safety risk is accepted. Receipt and state JSON decoding does not yet reject duplicate object names before semantic validation. Interrupted offline reconciliation preserves a barrier but may require operator inspection and rerun because automatic resumption of every safe partial state is not implemented."
+        "explanation": "No duplicate-write risk is accepted. Exact transition staging and interrupted offline reconciliation preserve a barrier but may require operator inspection and rerun because automatic resumption of every safe partial state is not implemented. Ordinary configuration, control and non-transaction state JSON duplicate-name gaps remain tracked by their own invariants."
       }
     },
     {
@@ -2289,26 +2521,34 @@
       "id": "INV-API-001",
       "category": "configuration_process",
       "title": "Bounded requests and conservative write outcomes",
-      "statement": "Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, disable redirects for writes, and classify every unproved post-transmission response or failure—including generic HTTP 3xx, 4xx and 5xx—as ambiguous without automatic reposting.",
+      "statement": "Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, disable redirects for writes, and classify every unproved post-transmission response or failure—including generic HTTP 3xx, 4xx and 5xx—as ambiguous without automatic reposting. A transmitted or possibly transmitted POST /2/media/upload whose outcome is not proved successful must retain its exact durable media receipt/fence barrier and must never be retried through the legacy v1.1 upload endpoint or any alternate endpoint.",
       "failure_if_violated": "Shutdown can exceed the supervisor budget, or an uncertain remote write can be repeated and create duplicate public content.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "The request timeout parser caps the total budget, urllib3 receives a combined total timeout, X create requests do not follow redirects, and write paths preserve their durable barrier for every post-transmission outcome not proved successful or definitely unsent.",
+      "status_rationale": "The request timeout parser caps the total budget, urllib3 receives a combined total timeout, and X create requests do not follow redirects. X post and v2 media-upload paths publish and revalidate exact durable transport barriers before transmission and preserve those barriers for every post-transmission outcome not proved successful or definitely unsent. The legacy v1.1 media helper refuses before transport, so an ambiguous v2 outcome cannot become a second upload through a different endpoint.",
       "verification": {
         "status": "verified",
-        "rationale": "Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, generic non-2xx responses and redirects, and prove ambiguous writes and made-with-AI rejection text are not retried."
+        "rationale": "Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, generic non-2xx responses and redirects, and prove ambiguous writes and made-with-AI rejection text are not retried. Literal-process media tests cover every v2 upload hard-exit boundary and prove a fresh process remains globally blocked, while a focused regression proves the legacy v1.1 helper refuses before any transport call."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
         "mrsMThatcher.env.example",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py",
+        "ir_40ab83e_media_upload_boundary_matrix.json",
         "tests/test_unit_helpers.py",
         "tests/test_integration_harness.py",
-        "tests/test_x_write_outcome_conservatism.py"
+        "tests/test_x_write_outcome_conservatism.py",
+        "tests/test_remote_media_upload_receipt.py",
+        "tests/test_media_upload_transaction_integration.py"
       ],
       "enforcement": {
         "files": [
           "mrsMThatcher2.py",
-          "mrsMThatcher.env.example"
+          "mrsMThatcher.env.example",
+          "remote_write_transport_journal.py",
+          "remote_media_upload_receipt.py",
+          "ir_40ab83e_media_upload_boundary_matrix.json"
         ],
         "tests": [
           "tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget",
@@ -2316,7 +2556,10 @@
           "tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post",
           "tests/test_x_write_outcome_conservatism.py::test_x_create_non_success_is_ambiguous_by_default",
           "tests/test_x_write_outcome_conservatism.py::test_x_create_redirect_is_not_followed_and_is_ambiguous",
-          "tests/test_x_write_outcome_conservatism.py::test_made_with_ai_generic_400_never_triggers_second_create"
+          "tests/test_x_write_outcome_conservatism.py::test_made_with_ai_generic_400_never_triggers_second_create",
+          "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "tests/test_media_upload_transaction_integration.py::test_legacy_v1_1_helper_refuses_before_any_transport",
+          "tests/test_remote_media_upload_receipt.py::test_transport_proof_is_immutable_bytes_not_a_file_name"
         ],
         "validations": [
           {
@@ -2325,9 +2568,12 @@
           "tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget",
           "tests/test_unit_helpers.py::test_x_request_uses_one_combined_connect_and_read_budget",
           "tests/test_integration_harness.py::test_made_with_ai_network_failure_does_not_retry_ambiguous_post",
-          "tests/test_x_write_outcome_conservatism.py"
-        ],
-        "purpose": "Exercise bounded total request time, single-hop writes and non-retry of every unproved post-transmission outcome."
+            "tests/test_x_write_outcome_conservatism.py",
+            "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+            "tests/test_media_upload_transaction_integration.py::test_legacy_v1_1_helper_refuses_before_any_transport",
+            "tests/test_remote_media_upload_receipt.py::test_transport_proof_is_immutable_bytes_not_a_file_name"
+          ],
+          "purpose": "Exercise bounded total request time, single-hop writes, restart-visible v2 media ambiguity and non-retry of every unproved post-transmission outcome, including refusal of the alternate legacy upload endpoint."
           }
         ]
       },
@@ -2338,13 +2584,18 @@
         "status": "indirect",
         "artifacts": [
           "mrsMThatcher.env",
-          "ambiguous_post_outcome.json"
+          "ambiguous_post_outcome.json",
+          "remote_write_transport_journal.json",
+          "remote_write_transport_fence.json",
+          "remote_media_upload_receipt.json",
+          "remote_media_upload_receipt.json.fence.json"
         ],
-        "explanation": "Timeout policy is supplied through the production environment and ambiguous write outcomes are represented durably."
+        "explanation": "Timeout policy is supplied through the production environment. Ambiguous X post and v2 media-upload outcomes remain represented by independent durable journal/fence or ambiguity barriers; the disabled v1.1 helper is code, not a runtime artifact."
       },
       "preconditions": [
         "The effective request budget does not exceed the service shutdown allowance.",
-        "Only operations classified as safe to retry may receive another attempt."
+        "Only operations classified as safe to retry may receive another attempt.",
+        "The legacy v1.1 media-upload helper remains transport-disabled; an unproved v2 upload outcome is reconciled from its exact receipt/fence rather than retried through another endpoint."
       ],
       "failure_mode": {
         "mode": "fail_closed",
@@ -2358,7 +2609,8 @@
         "status": "required",
         "checks": [
           "Record the deployed MRS_REQUEST_TIMEOUT_SECONDS and verify it is within systemd TimeoutStopSec after accounting for shutdown work.",
-          "Inspect that no unresolved ambiguous_post_outcome.json exists before enabling writes."
+          "Inspect that no unresolved ambiguous_post_outcome.json, transport journal/fence or media receipt/fence exists before enabling writes.",
+          "Verify the deployed media-upload implementation uses only the v2 transaction path and that the legacy v1.1 helper refuses before transport."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -2373,21 +2625,31 @@
         "reference": "tests/test_unit_helpers.py::test_request_timeout_rejects_values_beyond_service_shutdown_budget",
         "claim": "Focused automated evidence for the principal recorded boundary."
       },
-      {
-        "type": "test",
-        "reference": "tests/test_x_write_outcome_conservatism.py::test_x_create_non_success_is_ambiguous_by_default",
-        "claim": "A generic X create non-success response is not treated as proof that no remote post exists."
-      }
-    ],
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_x_create_non_success_is_ambiguous_by_default",
+          "claim": "A generic X create non-success response is not treated as proof that no remote post exists."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_media_upload_transaction_integration.py::test_legacy_v1_1_helper_refuses_before_any_transport",
+          "claim": "An ambiguous or unavailable v2 upload path cannot fall back to a second legacy endpoint transport."
+        },
+        {
+          "type": "report",
+          "reference": "ir_40ab83e_media_upload_boundary_matrix.json",
+          "claim": "The committed media boundary matrix enumerates the v2 receipt, transport, response and restart transitions reviewed for alternate-endpoint retry risk."
+        }
+      ],
     "last_verified_commit": {
       "status": "unknown",
       "value": null,
-      "explanation": "The production baseline and unactivated b6dcd17 candidate did not establish conservative generic-4xx and redirect behavior. The replacement candidate identity must be supplied by a later frozen external attestation."
+        "explanation": "This cutoff-bound registry does not self-attest the exact remediation candidate which adds the v2 media transaction and alternate-endpoint refusal; that candidate identity and result must be supplied by the external gate."
     },
     "last_verified_tree": {
       "status": "unknown",
       "value": null,
-      "explanation": "The final replacement tree is intentionally external to this committed registry; no deployment or loaded-process claim is made."
+        "explanation": "The exact remediation tree is intentionally supplied by the external frozen-candidate attestation; no deployment or loaded-process claim is made."
       },
       "accepted_residual_risk": {
         "status": "none",
@@ -2496,27 +2758,40 @@
       "id": "INV-PROC-002",
       "category": "configuration_process",
       "title": "Single process owns recovery and posting",
-      "statement": "One process-lifetime instance lock must be acquired before receipt reconciliation, outbox recovery, scheduler mutation or remote-write preparation and must exclusively lock an opened state-directory inode. It must, without following symbolic links, bind one ordinary, single-link lock pathname to the acquired descriptor's device, inode, exact canonical owner record and exclusive open-file-description lock. A state-directory-device/inode-derived Linux abstract socket supplies an additional same-network-namespace singleton but is not the cross-namespace authority. Before every non-read remote operation, the designated descriptors must prove their own exclusive flock and OFD ownership, separate descriptors must prove exclusion on both the file and directory inode, the bound path identities must remain unchanged and the abstract singleton must remain bound. The supported offline marker reconciler must acquire and continuously revalidate the identical directory-inode and file-lock namespace and therefore cannot run concurrently with the daemon across network namespaces, lock-file replacement or path aliases. This implementation does not yet revalidate the namespace immediately before every purely local recovery, scheduler or state-file mutation.",
+      "statement": "One process-lifetime instance lock must be acquired before receipt reconciliation, outbox recovery, scheduler mutation or remote-write preparation and must exclusively lock an opened state-directory inode. It must, without following symbolic links, bind one ordinary, single-link lock pathname to the acquired descriptor's device, inode, exact canonical owner record and exclusive open-file-description lock. A state-directory-device/inode-derived Linux abstract socket supplies an additional same-network-namespace singleton but is not the cross-namespace authority. Before every non-read remote operation, the designated descriptors must prove their own exclusive flock and OFD ownership, separate descriptors must prove exclusion on both the file and directory inode, the bound path identities must remain unchanged and the abstract singleton must remain bound. Every destructive journal, media or source-receipt mutation must additionally consume a narrow authority bound to the exact live instance-lock verifier, and that verifier must re-prove ownership on every use before any namespace inspection or mutation. The supported offline marker reconciler must acquire and continuously revalidate the identical directory-inode and file-lock namespace and therefore cannot run concurrently with the daemon across network namespaces, lock-file replacement or path aliases.",
       "failure_if_violated": "A followed, aliased, replaced or no-longer-owned lock pathname can create two lock namespaces or make an unlocked process look like the owner. The daemon and an offline reconciler or second process can then reconcile or post concurrently, race state files, and defeat otherwise correct receipt and ambiguity barriers.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The replacement implementation opens and exclusively flocks the state-directory inode before any other ownership boundary. Linux inode-lock semantics make that lock common to path aliases and network namespaces; this host cannot create the second network namespace needed for a direct namespace test, so focused tests exercise the same-inode exclusion mechanism through path replacement and aliases. It then binds a supplementary Linux abstract socket derived from the directory device/inode, opens the file lock relative to the held directory descriptor with no-follow semantics, requires one ordinary link, writes and reads back the exact canonical device/inode/PID identity, and holds both BSD flock and a Linux OFD write lock. Before every non-read remote operation, Linux /proc/self/fdinfo must prove that each designated descriptor itself owns its exclusive flock, F_OFD_GETLK plus write/read probes prove exclusive OFD ownership, separate descriptors must remain excluded from the file and directory inode, the socket and both path identities must remain bound. The test bypass is limited positively to explicit loopback endpoints. Bootstrap orders acquisition before recovery, one-shot commands share the guarded remote-write path, and the offline marker reconciler must acquire all boundaries. The reconciler rejects lexical symlink/parent-traversal spellings before normalisation, never claims or deletes a raced same-inode archive link it did not create, and binds temporary and final receipt inode, mode and bytes before cleanup or success. Any acquisition failure releases every partially acquired boundary. Purely local recovery, scheduler and state-file mutation paths do not all perform a fresh namespace/path revalidation immediately before mutation, and interrupted safe reconciliation states require operator rerun rather than automatic resume, so the broader continuity and availability claim remains partial.",
+      "status_rationale": "The implementation opens and exclusively flocks the state-directory inode before any other ownership boundary. Linux inode-lock semantics make that lock common to path aliases and network namespaces; this host cannot create the second network namespace needed for a direct namespace test, so focused tests exercise the same-inode exclusion mechanism through path replacement and aliases. It binds a supplementary Linux abstract socket derived from the directory device/inode, opens the file lock relative to the held directory descriptor with no-follow semantics, requires one ordinary link, writes and reads back the exact canonical device/inode/PID identity, and holds both BSD flock and a Linux OFD write lock. Linux /proc/self/fdinfo, F_OFD_GETLK, independent exclusion probes, path identities and the supplementary socket are revalidated at remote boundaries. Destructive journal, media and exact source-retirement entry points reject callers before inspection unless they receive a narrow TransactionMutationAuthority issued from the daemon's exact verifier, and every authority use calls that verifier again. Historical-context mutation receives the same authority through its bound provider. The test bypass remains limited to explicit loopback endpoints. Bootstrap orders acquisition before recovery, one-shot commands share the guarded path, and the offline marker reconciler acquires all boundaries. Interrupted transaction and marker-reconciliation states preserve a blocking durable object but some legitimate staging/archive states still require deterministic operator inspection and rerun. The missing direct second-network-namespace regression and that automatic-resume liveness limitation keep the broader invariant partial.",
       "verification": {
         "status": "partial",
-        "rationale": "Focused tests cover competing processes, same-inode exclusion, no-follow/single-link acquisition, exact owner-record round-trip, designated-descriptor flock/OFD ownership, independent file/directory exclusion, the abstract singleton, custom endpoint rejection, unlocked and replaced-path rejection, leak-free acquisition failure, lock-before-reconciliation ordering and offline exclusion after path replacement. Reconciler tests additionally reject lexical symlink/parent-traversal paths, split barrier inodes and unowned same-inode collisions, and bind temporary/final receipt inode, mode and bytes. Crash injection proves barriers remain fail closed, but not automatic resumption of every safe partial state. A second network namespace is not directly exercised, and tests do not claim fresh namespace revalidation before every local mutation. The replacement candidate still requires a frozen external attestation."
+        "rationale": "Focused tests cover competing processes, same-inode exclusion, no-follow/single-link acquisition, exact owner-record round-trip, designated-descriptor flock/OFD ownership, independent file/directory exclusion, the abstract singleton, custom endpoint rejection, unlocked and replaced-path rejection, leak-free acquisition failure, lock-before-reconciliation ordering and offline exclusion after path replacement. Authority tests prove every destructive low-level entry point refuses before inspection without an authority, every use rechecks the bound verifier, the bot issues authority from the exact instance-lock verifier, and historical-context mutation refuses without its provider. Fresh-process retirement tests prove crash states preserve a barrier, but not automatic completion of every legitimate partial state. A second network namespace is not directly exercised. The exact candidate identity and result still require the external frozen-candidate gate."
       },
       "affected_paths": [
         "README.md",
         "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "transaction_mutation_authority.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py",
+        "exact_receipt_retirement.py",
         "tools/reconcile_remote_write_safety_marker.py",
         "tests/test_integration_harness.py",
         "tests/test_pending_receipt_directory_fsync.py",
         "tests/test_production_consistency_incident.py",
-        "tests/test_remote_write_safety_marker_reconciliation.py"
+        "tests/test_remote_write_safety_marker_reconciliation.py",
+        "tests/test_transaction_mutation_authority.py",
+        "tests/test_exact_receipt_retirement.py",
+        "tests/test_source_receipt_retirement_integration.py"
       ],
       "enforcement": {
         "files": [
           "mrsMThatcher2.py",
+          "historical_context_formatter.py",
+          "transaction_mutation_authority.py",
+          "remote_write_transport_journal.py",
+          "remote_media_upload_receipt.py",
+          "exact_receipt_retirement.py",
           "tools/reconcile_remote_write_safety_marker.py"
         ],
         "tests": [
@@ -2545,7 +2820,12 @@
           "tests/test_remote_write_safety_marker_reconciliation.py::test_lock_path_replacement_after_acquisition_preserves_marker",
           "tests/test_remote_write_safety_marker_reconciliation.py::test_project_path_replacement_after_acquisition_preserves_marker",
           "tests/test_remote_write_safety_marker_reconciliation.py::test_reconciler_fdinfo_proof_failure_refuses_marker_retirement",
-          "tests/test_remote_write_safety_marker_reconciliation.py::test_live_recorded_daemon_pid_refuses_marker_retirement"
+          "tests/test_remote_write_safety_marker_reconciliation.py::test_live_recorded_daemon_pid_refuses_marker_retirement",
+          "tests/test_transaction_mutation_authority.py::test_destructive_low_level_entry_points_fail_before_inspection_without_authority",
+          "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "tests/test_transaction_mutation_authority.py::test_bot_issues_authority_from_exact_instance_lock_verifier",
+          "tests/test_transaction_mutation_authority.py::test_historical_store_refuses_mutation_without_authority_provider",
+          "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resume_fails_closed_on_replacement_or_type_mutation"
         ],
         "validations": [
           {
@@ -2576,31 +2856,37 @@
               "tests/test_remote_write_safety_marker_reconciliation.py::test_lock_path_replacement_after_acquisition_preserves_marker",
               "tests/test_remote_write_safety_marker_reconciliation.py::test_project_path_replacement_after_acquisition_preserves_marker",
               "tests/test_remote_write_safety_marker_reconciliation.py::test_reconciler_fdinfo_proof_failure_refuses_marker_retirement",
-              "tests/test_remote_write_safety_marker_reconciliation.py::test_live_recorded_daemon_pid_refuses_marker_retirement"
+              "tests/test_remote_write_safety_marker_reconciliation.py::test_live_recorded_daemon_pid_refuses_marker_retirement",
+              "tests/test_transaction_mutation_authority.py::test_destructive_low_level_entry_points_fail_before_inspection_without_authority",
+              "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+              "tests/test_transaction_mutation_authority.py::test_bot_issues_authority_from_exact_instance_lock_verifier",
+              "tests/test_transaction_mutation_authority.py::test_historical_store_refuses_mutation_without_authority_provider",
+              "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resume_fails_closed_on_replacement_or_type_mutation"
             ],
-        "purpose": "Exercise the directory-inode mechanism used for namespace/path exclusion, no-follow single-link acquisition, acquisition identity, exact flock and exclusive OFD ownership by the designated descriptors, fail-closed Linux fdinfo inspection, file and directory exclusion through independent descriptors, the supplementary abstract singleton, loopback-only fake-endpoint bypass, remote-write preflight, lock-before-recovery ordering and offline-reconciler exclusion."
+        "purpose": "Exercise the directory-inode mechanism used for namespace/path exclusion, no-follow single-link acquisition, exact lock ownership by the designated descriptors, fail-closed Linux fdinfo inspection, file and directory exclusion, the supplementary abstract singleton, verifier-bound authority on every destructive transaction mutation, lock-before-recovery ordering and offline-reconciler exclusion."
           }
         ]
       },
       "known_gaps": [
-        "The namespace is revalidated at every non-read remote boundary and throughout supported offline marker retirement, but not immediately before every purely local recovery, scheduler or state-file mutation.",
         "Cross-network-namespace exclusion relies on the tested same-inode Linux flock mechanism; this host cannot create a second network namespace for a direct end-to-end regression.",
-        "Interrupted reconciliation states preserve a fail-closed barrier, but the command does not automatically resume every safe partial archive state."
+        "Interrupted transaction retirement and marker-reconciliation states preserve a fail-closed barrier, but not every legitimate staging or partial archive state is automatically completed; deterministic operator inspection and rerun can remain necessary."
       ],
-      "rationale": "The safety property is not merely that some descriptor can acquire some lock inode. The daemon's designated descriptors must continuously own their exclusive locks, while a held directory-inode flock supplies the alias- and network-namespace-stable mutual-exclusion boundary. The abstract socket is supplementary only. Every supported offline tool and every non-read remote boundary must use those same identities. Broader per-mutation local-state namespace revalidation is recorded separately as an unclosed gap.",
+      "rationale": "The safety property is not merely that some descriptor can acquire some lock inode. The daemon's designated descriptors must continuously own their exclusive locks, while a held directory-inode flock supplies the alias- and network-namespace-stable mutual-exclusion boundary. The abstract socket is supplementary only. Every supported offline tool, non-read remote boundary and destructive transaction mutation must prove authority from those same identities.",
       "owner_subsystem": "process_locking",
       "runtime_consumed_artifacts": {
         "status": "direct",
         "artifacts": [
           "mrsMThatcher.lock"
         ],
-        "explanation": "The exclusively held state-directory inode, no-follow single-link lock pathname, designated flock/OFD identities, canonical PID record and supplementary directory-identity-derived abstract socket guard remote-write preparation and supported offline marker reconciliation across lexical aliases and network namespaces. Purely local per-mutation namespace continuity remains a known gap."
+        "explanation": "The exclusively held state-directory inode, no-follow single-link lock pathname, designated flock/OFD identities, canonical PID record and supplementary directory-identity-derived abstract socket guard remote-write preparation and supported offline reconciliation across lexical aliases and network namespaces. TransactionMutationAuthority is process memory derived from and revalidated against this durable/kernel ownership boundary; it is not an additional runtime file."
       },
       "preconditions": [
         "Every daemon and one-shot posting command uses the same production state directory.",
         "The supported runtime is Linux with readable /proc/self/fdinfo lock records; unavailable or unrecognised fdinfo fails closed, and the deployment-host check must exercise this prerequisite.",
         "The instance lock is acquired before receipt or outbox reconciliation.",
         "Every non-read remote operation calls the common remote-operation preflight which verifies the exact exclusive designated OFD owner, separate-descriptor file and directory exclusion, supplementary bound state-directory-identity singleton and stable path identities.",
+        "Every destructive journal, media or exact source-retirement call receives authority only from the exact live instance-lock verifier and rechecks that verifier before inspecting or mutating transaction state.",
+        "All supported destructive transaction mutations are serialized within the lock-owning process. TransactionMutationAuthority rechecks lock ownership but supplies neither thread serialization nor protection from arbitrary same-UID code.",
         "Only explicit loopback endpoints may use the fake-endpoint test bypass; custom or external test endpoints require real process-lock ownership.",
         "Supported marker retirement is performed only by the offline reconciler after it exclusively acquires and revalidates the same directory-inode flock, abstract-socket, OFD and no-follow single-link lock namespace."
       ],
@@ -2616,7 +2902,7 @@
         "status": "required",
         "checks": [
           "Prove the deployed state-directory inode and mrsMThatcher.lock are exclusively held by the one healthy child; require readable Linux fdinfo, one ordinary single-link file, the exact canonical PID record, exclusive designated flock and OFD ownership, separate-descriptor exclusion on file and directory, and the supplementary state-directory-device/inode-derived abstract singleton.",
-          "Verify the deployed mrsMThatcher2.py and tools/reconcile_remote_write_safety_marker.py hashes exactly match the frozen candidate and that no supported one-shot or reconciler path bypasses the shared lock namespace.",
+          "Verify the deployed mrsMThatcher2.py, transaction_mutation_authority.py, exact_receipt_retirement.py and tools/reconcile_remote_write_safety_marker.py hashes exactly match the frozen candidate and that no supported one-shot, low-level transaction helper or reconciler path bypasses the shared lock verifier.",
           "Before activation, run the frozen directory-inode, lock-acquisition, designated-exclusive-OFD, abstract-singleton, separate-descriptor, custom-endpoint and offline-reconciler exclusion tests against copies rather than live state."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
@@ -2641,21 +2927,26 @@
           "type": "operational",
           "reference": "README.md",
           "claim": "The operator protocol requires marker retirement only after daemon exit through the exact-hash offline reconciler."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "claim": "Every destructive transaction mutation re-proves the exact bound instance-lock verifier rather than trusting its caller."
         }
       ],
       "last_verified_commit": {
         "status": "unknown",
         "value": null,
-        "explanation": "The debc079 evidence cut-off retains the lock-namespace and continuous-ownership repair recorded as DEF-0033, but that candidate was rejected for the separate literal second-restart durable-barrier defect recorded as DEF-0035. A final replacement candidate identity and its external validation are deliberately supplied after the candidate is frozen."
+        "explanation": "The cutoff-bound registry cannot self-attest the remediation candidate which adds verifier-bound authority to every destructive transaction helper; the exact candidate identity and validation remain external."
       },
       "last_verified_tree": {
         "status": "unknown",
         "value": null,
-        "explanation": "The replacement tree is not self-referentially embedded before the application candidate is committed and externally attested."
+        "explanation": "The remediation tree is not self-referentially embedded before the application candidate is committed and externally attested."
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "The absence of immediate namespace revalidation before every purely local state mutation remains an unaccepted adjacent gap. Interrupted reconciliation remains safe but can require operator inspection and rerun; no automatic-resume availability guarantee is claimed."
+        "explanation": "No concurrency or authority bypass risk is accepted. Cross-network-namespace exclusion still lacks a direct second-namespace regression, and interrupted transaction or marker reconciliation remains safe but can require operator inspection and rerun; no automatic-resume availability guarantee is claimed."
       }
     },
     {
@@ -3149,10 +3440,10 @@
       "failure_if_violated": "Tests can pass against an obsolete subset of production files or a hand-selected set of known regressions while omitting the next mixed-generation or crash-boundary failure.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "Recent ordinary-eligibility and simulator fixtures bind the complete currently known dependency set, and many crash/coherent-drift regressions exist. There is no shared fixture builder, generated crash-point matrix, mutation threshold, or critical-branch coverage gate.",
+      "status_rationale": "Recent ordinary-eligibility and simulator fixtures bind the complete currently known dependency set. The committed IR-40AB83E matrices and adversarial suites now exercise all four create lanes, media upload, strict receipt parsing, same-byte post-bind ABA, every exact source-retirement phase, caller authority and fresh-process recovery. These matrices remain manually curated rather than generated from every production boundary, and there is still no shared fixture builder, mutation threshold or critical-branch coverage gate.",
       "verification": {
         "status": "partial",
-        "rationale": "Current tests exercise a production-shaped ordinary generation and representative crash and coherent-rehash boundaries, but fixture completeness and state-space coverage remain manually enumerated."
+        "rationale": "Current tests exercise a production-shaped ordinary generation plus literal-process hard exits, peer namespace mutation at enumerated pre-check and transport-boundary injection points, strict JSON/type substitution, verifier loss and fresh-process resumption across the new transaction boundaries. The committed boundary matrices make the reviewed cases auditable, but fixture completeness and complete state-space coverage remain manually enumerated."
       },
       "affected_paths": [
         "tests/fixtures/restored_regular_post_quote_ids.json",
@@ -3164,6 +3455,16 @@
         "tests/test_image_quote_shortlist_rerank.py",
         "tests/test_quote_image_metadata_remediation.py",
         "tests/test_semantic_veto_new_quote_adjudication.py",
+        "ir_40ab83e_cross_lane_boundary_matrix.json",
+        "ir_40ab83e_media_upload_boundary_matrix.json",
+        "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+        "tests/test_remote_write_transport_journal.py",
+        "tests/test_remote_media_upload_receipt.py",
+        "tests/test_media_upload_transaction_integration.py",
+        "tests/test_exact_receipt_retirement.py",
+        "tests/test_source_receipt_retirement_integration.py",
+        "tests/test_confirmed_source_lineage.py",
+        "tests/test_transaction_mutation_authority.py",
         "why_code_reviews_continue_to_find_major_problems.md",
         "diagnosis_measurements.json"
       ],
@@ -3178,6 +3479,16 @@
           "tests/test_image_quote_shortlist_rerank.py",
           "tests/test_quote_image_metadata_remediation.py",
           "tests/test_semantic_veto_new_quote_adjudication.py",
+          "ir_40ab83e_cross_lane_boundary_matrix.json",
+          "ir_40ab83e_media_upload_boundary_matrix.json",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+          "tests/test_remote_write_transport_journal.py",
+          "tests/test_remote_media_upload_receipt.py",
+          "tests/test_media_upload_transaction_integration.py",
+          "tests/test_exact_receipt_retirement.py",
+          "tests/test_source_receipt_retirement_integration.py",
+          "tests/test_confirmed_source_lineage.py",
+          "tests/test_transaction_mutation_authority.py",
           "why_code_reviews_continue_to_find_major_problems.md",
           "diagnosis_measurements.json"
         ],
@@ -3188,7 +3499,15 @@
           "tests/test_production_consistency_incident.py::test_outbox_outcome_write_failure_latches_retry_after_durable_claim",
           "tests/test_image_quote_shortlist_rerank.py::test_corpus_backed_shortlists_are_complete_deterministic_and_exclude_unresolved",
           "tests/test_quote_image_metadata_remediation.py::test_paid_judgement_reuse_is_limited_to_byte_identical_semantic_inputs",
-          "tests/test_semantic_veto_new_quote_adjudication.py::test_complete_manifest_build_is_byte_identical"
+          "tests/test_semantic_veto_new_quote_adjudication.py::test_complete_manifest_build_is_byte_identical",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_peer_path_mutation_at_final_authority_remains_restart_safe",
+          "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume",
+          "tests/test_source_receipt_retirement_integration.py::test_fresh_process_resumes_every_production_lane_crash_boundary",
+          "tests/test_confirmed_source_lineage.py::test_main_promotion_rejects_peer_aba_after_source_binding",
+          "tests/test_transaction_mutation_authority.py::test_authority_rechecks_bound_verifier_on_every_use",
+          "tests/test_remote_media_upload_receipt.py::test_strict_json_rejects_duplicate_nonfinite_and_noncanonical_documents"
         ],
         "validations": [
           {
@@ -3200,9 +3519,17 @@
               "tests/test_production_consistency_incident.py",
               "tests/test_image_quote_shortlist_rerank.py",
               "tests/test_quote_image_metadata_remediation.py",
-              "tests/test_semantic_veto_new_quote_adjudication.py"
-            ],
-            "purpose": "Exercise current production-shaped fixtures and representative adversarial transaction/evidence boundaries."
+            "tests/test_semantic_veto_new_quote_adjudication.py",
+            "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+            "tests/test_remote_write_transport_journal.py",
+            "tests/test_remote_media_upload_receipt.py",
+            "tests/test_media_upload_transaction_integration.py",
+            "tests/test_exact_receipt_retirement.py",
+            "tests/test_source_receipt_retirement_integration.py",
+            "tests/test_confirmed_source_lineage.py",
+            "tests/test_transaction_mutation_authority.py"
+          ],
+          "purpose": "Exercise current production-shaped fixtures and representative adversarial transaction boundaries with literal processes, peer mutation, strict documents, exact authority and crash-resumable durable state."
           }
         ]
       },
@@ -3252,17 +3579,32 @@
           "type": "report",
           "reference": "defect_ledger.json#DEF-0012",
           "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
+        },
+        {
+          "type": "report",
+          "reference": "ir_40ab83e_cross_lane_boundary_matrix.json",
+          "claim": "The committed four-lane matrix records every reviewed receipt, journal, fence and final-authority mutation boundary."
+        },
+        {
+          "type": "report",
+          "reference": "ir_40ab83e_media_upload_boundary_matrix.json",
+          "claim": "The committed media matrix records upload transport, response, handoff and restart boundaries."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume",
+          "claim": "Literal child processes hard-exit at every exact retirement phase and a fresh process either resumes safely or remains blocked."
         }
       ],
       "last_verified_commit": {
-        "status": "known",
-        "value": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "explanation": "The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment."
+        "status": "unknown",
+        "value": null,
+        "explanation": "The production baseline does not contain the new IR matrices and transaction fault suites, while this registry cannot self-attest the exact remediation candidate; the external gate must bind that identity and result."
       },
       "last_verified_tree": {
-        "status": "known",
-        "value": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
-        "explanation": "This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status."
+        "status": "unknown",
+        "value": null,
+        "explanation": "The exact remediation tree and its isolated test result remain external to this committed registry."
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
@@ -3273,14 +3615,14 @@
       "id": "INV-REL-001",
       "category": "test_deployment",
       "title": "Frozen, attested, executable release gate",
-      "statement": "Final validation must be launched externally against an integration-locked exact committed candidate in an isolated checkout; the generated-artifact inventory, test result, reviewed diff, defect ledger, independent-review request/result, production base, deployed tree, restart, and rollback record must all bind to that identity, with no unreviewed candidate mutation or mutable implementation-worktree state mixed into the release. The registry and an in-worktree test run cannot self-attest this property.",
+      "statement": "Final validation must be launched externally against an integration-locked exact committed candidate in an isolated checkout; the generated-artifact inventory, test result, reviewed diff, defect ledger, independent-review request/result, production base, deployed tree, restart, and rollback record must all bind to that identity, with no unreviewed candidate mutation or mutable implementation-worktree state mixed into the release. Candidate-owned pytest code, plugins, callbacks, reports and writable result files are advisory inputs only: authoritative pass/fail, exit status and evidence bytes must be captured and validated by the separately owned outer runner through a candidate-inaccessible channel. The registry and an in-worktree test run cannot self-attest this property.",
       "failure_if_violated": "Tests can describe a different tree from the one committed or deployed, generated files can be stale, and on-disk production can advance independently of the running process.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The executable gate is designed to hold a shared-Git integration lock, require a clean exact commit, map its diff to invariants, validate generated relationships, run focused checks and the full suite in a detached isolated worktree, and emit hash-bound attestations. Those controls are candidate-specific only when a separate external invocation validates the frozen commit. The gate deliberately does not deploy, restart, or prove loaded process identity.",
+      "status_rationale": "The application gate is designed to hold a shared-Git integration lock, require a clean exact commit, map its diff to invariants, validate generated relationships and run focused checks plus the full suite in a detached isolated worktree. Its reports remain candidate-owned advisory inputs. Candidate-specific authority exists only when a separately owned outer runner validates the frozen commit, independently owns evidence capture and refuses candidate-written success claims. The external bootstrap and its evidence channel remain pending independent review, and the gate deliberately does not deploy, restart or prove loaded process identity.",
       "verification": {
         "status": "partial",
-        "rationale": "Release-gate tests cover lock contention, tree drift, exact detached checkout, network isolation, mapping, semantic attestation determinism, and scope wording; no test performs an immutable production activation or proves loaded process identity."
+        "rationale": "Application release-gate tests cover lock contention, tree drift, exact detached checkout, network isolation, mapping, semantic attestation determinism and scope wording. They cannot prove that an external supervisor owns an unforgeable result channel, and no test performs an immutable production activation or proves loaded process identity."
       },
       "affected_paths": [
         "production_invariants.json",
@@ -3355,6 +3697,7 @@
       },
       "known_gaps": [
         "The registry cannot self-attest any candidate; an external frozen-candidate gate run must supply the exact commit, tree and candidate-specific attestation result.",
+        "The separately owned outer runner and its candidate-inaccessible evidence channel remain pending independent review; candidate-owned pytest callbacks or writable result files must not be accepted as authoritative success evidence.",
         "Production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch.",
         "The gate attests but deliberately does not deploy, restart, or verify an activated production tree.",
         "Independent review remains a separate human session whose investigative independence cannot be proved automatically.",
@@ -3370,17 +3713,18 @@
           "independent_review_manifest.json",
           "attestation_sha256_inventory.json"
         ],
-        "explanation": "The gate emits these release artifacts outside the candidate; deployment consumption and loaded-process binding remain incomplete."
+        "explanation": "The application gate describes these release artifacts, but candidate-emitted copies are advisory. Only bytes captured, validated and published by the separately owned outer runner may be authoritative; deployment consumption and loaded-process binding remain incomplete."
       },
       "preconditions": [
         "The candidate is a clean committed tree with an explicit base commit.",
         "The shared Git integration lock is held throughout candidate validation.",
         "Attestation output is outside the candidate worktree and independent review occurs in a separate session.",
-        "The gate is launched from outside the candidate's mutable implementation context and checks out the exact committed tree it validates."
+        "The gate is launched from outside the candidate's mutable implementation context and checks out the exact committed tree it validates.",
+        "The candidate process cannot write, replace or choose the authoritative evidence channel; the outer runner owns process status and hashes the evidence bytes it actually captures."
       ],
       "failure_mode": {
         "mode": "fail_closed",
-        "explanation": "The guarded action or assurance claim is refused when the required state cannot be proved."
+        "explanation": "Release qualification is refused when candidate identity, changed-path scope, outer-owned process status or candidate-inaccessible evidence bytes cannot be proved."
       },
       "full_suite_relevance": {
         "status": "required",
@@ -3423,7 +3767,7 @@
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "No acceptance is recorded. Candidate-specific attestation status is supplied externally and cannot be inferred from this registry; production still uses a mutable live checkout rather than an immutable release directory with an atomic current switch; the gate deliberately does not deploy, restart, or verify an activated production tree; independent review remains a separate human session whose investigative independence cannot be proved automatically; loaded process identity is not attested (see INV-PROC-004)."
+        "explanation": "No acceptance is recorded. Candidate-specific status cannot be inferred from this registry, and candidate-owned pytest callbacks or writable result files are not authoritative. The separately owned evidence channel remains pending review; production still uses a mutable live checkout; the gate does not deploy, restart or verify an activated tree; independent review remains a separate human session; and loaded process identity is not attested (see INV-PROC-004)."
       }
     },
     {
@@ -3597,7 +3941,8 @@
       "id": "INV-REL-TRUST-001",
       "implementation_status": "partial",
       "known_gaps": [
-        "The external bootstrap candidate remains pending independent review and is not yet a trusted root."
+        "The external bootstrap candidate remains pending independent review and is not yet a trusted root.",
+        "The outer runner's process-status and evidence-capture channel has not yet been independently established as candidate-inaccessible; candidate-owned callbacks and writable result files can never satisfy this boundary."
       ],
       "last_verified_commit": {
         "explanation": "Candidate-owned metadata cannot establish the authoritative external gate identity.",
@@ -3612,7 +3957,8 @@
       "owner_subsystem": "release_assurance",
       "preconditions": [
         "The application candidate is treated as untrusted input.",
-        "The external assurance policy and runner come from a separately committed repository."
+        "The external assurance policy and runner come from a separately committed repository.",
+        "Authoritative status and evidence bytes are captured by the outer runner through a channel the candidate cannot write, replace or reinterpret."
       ],
       "rationale": "A candidate that supplies its own certifier can weaken the checks that supposedly approve it.",
       "required_production_deployed_path_checks": {
@@ -3625,11 +3971,11 @@
         "explanation": "This release-control contract does not add a bot runtime artefact.",
         "status": "none"
       },
-      "statement": "Candidate-owned code, registries, plugins and reports are advisory inputs only; only a separately committed and hash-pinned external runner may issue release qualification.",
-      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap pending independent review.",
+      "statement": "Candidate-owned code, registries, pytest plugins, callbacks, reports and writable evidence files are advisory inputs only; only a separately committed and hash-pinned external runner which owns process status and a candidate-inaccessible evidence channel may issue release qualification.",
+      "status_rationale": "The application-side compatibility boundary is implemented or recorded, while authoritative enforcement belongs to the separately committed external bootstrap. That bootstrap and its outer-owned evidence-capture path remain pending independent review, so no candidate-generated success report is treated as a trusted root.",
       "title": "External release-assurance trust separation",
       "verification": {
-        "rationale": "Focused application regressions cover the compatibility boundary; external enforcement is reviewed separately.",
+        "rationale": "Focused application regressions prove only that the candidate gate labels itself non-authoritative. Whether the external runner owns process status and evidence bytes without trusting candidate callbacks or writable files must be established by separate review.",
         "status": "partial"
       }
     },

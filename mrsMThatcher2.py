@@ -24,6 +24,7 @@ import socket
 import stat
 import struct
 import sys
+import tempfile
 import threading
 from collections import Counter
 from datetime import datetime, timedelta
@@ -44,26 +45,57 @@ from remote_write_safety_protocol import (
     inspect_protocol_activation,
 )
 from remote_media_upload_receipt import (
+    ReceiptBoundMediaPayload,
     MediaUploadAuthority,
     MediaUploadReceiptError,
     begin_media_upload,
+    bind_media_handoff_to_transport,
+    bind_media_upload_payload,
     confirm_media_upload,
     consume_media_upload_authority,
+    fence_path_for_receipt as media_fence_path_for_receipt,
     load_confirmed_media_upload,
+    media_upload_has_valid_restart_barrier,
     media_upload_receipt_is_blocking,
+    resume_interrupted_confirmed_media_retirement,
     retire_confirmed_media_upload,
 )
 from remote_write_transport_journal import (
+    BoundSourceReceiptTransitionError,
+    LANE_SOURCE_VALIDATOR_ID,
+    SourceReceiptBinding,
     TransportAuthority,
     TransportJournalError,
+    abort_untransmitted_transport_transaction,
     arm_transport_transaction,
+    bind_confirmed_transport_source,
+    bind_transport_source,
     begin_transport_transaction,
     confirm_transport_transaction,
     consume_transport_authority,
     fence_path_for_journal,
+    freeze_tweet_request,
+    inspect_confirmed_transport_transaction,
+    inspect_transport_state,
     journal_path_for_receipt,
+    replace_bound_source_receipt,
+    replace_exact_source_receipt_document,
     retire_confirmed_transport_transaction,
+    transport_journal_has_valid_restart_barrier,
     transport_journal_is_blocking,
+    verify_confirmed_transport_source_lineage,
+)
+from exact_receipt_retirement import (
+    ExactReceiptRetirementError,
+    prepare_exact_receipt_retirement,
+    retirement_auxiliary_barrier_exists,
+    retirement_auxiliary_paths,
+    resume_interrupted_receipt_retirement,
+    retire_exact_receipt,
+)
+from transaction_mutation_authority import (
+    TransactionMutationAuthority,
+    issue_transaction_mutation_authority,
 )
 
 
@@ -741,6 +773,17 @@ def require_instance_lock_for_remote_write(operation: str) -> None:
             f"{operation} refused because the instance-lock path changed during "
             "the ownership probe"
         )
+
+
+def transaction_mutation_authority(
+    operation: str,
+) -> TransactionMutationAuthority:
+    """Issue an authority which re-proves the live instance lock on use."""
+
+    return issue_transaction_mutation_authority(
+        require_instance_lock_for_remote_write,
+        operation=operation,
+    )
 
 
 def acquire_instance_lock() -> None:
@@ -1656,6 +1699,7 @@ def production_bootstrap(
         context_store = HistoricalContextReplyStore(
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            mutation_authority_provider=transaction_mutation_authority,
         )
         try:
             context_store.history()
@@ -1725,22 +1769,55 @@ def require_production_bootstrap() -> None:
 
 def reconcile_runtime_historical_context_state() -> None:
     """Validate and reconcile durable context state while holding the process lock."""
+    maintenance_paused = global_remote_writes_paused()
+    resume_source_receipt_retirement_for_control_snapshot(
+        maintenance_paused=maintenance_paused,
+    )
     global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
     from historical_context_formatter import HistoricalContextReplyStore
 
     context_store = HistoricalContextReplyStore(
         HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=transaction_mutation_authority,
     )
-    try:
-        context_store.reconcile_receipt()
-    except Exception:
-        log.critical(
-            "Historical-context durable receipt could not be reconciled; "
-            "refusing production startup to preserve the ambiguity barrier",
-            exc_info=True,
+    defer_to_confirmed_transport_recovery = False
+    if maintenance_paused:
+        defer_to_confirmed_transport_recovery = bool(
+            os.path.lexists(HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE)
         )
-        raise
+        if defer_to_confirmed_transport_recovery:
+            log.warning(
+                "Global maintenance pause is active; leaving the historical-"
+                "context transaction untouched until an unpaused loop tick"
+            )
+    else:
+        loaded_receipt = context_store._load_receipt_safely()
+        if (
+            loaded_receipt is not None
+            and HistoricalContextReplyStore._valid_sending_receipt(
+                loaded_receipt[0]
+            )
+            and inspect_transport_state(
+                journal_path_for_receipt(HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE)
+            ).classification
+            == "confirmed_pair"
+        ):
+            defer_to_confirmed_transport_recovery = True
+            log.warning(
+                "Deferring a transport-confirmed historical-context sending "
+                "receipt to the pre-barrier local recovery path"
+            )
+    if not defer_to_confirmed_transport_recovery:
+        try:
+            context_store.reconcile_receipt()
+        except Exception:
+            log.critical(
+                "Historical-context durable receipt could not be reconciled; "
+                "refusing production startup to preserve the ambiguity barrier",
+                exc_info=True,
+            )
+            raise
     try:
         historical_context_outbox_store().snapshot()
     except Exception as exc:
@@ -1808,6 +1885,16 @@ def initialise_installation() -> int:
                 f"{HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.name}.lock"
             ),
         )
+    )
+    candidates.extend(
+        auxiliary
+        for receipt_path in (
+            REGULAR_POST_RECEIPT_FILE,
+            MEME_POST_RECEIPT_FILE,
+            CONFIRMED_REPLY_RECEIPT_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        )
+        for auxiliary in retirement_auxiliary_paths(receipt_path)
     )
     existing: list[Path] = []
     for path in candidates:
@@ -3732,6 +3819,54 @@ def x_request_targets_media_upload(method: str, path: str) -> bool:
         == "/2/media/upload"
     )
 
+
+def exact_x_create_route(method: str, path: str) -> str | None:
+    """Return the exact authorised create route, without URL normalisation.
+
+    URL decoding and path normalisation are useful for recognising a route that
+    must be rejected, but they are not authority: an authorised create must use
+    one literal method/path pair with no query, fragment, alternate spelling or
+    legacy endpoint.
+    """
+
+    if str(method) != "POST":
+        return None
+    if str(path) == "/2/tweets":
+        return "tweet"
+    if str(path) == "/2/media/upload":
+        return "media"
+    return None
+
+
+def frozen_strict_json_object(value: object, *, label: str) -> dict:
+    """Return an isolated strict-JSON copy suitable for request transport."""
+
+    if not isinstance(value, dict):
+        raise AmbiguousRemotePostOutcome(
+            f"{label} must be one JSON object",
+            service="x",
+        )
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        decoded = json.loads(encoded)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise AmbiguousRemotePostOutcome(
+            f"{label} is not strict JSON",
+            service="x",
+        ) from exc
+    if not isinstance(decoded, dict):
+        raise AmbiguousRemotePostOutcome(
+            f"{label} must remain one JSON object",
+            service="x",
+        )
+    return decoded
+
 def print_rate_limit_headers(response: requests.Response) -> int | None:
     """Log rate limit headers."""
     log.warning("Rate Limit: %s", response.headers.get("x-rate-limit-limit"))
@@ -3762,15 +3897,46 @@ def x_request(
     *,
     ambiguous_write: bool = False,
     _remote_write_authorization: TransportAuthority | MediaUploadAuthority | None = None,
+    _remote_media_payload: ReceiptBoundMediaPayload | None = None,
     **kwargs,
 ) -> dict:
     """Send an authenticated X API request with bounded retries."""
     url = f"{X_BASE}{path}"
     is_post_create = x_request_targets_tweet_create(method, path)
     is_media_upload = x_request_targets_media_upload(method, path)
+    exact_create_route = exact_x_create_route(method, path)
+    method_upper = str(method).upper()
+    if (is_post_create or is_media_upload) and exact_create_route is None:
+        raise AmbiguousRemotePostOutcome(
+            "An X create route must use its exact literal method and path",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    if method_upper not in {"GET", "HEAD", "OPTIONS"} and exact_create_route is None:
+        raise AmbiguousRemotePostOutcome(
+            "Generic or legacy X write routes have no durable transaction policy",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    if ambiguous_write and exact_create_route is None:
+        raise AmbiguousRemotePostOutcome(
+            "Ambiguous-write handling is reserved for exact authorised create routes",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
     if isinstance(_remote_write_authorization, TransportAuthority) and not is_post_create:
         raise AmbiguousRemotePostOutcome(
             "A tweet-create transport authority cannot authorise another X endpoint",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+    if _remote_media_payload is not None and not is_media_upload:
+        raise AmbiguousRemotePostOutcome(
+            "A receipt-bound media body cannot authorise another X endpoint",
             service="x",
             request_method=method,
             request_path=path,
@@ -3804,6 +3970,28 @@ def x_request(
             request_path=path,
         )
 
+    if is_post_create:
+        if set(kwargs) != {"json"}:
+            raise AmbiguousRemotePostOutcome(
+                "X post creation accepts only one exact JSON body and no alternate "
+                "body, query, header, file or redirect channel",
+                service="x",
+                request_method=method,
+                request_path=path,
+            )
+        kwargs["json"] = frozen_strict_json_object(
+            kwargs["json"],
+            label="X post creation payload",
+        )
+
+    if is_media_upload and set(kwargs) != {"data", "files"}:
+        raise AmbiguousRemotePostOutcome(
+            "X media creation accepts only its exact form and media part",
+            service="x",
+            request_method=method,
+            request_path=path,
+        )
+
     log.debug("X request: %s %s", method, url)
 
     if "params" in kwargs:
@@ -3818,7 +4006,7 @@ def x_request(
     if "files" in kwargs:
         log.debug("X request includes files: %s", list(kwargs["files"].keys()))
 
-    if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+    if method_upper not in {"GET", "HEAD", "OPTIONS"}:
         require_remote_operation_unpaused(
             f"X {method.upper()} {path}",
             transaction_authorization=_remote_write_authorization,
@@ -3883,10 +4071,18 @@ def x_request(
         media_part = files.get("media") if isinstance(files, dict) else None
         if (
             not isinstance(media_part, tuple)
-            or len(media_part) < 3
-            or not hasattr(media_part[1], "name")
+            or len(media_part) != 3
+            or not isinstance(media_part[0], str)
+            or type(media_part[1]) is not bytes
             or not isinstance(media_part[2], str)
             or not isinstance(form, dict)
+            or not isinstance(_remote_media_payload, ReceiptBoundMediaPayload)
+            or media_part
+            != (
+                _remote_media_payload.basename,
+                _remote_media_payload.data,
+                _remote_media_payload.mime_type,
+            )
         ):
             raise AmbiguousRemotePostOutcome(
                 "X media upload request is not an exact bound multipart payload",
@@ -3899,7 +4095,7 @@ def x_request(
             consume_media_upload_authority(
                 MEDIA_UPLOAD_RECEIPT_FILE,
                 _remote_write_authorization,
-                image_path=Path(media_part[1].name),
+                payload=_remote_media_payload,
                 lane=_remote_write_authorization.lane,
                 mime_type=media_part[2],
                 payload_metadata=media_upload_payload_metadata(form),
@@ -4011,10 +4207,9 @@ def x_request(
 
 def x_bearer_request(method: str, path: str, **kwargs) -> dict:
     """Send a bearer-authenticated X API request with bounded retries."""
-    if x_request_targets_tweet_create(method, path):
+    if str(method).upper() not in {"GET", "HEAD", "OPTIONS"}:
         raise AmbiguousRemotePostOutcome(
-            "Bearer-authenticated X post creation has no durable transaction "
-            "authority",
+            "Bearer-authenticated X writes have no durable transaction authority",
             service="x",
             request_method=method,
             request_path=path,
@@ -4028,9 +4223,6 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
 
     if "params" in kwargs:
         log_json_debug("X bearer request params", kwargs["params"])
-
-    if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
-        require_remote_operation_unpaused(f"X bearer {method.upper()} {path}")
 
     try:
         response = requests.request(
@@ -5449,36 +5641,28 @@ def media_upload_payload_metadata(form: dict[str, object]) -> dict[str, object]:
 
 
 def upload_media_v2(
-    image_path: str,
     *,
     authority: MediaUploadAuthority,
+    payload: ReceiptBoundMediaPayload,
 ) -> str:
     """Upload once through v2 and return its confirmed media identity."""
-    log.info("Uploading media via X API v2: %s", image_path)
-
-    mime_type, _ = mimetypes.guess_type(image_path)
-    if not mime_type:
-        mime_type = "image/jpeg"
-
-    log.debug("Detected MIME type for %s: %s", image_path, mime_type)
-
-    with open(image_path, "rb") as f:
-        files = {
-            "media": (os.path.basename(image_path), f, mime_type),
-        }
-        data = {
-            "media_category": "tweet_image",
-            "media_type": mime_type,
-        }
-
-        result = x_request(
-            "POST",
-            "/2/media/upload",
-            files=files,
-            data=data,
-            ambiguous_write=True,
-            _remote_write_authorization=authority,
-        )
+    log.info("Uploading receipt-bound media via X API v2: %s", payload.basename)
+    files = {
+        "media": (payload.basename, payload.data, payload.mime_type),
+    }
+    data = {
+        "media_category": "tweet_image",
+        "media_type": payload.mime_type,
+    }
+    result = x_request(
+        "POST",
+        "/2/media/upload",
+        files=files,
+        data=data,
+        ambiguous_write=True,
+        _remote_write_authorization=authority,
+        _remote_media_payload=payload,
+    )
 
     response_data = result.get("data") if isinstance(result, dict) else None
     raw_media_id = (
@@ -5533,6 +5717,14 @@ def upload_media(image_path: str, *, lane: str) -> str:
             mime_type=mime_type,
             payload_metadata=media_upload_payload_metadata(form),
         )
+        bound_payload = bind_media_upload_payload(
+            MEDIA_UPLOAD_RECEIPT_FILE,
+            authority,
+            image_path=Path(image_path),
+            lane=lane,
+            mime_type=mime_type,
+            payload_metadata=media_upload_payload_metadata(form),
+        )
     except MediaUploadReceiptError as exc:
         raise AmbiguousRemotePostOutcome(
             "Could not establish the restart-persistent media-upload receipt",
@@ -5540,34 +5732,45 @@ def upload_media(image_path: str, *, lane: str) -> str:
             request_method="POST",
             request_path="/2/media/upload",
         ) from exc
+    media_sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
-        media_id = upload_media_v2(image_path, authority=authority)
-        confirm_media_upload(
-            MEDIA_UPLOAD_RECEIPT_FILE,
-            authority,
-            media_id=media_id,
-        )
-        return media_id
-    except AmbiguousRemotePostOutcome:
-        # The upload precedes the public-post sending receipt.  If its response
-        # is lost, no lane receipt yet exists to suppress a later automatic
-        # upload.  Publish the ordinary restart-persistent ambiguity barrier;
-        # never repeat the upload through either endpoint automatically.
-        log.critical(
-            "X media upload outcome is ambiguous; blocking every subsequent "
-            "remote write pending manual reconciliation. image=%s",
-            Path(image_path).name,
-        )
-        record_ambiguous_remote_post({"text": "", "media": {"media_ids": []}})
-        raise
-    except MediaUploadReceiptError as exc:
-        record_ambiguous_remote_post({"text": "", "media": {"media_ids": []}})
-        raise AmbiguousRemotePostOutcome(
-            "X confirmed a media upload but its durable receipt could not be confirmed",
-            service="x",
-            request_method="POST",
-            request_path="/2/media/upload",
-        ) from exc
+        try:
+            media_id = upload_media_v2(
+                authority=authority,
+                payload=bound_payload,
+            )
+            confirm_media_upload(
+                MEDIA_UPLOAD_RECEIPT_FILE,
+                authority,
+                mutation_authority=transaction_mutation_authority(
+                    "media upload confirmation"
+                ),
+                media_id=media_id,
+            )
+            return media_id
+        except AmbiguousRemotePostOutcome:
+            # The upload precedes the public-post sending receipt.  If its
+            # response is lost, its media receipt and the ordinary incident
+            # marker both suppress every later upload or public post.
+            log.critical(
+                "X media upload outcome is ambiguous; blocking every subsequent "
+                "remote write pending manual reconciliation. image=%s",
+                Path(image_path).name,
+            )
+            record_ambiguous_remote_post({"text": "", "media": {"media_ids": []}})
+            raise
+        except MediaUploadReceiptError as exc:
+            record_ambiguous_remote_post({"text": "", "media": {"media_ids": []}})
+            raise AmbiguousRemotePostOutcome(
+                "X confirmed a media upload but its durable receipt could not be confirmed",
+                service="x",
+                request_method="POST",
+                request_path="/2/media/upload",
+            ) from exc
+    finally:
+        # The receipt is durable before this guard begins and remains the
+        # restart barrier until confirmed media is handed to a tweet journal.
+        end_confirmed_post_sigint_deferral(media_sigint_guard)
 
 
 def unresolved_conversational_reply_receipt_is_blocking() -> bool:
@@ -5765,10 +5968,74 @@ def canonical_transport_receipt_path_for_lane(lane: str) -> Path | None:
     }.get(str(lane))
 
 
+TRANSPORT_SOURCE_VALIDATOR_ID = LANE_SOURCE_VALIDATOR_ID
+
+
+def transport_source_semantic_validator(
+    lane: str,
+    receipt: dict,
+    payload: dict,
+) -> bool:
+    """Prove that one lane-owned source receipt authorises one tweet body."""
+
+    if lane in {"quote_image", "daily_meme"}:
+        return bool(
+            receipt.get("lane") == lane
+            and receipt.get("lifecycle_state") == "attempting"
+            and main_post_attempt_binds_payload(receipt, payload)
+        )
+    if lane == "conversational_reply":
+        expected_keys = {"text", "reply"}
+        if payload.get("made_with_ai") is True:
+            expected_keys.add("made_with_ai")
+        return bool(
+            sending_reply_receipt_is_semantically_valid(receipt)
+            and set(payload) == expected_keys
+            and payload.get("text") == receipt.get("reply_text")
+            and payload.get("reply")
+            == {"in_reply_to_tweet_id": str(receipt.get("target_id"))}
+        )
+    if lane == "historical_context_reply":
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        return bool(
+            HistoricalContextReplyStore._valid_sending_receipt(receipt)
+            and set(payload) == {"text", "reply"}
+            and payload.get("text") == receipt.get("reply_text")
+            and payload.get("reply")
+            == {"in_reply_to_tweet_id": str(receipt.get("parent_post_id"))}
+        )
+    return False
+
+
+def bind_lane_transport_source(
+    *,
+    receipt_path: Path,
+    receipt: dict,
+    lane: str,
+    payload: dict,
+) -> SourceReceiptBinding:
+    """Create the only accepted semantic source binding for a public tweet."""
+
+    return bind_transport_source(
+        receipt_path=receipt_path,
+        expected_receipt=receipt,
+        lane=lane,
+        payload=payload,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+        validator=transport_source_semantic_validator,
+    )
+
+
 def block_if_unrelated_receipt_appeared_for_tweet_transport(
     expected_receipt_path: Path,
 ) -> None:
     """Reject a lane which appeared after the transaction's initial preflight."""
+
+    if remote_receipt_retirement_is_blocking():
+        raise TransportJournalError(
+            "a source-receipt retirement appeared before tweet transport"
+        )
 
     for path in (
         REGULAR_POST_RECEIPT_FILE,
@@ -5788,6 +6055,11 @@ def block_if_unrelated_receipt_appeared_for_tweet_transport(
 
 def block_if_unrelated_receipt_appeared_for_media_transport() -> None:
     """Reject media transport if any other transaction owns remote writes."""
+
+    if remote_receipt_retirement_is_blocking():
+        raise MediaUploadReceiptError(
+            "a source-receipt retirement appeared before media transport"
+        )
 
     if remote_write_transport_journal_is_blocking():
         raise MediaUploadReceiptError(
@@ -5814,6 +6086,180 @@ def remote_write_transport_journal_is_blocking() -> bool:
     )
 
 
+def remote_receipt_retirement_is_blocking() -> bool:
+    """Return whether any source-receipt retirement is incomplete or unsafe."""
+
+    return any(
+        retirement_auxiliary_barrier_exists(path)
+        for path in (
+            REGULAR_POST_RECEIPT_FILE,
+            MEME_POST_RECEIPT_FILE,
+            CONFIRMED_REPLY_RECEIPT_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        )
+    )
+
+
+def resume_interrupted_source_receipt_retirement_if_present() -> bool:
+    """Finish one journal-free source retirement under the process lock.
+
+    A matching transport journal must retain the source receipt until its own
+    retirement has completed.  Multiple lane auxiliaries are never selected
+    automatically, and every namespace inspection includes broken symlinks.
+    """
+
+    receipt_paths = (
+        REGULAR_POST_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE,
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )
+    active = [
+        path
+        for path in receipt_paths
+        if retirement_auxiliary_barrier_exists(path)
+    ]
+    if not active:
+        return False
+    if len(active) != 1:
+        raise ExactReceiptRetirementError(
+            "multiple source-receipt retirement lanes require manual inspection"
+        )
+    source_path = active[0]
+    blocking_journals = [
+        path
+        for path in remote_write_transport_journal_paths()
+        if transport_journal_is_blocking(path)
+    ]
+    if blocking_journals:
+        owning_journal = journal_path_for_receipt(source_path)
+        if len(blocking_journals) != 1 or (
+            blocking_journals[0].absolute() != owning_journal.absolute()
+        ):
+            raise ExactReceiptRetirementError(
+                "source retirement overlaps an unrelated transport journal"
+            )
+        journal_state = inspect_transport_state(owning_journal)
+        if journal_state.journal is None:
+            raise ExactReceiptRetirementError(
+                "source retirement cannot identify an incomplete owning journal"
+            )
+        journal_document = journal_state.journal.document
+        lane = str(journal_document["lane"])
+        post_id = str(journal_document.get("remote_post_id") or "")
+        if not post_id:
+            raise ExactReceiptRetirementError(
+                "source retirement owning journal is not confirmed"
+            )
+        if source_path == REGULAR_POST_RECEIPT_FILE:
+            _status, receipt = load_regular_post_receipt()
+            receipt_bytes = (
+                canonical_atomic_json_bytes(receipt)
+                if isinstance(receipt, dict)
+                else b""
+            )
+        elif source_path == MEME_POST_RECEIPT_FILE:
+            _status, receipt = load_meme_post_receipt()
+            receipt_bytes = (
+                canonical_atomic_json_bytes(receipt)
+                if isinstance(receipt, dict)
+                else b""
+            )
+        elif source_path == CONFIRMED_REPLY_RECEIPT_FILE:
+            _status, receipt = load_confirmed_reply_receipt()
+            receipt_bytes = (
+                canonical_atomic_json_bytes(receipt)
+                if isinstance(receipt, dict)
+                else b""
+            )
+        else:
+            from historical_context_formatter import HistoricalContextReplyStore
+
+            loaded = HistoricalContextReplyStore(
+                HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+                HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+                mutation_authority_provider=transaction_mutation_authority,
+            )._load_receipt_safely()
+            receipt = loaded[0] if loaded is not None else None
+            receipt_bytes = loaded[1] if loaded is not None else b""
+        if not isinstance(receipt, dict) or not receipt_bytes:
+            raise ExactReceiptRetirementError(
+                "prepared source receipt is unavailable or invalid"
+            )
+        retire_lane_transport_journal_if_present(
+            receipt_path=source_path,
+            receipt=receipt,
+            lane=lane,
+            post_id=post_id,
+            current_receipt_bytes=receipt_bytes,
+        )
+    result = resume_interrupted_receipt_retirement(
+        source_path,
+        mutation_authority=transaction_mutation_authority(
+            "interrupted source receipt retirement resume"
+        ),
+    )
+    log.warning(
+        "Resumed interrupted exact source-receipt retirement path=%s phase=%s",
+        source_path,
+        result.initial_phase,
+    )
+    return True
+
+
+def resume_source_receipt_retirement_for_control_snapshot(
+    *,
+    maintenance_paused: bool,
+) -> bool:
+    """Apply one already-read pause snapshot to local retirement mutation."""
+
+    if maintenance_paused:
+        return False
+    try:
+        return resume_interrupted_source_receipt_retirement_if_present()
+    except BaseException:
+        # The last namespace unlink can succeed before its directory fsync
+        # raises.  At that point no auxiliary pathname may remain for the
+        # ordinary barrier scan.  Preserve a process-local fail-closed latch so
+        # this daemon tick cannot continue into any scheduler or provider lane.
+        global _AMBIGUOUS_REMOTE_POST_SEEN
+        _AMBIGUOUS_REMOTE_POST_SEEN = True
+        raise
+
+
+def retire_current_source_receipt(
+    receipt_path: Path,
+    expected_receipt_bytes: bytes,
+) -> None:
+    """Resume a prepared removal, or start retirement when no journal existed."""
+
+    if retirement_auxiliary_barrier_exists(receipt_path):
+        resume_interrupted_receipt_retirement(
+            receipt_path,
+            mutation_authority=transaction_mutation_authority(
+                "source receipt retirement resume"
+            ),
+        )
+    else:
+        retire_exact_receipt(
+            receipt_path,
+            expected_receipt_bytes,
+            mutation_authority=transaction_mutation_authority(
+                "source receipt retirement"
+            ),
+        )
+
+
+def block_if_remote_receipt_retirement_exists() -> None:
+    """Fail closed while a receipt-removal transaction remains unfinished."""
+
+    if remote_receipt_retirement_is_blocking():
+        raise AmbiguousRemotePostOutcome(
+            "An incomplete source-receipt retirement blocks every remote-write lane",
+            service="x",
+        )
+
+
 def block_if_remote_write_transport_journal_exists() -> None:
     """Fail closed before unrelated remote work while a journal is unresolved."""
 
@@ -5823,6 +6269,67 @@ def block_if_remote_write_transport_journal_exists() -> None:
             "remote-write lane",
             service="x",
         )
+
+
+def confirmed_main_receipt_is_sole_local_recovery_barrier() -> bool:
+    """Return whether one main receipt may finish under its confirmed journal.
+
+    This is intentionally narrower than ignoring the global journal barrier.
+    It exists so the regular and meme entry points can perform local recovery
+    when called directly, just as the daemon's pre-barrier reconciler does.
+    """
+
+    source_paths = (
+        REGULAR_POST_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE,
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )
+    present = [path for path in source_paths if os.path.lexists(path)]
+    if len(present) != 1 or present[0] not in {
+        REGULAR_POST_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE,
+    }:
+        return False
+    owner = present[0]
+    status, receipt = (
+        load_regular_post_receipt()
+        if owner == REGULAR_POST_RECEIPT_FILE
+        else load_meme_post_receipt()
+    )
+    if status not in {"pending_schedule", "valid"} or receipt is None:
+        return False
+    blocking_states = [
+        (path, inspect_transport_state(path))
+        for path in remote_write_transport_journal_paths()
+        if transport_journal_is_blocking(path)
+    ]
+    if not blocking_states:
+        # Only legacy full receipts can legitimately predate a journal.
+        return status == "valid"
+    if len(blocking_states) != 1:
+        return False
+    path, state = blocking_states[0]
+    if not (
+        path.absolute() == journal_path_for_receipt(owner).absolute()
+        and state.classification == "confirmed_pair"
+    ):
+        return False
+    lane = "quote_image" if owner == REGULAR_POST_RECEIPT_FILE else "daily_meme"
+    try:
+        return verify_lane_transport_source_lineage_if_present(
+            receipt_path=owner,
+            receipt=receipt,
+            lane=lane,
+            post_id=str(receipt.get("post_id") or ""),
+        )
+    except Exception:
+        log.critical(
+            "A confirmed main-post recovery receipt failed source-lineage "
+            "validation before local reconciliation",
+            exc_info=True,
+        )
+        return False
 
 
 def remote_media_upload_receipt_is_blocking() -> bool:
@@ -5841,21 +6348,269 @@ def block_if_remote_media_upload_receipt_exists() -> None:
         )
 
 
+def resume_interrupted_confirmed_media_retirement_if_present() -> bool:
+    """Finish one exact media-fence retirement before the global barrier.
+
+    The only automatically selected state is the documented crash boundary in
+    which the confirmed media receipt is absent, its immutable media fence
+    survives, and exactly one canonical main-lane tweet journal/fence pair is
+    still ``prepared``.  That tweet pair and its source receipt remain intact
+    and continue to block every remote-write lane after this local repair; no
+    retransmission or automatic transaction abort is authorised here.
+    """
+
+    require_instance_lock_for_remote_write(
+        "Interrupted confirmed-media retirement recovery"
+    )
+
+    def entry_exists(path: Path) -> bool:
+        try:
+            os.lstat(path)
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            raise MediaUploadReceiptError(
+                "confirmed media retirement namespace cannot be inspected"
+            ) from exc
+        return True
+
+    media_receipt_path = Path(MEDIA_UPLOAD_RECEIPT_FILE)
+    media_fence_path = media_fence_path_for_receipt(media_receipt_path)
+    if entry_exists(media_receipt_path):
+        return False
+    if not entry_exists(media_fence_path):
+        return False
+
+    source_by_lane = {
+        "quote_image": Path(REGULAR_POST_RECEIPT_FILE),
+        "daily_meme": Path(MEME_POST_RECEIPT_FILE),
+    }
+    journal_paths = {
+        journal_path_for_receipt(source_path).absolute()
+        for source_path in source_by_lane.values()
+    }
+    if len(journal_paths) != 1:
+        raise MediaUploadReceiptError(
+            "main-lane transport journals do not share one canonical owner path"
+        )
+    journal_path = next(iter(journal_paths))
+    owner_state = inspect_transport_state(journal_path)
+    if (
+        not owner_state.blocking
+        or owner_state.classification != "prepared_pair"
+        or owner_state.journal is None
+        or owner_state.fence is None
+    ):
+        raise MediaUploadReceiptError(
+            "orphaned media fence owner is not one intact prepared pair"
+        )
+    owner_document = owner_state.journal.document
+    lane = str(owner_document.get("lane") or "")
+    source_path = source_by_lane.get(lane)
+    if (
+        source_path is None
+        or journal_path.absolute()
+        != journal_path_for_receipt(source_path).absolute()
+        or owner_document.get("source_receipt", {}).get("basename")
+        != source_path.name
+    ):
+        raise MediaUploadReceiptError(
+            "orphaned media fence owner does not bind a canonical main lane"
+        )
+
+    result = resume_interrupted_confirmed_media_retirement(
+        media_receipt_path,
+        mutation_authority=transaction_mutation_authority(
+            "interrupted media retirement resume"
+        ),
+        transport_journal_path=journal_path,
+        transport_fence_path=fence_path_for_journal(journal_path),
+        source_receipt_path=source_path,
+    )
+    if result is None or result.state != "retired":
+        raise MediaUploadReceiptError(
+            "interrupted confirmed media retirement did not complete"
+        )
+    log.warning(
+        "Resumed interrupted confirmed-media fence retirement lane=%s "
+        "media_transaction_id=%s media_id=%s; prepared tweet transaction "
+        "remains blocked",
+        result.lane,
+        result.media_transaction_id,
+        result.media_id,
+    )
+    return True
+
+
+def expected_lane_transport_source_receipt_bytes(
+    *,
+    receipt: dict,
+    lane: str,
+    current_receipt_bytes: bytes,
+) -> bytes:
+    """Reconstruct the exact pre-transport receipt for one public lane."""
+
+    if type(current_receipt_bytes) is not bytes or not current_receipt_bytes:
+        raise TransportJournalError("current lane receipt bytes are invalid")
+    if lane in {"quote_image", "daily_meme"}:
+        if (
+            main_post_attempt_is_semantically_valid(receipt)
+            and receipt.get("lifecycle_state") == "attempting"
+        ):
+            return current_receipt_bytes
+        if (
+            receipt.get("receipt_type") == "confirmed_pending_schedule"
+            and confirmed_pending_schedule_receipt_is_semantically_valid(
+                receipt,
+                expected_lane=lane,
+            )
+        ):
+            return canonical_atomic_json_bytes(receipt["source_attempt"])
+        source_attempt = receipt.get("source_attempt")
+        source_sha256 = receipt.get("source_attempt_sha256")
+        if (
+            not isinstance(source_attempt, dict)
+            or not re.fullmatch(r"[0-9a-f]{64}", str(source_sha256 or ""))
+        ):
+            raise TransportJournalError(
+                "current main-post journal cannot be reconciled by a receipt "
+                "without exact source-attempt lineage"
+            )
+        source_bytes = canonical_atomic_json_bytes(source_attempt)
+        if hashlib.sha256(source_bytes).hexdigest() != source_sha256:
+            raise TransportJournalError(
+                "main-post confirmed source-attempt lineage changed"
+            )
+        return source_bytes
+    if lane == "conversational_reply":
+        if sending_reply_receipt_is_semantically_valid(receipt):
+            return current_receipt_bytes
+        source = conversational_sending_receipt_from_confirmed(receipt)
+        source_bytes = canonical_atomic_json_bytes(source)
+        if (
+            hashlib.sha256(source_bytes).hexdigest()
+            != receipt.get("source_receipt_sha256")
+        ):
+            raise TransportJournalError(
+                "conversational confirmed source-receipt lineage changed"
+            )
+        return source_bytes
+    if lane == "historical_context_reply":
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        if HistoricalContextReplyStore._valid_sending_receipt(receipt):
+            return current_receipt_bytes
+        try:
+            return HistoricalContextReplyStore.source_receipt_bytes_from_confirmed(
+                receipt
+            )
+        except (TypeError, ValueError) as exc:
+            raise TransportJournalError(
+                "historical-context confirmed source-receipt lineage changed"
+            ) from exc
+    raise TransportJournalError(
+        "confirmed transport journal has no supported source-lineage lane"
+    )
+
+
+def verify_lane_transport_source_lineage_if_present(
+    *,
+    receipt_path: Path,
+    receipt: dict,
+    lane: str,
+    post_id: str,
+    current_receipt_bytes: bytes | None = None,
+) -> bool:
+    """Validate a current journal before any derived receipt changes state."""
+
+    journal_path = journal_path_for_receipt(receipt_path)
+    if not transport_journal_is_blocking(journal_path):
+        return False
+    if current_receipt_bytes is None:
+        if lane == "historical_context_reply":
+            from historical_context_formatter import canonical_json_bytes
+
+            current_receipt_bytes = canonical_json_bytes(receipt)
+        else:
+            current_receipt_bytes = canonical_atomic_json_bytes(receipt)
+    source_bytes = expected_lane_transport_source_receipt_bytes(
+        receipt=receipt,
+        lane=lane,
+        current_receipt_bytes=current_receipt_bytes,
+    )
+    details = verify_confirmed_transport_source_lineage(
+        receipt_path=receipt_path,
+        expected_source_receipt_bytes=source_bytes,
+        lane=lane,
+        post_id=post_id,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+    )
+    if lane == "quote_image":
+        derived_epoch = receipt_int(
+            receipt.get("confirmation_epoch")
+            if receipt.get("receipt_type") == "confirmed_pending_schedule"
+            else receipt.get("quote_post_epoch")
+        )
+    elif lane == "daily_meme":
+        derived_epoch = receipt_int(
+            receipt.get("confirmation_epoch")
+            if receipt.get("receipt_type") == "confirmed_pending_schedule"
+            else receipt.get("meme_post_epoch")
+        )
+    elif lane == "conversational_reply":
+        derived_epoch = receipt_int(receipt.get("confirmation_epoch"))
+    else:
+        derived_epoch = None
+    if lane != "historical_context_reply" and (
+        derived_epoch is None or derived_epoch != details.confirmation_epoch
+    ):
+        raise TransportJournalError(
+            "confirmed receipt time differs from its transport journal"
+        )
+    return True
+
+
 def retire_lane_transport_journal_if_present(
     *,
     receipt_path: Path,
     receipt: dict,
     lane: str,
     post_id: str,
+    current_receipt_bytes: bytes | None = None,
 ) -> bool:
-    """Retire a new-protocol journal while accepting legacy confirmed receipts."""
+    """Retire a confirmed journal while an exact source-removal guard overlaps."""
 
     journal_path = journal_path_for_receipt(receipt_path)
     if not transport_journal_is_blocking(journal_path):
         return False
+    if current_receipt_bytes is None:
+        if lane == "historical_context_reply":
+            from historical_context_formatter import canonical_json_bytes
+
+            current_receipt_bytes = canonical_json_bytes(receipt)
+        else:
+            current_receipt_bytes = canonical_atomic_json_bytes(receipt)
+    expected_source_receipt_bytes = expected_lane_transport_source_receipt_bytes(
+        receipt=receipt,
+        lane=lane,
+        current_receipt_bytes=current_receipt_bytes,
+    )
+    prepare_exact_receipt_retirement(
+        receipt_path,
+        current_receipt_bytes,
+        mutation_authority=transaction_mutation_authority(
+            "source receipt retirement preparation"
+        ),
+    )
     retire_confirmed_transport_transaction(
+        mutation_authority=transaction_mutation_authority(
+            "confirmed transport journal retirement"
+        ),
         receipt_path=receipt_path,
         expected_confirmed_receipt=receipt,
+        expected_source_receipt_bytes=expected_source_receipt_bytes,
+        expected_current_receipt_bytes=current_receipt_bytes,
+        source_retirement_prepared=True,
         lane=lane,
         post_id=post_id,
     )
@@ -5869,6 +6624,7 @@ def block_if_ambiguous_remote_post(
     prepared_main_post_attempt: dict | None = None,
     allow_confirmed_pending_schedule_reconciliation: bool = False,
     allow_historical_context_receipt_reconciliation: bool = False,
+    prepared_transport_authority: TransportAuthority | None = None,
 ) -> None:
     """Refuse posting while a remote-write safety incident is unresolved."""
     prepared_receipt_count = sum(
@@ -5886,7 +6642,38 @@ def block_if_ambiguous_remote_post(
             service="x",
         )
     block_if_remote_write_safety_incident_latched()
-    block_if_remote_write_transport_journal_exists()
+    block_if_remote_receipt_retirement_exists()
+    if prepared_transport_authority is None:
+        if not (
+            allow_confirmed_pending_schedule_reconciliation
+            and confirmed_main_receipt_is_sole_local_recovery_barrier()
+        ):
+            block_if_remote_write_transport_journal_exists()
+    else:
+        expected_journal = Path(prepared_transport_authority.journal_path)
+        state = inspect_transport_state(expected_journal)
+        unrelated = [
+            path
+            for path in remote_write_transport_journal_paths()
+            if path.absolute() != expected_journal.absolute()
+            and transport_journal_is_blocking(path)
+        ]
+        if (
+            unrelated
+            or prepared_transport_authority.lifecycle_state != "prepared"
+            or state.classification != "prepared_pair"
+            or state.journal is None
+            or state.fence is None
+            or state.journal.document.get("transaction_id")
+            != prepared_transport_authority.transaction_id
+            or state.journal.sha256
+            != prepared_transport_authority.journal_sha256
+            or state.fence.sha256 != prepared_transport_authority.fence_sha256
+        ):
+            raise AmbiguousRemotePostOutcome(
+                "Prepared tweet authority is not the sole exact transport barrier",
+                service="x",
+            )
     block_if_remote_media_upload_receipt_exists()
 
     regular_status, regular_receipt = load_regular_post_receipt()
@@ -5921,7 +6708,12 @@ def block_if_ambiguous_remote_post(
             status == "sending"
             and prepared_main_post_attempt is not None
             and receipt == prepared_main_post_attempt
-            and prepared_main_post_attempt.get("lifecycle_state") == "sending"
+            and prepared_main_post_attempt.get("lifecycle_state")
+            == (
+                "attempting"
+                if prepared_transport_authority is not None
+                else "sending"
+            )
         ):
             prepared_main_authorized = True
             continue
@@ -5992,6 +6784,8 @@ def ambiguous_remote_post_is_blocking() -> bool:
     if remote_write_transport_journal_is_blocking():
         return True
     if remote_media_upload_receipt_is_blocking():
+        return True
+    if remote_receipt_retirement_is_blocking():
         return True
     if historical_context_receipt_path_present_or_unsafe():
         return True
@@ -6425,6 +7219,13 @@ def durable_remote_write_safety_marker_exists() -> bool:
 
 def durable_remote_write_safety_barrier_exists() -> bool:
     """Return whether restart safety survives loss of the process latch."""
+    def confirmed() -> bool:
+        # Any independently validated incident-specific durable authority—not
+        # only the legacy marker—makes controlled process loss restart-safe.
+        # Release a retained post-confirmation SIGINT exactly at that point.
+        release_retained_sigint_deferral_after_durable_barrier()
+        return True
+
     # Protocol inactivity blocks every compatible process, but it is not
     # incident-specific durable evidence and must not by itself acknowledge an
     # in-flight transaction or release a retained confirmed-post signal guard.
@@ -6435,20 +7236,56 @@ def durable_remote_write_safety_barrier_exists() -> bool:
         and durable_remote_write_safety_marker_exists()
     ):
         return True
-    if remote_write_transport_journal_is_blocking():
-        return True
-    if remote_media_upload_receipt_is_blocking():
-        return True
+    # A conservative blocker and proved restart-persistent authority are
+    # different claims.  Directory inspection errors, unsafe namespace entries
+    # and malformed objects must keep remote writes blocked, but cannot release
+    # a retained SIGINT.  Require at least one strict transaction object.
+    for journal_path in remote_write_transport_journal_paths():
+        try:
+            if transport_journal_has_valid_restart_barrier(journal_path):
+                return confirmed()
+        except Exception:
+            continue
     try:
-        if unresolved_main_post_attempt_is_blocking():
-            return True
+        if media_upload_has_valid_restart_barrier(MEDIA_UPLOAD_RECEIPT_FILE):
+            return confirmed()
     except Exception:
-        return REGULAR_POST_RECEIPT_FILE.exists() or MEME_POST_RECEIPT_FILE.exists()
+        pass
+    # Retirement auxiliaries are blockers, but an invalid or uninspectable
+    # auxiliary alone is not sufficient durability evidence.  The normal
+    # per-tick resumer will either complete a valid retirement or leave the
+    # signal guard retained.
+    try:
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        historical_loaded = HistoricalContextReplyStore(
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            mutation_authority_provider=transaction_mutation_authority,
+        )._load_receipt_safely()
+        if historical_loaded is not None and (
+            HistoricalContextReplyStore._valid_sending_receipt(
+                historical_loaded[0]
+            )
+            or HistoricalContextReplyStore._valid_receipt(historical_loaded[0])
+        ):
+            return confirmed()
+    except Exception:
+        pass
+    try:
+        regular_status, _regular = load_regular_post_receipt()
+        meme_status, _meme = load_meme_post_receipt()
+        if regular_status in {"sending", "pending_schedule", "valid"}:
+            return confirmed()
+        if meme_status in {"sending", "pending_schedule", "valid"}:
+            return confirmed()
+    except Exception:
+        pass
     try:
         status, _receipt = load_confirmed_reply_receipt()
     except Exception:
-        return CONFIRMED_REPLY_RECEIPT_FILE.exists()
-    return status in {"sending", "invalid"}
+        return False
+    return confirmed() if status in {"sending", "valid"} else False
 
 
 def retain_sigint_deferral_without_durable_barrier(
@@ -6601,6 +7438,44 @@ def latch_confirmed_post_persistence_failure(
     return True
 
 
+def confirmation_epoch_after_remote_success(source_receipt: dict) -> int:
+    """Return a usable confirmation time without losing a known post ID.
+
+    Reading the wall clock is deliberately best-effort *after* X has returned
+    a valid post identity.  A clock failure at that point must not strand the
+    transport journal in ``attempting`` state and throw away the one piece of
+    information which makes automatic restart recovery possible.  Every
+    supported sending receipt already contains a durable pre-request epoch;
+    that is a conservative lower-bound fallback.
+    """
+
+    fallback = receipt_int(source_receipt.get("attempt_epoch"))
+    if fallback is None:
+        fallback = receipt_int(source_receipt.get("reply_epoch"))
+    if fallback is None or not valid_receipt_epoch(fallback):
+        raise TransportJournalError(
+            "transport source has no durable confirmation-time fallback"
+        )
+    try:
+        observed = int(now_epoch())
+    except Exception:
+        log.critical(
+            "Wall-clock observation failed after X returned a confirmed post "
+            "identity; using the durable pre-request epoch so the confirmed "
+            "transport identity remains restart-recoverable",
+            exc_info=True,
+        )
+        return fallback
+    if not valid_receipt_epoch(observed):
+        log.critical(
+            "Wall-clock observation was outside the supported receipt range "
+            "after X returned a confirmed post identity; using the durable "
+            "pre-request epoch"
+        )
+        return fallback
+    return max(fallback, observed)
+
+
 def create_post(
     text: str,
     media_ids: list[str] | None = None,
@@ -6610,6 +7485,8 @@ def create_post(
     prepared_conversational_reply_receipt: dict | None = None,
     prepared_historical_context_reply_receipt: dict | None = None,
     prepared_main_post_attempt: dict | None = None,
+    prepared_transport_authority: TransportAuthority | None = None,
+    prepared_transport_source: SourceReceiptBinding | None = None,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
     prepared_receipt_count = sum(
@@ -6645,11 +7522,17 @@ def create_post(
                 service="x",
             )
     if prepared_main_post_attempt is not None:
+        expected_lifecycle = (
+            "attempting"
+            if prepared_transport_authority is not None
+            else "sending"
+        )
         if (
             not main_post_attempt_is_semantically_valid(
                 prepared_main_post_attempt
             )
-            or prepared_main_post_attempt.get("lifecycle_state") != "sending"
+            or prepared_main_post_attempt.get("lifecycle_state")
+            != expected_lifecycle
             or reply_to_id is not None
             or not media_ids
         ):
@@ -6682,6 +7565,7 @@ def create_post(
             prepared_historical_context_reply_receipt
         ),
         prepared_main_post_attempt=prepared_main_post_attempt,
+        prepared_transport_authority=prepared_transport_authority,
     )
     payload: dict = {}
 
@@ -6703,6 +7587,19 @@ def create_post(
 
     if not payload.get("text") and not payload.get("media"):
         raise ValueError("Cannot create X post without text or media")
+    try:
+        payload = freeze_tweet_request(
+            method="POST",
+            request_path="/2/tweets",
+            payload=payload,
+        ).payload()
+    except TransportJournalError as exc:
+        raise AmbiguousRemotePostOutcome(
+            "X post creation payload is not an authorised immutable request",
+            service="x",
+            request_method="POST",
+            request_path="/2/tweets",
+        ) from exc
     if (
         prepared_main_post_attempt is not None
         and not main_post_attempt_binds_payload(
@@ -6726,7 +7623,7 @@ def create_post(
             "Global runtime control pause blocks operation: X post creation"
         )
 
-    if prepared_main_post_attempt is not None:
+    if prepared_main_post_attempt is not None and prepared_transport_authority is None:
         attempting = mark_main_post_attempt_attempting(
             prepared_main_post_attempt
         )
@@ -6750,15 +7647,44 @@ def create_post(
         transaction_lane = str(prepared_main_post_attempt["lane"])
 
     try:
-        transport_authority = begin_transport_transaction(
-            receipt_path=transaction_receipt_path,
-            expected_receipt=transaction_receipt,
-            lane=transaction_lane,
-            payload=payload,
-        )
+        if (prepared_transport_authority is None) != (
+            prepared_transport_source is None
+        ):
+            raise TransportJournalError(
+                "prepared transport authority and semantic source must be supplied together"
+            )
+        if prepared_transport_authority is None:
+            transport_source = bind_lane_transport_source(
+                receipt_path=transaction_receipt_path,
+                receipt=transaction_receipt,
+                lane=transaction_lane,
+                payload=payload,
+            )
+            transport_authority = begin_transport_transaction(
+                receipt_path=transaction_receipt_path,
+                source_binding=transport_source,
+            )
+        else:
+            transport_authority = prepared_transport_authority
+            transport_source = prepared_transport_source
+            assert transport_source is not None
+            if (
+                transport_authority.lifecycle_state != "prepared"
+                or Path(transport_authority.journal_path)
+                != journal_path_for_receipt(transaction_receipt_path).absolute()
+                or transport_source.receipt_document != transaction_receipt
+                or transport_source.request.payload() != payload
+                or transport_source.lane != transaction_lane
+            ):
+                raise TransportJournalError(
+                    "prepublished transport pair does not bind this transaction"
+                )
         transport_authority = arm_transport_transaction(
             Path(transport_authority.journal_path),
             transport_authority,
+            mutation_authority=transaction_mutation_authority(
+                "transport journal arming"
+            ),
         )
     except TransportJournalError as exc:
         record_ambiguous_remote_post(payload)
@@ -6803,7 +7729,13 @@ def create_post(
         confirm_transport_transaction(
             Path(transport_authority.journal_path),
             transport_authority,
+            mutation_authority=transaction_mutation_authority(
+                "transport journal confirmation"
+            ),
             post_id=post_id,
+            confirmation_epoch=confirmation_epoch_after_remote_success(
+                transaction_receipt
+            ),
         )
         log.info("Created X post successfully. response=%s", result)
         return result
@@ -6816,6 +7748,24 @@ def create_post(
             request_method="POST",
             request_path="/2/tweets",
         ) from exc
+    except RemoteOperationsPaused:
+        try:
+            abort_untransmitted_transport_transaction(
+                source_binding=transport_source,
+                authority=transport_authority,
+                mutation_authority=transaction_mutation_authority(
+                    "untransmitted transport journal abort"
+                ),
+            )
+        except Exception as abort_exc:
+            record_ambiguous_remote_post(payload)
+            raise AmbiguousRemotePostOutcome(
+                "A locally paused tweet left an unresolved transport barrier",
+                service="x",
+                request_method="POST",
+                request_path="/2/tweets",
+            ) from abort_exc
+        raise
     except AmbiguousRemotePostOutcome:
         record_ambiguous_remote_post(payload)
         raise
@@ -7385,21 +8335,191 @@ def fsync_parent_dir(path: Path, *, strict: bool = False) -> None:
 def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> None:
     """Write JSON atomically and optionally durably."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(value, f, indent=2, sort_keys=True)
-        f.write("\n")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        dir=path.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            json.dump(value, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+            if durable:
+                handle.flush()
+                os.fsync(handle.fileno())
+        os.replace(temporary, path)
         if durable:
-            f.flush()
-            os.fsync(f.fileno())
-    os.replace(tmp, path)
-    if durable:
-        fsync_parent_dir(path, strict=durable)
+            fsync_parent_dir(path, strict=True)
+    except BaseException:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def canonical_atomic_json_bytes(value: object) -> bytes:
     """Return the exact byte representation used by ``atomic_write_json``."""
     return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+RECEIPT_JSON_MAX_BYTES = 1024 * 1024
+
+
+class UnsafeReceiptNamespace(RuntimeError):
+    """A receipt pathname exists but cannot be trusted as one stable file."""
+
+
+def receipt_namespace_entry_exists(path: Path) -> bool:
+    """Return lexical namespace presence without following a symbolic link."""
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _strict_receipt_json_bytes(data: bytes) -> object:
+    """Parse one receipt without duplicate names or non-finite constants."""
+
+    def reject_duplicate_names(pairs: list[tuple[str, object]]) -> dict:
+        value: dict[str, object] = {}
+        for key, item in pairs:
+            if key in value:
+                raise UnsafeReceiptNamespace(
+                    f"receipt contains duplicate JSON object name: {key}"
+                )
+            value[key] = item
+        return value
+
+    def reject_constant(value: str) -> object:
+        raise UnsafeReceiptNamespace(
+            f"receipt contains unsupported JSON constant: {value}"
+        )
+
+    try:
+        return json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_names,
+            parse_constant=reject_constant,
+        )
+    except UnsafeReceiptNamespace:
+        raise
+    except Exception as exc:
+        raise UnsafeReceiptNamespace("receipt is not valid UTF-8 JSON") from exc
+
+
+def load_receipt_json_no_follow(path: Path) -> tuple[bool, object | None]:
+    """Read one bounded stable ordinary receipt, distinguishing true absence.
+
+    A dangling symlink, directory, FIFO, replacement or disappearance after
+    initial observation is an unsafe existing authority, never an absent file.
+    """
+    try:
+        before = os.lstat(path)
+    except FileNotFoundError:
+        return False, None
+    except OSError as exc:
+        raise UnsafeReceiptNamespace("receipt namespace cannot be inspected") from exc
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+        raise UnsafeReceiptNamespace(
+            "receipt namespace entry is not one single-link ordinary file"
+        )
+    if before.st_size > RECEIPT_JSON_MAX_BYTES:
+        raise UnsafeReceiptNamespace("receipt exceeds its byte limit")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise UnsafeReceiptNamespace("O_NOFOLLOW is required for receipt reads")
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+        )
+    except OSError as exc:
+        raise UnsafeReceiptNamespace("receipt changed before it could be opened") from exc
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_dev != before.st_dev
+            or opened.st_ino != before.st_ino
+        ):
+            raise UnsafeReceiptNamespace("receipt identity changed while opening")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            block = os.read(
+                descriptor,
+                min(64 * 1024, RECEIPT_JSON_MAX_BYTES + 1 - total),
+            )
+            if not block:
+                break
+            chunks.append(block)
+            total += len(block)
+            if total > RECEIPT_JSON_MAX_BYTES:
+                raise UnsafeReceiptNamespace("receipt exceeds its byte limit")
+        after_fd = os.fstat(descriptor)
+        try:
+            after_path = os.lstat(path)
+        except OSError as exc:
+            raise UnsafeReceiptNamespace("receipt disappeared while reading") from exc
+        if (
+            after_fd.st_dev != opened.st_dev
+            or after_fd.st_ino != opened.st_ino
+            or after_fd.st_nlink != opened.st_nlink
+            or after_fd.st_size != opened.st_size
+            or after_fd.st_ctime_ns != opened.st_ctime_ns
+            or after_fd.st_mtime_ns != opened.st_mtime_ns
+            or not stat.S_ISREG(after_path.st_mode)
+            or after_path.st_nlink != 1
+            or after_path.st_dev != opened.st_dev
+            or after_path.st_ino != opened.st_ino
+        ):
+            raise UnsafeReceiptNamespace("receipt changed while reading")
+    finally:
+        os.close(descriptor)
+    data = b"".join(chunks)
+    if len(data) != opened.st_size:
+        raise UnsafeReceiptNamespace("receipt read was incomplete")
+    return True, _strict_receipt_json_bytes(data)
+
+
+def durable_create_receipt_json(path: Path, value: object) -> None:
+    """Publish a new receipt with O_EXCL and prove its exact stable bytes."""
+    data = canonical_atomic_json_bytes(value)
+    if len(data) > RECEIPT_JSON_MAX_BYTES:
+        raise UnsafeReceiptNamespace("receipt exceeds its byte limit")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise UnsafeReceiptNamespace("O_NOFOLLOW is required for receipt creation")
+    descriptor = os.open(
+        path,
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | nofollow
+        | getattr(os, "O_CLOEXEC", 0),
+        0o600,
+    )
+    try:
+        os.fchmod(descriptor, 0o600)
+        offset = 0
+        while offset < len(data):
+            written = os.write(descriptor, data[offset:])
+            if written <= 0:
+                raise OSError("short write while publishing receipt")
+            offset += written
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    fsync_parent_dir(path, strict=True)
+    present, parsed = load_receipt_json_no_follow(path)
+    if not present or parsed != value:
+        raise UnsafeReceiptNamespace(
+            "new receipt changed before publication acknowledgement"
+        )
 
 
 def atomic_json_file_exactly_matches(path: Path, value: object) -> bool:
@@ -7574,7 +8694,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     lane = str(data.get("lane") or "")
     supported_schemas = {
         "quote_image": {3, 4},
-        "daily_meme": {2, 3},
+        "daily_meme": {2, 3, 4},
     }.get(lane)
     schema_version = data.get("schema_version")
     if supported_schemas is None or schema_version not in supported_schemas:
@@ -7712,19 +8832,21 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             return False
     else:
         expected_meme_keys = {"next_schedule_mode"}
-        if schema_version == 3:
+        if schema_version in {3, 4}:
             expected_meme_keys |= {
                 "meme_schedule_version",
                 "fallback_hour",
                 "fallback_minute",
             }
+        if schema_version == 4:
+            expected_meme_keys.add("image_summary")
         if (
             set(selected) != {"meme_basename"}
             or not valid_receipt_basename(selected.get("meme_basename"))
             or set(recovery_plan) != expected_meme_keys
             or recovery_plan.get("next_schedule_mode") != "fallback"
             or (
-                schema_version == 3
+                schema_version in {3, 4}
                 and (
                     type(recovery_plan.get("meme_schedule_version")) is not int
                     or not 1
@@ -7734,6 +8856,13 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
                     or not 0 <= int(recovery_plan["fallback_hour"]) <= 23
                     or type(recovery_plan.get("fallback_minute")) is not int
                     or not 0 <= int(recovery_plan["fallback_minute"]) <= 59
+                    or (
+                        schema_version == 4
+                        and (
+                            not isinstance(recovery_plan.get("image_summary"), str)
+                            or len(recovery_plan["image_summary"]) > 16_000
+                        )
+                    )
                 )
             )
         ):
@@ -7791,7 +8920,11 @@ def build_main_post_attempt(
         "schema_version": (
             (3 if legacy_plan else 4)
             if lane == "quote_image"
-            else (2 if legacy_plan else 3)
+            else (
+                2
+                if legacy_plan
+                else (4 if "image_summary" in recovery_plan else 3)
+            )
         ),
         "lifecycle_state": "sending",
         "lane": lane,
@@ -7826,16 +8959,28 @@ def write_main_post_attempt(attempt: dict) -> None:
     """Durably record a main-post transaction before its X create request."""
     if not main_post_attempt_is_semantically_valid(attempt):
         raise RuntimeError("Internal error: generated main-post attempt failed validation")
-    if REGULAR_POST_RECEIPT_FILE.exists() or MEME_POST_RECEIPT_FILE.exists():
+    if remote_receipt_retirement_is_blocking():
+        raise UnresolvedRegularPostReceipt(
+            "Refusing a main-post attempt while source-receipt retirement is incomplete"
+        )
+    if receipt_namespace_entry_exists(
+        REGULAR_POST_RECEIPT_FILE
+    ) or receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE):
         raise UnresolvedRegularPostReceipt(
             "Refusing to overwrite an unresolved regular or meme transaction"
         )
-    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
         raise InvalidConfirmedReplyReceipt(
             "Refusing a main-post attempt while a conversational-reply receipt exists"
         )
     path = main_post_attempt_path(attempt)
-    atomic_write_json(path, attempt, durable=True)
+    try:
+        durable_create_receipt_json(path, attempt)
+    except FileExistsError as exc:
+        raise UnresolvedRegularPostReceipt(
+            "Refusing to overwrite a receipt namespace entry which appeared "
+            f"during main-post publication: {path}"
+        ) from exc
     log.warning(
         "Wrote main-post sending receipt lane=%s attempt_id=%s path=%s",
         attempt["lane"],
@@ -7844,8 +8989,43 @@ def write_main_post_attempt(attempt: dict) -> None:
     )
 
 
-def handoff_confirmed_media_upload_to_main_attempt(attempt: dict) -> None:
-    """Retire media authority only after the exact main attempt is durable."""
+def prepare_main_tweet_transport(
+    attempt: dict,
+) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
+    """Publish a prepared tweet owner before retiring confirmed media state."""
+
+    attempting = (
+        mark_main_post_attempt_attempting(attempt)
+        if attempt.get("lifecycle_state") == "sending"
+        else dict(attempt)
+    )
+    if (
+        attempting.get("lifecycle_state") != "attempting"
+        or not main_post_attempt_is_semantically_valid(attempting)
+    ):
+        raise TransportJournalError("main post attempt is not transport-ready")
+    path = main_post_attempt_path(attempting)
+    payload = main_post_attempt_payload(attempting)
+    source = bind_lane_transport_source(
+        receipt_path=path,
+        receipt=attempting,
+        lane=str(attempting["lane"]),
+        payload=payload,
+    )
+    authority = begin_transport_transaction(
+        receipt_path=path,
+        source_binding=source,
+    )
+    attempt.clear()
+    attempt.update(attempting)
+    return attempt, source, authority
+
+
+def handoff_confirmed_media_upload_to_main_attempt(
+    attempt: dict,
+    transport_authority: TransportAuthority,
+) -> None:
+    """Retire media state only beneath an independent prepared tweet pair."""
 
     confirmation = load_confirmed_media_upload(MEDIA_UPLOAD_RECEIPT_FILE)
     if confirmation is None:
@@ -7853,11 +9033,19 @@ def handoff_confirmed_media_upload_to_main_attempt(attempt: dict) -> None:
             "main-post attempt has no confirmed media-upload receipt"
         )
     path = main_post_attempt_path(attempt)
-    retire_confirmed_media_upload(
+    handoff = bind_media_handoff_to_transport(
         MEDIA_UPLOAD_RECEIPT_FILE,
         confirmation,
-        main_post_receipt_path=path,
-        expected_main_post_receipt_bytes=canonical_atomic_json_bytes(attempt),
+        transport_journal_path=Path(transport_authority.journal_path),
+        transport_fence_path=Path(transport_authority.fence_path),
+        source_receipt_path=path,
+    )
+    retire_confirmed_media_upload(
+        MEDIA_UPLOAD_RECEIPT_FILE,
+        handoff,
+        mutation_authority=transaction_mutation_authority(
+            "confirmed media upload retirement"
+        ),
     )
     log.warning(
         "Handed confirmed media upload to durable main-post attempt "
@@ -7889,7 +9077,14 @@ def mark_main_post_attempt_attempting(attempt: dict) -> dict:
     attempting = {**attempt, "lifecycle_state": "attempting"}
     if not main_post_attempt_is_semantically_valid(attempting):
         raise RuntimeError("Attempting main-post receipt failed validation")
-    atomic_write_json(path, attempting, durable=True)
+    replace_exact_source_receipt_document(
+        path,
+        expected_bytes=canonical_atomic_json_bytes(attempt),
+        replacement_bytes=canonical_atomic_json_bytes(attempting),
+        mutation_authority=transaction_mutation_authority(
+            "main-post sending-to-attempting receipt promotion"
+        ),
+    )
     log.warning(
         "Promoted main-post receipt to attempting lane=%s attempt_id=%s path=%s",
         attempting["lane"],
@@ -7919,8 +9114,10 @@ def remove_main_post_attempt(
                 "Refusing to remove a changed main-post sending receipt",
                 service="x",
             )
-        path.unlink()
-        fsync_parent_dir(path, strict=True)
+        retire_current_source_receipt(
+            path,
+            canonical_atomic_json_bytes(attempt),
+        )
         log.info(
             "Removed main-post sending receipt disposition=%s "
             "lane=%s attempt_id=%s path=%s",
@@ -7999,7 +9196,7 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         or attempt.get("lifecycle_state") != "attempting"
         or attempt.get("schema_version")
         not in (
-            {4} if attempt.get("lane") == "quote_image" else {3}
+            {4} if attempt.get("lane") == "quote_image" else {3, 4}
         )
         or confirmation_epoch < int(attempt["attempt_epoch"])
     ):
@@ -8008,6 +9205,12 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
     if expected_lane is not None and lane != expected_lane:
         return False
     if lane == "quote_image" and data["image_summary"]:
+        return False
+    if (
+        lane == "daily_meme"
+        and attempt.get("schema_version") == 4
+        and data["image_summary"] != attempt["recovery_plan"]["image_summary"]
+    ):
         return False
     return lane in {"quote_image", "daily_meme"}
 
@@ -8090,11 +9293,31 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
             "Main-post attempt changed before remote-confirmation promotion",
             service="x",
         )
+    recovery = bind_confirmed_transport_source(
+        journal_path=journal_path_for_receipt(path),
+        receipt_path=path,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+        validator=transport_source_semantic_validator,
+    )
+    if (
+        recovery.details.lane != str(attempt["lane"])
+        or recovery.details.post_id != str(post_id)
+        or recovery.details.confirmation_epoch != int(confirmation_epoch)
+        or recovery.source_binding.receipt_document != attempt
+        or recovery.source_binding.receipt_bytes
+        != canonical_atomic_json_bytes(attempt)
+    ):
+        raise TransportJournalError(
+            "confirmed main-post transport/source lineage changed"
+        )
     try:
-        if attempt["lane"] == "quote_image":
-            write_regular_post_receipt(pending)
-        else:
-            write_meme_post_receipt(pending)
+        replace_bound_source_receipt(
+            recovery.source_binding,
+            canonical_atomic_json_bytes(pending),
+            mutation_authority=transaction_mutation_authority(
+                "confirmed main-post source receipt promotion"
+            ),
+        )
     except BaseException as write_error:
         # ``atomic_write_json`` replaces the receipt before synchronising its
         # parent directory.  A failure at that final boundary can therefore
@@ -8105,6 +9328,14 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
         global _AMBIGUOUS_REMOTE_POST_SEEN
         latch_was_already_set = remote_write_safety_incident_is_latched()
         _AMBIGUOUS_REMOTE_POST_SEEN = True
+
+        if isinstance(write_error, BoundSourceReceiptTransitionError):
+            raise ConfirmedPendingScheduleDurabilityUncertain(
+                "Confirmed main-post source receipt changed or its exact "
+                "promotion did not complete; the transport journal remains "
+                "a durable global barrier",
+                durable_barrier=True,
+            ) from write_error
 
         if atomic_json_file_exactly_matches(path, pending):
             try:
@@ -8171,7 +9402,11 @@ def promote_main_post_attempt_to_confirmed_pending_schedule(
     return pending
 
 
-def materialize_bound_regular_schedule_receipt(pending: dict) -> dict:
+def materialize_bound_regular_schedule_receipt(
+    pending: dict,
+    *,
+    _validate_result: bool = True,
+) -> dict:
     """Build a full regular receipt solely from its durable bound plan."""
     if not confirmed_pending_schedule_receipt_is_semantically_valid(
         pending,
@@ -8241,15 +9476,27 @@ def materialize_bound_regular_schedule_receipt(pending: dict) -> dict:
         "image_history_after": list(plan["image_history_after"]),
         "attempt_id": str(attempt["attempt_id"]),
         "attempt_payload_sha256": str(attempt["payload_sha256"]),
+        # Preserve the complete pre-transport authority.  The nested recovery
+        # plan is the only authoritative input for every derived schedule
+        # field, and its exact canonical bytes are independently anchored by
+        # the transport journal until reconciliation completes.
+        "source_attempt": copy.deepcopy(attempt),
+        "source_attempt_sha256": hashlib.sha256(
+            canonical_atomic_json_bytes(attempt)
+        ).hexdigest(),
     }
-    if not regular_post_receipt_is_semantically_valid(receipt):
+    if _validate_result and not regular_post_receipt_is_semantically_valid(receipt):
         raise InvalidRegularPostReceipt(
             "Bound regular schedule produced an invalid confirmed receipt"
         )
     return receipt
 
 
-def materialize_bound_meme_schedule_receipt(pending: dict) -> dict:
+def materialize_bound_meme_schedule_receipt(
+    pending: dict,
+    *,
+    _validate_result: bool = True,
+) -> dict:
     """Build a full meme receipt solely from its durable bound plan."""
     if not confirmed_pending_schedule_receipt_is_semantically_valid(
         pending,
@@ -8282,8 +9529,12 @@ def materialize_bound_meme_schedule_receipt(pending: dict) -> dict:
         "image_summary": str(pending["image_summary"]),
         "attempt_id": str(attempt["attempt_id"]),
         "attempt_payload_sha256": str(attempt["payload_sha256"]),
+        "source_attempt": copy.deepcopy(attempt),
+        "source_attempt_sha256": hashlib.sha256(
+            canonical_atomic_json_bytes(attempt)
+        ).hexdigest(),
     }
-    if not meme_post_receipt_is_semantically_valid(receipt):
+    if _validate_result and not meme_post_receipt_is_semantically_valid(receipt):
         raise InvalidMemePostReceipt(
             "Bound meme schedule produced an invalid confirmed receipt"
         )
@@ -8326,7 +9577,11 @@ def finalize_confirmed_pending_schedule_receipt(
 
 def write_regular_post_receipt(receipt: dict) -> None:
     """Write regular post receipt."""
-    if MEME_POST_RECEIPT_FILE.exists():
+    if remote_receipt_retirement_is_blocking():
+        raise UnresolvedRegularPostReceipt(
+            "Refusing regular receipt publication during source-receipt retirement"
+        )
+    if receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE):
         raise UnresolvedMemePostReceipt(f"Refusing regular post while unresolved meme-post receipt exists: {MEME_POST_RECEIPT_FILE}")
     if confirmed_pending_schedule_receipt_is_semantically_valid(
         receipt,
@@ -8346,7 +9601,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
         return
     if not regular_post_receipt_is_semantically_valid(receipt):
         raise RuntimeError("Internal error: generated regular-post receipt failed semantic validation")
-    if REGULAR_POST_RECEIPT_FILE.exists():
+    if receipt_namespace_entry_exists(REGULAR_POST_RECEIPT_FILE):
         status, current = load_regular_post_receipt()
         if status == "pending_schedule" and current is not None:
             if materialize_bound_regular_schedule_receipt(current) != receipt:
@@ -8389,7 +9644,13 @@ def write_regular_post_receipt(receipt: dict) -> None:
             REGULAR_POST_RECEIPT_FILE,
         )
         return
-    atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
+    try:
+        durable_create_receipt_json(REGULAR_POST_RECEIPT_FILE, receipt)
+    except FileExistsError as exc:
+        raise UnresolvedRegularPostReceipt(
+            "Refusing to overwrite a regular-post receipt namespace entry "
+            "which appeared during publication"
+        ) from exc
     log.warning("Wrote confirmed regular-post receipt pending local reconciliation: %s", REGULAR_POST_RECEIPT_FILE)
 
 
@@ -8500,19 +9761,59 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
                 return False
     elif data.get("meme_schedule_changed_by_quote") not in (None, False):
         return False
+
+    lineage_fields = {"source_attempt", "source_attempt_sha256"}
+    present_lineage_fields = lineage_fields.intersection(data)
+    if present_lineage_fields:
+        source_attempt = data.get("source_attempt")
+        source_sha256 = str(data.get("source_attempt_sha256") or "")
+        if (
+            present_lineage_fields != lineage_fields
+            or schema_version != 3
+            or not isinstance(source_attempt, dict)
+            or source_attempt.get("schema_version") != 4
+            or source_attempt.get("lifecycle_state") != "attempting"
+            or source_attempt.get("lane") != "quote_image"
+            or not main_post_attempt_is_semantically_valid(source_attempt)
+            or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
+            or hashlib.sha256(
+                canonical_atomic_json_bytes(source_attempt)
+            ).hexdigest()
+            != source_sha256
+        ):
+            return False
+        pending = {
+            "schema_version": 1,
+            "receipt_type": "confirmed_pending_schedule",
+            "post_id": post_id,
+            "confirmation_epoch": quote_post_epoch,
+            "source_attempt": copy.deepcopy(source_attempt),
+            "image_summary": "",
+        }
+        if (
+            not confirmed_pending_schedule_receipt_is_semantically_valid(
+                pending,
+                expected_lane="quote_image",
+            )
+            or materialize_bound_regular_schedule_receipt(
+                pending,
+                _validate_result=False,
+            )
+            != data
+        ):
+            return False
     return True
 
 
 def load_regular_post_receipt() -> tuple[str, dict | None]:
     """Load regular post receipt."""
     try:
-        with open(REGULAR_POST_RECEIPT_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        return "absent", None
+        present, data = load_receipt_json_no_follow(REGULAR_POST_RECEIPT_FILE)
     except Exception:
-        log.exception("Malformed regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
+        log.exception("Malformed or unsafe regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
         return "invalid", None
+    if not present:
+        return "absent", None
     if isinstance(data, dict) and main_post_attempt_is_semantically_valid(data):
         if data.get("lane") == "quote_image":
             return "sending", data
@@ -8547,19 +9848,23 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
     return "valid", data
 
 
-def remove_regular_post_receipt() -> None:
-    """Remove regular post receipt."""
-    try:
-        REGULAR_POST_RECEIPT_FILE.unlink()
-        log.info("Removed reconciled regular-post receipt: %s", REGULAR_POST_RECEIPT_FILE)
-        fsync_parent_dir(REGULAR_POST_RECEIPT_FILE, strict=True)
-    except FileNotFoundError:
-        pass
+def remove_regular_post_receipt(receipt: dict) -> None:
+    """Retire one exact reconciled regular-post receipt."""
+
+    retire_current_source_receipt(
+        REGULAR_POST_RECEIPT_FILE,
+        canonical_atomic_json_bytes(receipt),
+    )
+    log.info("Removed reconciled regular-post receipt: %s", REGULAR_POST_RECEIPT_FILE)
 
 
 def write_meme_post_receipt(receipt: dict) -> None:
     """Write meme post receipt."""
-    if REGULAR_POST_RECEIPT_FILE.exists():
+    if remote_receipt_retirement_is_blocking():
+        raise UnresolvedMemePostReceipt(
+            "Refusing meme receipt publication during source-receipt retirement"
+        )
+    if receipt_namespace_entry_exists(REGULAR_POST_RECEIPT_FILE):
         raise UnresolvedRegularPostReceipt(f"Refusing meme post while unresolved regular-post receipt exists: {REGULAR_POST_RECEIPT_FILE}")
     if confirmed_pending_schedule_receipt_is_semantically_valid(
         receipt,
@@ -8579,7 +9884,7 @@ def write_meme_post_receipt(receipt: dict) -> None:
         return
     if not meme_post_receipt_is_semantically_valid(receipt):
         raise RuntimeError("Internal error: generated meme-post receipt failed semantic validation")
-    if MEME_POST_RECEIPT_FILE.exists():
+    if receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE):
         status, current = load_meme_post_receipt()
         if status == "pending_schedule" and current is not None:
             if materialize_bound_meme_schedule_receipt(current) != receipt:
@@ -8598,7 +9903,7 @@ def write_meme_post_receipt(receipt: dict) -> None:
         if (
             status == "sending"
             and isinstance(attempt, dict)
-            and attempt.get("schema_version") == 3
+            and attempt.get("schema_version") in {3, 4}
         ):
             raise UnresolvedMemePostReceipt(
                 "Current-schema meme attempts must be promoted through the "
@@ -8622,7 +9927,13 @@ def write_meme_post_receipt(receipt: dict) -> None:
             MEME_POST_RECEIPT_FILE,
         )
         return
-    atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
+    try:
+        durable_create_receipt_json(MEME_POST_RECEIPT_FILE, receipt)
+    except FileExistsError as exc:
+        raise UnresolvedMemePostReceipt(
+            "Refusing to overwrite a meme-post receipt namespace entry which "
+            "appeared during publication"
+        ) from exc
     log.warning("Wrote confirmed meme-post receipt pending local reconciliation: %s", MEME_POST_RECEIPT_FILE)
 
 
@@ -8659,19 +9970,59 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
     mode = str(data.get("next_meme_schedule_mode") or "fallback")
     if mode not in MEME_SCHEDULE_MODES or mode == "after_first_quote_after_midday":
         return False
+
+    lineage_fields = {"source_attempt", "source_attempt_sha256"}
+    present_lineage_fields = lineage_fields.intersection(data)
+    if present_lineage_fields:
+        source_attempt = data.get("source_attempt")
+        source_sha256 = str(data.get("source_attempt_sha256") or "")
+        if (
+            present_lineage_fields != lineage_fields
+            or schema_version != 2
+            or not isinstance(source_attempt, dict)
+            or source_attempt.get("schema_version") not in {3, 4}
+            or source_attempt.get("lifecycle_state") != "attempting"
+            or source_attempt.get("lane") != "daily_meme"
+            or not main_post_attempt_is_semantically_valid(source_attempt)
+            or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
+            or hashlib.sha256(
+                canonical_atomic_json_bytes(source_attempt)
+            ).hexdigest()
+            != source_sha256
+        ):
+            return False
+        pending = {
+            "schema_version": 1,
+            "receipt_type": "confirmed_pending_schedule",
+            "post_id": str(data["post_id"]),
+            "confirmation_epoch": meme_post_epoch,
+            "source_attempt": copy.deepcopy(source_attempt),
+            "image_summary": str(data.get("image_summary") or ""),
+        }
+        if (
+            not confirmed_pending_schedule_receipt_is_semantically_valid(
+                pending,
+                expected_lane="daily_meme",
+            )
+            or materialize_bound_meme_schedule_receipt(
+                pending,
+                _validate_result=False,
+            )
+            != data
+        ):
+            return False
     return True
 
 
 def load_meme_post_receipt() -> tuple[str, dict | None]:
     """Load meme post receipt."""
     try:
-        with open(MEME_POST_RECEIPT_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        return "absent", None
+        present, data = load_receipt_json_no_follow(MEME_POST_RECEIPT_FILE)
     except Exception:
-        log.exception("Malformed meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
+        log.exception("Malformed or unsafe meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
         return "invalid", None
+    if not present:
+        return "absent", None
     if isinstance(data, dict) and main_post_attempt_is_semantically_valid(data):
         if data.get("lane") == "daily_meme":
             return "sending", data
@@ -8705,14 +10056,14 @@ def load_meme_post_receipt() -> tuple[str, dict | None]:
     return "valid", data
 
 
-def remove_meme_post_receipt() -> None:
-    """Remove meme post receipt."""
-    try:
-        MEME_POST_RECEIPT_FILE.unlink()
-        log.info("Removed reconciled meme-post receipt: %s", MEME_POST_RECEIPT_FILE)
-        fsync_parent_dir(MEME_POST_RECEIPT_FILE, strict=True)
-    except FileNotFoundError:
-        pass
+def remove_meme_post_receipt(receipt: dict) -> None:
+    """Retire one exact reconciled meme-post receipt."""
+
+    retire_current_source_receipt(
+        MEME_POST_RECEIPT_FILE,
+        canonical_atomic_json_bytes(receipt),
+    )
+    log.info("Removed reconciled meme-post receipt: %s", MEME_POST_RECEIPT_FILE)
 
 
 def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
@@ -8724,31 +10075,78 @@ def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
     text = str(receipt.get("text") or MEME_POST_TEXT)
     image_summary = str(receipt.get("image_summary") or "")
 
-    state["last_main_post_id"] = post_id
-    state["last_meme_post_epoch"] = meme_post_epoch
+    last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
+    last_meme_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
+    last_main_post_id = str(state.get("last_main_post_id") or "")
+    newest_known_main_epoch = max(last_quote_epoch, last_meme_epoch)
+    receipt_is_newest_main = bool(
+        meme_post_epoch > newest_known_main_epoch
+        or (
+            meme_post_epoch == newest_known_main_epoch
+            and last_main_post_id in {"", post_id}
+        )
+    )
+    if receipt_is_newest_main:
+        state["last_main_post_id"] = post_id
+    elif last_main_post_id != post_id:
+        log.warning(
+            "Meme receipt post_id=%s epoch=%s is older than known main-post "
+            "state quote=%s meme=%s; preserving last_main_post_id=%s",
+            post_id,
+            meme_post_epoch,
+            last_quote_epoch,
+            last_meme_epoch,
+            last_main_post_id,
+        )
     posted = set(str(x) for x in state.get("posted_meme_filenames", []))
     posted.add(meme_basename)
     state["posted_meme_filenames"] = sorted(posted)
-    state["next_meme_post_epoch"] = next_meme_post_epoch
-    state["meme_schedule_version"] = (
-        int(receipt["meme_schedule_version"])
-        if receipt.get("schema_version") == 2
-        else int(receipt.get("meme_schedule_version") or MEME_SCHEDULE_VERSION)
+    current_next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
+    apply_bound_schedule = bool(
+        meme_post_epoch > last_meme_epoch
+        or (
+            meme_post_epoch == last_meme_epoch
+            and last_main_post_id in {"", post_id}
+            and next_meme_post_epoch > current_next_meme_epoch
+        )
     )
-    state["next_meme_schedule_mode"] = str(receipt.get("next_meme_schedule_mode") or "fallback")
-    state["next_meme_schedule_date"] = epoch_date_str(next_meme_post_epoch)
-    state["meme_anchor_quote_post_epoch"] = 0
-    cache_tweet(
-        state,
-        tweet_id=post_id,
-        text=text,
-        author_id=str(MY_USER_ID),
-        conversation_id=post_id,
-        referenced_tweets=[],
-        image_summary=image_summary,
-        post_type="daily_meme",
-    )
-    record_recent_own_post(state, post_id)
+    if meme_post_epoch >= last_meme_epoch:
+        state["last_meme_post_epoch"] = meme_post_epoch
+    if apply_bound_schedule:
+        state["next_meme_post_epoch"] = next_meme_post_epoch
+        state["meme_schedule_version"] = (
+            int(receipt["meme_schedule_version"])
+            if receipt.get("schema_version") == 2
+            else int(
+                receipt.get("meme_schedule_version") or MEME_SCHEDULE_VERSION
+            )
+        )
+        state["next_meme_schedule_mode"] = str(
+            receipt.get("next_meme_schedule_mode") or "fallback"
+        )
+        state["next_meme_schedule_date"] = epoch_date_str(next_meme_post_epoch)
+        state["meme_anchor_quote_post_epoch"] = 0
+    elif meme_post_epoch <= last_meme_epoch:
+        log.warning(
+            "Meme receipt post_id=%s epoch=%s is already reflected by newer "
+            "meme state epoch=%s next=%s; preserving the current schedule",
+            post_id,
+            meme_post_epoch,
+            last_meme_epoch,
+            current_next_meme_epoch,
+        )
+    if receipt_is_newest_main:
+        cache_tweet(
+            state,
+            tweet_id=post_id,
+            text=text,
+            author_id=str(MY_USER_ID),
+            conversation_id=post_id,
+            referenced_tweets=[],
+            image_summary=image_summary,
+            post_type="daily_meme",
+        )
+        record_recent_own_post(state, post_id)
 
 
 def reconcile_meme_post_receipt(state: dict) -> bool:
@@ -8762,6 +10160,13 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
             "leaving its sending receipt as a global manual-reconciliation barrier"
         )
         return False
+    if receipt is not None and status in {"pending_schedule", "valid"}:
+        verify_lane_transport_source_lineage_if_present(
+            receipt_path=MEME_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="daily_meme",
+            post_id=str(receipt.get("post_id") or ""),
+        )
     if status == "pending_schedule" and receipt is not None:
         log.warning(
             "Finalising local schedule for already-confirmed meme post_id=%s",
@@ -8784,7 +10189,7 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
         lane="daily_meme",
         post_id=str(receipt["post_id"]),
     )
-    remove_meme_post_receipt()
+    remove_meme_post_receipt(receipt)
     return True
 
 
@@ -8797,19 +10202,35 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
     next_quote_post_epoch = int(receipt["next_quote_post_epoch"])
     text = str(receipt.get("text") or "")
 
-    if receipt.get("schema_version") in {2, 3}:
+    last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
+    if receipt.get("schema_version") in {2, 3} and quote_post_epoch > last_quote_epoch:
+        # Only a strictly newer receipt may install its exact post-cycle
+        # snapshot.  Replaying an older snapshot after newer local state would
+        # erase duplicate-suppression identities and could permit reuse.
         lines_used.clear()
         lines_used.update(str(value) for value in receipt["quote_history_after"])
         images_used.clear()
+        images_used.update(str(value) for value in receipt["image_history_after"])
+    elif receipt.get("schema_version") in {2, 3}:
+        # Equal or stale replay is monotonic.  Unioning the receipt's identities
+        # can conservatively delay reuse, but can never discard newer evidence.
+        lines_used.update(str(value) for value in receipt["quote_history_after"])
         images_used.update(str(value) for value in receipt["image_history_after"])
     else:
         # Schema v1 did not preserve cycle-boundary resets.  Retain its
         # historical additive interpretation for backward compatibility.
         lines_used.add(quote_hash)
         images_used.add(image_basename)
-    last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
     last_meme_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
-    receipt_is_newest_main = quote_post_epoch >= max(last_quote_epoch, last_meme_epoch)
+    newest_known_main_epoch = max(last_quote_epoch, last_meme_epoch)
+    last_main_post_id = str(state.get("last_main_post_id") or "")
+    receipt_is_newest_main = bool(
+        quote_post_epoch > newest_known_main_epoch
+        or (
+            quote_post_epoch == newest_known_main_epoch
+            and last_main_post_id in {"", post_id}
+        )
+    )
     if receipt_is_newest_main:
         state["last_main_post_id"] = post_id
     else:
@@ -8881,7 +10302,7 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
             state["meme_anchor_quote_post_epoch"] = int(receipt.get("meme_anchor_quote_post_epoch") or 0)
         else:
             maybe_schedule_meme_after_quote_post(state, quote_post_epoch, save=False)
-    if text:
+    if text and receipt_is_newest_main:
         cache_tweet(
             state,
             tweet_id=post_id,
@@ -8891,7 +10312,8 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
             referenced_tweets=[],
             post_type="quote",
         )
-    record_recent_own_post(state, post_id)
+    if receipt_is_newest_main:
+        record_recent_own_post(state, post_id)
 
 
 def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> None:
@@ -9002,16 +10424,21 @@ def confirmed_meme_emergency_representation_is_complete(
     """Return whether fallback state exactly implements the pre-send plan."""
     state_post_epoch = receipt_int(state.get("last_meme_post_epoch"))
     posted = {str(item) for item in state.get("posted_meme_filenames", [])}
+    image_summary = str(
+        main_post_attempt.get("recovery_plan", {}).get("image_summary") or ""
+    )
     try:
         pending = build_confirmed_pending_schedule_receipt(
             main_post_attempt,
             post_id=str(post_id),
             confirmation_epoch=int(post_epoch or 0),
+            image_summary=image_summary,
         )
         expected = materialize_bound_meme_schedule_receipt(pending)
     except Exception:
         return False
     expected_next_epoch = int(expected["next_meme_post_epoch"])
+    cached = state.get("tweet_cache", {}).get(str(post_id))
     return bool(
         valid_post_id(post_id)
         and post_epoch is not None
@@ -9030,6 +10457,10 @@ def confirmed_meme_emergency_representation_is_complete(
         and str(state.get("next_meme_schedule_date") or "")
         == safe_epoch_date_str(expected_next_epoch)
         and int(state.get("meme_anchor_quote_post_epoch", 0) or 0) == 0
+        and isinstance(cached, dict)
+        and str(cached.get("text") or "") == str(main_post_attempt["text"])
+        and str(cached.get("post_type") or "") == "daily_meme"
+        and str(cached.get("image_summary") or "") == image_summary
     )
 
 
@@ -9055,6 +10486,7 @@ def maybe_post_historical_context_reply(
         store = HistoricalContextReplyStore(
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            mutation_authority_provider=transaction_mutation_authority,
         )
         if not dry_run:
             # Reconcile before every policy/configuration exit. A durable
@@ -9160,15 +10592,32 @@ def maybe_post_historical_context_reply(
             "rendering_mode": formatted["rendering_mode"],
             "shortening_applied": formatted["shortening_applied"],
         }
-        result = store.post(
-            parent_post_id=str(parent_post_id),
-            quote_id=str(packet["quote_id"]),
-            reply_text=str(formatted["text"]),
-            create_post=create_post,
-            now_epoch=now_epoch,
-            dry_run=dry_run,
-            formatter_metadata=formatter_metadata,
+        historical_sigint_guard = (
+            None if dry_run else begin_confirmed_post_sigint_deferral()
         )
+        try:
+            result = store.post(
+                parent_post_id=str(parent_post_id),
+                quote_id=str(packet["quote_id"]),
+                reply_text=str(formatted["text"]),
+                create_post=create_post,
+                now_epoch=now_epoch,
+                dry_run=dry_run,
+                formatter_metadata=formatter_metadata,
+                # The store retires its journal only after completed history is
+                # durable, so the prepared source-removal guard is always safe
+                # to resume in a later process.
+                on_confirmed_receipt=None,
+                remote_failure_is_definite_non_success=(
+                    lambda error: isinstance(error, RemoteOperationsPaused)
+                ),
+                require_confirmed_transport=not dry_run,
+            )
+        finally:
+            # Every post-start exit retains either the sending receipt, its
+            # transport journal, an exact retirement guard, or completed
+            # history.  A local pre-transport pause is also definite.
+            end_confirmed_post_sigint_deferral(historical_sigint_guard)
         event_text = str(result.get("reply_text") or formatted["text"])
         event_metadata = formatter_metadata
         if result.get("status") == "already_completed":
@@ -9409,6 +10858,7 @@ def recover_interrupted_historical_context_attempt(
     context_store = HistoricalContextReplyStore(
         HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=transaction_mutation_authority,
     )
     # The sending receipt is the authoritative ambiguity barrier.  It must be
     # reconciled (confirmed, definitely failed, or left ambiguous) before an
@@ -10015,6 +11465,7 @@ def reconcile_regular_post_receipt(
     state: dict,
     *,
     minimum_next_quote_epoch: int | None = None,
+    process_auxiliary_context: bool = True,
 ) -> bool:
     """Reconcile a durable regular-post receipt without duplicating a remote post."""
     status, receipt = load_regular_post_receipt()
@@ -10026,6 +11477,13 @@ def reconcile_regular_post_receipt(
             "leaving its sending receipt as a global manual-reconciliation barrier"
         )
         return False
+    if receipt is not None and status in {"pending_schedule", "valid"}:
+        verify_lane_transport_source_lineage_if_present(
+            receipt_path=REGULAR_POST_RECEIPT_FILE,
+            receipt=receipt,
+            lane="quote_image",
+            post_id=str(receipt.get("post_id") or ""),
+        )
     if status == "pending_schedule" and receipt is not None:
         log.warning(
             "Finalising local schedule for already-confirmed regular post_id=%s",
@@ -10056,16 +11514,17 @@ def reconcile_regular_post_receipt(
         lane="quote_image",
         post_id=str(receipt["post_id"]),
     )
-    remove_regular_post_receipt()
+    remove_regular_post_receipt(receipt)
     log.info(
         "Confirmed main post reconciliation is complete; auxiliary context "
         "obligation is independent. post_id=%s",
         receipt["post_id"],
     )
-    safely_process_due_historical_context_obligations(
-        parent_post_id=str(receipt["post_id"]),
-        runtime_state=state,
-    )
+    if process_auxiliary_context:
+        safely_process_due_historical_context_obligations(
+            parent_post_id=str(receipt["post_id"]),
+            runtime_state=state,
+        )
     return True
 
 
@@ -10081,7 +11540,9 @@ def block_if_unresolved_regular_post_receipt() -> None:
 
 def both_main_post_receipts_exist() -> bool:
     """Return the both main post receipts exist."""
-    return REGULAR_POST_RECEIPT_FILE.exists() and MEME_POST_RECEIPT_FILE.exists()
+    return receipt_namespace_entry_exists(
+        REGULAR_POST_RECEIPT_FILE
+    ) and receipt_namespace_entry_exists(MEME_POST_RECEIPT_FILE)
 
 
 def reconcile_main_post_receipts(
@@ -10090,6 +11551,7 @@ def reconcile_main_post_receipts(
     state: dict,
     *,
     minimum_next_quote_epoch: int | None = None,
+    process_auxiliary_context: bool = True,
 ) -> dict[str, bool]:
     """Reconcile regular and meme receipts before any new main post."""
     if both_main_post_receipts_exist():
@@ -10105,6 +11567,7 @@ def reconcile_main_post_receipts(
             images_used,
             state,
             minimum_next_quote_epoch=minimum_next_quote_epoch,
+            process_auxiliary_context=process_auxiliary_context,
         ),
         "meme": reconcile_meme_post_receipt(state),
     }
@@ -10129,6 +11592,171 @@ def reconcile_startup_main_post_receipts(
         state,
         minimum_next_quote_epoch=current,
     )
+
+
+def reconcile_confirmed_transactions_before_global_barrier(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    current: int | None = None,
+) -> dict[str, bool]:
+    """Finish one exact confirmed local transaction before global blocking.
+
+    Transport journals are intentionally global barriers, but a confirmed
+    journal plus its confirmed lane receipt is also enough local authority to
+    finish state persistence without another remote request.  This narrow
+    pre-barrier reconciler promotes a sending/attempting source only when its
+    exact confirmed journal proves the remote identity; it never runs auxiliary
+    remote work and refuses to choose between multiple lane receipts.
+    """
+
+    result = {
+        "historical_context": False,
+        "conversational_reply": False,
+        "regular": False,
+        "meme": False,
+    }
+    if global_remote_writes_paused():
+        return result
+    if (
+        not remote_write_safety_protocol_is_active()
+        or remote_write_safety_incident_is_latched()
+        or remote_write_safety_marker_path_present_or_unsafe()
+    ):
+        return result
+
+    receipt_paths = (
+        REGULAR_POST_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE,
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )
+    present = [path for path in receipt_paths if os.path.lexists(path)]
+    if len(present) != 1:
+        return result
+
+    owning_path = present[0]
+    journal_path = journal_path_for_receipt(owning_path)
+    journal_state = inspect_transport_state(journal_path)
+    needs_transport_promotion = False
+    if owning_path == REGULAR_POST_RECEIPT_FILE:
+        status, source = load_regular_post_receipt()
+        needs_transport_promotion = bool(
+            status == "sending"
+            and isinstance(source, dict)
+            and source.get("lifecycle_state") == "attempting"
+        )
+    elif owning_path == MEME_POST_RECEIPT_FILE:
+        status, source = load_meme_post_receipt()
+        needs_transport_promotion = bool(
+            status == "sending"
+            and isinstance(source, dict)
+            and source.get("lifecycle_state") == "attempting"
+        )
+    elif owning_path == CONFIRMED_REPLY_RECEIPT_FILE:
+        status, _source = load_confirmed_reply_receipt()
+        needs_transport_promotion = status == "sending"
+    elif owning_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        loaded = HistoricalContextReplyStore(
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            mutation_authority_provider=transaction_mutation_authority,
+        )._load_receipt_safely()
+        needs_transport_promotion = bool(
+            loaded is not None
+            and HistoricalContextReplyStore._valid_sending_receipt(loaded[0])
+        )
+    if journal_state.classification == "confirmed_pair" and needs_transport_promotion:
+        recovery = bind_confirmed_transport_source(
+            journal_path=journal_path,
+            receipt_path=owning_path,
+            validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+            validator=transport_source_semantic_validator,
+        )
+        source_receipt = recovery.source_binding.receipt_document
+        details = recovery.details
+        if details.lane in {"quote_image", "daily_meme"}:
+            image_summary = (
+                str(source_receipt["recovery_plan"].get("image_summary") or "")
+                if details.lane == "daily_meme"
+                else ""
+            )
+            promote_main_post_attempt_to_confirmed_pending_schedule(
+                source_receipt,
+                post_id=details.post_id,
+                confirmation_epoch=confirmation_epoch_for_main_attempt(
+                    source_receipt,
+                    details.confirmation_epoch,
+                ),
+                image_summary=image_summary,
+            )
+        elif details.lane == "conversational_reply":
+            promote_sending_reply_receipt(
+                source_receipt,
+                reply_post_id=details.post_id,
+                confirmation_epoch=_reply_confirmation_epoch_after_remote_success(
+                    source_receipt,
+                    details.confirmation_epoch,
+                ),
+            )
+        elif details.lane == "historical_context_reply":
+            from historical_context_formatter import HistoricalContextReplyStore
+
+            HistoricalContextReplyStore(
+                HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+                HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+                mutation_authority_provider=transaction_mutation_authority,
+            ).promote_sending_receipt_from_confirmed_transport(
+                source_receipt,
+                reply_post_id=details.post_id,
+                confirmation_epoch=details.confirmation_epoch,
+                require_confirmed_transport=True,
+            )
+        else:
+            raise TransportJournalError(
+                "confirmed journal has no supported recovery lane"
+            )
+
+    if owning_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        store = HistoricalContextReplyStore(
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            mutation_authority_provider=transaction_mutation_authority,
+        )
+        result["historical_context"] = (
+            store.reconcile_confirmed_receipt_if_present()
+        )
+        return result
+
+    if owning_path == CONFIRMED_REPLY_RECEIPT_FILE:
+        status, _receipt = load_confirmed_reply_receipt()
+        if status == "valid":
+            result["conversational_reply"] = reconcile_confirmed_reply_receipt(
+                state
+            )
+        return result
+
+    regular_status, _regular = load_regular_post_receipt()
+    meme_status, _meme = load_meme_post_receipt()
+    if regular_status not in {"pending_schedule", "valid"} and meme_status not in {
+        "pending_schedule",
+        "valid",
+    }:
+        return result
+    main_result = reconcile_main_post_receipts(
+        lines_used,
+        images_used,
+        state,
+        minimum_next_quote_epoch=(now_epoch() if current is None else current),
+        process_auxiliary_context=False,
+    )
+    result["regular"] = bool(main_result["regular"])
+    result["meme"] = bool(main_result["meme"])
+    return result
 
 
 def image_used_history_has_legacy_indices(images_used: set) -> bool:
@@ -12250,7 +13878,15 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             attempt_epoch=transaction_preflight_epoch,
         )
         write_main_post_attempt(main_post_attempt)
-        handoff_confirmed_media_upload_to_main_attempt(main_post_attempt)
+        (
+            main_post_attempt,
+            transport_source,
+            transport_authority,
+        ) = prepare_main_tweet_transport(main_post_attempt)
+        handoff_confirmed_media_upload_to_main_attempt(
+            main_post_attempt,
+            transport_authority,
+        )
         confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
         response = create_post(
             text=tweet,
@@ -12258,6 +13894,8 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             reply_to_id=None,
             made_with_ai=image_made_with_ai,
             prepared_main_post_attempt=main_post_attempt,
+            prepared_transport_authority=transport_authority,
+            prepared_transport_source=transport_source,
         )
         posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
         log.debug("Posted_id=%s", posted_id)
@@ -12302,9 +13940,17 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
 
     pending_schedule_promoted = False
     try:
+        transport_confirmation = inspect_confirmed_transport_transaction(
+            journal_path_for_receipt(REGULAR_POST_RECEIPT_FILE)
+        )
+        if transport_confirmation.post_id != str(posted_id):
+            raise AmbiguousRemotePostOutcome(
+                "Confirmed regular-post identity differs from its journal",
+                service="x",
+            )
         quote_post_epoch = confirmation_epoch_for_main_attempt(
             main_post_attempt,
-            now_epoch(),
+            transport_confirmation.confirmation_epoch,
         )
         context_obligation_receipt = {
             "post_id": str(posted_id),
@@ -12574,7 +14220,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             lane="quote_image",
             post_id=str(posted_id),
         )
-        remove_regular_post_receipt()
+        remove_regular_post_receipt(receipt)
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
         raise ConfirmedPostLocalPersistenceError(
@@ -13043,6 +14689,7 @@ def post_next_meme(state: dict) -> None:
             "meme_schedule_version": MEME_SCHEDULE_VERSION,
             "fallback_hour": MEME_FALLBACK_HOUR,
             "fallback_minute": MEME_FALLBACK_MINUTE,
+            "image_summary": image_summary,
         },
         attempt_epoch=current_meme_epoch,
     )
@@ -13050,9 +14697,20 @@ def post_next_meme(state: dict) -> None:
         "main_post_attempt_persistence",
         lambda: write_main_post_attempt(main_post_attempt),
     )
+    (
+        main_post_attempt,
+        transport_source,
+        transport_authority,
+    ) = run_daily_meme_stage(
+        "tweet_transport_preparation",
+        lambda: prepare_main_tweet_transport(main_post_attempt),
+    )
     run_daily_meme_stage(
         "media_upload_handoff",
-        lambda: handoff_confirmed_media_upload_to_main_attempt(main_post_attempt),
+        lambda: handoff_confirmed_media_upload_to_main_attempt(
+            main_post_attempt,
+            transport_authority,
+        ),
     )
     confirmed_post_sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
@@ -13064,6 +14722,8 @@ def post_next_meme(state: dict) -> None:
                 reply_to_id=None,
                 made_with_ai=False,
                 prepared_main_post_attempt=main_post_attempt,
+                prepared_transport_authority=transport_authority,
+                prepared_transport_source=transport_source,
             ),
         )
 
@@ -13105,9 +14765,17 @@ def post_next_meme(state: dict) -> None:
 
     pending_schedule_promoted = False
     try:
+        transport_confirmation = inspect_confirmed_transport_transaction(
+            journal_path_for_receipt(MEME_POST_RECEIPT_FILE)
+        )
+        if transport_confirmation.post_id != str(posted_id):
+            raise AmbiguousRemotePostOutcome(
+                "Confirmed meme-post identity differs from its journal",
+                service="x",
+            )
         meme_post_epoch = confirmation_epoch_for_main_attempt(
             main_post_attempt,
-            now_epoch(),
+            transport_confirmation.confirmation_epoch,
         )
         pending_schedule_receipt = build_confirmed_pending_schedule_receipt(
             main_post_attempt,
@@ -13339,7 +15007,7 @@ def post_next_meme(state: dict) -> None:
             lane="daily_meme",
             post_id=str(posted_id),
         )
-        remove_meme_post_receipt()
+        remove_meme_post_receipt(receipt)
     except Exception as exc:
         log.critical(
             "Confirmed meme post_id=%s but stage=meme_receipt_confirmation failed after durable state save",
@@ -14116,7 +15784,70 @@ def _conversational_reply_receipt_is_semantically_valid(
         draft = data.get("ai_reply_draft")
         if not isinstance(draft, dict) or draft.get("mode") != "direct_factual_answer":
             return False
+    if (
+        schema_version == 4
+        and lifecycle_state == "confirmed"
+        and "source_receipt_sha256" in data
+    ):
+        try:
+            source_receipt = conversational_sending_receipt_from_confirmed(data)
+        except (TypeError, ValueError):
+            return False
+        if (
+            not sending_reply_receipt_is_semantically_valid(source_receipt)
+            or hashlib.sha256(
+                canonical_atomic_json_bytes(source_receipt)
+            ).hexdigest()
+            != data.get("source_receipt_sha256")
+        ):
+            return False
     return True
+
+
+def conversational_sending_receipt_from_confirmed(
+    confirmed_receipt: dict,
+) -> dict:
+    """Reconstruct the exact schema-v4 pre-transport reply receipt.
+
+    Legacy confirmed receipts intentionally lack ``source_receipt_sha256`` and
+    remain readable for local reconciliation, but cannot use this function to
+    retire a current transport journal.
+    """
+
+    if (
+        not isinstance(confirmed_receipt, dict)
+        or confirmed_receipt.get("schema_version") != 4
+        or confirmed_receipt.get("lifecycle_state") != "confirmed"
+        or not re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(confirmed_receipt.get("source_receipt_sha256") or ""),
+        )
+    ):
+        raise ValueError(
+            "confirmed conversational receipt lacks exact source lineage"
+        )
+    attempt_epoch = receipt_int(confirmed_receipt.get("attempt_epoch"))
+    # ``reply_text`` can be an ``AIReply`` string subclass whose constructor
+    # requires provenance arguments.  No nested value is mutated here, so a
+    # shallow outer copy preserves exact content without trying to reconstruct
+    # that immutable subclass.
+    source = dict(confirmed_receipt)
+    source.pop("reply_post_id", None)
+    source.pop("confirmation_epoch", None)
+    source.pop("source_receipt_sha256", None)
+    source["lifecycle_state"] = "sending"
+    if attempt_epoch is None:
+        raise ValueError("confirmed conversational receipt lacks attempt time")
+    attempt_date = safe_epoch_date_str(attempt_epoch)
+    if attempt_date is None:
+        raise ValueError("confirmed conversational attempt time is invalid")
+    source["reply_epoch"] = attempt_epoch
+    source["daily_reply_date"] = attempt_date
+    if source.get("candidate_source") == "quote_tweet":
+        source["daily_quote_reply_date"] = attempt_date
+    else:
+        source.pop("daily_quote_reply_date", None)
+    return source
 
 
 def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
@@ -14138,16 +15869,18 @@ def sending_reply_receipt_is_semantically_valid(data: dict) -> bool:
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
     """Load confirmed reply receipt."""
     try:
-        with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        return "absent", None
+        present, data = load_receipt_json_no_follow(
+            CONFIRMED_REPLY_RECEIPT_FILE
+        )
     except Exception:
         log.exception(
-            "Malformed confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+            "Malformed or unsafe confirmed-reply receipt blocks auto-reply "
+            "processing until repaired: %s",
             CONFIRMED_REPLY_RECEIPT_FILE,
         )
         return "invalid", None
+    if not present:
+        return "absent", None
     if not isinstance(data, dict):
         log.critical(
             "Invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
@@ -14167,13 +15900,23 @@ def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
 
 def write_confirmed_reply_receipt(receipt: dict) -> None:
     """Write confirmed reply receipt."""
-    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+    if remote_receipt_retirement_is_blocking():
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing confirmed-reply publication during source-receipt retirement"
+        )
+    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
         raise InvalidConfirmedReplyReceipt(
             f"Refusing to overwrite unresolved confirmed-reply receipt: {CONFIRMED_REPLY_RECEIPT_FILE}"
         )
     if not confirmed_reply_receipt_is_semantically_valid(receipt):
         raise RuntimeError("Internal error: generated confirmed-reply receipt failed semantic validation")
-    atomic_write_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt, durable=True)
+    try:
+        durable_create_receipt_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt)
+    except FileExistsError as exc:
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite a confirmed-reply namespace entry which "
+            "appeared during publication"
+        ) from exc
     log.warning(
         "Wrote confirmed reply receipt pending local reconciliation source=%s target_id=%s reply_post_id=%s path=%s",
         receipt.get("candidate_source", "mention"),
@@ -14185,7 +15928,11 @@ def write_confirmed_reply_receipt(receipt: dict) -> None:
 
 def write_sending_reply_receipt(receipt: dict) -> None:
     """Durably record a reply transaction before its remote create request."""
-    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+    if remote_receipt_retirement_is_blocking():
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing conversational-reply publication during source-receipt retirement"
+        )
+    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
         raise InvalidConfirmedReplyReceipt(
             "Refusing to overwrite unresolved conversational-reply receipt: "
             f"{CONFIRMED_REPLY_RECEIPT_FILE}"
@@ -14194,7 +15941,13 @@ def write_sending_reply_receipt(receipt: dict) -> None:
         raise RuntimeError(
             "Internal error: generated sending-reply receipt failed validation"
         )
-    atomic_write_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt, durable=True)
+    try:
+        durable_create_receipt_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt)
+    except FileExistsError as exc:
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to overwrite a conversational-reply namespace entry "
+            "which appeared during publication"
+        ) from exc
     log.warning(
         "Wrote conversational reply sending receipt source=%s target_id=%s path=%s",
         receipt.get("candidate_source", "mention"),
@@ -14258,12 +16011,20 @@ def _confirmed_reply_receipt_from_sending(
         )
         if sending_receipt.get("candidate_source") == "quote_tweet":
             confirmed["daily_quote_reply_date"] = confirmed_date
+        confirmed["source_receipt_sha256"] = hashlib.sha256(
+            canonical_atomic_json_bytes(sending_receipt)
+        ).hexdigest()
     return confirmed
 
 
-def _reply_confirmation_epoch_after_remote_success(sending_receipt: dict) -> int:
+def _reply_confirmation_epoch_after_remote_success(
+    sending_receipt: dict,
+    observed_epoch: int | None = None,
+) -> int:
     """Return a conservative monotonic wall time after remote confirmation."""
-    observed_epoch = now_epoch()
+    if observed_epoch is None:
+        observed_epoch = now_epoch()
+    observed_epoch = int(observed_epoch)
     if sending_receipt.get("schema_version") != 4:
         return observed_epoch
     attempt_epoch = receipt_int(sending_receipt.get("attempt_epoch"))
@@ -14291,6 +16052,23 @@ def promote_sending_reply_receipt(
         raise UnresolvedSendingReplyReceipt(
             "Conversational reply sending receipt changed before confirmation"
         )
+    recovery = bind_confirmed_transport_source(
+        journal_path=journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE),
+        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+        validator_id=TRANSPORT_SOURCE_VALIDATOR_ID,
+        validator=transport_source_semantic_validator,
+    )
+    if (
+        recovery.details.lane != "conversational_reply"
+        or recovery.details.post_id != str(reply_post_id)
+        or recovery.details.confirmation_epoch != int(confirmation_epoch)
+        or recovery.source_binding.receipt_document != sending_receipt
+        or recovery.source_binding.receipt_bytes
+        != canonical_atomic_json_bytes(sending_receipt)
+    ):
+        raise TransportJournalError(
+            "confirmed conversational transport/source lineage changed"
+        )
     confirmed = _confirmed_reply_receipt_from_sending(
         sending_receipt,
         reply_post_id=reply_post_id,
@@ -14300,7 +16078,13 @@ def promote_sending_reply_receipt(
         raise RuntimeError(
             "Internal error: promoted confirmed-reply receipt failed validation"
         )
-    atomic_write_json(CONFIRMED_REPLY_RECEIPT_FILE, confirmed, durable=True)
+    replace_bound_source_receipt(
+        recovery.source_binding,
+        canonical_atomic_json_bytes(confirmed),
+        mutation_authority=transaction_mutation_authority(
+            "confirmed conversational source receipt promotion"
+        ),
+    )
     log.warning(
         "Promoted conversational reply receipt to confirmed source=%s "
         "target_id=%s reply_post_id=%s path=%s",
@@ -14313,67 +16097,51 @@ def promote_sending_reply_receipt(
 
 
 def remove_confirmed_reply_receipt(
-    receipt: dict | None = None,
+    receipt: dict,
     *,
     sending_disposition: str | None = None,
 ) -> None:
-    """Remove confirmed reply receipt."""
-    try:
-        if receipt is not None:
-            with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as handle:
-                current = json.load(handle)
-            if current != receipt:
-                raise InvalidConfirmedReplyReceipt(
-                    "Refusing to remove a conversational-reply receipt whose "
-                    "transaction identity changed"
-                )
-            if receipt.get("lifecycle_state") == "sending":
-                if sending_disposition not in {
-                    "definite_non_success",
-                    "confirmed_state_fallback",
-                }:
-                    raise ValueError(
-                        "Removing a sending reply receipt requires an explicit "
-                        "disposition"
-                    )
-            elif sending_disposition is not None:
-                raise ValueError(
-                    "A confirmed reply receipt cannot use a sending disposition"
-                )
-        CONFIRMED_REPLY_RECEIPT_FILE.unlink()
-        if receipt:
-            if receipt.get("lifecycle_state") == "sending":
-                if sending_disposition == "definite_non_success":
-                    log.info(
-                        "Removed conversational reply sending receipt after definite "
-                        "non-success source=%s target_id=%s path=%s",
-                        receipt.get("candidate_source", "mention"),
-                        receipt.get("target_id"),
-                        CONFIRMED_REPLY_RECEIPT_FILE,
-                    )
-                elif sending_disposition == "confirmed_state_fallback":
-                    log.warning(
-                        "Removed conversational reply sending receipt after "
-                        "confirmed identity was preserved in canonical state "
-                        "source=%s target_id=%s path=%s",
-                        receipt.get("candidate_source", "mention"),
-                        receipt.get("target_id"),
-                        CONFIRMED_REPLY_RECEIPT_FILE,
-                    )
-            else:
-                log.info(
-                    "Removed reconciled confirmed-reply receipt source=%s "
-                    "target_id=%s reply_post_id=%s path=%s",
-                    receipt.get("candidate_source", "mention"),
-                    receipt.get("target_id"),
-                    receipt.get("reply_post_id"),
-                    CONFIRMED_REPLY_RECEIPT_FILE,
-                )
-        else:
-            log.info("Removed reconciled confirmed-reply receipt: %s", CONFIRMED_REPLY_RECEIPT_FILE)
-        fsync_parent_dir(CONFIRMED_REPLY_RECEIPT_FILE, strict=True)
-    except FileNotFoundError:
-        return
+    """Retire one exact conversational-reply source receipt."""
+
+    with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as handle:
+        current = json.load(handle)
+    if current != receipt:
+        raise InvalidConfirmedReplyReceipt(
+            "Refusing to remove a conversational-reply receipt whose "
+            "transaction identity changed"
+        )
+    if receipt.get("lifecycle_state") == "sending":
+        if sending_disposition not in {
+            "definite_non_success",
+            "confirmed_state_fallback",
+        }:
+            raise ValueError(
+                "Removing a sending reply receipt requires an explicit disposition"
+            )
+    elif sending_disposition is not None:
+        raise ValueError("A confirmed reply receipt cannot use a sending disposition")
+    retire_current_source_receipt(
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        canonical_atomic_json_bytes(receipt),
+    )
+    if receipt.get("lifecycle_state") == "sending":
+        log.warning(
+            "Removed conversational reply sending receipt disposition=%s "
+            "source=%s target_id=%s path=%s",
+            sending_disposition,
+            receipt.get("candidate_source", "mention"),
+            receipt.get("target_id"),
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+    else:
+        log.info(
+            "Removed reconciled confirmed-reply receipt source=%s target_id=%s "
+            "reply_post_id=%s path=%s",
+            receipt.get("candidate_source", "mention"),
+            receipt.get("target_id"),
+            receipt.get("reply_post_id"),
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
 
 
 def conversational_reply_confirmation_epoch(receipt: dict) -> int:
@@ -14678,6 +16446,13 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
             f"Invalid confirmed-reply receipt blocks auto-reply processing: {CONFIRMED_REPLY_RECEIPT_FILE}"
         )
 
+    verify_lane_transport_source_lineage_if_present(
+        receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+        receipt=receipt,
+        lane="conversational_reply",
+        post_id=str(receipt.get("reply_post_id") or ""),
+    )
+
     log.warning(
         "Reconciling confirmed reply receipt source=%s target_id=%s reply_post_id=%s",
         receipt.get("candidate_source", "mention"),
@@ -14764,6 +16539,10 @@ def post_conversational_reply_with_durable_identity(
     """
     if "reply_post_id" in receipt_template:
         raise ValueError("reply receipt template must not contain reply_post_id")
+    if receipt_template.get("schema_version") != 4:
+        raise RuntimeError(
+            "Conversational X writes require a current schema-v4 source receipt"
+        )
     # The reply text may be an ``AIReply`` string subclass whose constructor
     # requires provenance arguments, so ``deepcopy`` cannot reconstruct it.
     # Callers have already copied every mutable nested payload placed in the
@@ -14781,7 +16560,7 @@ def post_conversational_reply_with_durable_identity(
     # Preserve the receipt-specific error for an already unresolved reply, but
     # do not create a new competing reply receipt while a confirmed main post
     # is represented by a local-only pending-schedule obligation.
-    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+    if receipt_namespace_entry_exists(CONFIRMED_REPLY_RECEIPT_FILE):
         raise InvalidConfirmedReplyReceipt(
             "Refusing to overwrite unresolved conversational-reply receipt: "
             f"{CONFIRMED_REPLY_RECEIPT_FILE}"
@@ -14791,7 +16570,10 @@ def post_conversational_reply_with_durable_identity(
     sigint_guard = begin_confirmed_post_sigint_deferral()
     try:
         response = create_post(
-            text=reply_text,
+            # ``AIReply`` is a provenance-bearing ``str`` subclass.  The
+            # transport journal intentionally accepts only exact JSON scalar
+            # types, so cross this authority boundary with an ordinary string.
+            text=str(reply_text),
             media_ids=None,
             reply_to_id=reply_to_id,
             made_with_ai=made_with_ai,
@@ -14862,15 +16644,37 @@ def post_conversational_reply_with_durable_identity(
             service="x",
         ) from remote_error
 
-    own_reply_id = str(response.get("data", {}).get("id") or "")
-    confirmation_epoch = _reply_confirmation_epoch_after_remote_success(
-        receipt_template
-    )
-    receipt = _confirmed_reply_receipt_from_sending(
-        receipt_template,
-        reply_post_id=own_reply_id,
-        confirmation_epoch=confirmation_epoch,
-    )
+    try:
+        own_reply_id = str(response.get("data", {}).get("id") or "")
+        transport_confirmation = inspect_confirmed_transport_transaction(
+            journal_path_for_receipt(CONFIRMED_REPLY_RECEIPT_FILE)
+        )
+        if transport_confirmation.post_id != own_reply_id:
+            raise AmbiguousRemotePostOutcome(
+                "Confirmed conversational reply identity differs from its journal",
+                service="x",
+            )
+        confirmation_epoch = _reply_confirmation_epoch_after_remote_success(
+            receipt_template,
+            transport_confirmation.confirmation_epoch,
+        )
+        receipt = _confirmed_reply_receipt_from_sending(
+            receipt_template,
+            reply_post_id=own_reply_id,
+            confirmation_epoch=confirmation_epoch,
+        )
+    except BaseException as identity_error:
+        # create_post has already left the exact sending receipt and confirmed
+        # transport journal durable.  Restore controlled-stop handling without
+        # permitting an automatic retry of this remote outcome.
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        if not isinstance(identity_error, Exception):
+            raise
+        raise AmbiguousRemotePostOutcome(
+            "Conversational reply returned from transport but its confirmed "
+            "identity could not be derived safely; durable barriers remain",
+            service="x",
+        ) from identity_error
     try:
         if not confirmed_reply_receipt_is_semantically_valid(receipt):
             raise RuntimeError(
@@ -16662,12 +18466,66 @@ def run_reply_lane_checks_for_tick(
     return last_reply_check_epoch, last_quote_tweet_check_epoch
 
 
+def maintain_global_remote_write_barrier_tick(
+    *,
+    already_logged: bool,
+) -> tuple[bool, bool]:
+    """Maintain one fail-closed barrier tick and its one-shot logging state."""
+
+    if not ambiguous_remote_post_is_blocking():
+        return False, False
+    protocol_active = remote_write_safety_protocol_is_active()
+    try:
+        # Recheck durability on every blocked tick. A previous marker-directory
+        # fsync may have failed transiently, and this helper also restores and
+        # delivers retained SIGINT after a restart-safe barrier is durable.
+        durable_marker_confirmed = durable_remote_write_safety_barrier_exists()
+    except Exception:
+        durable_marker_confirmed = False
+        log.critical(
+            "The remote-write safety marker could not be inspected; the "
+            "process will remain latched and must not be restarted",
+            exc_info=True,
+        )
+    if already_logged:
+        return True, True
+    if not protocol_active:
+        log.critical(
+            "All remote posting and reply lanes are paused because the "
+            "restart-persistent remote-write protocol is not activated or its "
+            "sentinel is invalid; stopped clean-state activation or repair is "
+            "required"
+        )
+    elif durable_marker_confirmed:
+        log.critical(
+            "All remote posting and reply lanes are paused by the durable "
+            "remote-write safety barrier; manual reconciliation is required "
+            "before a controlled restart"
+        )
+    else:
+        log.critical(
+            "All remote posting and reply lanes are paused by an unresolved "
+            "transaction receipt, marker, or process latch; do not restart "
+            "before exact reconciliation"
+        )
+    return True, True
+
+
 def main() -> None:
     """Run the command-line entry point."""
     require_production_bootstrap()
     require_established_installation()
     random.seed()
     acquire_instance_lock()
+    if not global_remote_writes_paused():
+        try:
+            resume_interrupted_confirmed_media_retirement_if_present()
+        except Exception:
+            log.critical(
+                "Interrupted confirmed-media retirement could not be resumed "
+                "at startup; every remote lane remains blocked",
+                exc_info=True,
+            )
     reconcile_runtime_historical_context_state()
 
     log.info("Bot starting")
@@ -16751,6 +18609,13 @@ def main() -> None:
         state,
         startup_current,
     )
+    if not global_remote_writes_paused():
+        reconcile_confirmed_transactions_before_global_barrier(
+            lines_used,
+            images_used,
+            state,
+            startup_current,
+        )
 
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
@@ -16788,52 +18653,55 @@ def main() -> None:
     ambiguity_pause_logged = False
     maintenance_pause_logged = global_remote_writes_paused()
     while True:
-        if ambiguous_remote_post_is_blocking():
-            protocol_active = remote_write_safety_protocol_is_active()
+        maintenance_paused = global_remote_writes_paused()
+        if not maintenance_paused:
             try:
-                # Recheck durability on every blocked tick.  A previous
-                # marker-directory fsync may have failed transiently, and this
-                # helper is also responsible for restoring and delivering a
-                # retained SIGINT once the restart-safe barrier is durable.
-                durable_marker_confirmed = (
-                    durable_remote_write_safety_barrier_exists()
-                )
+                resume_interrupted_confirmed_media_retirement_if_present()
             except Exception:
-                durable_marker_confirmed = False
                 log.critical(
-                    "The remote-write safety marker could not be inspected; the "
-                    "process will remain latched and must not be restarted",
+                    "Interrupted confirmed-media retirement could not be "
+                    "resumed; every remote lane remains blocked",
                     exc_info=True,
                 )
-            if not ambiguity_pause_logged:
-                if not protocol_active:
-                    log.critical(
-                        "All remote posting and reply lanes are paused because "
-                        "the restart-persistent remote-write protocol is not "
-                        "activated or its sentinel is invalid; stopped clean-state "
-                        "activation or repair is required"
+        try:
+            resume_source_receipt_retirement_for_control_snapshot(
+                maintenance_paused=maintenance_paused,
+            )
+        except Exception:
+            log.critical(
+                "Interrupted source-receipt retirement could not be resumed; "
+                "all remote lanes remain blocked",
+                exc_info=True,
+            )
+        if not maintenance_paused:
+            try:
+                reconciled = reconcile_confirmed_transactions_before_global_barrier(
+                    lines_used,
+                    images_used,
+                    state,
+                )
+            except Exception:
+                log.critical(
+                    "A locally confirmed remote transaction could not be "
+                    "reconciled before the global barrier; all remote lanes "
+                    "remain blocked",
+                    exc_info=True,
+                )
+            else:
+                if any(reconciled.values()):
+                    log.warning(
+                        "Completed local confirmed-transaction recovery before "
+                        "remote scheduling: %s",
+                        {key: value for key, value in reconciled.items() if value},
                     )
-                elif durable_marker_confirmed:
-                    log.critical(
-                        "All remote posting and reply lanes are paused by the durable "
-                        "remote-write safety barrier; manual reconciliation is required "
-                        "before a controlled restart"
-                    )
-                else:
-                    log.critical(
-                        "All remote posting and reply lanes are paused by an "
-                        "unresolved transaction receipt, marker, or process latch; "
-                        "do not restart before exact reconciliation"
-                    )
-                ambiguity_pause_logged = True
-            sleep(60)
-            continue
-        ambiguity_pause_logged = False
 
-        current = now_epoch()
-        log.debug("Main loop tick. epoch=%s", current)
+        ambiguity_blocked, ambiguity_pause_logged = (
+            maintain_global_remote_write_barrier_tick(
+                already_logged=ambiguity_pause_logged,
+            )
+        )
 
-        if global_remote_writes_paused():
+        if maintenance_paused:
             if not maintenance_pause_logged:
                 log.warning(
                     "Global runtime control pause is active; all remote-write lanes "
@@ -16845,6 +18713,13 @@ def main() -> None:
         if maintenance_pause_logged:
             log.info("Global runtime control pause cleared; resuming scheduled lanes")
         maintenance_pause_logged = False
+
+        if ambiguity_blocked:
+            sleep(60)
+            continue
+
+        current = now_epoch()
+        log.debug("Main loop tick. epoch=%s", current)
 
         safely_process_due_historical_context_obligations(
             limit=1,
@@ -17089,13 +18964,13 @@ def run_test_cycle() -> int:
     """Run one local integration-test pass without entering the posting loop."""
     require_production_bootstrap()
     require_established_installation()
-    block_if_ambiguous_remote_post()
     if os.getenv("MRS_TEST_MODE") != "1":
         log.error("--test-cycle requires MRS_TEST_MODE=1")
         return 2
 
     acquire_instance_lock()
     reconcile_runtime_historical_context_state()
+    block_if_ambiguous_remote_post()
 
     log.info("Running one test cycle")
     log.info("Base dir=%s", BASE_DIR)
@@ -17209,12 +19084,12 @@ def run_test_main_tick() -> int:
     """Run the production reply-lane tick once for local integration tests."""
     require_production_bootstrap()
     require_established_installation()
-    block_if_ambiguous_remote_post()
     if not require_test_mode("--test-main-tick"):
         return 2
 
     acquire_instance_lock()
     reconcile_runtime_historical_context_state()
+    block_if_ambiguous_remote_post()
 
     log.info("Running one test production reply-lane tick")
     state = load_runtime_state()
@@ -17289,12 +19164,12 @@ def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
     require_production_bootstrap()
     require_established_installation()
-    block_if_ambiguous_remote_post()
     if not require_test_mode("--test-post-quote"):
         return 2
 
     acquire_instance_lock()
     reconcile_runtime_historical_context_state()
+    block_if_ambiguous_remote_post()
 
     log.info("Running one test quote/image post cycle")
     state = load_runtime_state()
@@ -17357,12 +19232,12 @@ def run_test_post_meme() -> int:
     """Run one daily meme post cycle for local integration tests."""
     require_production_bootstrap()
     require_established_installation()
-    block_if_ambiguous_remote_post()
     if not require_test_mode("--test-post-meme"):
         return 2
 
     acquire_instance_lock()
     reconcile_runtime_historical_context_state()
+    block_if_ambiguous_remote_post()
 
     log.info("Running one test daily meme post cycle")
     state = load_runtime_state()

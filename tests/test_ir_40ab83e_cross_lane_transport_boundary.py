@@ -15,8 +15,10 @@ no barrier reproduces IR-40AB83E-01.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +38,22 @@ LANES = (
 TRANSPORT_EXIT_CODES = {
     lane: 80 + index for index, lane in enumerate(LANES, start=1)
 }
+PATH_MUTATIONS = (
+    "same_bytes_replacement",
+    "different_bytes_replacement",
+    "symlink_replacement",
+    "directory_replacement",
+    "fifo_replacement",
+)
+SOURCE_MUTATION_FAULTS = tuple(
+    f"source_{mutation}" for mutation in PATH_MUTATIONS
+)
+COMPANION_MUTATION_FAULTS = tuple(
+    f"{target}_{mutation}"
+    for target in ("journal", "fence")
+    for mutation in PATH_MUTATIONS
+)
+PEER_MUTATION_FAULTS = SOURCE_MUTATION_FAULTS + COMPANION_MUTATION_FAULTS
 
 
 def _canonical_bytes(value: object) -> bytes:
@@ -280,6 +298,149 @@ def _peer_remove_successor_at_transport(
     )
 
 
+def _mode_kind(mode: int) -> str:
+    if stat.S_ISREG(mode):
+        return "regular"
+    if stat.S_ISLNK(mode):
+        return "symlink"
+    if stat.S_ISDIR(mode):
+        return "directory"
+    if stat.S_ISFIFO(mode):
+        return "fifo"
+    return "other"
+
+
+def _peer_mutate_and_fsync(
+    path: Path,
+    *,
+    lane: str,
+    state_directory: Path,
+    target_kind: str,
+    mutation: str,
+) -> None:
+    """Replace one authority pathname in a literal peer without following it."""
+
+    before = os.lstat(path)
+    if not stat.S_ISREG(before.st_mode):
+        raise RuntimeError("peer mutation source is not an ordinary file")
+    before_bytes = path.read_bytes()
+    before_sha256 = hashlib.sha256(before_bytes).hexdigest()
+    read_fd, write_fd = os.pipe()
+    peer_pid = os.fork()
+    if peer_pid == 0:
+        try:
+            os.close(read_fd)
+            if mutation in {
+                "same_bytes_replacement",
+                "different_bytes_replacement",
+            }:
+                replacement = (
+                    before_bytes
+                    if mutation == "same_bytes_replacement"
+                    else b'{"peer_mutation":"different_bytes"}\n'
+                )
+                temporary = path.with_name(
+                    f".{path.name}.peer-replacement.{os.getpid()}"
+                )
+                descriptor = os.open(
+                    temporary,
+                    os.O_CREAT
+                    | os.O_EXCL
+                    | os.O_WRONLY
+                    | getattr(os, "O_CLOEXEC", 0),
+                    0o600,
+                )
+                try:
+                    written = os.write(descriptor, replacement)
+                    if written != len(replacement):
+                        raise OSError("short peer replacement write")
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+                os.replace(temporary, path)
+            elif mutation == "symlink_replacement":
+                target = path.with_name(
+                    f".{path.name}.peer-symlink-target.{os.getpid()}"
+                )
+                target.write_bytes(before_bytes)
+                path.unlink()
+                path.symlink_to(target.name)
+            elif mutation == "directory_replacement":
+                path.unlink()
+                path.mkdir(mode=0o700)
+            elif mutation == "fifo_replacement":
+                path.unlink()
+                os.mkfifo(path, mode=0o600)
+            else:  # pragma: no cover - guarded by argparse and parametrisation
+                raise RuntimeError(f"unsupported peer mutation: {mutation}")
+            _fsync_directory(path.parent)
+            os.write(write_fd, b"path-mutated-and-parent-fsynced")
+            os.close(write_fd)
+            os._exit(0)
+        except BaseException:
+            os._exit(99)
+
+    os.close(write_fd)
+    try:
+        acknowledgement = os.read(read_fd, 128)
+    finally:
+        os.close(read_fd)
+    waited_pid, status = os.waitpid(peer_pid, 0)
+    if (
+        waited_pid != peer_pid
+        or not os.WIFEXITED(status)
+        or os.WEXITSTATUS(status) != 0
+        or acknowledgement != b"path-mutated-and-parent-fsynced"
+    ):
+        raise RuntimeError("path-mutation peer failed")
+
+    after = os.lstat(path)
+    after_kind = _mode_kind(after.st_mode)
+    expected_after_kind = {
+        "same_bytes_replacement": "regular",
+        "different_bytes_replacement": "regular",
+        "symlink_replacement": "symlink",
+        "directory_replacement": "directory",
+        "fifo_replacement": "fifo",
+    }[mutation]
+    if after_kind != expected_after_kind:
+        raise RuntimeError("peer mutation produced the wrong file type")
+    if mutation in {"same_bytes_replacement", "different_bytes_replacement"}:
+        if (int(after.st_dev), int(after.st_ino)) == (
+            int(before.st_dev),
+            int(before.st_ino),
+        ):
+            raise RuntimeError("peer replacement did not change pathname identity")
+        after_sha256: str | None = hashlib.sha256(path.read_bytes()).hexdigest()
+        if mutation == "same_bytes_replacement" and after_sha256 != before_sha256:
+            raise RuntimeError("same-byte peer replacement changed bytes")
+        if mutation == "different_bytes_replacement" and after_sha256 == before_sha256:
+            raise RuntimeError("different-byte peer replacement preserved bytes")
+    else:
+        after_sha256 = None
+
+    _write_evidence(
+        state_directory / f"peer_mutation_{target_kind}_{mutation}.json",
+        {
+            "after_device": int(after.st_dev),
+            "after_inode": int(after.st_ino),
+            "after_kind": after_kind,
+            "after_sha256": after_sha256,
+            "before_device": int(before.st_dev),
+            "before_inode": int(before.st_ino),
+            "before_kind": _mode_kind(before.st_mode),
+            "before_sha256": before_sha256,
+            "directory_fsync_completed": True,
+            "lane": lane,
+            "mutation": mutation,
+            "parent_pid": os.getpid(),
+            "path_basename": path.name,
+            "peer_pid": peer_pid,
+            "target_kind": target_kind,
+        },
+    )
+
+
 def _install_receipt_loss_fault(
     bot: Any,
     *,
@@ -362,6 +523,36 @@ def _install_post_journal_receipt_loss_fault(
     bot.consume_transport_authority = consume_after_peer_deletion
 
 
+def _install_post_journal_source_mutation_fault(
+    bot: Any,
+    *,
+    lane: str,
+    state_directory: Path,
+    mutation: str,
+) -> None:
+    """Mutate the receipt after its journal is armed but before final consume."""
+
+    receipt_path = _receipt_path(bot, lane)
+    real_consume = bot.consume_transport_authority
+    injected = False
+
+    def consume_after_peer_mutation(*args: object, **kwargs: object) -> None:
+        nonlocal injected
+        if injected:
+            raise RuntimeError("post-journal source mutation ran more than once")
+        injected = True
+        _peer_mutate_and_fsync(
+            receipt_path,
+            lane=lane,
+            state_directory=state_directory,
+            target_kind="source_receipt",
+            mutation=mutation,
+        )
+        real_consume(*args, **kwargs)
+
+    bot.consume_transport_authority = consume_after_peer_mutation
+
+
 def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
     """Enter the real public transaction lane without any remote dependency."""
 
@@ -398,11 +589,11 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
     if lane == "conversational_reply":
         from tests.test_unit_helpers import (
             UNIT_REPLY_REPOSITORY,
-            unit_sending_reply_receipt,
+            unit_sending_v4_reply_receipt,
         )
 
         bot.reply_evidence_repository = lambda: UNIT_REPLY_REPOSITORY
-        receipt = unit_sending_reply_receipt()
+        receipt = unit_sending_v4_reply_receipt()
         bot.post_conversational_reply_with_durable_identity(
             state=bot.default_state(),
             receipt_template=receipt,
@@ -414,10 +605,17 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
         return
 
     from historical_context_formatter import HistoricalContextReplyStore
+    from transaction_mutation_authority import issue_transaction_mutation_authority
 
     store = HistoricalContextReplyStore(
         Path(bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE),
         Path(bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE),
+        mutation_authority_provider=lambda operation: (
+            issue_transaction_mutation_authority(
+                lambda _verified_operation: None,
+                operation=operation,
+            )
+        ),
     )
     store.post(
         parent_post_id="111",
@@ -449,7 +647,14 @@ def _send_phase(
             lane=lane,
             state_directory=state_directory,
         )
-    else:
+    elif fault in SOURCE_MUTATION_FAULTS:
+        _install_post_journal_source_mutation_fault(
+            bot,
+            lane=lane,
+            state_directory=state_directory,
+            mutation=fault.removeprefix("source_"),
+        )
+    elif fault not in COMPANION_MUTATION_FAULTS:
         _install_post_journal_receipt_loss_fault(
             bot,
             lane=lane,
@@ -476,6 +681,21 @@ def _send_phase(
                 lane=lane,
                 state_directory=state_directory,
                 kind="fence",
+            )
+        elif fault in COMPANION_MUTATION_FAULTS:
+            target_kind, mutation = fault.split("_", 1)
+            journal_path = bot.journal_path_for_receipt(receipt_path)
+            target_path = (
+                journal_path
+                if target_kind == "journal"
+                else bot.fence_path_for_journal(journal_path)
+            )
+            _peer_mutate_and_fsync(
+                target_path,
+                lane=lane,
+                state_directory=state_directory,
+                target_kind=target_kind,
+                mutation=mutation,
             )
         _write_evidence(
             state_directory / "transport_boundary.json",
@@ -648,6 +868,99 @@ def test_receipt_loss_cannot_leave_transport_unbarriered_after_restart(
     )
 
 
+@pytest.mark.parametrize("fault", PEER_MUTATION_FAULTS)
+@pytest.mark.parametrize("lane", LANES)
+def test_peer_path_mutation_at_final_authority_remains_restart_safe(
+    lane: str,
+    fault: str,
+    tmp_path: Path,
+) -> None:
+    """Path replacement/type mutation cannot erase all durable authority."""
+
+    state_directory = tmp_path / f"{lane}-{fault}"
+    state_directory.mkdir(mode=0o700)
+    send = _run_driver(
+        "send",
+        lane=lane,
+        state_directory=state_directory,
+        fault=fault,
+    )
+    if fault in SOURCE_MUTATION_FAULTS:
+        target_kind = "source_receipt"
+        mutation = fault.removeprefix("source_")
+    else:
+        target_kind, mutation = fault.split("_", 1)
+    mutation_path = (
+        state_directory / f"peer_mutation_{target_kind}_{mutation}.json"
+    )
+    assert mutation_path.is_file(), (
+        "fault injection did not reach the final authority boundary: "
+        f"stdout={send.stdout!r} stderr={send.stderr!r}"
+    )
+    mutation_value = json.loads(mutation_path.read_text(encoding="utf-8"))
+    assert mutation_value["directory_fsync_completed"] is True
+    assert mutation_value["peer_pid"] != mutation_value["parent_pid"]
+    if mutation.endswith("replacement") and mutation.startswith(
+        ("same_bytes", "different_bytes")
+    ):
+        assert (
+            mutation_value["before_device"],
+            mutation_value["before_inode"],
+        ) != (
+            mutation_value["after_device"],
+            mutation_value["after_inode"],
+        )
+
+    transport_path = state_directory / "transport_boundary.json"
+    transport_reached = transport_path.is_file()
+    transport = (
+        json.loads(transport_path.read_text(encoding="utf-8"))
+        if transport_reached
+        else None
+    )
+    if transport_reached:
+        assert send.returncode == TRANSPORT_EXIT_CODES[lane]
+        assert transport is not None
+        assert transport["method"] == "POST"
+        assert transport["url_path"] == "/2/tweets"
+    else:
+        assert send.returncode == 0, (
+            f"send driver failed unexpectedly: stdout={send.stdout!r} "
+            f"stderr={send.stderr!r}"
+        )
+
+    restart = _run_driver(
+        "restart",
+        lane=lane,
+        state_directory=state_directory,
+        fault=fault,
+    )
+    assert restart.returncode == 0, (
+        f"restart driver failed: stdout={restart.stdout!r} "
+        f"stderr={restart.stderr!r}"
+    )
+    restart_value = json.loads(restart.stdout.strip().splitlines()[-1])
+    assert restart_value["protocol_active"] is True
+    restart_barrier_present = bool(
+        restart_value["blocking"] and restart_value["direct_preflight_blocked"]
+    )
+    evidence = {
+        "fault": fault,
+        "lane": lane,
+        "mutation": mutation_value,
+        "restart": restart_value,
+        "safe_result": bool(not transport_reached or restart_barrier_present),
+        "send_returncode": send.returncode,
+        "transport": transport,
+        "transport_reached": transport_reached,
+    }
+    assert evidence["safe_result"] is True, (
+        "peer mutation erased final transport authority without leaving a "
+        "fresh-process durable blocker:\n"
+        + json.dumps(evidence, indent=2, sort_keys=True)
+    )
+
+
 def _driver_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ir-40ab83e-driver", choices=("send", "restart"))
@@ -659,6 +972,7 @@ def _driver_main(argv: list[str]) -> int:
             "after_journal",
             "journal_deleted_at_transport",
             "fence_deleted_at_transport",
+            *PEER_MUTATION_FAULTS,
         ),
         default="before_journal",
     )

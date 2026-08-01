@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -164,6 +165,34 @@ def _write_established_activation_state(state_directory: Path) -> None:
 
     for basename in activate.ESTABLISHED_STATE_BASENAMES:
         (state_directory / basename).write_text("{}\n", encoding="utf-8")
+
+
+def _write_legacy_protocol_activation(state_directory: Path) -> tuple[Path, Path]:
+    """Publish the exact v1 pair which a stopped migration must retire."""
+
+    identity = os.stat(state_directory, follow_symlinks=False)
+    audit_bytes = protocol.build_legacy_established_install_activation_audit_bytes(
+        project_device=int(identity.st_dev),
+        project_inode=int(identity.st_ino),
+        clean_state_attestation_sha256="3" * 64,
+        clean_state_attestation_size=1,
+        activator_cli_sha256="4" * 64,
+        reconciliation_reference="isolated-v1-migration-fixture",
+    )
+    audit = state_directory / protocol.LEGACY_ACTIVATION_AUDIT_BASENAME
+    sentinel = state_directory / protocol.LEGACY_ACTIVATION_BASENAME
+    audit.write_bytes(audit_bytes)
+    audit.chmod(protocol.ACTIVATION_AUDIT_MODE)
+    sentinel.write_bytes(protocol.LEGACY_ACTIVATION_BYTES)
+    sentinel.chmod(protocol.ACTIVATION_MODE)
+    for path in (audit, sentinel):
+        descriptor = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    _fsync_directory(state_directory)
+    return sentinel, audit
 
 
 def _activation_kwargs(state_directory: Path) -> dict[str, object]:
@@ -634,6 +663,476 @@ def test_offline_activation_refuses_legacy_then_opens_after_reconciliation(
         "meme",
     ]
     assert clean_record["blocking_after_scheduler"] is False
+
+
+def test_stopped_v1_to_v2_migration_disables_pre_v2_runtime(
+    tmp_path: Path,
+) -> None:
+    """A v2 deployment cannot leave the old v1 permission identity usable."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    _write_legacy_protocol_activation(state_directory)
+
+    before_fd = os.open(
+        state_directory,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        legacy = protocol._inspect_legacy_protocol_activation_at(before_fd)
+    finally:
+        os.close(before_fd)
+    assert legacy.sha256 == hashlib.sha256(
+        protocol.LEGACY_ACTIVATION_BYTES
+    ).hexdigest()
+
+    result = activate.activate_protocol_offline(
+        **_activation_kwargs(state_directory)
+    )
+
+    assert result.protocol_version == 2
+    assert result.activation_migrated_from_protocol_version == 1
+    assert result.legacy_activation_namespace_absent is True
+    assert result.refused_state_basenames == activate.REFUSED_STATE_BASENAMES
+    assert result.refused_state_prefixes == activate.REFUSED_STATE_PREFIXES
+    assert result.refused_state_inventory_sha256 == (
+        activate._refused_state_inventory_sha256()
+    )
+    assert not os.path.lexists(
+        state_directory / protocol.LEGACY_ACTIVATION_BASENAME
+    )
+    assert not os.path.lexists(
+        state_directory / protocol.LEGACY_ACTIVATION_AUDIT_BASENAME
+    )
+    assert protocol.inspect_protocol_activation(
+        state_directory / protocol.ACTIVATION_BASENAME
+    ).sha256 == hashlib.sha256(protocol.ACTIVATION_BYTES).hexdigest()
+    # This is the exact namespace a pre-v2 runtime inspected.  It can no
+    # longer obtain its v1 permission sentinel after migration.
+    legacy_fd = os.open(
+        state_directory,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        with pytest.raises(protocol.ProtocolActivationError, match="missing"):
+            protocol._inspect_legacy_protocol_activation_at(legacy_fd)
+    finally:
+        os.close(legacy_fd)
+
+
+def test_activation_rejects_torn_dual_v1_v2_namespace(tmp_path: Path) -> None:
+    """A complete v1 pair cannot be silently composed with any v2 entry."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    _write_legacy_protocol_activation(state_directory)
+    (state_directory / protocol.ACTIVATION_AUDIT_BASENAME).write_text(
+        "{}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="torn dual v1/v2",
+    ):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+
+    assert os.path.lexists(state_directory / protocol.LEGACY_ACTIVATION_BASENAME)
+    assert os.path.lexists(
+        state_directory / protocol.LEGACY_ACTIVATION_AUDIT_BASENAME
+    )
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_BASENAME)
+
+
+@pytest.mark.parametrize("generation", ("v1", "v2"))
+def test_activation_rejects_sentinel_without_companion_audit(
+    tmp_path: Path,
+    generation: str,
+) -> None:
+    """No bare permission sentinel can be repaired into an accepted pair."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    if generation == "v1":
+        sentinel = state_directory / protocol.LEGACY_ACTIVATION_BASENAME
+        sentinel.write_bytes(protocol.LEGACY_ACTIVATION_BYTES)
+    else:
+        sentinel = state_directory / protocol.ACTIVATION_BASENAME
+        sentinel.write_bytes(protocol.ACTIVATION_BYTES)
+    sentinel.chmod(protocol.ACTIVATION_MODE)
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match=rf"torn {generation} activation sentinel",
+    ):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+
+
+def test_v2_runtime_rejects_legacy_namespace_beside_valid_v2(
+    tmp_path: Path,
+) -> None:
+    """A v2 pair never hides rollback-compatible v1 activation state."""
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    create_test_protocol_activation(activation)
+    (tmp_path / protocol.LEGACY_ACTIVATION_BASENAME).write_bytes(
+        protocol.LEGACY_ACTIVATION_BYTES
+    )
+    (tmp_path / protocol.LEGACY_ACTIVATION_BASENAME).chmod(
+        protocol.ACTIVATION_MODE
+    )
+
+    with pytest.raises(
+        protocol.ProtocolActivationError,
+        match="legacy protocol activation namespace remains present",
+    ):
+        protocol.inspect_protocol_activation(activation)
+
+
+def test_v1_migration_synchronises_removal_before_v2_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every crash point disables v1 before the v2 permission sentinel exists."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    _write_legacy_protocol_activation(state_directory)
+    kwargs = _activation_kwargs(state_directory)
+    state_identity = os.stat(state_directory)
+    events: list[str] = []
+    real_unlink = activate.os.unlink
+    real_fsync = activate.os.fsync
+    real_rename = protocol._rename_noreplace_at
+
+    def recording_unlink(path, *args, **kwargs):
+        if path in {
+            protocol.LEGACY_ACTIVATION_BASENAME,
+            protocol.LEGACY_ACTIVATION_AUDIT_BASENAME,
+        }:
+            events.append(f"unlink:{path}")
+        return real_unlink(path, *args, **kwargs)
+
+    def recording_fsync(descriptor: int) -> None:
+        identity = os.fstat(descriptor)
+        if (
+            stat.S_ISDIR(identity.st_mode)
+            and (identity.st_dev, identity.st_ino)
+            == (state_identity.st_dev, state_identity.st_ino)
+        ):
+            events.append("fsync:state-directory")
+        real_fsync(descriptor)
+
+    def recording_rename(
+        directory_fd: int,
+        source_basename: str,
+        destination_basename: str,
+    ) -> None:
+        if destination_basename in {
+            protocol.ACTIVATION_AUDIT_BASENAME,
+            protocol.ACTIVATION_BASENAME,
+        }:
+            events.append(f"publish:{destination_basename}")
+        real_rename(directory_fd, source_basename, destination_basename)
+
+    monkeypatch.setattr(activate.os, "unlink", recording_unlink)
+    monkeypatch.setattr(activate.os, "fsync", recording_fsync)
+    monkeypatch.setattr(protocol, "_rename_noreplace_at", recording_rename)
+
+    activate.activate_protocol_offline(**kwargs)
+
+    sentinel_unlink = events.index(
+        f"unlink:{protocol.LEGACY_ACTIVATION_BASENAME}"
+    )
+    audit_unlink = events.index(
+        f"unlink:{protocol.LEGACY_ACTIVATION_AUDIT_BASENAME}"
+    )
+    audit_publish = events.index(f"publish:{protocol.ACTIVATION_AUDIT_BASENAME}")
+    sentinel_publish = events.index(f"publish:{protocol.ACTIVATION_BASENAME}")
+    assert sentinel_unlink < audit_unlink < audit_publish < sentinel_publish
+    assert "fsync:state-directory" in events[sentinel_unlink + 1 : audit_unlink]
+    assert "fsync:state-directory" in events[audit_unlink + 1 : audit_publish]
+
+
+def test_v1_migration_resumes_after_durable_sentinel_removal(
+    tmp_path: Path,
+) -> None:
+    """The one ordered v1 audit-only crash residue can complete safely."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    legacy_sentinel, legacy_audit = _write_legacy_protocol_activation(
+        state_directory
+    )
+    legacy_sentinel.unlink()
+    _fsync_directory(state_directory)
+
+    result = activate.activate_protocol_offline(
+        **_activation_kwargs(state_directory)
+    )
+
+    assert result.activation_migrated_from_protocol_version == 1
+    assert not legacy_audit.exists()
+    assert protocol.inspect_protocol_activation(
+        state_directory / protocol.ACTIVATION_BASENAME
+    ).activation_kind == protocol.ESTABLISHED_INSTALL_ACTIVATION_KIND
+
+
+def test_v1_migration_failure_never_publishes_v2_before_v1_is_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed first removal sync leaves only fail-closed migration state."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    legacy_sentinel, legacy_audit = _write_legacy_protocol_activation(
+        state_directory
+    )
+    kwargs = _activation_kwargs(state_directory)
+    identity = os.stat(state_directory)
+    real_fsync = activate.os.fsync
+    failed = False
+
+    def fail_first_state_directory_fsync(descriptor: int) -> None:
+        nonlocal failed
+        current = os.fstat(descriptor)
+        if (
+            not failed
+            and stat.S_ISDIR(current.st_mode)
+            and (current.st_dev, current.st_ino)
+            == (identity.st_dev, identity.st_ino)
+        ):
+            failed = True
+            raise OSError("injected v1 removal fsync failure")
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(activate.os, "fsync", fail_first_state_directory_fsync)
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="offline protocol activation failed",
+    ):
+        activate.activate_protocol_offline(**kwargs)
+
+    assert failed is True
+    assert not legacy_sentinel.exists()
+    assert legacy_audit.exists()
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_BASENAME)
+    assert not os.path.lexists(
+        state_directory / protocol.ACTIVATION_AUDIT_BASENAME
+    )
+
+    monkeypatch.setattr(activate.os, "fsync", real_fsync)
+    result = activate.activate_protocol_offline(**kwargs)
+    assert result.activation_migrated_from_protocol_version == 1
+    assert protocol.inspect_protocol_activation(
+        state_directory / protocol.ACTIVATION_BASENAME
+    ).size == len(protocol.ACTIVATION_BYTES)
+
+
+@pytest.mark.parametrize(
+    "basename",
+    activate.REFUSED_STATE_BASENAMES,
+)
+def test_v2_activation_refuses_every_exact_transaction_namespace_entry(
+    tmp_path: Path,
+    basename: str,
+) -> None:
+    """The activation inventory includes every fixed transaction companion."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    (state_directory / basename).write_text("unresolved\n", encoding="utf-8")
+
+    with pytest.raises(activate.ProtocolActivationRefused, match=re.escape(basename)):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+
+
+@pytest.mark.parametrize("prefix", activate.REFUSED_STATE_PREFIXES)
+def test_v2_activation_refuses_every_transition_or_guard_prefix(
+    tmp_path: Path,
+    prefix: str,
+) -> None:
+    """A crash-left transition or retirement guard blocks v2 activation."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    unresolved = state_directory / f"{prefix}fixture"
+    unresolved.write_text("unresolved\n", encoding="utf-8")
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match=re.escape(unresolved.name),
+    ):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+
+
+def test_v2_activation_audit_and_inventory_are_deterministic(
+    tmp_path: Path,
+) -> None:
+    """Identical bound inputs yield byte-identical v2 audit and inventory."""
+
+    first = protocol.build_established_install_activation_audit_bytes(
+        project_device=11,
+        project_inode=22,
+        clean_state_attestation_sha256="5" * 64,
+        clean_state_attestation_size=33,
+        activator_cli_sha256="6" * 64,
+        reconciliation_reference="deterministic-v2-audit",
+    )
+    second = protocol.build_established_install_activation_audit_bytes(
+        project_device=11,
+        project_inode=22,
+        clean_state_attestation_sha256="5" * 64,
+        clean_state_attestation_size=33,
+        activator_cli_sha256="6" * 64,
+        reconciliation_reference="deterministic-v2-audit",
+    )
+
+    assert first == second
+    assert hashlib.sha256(first).hexdigest() == hashlib.sha256(second).hexdigest()
+    value = json.loads(first)
+    assert value["protocol_version"] == 2
+    assert value["legacy_activation_basename"] == (
+        protocol.LEGACY_ACTIVATION_BASENAME
+    )
+    assert value["legacy_namespace_required_absent"] is True
+    assert activate.REFUSED_STATE_BASENAMES == tuple(
+        dict.fromkeys(activate.REFUSED_STATE_BASENAMES)
+    )
+    assert activate.REFUSED_STATE_PREFIXES == tuple(
+        dict.fromkeys(activate.REFUSED_STATE_PREFIXES)
+    )
+    expected_inventory = (
+        json.dumps(
+            {
+                "basenames": list(activate.REFUSED_STATE_BASENAMES),
+                "prefixes": list(activate.REFUSED_STATE_PREFIXES),
+            },
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    assert activate._refused_state_inventory_sha256() == hashlib.sha256(
+        expected_inventory
+    ).hexdigest()
+    project = tmp_path / "project"
+    project.mkdir()
+    identity = os.stat(project)
+    attestation_a = activate.build_clean_state_attestation_bytes(
+        project_root=project,
+        project_device=int(identity.st_dev),
+        project_inode=int(identity.st_ino),
+        activator_cli_sha256="7" * 64,
+        reconciliation_reference="deterministic-v2-inventory",
+    )
+    attestation_b = activate.build_clean_state_attestation_bytes(
+        project_root=project,
+        project_device=int(identity.st_dev),
+        project_inode=int(identity.st_ino),
+        activator_cli_sha256="7" * 64,
+        reconciliation_reference="deterministic-v2-inventory",
+    )
+    assert attestation_a == attestation_b
+    attestation_value = json.loads(attestation_a)
+    assert attestation_value["refused_state_basenames"] == list(
+        activate.REFUSED_STATE_BASENAMES
+    )
+    assert attestation_value["refused_state_prefixes"] == list(
+        activate.REFUSED_STATE_PREFIXES
+    )
+    assert attestation_value["refused_state_inventory_sha256"] == (
+        activate._refused_state_inventory_sha256()
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("missing_basename", "missing_prefix", "wrong_inventory_hash"),
+)
+def test_v2_activation_rejects_attestation_with_incomplete_state_inventory(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    """The operator attestation cannot silently omit a v2 transaction path."""
+
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    kwargs = _activation_kwargs(state_directory)
+    attestation = Path(kwargs["clean_state_attestation_path"])
+    value = json.loads(attestation.read_text(encoding="utf-8"))
+    if mutation == "missing_basename":
+        value["refused_state_basenames"].remove(
+            activate.MEDIA_UPLOAD_FENCE_BASENAME
+        )
+    elif mutation == "missing_prefix":
+        value["refused_state_prefixes"].remove(
+            activate.MEDIA_RETIREMENT_GUARD_PREFIX
+        )
+    else:
+        value["refused_state_inventory_sha256"] = "0" * 64
+    mutated = (
+        json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    ).encode("utf-8")
+    attestation.chmod(0o600)
+    attestation.write_bytes(mutated)
+    attestation.chmod(activate.CLEAN_STATE_ATTESTATION_MODE)
+    kwargs["expected_clean_state_attestation_sha256"] = hashlib.sha256(
+        mutated
+    ).hexdigest()
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="fields do not bind this activation",
+    ):
+        activate.activate_protocol_offline(**kwargs)
 
 
 def test_protocol_activation_never_exposes_partial_final_and_retry_succeeds(

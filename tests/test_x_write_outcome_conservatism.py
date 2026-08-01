@@ -17,6 +17,7 @@ from tests.test_unit_helpers import (
     configure_simple_meme_post,
     configure_simple_quote_post,
     unit_sending_reply_receipt,
+    unit_sending_v4_reply_receipt,
 )
 
 
@@ -42,10 +43,19 @@ def _armed_x_create_authority(payload: dict[str, object]) -> bot.TransportAuthor
         expected_receipt=receipt,
         lane="conversational_reply",
         payload=payload,
+        source_validator_id="unit-test-source-binding-v2",
+        source_validator=lambda lane, observed, body: bool(
+            lane == "conversational_reply"
+            and observed == receipt
+            and body == payload
+        ),
     )
     return bot.arm_transport_transaction(
         Path(prepared.journal_path),
         prepared,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused transport arming"
+        ),
     )
 
 
@@ -92,6 +102,124 @@ def test_raw_and_bearer_x_create_require_receipt_bound_internal_authority(
 
 
 @pytest.mark.parametrize(
+    ("extra_key", "extra_value"),
+    [
+        ("data", {"text": "different"}),
+        ("files", {"media": object()}),
+        ("params", {"unexpected": "query"}),
+        ("headers", {"Content-Type": "text/plain"}),
+        ("allow_redirects", True),
+    ],
+)
+def test_tweet_authority_rejects_every_alternate_request_channel(
+    extra_key: str,
+    extra_value: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"text": "authorised"}
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an alternate request channel must stop before transport"
+        ),
+    )
+
+    kwargs = {
+        "json": payload,
+        extra_key: extra_value,
+        "ambiguous_write": True,
+        "_remote_write_authorization": authority,
+    }
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="only one exact JSON body",
+    ):
+        bot.x_request("POST", "/2/tweets", **kwargs)
+
+
+def test_tweet_transport_uses_an_isolated_strict_json_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"text": "authorised", "reply": {"in_reply_to_tweet_id": "1"}}
+    authority = _armed_x_create_authority(payload)
+
+    def observe(_method: str, _url: str, **kwargs: object) -> bot.requests.Response:
+        payload["text"] = "changed outside transport"
+        payload["reply"]["in_reply_to_tweet_id"] = "2"
+        assert kwargs["json"] == {
+            "text": "authorised",
+            "reply": {"in_reply_to_tweet_id": "1"},
+        }
+        assert kwargs["json"] is not payload
+        return _x_response(201, {"data": {"id": "123"}})
+
+    monkeypatch.setattr(bot.requests, "request", observe)
+    result = bot.x_request(
+        "POST",
+        "/2/tweets",
+        json=payload,
+        ambiguous_write=True,
+        _remote_write_authorization=authority,
+    )
+    assert result["data"]["id"] == "123"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/2/media/upload",
+        "/1.1/media/upload.json",
+        "/1.1/statuses/update.json",
+        "/2/tweets?duplicate=true",
+    ],
+)
+def test_bearer_transport_is_read_only(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "bearer write must stop before transport"
+        ),
+    )
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="Bearer-authenticated X writes",
+    ):
+        bot.x_bearer_request("POST", path, data={"value": "unit"})
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/1.1/media/upload.json",
+        "/1.1/statuses/update.json",
+        "/2/likes",
+    ],
+)
+def test_generic_x_transport_rejects_unmodelled_write_routes(
+    path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "unmodelled write must stop before transport"
+        ),
+    )
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="no durable transaction policy",
+    ):
+        bot.x_request("POST", path, data={"value": "unit"})
+
+
+@pytest.mark.parametrize(
     "path",
     (
         "/2/./tweets",
@@ -117,7 +245,7 @@ def test_normalised_raw_and_bearer_x_create_variants_require_authority(
     )
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
-        match="durable transport-journal authorization",
+        match="exact literal method and path",
     ):
         bot.x_request(
             "POST",
@@ -127,7 +255,7 @@ def test_normalised_raw_and_bearer_x_create_variants_require_authority(
         )
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
-        match="no durable transaction authority",
+        match="Bearer-authenticated X writes",
     ):
         bot.x_bearer_request(
             "POST",
@@ -153,7 +281,7 @@ def test_direct_media_upload_requires_explicit_ambiguous_write_handling(
 
     with pytest.raises(
         bot.AmbiguousRemotePostOutcome,
-        match="explicit ambiguous-write handling",
+        match="exact form and media part",
     ):
         bot.x_request(
             "POST",
@@ -200,10 +328,19 @@ def test_noncanonical_lane_authority_cannot_reach_tweet_transport(
         expected_receipt=receipt,
         lane="invented_lane",
         payload=payload,
+        source_validator_id="unit-test-source-binding-v2",
+        source_validator=lambda lane, observed, body: bool(
+            lane == "invented_lane"
+            and observed == receipt
+            and body == payload
+        ),
     )
     authority = bot.arm_transport_transaction(
         Path(prepared.journal_path),
         prepared,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused transport arming"
+        ),
     )
     monkeypatch.setattr(
         bot.requests,
@@ -254,8 +391,16 @@ def test_v2_media_upload_uses_ambiguous_write_transport(
         mime_type=mime_type,
         payload_metadata=bot.media_upload_payload_metadata(form),
     )
+    payload = bot.bind_media_upload_payload(
+        bot.MEDIA_UPLOAD_RECEIPT_FILE,
+        authority,
+        image_path=image,
+        lane="quote_image",
+        mime_type=mime_type,
+        payload_metadata=bot.media_upload_payload_metadata(form),
+    )
 
-    assert bot.upload_media_v2(str(image), authority=authority) == "media-1"
+    assert bot.upload_media_v2(authority=authority, payload=payload) == "media-1"
     assert len(calls) == 1
     method, path, kwargs = calls[0]
     assert (method, path) == ("POST", "/2/media/upload")
@@ -282,7 +427,7 @@ def test_v2_media_upload_failure_never_calls_legacy_fallback(
     image = tmp_path / "image.png"
     image.write_bytes(b"image")
 
-    def failed_v2(_image_path: str, **_kwargs: object) -> str:
+    def failed_v2(**_kwargs: object) -> str:
         raise remote_error
 
     def legacy(_image_path: str) -> str:
@@ -427,7 +572,7 @@ def isolate_remote_write_state(
     monkeypatch.setattr(
         bot,
         "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
-        tmp_path / ".mrs_remote_write_safety_protocol_v1",
+        tmp_path / bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_BASENAME,
     )
     create_test_protocol_activation(
         bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
@@ -548,8 +693,7 @@ def test_x_create_redirect_is_not_followed_and_is_ambiguous(
             _remote_write_authorization=authority,
         )
 
-    assert len(calls) == 1
-    assert calls[0]["allow_redirects"] is False
+    assert calls == []
 
 
 def test_regular_generic_4xx_retains_attempt_and_blocks_retry(
@@ -634,7 +778,7 @@ def test_meme_generic_4xx_retains_attempt_and_blocks_retry(
 def test_conversational_generic_4xx_retains_sending_receipt_and_blocks_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sending = unit_sending_reply_receipt()
+    sending = unit_sending_v4_reply_receipt()
     remote_calls = 0
 
     def generic_404(
@@ -679,6 +823,7 @@ def test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry
     store = HistoricalContextReplyStore(
         tmp_path / "context-history.json",
         tmp_path / "context-receipt.json",
+        mutation_authority_provider=bot.transaction_mutation_authority,
     )
     monkeypatch.setattr(
         bot,
@@ -738,6 +883,7 @@ def test_exact_owning_historical_context_create_is_allowed_once(
     store = HistoricalContextReplyStore(
         bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
         bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
     )
     remote_calls: list[dict[str, object]] = []
 
@@ -815,7 +961,7 @@ def test_meme_success_retires_journal_before_lane_receipt(
 def test_conversational_success_retires_journal_only_after_state_commit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    receipt = unit_sending_reply_receipt()
+    receipt = unit_sending_v4_reply_receipt()
     monkeypatch.setattr(
         bot.requests,
         "request",

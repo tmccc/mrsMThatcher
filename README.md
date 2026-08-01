@@ -402,45 +402,96 @@ compatibility name `ambiguous_post_outcome.json`. Either name blocks further
 posting until an operator reconciles the incident; the bot does not claim
 exactly-once delivery.
 
-The successor-first protocol is enabled by the exact read-only runtime pair
-`.mrs_remote_write_safety_protocol_v1` and
-`.mrs_remote_write_safety_protocol_v1.activation_audit.json`. Missing,
+The current transport-authority protocol is enabled by the exact read-only
+runtime pair `.mrs_remote_write_safety_protocol_v2` and
+`.mrs_remote_write_safety_protocol_v2.activation_audit.json`. Missing,
 malformed, replaced, unreadable or mismatched pair state blocks every remote
 lane in every process; a bare sentinel is not silently treated as activation.
 The pair is cross-revalidated after both stable no-follow reads, so files from
-different namespace generations cannot be composed into permission. Local
-namespace absence is not accepted as proof that an installation is new:
+different namespace generations cannot be composed into permission. The v1
+sentinel and audit remain part of the inspected namespace only as forbidden
+legacy state. A v2 runtime refuses either v1 name, and the stopped activator
+durably removes the v1 permission sentinel before its audit and publishes the
+v2 audit before the v2 sentinel. Every crash point in that migration therefore
+leaves both old and new runtimes unable to write.
+
+Local namespace absence is not accepted as proof that an installation is new:
 `--initialise` creates durable state but deliberately leaves every remote lane
 disabled. Every installation must then be activated only while the user
 service, wrapper and Python child are all stopped. First reconcile every active
-ambiguity marker and transaction receipt and create an external canonical
-clean-state/reconciliation attestation. That immutable 0400 file must name the
-exact project path/device/inode, the exact activator CLI SHA-256 and an operator
-reconciliation reference. Run
-`tools/activate_remote_write_safety_protocol.py` with its exact SHA-256, the
-preflight-bound project identity and both explicit confirmations. The
-activator validates the attestation's bytes and bindings but does not pretend
-to prove the operator's clean-state assertion. It takes the complete
-instance-lock boundary, refuses either marker name or any regular, meme,
-conversational-reply or historical-context receipt, publishes the hash-bound
-activation audit first and the sentinel last. A legacy-only marker is never
+ambiguity marker and every transaction object: all four source receipts, the
+transport journal/fence, the media receipt/fence, transition or retirement
+guard prefixes, and the five fixed retirement auxiliaries for each source
+receipt. Create an external canonical clean-state/reconciliation attestation.
+That immutable 0400 file must name the exact project path/device/inode, exact
+state inventory, exact activator CLI SHA-256 and an operator reconciliation
+reference. Run `tools/activate_remote_write_safety_protocol.py` with its exact
+SHA-256, the preflight-bound project identity and both explicit confirmations.
+The activator validates the attestation's bytes and bindings but does not
+pretend to prove the operator's clean-state assertion. It takes the complete
+instance-lock boundary and refuses either ambiguity name or any unresolved
+exact or prefixed transaction entry. A legacy-only ambiguity marker is never
 migrated by the running daemon.
 
 Protocol activation is a one-way runtime compatibility boundary. Never start a
-pre-protocol binary against that activated state directory; any rollback must
-remain stopped until its marker, receipt and activation pair have been reviewed
-under the same lock-bound offline procedure. The activation pair is mutable
+pre-v2 binary against that activated state directory; any rollback must remain
+stopped until both protocol generations, every marker and every transaction
+barrier have been reviewed under the same lock-bound offline procedure. The
+activation pair is mutable
 runtime state rather than repository content. When the state directory is also a Git
 checkout, record a deployment-local exclusion in that checkout's
 `.git/info/exclude`; do not modify or overwrite an unrelated tracked
 `.gitignore` change merely to hide it.
 
-Every regular, meme, conversational-reply and historical-context reply receipt
-is a global remote-write barrier. The one transaction which durably wrote an
-exact sending receipt receives a narrow in-process authority for its matching
-payload; missing, changed, malformed or unrelated receipts block it. Raw X,
-media and provider transports receive no such authority and cannot bypass an
-unresolved receipt.
+Every regular, meme, conversational-reply and historical-context reply source
+receipt is a strict, no-follow global remote-write barrier. Duplicate JSON
+names, non-finite values, noncanonical bytes, symbolic links, directories,
+FIFOs and replacement generations block rather than becoming absence. The lane
+validates the exact source identity and bytes while publishing a
+payload/source/inode-bound `remote_write_transport_journal.json` and independent
+`remote_write_transport_fence.json`. The final transport authority revalidates
+and consumes the journal/fence pair. Within the cooperative single-instance,
+same-state-owner protocol, every supported writer of reserved transaction names
+holds the same instance lock, and destructive transaction mutations are
+serialized within the owning process. A mutation already visible at a
+documented revalidation boundary stops transport; source loss after
+journal/fence publication remains restart-blocking. These guarantees and the
+one-path fault-injection cases do not cover a non-cooperating same-UID actor
+that creates, replaces or removes a reserved name between a stable identity
+check and the following pathname syscall, or that mutates the state directory
+outside the lock protocol. Confirmation is recorded in the journal before the
+exact bound source inode may be promoted, and confirmed source lineage is
+rechecked before histories, schedules or receipt retirement change.
+
+Quote-image and meme media upload uses its own
+`remote_media_upload_receipt.json` and `.fence.json` pair. After upload, the
+confirmed media handoff and receipt retirement occur only beneath an already
+prepared main-post journal/fence. An unproved v2 upload outcome remains
+ambiguous and restart-visible; the legacy v1.1 upload helper refuses before
+transport and is never an automatic fallback. Raw X, media and provider
+transports receive no unbound authority and cannot bypass an unresolved
+transaction object.
+
+Destructive journal, media and source-retirement helpers do not trust their
+caller. Each call requires a narrow `TransactionMutationAuthority` issued from
+the exact live instance-lock verifier, and every use re-runs that verifier
+before inspecting or mutating the namespace. `TransactionMutationAuthority` is
+cooperative admission proof, not an operating-system capability or a
+conditional-unlink primitive. It excludes supported competing writers only
+together with the shared lock and in-process serialization. Source receipt
+retirement uses fixed guard, commit, cleanup and two staging names. Before final
+committed cleanup removal, supported hard exits leave an inventoried barrier.
+If the final unlink succeeds but its directory fsync is not acknowledged, the
+current daemon latches fail closed; a fresh marker-only resumer deliberately
+does not infer completion from all-absent state without separate idempotence
+authority.
+
+Fail-closed does not imply complete automatic recovery. An exact staging entry
+left around an identity-bound exchange, or a partially completed offline marker
+archive, can require deterministic operator inspection and rerun. Preserve
+every source, journal, fence, guard, commit, cleanup and staging entry until the
+reviewed recovery path proves its ownership; never delete a blocker merely to
+restore availability.
 
 The safety marker must never be removed while the daemon is running. After an
 operator has independently reconciled the remote outcome, stop the service and

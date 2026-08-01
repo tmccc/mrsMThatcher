@@ -79,7 +79,7 @@ def test_real_ledger_is_valid_and_markdown_summary_is_synchronized() -> None:
     assert dict(report.status_counts)
 
 
-def test_release_assurance_findings_are_explicit_and_runtime_json_gap_remains() -> None:
+def test_release_assurance_findings_and_json_defect_boundaries_are_explicit() -> None:
     ledger, _schema, _invariants = _documents()
     records = {item["id"]: item for item in ledger["defects"]}
     expected = {
@@ -100,12 +100,9 @@ def test_release_assurance_findings_are_explicit_and_runtime_json_gap_remains() 
     runtime_gap = records["DEF-0017"]
     assert runtime_gap["status"] == "active"
     assert runtime_gap["defect_class"] == "runtime-defect"
-    assert "INV-REL-JSON-001" not in runtime_gap["invariant_ids"]
-    assert {
-        "INV-TXN-HCTX-001",
-        "INV-TXN-REPLY-001",
-        "INV-TXN-RECEIPT-001",
-    } <= set(runtime_gap["invariant_ids"])
+    assert runtime_gap["invariant_ids"] == ["INV-CONFIG-001", "INV-PAUSE-001"]
+    assert "DEF-0043" in runtime_gap["relations"]["related"]
+    assert "DEF-0044" in records["DEF-0019"]["relations"]["related"]
 
 
 def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() -> None:
@@ -117,15 +114,20 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
     deployment = identity["production_deployment_observation"]
     regeneration = identity["post_merge_regeneration"]
 
+    assert cutoff["commit"] == "7ebcc09699a13848d55a33fd84d66cc8ce56d95c"
+    assert cutoff["tree"] == "b83abb7af53f925eb8686825e09f4654a55ff40a"
     assert baseline["commit"] != cutoff["commit"]
     assert baseline["tree"] != cutoff["tree"]
     assert "does not claim" in cutoff["difference_from_production_baseline"]
+    assert "external proposals" in cutoff["meaning"]
     assert candidate["identity_source"] == "external-release-attestation"
     assert candidate["stored_in_ledger"] is False
+    assert "remain external and unfixed" in candidate["explanation"]
     assert deployment["repository_commit"] == baseline["commit"]
     assert deployment["loaded_process_identity_status"].endswith("-unattested")
     assert regeneration["required"] is True
     assert regeneration["release_base_must_equal_evidence_cutoff"] is True
+    assert "post-7ebcc096" in regeneration["requirement"]
 
     report = _validate(
         ledger,
@@ -134,6 +136,54 @@ def test_ledger_separates_baseline_cutoff_candidate_and_deployment_identity() ->
         release_base=cutoff["commit"],
     )
     assert report.ok, "\n".join(report.errors)
+
+
+def test_release_line_status_fix_and_chronology_shas_are_cutoff_ancestors() -> None:
+    ledger, _schema, _invariants = _documents()
+    cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
+    claims: list[tuple[str, str]] = []
+
+    for record in ledger["defects"]:
+        defect_id = record["id"]
+        introduced = record["introduced"]
+        for field in ("first_bad_commit", "last_known_good_commit"):
+            value = introduced[field]
+            if value != "unknown":
+                claims.append((f"{defect_id}.introduced.{field}", value))
+        range_match = ledger_tool.INCLUSIVE_RANGE_PATTERN.fullmatch(
+            introduced["affected_range"]
+        )
+        if range_match is not None:
+            for index, value in enumerate(range_match.groups()):
+                if value != "unknown":
+                    claims.append(
+                        (f"{defect_id}.introduced.affected_range[{index}]", value)
+                    )
+        for field, value in (
+            ("fix.commit", record["fix"]["commit"]),
+            ("deployment.observed_commit", record["deployment"]["observed_commit"]),
+        ):
+            if value != "unknown":
+                claims.append((f"{defect_id}.{field}", value))
+        for index, event in enumerate(record["chronology"]):
+            if event["commit"] != "unknown":
+                claims.append(
+                    (f"{defect_id}.chronology[{index}].commit", event["commit"])
+                )
+        for index, test in enumerate(record["tests"]):
+            if test["commit"] != "unknown":
+                claims.append((f"{defect_id}.tests[{index}].commit", test["commit"]))
+
+    assert claims
+    for field, commit in claims:
+        ancestry = ledger_tool._git(
+            ROOT,
+            "merge-base",
+            "--is-ancestor",
+            commit,
+            cutoff,
+        )
+        assert ancestry.returncode == 0, f"{field} is outside cut-off: {commit}"
 
 
 @pytest.mark.parametrize(
@@ -534,7 +584,7 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     ) == ledger_tool.render_diagnosis_chronology(ledger)
 
 
-def test_repaired_and_second_restart_marker_defects_render_honestly() -> None:
+def test_repaired_remote_write_defects_render_honestly() -> None:
     ledger, _schema, _invariants = _documents()
     pending_receipt_repair = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0030"
@@ -554,6 +604,12 @@ def test_repaired_and_second_restart_marker_defects_render_honestly() -> None:
     second_restart_defect = next(
         item for item in ledger["defects"] if item["id"] == "DEF-0035"
     )
+    receipt_authority_defect = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0036"
+    )
+    activation_pair_defect = next(
+        item for item in ledger["defects"] if item["id"] == "DEF-0037"
+    )
 
     assert ledger_tool._deployment_cell(pending_receipt_repair) == (
         "not-deployed; observed `be882e81`"
@@ -571,12 +627,14 @@ def test_repaired_and_second_restart_marker_defects_render_honestly() -> None:
         "not-deployed; observed `be882e81`"
     )
     assert ledger_tool._deployment_cell(second_restart_defect) == (
-        "not deployed; absent from observed production `be882e81`"
+        "not-deployed; observed `be882e81`"
     )
     assert marker_identity_repair["status"] == "repaired-not-deployed"
     assert process_lock_repair["status"] == "repaired-not-deployed"
     assert fresh_process_defect["status"] == "repaired-not-deployed"
-    assert second_restart_defect["status"] == "active"
+    assert second_restart_defect["status"] == "repaired-not-deployed"
+    assert receipt_authority_defect["status"] == "repaired-not-deployed"
+    assert activation_pair_defect["status"] == "repaired-not-deployed"
     assert marker_identity_repair["fix"]["commit"] == (
         "2ad0f79feb0d54be1b1687546449deac6bd1a0c1"
     )
@@ -645,8 +703,10 @@ def test_repaired_and_second_restart_marker_defects_render_honestly() -> None:
         "inclusive:debc079949b567362ce7c451ea43fd52ffedfa4d"
         "..debc079949b567362ce7c451ea43fd52ffedfa4d"
     )
-    assert second_restart_defect["fix"]["state"] == "unfixed"
-    assert second_restart_defect["fix"]["commit"] == "unknown"
+    assert second_restart_defect["fix"]["state"] == "fixed"
+    assert second_restart_defect["fix"]["commit"] == (
+        "78b5c5b316c20c35bc863ff0c77062d9ad628eb8"
+    )
     assert "ambiguous_post_outcome.restart_barrier.json" in (
         second_restart_defect["fix"]["summary"]
     )
@@ -656,3 +716,77 @@ def test_repaired_and_second_restart_marker_defects_render_honestly() -> None:
         "INV-TXN-REG-001",
     }
     assert second_restart_defect["incident"]["occurred"] is False
+    assert receipt_authority_defect["introduced"]["affected_range"] == (
+        "inclusive:unknown..a65c91bf5b72b986f48b020d9d3096f8b57895c9"
+    )
+    assert activation_pair_defect["introduced"]["affected_range"] == (
+        "inclusive:unknown..a65c91bf5b72b986f48b020d9d3096f8b57895c9"
+    )
+    assert receipt_authority_defect["fix"]["commit"] == (
+        "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+    )
+    assert activation_pair_defect["fix"]["commit"] == (
+        "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+    )
+
+
+def test_transport_cutoff_repairs_and_post_cutoff_findings_remain_distinct() -> None:
+    ledger, _schema, _invariants = _documents()
+    records = {item["id"]: item for item in ledger["defects"]}
+    cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
+    parent = "40ab83ef77e75549a08ee0dc2082985ca36b361b"
+
+    for defect_id in ("DEF-0038", "DEF-0039"):
+        record = records[defect_id]
+        assert record["status"] == "repaired-not-deployed"
+        assert record["fix"] == {
+            "state": "fixed",
+            "commit": cutoff,
+            "summary": record["fix"]["summary"],
+        }
+        assert record["introduced"]["affected_range"] == (
+            f"inclusive:unknown..{parent}"
+        )
+        assert any(item["commit"] == cutoff for item in record["tests"])
+        assert any(item["commit"] == cutoff for item in record["chronology"])
+
+    for defect_id in ("DEF-0040", "DEF-0041", "DEF-0042", "DEF-0043"):
+        record = records[defect_id]
+        assert record["status"] == "active"
+        assert record["fix"]["state"] == "unfixed"
+        assert record["fix"]["commit"] == "unknown"
+        assert record["tests"] == []
+        assert record["introduced"]["affected_range"] == (
+            f"inclusive:unknown..{cutoff}"
+        )
+        assert "post-7ebcc096 external proposal" in record["fix"]["summary"]
+
+    assurance = records["DEF-0044"]
+    assert assurance["status"] == "assurance-weakness"
+    assert assurance["severity"] == "assurance"
+    assert assurance["fix"]["state"] == "unfixed"
+    assert assurance["tests"] == []
+    assert "DEF-0019" in assurance["relations"]["related"]
+    assert "without an independent observer" in assurance["summary"]
+
+    liveness = records["DEF-0045"]
+    assert liveness["status"] == "active"
+    assert liveness["severity"] == "medium"
+    assert liveness["fix"]["state"] == "unfixed"
+    assert liveness["introduced"]["affected_range"] == (
+        f"inclusive:unknown..{cutoff}"
+    )
+    assert liveness["incident"]["occurred"] is False
+    assert "fail-closed" in liveness["impact"]
+    assert "does not claim" in liveness["impact"]
+
+
+def test_explicit_unfixed_ranges_end_at_the_evidence_cutoff() -> None:
+    ledger, _schema, _invariants = _documents()
+    cutoff = ledger["identity_scope"]["ledger_evidence_cutoff"]["commit"]
+
+    for record in ledger["defects"]:
+        affected_range = record["introduced"]["affected_range"]
+        if record["fix"]["state"] != "unfixed" or affected_range == "unknown":
+            continue
+        assert affected_range.endswith(f"..{cutoff}"), record["id"]

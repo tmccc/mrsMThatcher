@@ -18,6 +18,12 @@ wrapper/supervisor must be stopped separately; local file and process locks do
 not pretend to prove supervisor policy.  After activation, rollback to a
 protocol-unaware runtime is prohibited unless a separate stopped validation
 establishes the explicitly reviewed clean rollback state.
+
+The v2 activator also performs the sole supported v1 migration.  It validates
+the complete v1 pair, durably removes the v1 permission sentinel before its
+audit, and only then publishes the v2 audit and sentinel.  Thus every crash
+point after migration begins leaves both runtimes unable to write until a
+complete v2 pair exists; a mixed v1/v2 namespace is never accepted.
 """
 
 from __future__ import annotations
@@ -41,13 +47,32 @@ if __package__ in {None, ""}:
 
 from remote_write_safety_protocol import (  # noqa: E402
     ACTIVATION_AUDIT_BASENAME,
+    ACTIVATION_AUDIT_MODE,
     ACTIVATION_BASENAME,
     ACTIVATION_BYTES,
     ACTIVATION_MODE,
-    ESTABLISHED_INSTALL_ACTIVATION_KIND,
+    LEGACY_ACTIVATION_AUDIT_BASENAME,
+    LEGACY_ACTIVATION_BASENAME,
+    PROTOCOL_VERSION,
+    ProtocolActivationError,
+    _inspect_stable_regular_at,
+    _inspect_legacy_protocol_activation_at,
+    _parse_legacy_activation_audit,
     build_established_install_activation_audit_bytes,
     _create_or_revalidate_protocol_activation_at,
 )
+from remote_media_upload_receipt import (  # noqa: E402
+    RETIREMENT_GUARD_PREFIX as MEDIA_RETIREMENT_GUARD_PREFIX,
+    TRANSITION_PREFIX as MEDIA_TRANSITION_PREFIX,
+    fence_path_for_receipt as media_fence_path_for_receipt,
+)
+from remote_write_transport_journal import (  # noqa: E402
+    FENCE_BASENAME as TRANSPORT_FENCE_BASENAME,
+    JOURNAL_BASENAME as TRANSPORT_JOURNAL_BASENAME,
+    JOURNAL_RETIREMENT_PREFIX,
+    JOURNAL_STAGING_PREFIX,
+)
+from exact_receipt_retirement import retirement_auxiliary_paths  # noqa: E402
 from tools.reconcile_remote_write_safety_marker import (  # noqa: E402
     LOCK_BASENAME,
     MARKER_BASENAME,
@@ -71,17 +96,37 @@ RECEIPT_BASENAMES = (
     "confirmed_reply_receipt.json",
     "historical_context_reply_receipt.json",
 )
+MEDIA_UPLOAD_RECEIPT_BASENAME = "remote_media_upload_receipt.json"
+MEDIA_UPLOAD_FENCE_BASENAME = media_fence_path_for_receipt(
+    Path(MEDIA_UPLOAD_RECEIPT_BASENAME)
+).name
+RECEIPT_RETIREMENT_AUXILIARY_BASENAMES = tuple(
+    auxiliary.name
+    for receipt_basename in RECEIPT_BASENAMES
+    for auxiliary in retirement_auxiliary_paths(Path(receipt_basename))
+)
 REFUSED_STATE_BASENAMES = (
     MARKER_BASENAME,
     RESTART_BARRIER_BASENAME,
     *RECEIPT_BASENAMES,
+    TRANSPORT_JOURNAL_BASENAME,
+    TRANSPORT_FENCE_BASENAME,
+    MEDIA_UPLOAD_RECEIPT_BASENAME,
+    MEDIA_UPLOAD_FENCE_BASENAME,
+    *RECEIPT_RETIREMENT_AUXILIARY_BASENAMES,
+)
+REFUSED_STATE_PREFIXES = (
+    JOURNAL_STAGING_PREFIX,
+    JOURNAL_RETIREMENT_PREFIX,
+    MEDIA_TRANSITION_PREFIX,
+    MEDIA_RETIREMENT_GUARD_PREFIX,
 )
 ESTABLISHED_STATE_BASENAMES = (
     "bot_state.json",
     "lines_used.json",
     "images_used.json",
 )
-CLEAN_STATE_ATTESTATION_SCHEMA_VERSION = 1
+CLEAN_STATE_ATTESTATION_SCHEMA_VERSION = 2
 CLEAN_STATE_ATTESTATION_DOCUMENT_KIND = (
     "mrsMThatcher_remote_write_safety_clean_state_reconciliation_attestation"
 )
@@ -100,6 +145,7 @@ class ProtocolActivationResult:
 
     schema_version: int
     operation: str
+    protocol_version: int
     project_root: str
     activation_path: str
     activation_sha256: str
@@ -108,6 +154,7 @@ class ProtocolActivationResult:
     activation_device: int
     activation_inode: int
     activation_reused_existing: bool
+    activation_migrated_from_protocol_version: int | None
     activation_kind: str
     activation_audit_path: str
     activation_audit_sha256: str
@@ -129,6 +176,10 @@ class ProtocolActivationResult:
     activation_audit_durable_before_sentinel: bool
     active_markers_absent: bool
     unresolved_receipts_absent: bool
+    refused_state_basenames: tuple[str, ...]
+    refused_state_prefixes: tuple[str, ...]
+    refused_state_inventory_sha256: str
+    legacy_activation_namespace_absent: bool
     successful_return_requires_exact_sentinel: bool
     rollback_to_protocol_unaware_runtime_prohibited: bool
 
@@ -137,6 +188,8 @@ class ProtocolActivationResult:
 
         value = asdict(self)
         value["established_state_files"] = list(self.established_state_files)
+        value["refused_state_basenames"] = list(self.refused_state_basenames)
+        value["refused_state_prefixes"] = list(self.refused_state_prefixes)
         return value
 
 
@@ -150,12 +203,36 @@ class _CleanStateAttestation:
     reconciliation_reference: str
 
 
+@dataclass(frozen=True)
+class _ActivationNamespacePlan:
+    """One fail-closed current/legacy activation namespace disposition."""
+
+    migrate_legacy: bool
+    resume_after_legacy_sentinel_removal: bool
+    reuse_current: bool
+    legacy_sentinel_identity: tuple[int, int] | None
+    legacy_audit_identity: tuple[int, int] | None
+
+
 def _canonical_json_bytes(value: object) -> bytes:
     """Return the only accepted deterministic attestation representation."""
 
     return (
         json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + "\n"
     ).encode("utf-8")
+
+
+def _refused_state_inventory_sha256() -> str:
+    """Bind the complete deterministic exact/prefix activation inventory."""
+
+    return hashlib.sha256(
+        _canonical_json_bytes(
+            {
+                "basenames": list(REFUSED_STATE_BASENAMES),
+                "prefixes": list(REFUSED_STATE_PREFIXES),
+            }
+        )
+    ).hexdigest()
 
 
 def _strict_json_object(
@@ -293,8 +370,12 @@ def build_clean_state_attestation_bytes(
         "project_inode": int(project_inode),
         "project_root": str(Path(project_root).resolve(strict=True)),
         "reconciliation_reference": str(reconciliation_reference),
+        "refused_state_basenames": list(REFUSED_STATE_BASENAMES),
+        "refused_state_inventory_sha256": _refused_state_inventory_sha256(),
+        "refused_state_prefixes": list(REFUSED_STATE_PREFIXES),
         "schema_version": CLEAN_STATE_ATTESTATION_SCHEMA_VERSION,
         "unresolved_receipts_absent_after_external_review": True,
+        "unresolved_transport_state_absent_after_external_review": True,
     }
     return _canonical_json_bytes(value)
 
@@ -398,8 +479,12 @@ def _load_clean_state_attestation(
             "project_inode",
             "project_root",
             "reconciliation_reference",
+            "refused_state_basenames",
+            "refused_state_inventory_sha256",
+            "refused_state_prefixes",
             "schema_version",
             "unresolved_receipts_absent_after_external_review",
+            "unresolved_transport_state_absent_after_external_review",
         }
         reference = value.get("reconciliation_reference")
         if (
@@ -408,6 +493,8 @@ def _load_clean_state_attestation(
             or value.get("document_kind") != CLEAN_STATE_ATTESTATION_DOCUMENT_KIND
             or value.get("active_markers_absent_after_external_review") is not True
             or value.get("unresolved_receipts_absent_after_external_review") is not True
+            or value.get("unresolved_transport_state_absent_after_external_review")
+            is not True
             or value.get("prior_marker_loss_or_incident_evidence_reconciled") is not True
             or value.get("operator_attestation_locally_proven") is not False
             or value.get("activator_cli_sha256") != activator_cli_sha256
@@ -416,6 +503,11 @@ def _load_clean_state_attestation(
             or type(value.get("project_inode")) is not int
             or int(value.get("project_device", -1)) != int(project_identity.st_dev)
             or int(value.get("project_inode", -1)) != int(project_identity.st_ino)
+            or value.get("refused_state_basenames")
+            != list(REFUSED_STATE_BASENAMES)
+            or value.get("refused_state_prefixes") != list(REFUSED_STATE_PREFIXES)
+            or value.get("refused_state_inventory_sha256")
+            != _refused_state_inventory_sha256()
             or not isinstance(reference, str)
             or not reference.strip()
             or len(reference) > 512
@@ -450,17 +542,163 @@ def _entry_absent(directory_fd: int, basename: str) -> bool:
     return False
 
 
+def _activation_namespace_plan(directory_fd: int) -> _ActivationNamespacePlan:
+    """Classify only safe complete or durably ordered activation states."""
+
+    current_sentinel = not _entry_absent(directory_fd, ACTIVATION_BASENAME)
+    current_audit = not _entry_absent(directory_fd, ACTIVATION_AUDIT_BASENAME)
+    legacy_sentinel = not _entry_absent(
+        directory_fd,
+        LEGACY_ACTIVATION_BASENAME,
+    )
+    legacy_audit = not _entry_absent(
+        directory_fd,
+        LEGACY_ACTIVATION_AUDIT_BASENAME,
+    )
+    if (current_sentinel or current_audit) and (legacy_sentinel or legacy_audit):
+        raise ProtocolActivationRefused(
+            "torn dual v1/v2 protocol activation namespace is present"
+        )
+    if current_sentinel and not current_audit:
+        raise ProtocolActivationRefused(
+            "torn v2 activation sentinel exists without its audit"
+        )
+    if legacy_sentinel and not legacy_audit:
+        raise ProtocolActivationRefused(
+            "torn v1 activation sentinel exists without its audit"
+        )
+    if legacy_sentinel:
+        try:
+            legacy_snapshot = _inspect_legacy_protocol_activation_at(directory_fd)
+        except ProtocolActivationError as exc:
+            raise ProtocolActivationRefused(
+                "legacy v1 activation pair is not valid for migration"
+            ) from exc
+        return _ActivationNamespacePlan(
+            migrate_legacy=True,
+            resume_after_legacy_sentinel_removal=False,
+            reuse_current=False,
+            legacy_sentinel_identity=(
+                legacy_snapshot.device,
+                legacy_snapshot.inode,
+            ),
+            legacy_audit_identity=(
+                legacy_snapshot.audit_device,
+                legacy_snapshot.audit_inode,
+            ),
+        )
+    if legacy_audit:
+        # The migrator removes and synchronises the v1 sentinel first.  A lone
+        # exact audit is therefore the sole supported crash-resume residue.
+        try:
+            inspected = _inspect_stable_regular_at(
+                directory_fd,
+                LEGACY_ACTIVATION_AUDIT_BASENAME,
+                expected_mode=ACTIVATION_AUDIT_MODE,
+                maximum_size=16 * 1024,
+                label="legacy remote-write protocol activation audit",
+            )
+            value = _parse_legacy_activation_audit(inspected.data)
+            directory_identity = os.fstat(directory_fd)
+            if (
+                int(value["project_device"]) != int(directory_identity.st_dev)
+                or int(value["project_inode"]) != int(directory_identity.st_ino)
+            ):
+                raise ProtocolActivationError(
+                    "legacy activation audit does not bind this project"
+                )
+        except ProtocolActivationError as exc:
+            raise ProtocolActivationRefused(
+                "legacy audit-only migration residue is invalid"
+            ) from exc
+        return _ActivationNamespacePlan(
+            migrate_legacy=True,
+            resume_after_legacy_sentinel_removal=True,
+            reuse_current=False,
+            legacy_sentinel_identity=None,
+            legacy_audit_identity=(
+                int(inspected.metadata.st_dev),
+                int(inspected.metadata.st_ino),
+            ),
+        )
+    return _ActivationNamespacePlan(
+        migrate_legacy=False,
+        resume_after_legacy_sentinel_removal=False,
+        reuse_current=current_sentinel,
+        legacy_sentinel_identity=None,
+        legacy_audit_identity=None,
+    )
+
+
+def _remove_legacy_activation_for_v2(
+    directory_fd: int,
+    plan: _ActivationNamespacePlan,
+) -> None:
+    """Durably disable v1 before any v2 permission sentinel is published."""
+
+    if not plan.migrate_legacy:
+        return
+    if not plan.resume_after_legacy_sentinel_removal:
+        current_sentinel = os.stat(
+            LEGACY_ACTIVATION_BASENAME,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        if (
+            int(current_sentinel.st_dev),
+            int(current_sentinel.st_ino),
+        ) != plan.legacy_sentinel_identity:
+            raise ProtocolActivationRefused(
+                "legacy activation sentinel changed before migration"
+            )
+        os.unlink(LEGACY_ACTIVATION_BASENAME, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+    current_audit = os.stat(
+        LEGACY_ACTIVATION_AUDIT_BASENAME,
+        dir_fd=directory_fd,
+        follow_symlinks=False,
+    )
+    if (
+        int(current_audit.st_dev),
+        int(current_audit.st_ino),
+    ) != plan.legacy_audit_identity:
+        raise ProtocolActivationRefused(
+            "legacy activation audit changed before migration"
+        )
+    os.unlink(LEGACY_ACTIVATION_AUDIT_BASENAME, dir_fd=directory_fd)
+    os.fsync(directory_fd)
+    if not _entry_absent(
+        directory_fd,
+        LEGACY_ACTIVATION_BASENAME,
+    ) or not _entry_absent(directory_fd, LEGACY_ACTIVATION_AUDIT_BASENAME):
+        raise ProtocolActivationRefused(
+            "legacy activation namespace survived v1-to-v2 migration"
+        )
+
+
 def _require_clean_state(directory_fd: int) -> None:
     """Refuse activation while any incident marker or receipt exists."""
 
-    present = [
+    present_exact = [
         basename
         for basename in REFUSED_STATE_BASENAMES
         if not _entry_absent(directory_fd, basename)
     ]
+    try:
+        direct_names = os.listdir(directory_fd)
+    except OSError as exc:
+        raise UnsafeReconciliationPathError(
+            "cannot enumerate the activation state namespace"
+        ) from exc
+    present_prefixed = sorted(
+        name
+        for name in direct_names
+        if any(name.startswith(prefix) for prefix in REFUSED_STATE_PREFIXES)
+    )
+    present = sorted(set(present_exact) | set(present_prefixed))
     if present:
         raise ProtocolActivationRefused(
-            "offline activation requires reconciled marker and receipt state; "
+            "offline activation requires reconciled remote-write state; "
             "present entries: " + ", ".join(present)
         )
 
@@ -647,10 +885,9 @@ def activate_protocol_offline(
             activator_cli_sha256=cli_sha256,
             reconciliation_reference=external_attestation.reconciliation_reference,
         )
-        activation_reused_existing = not _entry_absent(
-            project_fd,
-            ACTIVATION_BASENAME,
-        )
+        namespace_plan = _activation_namespace_plan(project_fd)
+        activation_reused_existing = namespace_plan.reuse_current
+        _remove_legacy_activation_for_v2(project_fd, namespace_plan)
         created = _create_or_revalidate_protocol_activation_at(
             project_fd,
             activation_audit_bytes=activation_audit_bytes,
@@ -704,8 +941,9 @@ def activate_protocol_offline(
         )
         _require_project_path_identity(project, project_fd, project_identity)
         return ProtocolActivationResult(
-            schema_version=1,
+            schema_version=2,
             operation="offline_remote_write_safety_protocol_activation",
+            protocol_version=PROTOCOL_VERSION,
             project_root=str(project),
             activation_path=ACTIVATION_BASENAME,
             activation_sha256=hashlib.sha256(ACTIVATION_BYTES).hexdigest(),
@@ -714,6 +952,9 @@ def activate_protocol_offline(
             activation_device=int(final.device),
             activation_inode=int(final.inode),
             activation_reused_existing=activation_reused_existing,
+            activation_migrated_from_protocol_version=(
+                1 if namespace_plan.migrate_legacy else None
+            ),
             activation_kind=final.activation_kind,
             activation_audit_path=ACTIVATION_AUDIT_BASENAME,
             activation_audit_sha256=final.audit_sha256,
@@ -735,6 +976,10 @@ def activate_protocol_offline(
             activation_audit_durable_before_sentinel=True,
             active_markers_absent=True,
             unresolved_receipts_absent=True,
+            refused_state_basenames=REFUSED_STATE_BASENAMES,
+            refused_state_prefixes=REFUSED_STATE_PREFIXES,
+            refused_state_inventory_sha256=_refused_state_inventory_sha256(),
+            legacy_activation_namespace_absent=True,
             successful_return_requires_exact_sentinel=True,
             rollback_to_protocol_unaware_runtime_prohibited=True,
         )

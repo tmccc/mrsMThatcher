@@ -287,6 +287,7 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         "INV-REL-SANDBOX-001",
         "INV-REL-TRUST-001",
         "INV-TEST-003",
+        "INV-TEST-004",
         "INV-TXN-HCTX-001",
         "INV-TXN-MEME-001",
         "INV-TXN-RECEIPT-001",
@@ -306,29 +307,24 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
         if item["id"] == "INV-PROC-002"
     )
 
-    assert invariant["last_verified_commit"] == {
-        "status": "unknown",
-        "value": None,
-        "explanation": (
-            "The debc079 evidence cut-off retains the lock-namespace and "
-            "continuous-ownership repair recorded as DEF-0033, but that "
-            "candidate was rejected for the separate literal second-restart "
-            "durable-barrier defect recorded as DEF-0035. A final replacement "
-            "candidate identity and its external validation are deliberately "
-            "supplied after the candidate is frozen."
-        ),
-    }
+    assert invariant["last_verified_commit"]["status"] == "unknown"
+    assert invariant["last_verified_commit"]["value"] is None
+    assert "cannot self-attest" in invariant["last_verified_commit"]["explanation"]
     statement = invariant["statement"]
     assert "without following symbolic links" in statement
     assert "ordinary, single-link lock pathname" in statement
     assert "separate descriptors" in statement
     assert "Before every non-read remote operation" in statement
+    assert "Every destructive journal, media or source-receipt mutation" in statement
     assert "offline marker reconciler" in statement
     assert {
         "mrsMThatcher2.py",
         "tools/reconcile_remote_write_safety_marker.py",
         "tests/test_pending_receipt_directory_fsync.py",
         "tests/test_remote_write_safety_marker_reconciliation.py",
+        "transaction_mutation_authority.py",
+        "exact_receipt_retirement.py",
+        "tests/test_transaction_mutation_authority.py",
         "README.md",
     } <= set(invariant["affected_paths"])
     assert {
@@ -344,7 +340,13 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
         "test_project_path_replacement_after_acquisition_preserves_marker",
         "tests/test_pending_receipt_directory_fsync.py::"
         "test_instance_lock_fdinfo_proof_failure_blocks_remote_preflight",
+        "tests/test_transaction_mutation_authority.py::"
+        "test_destructive_low_level_entry_points_fail_before_inspection_without_authority",
+        "tests/test_transaction_mutation_authority.py::"
+        "test_authority_rechecks_bound_verifier_on_every_use",
     } <= set(invariant["enforcement"]["tests"])
+    assert all("purely local" not in gap for gap in invariant["known_gaps"])
+    assert any("automatically completed" in gap for gap in invariant["known_gaps"])
 
 
 def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> None:
@@ -370,6 +372,10 @@ def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> 
         "test_literal_protocol_absence_survives_legacy_loss_and_second_process",
         "tests/test_remote_write_safety_second_restart.py::"
         "test_offline_activation_refuses_legacy_then_opens_after_reconciliation",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_unproved_blockers_never_release_retained_sigint",
+        "tests/test_pending_receipt_directory_fsync.py::"
+        "test_strict_transaction_object_releases_retained_sigint_once",
     }
 
     for invariant_id in (
@@ -391,19 +397,45 @@ def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> 
         )
         assert "activation" in statement
         assert "protocol inactivity" in statement
-        assert "successor" in rationale
+        assert "restart barrier" in rationale
+        assert "v2" in rationale
         assert "activation" in rationale
         assert required_tests <= set(invariant["enforcement"]["tests"])
-        assert "DEF-0035" in invariant["last_verified_commit"]["explanation"]
+        assert invariant["last_verified_commit"]["status"] == "unknown"
+        assert "external frozen-candidate gate" in invariant[
+            "last_verified_commit"
+        ]["explanation"]
         assert (
             "ambiguous_post_outcome.restart_barrier.json"
+            in invariant["runtime_consumed_artifacts"]["artifacts"]
+        )
+        assert (
+            ".mrs_remote_write_safety_protocol_v2"
             in invariant["runtime_consumed_artifacts"]["artifacts"]
         )
         assert (
             ".mrs_remote_write_safety_protocol_v1"
             in invariant["runtime_consumed_artifacts"]["artifacts"]
         )
+        artifact_explanation = invariant["runtime_consumed_artifacts"][
+            "explanation"
+        ]
+        assert "v2" in artifact_explanation
+        assert "forbidden legacy" in artifact_explanation
+        assert {
+            "remote_write_transport_journal.json",
+            "remote_write_transport_fence.json",
+            "remote_media_upload_receipt.json",
+            "remote_media_upload_receipt.json.fence.json",
+        } <= set(invariant["runtime_consumed_artifacts"]["artifacts"])
         assert "remote_write_safety_protocol.py" in invariant["affected_paths"]
+        assert {
+            "remote_write_transport_journal.py",
+            "remote_media_upload_receipt.py",
+            "exact_receipt_retirement.py",
+            "transaction_mutation_authority.py",
+            "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+        } <= set(invariant["affected_paths"])
         assert (
             "tools/activate_remote_write_safety_protocol.py"
             in invariant["affected_paths"]
@@ -416,6 +448,24 @@ def test_transaction_invariants_cover_restart_persistent_successor_barrier() -> 
     assert cross_lane_test in records["INV-TXN-REG-001"]["enforcement"]["tests"]
     assert cross_lane_test in records["INV-TXN-MEME-001"]["enforcement"]["tests"]
     assert cross_lane_test in records["INV-TXN-RECEIPT-001"]["enforcement"]["tests"]
+
+    receipt_artifacts = set(
+        records["INV-TXN-RECEIPT-001"]["runtime_consumed_artifacts"]["artifacts"]
+    )
+    for receipt_name in (
+        "regular_post_receipt.json",
+        "meme_post_receipt.json",
+        "confirmed_reply_receipt.json",
+        "historical_context_reply_receipt.json",
+    ):
+        prefix = f".{receipt_name}.retirement"
+        assert {
+            f"{prefix}.guard.json",
+            f"{prefix}.commit.json",
+            f"{prefix}.cleanup",
+            f"{prefix}.guard.json.staging",
+            f"{prefix}.commit.json.staging",
+        } <= receipt_artifacts
 
 
 def test_v3_shadow_audit_is_historical_not_runtime_consumed() -> None:
@@ -592,6 +642,54 @@ def test_registry_candidate_attestation_wording_is_external_and_generic() -> Non
     assert "external frozen-candidate gate run" in encoded
     assert "current Priority-0 candidate has no valid release attestation" not in encoded
     assert "4ae2044" not in encoded
+
+
+def test_transport_and_external_evidence_boundaries_are_mapped() -> None:
+    registry, _schema = _load_real_documents()
+    records = {item["id"]: item for item in registry["invariants"]}
+
+    api = records["INV-API-001"]
+    assert "POST /2/media/upload" in api["statement"]
+    assert "legacy v1.1 upload endpoint" in api["statement"]
+    assert {
+        "remote_media_upload_receipt.py",
+        "ir_40ab83e_media_upload_boundary_matrix.json",
+        "tests/test_media_upload_transaction_integration.py",
+    } <= set(api["affected_paths"])
+    assert (
+        "tests/test_media_upload_transaction_integration.py::"
+        "test_legacy_v1_1_helper_refuses_before_any_transport"
+        in api["enforcement"]["tests"]
+    )
+
+    fault_coverage = records["INV-TEST-004"]
+    assert fault_coverage["last_verified_commit"]["status"] == "unknown"
+    assert {
+        "ir_40ab83e_cross_lane_boundary_matrix.json",
+        "ir_40ab83e_media_upload_boundary_matrix.json",
+        "tests/test_exact_receipt_retirement.py",
+        "tests/test_transaction_mutation_authority.py",
+    } <= set(fault_coverage["affected_paths"])
+    assert (
+        "tests/test_exact_receipt_retirement.py::"
+        "test_literal_hard_exit_at_every_phase_is_safe_for_fresh_process_resume"
+        in fault_coverage["enforcement"]["tests"]
+    )
+
+    release = records["INV-REL-001"]
+    trust = records["INV-REL-TRUST-001"]
+    assert "candidate-inaccessible channel" in release["statement"]
+    assert "writable result files" in release["known_gaps"][1]
+    assert "candidate-inaccessible evidence channel" in trust["statement"]
+    assert any("candidate-owned callbacks" in gap for gap in trust["known_gaps"])
+
+    assert {
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py",
+        "exact_receipt_retirement.py",
+        "transaction_mutation_authority.py",
+        "tests/test_media_upload_transaction_integration.py",
+    } <= set(registry["priority0_control_paths"])
 
 
 def test_real_registry_is_valid_and_markdown_is_synchronised() -> None:

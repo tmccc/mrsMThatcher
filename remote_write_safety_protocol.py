@@ -7,6 +7,10 @@ an external operator attestation. Runtime inspection validates both files,
 their relationship and their final pathname identities; a bare or torn pair
 never opens remote-write lanes. Local namespace absence is never treated as
 proof of a genuinely new installation.
+
+Version 2 deliberately uses a new pathname and byte identity.  Runtime
+inspection also requires the v1 namespace to be absent, so rolling the code
+back to a v1-aware runtime cannot silently authorise a v2 deployment.
 """
 
 from __future__ import annotations
@@ -24,16 +28,30 @@ from pathlib import Path
 from typing import Any
 
 
-ACTIVATION_BASENAME = ".mrs_remote_write_safety_protocol_v1"
+PROTOCOL_VERSION = 2
+ACTIVATION_BASENAME = ".mrs_remote_write_safety_protocol_v2"
 ACTIVATION_BYTES = (
     b"mrsMThatcher remote-write safety protocol\n"
-    b"version=successor-first-restart-barrier-v1\n"
+    b"version=transport-authority-restart-barrier-v2\n"
 )
 ACTIVATION_MODE = 0o400
 ACTIVATION_AUDIT_BASENAME = f"{ACTIVATION_BASENAME}.activation_audit.json"
 ACTIVATION_AUDIT_MODE = 0o400
-ACTIVATION_AUDIT_SCHEMA_VERSION = 1
+ACTIVATION_AUDIT_SCHEMA_VERSION = 2
 ACTIVATION_AUDIT_DOCUMENT_KIND = (
+    "mrsMThatcher_remote_write_safety_protocol_v2_activation_audit"
+)
+LEGACY_PROTOCOL_VERSION = 1
+LEGACY_ACTIVATION_BASENAME = ".mrs_remote_write_safety_protocol_v1"
+LEGACY_ACTIVATION_BYTES = (
+    b"mrsMThatcher remote-write safety protocol\n"
+    b"version=successor-first-restart-barrier-v1\n"
+)
+LEGACY_ACTIVATION_AUDIT_BASENAME = (
+    f"{LEGACY_ACTIVATION_BASENAME}.activation_audit.json"
+)
+LEGACY_ACTIVATION_AUDIT_SCHEMA_VERSION = 1
+LEGACY_ACTIVATION_AUDIT_DOCUMENT_KIND = (
     "mrsMThatcher_remote_write_safety_protocol_activation_audit"
 )
 ESTABLISHED_INSTALL_ACTIVATION_KIND = (
@@ -236,8 +254,32 @@ def _inspect_activation_sentinel_at(
     return inspected
 
 
-def _parse_activation_audit(data: bytes) -> dict[str, object]:
-    """Parse and validate one canonical companion audit."""
+def _inspect_legacy_activation_sentinel_at(directory_fd: int) -> _StableFile:
+    """Return the exact v1 sentinel solely for stopped migration validation."""
+
+    inspected = _inspect_stable_regular_at(
+        directory_fd,
+        LEGACY_ACTIVATION_BASENAME,
+        expected_mode=ACTIVATION_MODE,
+        maximum_size=len(LEGACY_ACTIVATION_BYTES),
+        label="legacy remote-write protocol activation sentinel",
+    )
+    if inspected.data != LEGACY_ACTIVATION_BYTES:
+        raise ProtocolActivationError(
+            "legacy remote-write protocol activation sentinel has invalid bytes"
+        )
+    return inspected
+
+
+def _parse_activation_audit_version(
+    data: bytes,
+    *,
+    activation_bytes: bytes,
+    schema_version: int,
+    document_kind: str,
+    protocol_version: int,
+) -> dict[str, object]:
+    """Parse one canonical companion audit for an exact protocol generation."""
 
     try:
         decoded = data.decode("utf-8")
@@ -268,6 +310,13 @@ def _parse_activation_audit(data: bytes) -> dict[str, object]:
         "project_inode",
         "schema_version",
     }
+    if protocol_version >= 2:
+        common |= {
+            "legacy_activation_basename",
+            "legacy_activation_sha256",
+            "legacy_namespace_required_absent",
+            "protocol_version",
+        }
     kind = value.get("activation_kind")
     if kind == ESTABLISHED_INSTALL_ACTIVATION_KIND:
         required = common | {
@@ -305,11 +354,11 @@ def _parse_activation_audit(data: bytes) -> dict[str, object]:
             "protocol activation audit has unexpected or missing fields"
         )
     if (
-        value.get("schema_version") != ACTIVATION_AUDIT_SCHEMA_VERSION
-        or value.get("document_kind") != ACTIVATION_AUDIT_DOCUMENT_KIND
+        value.get("schema_version") != schema_version
+        or value.get("document_kind") != document_kind
         or value.get("activation_sha256")
-        != hashlib.sha256(ACTIVATION_BYTES).hexdigest()
-        or value.get("activation_size") != len(ACTIVATION_BYTES)
+        != hashlib.sha256(activation_bytes).hexdigest()
+        or value.get("activation_size") != len(activation_bytes)
         or value.get("activation_mode") != oct(ACTIVATION_MODE)
         or type(value.get("project_device")) is not int
         or type(value.get("project_inode")) is not int
@@ -320,7 +369,42 @@ def _parse_activation_audit(data: bytes) -> dict[str, object]:
         raise ProtocolActivationError(
             "protocol activation audit has invalid relationship fields"
         )
+    if protocol_version >= 2 and (
+        value.get("protocol_version") != protocol_version
+        or value.get("legacy_activation_basename")
+        != LEGACY_ACTIVATION_BASENAME
+        or value.get("legacy_activation_sha256")
+        != hashlib.sha256(LEGACY_ACTIVATION_BYTES).hexdigest()
+        or value.get("legacy_namespace_required_absent") is not True
+    ):
+        raise ProtocolActivationError(
+            "protocol activation audit has invalid rollback fields"
+        )
     return value
+
+
+def _parse_activation_audit(data: bytes) -> dict[str, object]:
+    """Parse and validate one canonical current-protocol companion audit."""
+
+    return _parse_activation_audit_version(
+        data,
+        activation_bytes=ACTIVATION_BYTES,
+        schema_version=ACTIVATION_AUDIT_SCHEMA_VERSION,
+        document_kind=ACTIVATION_AUDIT_DOCUMENT_KIND,
+        protocol_version=PROTOCOL_VERSION,
+    )
+
+
+def _parse_legacy_activation_audit(data: bytes) -> dict[str, object]:
+    """Parse the exact v1 audit solely for stopped migration validation."""
+
+    return _parse_activation_audit_version(
+        data,
+        activation_bytes=LEGACY_ACTIVATION_BYTES,
+        schema_version=LEGACY_ACTIVATION_AUDIT_SCHEMA_VERSION,
+        document_kind=LEGACY_ACTIVATION_AUDIT_DOCUMENT_KIND,
+        protocol_version=LEGACY_PROTOCOL_VERSION,
+    )
 
 
 def _revalidate_stable_path_at(
@@ -354,6 +438,94 @@ def _revalidate_stable_path_at(
         )
 
 
+def _namespace_entry_exists_at(directory_fd: int, basename: str) -> bool:
+    """Return whether one direct entry exists without following links."""
+
+    try:
+        os.stat(basename, dir_fd=directory_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise ProtocolActivationError(
+            f"protocol activation namespace cannot be inspected: {basename}"
+        ) from exc
+    return True
+
+
+def _require_legacy_activation_namespace_absent_at(directory_fd: int) -> None:
+    """Prevent a pre-v2 runtime from remaining authorised after v2 activation."""
+
+    present = [
+        basename
+        for basename in (
+            LEGACY_ACTIVATION_BASENAME,
+            LEGACY_ACTIVATION_AUDIT_BASENAME,
+        )
+        if _namespace_entry_exists_at(directory_fd, basename)
+    ]
+    if present:
+        raise ProtocolActivationError(
+            "legacy protocol activation namespace remains present: "
+            + ", ".join(present)
+        )
+
+
+def _inspect_legacy_protocol_activation_at(
+    directory_fd: int,
+) -> ProtocolActivationSnapshot:
+    """Validate one complete v1 pair before a stopped v1-to-v2 migration."""
+
+    directory_identity = os.fstat(directory_fd)
+    if not stat.S_ISDIR(directory_identity.st_mode):
+        raise ProtocolActivationError("protocol activation parent is not a directory")
+    sentinel = _inspect_legacy_activation_sentinel_at(directory_fd)
+    audit = _inspect_stable_regular_at(
+        directory_fd,
+        LEGACY_ACTIVATION_AUDIT_BASENAME,
+        expected_mode=ACTIVATION_AUDIT_MODE,
+        maximum_size=_MAX_AUDIT_BYTES,
+        label="legacy remote-write protocol activation audit",
+    )
+    audit_value = _parse_legacy_activation_audit(audit.data)
+    _revalidate_stable_path_at(
+        directory_fd,
+        LEGACY_ACTIVATION_BASENAME,
+        sentinel,
+        label="legacy remote-write protocol activation sentinel",
+    )
+    _revalidate_stable_path_at(
+        directory_fd,
+        LEGACY_ACTIVATION_AUDIT_BASENAME,
+        audit,
+        label="legacy remote-write protocol activation audit",
+    )
+    if (
+        int(audit_value["project_device"]) != int(directory_identity.st_dev)
+        or int(audit_value["project_inode"]) != int(directory_identity.st_ino)
+        or audit_value["activation_sha256"]
+        != hashlib.sha256(sentinel.data).hexdigest()
+        or audit_value["activation_size"] != len(sentinel.data)
+        or audit_value["activation_mode"]
+        != oct(stat.S_IMODE(sentinel.metadata.st_mode))
+    ):
+        raise ProtocolActivationError(
+            "legacy protocol activation audit does not bind the activation or parent"
+        )
+    return ProtocolActivationSnapshot(
+        device=int(sentinel.metadata.st_dev),
+        inode=int(sentinel.metadata.st_ino),
+        mode=ACTIVATION_MODE,
+        size=len(sentinel.data),
+        sha256=hashlib.sha256(sentinel.data).hexdigest(),
+        activation_kind=str(audit_value["activation_kind"]),
+        audit_device=int(audit.metadata.st_dev),
+        audit_inode=int(audit.metadata.st_ino),
+        audit_mode=ACTIVATION_AUDIT_MODE,
+        audit_size=len(audit.data),
+        audit_sha256=hashlib.sha256(audit.data).hexdigest(),
+    )
+
+
 def _inspect_protocol_activation_at(
     directory_fd: int,
     *,
@@ -364,6 +536,7 @@ def _inspect_protocol_activation_at(
     directory_identity = os.fstat(directory_fd)
     if not stat.S_ISDIR(directory_identity.st_mode):
         raise ProtocolActivationError("protocol activation parent is not a directory")
+    _require_legacy_activation_namespace_absent_at(directory_fd)
     sentinel = _inspect_activation_sentinel_at(
         directory_fd,
         fsync_file=fsync_files,
@@ -637,14 +810,54 @@ def build_established_install_activation_audit_bytes(
         "clean_state_attestation_size": int(clean_state_attestation_size),
         "document_kind": ACTIVATION_AUDIT_DOCUMENT_KIND,
         "external_operator_attestation_used": True,
+        "legacy_activation_basename": LEGACY_ACTIVATION_BASENAME,
+        "legacy_activation_sha256": hashlib.sha256(
+            LEGACY_ACTIVATION_BYTES
+        ).hexdigest(),
+        "legacy_namespace_required_absent": True,
         "operator_clean_state_claim_locally_proven": False,
         "project_device": int(project_device),
         "project_inode": int(project_inode),
+        "protocol_version": PROTOCOL_VERSION,
         "reconciliation_reference": str(reconciliation_reference),
         "schema_version": ACTIVATION_AUDIT_SCHEMA_VERSION,
     }
     data = _canonical_json_bytes(value)
     _parse_activation_audit(data)
+    return data
+
+
+def build_legacy_established_install_activation_audit_bytes(
+    *,
+    project_device: int,
+    project_inode: int,
+    clean_state_attestation_sha256: str,
+    clean_state_attestation_size: int,
+    activator_cli_sha256: str,
+    reconciliation_reference: str,
+) -> bytes:
+    """Reproduce an exact v1 audit for migration fixtures and verification."""
+
+    value = {
+        "activation_kind": ESTABLISHED_INSTALL_ACTIVATION_KIND,
+        "activation_mode": oct(ACTIVATION_MODE),
+        "activation_sha256": hashlib.sha256(
+            LEGACY_ACTIVATION_BYTES
+        ).hexdigest(),
+        "activation_size": len(LEGACY_ACTIVATION_BYTES),
+        "activator_cli_sha256": str(activator_cli_sha256),
+        "clean_state_attestation_sha256": str(clean_state_attestation_sha256),
+        "clean_state_attestation_size": int(clean_state_attestation_size),
+        "document_kind": LEGACY_ACTIVATION_AUDIT_DOCUMENT_KIND,
+        "external_operator_attestation_used": True,
+        "operator_clean_state_claim_locally_proven": False,
+        "project_device": int(project_device),
+        "project_inode": int(project_inode),
+        "reconciliation_reference": str(reconciliation_reference),
+        "schema_version": LEGACY_ACTIVATION_AUDIT_SCHEMA_VERSION,
+    }
+    data = _canonical_json_bytes(value)
+    _parse_legacy_activation_audit(data)
     return data
 
 

@@ -9,7 +9,6 @@ import hashlib
 import json
 import os
 import re
-import secrets
 import stat
 import tempfile
 from datetime import datetime, timezone
@@ -18,10 +17,24 @@ from typing import Any, Callable
 from urllib.parse import urlsplit
 
 from remote_write_transport_journal import (
+    BoundSourceReceiptTransitionError,
+    LANE_SOURCE_VALIDATOR_ID,
+    bind_confirmed_transport_source,
+    canonical_json_bytes,
     journal_path_for_receipt,
+    publish_exact_source_receipt_document,
+    replace_bound_source_receipt,
     retire_confirmed_transport_transaction,
     transport_journal_is_blocking,
+    verify_confirmed_transport_source_lineage,
 )
+from exact_receipt_retirement import (
+    prepare_exact_receipt_retirement,
+    retirement_auxiliary_barrier_exists,
+    resume_interrupted_receipt_retirement,
+    retire_exact_receipt,
+)
+from transaction_mutation_authority import TransactionMutationAuthority
 
 DEFAULT_RESEARCH_DIR = Path("semantic_alignment_research/quote_research_full_001")
 DEFAULT_MAXIMUM_LENGTH = 4000
@@ -1194,9 +1207,26 @@ def format_context_reply_internal(
 
 class HistoricalContextReplyStore:
     """Independent transactional state for confirmed context replies."""
-    def __init__(self, history_path: Path, receipt_path: Path):
+    def __init__(
+        self,
+        history_path: Path,
+        receipt_path: Path,
+        *,
+        mutation_authority_provider: (
+            Callable[[str], TransactionMutationAuthority] | None
+        ) = None,
+    ):
         """Initialise the historical context reply store."""
-        self.history_path = history_path; self.receipt_path = receipt_path
+        self.history_path = history_path
+        self.receipt_path = receipt_path
+        self._mutation_authority_provider = mutation_authority_provider
+
+    def _mutation_authority(self, operation: str) -> TransactionMutationAuthority:
+        if self._mutation_authority_provider is None:
+            raise RuntimeError(
+                f"{operation} requires an instance-lock mutation authority provider"
+            )
+        return self._mutation_authority_provider(operation)
 
     def history(self) -> dict[str, Any]:
         """Return the history."""
@@ -1409,168 +1439,24 @@ class HistoricalContextReplyStore:
             view = view[written:]
 
     def _retire_exact_receipt(self, expected_bytes: bytes) -> None:
-        """Retire only the exact receipt, leaving a barrier across every crash.
-
-        An atomic exchange first replaces the live receipt pathname with a
-        durable tombstone.  The displaced entry is then compared with an open
-        descriptor, so a concurrent pathname replacement is never mistaken
-        for the receipt whose outcome was reconciled.  The tombstone is the
-        final name removed; until that final directory synchronisation, every
-        restart still sees a fail-closed receipt namespace entry.
-        """
+        """Retire only the exact receipt through the shared crash protocol."""
 
         path = Path(self.receipt_path)
-        nofollow = getattr(os, "O_NOFOLLOW", 0)
-        directory_flags = (
-            os.O_RDONLY
-            | getattr(os, "O_DIRECTORY", 0)
-            | nofollow
-            | getattr(os, "O_CLOEXEC", 0)
-        )
-        if not nofollow:
-            raise RuntimeError(
-                "historical context receipt retirement requires O_NOFOLLOW"
+        if retirement_auxiliary_barrier_exists(path):
+            resume_interrupted_receipt_retirement(
+                path,
+                mutation_authority=self._mutation_authority(
+                    "historical-context receipt retirement resume"
+                ),
             )
-        directory_fd = os.open(path.parent, directory_flags)
-        receipt_fd: int | None = None
-        tombstone_fd: int | None = None
-        exchanged = False
-        tombstone_name = (
-            f".{path.name}.retiring.{os.getpid()}.{secrets.token_hex(12)}"
-        )
-        try:
-            before = os.stat(
-                path.name,
-                dir_fd=directory_fd,
-                follow_symlinks=False,
+        else:
+            retire_exact_receipt(
+                path,
+                expected_bytes,
+                mutation_authority=self._mutation_authority(
+                    "historical-context receipt retirement"
+                ),
             )
-            if (
-                not stat.S_ISREG(before.st_mode)
-                or before.st_nlink != 1
-                or before.st_uid != os.geteuid()
-                or before.st_size != len(expected_bytes)
-            ):
-                raise RuntimeError(
-                    "historical context receipt changed before retirement"
-                )
-            receipt_fd = os.open(
-                path.name,
-                os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
-                dir_fd=directory_fd,
-            )
-            opened = os.fstat(receipt_fd)
-            observed = bytearray()
-            while len(observed) <= len(expected_bytes):
-                chunk = os.read(
-                    receipt_fd,
-                    len(expected_bytes) + 1 - len(observed),
-                )
-                if not chunk:
-                    break
-                observed.extend(chunk)
-            after_read = os.fstat(receipt_fd)
-            before_exchange = os.stat(
-                path.name,
-                dir_fd=directory_fd,
-                follow_symlinks=False,
-            )
-            if (
-                bytes(observed) != expected_bytes
-                or not (
-                    opened.st_dev
-                    == before.st_dev
-                    == after_read.st_dev
-                    == before_exchange.st_dev
-                )
-                or not (
-                    opened.st_ino
-                    == before.st_ino
-                    == after_read.st_ino
-                    == before_exchange.st_ino
-                )
-                or not (
-                    opened.st_ctime_ns
-                    == before.st_ctime_ns
-                    == after_read.st_ctime_ns
-                    == before_exchange.st_ctime_ns
-                )
-                or not (
-                    opened.st_mtime_ns
-                    == before.st_mtime_ns
-                    == after_read.st_mtime_ns
-                    == before_exchange.st_mtime_ns
-                )
-            ):
-                raise RuntimeError(
-                    "historical context receipt changed before retirement"
-                )
-
-            tombstone_fd = os.open(
-                tombstone_name,
-                os.O_WRONLY
-                | os.O_CREAT
-                | os.O_EXCL
-                | nofollow
-                | getattr(os, "O_CLOEXEC", 0),
-                0o600,
-                dir_fd=directory_fd,
-            )
-            self._write_all(
-                tombstone_fd,
-                _RECEIPT_RETIREMENT_TOMBSTONE,
-            )
-            os.fsync(tombstone_fd)
-            tombstone_identity = os.fstat(tombstone_fd)
-            os.close(tombstone_fd)
-            tombstone_fd = None
-            os.fsync(directory_fd)
-
-            _rename_exchange_at(
-                directory_fd,
-                path.name,
-                tombstone_name,
-            )
-            exchanged = True
-            os.fsync(directory_fd)
-            displaced = os.stat(
-                tombstone_name,
-                dir_fd=directory_fd,
-                follow_symlinks=False,
-            )
-            live_tombstone = os.stat(
-                path.name,
-                dir_fd=directory_fd,
-                follow_symlinks=False,
-            )
-            if (
-                (displaced.st_dev, displaced.st_ino)
-                != (opened.st_dev, opened.st_ino)
-                or (live_tombstone.st_dev, live_tombstone.st_ino)
-                != (
-                    tombstone_identity.st_dev,
-                    tombstone_identity.st_ino,
-                )
-            ):
-                raise RuntimeError(
-                    "historical context receipt namespace changed during retirement; "
-                    "the canonical tombstone remains a restart barrier"
-                )
-
-            os.unlink(tombstone_name, dir_fd=directory_fd)
-            os.fsync(directory_fd)
-            os.unlink(path.name, dir_fd=directory_fd)
-            os.fsync(directory_fd)
-        finally:
-            if receipt_fd is not None:
-                os.close(receipt_fd)
-            if tombstone_fd is not None:
-                os.close(tombstone_fd)
-            if not exchanged:
-                try:
-                    os.unlink(tombstone_name, dir_fd=directory_fd)
-                except FileNotFoundError:
-                    pass
-            os.close(directory_fd)
 
     @staticmethod
     def _valid_formatter_metadata(value: Any) -> bool:
@@ -1648,7 +1534,15 @@ class HistoricalContextReplyStore:
         }
         lifecycle = required | {"lifecycle_state", "started_at", "attempt_number"}
         with_metadata = lifecycle | {"formatter_metadata"}
-        if set(receipt) not in (required, lifecycle, with_metadata):
+        lineage = lifecycle | {"source_receipt_sha256"}
+        lineage_with_metadata = with_metadata | {"source_receipt_sha256"}
+        if set(receipt) not in (
+            required,
+            lifecycle,
+            with_metadata,
+            lineage,
+            lineage_with_metadata,
+        ):
             return False
         if "lifecycle_state" in receipt and receipt.get("lifecycle_state") != "confirmed":
             return False
@@ -1670,7 +1564,25 @@ class HistoricalContextReplyStore:
             return False
         if type(receipt.get("reply_epoch")) is not int or receipt["reply_epoch"] < 0:
             return False
-        return isinstance(receipt.get("confirmed_at"), str) and bool(receipt["confirmed_at"].strip())
+        if not (
+            isinstance(receipt.get("confirmed_at"), str)
+            and bool(receipt["confirmed_at"].strip())
+        ):
+            return False
+        if "source_receipt_sha256" in receipt:
+            try:
+                source = HistoricalContextReplyStore.sending_receipt_from_confirmed(
+                    receipt
+                )
+            except (TypeError, ValueError):
+                return False
+            if (
+                not HistoricalContextReplyStore._valid_sending_receipt(source)
+                or hashlib.sha256(canonical_json_bytes(source)).hexdigest()
+                != receipt.get("source_receipt_sha256")
+            ):
+                return False
+        return True
 
     @staticmethod
     def _valid_sending_receipt(receipt: Any) -> bool:
@@ -1698,6 +1610,44 @@ class HistoricalContextReplyStore:
             and ("formatter_metadata" not in receipt or HistoricalContextReplyStore._valid_formatter_metadata(receipt["formatter_metadata"]))
         )
 
+    @staticmethod
+    def sending_receipt_from_confirmed(receipt: dict[str, Any]) -> dict[str, Any]:
+        """Reconstruct the exact current pre-transport context receipt."""
+
+        if (
+            not isinstance(receipt, dict)
+            or receipt.get("schema_version") != 1
+            or receipt.get("lifecycle_state") != "confirmed"
+            or not re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(receipt.get("source_receipt_sha256") or ""),
+            )
+        ):
+            raise ValueError(
+                "confirmed historical-context receipt lacks exact source lineage"
+            )
+        source = copy.deepcopy(receipt)
+        source.pop("reply_post_id", None)
+        source.pop("confirmed_at", None)
+        source.pop("source_receipt_sha256", None)
+        source["lifecycle_state"] = "sending"
+        return source
+
+    @staticmethod
+    def source_receipt_bytes_from_confirmed(receipt: dict[str, Any]) -> bytes:
+        """Return the exact canonical source bytes anchored by a confirmed receipt."""
+
+        source = HistoricalContextReplyStore.sending_receipt_from_confirmed(receipt)
+        source_bytes = canonical_json_bytes(source)
+        if (
+            hashlib.sha256(source_bytes).hexdigest()
+            != receipt.get("source_receipt_sha256")
+        ):
+            raise ValueError(
+                "historical-context source-receipt lineage changed"
+            )
+        return source_bytes
+
     def reconcile_receipt(self) -> bool:
         """Reconcile receipt."""
         loaded = self._load_receipt_safely()
@@ -1723,6 +1673,25 @@ class HistoricalContextReplyStore:
             )
         if not self._valid_receipt(receipt):
             raise RuntimeError("invalid historical context reply receipt")
+        journal_path = journal_path_for_receipt(self.receipt_path)
+        if transport_journal_is_blocking(journal_path):
+            details = verify_confirmed_transport_source_lineage(
+                receipt_path=self.receipt_path,
+                expected_source_receipt_bytes=(
+                    self.source_receipt_bytes_from_confirmed(receipt)
+                ),
+                lane="historical_context_reply",
+                post_id=str(receipt["reply_post_id"]),
+                validator_id=LANE_SOURCE_VALIDATOR_ID,
+            )
+            expected_confirmed_at = datetime.fromtimestamp(
+                details.confirmation_epoch,
+                tz=timezone.utc,
+            ).isoformat().replace("+00:00", "Z")
+            if receipt.get("confirmed_at") != expected_confirmed_at:
+                raise RuntimeError(
+                    "historical context confirmed time differs from its journal"
+                )
         history = self.history()
         parent_post_id = str(receipt["parent_post_id"])
         previous = history["items"].get(parent_post_id)
@@ -1732,16 +1701,128 @@ class HistoricalContextReplyStore:
                 raise RuntimeError("historical context reply receipt conflicts with completed history")
         history["items"][parent_post_id] = {**receipt, "status": "completed"}
         self._save_history(history)
-        journal_path = journal_path_for_receipt(self.receipt_path)
         if transport_journal_is_blocking(journal_path):
+            prepare_exact_receipt_retirement(
+                self.receipt_path,
+                receipt_bytes,
+                mutation_authority=self._mutation_authority(
+                    "historical-context receipt retirement preparation"
+                ),
+            )
             retire_confirmed_transport_transaction(
+                mutation_authority=self._mutation_authority(
+                    "historical-context transport journal retirement"
+                ),
                 receipt_path=self.receipt_path,
                 expected_confirmed_receipt=receipt,
+                expected_source_receipt_bytes=(
+                    self.source_receipt_bytes_from_confirmed(receipt)
+                ),
+                expected_current_receipt_bytes=receipt_bytes,
+                source_retirement_prepared=True,
                 lane="historical_context_reply",
                 post_id=str(receipt["reply_post_id"]),
             )
         self._retire_exact_receipt(receipt_bytes)
         return True
+
+    def reconcile_confirmed_receipt_if_present(self) -> bool:
+        """Reconcile only a proved-confirmed receipt, never a sending attempt.
+
+        The daemon may call this before its global transaction barrier so that
+        an already-confirmed local transaction can finish.  A sending receipt
+        remains an ambiguity barrier and is deliberately left untouched.
+        Invalid or unsafe receipt state still raises fail closed.
+        """
+
+        loaded = self._load_receipt_safely()
+        if loaded is None:
+            return False
+        receipt, _receipt_bytes = loaded
+        if self._valid_sending_receipt(receipt):
+            return False
+        if not self._valid_receipt(receipt):
+            raise RuntimeError("invalid historical context reply receipt")
+        return self.reconcile_receipt()
+
+    def promote_sending_receipt_from_confirmed_transport(
+        self,
+        sending_receipt: dict[str, Any],
+        *,
+        reply_post_id: str,
+        confirmation_epoch: int,
+        require_confirmed_transport: bool = False,
+    ) -> dict[str, Any]:
+        """Bind a journal-confirmed reply to its exact surviving source receipt."""
+
+        loaded = self._load_receipt_safely()
+        if loaded is None:
+            raise RuntimeError("historical context sending receipt disappeared")
+        current, current_bytes = loaded
+        expected_source_bytes = canonical_json_bytes(sending_receipt)
+        if (
+            current != sending_receipt
+            or current_bytes != expected_source_bytes
+            or not self._valid_sending_receipt(current)
+        ):
+            raise RuntimeError("historical context sending receipt changed")
+        if not re.fullmatch(r"\d{1,30}", str(reply_post_id or "")):
+            raise RuntimeError("historical context transport confirmation is invalid")
+        if type(confirmation_epoch) is not int or confirmation_epoch < 0:
+            raise RuntimeError("historical context confirmation epoch is invalid")
+        confirmed = {
+            **sending_receipt,
+            "lifecycle_state": "confirmed",
+            "reply_post_id": str(reply_post_id),
+            "confirmed_at": datetime.fromtimestamp(
+                confirmation_epoch,
+                tz=timezone.utc,
+            ).isoformat().replace("+00:00", "Z"),
+            "source_receipt_sha256": hashlib.sha256(current_bytes).hexdigest(),
+        }
+        if not self._valid_receipt(confirmed):
+            raise RuntimeError("historical context confirmed receipt is invalid")
+        recovery = None
+        if require_confirmed_transport:
+            recovery = bind_confirmed_transport_source(
+                journal_path=journal_path_for_receipt(self.receipt_path),
+                receipt_path=self.receipt_path,
+                validator_id=LANE_SOURCE_VALIDATOR_ID,
+                validator=(
+                    lambda lane, receipt, payload: bool(
+                        lane == "historical_context_reply"
+                        and self._valid_sending_receipt(receipt)
+                        and set(payload) == {"text", "reply"}
+                        and payload.get("text") == receipt.get("reply_text")
+                        and payload.get("reply")
+                        == {
+                            "in_reply_to_tweet_id": str(
+                                receipt.get("parent_post_id")
+                            )
+                        }
+                    )
+                ),
+            )
+            if (
+                recovery.details.post_id != str(reply_post_id)
+                or recovery.details.confirmation_epoch != confirmation_epoch
+                or recovery.source_binding.receipt_document != sending_receipt
+                or recovery.source_binding.receipt_bytes != expected_source_bytes
+            ):
+                raise RuntimeError(
+                    "historical context confirmed transport/source lineage changed"
+                )
+        if recovery is not None:
+            replace_bound_source_receipt(
+                recovery.source_binding,
+                canonical_json_bytes(confirmed),
+                mutation_authority=self._mutation_authority(
+                    "historical-context confirmed source receipt promotion"
+                ),
+            )
+        else:
+            atomic_write_json(self.receipt_path, confirmed)
+        return confirmed
 
     def record_failure(self, parent_post_id: str, quote_id: str, text: str, error: BaseException,
                        formatter_metadata: dict[str, Any] | None = None) -> None:
@@ -1755,7 +1836,10 @@ class HistoricalContextReplyStore:
 
     def post(self, *, parent_post_id: str, quote_id: str, reply_text: str,
              create_post: Callable[..., dict[str, Any]], now_epoch: Callable[[], int], dry_run: bool = False,
-             formatter_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+             formatter_metadata: dict[str, Any] | None = None,
+             on_confirmed_receipt: Callable[[dict[str, Any]], None] | None = None,
+             remote_failure_is_definite_non_success: Callable[[BaseException], bool] | None = None,
+             require_confirmed_transport: bool = False) -> dict[str, Any]:
         """Post and persist one historical-context reply transactionally."""
         if (
             not re.fullmatch(r"\d{1,30}", str(parent_post_id or ""))
@@ -1769,11 +1853,22 @@ class HistoricalContextReplyStore:
         if dry_run:
             return {"status": "dry_run", "parent_post_id": str(parent_post_id), "quote_id": quote_id,
                     "reply_text": reply_text, "character_count": len(reply_text)}
+        if retirement_auxiliary_barrier_exists(self.receipt_path):
+            raise AmbiguousContextReplyOutcome(
+                "historical-context source-receipt retirement is incomplete",
+                parent_post_id=str(parent_post_id),
+                reply_text=reply_text,
+            )
         self.reconcile_receipt(); history = self.history(); previous = history["items"].get(str(parent_post_id))
         if previous and previous.get("quote_id") != quote_id:
             raise RuntimeError("historical context reply quote identity conflicts with parent history")
         if previous and previous.get("status") == "completed": return {**previous, "status": "already_completed"}
         reply_epoch = int(now_epoch())
+        if require_confirmed_transport and not 1_500_000_000 <= reply_epoch <= 4_102_444_800:
+            raise RuntimeError(
+                "historical context pre-transport clock is outside the "
+                "supported durable receipt range"
+            )
         started_at = utc_now()
         sending = {
             "schema_version": 1,
@@ -1786,9 +1881,23 @@ class HistoricalContextReplyStore:
             "attempt_number": int(previous.get("attempt_count", 0) if previous else 0) + 1,
             **({"formatter_metadata": formatter_metadata} if formatter_metadata else {}),
         }
-        atomic_write_json(self.receipt_path, sending)
+        try:
+            publish_exact_source_receipt_document(
+                self.receipt_path,
+                receipt_bytes=canonical_json_bytes(sending),
+                mutation_authority=self._mutation_authority(
+                    "historical-context sending receipt publication"
+                ),
+            )
+        except (FileExistsError, BoundSourceReceiptTransitionError) as exc:
+            raise AmbiguousContextReplyOutcome(
+                "historical-context receipt appeared during publication; "
+                "manual reconciliation is required",
+                parent_post_id=str(parent_post_id),
+                reply_text=reply_text,
+            ) from exc
 
-        def finish_confirmed_failure(error: Exception) -> dict[str, str]:
+        def finish_definite_non_success(error: BaseException) -> dict[str, str]:
             try:
                 self.record_failure(parent_post_id, quote_id, reply_text, error, formatter_metadata)
             except Exception as persistence_error:
@@ -1798,7 +1907,12 @@ class HistoricalContextReplyStore:
                     reply_text=reply_text,
                 ) from persistence_error
             try:
-                durable_unlink(self.receipt_path)
+                loaded = self._load_receipt_safely()
+                if loaded is None or loaded[0] != sending:
+                    raise RuntimeError(
+                        "historical context sending receipt changed before retirement"
+                    )
+                self._retire_exact_receipt(loaded[1])
             except Exception as persistence_error:
                 raise AmbiguousContextReplyOutcome(
                     "could not clear context reply sending record; manual reconciliation required",
@@ -1829,32 +1943,58 @@ class HistoricalContextReplyStore:
                 made_with_ai=False,
                 prepared_historical_context_reply_receipt=sending,
             )
-        except Exception as exc:
-            if type(exc).__name__ == "AmbiguousRemotePostOutcome":
-                raise AmbiguousContextReplyOutcome(
-                    "remote context reply outcome is ambiguous; manual reconciliation required",
-                    parent_post_id=str(parent_post_id),
-                    reply_text=reply_text,
-                ) from exc
-            return finish_confirmed_failure(exc)
-        reply_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
+        except BaseException as exc:
+            definite = False
+            if remote_failure_is_definite_non_success is not None:
+                try:
+                    definite = remote_failure_is_definite_non_success(exc) is True
+                except Exception:
+                    definite = False
+            if definite:
+                return finish_definite_non_success(exc)
+            if not isinstance(exc, Exception):
+                raise
+            raise AmbiguousContextReplyOutcome(
+                "remote context reply outcome is not proved; the durable sending "
+                "receipt remains for manual reconciliation",
+                parent_post_id=str(parent_post_id),
+                reply_text=reply_text,
+            ) from exc
+        response_data = response.get("data") if isinstance(response, dict) else None
+        reply_id = response_data.get("id") if isinstance(response_data, dict) else None
         if not re.fullmatch(r"\d{1,30}", str(reply_id or "")):
-            error = RuntimeError("context reply did not return a valid numeric post id")
-            return finish_confirmed_failure(error)
-        receipt = {
-            **sending,
-            "lifecycle_state": "confirmed",
-            "reply_post_id": str(reply_id),
-            "confirmed_at": utc_now(),
-        }
+            raise AmbiguousContextReplyOutcome(
+                "context reply may have been accepted but no valid post identity "
+                "was returned; the durable sending receipt remains",
+                parent_post_id=str(parent_post_id),
+                reply_text=reply_text,
+            )
         try:
-            atomic_write_json(self.receipt_path, receipt)
+            if require_confirmed_transport:
+                details = verify_confirmed_transport_source_lineage(
+                    receipt_path=self.receipt_path,
+                    expected_source_receipt_bytes=canonical_json_bytes(sending),
+                    lane="historical_context_reply",
+                    post_id=str(reply_id),
+                    validator_id=LANE_SOURCE_VALIDATOR_ID,
+                )
+                confirmation_epoch = details.confirmation_epoch
+            else:
+                confirmation_epoch = int(now_epoch())
+            receipt = self.promote_sending_receipt_from_confirmed_transport(
+                sending,
+                reply_post_id=str(reply_id),
+                confirmation_epoch=confirmation_epoch,
+                require_confirmed_transport=require_confirmed_transport,
+            )
         except Exception as exc:
             raise AmbiguousContextReplyOutcome(
                 "could not persist confirmed reply receipt; manual reconciliation required",
                 parent_post_id=str(parent_post_id),
                 reply_text=reply_text,
             ) from exc
+        if on_confirmed_receipt is not None:
+            on_confirmed_receipt(receipt)
         self.reconcile_receipt()
         return {"status": "completed", **receipt}
 

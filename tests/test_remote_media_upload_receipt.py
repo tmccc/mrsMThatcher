@@ -2,12 +2,41 @@ from __future__ import annotations
 
 import json
 import os
-import stat
+import subprocess
+import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 import remote_media_upload_receipt as media_receipt
+import remote_write_transport_journal as transport_journal
+from transaction_mutation_authority import issue_transaction_mutation_authority
+
+
+def _mutation_authority():
+    return issue_transaction_mutation_authority(
+        lambda _operation: None,
+        operation="media receipt focused test",
+    )
+
+
+def _confirm_media_upload(*args, **kwargs):
+    kwargs.setdefault("mutation_authority", _mutation_authority())
+    return media_receipt.confirm_media_upload(*args, **kwargs)
+
+
+def _retire_confirmed_media_upload(*args, **kwargs):
+    kwargs.setdefault("mutation_authority", _mutation_authority())
+    return media_receipt.retire_confirmed_media_upload(*args, **kwargs)
+
+
+def _resume_interrupted_confirmed_media_retirement(*args, **kwargs):
+    kwargs.setdefault("mutation_authority", _mutation_authority())
+    return media_receipt.resume_interrupted_confirmed_media_retirement(
+        *args,
+        **kwargs,
+    )
 
 
 def _durable_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
@@ -26,6 +55,22 @@ def _durable_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
         os.fsync(directory)
     finally:
         os.close(directory)
+
+
+def _mutate_and_restore_same_inode(path: Path) -> tuple[os.stat_result, os.stat_result]:
+    original = path.read_bytes()
+    mutated = bytes((original[0] ^ 1,)) + original[1:]
+    before = path.stat()
+    mode = before.st_mode & 0o777
+    _durable_write(path, mutated, mode=mode)
+    path.chmod(mode)
+    _durable_write(path, original, mode=mode)
+    path.chmod(mode)
+    after = path.stat()
+    assert after.st_ino == before.st_ino
+    assert after.st_ctime_ns != before.st_ctime_ns
+    assert path.read_bytes() == original
+    return before, after
 
 
 def _fixture(
@@ -67,11 +112,19 @@ def _consume(
     authority: media_receipt.MediaUploadAuthority,
     *,
     lane: str = "quote_image",
-) -> None:
-    media_receipt.consume_media_upload_authority(
+) -> media_receipt.ReceiptBoundMediaPayload:
+    payload = media_receipt.bind_media_upload_payload(
         receipt_path,
         authority,
         image_path=image_path,
+        lane=lane,
+        mime_type="image/png" if lane == "daily_meme" else "image/jpeg",
+        payload_metadata=metadata,
+    )
+    return media_receipt.consume_media_upload_authority(
+        receipt_path,
+        authority,
+        payload=payload,
         lane=lane,
         mime_type="image/png" if lane == "daily_meme" else "image/jpeg",
         payload_metadata=metadata,
@@ -91,7 +144,7 @@ def _confirmed(
     receipt_path, image_path, metadata = _fixture(tmp_path, lane=lane)
     authority = _begin(receipt_path, image_path, metadata, lane=lane)
     _consume(receipt_path, image_path, metadata, authority, lane=lane)
-    confirmation = media_receipt.confirm_media_upload(
+    confirmation = _confirm_media_upload(
         receipt_path,
         authority,
         media_id="780001",
@@ -108,6 +161,47 @@ def _bound_main_receipt_bytes() -> bytes:
             "selected_identity": {"image_basename": "001.jpg"},
         }
     )
+
+
+def _prepared_handoff(
+    tmp_path: Path,
+    receipt_path: Path,
+    confirmation: media_receipt.ConfirmedMediaUpload,
+) -> tuple[
+    Path,
+    Path,
+    media_receipt.MediaHandoffAuthority,
+]:
+    main_receipt_path = tmp_path / "regular_post_receipt.json"
+    main_receipt_bytes = _bound_main_receipt_bytes()
+    _durable_write(main_receipt_path, main_receipt_bytes)
+    transport = transport_journal.begin_transport_transaction(
+        receipt_path=main_receipt_path,
+        expected_receipt=json.loads(main_receipt_bytes),
+        lane="quote_image",
+        payload={
+            "text": "synthetic quote",
+            "media": {"media_ids": [confirmation.media_id]},
+        },
+        source_validator_id="tests.media-handoff-source.v1",
+        source_validator=lambda lane, receipt, payload: (
+            lane == "quote_image"
+            and receipt.get("lifecycle_state") == "sending"
+            and receipt.get("lane") == lane
+            and payload.get("media", {}).get("media_ids")
+            == [confirmation.media_id]
+        ),
+    )
+    journal_path = Path(transport.journal_path)
+    fence_path = Path(transport.fence_path)
+    handoff = media_receipt.bind_media_handoff_to_transport(
+        receipt_path,
+        confirmation,
+        transport_journal_path=journal_path,
+        transport_fence_path=fence_path,
+        source_receipt_path=main_receipt_path,
+    )
+    return main_receipt_path, journal_path, handoff
 
 
 def test_sending_receipt_is_deterministic_and_contains_exact_image_identity(
@@ -160,20 +254,42 @@ def test_lane_and_payload_metadata_are_part_of_deterministic_transaction_id(
 def test_authority_is_exact_and_one_shot(tmp_path: Path) -> None:
     receipt_path, image_path, metadata = _fixture(tmp_path)
     authority = _begin(receipt_path, image_path, metadata)
+    payload = media_receipt.bind_media_upload_payload(
+        receipt_path,
+        authority,
+        image_path=image_path,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata=metadata,
+    )
 
     with pytest.raises(media_receipt.MediaUploadReceiptError, match="does not bind"):
         media_receipt.consume_media_upload_authority(
             receipt_path,
             authority,
-            image_path=image_path,
+            payload=payload,
             lane="quote_image",
             mime_type="image/jpeg",
             payload_metadata={**metadata, "media_category": "other"},
         )
 
-    _consume(receipt_path, image_path, metadata, authority)
+    media_receipt.consume_media_upload_authority(
+        receipt_path,
+        authority,
+        payload=payload,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata=metadata,
+    )
     with pytest.raises(media_receipt.MediaUploadReceiptError, match="already consumed"):
-        _consume(receipt_path, image_path, metadata, authority)
+        media_receipt.consume_media_upload_authority(
+            receipt_path,
+            authority,
+            payload=payload,
+            lane="quote_image",
+            mime_type="image/jpeg",
+            payload_metadata=metadata,
+        )
 
 
 def test_same_byte_image_replacement_is_rejected(tmp_path: Path) -> None:
@@ -189,12 +305,133 @@ def test_same_byte_image_replacement_is_rejected(tmp_path: Path) -> None:
     assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
 
 
+def test_same_inode_image_change_and_restore_before_binding_is_rejected(
+    tmp_path: Path,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    expected_ctime_ns = int(
+        json.loads(receipt_path.read_bytes())["image"]["ctime_ns"]
+    )
+    before, after = _mutate_and_restore_same_inode(image_path)
+    assert expected_ctime_ns == before.st_ctime_ns
+    assert expected_ctime_ns != after.st_ctime_ns
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="identity changed",
+    ):
+        _consume(receipt_path, image_path, metadata, authority)
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+def test_transport_proof_is_immutable_bytes_not_a_file_name(tmp_path: Path) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    payload = media_receipt.bind_media_upload_payload(
+        receipt_path,
+        authority,
+        image_path=image_path,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata=metadata,
+    )
+
+    class MisleadingNamedBody:
+        name = str(image_path)
+
+        def read(self) -> bytes:
+            return b"different multipart bytes"
+
+    misleading = MisleadingNamedBody()
+    forged_data = misleading.read()
+    forged = replace(
+        payload,
+        data=forged_data,
+        size=len(forged_data),
+        sha256=media_receipt.hashlib.sha256(forged_data).hexdigest(),
+    )
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="immutable media payload",
+    ):
+        media_receipt.consume_media_upload_authority(
+            receipt_path,
+            authority,
+            payload=forged,
+            lane="quote_image",
+            mime_type="image/jpeg",
+            payload_metadata=metadata,
+        )
+
+    consumed = media_receipt.consume_media_upload_authority(
+        receipt_path,
+        authority,
+        payload=payload,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata=metadata,
+    )
+    assert consumed.data == b"synthetic-image-bytes\x00\x01"
+    assert consumed.basename == image_path.name
+
+
+def test_same_inode_mutation_after_binding_cannot_change_transmitted_bytes(
+    tmp_path: Path,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    payload = media_receipt.bind_media_upload_payload(
+        receipt_path,
+        authority,
+        image_path=image_path,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata=metadata,
+    )
+    before_inode = image_path.stat().st_ino
+    mutated = b"post-validation bytes!!"
+    assert len(mutated) == len(payload.data)
+    descriptor = os.open(image_path, os.O_WRONLY | os.O_TRUNC)
+    try:
+        os.write(descriptor, mutated)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    assert image_path.stat().st_ino == before_inode
+
+    consumed = media_receipt.consume_media_upload_authority(
+        receipt_path,
+        authority,
+        payload=payload,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata=metadata,
+    )
+    assert consumed.data != image_path.read_bytes()
+    assert consumed.data == b"synthetic-image-bytes\x00\x01"
+
+
 def test_same_byte_receipt_replacement_is_rejected(tmp_path: Path) -> None:
     receipt_path, image_path, metadata = _fixture(tmp_path)
     authority = _begin(receipt_path, image_path, metadata)
     replacement = tmp_path / "replacement-receipt"
     _durable_write(replacement, receipt_path.read_bytes())
     os.replace(replacement, receipt_path)
+
+    with pytest.raises(media_receipt.MediaUploadReceiptError, match="does not bind"):
+        _consume(receipt_path, image_path, metadata, authority)
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+def test_same_inode_receipt_change_and_restore_before_transport_is_rejected(
+    tmp_path: Path,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    before, after = _mutate_and_restore_same_inode(receipt_path)
+    assert authority.receipt_ctime_ns == before.st_ctime_ns
+    assert authority.receipt_ctime_ns != after.st_ctime_ns
 
     with pytest.raises(media_receipt.MediaUploadReceiptError, match="does not bind"):
         _consume(receipt_path, image_path, metadata, authority)
@@ -270,10 +507,10 @@ def test_confirm_requires_consumption_and_atomically_binds_media_id(
     receipt_path, image_path, metadata = _fixture(tmp_path)
     authority = _begin(receipt_path, image_path, metadata)
     with pytest.raises(media_receipt.MediaUploadReceiptError, match="stale"):
-        media_receipt.confirm_media_upload(receipt_path, authority, media_id="780001")
+        _confirm_media_upload(receipt_path, authority, media_id="780001")
 
     _consume(receipt_path, image_path, metadata, authority)
-    confirmation = media_receipt.confirm_media_upload(
+    confirmation = _confirm_media_upload(
         receipt_path,
         authority,
         media_id="780001",
@@ -287,6 +524,80 @@ def test_confirm_requires_consumption_and_atomically_binds_media_id(
     fence_path = media_receipt.fence_path_for_receipt(receipt_path)
     assert fence_path.exists()
     assert json.loads(fence_path.read_bytes())["lifecycle_state"] == "sending"
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+@pytest.mark.parametrize("target_kind", ("receipt", "fence"))
+def test_same_inode_change_and_restore_after_consumption_prevents_confirmation(
+    tmp_path: Path,
+    target_kind: str,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    _consume(receipt_path, image_path, metadata, authority)
+    target = (
+        receipt_path
+        if target_kind == "receipt"
+        else media_receipt.fence_path_for_receipt(receipt_path)
+    )
+    expected_ctime_ns = (
+        authority.receipt_ctime_ns
+        if target_kind == "receipt"
+        else authority.fence_ctime_ns
+    )
+    before, after = _mutate_and_restore_same_inode(target)
+    assert expected_ctime_ns == before.st_ctime_ns
+    assert expected_ctime_ns != after.st_ctime_ns
+
+    with pytest.raises(media_receipt.MediaUploadReceiptError, match="stale"):
+        _confirm_media_upload(receipt_path, authority, media_id="780001")
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+def test_same_byte_replacement_inside_confirmation_exchange_is_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    _consume(receipt_path, image_path, metadata, authority)
+    expected_bytes = receipt_path.read_bytes()
+    real_exchange = media_receipt._rename_exchange
+    injected_inode: int | None = None
+
+    def inject_same_bytes_before_exchange(
+        directory_fd: int,
+        first: str,
+        second: str,
+    ) -> None:
+        nonlocal injected_inode
+        assert first == receipt_path.name
+        peer = tmp_path / "same-byte-media-exchange-peer.json"
+        _durable_write(peer, expected_bytes, mode=media_receipt.RECEIPT_MODE)
+        injected_inode = peer.stat().st_ino
+        os.replace(peer, receipt_path)
+        os.fsync(directory_fd)
+        real_exchange(directory_fd, first, second)
+
+    monkeypatch.setattr(
+        media_receipt,
+        "_rename_exchange",
+        inject_same_bytes_before_exchange,
+    )
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="changed during atomic lifecycle transition",
+    ):
+        _confirm_media_upload(receipt_path, authority, media_id="780001")
+
+    staging = tuple(
+        item
+        for item in tmp_path.iterdir()
+        if item.name.startswith(media_receipt.TRANSITION_PREFIX)
+    )
+    assert injected_inode is not None
+    assert len(staging) == 1
+    assert staging[0].stat().st_ino == injected_inode
     assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
 
 
@@ -367,7 +678,7 @@ def test_disappeared_receipt_cannot_authorise_or_confirm(tmp_path: Path) -> None
     with pytest.raises(media_receipt.MediaUploadReceiptError, match="disappeared"):
         _consume(receipt_path, image_path, metadata, authority)
     with pytest.raises(media_receipt.MediaUploadReceiptError, match="disappeared"):
-        media_receipt.confirm_media_upload(
+        _confirm_media_upload(
             receipt_path,
             authority,
             media_id="780001",
@@ -412,7 +723,7 @@ def test_confirm_transition_fsync_failure_always_leaves_a_blocking_state(
 
     monkeypatch.setattr(media_receipt.os, "fsync", failing_fsync)
     with pytest.raises(OSError, match="synthetic confirmation"):
-        media_receipt.confirm_media_upload(
+        _confirm_media_upload(
             receipt_path,
             authority,
             media_id="780001",
@@ -420,83 +731,285 @@ def test_confirm_transition_fsync_failure_always_leaves_a_blocking_state(
     assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
 
 
-def test_successful_retirement_leaves_exact_main_post_receipt(tmp_path: Path) -> None:
-    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
-    main_receipt_path = tmp_path / "regular_post_receipt.json"
-    main_receipt_bytes = _bound_main_receipt_bytes()
-    _durable_write(main_receipt_path, main_receipt_bytes)
-    before = main_receipt_path.stat()
-
-    media_receipt.retire_confirmed_media_upload(
-        receipt_path,
-        confirmation,
-        main_post_receipt_path=main_receipt_path,
-        expected_main_post_receipt_bytes=main_receipt_bytes,
-    )
-
-    after = main_receipt_path.stat()
-    assert not receipt_path.exists()
-    assert not media_receipt.fence_path_for_receipt(receipt_path).exists()
-    assert main_receipt_path.read_bytes() == main_receipt_bytes
-    assert (after.st_dev, after.st_ino) == (before.st_dev, before.st_ino)
-    assert after.st_nlink == 1
-    assert not any(
-        item.name.startswith(media_receipt.RETIREMENT_GUARD_PREFIX)
-        for item in tmp_path.iterdir()
-    )
-
-
-@pytest.mark.parametrize("fail_at", (1, 2, 3, 4))
-def test_retirement_directory_fsync_failure_always_leaves_a_durable_receipt(
+def test_successful_retirement_leaves_independent_transport_pair(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    fail_at: int,
 ) -> None:
     receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
-    main_receipt_path = tmp_path / "regular_post_receipt.json"
-    main_receipt_bytes = _bound_main_receipt_bytes()
-    _durable_write(main_receipt_path, main_receipt_bytes)
+    main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    journal_before = journal_path.stat()
+
+    result = _retire_confirmed_media_upload(receipt_path, handoff)
+
+    assert not receipt_path.exists()
+    assert not media_receipt.fence_path_for_receipt(receipt_path).exists()
+    assert result.state == "retired"
+    assert main_receipt_path.exists()
+    assert journal_path.exists()
+    assert (journal_path.stat().st_dev, journal_path.stat().st_ino) == (
+        journal_before.st_dev,
+        journal_before.st_ino,
+    )
+    assert Path(handoff.transport_fence_path).exists()
+
+
+def test_late_main_receipt_loss_cannot_remove_all_handoff_owners(
+    tmp_path: Path,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    main_receipt_path.unlink()
+    directory = os.open(tmp_path, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+    result = _retire_confirmed_media_upload(receipt_path, handoff)
+    assert result.state == "retired"
+    assert not main_receipt_path.exists()
+    assert journal_path.exists()
+    assert Path(handoff.transport_fence_path).exists()
+
+
+@pytest.mark.parametrize("owner", ("journal", "fence"))
+def test_transport_owner_mutation_prevents_media_retirement(
+    tmp_path: Path,
+    owner: str,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    _main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    target = journal_path if owner == "journal" else Path(handoff.transport_fence_path)
+    replacement = tmp_path / f"replacement-{owner}"
+    _durable_write(replacement, target.read_bytes())
+    os.replace(replacement, target)
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="stale or mismatched",
+    ):
+        _retire_confirmed_media_upload(receipt_path, handoff)
+    assert receipt_path.exists()
+    assert media_receipt.fence_path_for_receipt(receipt_path).exists()
+
+
+def test_literal_fresh_interpreter_resumes_after_receipt_retirement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
     real_fsync = media_receipt.os.fsync
     calls = 0
 
-    def failing_fsync(descriptor: int) -> None:
+    def fail_after_first_directory_fsync(descriptor: int) -> None:
         nonlocal calls
         calls += 1
-        if calls == fail_at:
+        real_fsync(descriptor)
+        if calls == 1:
+            raise OSError("hard interruption after receipt retirement")
+
+    monkeypatch.setattr(media_receipt.os, "fsync", fail_after_first_directory_fsync)
+    with pytest.raises(OSError, match="hard interruption"):
+        _retire_confirmed_media_upload(receipt_path, handoff)
+    monkeypatch.setattr(media_receipt.os, "fsync", real_fsync)
+    assert not receipt_path.exists()
+    assert media_receipt.fence_path_for_receipt(receipt_path).exists()
+
+    script = "\n".join(
+        (
+                "from pathlib import Path",
+                "import remote_media_upload_receipt as m",
+                "from transaction_mutation_authority import issue_transaction_mutation_authority",
+                f"r = Path({str(receipt_path)!r})",
+                "state = m.resume_interrupted_confirmed_media_retirement(",
+                "    r,",
+                "    mutation_authority=issue_transaction_mutation_authority(",
+                "        lambda _operation: None, operation='fresh-process focused test'",
+                "    ),",
+            f"    transport_journal_path=Path({str(journal_path)!r}),",
+            f"    transport_fence_path=Path({handoff.transport_fence_path!r}),",
+            f"    source_receipt_path=Path({str(main_receipt_path)!r}),",
+            ")",
+            "assert state is not None and state.state == 'retired'",
+            "assert not m.media_upload_receipt_is_blocking(r)",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(media_receipt.__file__).parent,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
+def test_fresh_process_resumer_refuses_torn_transport_owner(
+    tmp_path: Path,
+) -> None:
+    """A fence without one intact prepared owner remains fail-closed."""
+
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    receipt_path.unlink()
+    directory = os.open(tmp_path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+    Path(handoff.transport_fence_path).unlink()
+    directory = os.open(tmp_path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="missing|cannot be inspected",
+    ):
+        _resume_interrupted_confirmed_media_retirement(
+            receipt_path,
+            transport_journal_path=journal_path,
+            transport_fence_path=Path(handoff.transport_fence_path),
+            source_receipt_path=main_receipt_path,
+        )
+    assert media_receipt.fence_path_for_receipt(receipt_path).exists()
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+def test_fresh_process_resumer_does_not_take_over_present_receipt(
+    tmp_path: Path,
+) -> None:
+    """The normal in-process handoff retains ownership while receipt exists."""
+
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    assert (
+        _resume_interrupted_confirmed_media_retirement(
+            receipt_path,
+            transport_journal_path=journal_path,
+            transport_fence_path=Path(handoff.transport_fence_path),
+            source_receipt_path=main_receipt_path,
+        )
+        is None
+    )
+    assert receipt_path.exists()
+    assert media_receipt.fence_path_for_receipt(receipt_path).exists()
+
+
+@pytest.mark.parametrize("operation", ("fsync", "unlink"))
+@pytest.mark.parametrize("fail_at", (1, 2))
+@pytest.mark.parametrize("after_effect", (False, True))
+def test_every_retirement_interruption_is_inspectable_and_resumable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    fail_at: int,
+    after_effect: bool,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    real_fsync = media_receipt.os.fsync
+    real_unlink = media_receipt.os.unlink
+    calls = 0
+
+    def maybe_fail_fsync(descriptor: int) -> None:
+        nonlocal calls
+        calls += 1
+        if operation == "fsync" and calls == fail_at and not after_effect:
             raise OSError("synthetic retirement fsync failure")
         real_fsync(descriptor)
+        if operation == "fsync" and calls == fail_at and after_effect:
+            raise OSError("synthetic retirement fsync failure")
 
-    monkeypatch.setattr(media_receipt.os, "fsync", failing_fsync)
-    with pytest.raises(OSError, match="synthetic retirement"):
-        media_receipt.retire_confirmed_media_upload(
-            receipt_path,
-            confirmation,
-            main_post_receipt_path=main_receipt_path,
-            expected_main_post_receipt_bytes=main_receipt_bytes,
+    unlink_calls = 0
+
+    def maybe_fail_unlink(*args: object, **kwargs: object) -> None:
+        nonlocal unlink_calls
+        unlink_calls += 1
+        if operation == "unlink" and unlink_calls == fail_at and not after_effect:
+            raise OSError("synthetic retirement unlink failure")
+        real_unlink(*args, **kwargs)
+        if operation == "unlink" and unlink_calls == fail_at and after_effect:
+            raise OSError("synthetic retirement unlink failure")
+
+    monkeypatch.setattr(media_receipt.os, "fsync", maybe_fail_fsync)
+    monkeypatch.setattr(media_receipt.os, "unlink", maybe_fail_unlink)
+    if operation == "fsync" or fail_at <= 2:
+        with pytest.raises(OSError, match="synthetic retirement"):
+            _retire_confirmed_media_upload(receipt_path, handoff)
+
+    # The independent owner pair survives every destructive boundary.
+    assert journal_path.exists()
+    assert Path(handoff.transport_fence_path).exists()
+    monkeypatch.setattr(media_receipt.os, "fsync", real_fsync)
+    monkeypatch.setattr(media_receipt.os, "unlink", real_unlink)
+
+    # Reconstruct the typed authority as a fresh interpreter would.  When both
+    # media companions are already absent, the observable state is complete
+    # and no process object is needed.
+    if media_receipt.media_upload_receipt_is_blocking(receipt_path):
+        loaded = (
+            media_receipt.load_confirmed_media_upload(receipt_path)
+            if receipt_path.exists()
+            else None
         )
+        resumed = media_receipt.bind_media_handoff_to_transport(
+            receipt_path,
+            loaded,
+            transport_journal_path=journal_path,
+            transport_fence_path=Path(handoff.transport_fence_path),
+            source_receipt_path=main_receipt_path,
+        )
+        before = media_receipt.inspect_media_retirement_state(
+            receipt_path,
+            resumed,
+        )
+        assert before.state in {"not_started", "receipt_retired"}
+        final = _retire_confirmed_media_upload(receipt_path, resumed)
+        assert final.state == "retired"
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is False
 
-    assert main_receipt_path.exists()
-    assert main_receipt_path.read_bytes() == main_receipt_bytes
-    durable_paths = [
-        receipt_path,
-        media_receipt.fence_path_for_receipt(receipt_path),
-        main_receipt_path,
-    ]
-    durable_paths.extend(
-        item
-        for item in tmp_path.iterdir()
-        if item.name.startswith(media_receipt.RETIREMENT_GUARD_PREFIX)
-    )
-    assert any(path.exists() and stat.S_ISREG(path.stat().st_mode) for path in durable_paths)
 
-
-def test_retirement_rejects_stale_confirmation_and_wrong_main_receipt(
+def test_handoff_rejects_stale_confirmation_and_wrong_media_owner(
     tmp_path: Path,
 ) -> None:
     receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
-    main_receipt_path = tmp_path / "regular_post_receipt.json"
-    actual = _bound_main_receipt_bytes()
-    _durable_write(main_receipt_path, actual)
+    main_receipt_path, journal_path, handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
     stale = media_receipt.ConfirmedMediaUpload(
         **{
             **confirmation.__dict__,
@@ -504,20 +1017,34 @@ def test_retirement_rejects_stale_confirmation_and_wrong_main_receipt(
         }
     )
     with pytest.raises(media_receipt.MediaUploadReceiptError, match="stale"):
-        media_receipt.retire_confirmed_media_upload(
+        media_receipt.bind_media_handoff_to_transport(
             receipt_path,
             stale,
-            main_post_receipt_path=main_receipt_path,
-            expected_main_post_receipt_bytes=actual,
+            transport_journal_path=journal_path,
+            transport_fence_path=Path(handoff.transport_fence_path),
+            source_receipt_path=main_receipt_path,
         )
-    with pytest.raises(media_receipt.MediaUploadReceiptError, match="does not"):
-        media_receipt.retire_confirmed_media_upload(
-            receipt_path,
-            confirmation,
-            main_post_receipt_path=main_receipt_path,
-            expected_main_post_receipt_bytes=media_receipt.canonical_json_bytes(
-                {"post_id": "different"}
-            ),
-        )
+    wrong = replace(handoff, media_id="different")
+    with pytest.raises(media_receipt.MediaUploadReceiptError, match="stale|mismatched"):
+        media_receipt.inspect_media_retirement_state(receipt_path, wrong)
     assert receipt_path.exists()
     assert main_receipt_path.exists()
+
+
+def test_unavailable_media_directory_blocks_without_proving_durability(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """An inspection error is fail-closed, but is not a durable receipt."""
+
+    receipt_path = tmp_path / "remote_media_upload_receipt.json"
+
+    def unavailable(_path: object) -> list[str]:
+        raise OSError("transient media-directory inspection failure")
+
+    monkeypatch.setattr(media_receipt.os, "listdir", unavailable)
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+    assert (
+        media_receipt.media_upload_has_valid_restart_barrier(receipt_path)
+        is False
+    )

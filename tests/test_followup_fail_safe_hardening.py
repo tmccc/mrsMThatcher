@@ -111,8 +111,20 @@ def armed_context_transport_authority(
         expected_receipt=receipt,
         lane="historical_context_reply",
         payload=payload,
+        source_validator_id="unit-test-context-binding-v2",
+        source_validator=lambda lane, observed, body: bool(
+            lane == "historical_context_reply"
+            and observed == receipt
+            and body == payload
+        ),
     )
-    return bot.arm_transport_transaction(Path(prepared.journal_path), prepared)
+    return bot.arm_transport_transaction(
+        Path(prepared.journal_path),
+        prepared,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused transport arming"
+        ),
+    )
 
 
 def test_explicit_initialisation_and_missing_file_matrix(tmp_path, monkeypatch):

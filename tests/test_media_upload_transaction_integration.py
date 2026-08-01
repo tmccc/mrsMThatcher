@@ -33,6 +33,7 @@ HARD_EXIT_CODES = {
     "after_confirm": 73,
     "peer_delete_transport": 74,
     "peer_replace_transport": 75,
+    "during_media_retirement": 76,
 }
 
 
@@ -257,6 +258,9 @@ def _state_record(bot: Any, lane: str) -> dict[str, Any]:
         if lane == "quote_image"
         else Path(bot.MEME_POST_RECEIPT_FILE)
     )
+    transport_state = bot.inspect_transport_state(
+        bot.journal_path_for_receipt(main_path)
+    )
     return {
         "blocking": bool(bot.ambiguous_remote_post_is_blocking()),
         "lane": lane,
@@ -276,6 +280,7 @@ def _state_record(bot: Any, lane: str) -> dict[str, Any]:
             if media_snapshot is not None
             else None
         ),
+        "transport_journal_state": transport_state.classification,
     }
 
 
@@ -362,14 +367,14 @@ def _initial_phase(bot: Any, lane: str, phase: str) -> int:
 
     attempt = _main_attempt(bot, lane, image)
     if phase == "write_failure":
-        real_atomic_write_json = bot.atomic_write_json
+        real_durable_create = bot.durable_create_receipt_json
 
-        def fail_main_write(path: Path, value: object, *, durable: bool = False) -> None:
+        def fail_main_write(path: Path, value: object) -> None:
             if Path(path) == Path(bot.main_post_attempt_path(attempt)):
                 raise OSError("synthetic main-attempt write failure")
-            real_atomic_write_json(path, value, durable=durable)
+            real_durable_create(path, value)
 
-        bot.atomic_write_json = fail_main_write
+        bot.durable_create_receipt_json = fail_main_write
         try:
             bot.write_main_post_attempt(attempt)
         except OSError as exc:
@@ -381,18 +386,49 @@ def _initial_phase(bot: Any, lane: str, phase: str) -> int:
         return 0
 
     bot.write_main_post_attempt(attempt)
+    attempt, source_binding, transport_authority = (
+        bot.prepare_main_tweet_transport(attempt)
+    )
+    if phase == "during_media_retirement":
+        real_fsync = os.fsync
+
+        def hard_exit_after_receipt_retirement(descriptor: int) -> None:
+            real_fsync(descriptor)
+            os._exit(HARD_EXIT_CODES[phase])
+
+        os.fsync = hard_exit_after_receipt_retirement
+        bot.handoff_confirmed_media_upload_to_main_attempt(
+            attempt,
+            transport_authority,
+        )
+        raise AssertionError("media retirement hard-exit sentinel was not reached")
     if phase == "handoff_failure":
-        changed = {**attempt, "media_ids": ["different-media-id"]}
+        transport_fence = Path(transport_authority.fence_path)
+        transport_fence.unlink()
+        parent_fd = os.open(
+            transport_fence.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
         try:
-            bot.handoff_confirmed_media_upload_to_main_attempt(changed)
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+        try:
+            bot.handoff_confirmed_media_upload_to_main_attempt(
+                attempt,
+                transport_authority,
+            )
         except bot.MediaUploadReceiptError:
             pass
         else:
-            raise AssertionError("mismatched handoff unexpectedly succeeded")
+            raise AssertionError("torn transport handoff unexpectedly succeeded")
         _emit({**_state_record(bot, lane), "phase": phase, "transport_calls": 1})
         return 0
 
-    bot.handoff_confirmed_media_upload_to_main_attempt(attempt)
+    bot.handoff_confirmed_media_upload_to_main_attempt(
+        attempt,
+        transport_authority,
+    )
 
     if phase == "pause_after_handoff":
         bot.atomic_write_json(
@@ -412,6 +448,8 @@ def _initial_phase(bot: Any, lane: str, phase: str) -> int:
                 media_ids=[str(value) for value in attempt["media_ids"]],
                 made_with_ai=bool(attempt["made_with_ai"]),
                 prepared_main_post_attempt=attempt,
+                prepared_transport_authority=transport_authority,
+                prepared_transport_source=source_binding,
             )
         except bot.RemoteOperationsPaused:
             pass
@@ -461,6 +499,39 @@ def _inspect_phase(bot: Any, lane: str) -> int:
     return 0
 
 
+def _resume_media_retirement_phase(bot: Any, lane: str) -> int:
+    """Invoke the production pre-barrier resumer in one fresh interpreter."""
+
+    transport_calls: list[str] = []
+
+    def local_transport(*_args: object, **_kwargs: object) -> object:
+        transport_calls.append("transport")
+        raise _LocalTransportReached
+
+    bot.requests.request = local_transport
+    bot.requests.post = local_transport
+    try:
+        resumed = bot.resume_interrupted_confirmed_media_retirement_if_present()
+        error = None
+    except BaseException as exc:
+        resumed = False
+        error = type(exc).__name__
+        error_message = str(exc)
+    else:
+        error_message = None
+    _emit(
+        {
+            **_state_record(bot, lane),
+            "error": error,
+            "error_message": error_message,
+            "phase": "resume_media_retirement",
+            "resumed": resumed,
+            "transport_calls": transport_calls,
+        }
+    )
+    return 0
+
+
 def _legacy_phase(bot: Any, lane: str) -> int:
     transport_calls: list[str] = []
 
@@ -499,6 +570,8 @@ def _driver_main(argv: list[str]) -> int:
     _activate(bot)
     if arguments.phase == "inspect":
         return _inspect_phase(bot, arguments.lane)
+    if arguments.phase == "resume_media_retirement":
+        return _resume_media_retirement_phase(bot, arguments.lane)
     if arguments.phase == "legacy_v1_1":
         return _legacy_phase(bot, arguments.lane)
     return _initial_phase(bot, arguments.lane, arguments.phase)
@@ -584,7 +657,7 @@ def test_exact_confirmed_media_handoff_retires_media_but_preserves_main_receipt(
     assert handoff_result["media_present"] is False
     assert handoff_result["media_fence_present"] is False
     assert handoff_result["main_status"] == "sending"
-    assert handoff_result["main_lifecycle"] == "sending"
+    assert handoff_result["main_lifecycle"] == "attempting"
 
     inspect = _run_driver("inspect", lane=lane, state_directory=state_directory)
     assert inspect.returncode == 0, (inspect.stdout, inspect.stderr)
@@ -593,7 +666,112 @@ def test_exact_confirmed_media_handoff_retires_media_but_preserves_main_receipt(
     assert inspected["media_present"] is False
     assert inspected["media_fence_present"] is False
     assert inspected["main_status"] == "sending"
+    assert inspected["main_lifecycle"] == "attempting"
     assert inspected["transport_calls"] == []
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_fresh_process_production_resumer_finishes_only_media_fence_retirement(
+    tmp_path: Path,
+    lane: str,
+) -> None:
+    """A restart finishes the torn handoff but cannot retransmit or clear it."""
+
+    state_directory = tmp_path / f"{lane}-retirement-restart"
+    state_directory.mkdir()
+    first = _run_driver(
+        "during_media_retirement",
+        lane=lane,
+        state_directory=state_directory,
+    )
+    assert first.returncode == HARD_EXIT_CODES["during_media_retirement"], (
+        first.stdout,
+        first.stderr,
+    )
+
+    before = _run_driver("inspect", lane=lane, state_directory=state_directory)
+    assert before.returncode == 0, (before.stdout, before.stderr)
+    before_result = _result(before)
+    assert before_result["media_present"] is False
+    assert before_result["media_fence_present"] is True
+    assert before_result["transport_journal_state"] == "prepared_pair"
+    assert before_result["blocking"] is True
+    assert before_result["transport_calls"] == []
+
+    resumed = _run_driver(
+        "resume_media_retirement",
+        lane=lane,
+        state_directory=state_directory,
+    )
+    assert resumed.returncode == 0, (resumed.stdout, resumed.stderr)
+    result = _result(resumed)
+    assert result["resumed"] is True
+    assert result["error"] is None
+    assert result["media_present"] is False
+    assert result["media_fence_present"] is False
+    assert result["transport_journal_state"] == "prepared_pair"
+    assert result["main_status"] == "sending"
+    assert result["main_lifecycle"] == "attempting"
+    assert result["blocking"] is True
+    assert result["transport_calls"] == []
+
+    repeated = _run_driver(
+        "resume_media_retirement",
+        lane=lane,
+        state_directory=state_directory,
+    )
+    assert repeated.returncode == 0, (repeated.stdout, repeated.stderr)
+    repeated_result = _result(repeated)
+    assert repeated_result["resumed"] is False
+    assert repeated_result["error"] is None
+    assert repeated_result["transport_journal_state"] == "prepared_pair"
+    assert repeated_result["blocking"] is True
+    assert repeated_result["transport_calls"] == []
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_production_resumer_fails_closed_on_torn_prepared_owner(
+    tmp_path: Path,
+    lane: str,
+) -> None:
+    """A damaged tweet owner cannot authorise removal of the media fence."""
+
+    state_directory = tmp_path / f"{lane}-retirement-torn-owner"
+    state_directory.mkdir()
+    first = _run_driver(
+        "during_media_retirement",
+        lane=lane,
+        state_directory=state_directory,
+    )
+    assert first.returncode == HARD_EXIT_CODES["during_media_retirement"], (
+        first.stdout,
+        first.stderr,
+    )
+    transport_fence = state_directory / "remote_write_transport_fence.json"
+    transport_fence.unlink()
+    directory_fd = os.open(
+        state_directory,
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+    )
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+    resumed = _run_driver(
+        "resume_media_retirement",
+        lane=lane,
+        state_directory=state_directory,
+    )
+    assert resumed.returncode == 0, (resumed.stdout, resumed.stderr)
+    result = _result(resumed)
+    assert result["resumed"] is False
+    assert result["error"] == "MediaUploadReceiptError"
+    assert result["media_present"] is False
+    assert result["media_fence_present"] is True
+    assert result["transport_journal_state"] == "incomplete_pair"
+    assert result["blocking"] is True
+    assert result["transport_calls"] == []
 
 
 @pytest.mark.parametrize("lane", LANES)
@@ -642,7 +820,7 @@ def test_pause_after_handoff_keeps_main_receipt_and_never_reuploads(
     assert paused_result["media_present"] is False
     assert paused_result["media_fence_present"] is False
     assert paused_result["main_status"] == "sending"
-    assert paused_result["main_lifecycle"] == "sending"
+    assert paused_result["main_lifecycle"] == "attempting"
     assert paused_result["blocking"] is True
 
     inspect = _run_driver("inspect", lane=lane, state_directory=state_directory)

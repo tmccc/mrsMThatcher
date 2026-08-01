@@ -2,7 +2,7 @@
   "$schema": "./defect_ledger.schema.json",
   "schema_version": 2,
   "ledger_id": "mrsMThatcher-defect-evidence-ledger",
-  "as_of": "2026-07-31",
+  "as_of": "2026-08-01",
   "identity_scope": {
     "production_baseline": {
       "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -10,11 +10,11 @@
       "role": "Historical production and master state against which the defect records and invariant references were established."
     },
     "ledger_evidence_cutoff": {
-      "commit": "debc079949b567362ce7c451ea43fd52ffedfa4d",
-      "tree": "a4364db80dfc0b5f96e7ce3c7f9355c14c621d23",
-      "as_of": "2026-07-31",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the independently reviewed, unactivated debc079 candidate. That candidate incorporates the durable-attempt, schedule, conservative-response, post-replacement parent-fsync, daemon-loop recheck, marker-identity, process-lock ownership and first fresh-process latch repairs recorded through DEF-0034. Independent review then established the distinct literal second-restart durable-barrier defect recorded as DEF-0035. This ledger does not claim that the candidate or any repair was merged, deployed or loaded.",
-      "meaning": "Every status is an evidence claim valid only through this reviewed commit and tree. The next candidate identity remains supplied externally, avoiding a self-referential final-commit hash."
+      "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+      "tree": "b83abb7af53f925eb8686825e09f4654a55ff40a",
+      "as_of": "2026-08-01",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0046. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
+      "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
       "identity_source": "external-release-attestation",
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "A candidate identity is supplied by the frozen-candidate release attestation and is deliberately not embedded in this committed ledger. The debc079 evidence cut-off was never deployed; it repairs DEF-0034 only within the process which observes the marker and was independently rejected for the literal second-restart durable-barrier defect recorded as DEF-0035. The replacement candidate remains external until frozen."
+      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0046, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new production baseline before using it for another release attestation. In particular, the final restart-persistent successor-first protocol and clean-activation remediation commit must replace DEF-0035's external unknown fix identity and bind its literal multi-process, inactive-protocol and offline-activation regressions before any post-merge assurance claim."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0046 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -78,7 +78,7 @@
   },
   "markdown": {
     "title": "MrsMThatcher defect ledger",
-      "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related runtime and release-assurance gaps, including independently reproduced candidate-lineage defects.",
+      "purpose": "Evidence-cut-off-bound inventory for the ten 28 July diagnosis findings and directly related runtime, liveness and release-assurance gaps through the exact 7ebcc096 release base.",
     "source_of_truth": "defect_ledger.json",
     "sort_key": "id",
     "unknown_policy": "Render the literal word unknown and its recorded explanation; never infer a missing commit, deployment or test.",
@@ -1381,7 +1381,7 @@
         {
           "date": "2026-07-27",
           "event": "Earlier suite review explicitly recommended a suite-wide non-loopback guard.",
-          "commit": "370aee9b7c3ec1d3e7fdbb69ea6f3cc54b08dd23",
+          "commit": "unknown",
           "evidence": "bot_and_test_suite_review_report.md#test-isolation-work-still-needed."
         },
         {
@@ -1447,6 +1447,10 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier repository revision exists."
+        },
+        {
+          "field": "chronology[1].commit",
+          "explanation": "The review report commit 370aee9b is external to the 7ebcc096 release lineage, so no release-line chronology SHA is inferred; the exact report remains named in evidence."
         }
       ],
       "relations": {
@@ -1599,7 +1603,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "unknown",
         "explanation": "This is absence of an environmental control, not a code regression with a defensible first-bad commit."
       },
@@ -1607,7 +1611,7 @@
         {
           "date": "2026-07-27",
           "event": "Suite-wide network isolation recorded as unfinished work.",
-          "commit": "370aee9b7c3ec1d3e7fdbb69ea6f3cc54b08dd23",
+          "commit": "unknown",
           "evidence": "Bot and test-suite review."
         },
         {
@@ -1668,6 +1672,10 @@
         {
           "field": "fix.commit",
           "explanation": "No repair commit exists as of the ledger baseline."
+        },
+        {
+          "field": "chronology[0].commit",
+          "explanation": "The review report commit 370aee9b is external to the 7ebcc096 release lineage, so no release-line chronology SHA is inferred; the report remains the evidence source."
         }
       ],
       "relations": {
@@ -1712,7 +1720,7 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "unknown",
         "explanation": "This is an absent release control spanning Git, collaboration and deployment; repository history does not identify one introducing commit."
       },
@@ -1818,7 +1826,7 @@
       "introduced": {
         "first_bad_commit": "2179d71ecc9787b688a27c0ae00530b2083429e6",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:2179d71ecc9787b688a27c0ae00530b2083429e6..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "bounded",
         "explanation": "The production wrapper dates to 2179d71 and has never carried generation identity. Earlier service/process arrangements were not audited for this property."
       },
@@ -1929,7 +1937,7 @@
       "introduced": {
         "first_bad_commit": "2220df1e3b681753edca8fda8a7cc92f899f0a85",
         "last_known_good_commit": "b267a330983c5db2aec2c5722ce9e994b43bbeda",
-        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:2220df1e3b681753edca8fda8a7cc92f899f0a85..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "exact",
         "explanation": "Git -S history for historical_context_formatter.py in the material veto manifest identifies 2220df1e as the first pin."
       },
@@ -2003,49 +2011,40 @@
     },
     {
       "id": "DEF-0017",
-      "title": "Duplicate JSON object names remain last-wins in safety documents",
+      "title": "Duplicate JSON object names remain last-wins in configuration and pause controls",
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "related-current-master-duplicate-json-keys",
       "status": "active",
       "severity": "high",
       "invariant_ids": [
-      "INV-CONFIG-001",
-      "INV-PAUSE-001",
-      "INV-TXN-HCTX-001",
-      "INV-TXN-REPLY-001",
-      "INV-TXN-RECEIPT-001"
+        "INV-CONFIG-001",
+        "INV-PAUSE-001"
       ],
       "components": [
         "mrsMThatcher2.py",
         "runtime control",
-        "local config",
-        "state and receipts"
+        "local configuration"
       ],
       "affected_files": [
         "mrsMThatcher2.py",
         "mrsMThatcher.local.json",
-        "mrsMThatcher.control.json",
-        "bot_state.json",
-        "regular_post_receipt.json",
-        "meme_post_receipt.json",
-        "confirmed_reply_receipt.json",
-        "historical_context_reply_receipt.json"
+        "mrsMThatcher.control.json"
       ],
       "runtime_lanes": [
-        "cross-cutting-json-safety-documents"
+        "configuration-and-pause-controls"
       ],
       "incident": {
         "occurred": "unknown",
-        "evidence": "Default json.load behavior reproduces last-wins parsing and remains present at be882e81.",
-        "explanation": "No complete archive of production safety documents establishes whether a duplicate name altered live behavior."
+        "evidence": "Default json.load behavior reproduces last-wins parsing for local configuration and runtime pause controls and remains present at 7ebcc096.",
+        "explanation": "No complete archive of production configuration or control documents establishes whether a duplicate name altered live behavior."
       },
-      "summary": "Safety-relevant JSON is parsed with the standard decoder, which accepts duplicate object names and keeps the last value.",
-      "impact": "A document can visually contain both safe and unsafe values for one setting; effective behavior depends on ordering rather than an unambiguous transaction.",
+      "summary": "Local configuration and pause-control JSON use standard decoding which accepts duplicate object names and keeps the last value. Transaction receipts are excluded from this record and are tracked separately by DEF-0043.",
+      "impact": "A configuration or pause document can visually contain both safe and unsafe values for one setting; effective behavior depends on ordering rather than an unambiguous control instruction.",
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "bounded",
         "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
       },
@@ -2059,7 +2058,7 @@
         {
           "date": "2026-07-27",
           "event": "Independent bot/test review recorded duplicate JSON keys as an unresolved hardening gap.",
-          "commit": "370aee9b7c3ec1d3e7fdbb69ea6f3cc54b08dd23",
+          "commit": "unknown",
           "evidence": "bot_and_test_suite_review_report.md:190."
         },
         {
@@ -2067,6 +2066,12 @@
           "event": "be882e81 repaired unknown names but retained default JSON duplicate-name parsing.",
           "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
           "evidence": "apply_local_config and load_control still call json.load without an object_pairs_hook."
+        },
+        {
+          "date": "2026-07-31",
+          "event": "The 7ebcc096 audit narrowed this record to configuration and pause controls and separated unsafe transaction receipt namespaces and strict transaction JSON into DEF-0043.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Cut-off source and IR-40AB follow-up review"
         }
       ],
       "first_review_scope": {
@@ -2087,15 +2092,15 @@
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "Use a strict object_pairs_hook or equivalent parser that rejects duplicate names before schema validation for every safety document."
+        "summary": "Use one strict decoder for local configuration and pause controls which rejects duplicate names and non-finite values before schema validation."
       },
       "deployment": {
         "state": "not-applicable",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "The defect exists in the observed production commit be882e81 and remains present at the ledger evidence cut-off ee7539c; no repair deployment is applicable."
+        "evidence": "The defect exists in the observed production commit be882e81 and remains present at the 7ebcc096 ledger evidence cut-off; no repair deployment is applicable."
       },
-      "residual_risk": "Active for control, local configuration and other state/receipt readers until one shared strict decoder is used and mutation-tested.",
+      "residual_risk": "Active for local configuration and pause controls until their parser rejects ambiguous JSON. Transaction receipt namespace and strict-JSON risk remains separately active under DEF-0043.",
       "evidence": [
         {
           "type": "report",
@@ -2104,8 +2109,8 @@
         },
         {
           "type": "code",
-          "reference": "be882e81:mrsMThatcher2.py:866,1429",
-          "claim": "Local config and runtime control still use default json.load."
+          "reference": "7ebcc096:mrsMThatcher2.py",
+          "claim": "Local configuration and runtime pause-control parsing still use ordinary last-wins JSON decoding at the evidence cut-off."
         }
       ],
       "unknowns": [
@@ -2116,6 +2121,10 @@
         {
           "field": "fix.commit",
           "explanation": "No strict duplicate-name parser has been committed."
+        },
+        {
+          "field": "chronology[1].commit",
+          "explanation": "The review report commit 370aee9b is external to the 7ebcc096 release lineage, so its exact SHA remains evidence provenance rather than a release-line chronology claim."
         }
       ],
       "relations": {
@@ -2124,7 +2133,8 @@
         "related": [
           "DEF-0005",
           "DEF-0006",
-          "DEF-0007"
+          "DEF-0007",
+          "DEF-0043"
         ]
       }
     },
@@ -2166,15 +2176,15 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "bounded",
         "explanation": "The release-control parser first exists in the Priority-0 candidate lineage and the independent review reproduced the weakness at 305ac6b."
       },
       "chronology": [
         {
           "date": "2026-07-29",
-          "event": "Independent source review reproduced asymmetric duplicate-name handling in Priority-0 control documents.",
-          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "event": "The release line imported the immutable independent-review package which reproduced asymmetric duplicate-name handling in Priority-0 control documents.",
+          "commit": "2d1b7a51b89dac70f0e539952d08cdad58ee1b93",
           "evidence": "Independent review package a5aea17cce49455f784ffed1c0f9896137991f1476e12fbef68b59ac1b64c978."
         }
       ],
@@ -2265,16 +2275,22 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "exact",
         "explanation": "The self-certifying gate was introduced in the Priority-0 candidate lineage and remains candidate-owned at 305ac6b."
       },
       "chronology": [
         {
           "date": "2026-07-29",
-          "event": "Independent review identified candidate-controlled policy, execution and evidence as one trust domain.",
-          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "event": "The release line imported the immutable independent-review package identifying candidate-controlled policy, execution and evidence as one trust domain.",
+          "commit": "2d1b7a51b89dac70f0e539952d08cdad58ee1b93",
           "evidence": "Independent review package a5aea17cce49455f784ffed1c0f9896137991f1476e12fbef68b59ac1b64c978."
+        },
+        {
+          "date": "2026-07-31",
+          "event": "Review of the 7ebcc096 release base retained the broader candidate-owned trust-root weakness and separated the concrete ability to forge pytest sidecars and outcomes into DEF-0044.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Cut-off release-gate and candidate-owned pytest-plugin inspection"
         }
       ],
       "first_review_scope": {
@@ -2303,7 +2319,7 @@
         "observed_at": "2026-07-30T08:00:00+01:00",
         "evidence": "The gate is release tooling and no production activation is claimed."
       },
-      "residual_risk": "Open until an independently reviewed external bootstrap gate rejects candidate-owned authority.",
+      "residual_risk": "Open until an independently reviewed external bootstrap gate owns policy, execution and evidence collection. DEF-0044 records the narrower pytest-evidence forgery mechanism without narrowing this broader trust-domain defect.",
       "evidence": [
         {
           "type": "code",
@@ -2321,7 +2337,8 @@
         "supersedes": [],
         "superseded_by": [],
         "related": [
-          "DEF-0014"
+          "DEF-0014",
+          "DEF-0044"
         ]
       }
     },
@@ -2356,15 +2373,15 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "bounded",
         "explanation": "The containment design exists only in the Priority-0 candidate lineage and is reproduced at 305ac6b."
       },
       "chronology": [
         {
           "date": "2026-07-29",
-          "event": "A disposable validation command could read and modify a synthetic host canary outside protected roots.",
-          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "event": "The release line imported the immutable independent-review reproduction in which a disposable validation command read and modified a synthetic host canary outside protected roots.",
+          "commit": "2d1b7a51b89dac70f0e539952d08cdad58ee1b93",
           "evidence": "independent_review_blocker_reproductions.json"
         }
       ],
@@ -2449,15 +2466,15 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "bounded",
         "explanation": "The private validation environment was introduced with the candidate gate but still binds shared distribution roots at 305ac6b."
       },
       "chronology": [
         {
           "date": "2026-07-29",
-          "event": "An undeclared synthetic package remained importable by a candidate Python child.",
-          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "event": "The release line imported the immutable independent-review reproduction in which an undeclared synthetic package remained importable by a candidate Python child.",
+          "commit": "2d1b7a51b89dac70f0e539952d08cdad58ee1b93",
           "evidence": "independent_review_blocker_reproductions.json"
         }
       ],
@@ -2543,15 +2560,15 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "exact",
         "explanation": "Free-form invariant commands are part of the introduced Priority-0 registry and gate."
       },
       "chronology": [
         {
           "date": "2026-07-29",
-          "event": "The gate accepted sh -c with synthetic dynamic code.",
-          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "event": "The release line imported the immutable independent-review reproduction in which the gate accepted sh -c with synthetic dynamic code.",
+          "commit": "2d1b7a51b89dac70f0e539952d08cdad58ee1b93",
           "evidence": "independent_review_blocker_reproductions.json"
         }
       ],
@@ -2640,15 +2657,15 @@
       "introduced": {
         "first_bad_commit": "516b9b4009b6ab097dee12748b9150427205cd4a",
         "last_known_good_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:516b9b4009b6ab097dee12748b9150427205cd4a..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
         "confidence": "exact",
         "explanation": "Both incorrect comparisons are present in the Priority-0 candidate implementation."
       },
       "chronology": [
         {
           "date": "2026-07-29",
-          "event": "Independent review reproduced missed static_path_composition consumption and the string-versus-tuple mismatch.",
-          "commit": "305ac6b137542bcb147bf214f7aefb3f16a166dc",
+          "event": "The release line imported the immutable independent-review package reproducing missed static_path_composition consumption and the string-versus-tuple mismatch.",
+          "commit": "2d1b7a51b89dac70f0e539952d08cdad58ee1b93",
           "evidence": "independent_review_blocker_reproductions.json"
         }
       ],
@@ -4163,7 +4180,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "independent-review-literal-second-restart-marker-barrier-loss",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -4210,6 +4227,12 @@
           "event": "Independent review removed the legacy marker during real parent-directory fsync in one interpreter, terminated that correctly latched process through os._exit, then showed a literal second interpreter with false globals and no durable marker could enter the historical-context scheduler lane.",
           "commit": "debc079949b567362ce7c451ea43fd52ffedfa4d",
           "evidence": "Independent IR-DEBC079-01 literal two-process reproduction"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "78b5c5b published and revalidated a durable same-inode successor before legacy-marker acknowledgement and added literal independent-process regressions for successor survival and supported offline retirement.",
+          "commit": "78b5c5b316c20c35bc863ff0c77062d9ad628eb8",
+          "evidence": "Preserve remote-write barrier across second restart"
         }
       ],
       "first_review_scope": {
@@ -4226,19 +4249,38 @@
         "reproducer": "Process 1 remained blocked, but after its abrupt exit Process 2 began with false globals, found no durable restart barrier, returned false from ambiguous_remote_post_is_blocking, passed remote-operation preflight and entered the historical-context scheduler lane.",
         "source": "Independent IR-DEBC079-01 reproduction supplied to this remediation"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_remote_write_safety_second_restart.py",
+          "nodeid": "test_literal_second_process_blocks_all_remote_lanes_after_marker_loss_and_hard_exit",
+          "kind": "integration",
+          "commit": "78b5c5b316c20c35bc863ff0c77062d9ad628eb8"
+        },
+        {
+          "path": "tests/test_remote_write_safety_second_restart.py",
+          "nodeid": "test_literal_new_barrier_survives_hard_exit_before_legacy_link",
+          "kind": "integration",
+          "commit": "78b5c5b316c20c35bc863ff0c77062d9ad628eb8"
+        },
+        {
+          "path": "tests/test_remote_write_safety_second_restart.py",
+          "nodeid": "test_literal_clean_process_allows_preflight_after_supported_offline_reconciliation",
+          "kind": "integration",
+          "commit": "78b5c5b316c20c35bc863ff0c77062d9ad628eb8"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "The replacement candidate must make the successor-first protocol itself a restart-persistent migration boundary. New incidents must durably publish and revalidate ambiguous_post_outcome.restart_barrier.json before the optional legacy name. Pre-protocol installations must remain blocked while an exact activation sentinel is absent or invalid; the running daemon must refuse legacy-only migration, and only stopped lock-bound reconciliation followed by explicit clean activation may open remote lanes. The candidate must prohibit live successor retirement, retire it last through supported lock-bound offline reconciliation, refuse activation in the presence of either marker or any unresolved receipt, and prove the no-receipt legacy-loss transition, hard process exit, second interpreter and clean activated control with literal processes."
+        "state": "fixed",
+        "commit": "78b5c5b316c20c35bc863ff0c77062d9ad628eb8",
+        "summary": "78b5c5b makes ambiguous_post_outcome.restart_barrier.json a durable same-inode successor published and revalidated before legacy-marker acknowledgement. Either name blocks later processes, live successor retirement is prohibited, and supported stopped reconciliation retires the successor last after exact archival evidence."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "The defect is established at the unactivated debc079 evidence cut-off. That candidate was never deployed; production remained at be882e8, and this record does not infer the exact debc079 transition from that older deployed implementation."
+        "evidence": "The recorded production observation remains be882e81, which predates and does not contain the 78b5c5b repair. No merge, deployment or loaded-process claim is made."
       },
-      "residual_risk": "Active at the ledger evidence cut-off. The debc079 repair blocks only while the process which observed marker loss remains alive; no separately durable successor survives that process's abrupt loss.",
+      "residual_risk": "The repair is present by the 7ebcc096 evidence cut-off but is not deployed. Operational safety still requires exact stopped reconciliation and activation; this record does not treat later candidate changes as deployed evidence.",
       "evidence": [
         {
           "type": "code",
@@ -4273,10 +4315,6 @@
       ],
       "unknowns": [
         {
-          "field": "fix.commit",
-          "explanation": "The replacement candidate identity is supplied externally after this evidence cut-off and is deliberately not embedded self-referentially."
-        },
-        {
           "field": "introduced.last_known_good_commit",
           "explanation": "No predecessor is asserted safe because earlier candidates had the distinct false-acknowledgement and same-process latch defects tracked by DEF-0032 and DEF-0034."
         }
@@ -4299,7 +4337,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "prefreeze-cross-lane-receipt-authority-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -4339,9 +4377,9 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:unknown..a65c91bf5b72b986f48b020d9d3096f8b57895c9",
         "confidence": "bounded",
-        "explanation": "The exact behaviour is present in the debc079 evidence-cut-off source. This review did not establish the earlier introducing commit and does not guess one."
+        "explanation": "The exact behaviour is present from the debc079 reproduction through a65c91b, the parent of its fixing commit. This review did not establish the earlier introducing commit and does not guess one."
       },
       "chronology": [
         {
@@ -4355,6 +4393,12 @@
           "event": "Source review additionally proved that prepared main and conversational records were not required to match a currently present durable receipt.",
           "commit": "debc079949b567362ce7c451ea43fd52ffedfa4d",
           "evidence": "block_if_ambiguous_remote_post control-flow inspection and red regression"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "5b0b610 closed the global historical-context barrier, exact prepared-receipt ownership, raw transport and historical strict-JSON paths with cross-lane regressions.",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575",
+          "evidence": "Preserve remote-write barriers across further restarts"
         }
       ],
       "first_review_scope": {
@@ -4371,19 +4415,38 @@
         "reproducer": "The historical-context receipt did not make the global predicate block, and missing prepared receipt paths did not invalidate their in-memory authorities.",
         "source": "Pre-freeze activation and literal-process attacks"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_remote_write_safety_second_restart.py",
+          "nodeid": "test_literal_context_sending_receipt_blocks_every_unrelated_remote_lane",
+          "kind": "integration",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+        },
+        {
+          "path": "tests/test_x_write_outcome_conservatism.py",
+          "nodeid": "test_prepared_receipt_authority_requires_the_exact_durable_file",
+          "kind": "regression",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+        },
+        {
+          "path": "tests/test_historical_context_reply.py",
+          "nodeid": "test_context_receipt_duplicate_lifecycle_cannot_fabricate_confirmation",
+          "kind": "regression",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "The replacement candidate must treat every historical-context receipt namespace entry or inspection failure as a global barrier, permit only the exact schema-valid owner receipt and payload, require regular, meme and conversational prepared records to match their live durable files, and give raw X/media/provider entry points no receipt bypass. The frozen candidate identity and closure evidence must be supplied externally rather than self-embedded."
+        "state": "fixed",
+        "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575",
+        "summary": "5b0b610 makes every historical-context receipt namespace entry or inspection failure a global barrier, permits only the exact schema-valid owner receipt and payload, requires prepared main and conversational records to match their durable files, closes raw X/media/provider bypasses and strictly parses historical-context receipts."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "Production remained at be882e8. This pre-freeze correction is isolated and has not been merged, pushed, deployed or activated."
+        "evidence": "Production remained at be882e81, which predates and does not contain 5b0b610. The repair is committed by the ledger cut-off but has not been merged, pushed, deployed or activated."
       },
-    "residual_risk": "The correction is not deployed. The replacement candidate strictly parses historical-context receipts, but regular, meme and conversational receipt decoders still accept duplicate JSON object names, tracked separately by DEF-0017.",
+      "residual_risk": "The correction is present by the ledger cut-off but not deployed. Unsafe namespaces and ambiguous JSON in the other transaction receipt readers are a distinct active defect recorded in DEF-0043; configuration and pause-control JSON remains separately tracked by DEF-0017.",
       "evidence": [
         {
           "type": "code",
@@ -4424,19 +4487,15 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No earlier commit was established as free of the cross-lane receipt-authority defect."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The final frozen remediation commit is supplied by the external attestation to avoid self-reference."
         }
       ],
       "relations": {
         "supersedes": [],
         "superseded_by": [],
         "related": [
-          "DEF-0017",
           "DEF-0033",
-          "DEF-0035"
+          "DEF-0035",
+          "DEF-0043"
         ]
       }
     },
@@ -4446,7 +4505,7 @@
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "prefreeze-protocol-activation-adversarial-review",
-      "status": "active",
+      "status": "repaired-not-deployed",
       "severity": "critical",
       "invariant_ids": [
         "INV-TXN-REG-001",
@@ -4485,9 +4544,9 @@
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
-        "affected_range": "inclusive:unknown..debc079949b567362ce7c451ea43fd52ffedfa4d",
+        "affected_range": "inclusive:unknown..a65c91bf5b72b986f48b020d9d3096f8b57895c9",
         "confidence": "bounded",
-        "explanation": "The underlying production baseline had no successor-first activation protocol. The exact defects were reproduced in the unactivated remediation worktree before its final freeze, so no earlier introducing commit is guessed."
+        "explanation": "The underlying production baseline had no successor-first activation protocol. The exact defects persisted through a65c91b, the parent of the fixing commit, but no earlier introducing commit is guessed."
       },
       "chronology": [
         {
@@ -4495,6 +4554,12 @@
           "event": "A final pre-freeze adversarial review activated an established fixture through the unaudited helper and separately reproduced a torn sentinel/audit read through the actual shared preflight.",
           "commit": "debc079949b567362ce7c451ea43fd52ffedfa4d",
           "evidence": "Disposable activation-helper and namespace-generation reproductions"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "5b0b610 removed supported unaudited activation, required stopped external-attestation activation and cross-revalidated both activation pathname identities after both stable reads.",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575",
+          "evidence": "Preserve remote-write barriers across further restarts"
         }
       ],
       "first_review_scope": {
@@ -4511,19 +4576,38 @@
         "reproducer": "The helper produced active permission without external attestation, and the torn-pair inspector returned active from files belonging to different namespace generations.",
         "source": "Pre-freeze protocol adversary"
       },
-      "tests": [],
+      "tests": [
+        {
+          "path": "tests/test_remote_write_safety_second_restart.py",
+          "nodeid": "test_unaudited_new_install_helper_is_permanently_refused",
+          "kind": "regression",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+        },
+        {
+          "path": "tests/test_remote_write_safety_second_restart.py",
+          "nodeid": "test_activation_pair_cannot_compose_different_namespace_generations",
+          "kind": "regression",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+        },
+        {
+          "path": "tests/test_followup_fail_safe_hardening.py",
+          "nodeid": "test_remote_preflight_rejects_activation_pair_torn_during_inspection",
+          "kind": "regression",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575"
+        }
+      ],
       "fix": {
-        "state": "unfixed",
-        "commit": "unknown",
-        "summary": "The replacement candidate must remove all supported unaudited activation: --initialise leaves remote writes disabled and every installation uses the stopped, lock-bound external-attestation activator. Runtime inspection must cross-revalidate both sentinel and audit path identities after both stable reads. The frozen fix identity is supplied externally."
+        "state": "fixed",
+        "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575",
+        "summary": "5b0b610 makes --initialise leave remote writes disabled, requires every installation to use the stopped lock-bound external-attestation activator, and cross-revalidates both sentinel and audit pathname identities after both stable reads."
       },
       "deployment": {
-        "state": "not-applicable",
+        "state": "not-deployed",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-31T00:00:00+01:00",
-        "evidence": "The activation protocol candidate was never merged, pushed, deployed or loaded by production."
+        "evidence": "The production observation remains be882e81, which predates and does not contain 5b0b610. The repaired activation protocol has not been merged, pushed, deployed or loaded by production."
       },
-      "residual_risk": "Active at the ledger evidence cut-off. The final replacement identity and exact external validation are deliberately not self-embedded in this ledger.",
+      "residual_risk": "The repair is present by the 7ebcc096 evidence cut-off but is not deployed. External activation evidence and stopped lock ownership remain operational prerequisites rather than candidate self-attestations.",
       "evidence": [
         {
           "type": "test",
@@ -4557,10 +4641,6 @@
         {
           "field": "introduced.last_known_good_commit",
           "explanation": "No committed predecessor is claimed to contain this not-yet-frozen activation design or to prove the complete replacement protocol safe."
-        },
-        {
-          "field": "fix.commit",
-          "explanation": "The final frozen replacement commit is supplied by the external attestation to avoid self-reference."
         }
       ],
       "relations": {
@@ -4569,6 +4649,1090 @@
         "related": [
           "DEF-0035",
           "DEF-0036"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0038",
+      "title": "Transport could outlive disappearance of the validated source receipt",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "IR-40AB83E-01",
+      "status": "repaired-not-deployed",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "cross-lane remote-write preflight",
+        "receipt-bound X transport",
+        "historical-context transport",
+        "transport journal and restart fence"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "remote_write_transport_journal.py",
+        "ir_40ab83e_cross_lane_boundary_matrix.json"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "IR-40AB83E-01 used local literal-process receipt replacement and hard-exit boundaries without making any network, X, provider, service or production request.",
+        "explanation": "The transport/receipt interleaving was an offline adversarial reproducer, not a production incident."
+      },
+      "summary": "At 40ab83e, a lane could validate its exact durable source receipt and then lose that pathname before the remote POST. No independent payload/source-bound transport journal and restart fence was guaranteed to exist at the final transport boundary, so a hard exit after a possible remote acceptance could leave a fresh process without the source receipt that had authorised the request.",
+      "impact": "A supported local receipt-disappearance interleaving could separate a possibly accepted remote write from every durable ambiguity barrier and permit a later process to retry or enter an unrelated remote lane.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..40ab83ef77e75549a08ee0dc2082985ca36b361b",
+        "confidence": "bounded",
+        "explanation": "The boundary review established the defect through 40ab83e, the parent of the fixing commit. It did not reconstruct the first introducing commit or prove an earlier good revision."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "IR-40AB83E-01 reproduced source-receipt disappearance after authority validation and showed that the transport could proceed without an independently durable restart barrier.",
+          "commit": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+          "evidence": "Cross-lane transport boundary matrix and literal-process adversarial review"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "7ebcc096 added a payload-, source- and inode-bound transport journal plus a restart fence that is created and consumed at the final transport boundary.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Harden remote write transport boundaries"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+        "scope": "Every X create lane from source-receipt validation through final transport, with receipt replacement and hard process exit at the authority boundary.",
+        "exclusions": "No live network, X, provider, service or production state was used.",
+        "source": "IR-40AB83E independent cross-lane transport-boundary review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+        "method": "Replace or remove a previously validated source receipt immediately before the real transport boundary, allow the local transport stub to record acceptance and hard-exit the process.",
+        "reproducer": "The 40ab83e process could reach transport after the authorising receipt pathname disappeared, while the next process had no independent transaction barrier for that possible acceptance.",
+        "source": "IR-40AB83E-01"
+      },
+      "tests": [
+        {
+          "path": "tests/test_ir_40ab83e_cross_lane_transport_boundary.py",
+          "nodeid": "test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "kind": "integration",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "summary": "7ebcc096 creates and synchronises an immutable payload/source-bound transport journal and restart fence, revalidates the exact source identity immediately before transport, and retains a barrier when the source disappears or the outcome is ambiguous."
+      },
+      "deployment": {
+        "state": "not-deployed",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Observed production remained at be882e81. It does not contain 7ebcc096, and no merge, deployment or loaded-process activation of this repair is claimed."
+      },
+      "residual_risk": "The repair is committed at the ledger evidence cut-off but is not deployed. The exact-cut-off review then found distinct same-byte pathname replacement, retirement durability, caller-authority and namespace/parser defects recorded as DEF-0040 through DEF-0043.",
+      "evidence": [
+        {
+          "type": "artifact",
+          "reference": "ir_40ab83e_cross_lane_boundary_matrix.json",
+          "claim": "The immutable matrix records IR-40AB83E-01, its cross-lane scope and the receipt-disappearance boundary that required a durable transport barrier."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_ir_40ab83e_cross_lane_transport_boundary.py::test_receipt_loss_cannot_leave_transport_unbarriered_after_restart",
+          "claim": "A literal fresh process remains globally blocked after receipt loss, recorded transport acceptance and hard exit."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review bounded the defect at the fixing commit's parent but did not reconstruct its first introduction."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was established as free of this transport/receipt interleaving."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0024",
+          "DEF-0025",
+          "DEF-0029",
+          "DEF-0036",
+          "DEF-0040"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0039",
+      "title": "Ambiguous v2 media upload could fall back to a second v1.1 upload",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "IR-40AB83E-02",
+      "status": "repaired-not-deployed",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "media upload transport",
+        "v2 media response classification",
+        "legacy v1.1 fallback",
+        "durable media upload receipt"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "remote_media_upload_receipt.py",
+        "ir_40ab83e_cross_lane_boundary_matrix.json"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The review used deterministic local v2 upload stubs, response exceptions and hard exits; it made no network, X, provider, service or production request.",
+        "explanation": "The possible double upload was established by offline boundary analysis and regression reproduction, not by a production incident."
+      },
+      "summary": "At 40ab83e, upload_media broadly caught non-rate-limit v2 API failures and other exceptions and then invoked the v1.1 uploader. A failure after the v2 service had accepted the bytes was therefore indistinguishable from a pre-acceptance failure, so the automatic fallback could upload the same media a second time without a durable media-ID owner.",
+      "impact": "One logical post could create duplicate remote media objects, and a process loss around media acceptance could leave later post transport without a single durable, restart-safe media identity.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..40ab83ef77e75549a08ee0dc2082985ca36b361b",
+        "confidence": "bounded",
+        "explanation": "The ambiguous fallback was established through 40ab83e, the fixing commit's parent. The review did not reconstruct the first introducing revision or an earlier known-good boundary."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "IR-40AB83E-02 identified that an ambiguous v2 acceptance could be followed automatically by a second v1.1 upload and that media identity lacked a durable owner across restart.",
+          "commit": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+          "evidence": "Cross-lane transport boundary matrix and media-upload source review"
+        },
+        {
+          "date": "2026-07-31",
+          "event": "7ebcc096 removed automatic legacy fallback, added an immutable media upload receipt/fence and handed the confirmed media ID into the main transaction journal before post transport.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Harden remote write transport boundaries"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+        "scope": "v2 media request through response classification, legacy v1.1 fallback, confirmed media-ID handoff, main post transport and hard-exit restart boundaries.",
+        "exclusions": "No live network, X, provider, service or production state was used.",
+        "source": "IR-40AB83E independent cross-lane transport-boundary review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "40ab83ef77e75549a08ee0dc2082985ca36b361b",
+        "method": "Inspect the real upload_media exception branches and inject a v2 exception after a local stub records remote acceptance.",
+        "reproducer": "The same call entered the legacy v1.1 helper after the v2 stub had already recorded acceptance, with no durable media receipt establishing a single confirmed media ID.",
+        "source": "IR-40AB83E-02"
+      },
+      "tests": [
+        {
+          "path": "tests/test_media_upload_transaction_integration.py",
+          "nodeid": "test_legacy_v1_1_helper_refuses_before_any_transport",
+          "kind": "regression",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c"
+        },
+        {
+          "path": "tests/test_media_upload_transaction_integration.py",
+          "nodeid": "test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "kind": "integration",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c"
+        }
+      ],
+      "fix": {
+        "state": "fixed",
+        "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "summary": "7ebcc096 makes legacy v1.1 upload refuse before transport, persists an immutable payload-bound media receipt and restart fence around v2 transport, and durably hands the confirmed media ID into the main journal before the post can proceed."
+      },
+      "deployment": {
+        "state": "not-deployed",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "Observed production remained at be882e81. It does not contain 7ebcc096, and no merge, deployment or loaded-process activation of this repair is claimed."
+      },
+      "residual_risk": "The repair is committed at the ledger evidence cut-off but is not deployed. The exact-cut-off review found separate same-byte replacement, retirement durability and safe-recovery liveness gaps recorded in DEF-0040, DEF-0041 and DEF-0045.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "40ab83e:mrsMThatcher2.py",
+          "claim": "The reviewed upload_media exception branches automatically attempted v1.1 after broadly classified v2 failures."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_media_upload_transaction_integration.py::test_legacy_v1_1_helper_refuses_before_any_transport",
+          "claim": "The legacy helper now refuses before any transport instead of acting as an ambiguous second upload path."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_media_upload_transaction_integration.py::test_hard_exit_media_boundaries_leave_fresh_process_globally_blocked",
+          "claim": "Hard exits at media receipt and handoff boundaries leave a fresh process globally blocked."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review bounded the defect at the fixing commit's parent but did not reconstruct its first introduction."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was established as free of this ambiguous media fallback."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0024",
+          "DEF-0025",
+          "DEF-0038",
+          "DEF-0041",
+          "DEF-0045"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0040",
+      "title": "Byte-identical pathname replacement could retain stale transport authority",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-exact-transition-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "stable receipt inspection",
+        "transport journal source binding",
+        "exact receipt transition",
+        "identity-bound retirement"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The exact-cut-off review used local pathname replacement reasoning and byte-identical offline fixtures; it made no network, X, provider, service or production request.",
+        "explanation": "This is a supported-process transaction-authority defect established by adversarial review, not evidence of a production duplicate."
+      },
+      "summary": "At 7ebcc096, several transaction decisions bound authority to a pathname's validated bytes or digest but did not preserve one stable filesystem identity across every later exchange, transport and retirement decision. A cooperating peer could replace the pathname with a different inode containing byte-identical JSON between checks, allowing stale authority to survive or the wrong namespace generation to be transitioned or retired.",
+      "impact": "A same-byte ABA replacement within the supported cooperative-process model could disconnect remote transport or destructive retirement from the exact durable object that was reviewed, weakening restart ambiguity preservation and duplicate prevention.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The defect was established against the exact 7ebcc096 cut-off. The review did not reconstruct its first introduction or prove an earlier revision free of every same-byte ABA boundary."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "Independent review of the exact 7ebcc096 tree identified byte-identical inode replacement windows across receipt validation, transition and retirement.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Exact-cut-off filesystem identity and transition review"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Receipt and fence pathname identity from stable no-follow inspection through transport, exact exchange, confirmed handoff and destructive retirement for each remote-write lane.",
+        "exclusions": "This is a cooperative-process correctness boundary, not a security guarantee against arbitrary mutation by another process with the same operating-system identity; no live service was used.",
+        "source": "Independent post-7ebcc096 exact-transition review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Trace the inode and byte identity held at each no-follow read, exchange and unlink, then substitute a different ordinary single-link inode containing the same canonical bytes between identity checks.",
+        "reproducer": "The reviewed code could accept a later byte-identical namespace generation even though it was not the object whose earlier identity authorised the operation.",
+        "source": "Post-cut-off adversarial filesystem review"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-7ebcc096 external proposal carries no-follow descriptors and stable device/inode/change-time/byte identity through each transition and adds exact-source exchange/retirement checks. It is not a ledger fix until committed on a descendant release base and the ledger is regenerated."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "This active cut-off defect has no committed repair to deploy. The production observation remains be882e81, while the defect is independently established at the later 7ebcc096 evidence cut-off."
+      },
+      "residual_risk": "Until a descendant repair is committed, fix-bound tests are recorded and the ledger is regenerated, byte equality alone cannot prove that a later namespace entry is the exact transaction object previously authorised.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_write_transport_journal.py",
+          "claim": "The cut-off implementation combines stable reads, byte expectations, rename exchange and later unlink decisions without one end-to-end descriptor identity capability."
+        },
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_media_upload_receipt.py",
+          "claim": "The media transition and retirement implementation has the analogous byte-identical namespace-generation boundary."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review established the defect at the exact cut-off but did not reconstruct its first introducing commit."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier commit was proved free of every same-byte ABA transition window."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0038",
+          "DEF-0039",
+          "DEF-0041",
+          "DEF-0042",
+          "DEF-0043",
+          "DEF-0045"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0041",
+      "title": "Receipt retirement fsync failure could clear the last barrier without latching the daemon",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-exact-transition-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "receipt and fence retirement",
+        "parent-directory durability",
+        "process-lifetime ambiguity latch",
+        "crash-restart barrier preservation"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The cut-off review injected local parent-directory fsync failures after unlink boundaries and made no network, X, provider, service or production request.",
+        "explanation": "The failure ordering is an offline adversarial transaction reproducer, not an observed production incident."
+      },
+      "summary": "At 7ebcc096, receipt and fence retirement used unlink followed by parent-directory fsync. If the unlink removed the final restart-visible barrier and that fsync then failed, the exception could escape without first setting a durable or process-lifetime remote-write latch. The current process could therefore remain capable of a later remote tick while crash persistence of the deletion was uncertain.",
+      "impact": "A local durability failure at the final destructive transition could leave neither a reliably durable restart barrier nor a latched current process, weakening duplicate prevention across both same-process continuation and crash restart.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The exact failure ordering was established at 7ebcc096. The review did not reconstruct the introducing commit or establish an earlier good retirement implementation."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "Independent exact-cut-off review reproduced a final-barrier unlink followed by a failed parent-directory fsync and found no guaranteed latch before the destructive operation.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Receipt-retirement durability and latch review"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Every unlink and directory-fsync transition that can remove a receipt, transport fence, media fence or retirement guard, including continuation in the same daemon and restart after hard exit.",
+        "exclusions": "No live network, X, provider, service or production state was used; arbitrary hostile same-UID filesystem mutation is outside the supported process model.",
+        "source": "Independent post-7ebcc096 retirement-boundary review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Inject an exception in the first parent-directory fsync after each destructive unlink, then inspect process-local block state and the namespace visible to a fresh process.",
+        "reproducer": "At a final-barrier boundary, the pathname could already be absent when fsync raised even though no prior permanent current-process latch had been established.",
+        "source": "Post-cut-off adversarial durability review"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-7ebcc096 external proposal latches before destructive retirement and uses crash-resumable durable transition markers so a failed final fsync cannot open either the current process or the next one. It remains unresolved until committed and recorded by post-merge ledger regeneration."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "There is no committed repair to deploy. Production remains observed at be882e81, and the active defect is established at the 7ebcc096 cut-off."
+      },
+      "residual_risk": "Until a committed fix makes destructive retirement latch-first and crash-resumable, an injected local durability failure can make barrier absence and durability uncertainty coincide.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_write_transport_journal.py",
+          "claim": "The cut-off retirement path unlinks journal and fence namespace entries and then synchronises the parent directory."
+        },
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_media_upload_receipt.py",
+          "claim": "The media retirement path has corresponding unlink-then-fsync finalisation boundaries."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review established this boundary at the cut-off but did not reconstruct the first introducing commit."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier commit was established as free of the retirement fsync/latch defect."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0038",
+          "DEF-0039",
+          "DEF-0040",
+          "DEF-0042",
+          "DEF-0045"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0042",
+      "title": "Destructive transaction helpers lacked verified caller lock authority",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-transaction-authority-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-PROC-002",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "process-lifetime instance lock",
+        "transaction mutation authority",
+        "receipt transition helpers",
+        "receipt and fence retirement"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The review invoked low-level mutation helpers from local supported-process fixtures without a current instance-lock proof; no network, X, provider, service or production request occurred.",
+        "explanation": "This is an internal serialization and API-authority defect, not a claim of hostile production access."
+      },
+      "summary": "At 7ebcc096, low-level helpers that exchange, confirm or destructively retire transaction receipts and fences were callable without a non-forgeable proof that the current daemon instance still owned the process-lifetime lock. Call sites generally intended to run under the lock, but that intent was not an enforced precondition at the mutation boundary.",
+      "impact": "A supported caller, refactor or second cooperative process could mutate the durable barrier namespace outside the serialization boundary on which restart safety depends.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The missing enforced capability was established at the exact 7ebcc096 cut-off. The review did not reconstruct its first introduction or prove an earlier fully authorised helper surface."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "Independent exact-cut-off API review found that destructive receipt and journal helpers trusted caller convention rather than verifying current instance-lock authority.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Transaction helper call graph and process-lock authority review"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Every supported helper able to create, exchange, confirm, hand off or remove remote-write transaction receipt, journal, fence or retirement namespace entries.",
+        "exclusions": "The process lock is a cooperative-process correctness boundary, not an operating-system security boundary against arbitrary code running under the same user identity; no live service was used.",
+        "source": "Independent post-7ebcc096 transaction-authority review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Enumerate destructive transaction functions and invoke representative helpers without acquiring or proving the process-lifetime instance lock.",
+        "reproducer": "Representative mutation APIs accepted ordinary arguments and reached durable namespace mutation without a verified current-lock capability.",
+        "source": "Post-cut-off helper-authority adversary"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-7ebcc096 external proposal introduces a process-bound, verifier-backed transaction mutation capability and requires it at every destructive helper. That proposal is not fixed ledger truth until it is committed on a descendant base and the ledger is regenerated."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "There is no committed repair to deploy. Production remains observed at be882e81, and the active helper-authority defect is established at 7ebcc096."
+      },
+      "residual_risk": "Until the capability requirement is committed and fix-bound at every mutation entry point, code review must treat caller-held-lock comments and conventions as insufficient proof of serialization.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_write_transport_journal.py",
+          "claim": "The cut-off journal transition and retirement APIs have no required current-instance-lock capability parameter."
+        },
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_media_upload_receipt.py",
+          "claim": "The cut-off media receipt transition and retirement APIs likewise rely on call-site convention for process-lock ownership."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review established the missing authority check at the cut-off but did not reconstruct its first introducing commit."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was established as having a complete verified mutation-capability boundary."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0033",
+          "DEF-0040",
+          "DEF-0041",
+          "DEF-0043"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0043",
+      "title": "Unsafe receipt namespaces and ambiguous JSON could be treated as absent or authoritative",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-receipt-parser-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "regular and meme receipt readers",
+        "conversational reply receipt reader",
+        "receipt namespace preflight",
+        "strict canonical transaction JSON"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The exact-cut-off review used disposable symlink, directory, FIFO, duplicate-key, non-finite and non-canonical JSON fixtures and made no network, X, provider, service or production request.",
+        "explanation": "These are offline parser and namespace adversarial cases, not a production incident."
+      },
+      "summary": "At 7ebcc096, remaining regular, meme and conversational receipt paths still mixed Path.exists or ordinary open/json.load readers with transaction logic. Unsafe namespace entries such as dangling symlinks, directories or FIFOs could be misclassified as absent, cause inconsistent handling or be overwritten, while duplicate names, non-finite values and semantically equivalent non-canonical documents could be accepted without one strict byte identity. Historical-context receipt parsing had already been hardened by DEF-0036; this record covers the remaining receipt surface and its integration with journal/media preflight.",
+      "impact": "An ambiguous or unsafe local receipt representation could fail to act as a global barrier, fabricate transaction authority, or allow a replacement write to erase evidence whose meaning was not safely established.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The remaining parser and namespace defects were established at the exact 7ebcc096 cut-off. Their individual introduction histories were not reconstructed and no earlier globally strict receipt surface was proved."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "Independent review of 7ebcc096 separated the already repaired historical-context parser from unsafe namespace and permissive JSON handling still present in the other transaction receipt lanes.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Exact-cut-off receipt namespace and canonical-JSON review"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Regular, meme and conversational receipt discovery, strict parse, schema validation, exact byte authority, journal/media integration and write/retirement preflight for unsafe namespace types.",
+        "exclusions": "Configuration and pause-control JSON remain DEF-0017; the historical-context parser repair remains DEF-0036; no live service or hostile same-UID security guarantee was assessed.",
+        "source": "Independent post-7ebcc096 receipt-parser review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Trace receipt existence checks and decoders, then substitute unsafe namespace object types and duplicate, non-finite or non-canonical JSON at each main transaction receipt path.",
+        "reproducer": "Cut-off code used ordinary existence/open/JSON operations on receipt paths for which every namespace entry or decoding ambiguity must instead remain a fail-closed barrier.",
+        "source": "Post-cut-off receipt namespace adversary"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-7ebcc096 external proposal uses stable O_NOFOLLOW inspection, requires owned ordinary single-link files, rejects duplicate names and non-finite values, requires canonical transaction bytes and refuses overwrite of any unsafe namespace entry. It remains unresolved until committed and captured by post-merge ledger regeneration."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "There is no committed repair to deploy. The production observation remains be882e81, and the active parser/namespace defect is independently established at 7ebcc096."
+      },
+      "residual_risk": "Until a descendant fix unifies receipt namespace inspection and strict canonical decoding, malformed or unsafe local receipt objects must be treated operationally as unresolved remote-write barriers rather than repaired automatically.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:mrsMThatcher2.py",
+          "claim": "The exact cut-off retains ordinary Path.exists, open and json.load receipt paths for regular, meme and conversational transaction state."
+        },
+        {
+          "type": "code",
+          "reference": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575:historical_context_formatter.py",
+          "claim": "The earlier historical-context repair already rejects duplicate names and non-finite constants, keeping this new record properly narrower than DEF-0036."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review established the remaining gap at the cut-off but did not reconstruct its first introducing commit."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier commit was established as having a uniformly strict transaction receipt surface."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "Only an external post-cut-off proposal exists; no fixing commit is within this ledger's evidence boundary."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0017",
+          "DEF-0036",
+          "DEF-0040",
+          "DEF-0042"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0044",
+      "title": "Candidate-owned pytest hooks could forge internally consistent release evidence",
+      "source_class": "established-related",
+      "defect_class": "assurance-weakness",
+      "diagnosis_finding": "post-7ebcc096-assurance-trust-review",
+      "status": "assurance-weakness",
+      "severity": "assurance",
+      "invariant_ids": [
+        "INV-REL-TRUST-001"
+      ],
+      "components": [
+        "candidate-owned release gate",
+        "candidate-owned pytest evidence plugin",
+        "JUnit and structured event capture",
+        "external assurance trust root"
+      ],
+      "affected_files": [
+        "tools/release_gate.py",
+        "tools/release_gate_pytest_plugin.py"
+      ],
+      "runtime_lanes": [
+        "release-assurance"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The review constructed only local evidence-forgery scenarios against the exact candidate tree; it did not issue or rely on a real release attestation.",
+        "explanation": "This is an assurance trust-root weakness, not evidence that a production release was actually forged."
+      },
+      "summary": "At 7ebcc096, candidate-owned code knew the writable JUnit and structured-event destinations and supplied the explicitly loaded pytest evidence plugin. A candidate change could alter its own gate, plugin or pytest hooks to emit mutually consistent passing JUnit, event and exit-status evidence without an independent observer proving that the declared tests actually executed. This is the concrete evidence-forgery mechanism separated from DEF-0019's broader same-repository trust-root problem.",
+      "impact": "A release candidate could satisfy internal structural and hash consistency checks with fabricated test outcomes, so those artifacts alone cannot establish independent release qualification.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The concrete forgery capability was established against 7ebcc096. Its first introduction and an earlier independently observed good revision were not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "Independent exact-cut-off review showed that the candidate controlled the pytest hook code and knew the evidence outputs whose internal consistency the gate later accepted.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Candidate-owned pytest evidence capability analysis"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Pytest command construction, explicit plugin loading, JUnit and event destination authority, result cross-checks and the boundary between candidate code and independent release assurance.",
+        "exclusions": "No external assurance repository or real attestation key was available for adversarial testing; this record does not claim such an external system is already compromised.",
+        "source": "Independent post-7ebcc096 assurance trust review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Map which principal chooses the pytest hooks and which principal can write or synthesize the JUnit, structured event and process-status observations consumed by the gate.",
+        "reproducer": "The same candidate principal could change the loaded plugin and gate-facing evidence production so all candidate-checked artifacts agreed without an independent execution observation.",
+        "source": "Release-evidence authority analysis"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Move test execution and evidence production to a separately committed, hash-pinned external runner and plugin, deny candidate code write authority over those outputs, and independently bind collected nodes and outcomes to the candidate tree. No such external fix is embedded in this ledger."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "observed_at": "2026-07-31T20:45:04+01:00",
+        "evidence": "This weakness concerns release assurance authority at the exact evidence cut-off; production deployment status is not applicable."
+      },
+      "residual_risk": "Until an independent runner owns the plugin, execution observation and evidence destinations, candidate-produced pytest evidence remains advisory even when its internal hashes, counts and exit status agree.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:tools/release_gate.py",
+          "claim": "The candidate-owned gate selects the candidate plugin and consumes JUnit, event and exit-status evidence written during that invocation."
+        },
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:tools/release_gate_pytest_plugin.py",
+          "claim": "The explicitly loaded evidence collector is itself candidate-owned and its module documentation acknowledges that authoritative assurance needs an externally pinned plugin."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review established the concrete capability at the cut-off but did not reconstruct its first introducing commit."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was established as independently observing pytest execution and evidence production."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The required repair belongs to an external assurance trust root and no fixing commit is embedded in this application ledger."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0019",
+          "DEF-0026"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0045",
+      "title": "Exact exchange staging could require manual recovery after a safe hard exit",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-exact-transition-liveness-review",
+      "status": "active",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "exact exchange staging namespace",
+        "transport journal lifecycle",
+        "media receipt lifecycle",
+        "restart recovery and operator procedure"
+      ],
+      "affected_files": [
+        "remote_write_transport_journal.py",
+        "remote_media_upload_receipt.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The review considered hard exits before and after local RENAME_EXCHANGE staging transitions. No remote transport, production action or duplicate was observed.",
+        "explanation": "This record is explicitly an availability and manual-recovery weakness in a fail-closed path; it does not classify safe blocking as a duplicate-safety failure."
+      },
+      "summary": "At 7ebcc096, exact journal and media transitions used randomly named durable staging entries around RENAME_EXCHANGE. A hard exit before cleanup deliberately left any staging entry as a restart-visible blocker, but the next process had no strict self-describing resumer that could prove the interrupted phase and complete only the exact transition. Recovery could therefore require manual inspection even when the durable state was safe.",
+      "impact": "A safe hard exit can leave remote writes unavailable until an operator diagnoses and repairs an exact-transition staging artifact. The demonstrated behavior is fail-closed; this record does not claim that the staging artifact permits a duplicate remote write.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The liveness limitation was established at the exact 7ebcc096 cut-off. Its introducing revision and an earlier implementation with strict automatic resumption were not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "Exact-cut-off review confirmed that hard exit can preserve an intentionally blocking transition staging entry for which no strict automatic resumer or complete operator procedure existed.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "RENAME_EXCHANGE staging and restart-liveness review"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-07-31",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Hard exits before exchange, after exchange and before staging cleanup for journal and media lifecycle transitions, including fresh-process blocker interpretation and possible safe resumption.",
+        "exclusions": "No live network, X, provider, service or production state was used. Duplicate safety was not shown to fail and arbitrary hostile same-UID mutation is outside scope.",
+        "source": "Independent post-7ebcc096 transition-liveness review"
+      },
+      "detection": {
+        "date": "2026-07-31",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Trace each hard-exit boundary in the random staging lifecycle and compare the namespace left behind with the states the fresh-process blocker and local reconciler can classify and resume.",
+        "reproducer": "A staging entry can remain after a safe interrupted exchange, block the next process as intended and lack enough independently validated phase metadata for automatic completion.",
+        "source": "Post-cut-off exact-transition liveness analysis"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A future fix may use durable self-describing transition descriptors with an exact, unique fresh-process resumer, or ship a bounded operator recovery procedure that preserves every barrier. No post-7ebcc096 proposal is treated as committed ledger truth."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "There is no committed liveness repair to deploy. Production remains observed at be882e81, while this fail-closed limitation is established at the 7ebcc096 cut-off."
+      },
+      "residual_risk": "The current behavior preserves ambiguity by blocking. Availability remains dependent on careful manual recovery after some exact-transition hard exits until a committed resumer or documented recovery protocol is validated.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_write_transport_journal.py",
+          "claim": "The cut-off exact journal replacement creates a random durable staging name and intentionally leaves it as a fail-closed marker after some interrupted transitions."
+        },
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:remote_media_upload_receipt.py",
+          "claim": "The media receipt lifecycle uses the analogous exchange staging behavior without a strict fresh-process phase resumer."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The review established this liveness limitation at the cut-off but did not reconstruct its first introduction."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier commit was established as both fail-closed and automatically resumable at every exact-transition boundary."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "No fixing commit is within the evidence cut-off; any later implementation remains external until ledger regeneration."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0038",
+          "DEF-0039",
+          "DEF-0040",
+          "DEF-0041"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0046",
+      "title": "Stale confirmed receipt replay could regress newer post state",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-stale-receipt-replay-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "regular confirmed-receipt replay",
+        "meme confirmed-receipt replay",
+        "post-cycle duplicate-suppression histories",
+        "main-post identity and future schedules"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "tests/test_unit_helpers.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "A pre-freeze adversarial review used synthetic stale schema-v2/v3 receipts and newer in-memory state. It made no network, X, provider, service or production request.",
+        "explanation": "The replay defect is reproducible offline; no duplicate live meme, quotation or image reuse is inferred."
+      },
+      "summary": "At 7ebcc096, a stale valid meme receipt unconditionally moved last-main and meme schedule state backward, while stale current-schema regular receipts cleared and replaced newer quote/image histories before comparing post epochs. Reconciliation could therefore treat an older confirmed transaction as the newest local state.",
+      "impact": "Replaying an older receipt after newer durable state could erase duplicate-suppression identities, roll the daily-meme guard and next schedule backward, or replace the current main-post identity. This could make an otherwise ineligible repeat post or second same-day meme appear due.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The defect was reproduced against the exact 7ebcc096 evidence cut-off. Its first introducing revision was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Pre-freeze schedule and recovery review reproduced stale regular-history erasure and stale meme-state rollback against the 7ebcc096 cut-off.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Synthetic stale-receipt replay with a strictly newer quote/meme state"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Regular schema-v2/v3 and meme schema-v2 confirmed-receipt reconciliation when local histories, main identity, post epochs and schedules already represent a newer transaction.",
+        "exclusions": "No live runtime state, remote service or production receipt was used; legacy receipt migration beyond the reproduced states was not reclassified.",
+        "source": "Independent pre-freeze scheduler and receipt-replay review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Apply one older semantically valid confirmed receipt to state containing a later post epoch, later schedule and additional cycle-history identities, then compare every protected field before and after reconciliation.",
+        "reproducer": "The stale regular receipt removed newer quote/image identities; the stale meme receipt replaced the later main identity, meme epoch and future schedule and cleared the effective same-day guard.",
+        "source": "Pre-freeze stale-receipt adversarial fixtures"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-cut-off proposal makes replay monotonic: only a strictly newer current-schema receipt installs an exact cycle snapshot, stale replays union identities, and stale meme receipts preserve later main, epoch and schedule state. It is not ledger truth until committed and re-attested."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "No committed descendant repair has been deployed. Production remains observed at be882e81 and was not inspected or changed by this pre-freeze review."
+      },
+      "residual_risk": "Until a descendant repair is frozen and validated, receipt recovery must not assume that a semantically valid older receipt may overwrite later histories, post identity or schedules.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:mrsMThatcher2.py",
+          "claim": "The cut-off regular replay clears current histories before freshness comparison and the meme replay assigns last-main, last-meme and next-schedule fields without a monotonicity guard."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision containing both stale replay behaviours was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier commit was proved safe for both regular and meme stale-receipt replay."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The repair remains an uncommitted post-cut-off candidate."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0027",
+          "DEF-0028",
+          "DEF-0030"
         ]
       }
     }

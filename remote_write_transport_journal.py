@@ -30,26 +30,44 @@ import stat
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
+
+from transaction_mutation_authority import (
+    TransactionMutationAuthority,
+    require_transaction_mutation_authority,
+)
 
 
 JOURNAL_BASENAME = "remote_write_transport_journal.json"
 FENCE_BASENAME = "remote_write_transport_fence.json"
-JOURNAL_SCHEMA_VERSION = 1
+JOURNAL_SCHEMA_VERSION = 2
 JOURNAL_MODE = 0o600
 JOURNAL_MAX_BYTES = 128 * 1024
 JOURNAL_STAGING_PREFIX = f".{JOURNAL_BASENAME}.transition."
 JOURNAL_RETIREMENT_PREFIX = f".{JOURNAL_BASENAME}.retirement-guard."
+LANE_SOURCE_VALIDATOR_ID = "mrs-lane-source-binding-v2"
 _RENAME_EXCHANGE = 2
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _LANE_RE = re.compile(r"[a-z][a-z0-9_.:-]{0,79}")
 _POST_ID_RE = re.compile(r"\d{1,30}")
+_MEDIA_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
+_VALIDATOR_ID_RE = re.compile(r"[a-z][a-z0-9_.:-]{2,159}")
 _consumed_authorities: set[tuple[str, str]] = set()
+_issued_untransmitted_authorities: set[tuple[str, str, str]] = set()
+_issued_source_bindings: set[
+    tuple[str, str, int, int, int, str, str, str]
+] = set()
+_transitioning_transactions: set[tuple[str, str]] = set()
+_aborting_transactions: set[tuple[str, str]] = set()
 _authority_lock = threading.Lock()
 
 
 class TransportJournalError(RuntimeError):
     """A transport journal is missing, unsafe, conflicting, or stale."""
+
+
+class BoundSourceReceiptTransitionError(TransportJournalError):
+    """An identity-bound source promotion did not complete exactly."""
 
 
 @dataclass(frozen=True)
@@ -61,14 +79,101 @@ class TransportAuthority:
     journal_sha256: str
     journal_device: int
     journal_inode: int
+    journal_ctime_ns: int
     fence_path: str
     fence_sha256: str
     fence_device: int
     fence_inode: int
+    fence_ctime_ns: int
     payload_sha256: str
     lane: str
     source_receipt_basename: str
+    source_validator_id: str
     lifecycle_state: str
+
+
+@dataclass(frozen=True)
+class FrozenTweetRequest:
+    """Canonical, immutable representation of the supported X create request."""
+
+    method: str
+    request_path: str
+    payload_bytes: bytes
+    payload_sha256: str
+
+    def payload(self) -> dict[str, Any]:
+        """Return a fresh mutable copy of the frozen payload."""
+
+        return _parse_strict_object_bytes(
+            self.payload_bytes,
+            label="frozen tweet payload",
+        )
+
+
+@dataclass(frozen=True)
+class SourceReceiptBinding:
+    """Exact source receipt and payload approved by a lane-owned validator."""
+
+    receipt_path: str
+    receipt_bytes: bytes
+    receipt_sha256: str
+    receipt_device: int
+    receipt_inode: int
+    receipt_ctime_ns: int
+    receipt_size: int
+    receipt_document: dict[str, Any]
+    lane: str
+    request: FrozenTweetRequest
+    validator_id: str
+
+
+@dataclass(frozen=True)
+class ConfirmedTransportDetails:
+    """Strict restart-recovery view of one confirmed transport transaction."""
+
+    transaction_id: str
+    lane: str
+    post_id: str
+    confirmation_epoch: int
+    source_receipt_basename: str
+    source_receipt_sha256: str
+    source_validator_id: str
+    payload_bytes: bytes
+    payload_sha256: str
+    journal_path: str
+    journal_sha256: str
+    journal_device: int
+    journal_inode: int
+    journal_ctime_ns: int
+
+    def payload(self) -> dict[str, Any]:
+        """Return a fresh copy of the exact confirmed remote payload."""
+
+        return _parse_strict_object_bytes(
+            self.payload_bytes,
+            label="confirmed tweet payload",
+        )
+
+
+@dataclass(frozen=True)
+class ConfirmedSourceRecovery:
+    """Confirmed transport plus its still-exact, semantically valid source."""
+
+    details: ConfirmedTransportDetails
+    source_binding: SourceReceiptBinding
+
+
+@dataclass(frozen=True)
+class TransportJournalState:
+    """Deterministic directory-level inspection of all journal barriers."""
+
+    classification: str
+    blocking: bool
+    journal: JournalSnapshot | None
+    fence: JournalSnapshot | None
+    staging_names: tuple[str, ...]
+    retirement_guard_names: tuple[str, ...]
+    errors: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -79,6 +184,7 @@ class JournalSnapshot:
     data: bytes
     device: int
     inode: int
+    ctime_ns: int
     sha256: str
 
 
@@ -103,10 +209,167 @@ def canonical_json_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def _strict_json_copy(value: object, *, depth: int = 0) -> object:
+    """Copy the supported JSON subset without Python-to-JSON coercions."""
+
+    if depth > 24:
+        raise TransportJournalError("tweet payload nesting is excessive")
+    if value is None or type(value) in {bool, int, str}:
+        return value
+    if type(value) is list:
+        return [_strict_json_copy(item, depth=depth + 1) for item in value]
+    if type(value) is dict:
+        copied: dict[str, object] = {}
+        for key, item in value.items():
+            if type(key) is not str or not key:
+                raise TransportJournalError(
+                    "tweet payload keys must be non-empty strings"
+                )
+            copied[key] = _strict_json_copy(item, depth=depth + 1)
+        return copied
+    raise TransportJournalError(
+        f"tweet payload contains unsupported value type: {type(value).__name__}"
+    )
+
+
+def freeze_tweet_request(
+    *,
+    method: str,
+    request_path: str,
+    payload: Mapping[str, Any],
+) -> FrozenTweetRequest:
+    """Validate and freeze the only public-create request shape used here."""
+
+    if str(method).upper() != "POST" or request_path != "/2/tweets":
+        raise TransportJournalError("transport request endpoint is invalid")
+    if type(payload) is not dict:
+        raise TransportJournalError("tweet payload must be an ordinary JSON object")
+    copied = _strict_json_copy(payload)
+    assert isinstance(copied, dict)
+    allowed = {"text", "media", "reply", "made_with_ai"}
+    if not set(copied).issubset(allowed) or not ({"text", "media"} & set(copied)):
+        raise TransportJournalError("tweet payload fields are invalid")
+    if "text" in copied and (
+        type(copied["text"]) is not str or not copied["text"]
+    ):
+        raise TransportJournalError("tweet text is invalid")
+    if "media" in copied:
+        media = copied["media"]
+        if (
+            type(media) is not dict
+            or set(media) != {"media_ids"}
+            or type(media.get("media_ids")) is not list
+            or not 1 <= len(media["media_ids"]) <= 4
+            or any(
+                    type(item) is not str or not _MEDIA_ID_RE.fullmatch(item)
+                for item in media["media_ids"]
+            )
+        ):
+            raise TransportJournalError("tweet media binding is invalid")
+    if "reply" in copied:
+        reply = copied["reply"]
+        if (
+            type(reply) is not dict
+            or set(reply) != {"in_reply_to_tweet_id"}
+            or type(reply.get("in_reply_to_tweet_id")) is not str
+            or not _POST_ID_RE.fullmatch(reply["in_reply_to_tweet_id"])
+        ):
+            raise TransportJournalError("tweet reply binding is invalid")
+    if "made_with_ai" in copied and copied["made_with_ai"] is not True:
+        raise TransportJournalError("made_with_ai must be omitted or true")
+    data = canonical_json_bytes(copied)
+    if len(data) > JOURNAL_MAX_BYTES:
+        raise TransportJournalError("tweet payload exceeds its size limit")
+    return FrozenTweetRequest(
+        method="POST",
+        request_path="/2/tweets",
+        payload_bytes=data,
+        payload_sha256=hashlib.sha256(data).hexdigest(),
+    )
+
+
 def payload_sha256(payload: Mapping[str, Any]) -> str:
     """Hash an exact remote payload using canonical JSON."""
 
-    return hashlib.sha256(canonical_json_bytes(dict(payload))).hexdigest()
+    return freeze_tweet_request(
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+    ).payload_sha256
+
+
+def bind_transport_source(
+    *,
+    receipt_path: Path,
+    expected_receipt: Mapping[str, Any],
+    lane: str,
+    payload: Mapping[str, Any],
+    validator_id: str,
+    validator: Callable[[str, Mapping[str, Any], Mapping[str, Any]], bool],
+) -> SourceReceiptBinding:
+    """Bind exact bytes only after a lane-owned semantic validator approves.
+
+    The validator receives independent copies of the lane, parsed receipt and
+    frozen payload.  It must return the singleton ``True``.  Merely passing an
+    expected dictionary is not semantic authority.
+    """
+
+    if not _LANE_RE.fullmatch(str(lane)):
+        raise TransportJournalError("transport lane is invalid")
+    if not _VALIDATOR_ID_RE.fullmatch(str(validator_id)):
+        raise TransportJournalError("source validator ID is invalid")
+    if not callable(validator):
+        raise TransportJournalError("source validator is not callable")
+    receipt_path = Path(receipt_path)
+    try:
+        receipt = _read_stable_regular(receipt_path, maximum=JOURNAL_MAX_BYTES)
+    except FileNotFoundError as exc:
+        raise TransportJournalError("source receipt is not durably present") from exc
+    parsed = _parse_strict_object_bytes(receipt.data, label="source receipt")
+    if parsed != dict(expected_receipt):
+        raise TransportJournalError("source receipt does not match prepared transaction")
+    request = freeze_tweet_request(
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+    )
+    try:
+        approved = validator(str(lane), dict(parsed), request.payload())
+    except Exception as exc:
+        raise TransportJournalError("source receipt semantic validation failed") from exc
+    if approved is not True:
+        raise TransportJournalError("source receipt does not semantically bind payload")
+    binding = SourceReceiptBinding(
+        receipt_path=str(receipt_path.absolute()),
+        receipt_bytes=receipt.data,
+        receipt_sha256=hashlib.sha256(receipt.data).hexdigest(),
+        receipt_device=int(receipt.metadata.st_dev),
+        receipt_inode=int(receipt.metadata.st_ino),
+        receipt_ctime_ns=int(receipt.metadata.st_ctime_ns),
+        receipt_size=len(receipt.data),
+        receipt_document=parsed,
+        lane=str(lane),
+        request=request,
+        validator_id=str(validator_id),
+    )
+    with _authority_lock:
+        _issued_source_bindings.add(_source_binding_key(binding))
+    return binding
+
+
+def _source_binding_key(
+    binding: SourceReceiptBinding,
+) -> tuple[str, str, int, int, int, str, str, str]:
+    return (
+        binding.receipt_path,
+        binding.receipt_sha256,
+        binding.receipt_device,
+        binding.receipt_inode,
+        binding.receipt_ctime_ns,
+        binding.request.payload_sha256,
+        binding.lane,
+        binding.validator_id,
+    )
 
 
 def journal_path_for_receipt(receipt_path: Path) -> Path:
@@ -324,7 +587,15 @@ def _rename_exchange(directory_fd: int, first: str, second: str) -> None:
         raise OSError(error, os.strerror(error), first, second)
 
 
-def _replace_exact(path: Path, *, expected: bytes, replacement: bytes) -> None:
+def _replace_exact(
+    path: Path,
+    *,
+    expected: bytes,
+    replacement: bytes,
+    expected_device: int,
+    expected_inode: int,
+    expected_ctime_ns: int,
+) -> None:
     """Atomically exchange a journal generation and prove the displaced bytes."""
 
     token = secrets.token_hex(16)
@@ -348,6 +619,23 @@ def _replace_exact(path: Path, *, expected: bytes, replacement: bytes) -> None:
     exchanged = False
     try:
         os.fsync(directory_fd)
+        before_exchange = _read_stable_regular(
+            path,
+            maximum=JOURNAL_MAX_BYTES,
+            expected_mode=JOURNAL_MODE,
+        )
+        if (
+            before_exchange.data != expected
+            or (
+                int(before_exchange.metadata.st_dev),
+                int(before_exchange.metadata.st_ino),
+                int(before_exchange.metadata.st_ctime_ns),
+            )
+            != (expected_device, expected_inode, expected_ctime_ns)
+        ):
+            raise TransportJournalError(
+                "transport journal changed before atomic lifecycle transition"
+            )
         _rename_exchange(directory_fd, path.name, staging_name)
         exchanged = True
         os.fsync(directory_fd)
@@ -361,7 +649,22 @@ def _replace_exact(path: Path, *, expected: bytes, replacement: bytes) -> None:
             maximum=JOURNAL_MAX_BYTES,
             expected_mode=JOURNAL_MODE,
         )
-        if displaced.data != expected or current.data != replacement:
+        # RENAME_EXCHANGE itself advances the displaced inode's ctime.  The
+        # stable pre-exchange read proves the authorised ctime; device/inode
+        # after exchange proves that no different pathname generation won the
+        # remaining interval.
+        displaced_identity_matches = (
+            int(displaced.metadata.st_dev),
+            int(displaced.metadata.st_ino),
+        ) == (
+            expected_device,
+            expected_inode,
+        )
+        if (
+            not displaced_identity_matches
+            or displaced.data != expected
+            or current.data != replacement
+        ):
             raise TransportJournalError(
                 "transport journal changed during atomic lifecycle transition"
             )
@@ -381,11 +684,191 @@ def _replace_exact(path: Path, *, expected: bytes, replacement: bytes) -> None:
                 )
             except Exception:
                 current = None
-            if current is not None and current.data == expected:
+            if (
+                current is not None
+                and current.data == expected
+                and (
+                    int(current.metadata.st_dev),
+                    int(current.metadata.st_ino),
+                    int(current.metadata.st_ctime_ns),
+                )
+                == (expected_device, expected_inode, expected_ctime_ns)
+            ):
                 try:
                     staging.unlink()
                 except FileNotFoundError:
                     pass
+
+
+def replace_exact_source_receipt_generation(
+    path: Path,
+    *,
+    expected_bytes: bytes,
+    replacement_bytes: bytes,
+    expected_device: int,
+    expected_inode: int,
+    expected_ctime_ns: int,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> None:
+    """Replace one exact owned 0600 source-receipt generation.
+
+    A stable pre-exchange read proves bytes, device, inode and change time.  The
+    displaced entry then proves bytes/device/inode across the atomic exchange;
+    any mismatch leaves staging as a restart-visible fail-closed marker.
+    """
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="exact source receipt generation replacement",
+    )
+    if (
+        type(expected_bytes) is not bytes
+        or not expected_bytes
+        or len(expected_bytes) > JOURNAL_MAX_BYTES
+        or type(replacement_bytes) is not bytes
+        or not replacement_bytes
+        or len(replacement_bytes) > JOURNAL_MAX_BYTES
+        or type(expected_device) is not int
+        or expected_device < 0
+        or type(expected_inode) is not int
+        or expected_inode <= 0
+        or type(expected_ctime_ns) is not int
+        or expected_ctime_ns < 0
+    ):
+        raise TransportJournalError(
+            "exact source receipt generation authority is invalid"
+        )
+    try:
+        _replace_exact(
+            Path(path),
+            expected=expected_bytes,
+            replacement=replacement_bytes,
+            expected_device=expected_device,
+            expected_inode=expected_inode,
+            expected_ctime_ns=expected_ctime_ns,
+        )
+    except Exception as exc:
+        raise BoundSourceReceiptTransitionError(
+            "exact source receipt generation replacement did not complete"
+        ) from exc
+
+
+def replace_exact_source_receipt_document(
+    path: Path,
+    *,
+    expected_bytes: bytes,
+    replacement_bytes: bytes,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> None:
+    """Replace the exact source document observed by this operation.
+
+    The stable read establishes bytes and generation identity before the
+    exchange.  A peer replacement after that observation is rejected by the
+    generation-bound exchange rather than overwritten blindly.
+    """
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="exact source receipt document replacement",
+    )
+    try:
+        current = _read_stable_regular(
+            Path(path),
+            maximum=JOURNAL_MAX_BYTES,
+            expected_mode=JOURNAL_MODE,
+        )
+    except Exception as exc:
+        raise BoundSourceReceiptTransitionError(
+            "exact source receipt document could not be observed"
+        ) from exc
+    if current.data != expected_bytes:
+        raise BoundSourceReceiptTransitionError(
+            "exact source receipt document changed before replacement"
+        )
+    replace_exact_source_receipt_generation(
+        Path(path),
+        expected_bytes=expected_bytes,
+        replacement_bytes=replacement_bytes,
+        expected_device=int(current.metadata.st_dev),
+        expected_inode=int(current.metadata.st_ino),
+        expected_ctime_ns=int(current.metadata.st_ctime_ns),
+        mutation_authority=mutation_authority,
+    )
+
+
+def publish_exact_source_receipt_document(
+    path: Path,
+    *,
+    receipt_bytes: bytes,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> None:
+    """Publish one new exact source receipt without overwriting a peer."""
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="exact source receipt document publication",
+    )
+    if (
+        type(receipt_bytes) is not bytes
+        or not receipt_bytes
+        or len(receipt_bytes) > JOURNAL_MAX_BYTES
+    ):
+        raise BoundSourceReceiptTransitionError(
+            "exact source receipt publication bytes are invalid"
+        )
+    try:
+        _publish_new(Path(path), receipt_bytes)
+        current = _read_stable_regular(
+            Path(path),
+            maximum=JOURNAL_MAX_BYTES,
+            expected_mode=JOURNAL_MODE,
+        )
+    except FileExistsError:
+        raise
+    except Exception as exc:
+        raise BoundSourceReceiptTransitionError(
+            "exact source receipt document publication did not complete"
+        ) from exc
+    if current.data != receipt_bytes:
+        raise BoundSourceReceiptTransitionError(
+            "exact source receipt changed during publication acknowledgement"
+        )
+
+
+def replace_bound_source_receipt(
+    binding: SourceReceiptBinding,
+    replacement_bytes: bytes,
+    *,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> None:
+    """Replace exactly the inode bound by a confirmed transport journal.
+
+    ``RENAME_EXCHANGE`` preserves the displaced namespace entry for inspection.
+    If a peer replaced the source after binding, the transition fails and the
+    surviving staging entry remains a restart-visible journal auxiliary rather
+    than silently accepting or destroying the changed authority.
+    """
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="bound source receipt replacement",
+    )
+    if not replacement_bytes or len(replacement_bytes) > JOURNAL_MAX_BYTES:
+        raise TransportJournalError("replacement source receipt bytes are invalid")
+    try:
+        replace_exact_source_receipt_generation(
+            Path(binding.receipt_path),
+            expected_bytes=binding.receipt_bytes,
+            replacement_bytes=replacement_bytes,
+            expected_device=binding.receipt_device,
+            expected_inode=binding.receipt_inode,
+            expected_ctime_ns=binding.receipt_ctime_ns,
+            mutation_authority=mutation_authority,
+        )
+    except BoundSourceReceiptTransitionError as exc:
+        raise BoundSourceReceiptTransitionError(
+            "bound source receipt promotion did not complete exactly"
+        ) from exc
 
 
 def _validate_document(
@@ -404,7 +887,9 @@ def _validate_document(
         "remote_payload",
         "remote_payload_sha256",
         "source_receipt",
+        "source_validation",
         "remote_post_id",
+        "confirmation_epoch",
     }
     if set(value) != required:
         raise TransportJournalError("transport journal fields are invalid")
@@ -427,6 +912,7 @@ def _validate_document(
             "basename",
             "device",
             "inode",
+            "ctime_ns",
             "size",
             "sha256",
         }
@@ -434,27 +920,52 @@ def _validate_document(
         or Path(source["basename"]).name != source["basename"]
         or type(source.get("device")) is not int
         or type(source.get("inode")) is not int
+        or type(source.get("ctime_ns")) is not int
         or type(source.get("size")) is not int
+        or source["ctime_ns"] < 0
         or source["size"] <= 0
         or not _SHA256_RE.fullmatch(str(source.get("sha256") or ""))
     ):
         raise TransportJournalError("transport journal source receipt is invalid")
+    source_validation = value.get("source_validation")
+    if (
+        not isinstance(source_validation, dict)
+        or set(source_validation) != {
+            "validator_id",
+            "receipt_sha256",
+            "payload_sha256",
+        }
+        or not _VALIDATOR_ID_RE.fullmatch(
+            str(source_validation.get("validator_id") or "")
+        )
+        or source_validation.get("receipt_sha256") != source["sha256"]
+        or source_validation.get("payload_sha256")
+        != value["remote_payload_sha256"]
+    ):
+        raise TransportJournalError("transport source validation binding is invalid")
     expected_id = hashlib.sha256(
-        b"mrsMThatcher-transport-journal-v1\0"
+        b"mrsMThatcher-transport-journal-v2\0"
         + str(value["lane"]).encode("utf-8")
         + b"\0"
         + str(source["sha256"]).encode("ascii")
         + b"\0"
         + str(value["remote_payload_sha256"]).encode("ascii")
+        + b"\0"
+        + str(source_validation["validator_id"]).encode("utf-8")
     ).hexdigest()
     if value.get("transaction_id") != expected_id:
         raise TransportJournalError("transport journal transaction ID is invalid")
     remote_post_id = value.get("remote_post_id")
+    confirmation_epoch = value.get("confirmation_epoch")
     if value["lifecycle_state"] == "confirmed":
-        if not _POST_ID_RE.fullmatch(str(remote_post_id or "")):
+        if (
+            not _POST_ID_RE.fullmatch(str(remote_post_id or ""))
+            or type(confirmation_epoch) is not int
+            or confirmation_epoch < 0
+        ):
             raise TransportJournalError("confirmed journal has no valid post ID")
-    elif remote_post_id is not None:
-        raise TransportJournalError("unconfirmed journal contains a post ID")
+    elif remote_post_id is not None or confirmation_epoch is not None:
+        raise TransportJournalError("unconfirmed journal contains confirmation data")
 
 
 def _snapshot(
@@ -474,6 +985,7 @@ def _snapshot(
         data=inspected.data,
         device=int(inspected.metadata.st_dev),
         inode=int(inspected.metadata.st_ino),
+        ctime_ns=int(inspected.metadata.st_ctime_ns),
         sha256=hashlib.sha256(inspected.data).hexdigest(),
     )
 
@@ -516,6 +1028,98 @@ def _unsafe_auxiliary_names(path: Path) -> list[str]:
     )
 
 
+def _documents_share_transaction_identity(
+    journal: Mapping[str, Any],
+    fence: Mapping[str, Any],
+) -> bool:
+    fields = (
+        "transaction_id",
+        "lane",
+        "request_method",
+        "request_path",
+        "remote_payload",
+        "remote_payload_sha256",
+        "source_receipt",
+        "source_validation",
+    )
+    return all(journal.get(field) == fence.get(field) for field in fields)
+
+
+def inspect_transport_state(path: Path) -> TransportJournalState:
+    """Inspect all transaction names in sorted, deterministic order.
+
+    Unlike :func:`inspect_transport_journal`, this diagnostic API does not
+    discard useful state merely because retirement is in progress.  Invalid
+    objects are represented by stable error codes and remain blocking.
+    """
+
+    path = Path(path)
+    try:
+        names = sorted(os.listdir(path.parent))
+    except OSError:
+        return TransportJournalState(
+            classification="directory_unavailable",
+            blocking=True,
+            journal=None,
+            fence=None,
+            staging_names=(),
+            retirement_guard_names=(),
+            errors=("directory_unavailable",),
+        )
+    staging = tuple(
+        name for name in names if name.startswith(JOURNAL_STAGING_PREFIX)
+    )
+    guards = tuple(
+        name for name in names if name.startswith(JOURNAL_RETIREMENT_PREFIX)
+    )
+    errors: list[str] = []
+    try:
+        journal = _snapshot(path)
+    except FileNotFoundError:
+        journal = None
+    except Exception:
+        journal = None
+        errors.append("journal_invalid")
+    fence_path = fence_path_for_journal(path)
+    try:
+        fence = _snapshot(
+            fence_path,
+            expected_kind="mrsMThatcher_remote_write_transport_fence",
+        )
+    except FileNotFoundError:
+        fence = None
+    except Exception:
+        fence = None
+        errors.append("fence_invalid")
+    if journal is not None and fence is not None and not _documents_share_transaction_identity(
+        journal.document,
+        fence.document,
+    ):
+        errors.append("pair_identity_mismatch")
+    if staging:
+        classification = "lifecycle_transition_in_progress"
+    elif guards:
+        classification = "retirement_in_progress"
+    elif errors:
+        classification = "invalid"
+    elif journal is None and fence is None:
+        classification = "clear"
+    elif journal is None or fence is None:
+        classification = "incomplete_pair"
+    else:
+        classification = f"{journal.document['lifecycle_state']}_pair"
+    blocking = bool(staging or guards or errors or journal is not None or fence is not None)
+    return TransportJournalState(
+        classification=classification,
+        blocking=blocking,
+        journal=journal,
+        fence=fence,
+        staging_names=staging,
+        retirement_guard_names=guards,
+        errors=tuple(sorted(errors)),
+    )
+
+
 def inspect_transport_journal(path: Path) -> JournalSnapshot | None:
     """Return one valid journal, or fail on any torn transition pathname."""
 
@@ -534,43 +1138,86 @@ def inspect_transport_journal(path: Path) -> JournalSnapshot | None:
 def transport_journal_is_blocking(path: Path) -> bool:
     """Treat either durable companion, invalid state, or a torn transition as a barrier."""
 
-    try:
-        path = Path(path)
-        journal = inspect_transport_journal(path)
-        fence_path = fence_path_for_journal(path)
-        try:
-            fence = _snapshot(
-                fence_path,
-                expected_kind="mrsMThatcher_remote_write_transport_fence",
-            )
-        except FileNotFoundError:
-            fence = None
-        if journal is None and fence is None:
-            return False
-        if journal is None or fence is None:
-            return True
-        if (
-            journal.document["transaction_id"]
-            != fence.document["transaction_id"]
-        ):
-            return True
-        return True
-    except Exception:
-        return True
+    return inspect_transport_state(path).blocking
+
+
+def transport_journal_has_valid_restart_barrier(path: Path) -> bool:
+    """Return whether at least one strict durable transaction object is readable.
+
+    This predicate is deliberately narrower than
+    :func:`transport_journal_is_blocking`.  An unavailable directory, malformed
+    object, or unexplained auxiliary name must block remote work, but it is not
+    evidence strong enough to release a retained confirmed-post signal guard.
+    A strict journal or immutable fence snapshot is independently sufficient:
+    either pathname remains a restart-visible global barrier even when its
+    companion is missing or inconsistent.
+    """
+
+    state = inspect_transport_state(Path(path))
+    return state.journal is not None or state.fence is not None
 
 
 def begin_transport_transaction(
     *,
     receipt_path: Path,
-    expected_receipt: Mapping[str, Any],
-    lane: str,
-    payload: Mapping[str, Any],
+    expected_receipt: Mapping[str, Any] | None = None,
+    lane: str | None = None,
+    payload: Mapping[str, Any] | None = None,
+    source_binding: SourceReceiptBinding | None = None,
+    source_validator_id: str | None = None,
+    source_validator: (
+        Callable[[str, Mapping[str, Any], Mapping[str, Any]], bool] | None
+    ) = None,
 ) -> TransportAuthority:
     """Publish a payload-bound restart barrier from one exact lane receipt."""
 
-    if not _LANE_RE.fullmatch(str(lane)):
-        raise TransportJournalError("transport lane is invalid")
     receipt_path = Path(receipt_path)
+    if source_binding is None:
+        if (
+            expected_receipt is None
+            or lane is None
+            or payload is None
+            or source_validator_id is None
+            or source_validator is None
+        ):
+            raise TransportJournalError(
+                "a lane-owned semantic source binding is required"
+            )
+        source_binding = bind_transport_source(
+            receipt_path=receipt_path,
+            expected_receipt=expected_receipt,
+            lane=lane,
+            payload=payload,
+            validator_id=source_validator_id,
+            validator=source_validator,
+        )
+    elif any(
+        item is not None
+        for item in (
+            expected_receipt,
+            lane,
+            payload,
+            source_validator_id,
+            source_validator,
+        )
+    ):
+        raise TransportJournalError(
+            "source binding cannot be combined with unbound source arguments"
+        )
+    lane = source_binding.lane
+    payload_value = source_binding.request.payload()
+    if (
+        receipt_path.absolute() != Path(source_binding.receipt_path)
+        or source_binding.request.method != "POST"
+        or source_binding.request.request_path != "/2/tweets"
+    ):
+        raise TransportJournalError("source binding is not for this request")
+    binding_key = _source_binding_key(source_binding)
+    with _authority_lock:
+        if binding_key not in _issued_source_bindings:
+            raise TransportJournalError(
+                "source binding was not issued by semantic validation"
+            )
     journal_path = journal_path_for_receipt(receipt_path)
     if transport_journal_is_blocking(journal_path):
         raise TransportJournalError("another transport transaction is unresolved")
@@ -578,22 +1225,34 @@ def begin_transport_transaction(
         receipt = _read_stable_regular(receipt_path, maximum=JOURNAL_MAX_BYTES)
     except FileNotFoundError as exc:
         raise TransportJournalError("source receipt is not durably present") from exc
-    parsed_receipt = _parse_strict_object_bytes(
-        receipt.data,
-        label="source receipt",
-    )
-    if parsed_receipt != dict(expected_receipt):
-        raise TransportJournalError("source receipt does not match prepared transaction")
+    if (
+        receipt.data != source_binding.receipt_bytes
+        or hashlib.sha256(receipt.data).hexdigest()
+        != source_binding.receipt_sha256
+        or (
+            int(receipt.metadata.st_dev),
+            int(receipt.metadata.st_ino),
+            int(receipt.metadata.st_ctime_ns),
+        )
+        != (
+            source_binding.receipt_device,
+            source_binding.receipt_inode,
+            source_binding.receipt_ctime_ns,
+        )
+        or len(receipt.data) != source_binding.receipt_size
+    ):
+        raise TransportJournalError("source receipt changed after semantic validation")
     receipt_hash = hashlib.sha256(receipt.data).hexdigest()
-    payload_value = dict(payload)
-    payload_hash = payload_sha256(payload_value)
+    payload_hash = source_binding.request.payload_sha256
     transaction_id = hashlib.sha256(
-        b"mrsMThatcher-transport-journal-v1\0"
+        b"mrsMThatcher-transport-journal-v2\0"
         + str(lane).encode("utf-8")
         + b"\0"
         + receipt_hash.encode("ascii")
         + b"\0"
         + payload_hash.encode("ascii")
+        + b"\0"
+        + source_binding.validator_id.encode("utf-8")
     ).hexdigest()
     document: dict[str, Any] = {
         "schema_version": JOURNAL_SCHEMA_VERSION,
@@ -609,10 +1268,17 @@ def begin_transport_transaction(
             "basename": receipt_path.name,
             "device": int(receipt.metadata.st_dev),
             "inode": int(receipt.metadata.st_ino),
+            "ctime_ns": int(receipt.metadata.st_ctime_ns),
             "size": len(receipt.data),
             "sha256": receipt_hash,
         },
+        "source_validation": {
+            "validator_id": source_binding.validator_id,
+            "receipt_sha256": receipt_hash,
+            "payload_sha256": payload_hash,
+        },
         "remote_post_id": None,
+        "confirmation_epoch": None,
     }
     data = canonical_json_bytes(document)
     _publish_new(journal_path, data)
@@ -629,65 +1295,125 @@ def begin_transport_transaction(
     fence = _required_fence_snapshot(fence_path)
     if fence.data != fence_data:
         raise TransportJournalError("published transport fence changed")
-    return TransportAuthority(
+    authority = TransportAuthority(
         transaction_id=transaction_id,
         journal_path=str(journal_path.absolute()),
         journal_sha256=snapshot.sha256,
         journal_device=snapshot.device,
         journal_inode=snapshot.inode,
+        journal_ctime_ns=snapshot.ctime_ns,
         fence_path=str(fence_path.absolute()),
         fence_sha256=fence.sha256,
         fence_device=fence.device,
         fence_inode=fence.inode,
+        fence_ctime_ns=fence.ctime_ns,
         payload_sha256=payload_hash,
         lane=str(lane),
         source_receipt_basename=receipt_path.name,
+        source_validator_id=source_binding.validator_id,
         lifecycle_state="prepared",
     )
+    with _authority_lock:
+        _issued_source_bindings.discard(binding_key)
+        _issued_untransmitted_authorities.add(
+            (authority.journal_path, authority.transaction_id, "prepared")
+        )
+    return authority
 
 
 def arm_transport_transaction(
     path: Path,
     authority: TransportAuthority,
+    *,
+    mutation_authority: TransactionMutationAuthority | None = None,
 ) -> TransportAuthority:
     """Make the durable outcome explicitly ambiguous before transport."""
 
-    snapshot = _required_snapshot(Path(path))
-    fence = _required_fence_snapshot(Path(authority.fence_path))
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="transport journal arming",
+    )
+    transaction_key = (authority.journal_path, authority.transaction_id)
+    prepared_key = (*transaction_key, "prepared")
+    with _authority_lock:
+        if (
+            prepared_key not in _issued_untransmitted_authorities
+            or transaction_key in _aborting_transactions
+            or transaction_key in _transitioning_transactions
+        ):
+            raise TransportJournalError("prepared transport authority was not issued")
+        _issued_untransmitted_authorities.discard(prepared_key)
+        _transitioning_transactions.add(transaction_key)
+    try:
+        snapshot = _required_snapshot(Path(path))
+        fence = _required_fence_snapshot(Path(authority.fence_path))
+    except Exception:
+        with _authority_lock:
+            _transitioning_transactions.discard(transaction_key)
+        raise
     if (
         authority.lifecycle_state != "prepared"
         or snapshot.sha256 != authority.journal_sha256
-        or (snapshot.device, snapshot.inode)
-        != (authority.journal_device, authority.journal_inode)
+        or (snapshot.device, snapshot.inode, snapshot.ctime_ns)
+        != (
+            authority.journal_device,
+            authority.journal_inode,
+            authority.journal_ctime_ns,
+        )
         or snapshot.document["transaction_id"] != authority.transaction_id
         or snapshot.document["lifecycle_state"] != "prepared"
         or fence.sha256 != authority.fence_sha256
-        or (fence.device, fence.inode)
-        != (authority.fence_device, authority.fence_inode)
+        or (fence.device, fence.inode, fence.ctime_ns)
+        != (
+            authority.fence_device,
+            authority.fence_inode,
+            authority.fence_ctime_ns,
+        )
         or fence.document["transaction_id"] != authority.transaction_id
     ):
+        with _authority_lock:
+            _transitioning_transactions.discard(transaction_key)
         raise TransportJournalError("prepared transport authority is stale")
     replacement = {**snapshot.document, "lifecycle_state": "attempting"}
     replacement_data = canonical_json_bytes(replacement)
-    _replace_exact(Path(path), expected=snapshot.data, replacement=replacement_data)
-    updated = _required_snapshot(Path(path))
-    if updated.data != replacement_data:
-        raise TransportJournalError("armed transport journal changed")
-    return TransportAuthority(
+    try:
+        _replace_exact(
+            Path(path),
+            expected=snapshot.data,
+            replacement=replacement_data,
+            expected_device=snapshot.device,
+            expected_inode=snapshot.inode,
+            expected_ctime_ns=snapshot.ctime_ns,
+        )
+        updated = _required_snapshot(Path(path))
+        if updated.data != replacement_data:
+            raise TransportJournalError("armed transport journal changed")
+    finally:
+        with _authority_lock:
+            _transitioning_transactions.discard(transaction_key)
+    updated_authority = TransportAuthority(
         transaction_id=authority.transaction_id,
         journal_path=authority.journal_path,
         journal_sha256=updated.sha256,
         journal_device=updated.device,
         journal_inode=updated.inode,
+        journal_ctime_ns=updated.ctime_ns,
         fence_path=authority.fence_path,
         fence_sha256=authority.fence_sha256,
         fence_device=authority.fence_device,
         fence_inode=authority.fence_inode,
+        fence_ctime_ns=authority.fence_ctime_ns,
         payload_sha256=authority.payload_sha256,
         lane=authority.lane,
         source_receipt_basename=authority.source_receipt_basename,
+        source_validator_id=authority.source_validator_id,
         lifecycle_state="attempting",
     )
+    with _authority_lock:
+        _issued_untransmitted_authorities.add(
+            (authority.journal_path, authority.transaction_id, "attempting")
+        )
+    return updated_authority
 
 
 def consume_transport_authority(
@@ -722,8 +1448,12 @@ def consume_transport_authority(
     if (
         authority.lifecycle_state != "attempting"
         or snapshot.sha256 != authority.journal_sha256
-        or (snapshot.device, snapshot.inode)
-        != (authority.journal_device, authority.journal_inode)
+        or (snapshot.device, snapshot.inode, snapshot.ctime_ns)
+        != (
+            authority.journal_device,
+            authority.journal_inode,
+            authority.journal_ctime_ns,
+        )
         or snapshot.document["transaction_id"] != authority.transaction_id
         or snapshot.document["lifecycle_state"] != "attempting"
         or snapshot.document["request_method"] != str(method).upper()
@@ -731,9 +1461,15 @@ def consume_transport_authority(
         or snapshot.document["remote_payload"] != dict(payload)
         or snapshot.document["remote_payload_sha256"] != payload_hash
         or authority.payload_sha256 != payload_hash
+        or snapshot.document["source_validation"]["validator_id"]
+        != authority.source_validator_id
         or fence.sha256 != authority.fence_sha256
-        or (fence.device, fence.inode)
-        != (authority.fence_device, authority.fence_inode)
+        or (fence.device, fence.inode, fence.ctime_ns)
+        != (
+            authority.fence_device,
+            authority.fence_inode,
+            authority.fence_ctime_ns,
+        )
         or fence.document["transaction_id"] != authority.transaction_id
         or fence.document["remote_payload"] != dict(payload)
         or fence.document["source_receipt"]
@@ -744,6 +1480,16 @@ def consume_transport_authority(
     with _authority_lock:
         if key in _consumed_authorities:
             raise TransportJournalError("transport authority was already consumed")
+        issued_key = (
+            authority.journal_path,
+            authority.transaction_id,
+            "attempting",
+        )
+        if issued_key not in _issued_untransmitted_authorities:
+            raise TransportJournalError(
+                "transport authority was not issued in this process"
+            )
+        _issued_untransmitted_authorities.discard(issued_key)
         _consumed_authorities.add(key)
 
 
@@ -751,25 +1497,41 @@ def confirm_transport_transaction(
     path: Path,
     authority: TransportAuthority,
     *,
+    mutation_authority: TransactionMutationAuthority | None = None,
     post_id: str,
+    confirmation_epoch: int,
 ) -> JournalSnapshot:
     """Bind a valid remote post ID before returning control to the lane."""
 
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="transport journal confirmation",
+    )
     if not _POST_ID_RE.fullmatch(str(post_id or "")):
         raise TransportJournalError("remote confirmation has no valid post ID")
+    if type(confirmation_epoch) is not int or confirmation_epoch < 0:
+        raise TransportJournalError("remote confirmation epoch is invalid")
     snapshot = _required_snapshot(Path(path))
     fence = _required_fence_snapshot(Path(authority.fence_path))
     key = (str(Path(path).absolute()), authority.transaction_id)
     if (
         authority.lifecycle_state != "attempting"
         or snapshot.sha256 != authority.journal_sha256
-        or (snapshot.device, snapshot.inode)
-        != (authority.journal_device, authority.journal_inode)
+        or (snapshot.device, snapshot.inode, snapshot.ctime_ns)
+        != (
+            authority.journal_device,
+            authority.journal_inode,
+            authority.journal_ctime_ns,
+        )
         or snapshot.document["transaction_id"] != authority.transaction_id
         or snapshot.document["lifecycle_state"] != "attempting"
         or fence.sha256 != authority.fence_sha256
-        or (fence.device, fence.inode)
-        != (authority.fence_device, authority.fence_inode)
+        or (fence.device, fence.inode, fence.ctime_ns)
+        != (
+            authority.fence_device,
+            authority.fence_inode,
+            authority.fence_ctime_ns,
+        )
         or fence.document["transaction_id"] != authority.transaction_id
     ):
         raise TransportJournalError("attempting transport authority is stale")
@@ -782,96 +1544,527 @@ def confirm_transport_transaction(
         **snapshot.document,
         "lifecycle_state": "confirmed",
         "remote_post_id": str(post_id),
+        "confirmation_epoch": confirmation_epoch,
     }
     replacement_data = canonical_json_bytes(replacement)
-    _replace_exact(Path(path), expected=snapshot.data, replacement=replacement_data)
+    _replace_exact(
+        Path(path),
+        expected=snapshot.data,
+        replacement=replacement_data,
+        expected_device=snapshot.device,
+        expected_inode=snapshot.inode,
+        expected_ctime_ns=snapshot.ctime_ns,
+    )
     updated = _required_snapshot(Path(path))
     if updated.data != replacement_data:
         raise TransportJournalError("confirmed transport journal changed")
     return updated
 
 
-def retire_confirmed_transport_transaction(
+def inspect_confirmed_transport_transaction(
+    path: Path,
+) -> ConfirmedTransportDetails:
+    """Return strict durable details for restart-time receipt promotion."""
+
+    path = Path(path)
+    state = inspect_transport_state(path)
+    if (
+        state.errors
+        or state.staging_names
+        or state.retirement_guard_names
+        or state.journal is None
+        or state.fence is None
+        or state.journal.document["lifecycle_state"] != "confirmed"
+        or not _documents_share_transaction_identity(
+            state.journal.document,
+            state.fence.document,
+        )
+    ):
+        raise TransportJournalError(
+            "transport transaction is not one intact confirmed pair"
+        )
+    document = state.journal.document
+    payload_bytes = canonical_json_bytes(document["remote_payload"])
+    return ConfirmedTransportDetails(
+        transaction_id=str(document["transaction_id"]),
+        lane=str(document["lane"]),
+        post_id=str(document["remote_post_id"]),
+        confirmation_epoch=int(document["confirmation_epoch"]),
+        source_receipt_basename=str(document["source_receipt"]["basename"]),
+        source_receipt_sha256=str(document["source_receipt"]["sha256"]),
+        source_validator_id=str(document["source_validation"]["validator_id"]),
+        payload_bytes=payload_bytes,
+        payload_sha256=str(document["remote_payload_sha256"]),
+        journal_path=str(path.absolute()),
+        journal_sha256=state.journal.sha256,
+        journal_device=state.journal.device,
+        journal_inode=state.journal.inode,
+        journal_ctime_ns=state.journal.ctime_ns,
+    )
+
+
+def verify_confirmed_transport_source_lineage(
     *,
     receipt_path: Path,
+    expected_source_receipt_bytes: bytes,
+    lane: str,
+    post_id: str,
+    validator_id: str = LANE_SOURCE_VALIDATOR_ID,
+) -> ConfirmedTransportDetails:
+    """Prove source lineage before a confirmed receipt mutates local state.
+
+    A confirmed lane receipt is a derived recovery representation.  It may be
+    applied only when the still-durable transport pair binds the exact
+    pre-transport receipt from which that representation was derived.  This
+    check is intentionally read-only; retirement remains a later operation
+    after all protected local effects are durable.
+    """
+
+    receipt_path = Path(receipt_path)
+    if (
+        type(expected_source_receipt_bytes) is not bytes
+        or not expected_source_receipt_bytes
+        or len(expected_source_receipt_bytes) > JOURNAL_MAX_BYTES
+    ):
+        raise TransportJournalError("confirmed source lineage bytes are invalid")
+    details = inspect_confirmed_transport_transaction(
+        journal_path_for_receipt(receipt_path)
+    )
+    if (
+        details.lane != str(lane)
+        or details.post_id != str(post_id)
+        or details.source_receipt_basename != receipt_path.name
+        or details.source_receipt_sha256
+        != hashlib.sha256(expected_source_receipt_bytes).hexdigest()
+        or details.source_validator_id != str(validator_id)
+    ):
+        raise TransportJournalError(
+            "confirmed transport does not bind the expected source receipt"
+        )
+    return details
+
+
+def bind_confirmed_transport_source(
+    *,
+    journal_path: Path,
+    receipt_path: Path,
+    validator_id: str,
+    validator: Callable[[str, Mapping[str, Any], Mapping[str, Any]], bool],
+) -> ConfirmedSourceRecovery:
+    """Revalidate the original receipt before promoting it after restart."""
+
+    details = inspect_confirmed_transport_transaction(journal_path)
+    receipt_path = Path(receipt_path)
+    if (
+        receipt_path.name != details.source_receipt_basename
+        or journal_path_for_receipt(receipt_path).absolute()
+        != Path(journal_path).absolute()
+        or validator_id != details.source_validator_id
+    ):
+        raise TransportJournalError("confirmed transport source anchor is invalid")
+    receipt = _read_stable_regular(receipt_path, maximum=JOURNAL_MAX_BYTES)
+    document = _parse_strict_object_bytes(receipt.data, label="source receipt")
+    request = freeze_tweet_request(
+        method="POST",
+        request_path="/2/tweets",
+        payload=details.payload(),
+    )
+    source = inspect_transport_state(Path(journal_path)).journal
+    if (
+        source is None
+        or source.sha256 != details.journal_sha256
+        or (source.device, source.inode, source.ctime_ns)
+        != (
+            details.journal_device,
+            details.journal_inode,
+            details.journal_ctime_ns,
+        )
+    ):
+        raise TransportJournalError("confirmed transport journal changed")
+    expected = source.document["source_receipt"]
+    if (
+        hashlib.sha256(receipt.data).hexdigest() != details.source_receipt_sha256
+        or (
+            int(receipt.metadata.st_dev),
+            int(receipt.metadata.st_ino),
+            int(receipt.metadata.st_ctime_ns),
+        )
+        != (
+            int(expected["device"]),
+            int(expected["inode"]),
+            int(expected["ctime_ns"]),
+        )
+        or len(receipt.data) != int(expected["size"])
+    ):
+        raise TransportJournalError("confirmed transport source receipt changed")
+    try:
+        approved = validator(details.lane, dict(document), request.payload())
+    except Exception as exc:
+        raise TransportJournalError("confirmed source semantic validation failed") from exc
+    if approved is not True:
+        raise TransportJournalError(
+            "confirmed source receipt does not semantically bind payload"
+        )
+    binding = SourceReceiptBinding(
+        receipt_path=str(receipt_path.absolute()),
+        receipt_bytes=receipt.data,
+        receipt_sha256=details.source_receipt_sha256,
+        receipt_device=int(receipt.metadata.st_dev),
+        receipt_inode=int(receipt.metadata.st_ino),
+        receipt_ctime_ns=int(receipt.metadata.st_ctime_ns),
+        receipt_size=len(receipt.data),
+        receipt_document=document,
+        lane=details.lane,
+        request=request,
+        validator_id=validator_id,
+    )
+    return ConfirmedSourceRecovery(details=details, source_binding=binding)
+
+
+def abort_untransmitted_transport_transaction(
+    *,
+    source_binding: SourceReceiptBinding,
+    authority: TransportAuthority | None = None,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> None:
+    """Retire a transaction proven not to have reached transport.
+
+    A ``prepared`` journal is durably pre-transport and can be aborted after
+    revalidating its semantic source binding.  An ``attempting`` journal can
+    be aborted only by the same process which armed it and before authority
+    consumption.  Restarted processes must treat ``attempting`` as ambiguous.
+    """
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="untransmitted transport journal abort",
+    )
+    path = journal_path_for_receipt(Path(source_binding.receipt_path))
+    state = inspect_transport_state(path)
+    if (
+        state.errors
+        or state.staging_names
+        or state.retirement_guard_names
+        or state.journal is None
+        or state.fence is None
+        or not _documents_share_transaction_identity(
+            state.journal.document,
+            state.fence.document,
+        )
+    ):
+        raise TransportJournalError("untransmitted transaction is not intact")
+    document = state.journal.document
+    if (
+        document["lane"] != source_binding.lane
+        or document["remote_payload_sha256"]
+        != source_binding.request.payload_sha256
+        or document["source_receipt"]["sha256"]
+        != source_binding.receipt_sha256
+        or document["source_validation"]["validator_id"]
+        != source_binding.validator_id
+    ):
+        raise TransportJournalError("untransmitted source binding is stale")
+    current_receipt = _read_stable_regular(
+        Path(source_binding.receipt_path),
+        maximum=JOURNAL_MAX_BYTES,
+    )
+    if (
+        current_receipt.data != source_binding.receipt_bytes
+        or (
+            int(current_receipt.metadata.st_dev),
+            int(current_receipt.metadata.st_ino),
+            int(current_receipt.metadata.st_ctime_ns),
+        )
+        != (
+            source_binding.receipt_device,
+            source_binding.receipt_inode,
+            source_binding.receipt_ctime_ns,
+        )
+    ):
+        raise TransportJournalError("untransmitted source receipt changed")
+    lifecycle = str(document["lifecycle_state"])
+    issued_key = (str(path.absolute()), str(document["transaction_id"]), lifecycle)
+    transaction_key = (str(path.absolute()), str(document["transaction_id"]))
+    with _authority_lock:
+        if (
+            transaction_key in _transitioning_transactions
+            or transaction_key in _aborting_transactions
+        ):
+            raise TransportJournalError("transport lifecycle transition is in progress")
+        if lifecycle == "attempting":
+            if (
+                authority is None
+                or authority.lifecycle_state != "attempting"
+                or authority.transaction_id != document["transaction_id"]
+                or issued_key not in _issued_untransmitted_authorities
+                or (str(path.absolute()), authority.transaction_id)
+                in _consumed_authorities
+            ):
+                raise TransportJournalError(
+                    "attempting transaction is not provably untransmitted"
+                )
+        elif lifecycle != "prepared":
+            raise TransportJournalError("confirmed transaction cannot be aborted")
+        _issued_untransmitted_authorities.discard(issued_key)
+        _aborting_transactions.add(transaction_key)
+    directory_fd: int | None = None
+    try:
+        directory_fd = _open_directory(path.parent)
+        os.unlink(path.name, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+        # The immutable fence remains the restart barrier until journal
+        # removal is durable.
+        os.unlink(fence_path_for_journal(path).name, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+    finally:
+        if directory_fd is not None:
+            os.close(directory_fd)
+        with _authority_lock:
+            _aborting_transactions.discard(transaction_key)
+
+
+def retire_confirmed_transport_transaction(
+    *,
+    mutation_authority: TransactionMutationAuthority | None = None,
+    receipt_path: Path,
     expected_confirmed_receipt: Mapping[str, Any],
+    expected_source_receipt_bytes: bytes | None = None,
+    expected_current_receipt_bytes: bytes | None = None,
+    source_retirement_prepared: bool = False,
     lane: str,
     post_id: str,
 ) -> None:
     """Retire the journal while an exact confirmed lane receipt remains.
 
-    A hard-link retirement guard preserves the receipt inode while the journal
+    By default, a hard-link retirement guard preserves the receipt inode while the journal
     is removed.  Any crash leaves either the journal, the guard, or the lane
-    receipt visible to the next process.
+    receipt visible to the next process.  Before the immutable journal/fence
+    pair is retired, ``expected_source_receipt_bytes`` must reproduce the
+    exact pre-transport receipt hash recorded by that pair.  This prevents a
+    semantically plausible but unrelated confirmed receipt from retiring a
+    transaction merely because its lane and remote post ID happen to match.
+
+    The small implicit reconstruction below exists for the original generic
+    API shape (``attempting`` -> ``confirmed`` plus ``post_id``) and is itself
+    hash-checked.  Production lanes whose confirmed representation is derived
+    or otherwise changes shape always supply their exact reconstructed source
+    bytes explicitly.
+
+    Production callers may instead set ``source_retirement_prepared`` and
+    supply the exact current receipt bytes.  That mode requires the shared
+    exact-retirement prepare guard and leaves it untouched as the overlapping
+    barrier, avoiding any hard-link mutation of its bound source inode.
     """
 
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="confirmed transport journal retirement",
+    )
     receipt_path = Path(receipt_path)
     path = journal_path_for_receipt(receipt_path)
-    snapshot = _required_snapshot(path)
     fence_path = fence_path_for_journal(path)
-    fence = _required_fence_snapshot(fence_path)
+    state = inspect_transport_state(path)
+    if state.errors or state.staging_names:
+        raise TransportJournalError("confirmed retirement state is invalid")
+    if len(state.retirement_guard_names) > 1:
+        raise TransportJournalError("multiple retirement guards are present")
+    if source_retirement_prepared:
+        if state.retirement_guard_names:
+            raise TransportJournalError(
+                "legacy journal retirement guard conflicts with prepared source retirement"
+            )
+        if (
+            type(expected_current_receipt_bytes) is not bytes
+            or not expected_current_receipt_bytes
+        ):
+            raise TransportJournalError(
+                "prepared source retirement lacks exact current receipt bytes"
+            )
+        from exact_receipt_retirement import inspect_exact_receipt_retirement
+
+        prepared = inspect_exact_receipt_retirement(
+            receipt_path,
+            expected_current_receipt_bytes,
+        )
+        if not prepared.valid or prepared.phase != "prepared":
+            raise TransportJournalError(
+                "exact source retirement is not durably prepared"
+            )
+
+    if expected_source_receipt_bytes is None:
+        # Backwards-compatible only for the simple, lossless generic
+        # transition exercised by callers which retain every source field.
+        reconstructed = dict(expected_confirmed_receipt)
+        if (
+            reconstructed.get("lifecycle_state") != "confirmed"
+            or "post_id" not in reconstructed
+        ):
+            raise TransportJournalError(
+                "confirmed retirement lacks exact source-receipt lineage"
+            )
+        reconstructed["lifecycle_state"] = "attempting"
+        reconstructed.pop("post_id", None)
+        expected_source_receipt_bytes = canonical_json_bytes(reconstructed)
     if (
-        snapshot.document["lifecycle_state"] != "confirmed"
-        or snapshot.document["lane"] != lane
-        or snapshot.document["remote_post_id"] != str(post_id)
-        or fence.document["transaction_id"]
-        != snapshot.document["transaction_id"]
-        or fence.document["source_receipt"]["basename"]
-        != receipt_path.name
+        type(expected_source_receipt_bytes) is not bytes
+        or not expected_source_receipt_bytes
+        or len(expected_source_receipt_bytes) > JOURNAL_MAX_BYTES
     ):
-        raise TransportJournalError("confirmed journal does not match lane receipt")
-    receipt = _read_stable_regular(receipt_path, maximum=JOURNAL_MAX_BYTES)
-    parsed = _parse_strict_object_bytes(
-        receipt.data,
-        label="confirmed receipt",
+        raise TransportJournalError("confirmed source-receipt lineage is invalid")
+    expected_source_sha256 = hashlib.sha256(
+        expected_source_receipt_bytes
+    ).hexdigest()
+
+    def require_source_lineage(document: Mapping[str, Any], *, label: str) -> None:
+        source = document.get("source_receipt")
+        source_validation = document.get("source_validation")
+        if (
+            not isinstance(source, Mapping)
+            or not isinstance(source_validation, Mapping)
+            or source.get("sha256") != expected_source_sha256
+            or source.get("size") != len(expected_source_receipt_bytes)
+            or source_validation.get("receipt_sha256") != expected_source_sha256
+        ):
+            raise TransportJournalError(
+                f"confirmed {label} source-receipt lineage does not match"
+            )
+
+    if state.journal is not None:
+        require_source_lineage(state.journal.document, label="journal")
+    if state.fence is not None:
+        require_source_lineage(state.fence.document, label="fence")
+    if state.journal is None and state.fence is None and not state.retirement_guard_names:
+        # Idempotent completion after a previous final directory-fsync error.
+        receipt = _read_stable_regular(receipt_path, maximum=JOURNAL_MAX_BYTES)
+        if _parse_strict_object_bytes(
+            receipt.data,
+            label="confirmed receipt",
+        ) != dict(expected_confirmed_receipt):
+            raise TransportJournalError("confirmed receipt does not match transaction")
+        return
+
+    transaction_id: str | None = None
+    if state.journal is not None:
+        document = state.journal.document
+        if (
+            document["lifecycle_state"] != "confirmed"
+            or document["lane"] != lane
+            or document["remote_post_id"] != str(post_id)
+            or document["source_receipt"]["basename"] != receipt_path.name
+        ):
+            raise TransportJournalError("confirmed journal does not match lane receipt")
+        transaction_id = str(document["transaction_id"])
+    if state.fence is not None:
+        fence_document = state.fence.document
+        if (
+            fence_document["lane"] != lane
+            or fence_document["source_receipt"]["basename"] != receipt_path.name
+            or (
+                transaction_id is not None
+                and fence_document["transaction_id"] != transaction_id
+            )
+        ):
+            raise TransportJournalError("transport fence does not match lane receipt")
+        transaction_id = str(fence_document["transaction_id"])
+    if state.retirement_guard_names:
+        guard_name = state.retirement_guard_names[0]
+        guard_transaction_id = guard_name[len(JOURNAL_RETIREMENT_PREFIX) :]
+        if not _SHA256_RE.fullmatch(guard_transaction_id):
+            raise TransportJournalError("retirement guard name is invalid")
+        if transaction_id is not None and guard_transaction_id != transaction_id:
+            raise TransportJournalError("retirement guard transaction is stale")
+        transaction_id = guard_transaction_id
+    if transaction_id is None:
+        raise TransportJournalError("retirement transaction identity is unavailable")
+    guard_name = f"{JOURNAL_RETIREMENT_PREFIX}{transaction_id}"
+    guard_path = path.parent / guard_name
+
+    allowed_links = frozenset({1, 2})
+    receipt = _read_stable_regular(
+        receipt_path,
+        maximum=JOURNAL_MAX_BYTES,
+        allowed_link_counts=allowed_links,
     )
+    parsed = _parse_strict_object_bytes(receipt.data, label="confirmed receipt")
     if parsed != dict(expected_confirmed_receipt):
         raise TransportJournalError("confirmed receipt does not match transaction")
 
+    if source_retirement_prepared:
+        from exact_receipt_retirement import inspect_exact_receipt_retirement
+
+        def require_exact_prepared_source(stage: str) -> None:
+            prepared = inspect_exact_receipt_retirement(
+                receipt_path,
+                expected_current_receipt_bytes,
+            )
+            if not prepared.valid or prepared.phase != "prepared":
+                raise TransportJournalError(
+                    f"exact source retirement changed during {stage} retirement"
+                )
+
+        directory_fd = _open_directory(path.parent)
+        try:
+            require_exact_prepared_source("fence")
+            if state.fence is not None:
+                os.unlink(fence_path.name, dir_fd=directory_fd)
+                os.fsync(directory_fd)
+            require_exact_prepared_source("journal")
+            if state.journal is not None:
+                os.unlink(path.name, dir_fd=directory_fd)
+                os.fsync(directory_fd)
+            require_exact_prepared_source("completion")
+        finally:
+            os.close(directory_fd)
+        return
+
     directory_fd = _open_directory(path.parent)
-    guard_name = f"{JOURNAL_RETIREMENT_PREFIX}{snapshot.document['transaction_id']}"
     try:
-        os.link(
-            receipt_path.name,
-            guard_name,
-            src_dir_fd=directory_fd,
-            dst_dir_fd=directory_fd,
-            follow_symlinks=False,
-        )
-        os.fsync(directory_fd)
-        guard = os.stat(guard_name, dir_fd=directory_fd, follow_symlinks=False)
-        current_receipt = os.stat(
-            receipt_path.name,
-            dir_fd=directory_fd,
-            follow_symlinks=False,
-        )
-        if (
-            (guard.st_dev, guard.st_ino)
-            != (receipt.metadata.st_dev, receipt.metadata.st_ino)
-            or (current_receipt.st_dev, current_receipt.st_ino)
-            != (receipt.metadata.st_dev, receipt.metadata.st_ino)
-        ):
-            raise TransportJournalError("receipt changed during journal retirement")
-        os.unlink(path.name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
-        # Revalidate the canonical receipt after the journal is gone.  The
-        # hard-link guard remains a barrier until this check succeeds.
-        current = _read_stable_regular(
-            receipt_path,
-            maximum=JOURNAL_MAX_BYTES,
-            allowed_link_counts=frozenset({2}),
-        )
-        if current.data != receipt.data:
-            raise TransportJournalError("receipt changed during journal retirement")
-        os.unlink(fence_path.name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
-        current = _read_stable_regular(
-            receipt_path,
-            maximum=JOURNAL_MAX_BYTES,
-            allowed_link_counts=frozenset({2}),
-        )
-        if current.data != receipt.data:
-            raise TransportJournalError("receipt changed during fence retirement")
+        if not state.retirement_guard_names:
+            if state.journal is None or state.fence is None:
+                raise TransportJournalError(
+                    "incomplete transaction has no durable retirement guard"
+                )
+            os.link(
+                receipt_path.name,
+                guard_name,
+                src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+            os.fsync(directory_fd)
+
+        def require_exact_guarded_receipt(stage: str) -> None:
+            current = _read_stable_regular(
+                receipt_path,
+                maximum=JOURNAL_MAX_BYTES,
+                allowed_link_counts=frozenset({2}),
+            )
+            guard = _read_stable_regular(
+                guard_path,
+                maximum=JOURNAL_MAX_BYTES,
+                allowed_link_counts=frozenset({2}),
+            )
+            if (
+                current.data != receipt.data
+                or guard.data != receipt.data
+                or (current.metadata.st_dev, current.metadata.st_ino)
+                != (receipt.metadata.st_dev, receipt.metadata.st_ino)
+                or (guard.metadata.st_dev, guard.metadata.st_ino)
+                != (receipt.metadata.st_dev, receipt.metadata.st_ino)
+            ):
+                raise TransportJournalError(
+                    f"receipt changed during {stage} retirement"
+                )
+
+        require_exact_guarded_receipt("journal")
+        if state.journal is not None:
+            os.unlink(path.name, dir_fd=directory_fd)
+            os.fsync(directory_fd)
+        require_exact_guarded_receipt("fence")
+        if state.fence is not None:
+            os.unlink(fence_path.name, dir_fd=directory_fd)
+            os.fsync(directory_fd)
+        require_exact_guarded_receipt("guard")
         os.unlink(guard_name, dir_fd=directory_fd)
         os.fsync(directory_fd)
     finally:
@@ -883,3 +2076,7 @@ def reset_consumed_authorities_for_tests() -> None:
 
     with _authority_lock:
         _consumed_authorities.clear()
+        _issued_untransmitted_authorities.clear()
+        _issued_source_bindings.clear()
+        _transitioning_transactions.clear()
+        _aborting_transactions.clear()
