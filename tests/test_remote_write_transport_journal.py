@@ -10,6 +10,81 @@ import remote_write_transport_journal as journal
 from transaction_mutation_authority import issue_transaction_mutation_authority
 
 
+def test_confirmation_epoch_policy_literals_are_stable() -> None:
+    """Prevent boundary tests from silently adapting to policy drift."""
+
+    assert (
+        journal.MIN_CONFIRMATION_EPOCH,
+        journal.MAX_CONFIRMATION_EPOCH,
+    ) == (1_500_000_000, 4_102_444_800)
+
+
+def test_filesystem_and_journal_size_policy_literals_are_stable() -> None:
+    """Prevent host-width and byte-limit tests from following policy drift."""
+
+    assert (
+        journal.MAX_FILESYSTEM_IDENTITY_INTEGER,
+        journal.MAX_FILESYSTEM_TIMESTAMP_NS,
+        journal.JOURNAL_MAX_BYTES,
+    ) == (
+        18_446_744_073_709_551_615,
+        18_446_744_073_709_551_615,
+        131_072,
+    )
+
+
+def test_exact_unlink_rejects_same_inode_mutation_after_path_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The open inode must remain byte-exact until retirement is proved."""
+
+    target = tmp_path / "journal.json"
+    expected_bytes = b'{"a":1}\n'
+    replacement_bytes = b'{"b":2}\n'
+    target.write_bytes(expected_bytes)
+    target.chmod(journal.JOURNAL_MODE)
+    expected = journal._read_stable_regular(
+        target,
+        maximum=journal.JOURNAL_MAX_BYTES,
+        expected_mode=journal.JOURNAL_MODE,
+    )
+    peer_fd = os.open(target, os.O_RDWR)
+    directory_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    real_fsync = os.fsync
+    mutated = False
+
+    def mutate_after_directory_sync(descriptor: int) -> None:
+        nonlocal mutated
+        real_fsync(descriptor)
+        if descriptor == directory_fd and not mutated:
+            mutated = True
+            os.lseek(peer_fd, 0, os.SEEK_SET)
+            os.write(peer_fd, replacement_bytes)
+            os.ftruncate(peer_fd, len(replacement_bytes))
+            real_fsync(peer_fd)
+
+    monkeypatch.setattr(journal.os, "fsync", mutate_after_directory_sync)
+    try:
+        with pytest.raises(
+            journal.TransportJournalError,
+            match="unchanged validated inode",
+        ):
+            journal._unlink_exact_stable_file(
+                directory_fd,
+                target,
+                expected,
+                maximum=journal.JOURNAL_MAX_BYTES,
+                label="test journal",
+            )
+    finally:
+        os.close(directory_fd)
+        os.close(peer_fd)
+
+    assert mutated is True
+    assert not target.exists()
+
+
 def _mutation_authority():
     return issue_transaction_mutation_authority(
         lambda _operation: None,
@@ -182,7 +257,13 @@ def test_journal_survives_source_receipt_deletion_and_blocks_restart(
         ("basename", "."),
         ("basename", ".."),
         ("device", -1),
+        ("device", journal.MAX_FILESYSTEM_IDENTITY_INTEGER + 1),
         ("inode", 0),
+        ("inode", journal.MAX_FILESYSTEM_IDENTITY_INTEGER + 1),
+        ("ctime_ns", -1),
+        ("ctime_ns", journal.MAX_FILESYSTEM_TIMESTAMP_NS + 1),
+        ("size", 0),
+        ("size", journal.JOURNAL_MAX_BYTES + 1),
         ("sha256", int("1" * 64)),
     ),
 )
@@ -487,6 +568,50 @@ def test_exact_source_receipt_generation_replacement_succeeds(
 
     assert receipt_path.read_bytes() == replacement
     assert receipt_path.stat().st_ino != expected.st_ino
+    assert not any(
+        item.name.startswith(journal.JOURNAL_STAGING_PREFIX)
+        for item in tmp_path.iterdir()
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("expected_device", journal.MAX_FILESYSTEM_IDENTITY_INTEGER + 1),
+        ("expected_inode", journal.MAX_FILESYSTEM_IDENTITY_INTEGER + 1),
+        ("expected_ctime_ns", journal.MAX_FILESYSTEM_TIMESTAMP_NS + 1),
+    ),
+)
+def test_exact_source_replacement_rejects_out_of_range_authority_before_staging(
+    tmp_path: Path,
+    field: str,
+    value: int,
+) -> None:
+    receipt_path, receipt, _payload = _transaction(tmp_path)
+    original = receipt_path.read_bytes()
+    expected = receipt_path.stat()
+    arguments = {
+        "expected_device": expected.st_dev,
+        "expected_inode": expected.st_ino,
+        "expected_ctime_ns": expected.st_ctime_ns,
+    }
+    arguments[field] = value
+
+    with pytest.raises(
+        journal.TransportJournalError,
+        match="generation authority is invalid",
+    ):
+        journal.replace_exact_source_receipt_generation(
+            receipt_path,
+            expected_bytes=original,
+            replacement_bytes=journal.canonical_json_bytes(
+                {**receipt, "attempt_epoch": 1_800_000_001}
+            ),
+            mutation_authority=_mutation_authority(),
+            **arguments,
+        )
+
+    assert receipt_path.read_bytes() == original
     assert not any(
         item.name.startswith(journal.JOURNAL_STAGING_PREFIX)
         for item in tmp_path.iterdir()
@@ -1143,6 +1268,146 @@ def test_confirmed_details_and_source_recovery_are_strict(tmp_path: Path) -> Non
     )
     assert recovery.details == details
     assert recovery.source_binding.receipt_document == receipt
+
+
+@pytest.mark.parametrize(
+    "confirmation_epoch",
+    (
+        journal.MIN_CONFIRMATION_EPOCH - 1,
+        journal.MAX_CONFIRMATION_EPOCH + 1,
+    ),
+)
+def test_confirmation_rejects_epoch_outside_writer_range(
+    tmp_path: Path,
+    confirmation_epoch: int,
+) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    authority = _begin_transport_transaction(
+        receipt_path=receipt_path,
+        expected_receipt=receipt,
+        lane="quote_image",
+        payload=payload,
+    )
+    path = Path(authority.journal_path)
+    authority = _arm_transport_transaction(path, authority)
+    journal.consume_transport_authority(
+        path,
+        authority,
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+    )
+
+    with pytest.raises(
+        journal.TransportJournalError,
+        match="confirmation epoch is invalid",
+    ):
+        _confirm_transport_transaction(
+            path,
+            authority,
+            post_id="950001",
+            confirmation_epoch=confirmation_epoch,
+        )
+
+    assert journal.inspect_transport_state(path).journal.document[
+        "lifecycle_state"
+    ] == "attempting"
+
+
+@pytest.mark.parametrize(
+    "confirmation_epoch",
+    (journal.MIN_CONFIRMATION_EPOCH, journal.MAX_CONFIRMATION_EPOCH),
+)
+def test_confirmation_accepts_exact_writer_epoch_boundaries(
+    tmp_path: Path,
+    confirmation_epoch: int,
+) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    authority = _begin_transport_transaction(
+        receipt_path=receipt_path,
+        expected_receipt=receipt,
+        lane="quote_image",
+        payload=payload,
+    )
+    path = Path(authority.journal_path)
+    authority = _arm_transport_transaction(path, authority)
+    journal.consume_transport_authority(
+        path,
+        authority,
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+    )
+
+    confirmed = _confirm_transport_transaction(
+        path,
+        authority,
+        post_id="950001",
+        confirmation_epoch=confirmation_epoch,
+    )
+
+    assert confirmed.document["confirmation_epoch"] == confirmation_epoch
+
+
+@pytest.mark.parametrize(
+    ("target", "confirmation_epoch", "expected_error"),
+    (
+        (
+            "journal",
+            journal.MIN_CONFIRMATION_EPOCH - 1,
+            "journal_invalid",
+        ),
+        (
+            "journal",
+            journal.MAX_CONFIRMATION_EPOCH + 1,
+            "journal_invalid",
+        ),
+        (
+            "fence",
+            journal.MIN_CONFIRMATION_EPOCH - 1,
+            "fence_invalid",
+        ),
+        (
+            "fence",
+            journal.MAX_CONFIRMATION_EPOCH + 1,
+            "fence_invalid",
+        ),
+    ),
+)
+def test_restart_validator_rejects_confirmation_epoch_outside_writer_range(
+    tmp_path: Path,
+    target: str,
+    confirmation_epoch: int,
+    expected_error: str,
+) -> None:
+    receipt_path, receipt, payload = _transaction(tmp_path)
+    authority = _begin_transport_transaction(
+        receipt_path=receipt_path,
+        expected_receipt=receipt,
+        lane="quote_image",
+        payload=payload,
+    )
+    path = Path(authority.journal_path)
+    target_path = (
+        path if target == "journal" else journal.fence_path_for_journal(path)
+    )
+    document = json.loads(target_path.read_bytes())
+    document.update(
+        lifecycle_state="confirmed",
+        remote_post_id="950001",
+        confirmation_epoch=confirmation_epoch,
+    )
+    _durable_write_bytes(target_path, journal.canonical_json_bytes(document))
+
+    state = journal.inspect_transport_state(path)
+
+    assert state.blocking is True
+    assert state.classification == "invalid"
+    assert expected_error in state.errors
+    if target == "journal":
+        assert state.journal is None
+    else:
+        assert state.fence is None
 
 
 @pytest.mark.parametrize("unlink_stage", ("journal", "fence", "guard"))

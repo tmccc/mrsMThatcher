@@ -4,6 +4,7 @@ import copy
 import json
 import re
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -825,6 +826,181 @@ def test_validator_rejects_duplicate_ids_missing_files_tests_and_validations(
     assert "referenced file does not exist: missing.py" in combined
     assert "test node does not exist" in combined
     assert "critical invariant must name a validation" in combined
+
+
+def test_validator_rejects_existing_non_test_helper_reference(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    test_file = tmp_path / "tests" / "test_sample.py"
+    test_file.write_text(
+        "def helper_contract():\n"
+        "    return True\n\n"
+        "def test_contract():\n"
+        "    assert True\n",
+        encoding="utf-8",
+    )
+    registry["invariants"][0]["evidence_references"][0]["reference"] = (
+        "tests/test_sample.py::helper_contract"
+    )
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert any(
+        "evidence reference: test node is not pytest-collectable: "
+        "tests/test_sample.py::helper_contract" in error
+        for error in report.errors
+    )
+
+
+def test_validator_rejects_nonexistent_parametrized_case_id(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    test_file = tmp_path / "tests" / "test_sample.py"
+    test_file.write_text(
+        "import pytest\n\n"
+        "@pytest.mark.parametrize('value', [1, 2], ids=['one', 'two'])\n"
+        "def test_contract(value):\n"
+        "    assert value\n",
+        encoding="utf-8",
+    )
+    missing_case = "tests/test_sample.py::test_contract[missing]"
+    registry["invariants"][0]["enforcement"]["tests"] = [missing_case]
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert any(
+        error
+        == f"INV-DEMO-001: pytest selector was not collected: {missing_case}"
+        for error in report.errors
+    )
+
+
+def test_validator_rejects_existing_validation_file_with_no_collected_tests(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    helper_file = tmp_path / "tests" / "test_helpers_only.py"
+    helper_file.write_text(
+        "def helper_contract():\n"
+        "    return True\n",
+        encoding="utf-8",
+    )
+    registry["invariants"][0]["enforcement"]["validations"][0]["selectors"] = [
+        "tests/test_helpers_only.py"
+    ]
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert any(
+        error
+        == "INV-DEMO-001: pytest selector was not collected: "
+        "tests/test_helpers_only.py"
+        for error in report.errors
+    )
+
+
+def test_validator_rejects_missing_pytest_validation_selector_file(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    registry["invariants"][0]["enforcement"]["validations"][0]["selectors"] = [
+        "tests/test_missing.py"
+    ]
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert any(
+        "test file does not exist: tests/test_missing.py" in error
+        for error in report.errors
+    )
+
+
+def test_validator_collects_all_references_once_in_sanitized_subprocess(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    (tmp_path / "tests" / "test_sample.py").write_text(
+        "import sys\n"
+        "assert '/unrelated/source/tree' not in sys.path\n\n"
+        "def test_contract():\n"
+        "    assert True\n",
+        encoding="utf-8",
+    )
+    real_run = subprocess.run
+    collection_calls: list[list[str]] = []
+
+    def checked_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess:
+        if "pytest" in command and "--collect-only" in command:
+            collection_calls.append(command)
+            environment = kwargs["env"]
+            assert isinstance(environment, dict)
+            assert environment["PYTHONPATH"] != "/unrelated/source/tree"
+            assert "/unrelated/source/tree" not in environment["PYTHONPATH"]
+            assert "PYTEST_ADDOPTS" not in environment
+            assert environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+            assert command[1] == "-s"
+        return real_run(command, **kwargs)
+
+    monkeypatch.setenv("PYTHONPATH", "/unrelated/source/tree")
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--invalid-inherited-option")
+    monkeypatch.setattr(registry_tool.subprocess, "run", checked_run)
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert report.ok, "\n".join(report.errors)
+    assert len(collection_calls) == 1
+    assert collection_calls[0].count("tests/test_sample.py") == 1
+
+
+def test_validator_rejects_duplicate_enforcement_tests_and_selectors(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    invariant = registry["invariants"][0]
+    nodeid = "tests/test_sample.py::test_sample"
+    invariant["enforcement"]["tests"] = [nodeid, nodeid]
+    invariant["enforcement"]["validations"][0]["selectors"] = [
+        nodeid,
+        nodeid,
+    ]
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    combined = "\n".join(report.errors)
+    assert f"duplicate enforcement test {nodeid}" in combined
+    assert f"duplicate pytest selector {nodeid}" in combined
 
 
 def test_validator_rejects_unmapped_control_paths_and_globs(

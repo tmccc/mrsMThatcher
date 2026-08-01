@@ -18,18 +18,18 @@ independently reproduced candidate-lineage defects.
 - Ledger evidence cut-off commit: `4e548b0a5723a1f0c75e9646953b3f92c7db89ad`
 - Ledger evidence cut-off tree: `a751f4b488ee20d268a082c7daf835d5786e7e23`
 - Evidence valid through: `2026-08-01`
-- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0055. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.
+- Baseline/cut-off relationship: The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0060. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.
 - Status-claim boundary: Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 4e548b0a are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated.
 - Candidate identity source: `external-release-attestation`; stored in ledger: `false`
 - Candidate attestation fields: `base_commit`, `candidate_commit`, `candidate_tree`
-- Candidate identity rule: The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0055, remain external and unfixed in ledger truth until merge and post-merge regeneration.
+- Candidate identity rule: The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0060, remain external and unfixed in ledger truth until merge and post-merge regeneration.
 - Observed production repository commit/tree: `be882e8121a7b4348a57b61b1cf526401a36f5c0` / `7965dbb935f2a9f993d14aa37d93283e16bc298a`
 - Production observation time: `2026-07-28T23:40:14+01:00`
 - Loaded-process identity: `installed-files-observed-process-commit-unattested` — Installed source and wrapper hashes matched the recorded repository commit, but the running child did not emit a cryptographically bound loaded commit or generated-artifact generation identity.
 - Freshness warning: Production is mutable. Recheck the deployed commit, exact installed hashes and loaded child before relying operationally on any deployment status.
 - Post-merge regeneration required: `true`
 - Regeneration triggers: `production-baseline-advanced`, `defect-status-changed`, `invariant-status-changed`, `deployment-evidence-changed`
-- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0055 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
+- Regeneration rule: After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0060 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology.
 
 ## Status taxonomy
 
@@ -142,6 +142,11 @@ The explicit scope fields below project `defect_class`, `affected_files`, `runti
 | `DEF-0053` | runtime-defect | `historical_context_formatter.py`; `historical_context_outbox.py`; `mrsMThatcher2.py`; `tests/test_historical_context_outbox.py`; `tests/test_historical_context_reply.py`; `tests/test_production_consistency_incident.py` | `historical-context-reply`; `cross-cutting-remote-write-barrier` | false — The review establishes that recovery could not distinguish a definitely local interruption from a potentially transmitted one; it does not claim that a live historical-context reply was duplicated. Evidence: The phase gap was reproduced in isolated context stores by interrupting a claim before transport and by removing terminal history after a potentially transmitted claim. No X request, network or production state was used. |
 | `DEF-0054` | runtime-defect | `mrsMThatcher2.py`; `historical_context_formatter.py`; `remote_write_transport_journal.py`; `tests/test_unit_helpers.py`; `tests/test_historical_context_reply.py`; `tests/test_remote_write_transport_journal.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `cross-cutting-remote-write-barrier` | false — This establishes acceptance of under-specified local authority documents; it does not establish a live wrong-post or duplicate incident. Evidence: The gaps were reproduced with isolated receipt files using semantically equivalent noncanonical bytes, permissive modes, same-inode content mutation and disappearance at the final path check. Transport and all external access were forbidden. |
 | `DEF-0055` | runtime-defect | `mrsMThatcher2.py`; `historical_context_formatter.py`; `remote_write_transport_journal.py`; `remote_media_upload_receipt.py`; `tests/test_unit_helpers.py`; `tests/test_historical_context_reply.py`; `tests/test_remote_write_transport_journal.py`; `tests/test_remote_media_upload_receipt.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `media-upload`; `cross-cutting-remote-write-barrier` | false — The review establishes incomplete validation of nested proof fields, not a demonstrated live authority bypass. Evidence: The type/range gaps were reproduced with synthetic main, conversational, historical, journal and media documents in an isolated directory. No transport, network, provider, X or production operation occurred. |
+| `DEF-0056` | runtime-defect | `mrsMThatcher2.py`; `historical_context_formatter.py`; `historical_context_outbox.py`; `tests/test_followup_fail_safe_hardening.py`; `tests/test_historical_context_reply.py`; `tests/test_historical_context_outbox.py` | `explicit-installation-command`; `production-bootstrap`; `scheduler-state-recovery`; `historical-context-reply` | false — This establishes that a partial first install could be mistaken for an established namespace; it does not establish that a deployed installation was created or restarted in that state. Evidence: The publication and rollback gaps were reproduced against isolated 4e548b0a installation state using injected write, parent-directory synchronisation and hard-exit boundaries. No production file, service, network, X or provider was accessed. |
+| `DEF-0057` | runtime-defect | `mrsMThatcher2.py`; `historical_context_formatter.py`; `historical_context_outbox.py`; `tests/test_followup_fail_safe_hardening.py`; `tests/test_historical_context_reply.py`; `tests/test_historical_context_outbox.py` | `production-bootstrap`; `historical-context-reply`; `historical-context-recovery`; `cross-cutting-remote-write-barrier` | false — This establishes that durable authority loss could be hidden as an empty default; it does not establish that a deployed historical-context record was lost or repeated. Evidence: The loss and inspection boundaries were reproduced with isolated established history and outbox documents which were removed or made uninspectable before production-mode reads. No live history, outbox, network, X, provider or service was accessed. |
+| `DEF-0058` | runtime-defect | `mrsMThatcher2.py`; `historical_context_outbox.py`; `tests/test_x_write_outcome_conservatism.py` | `historical-context-reply`; `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `media-upload`; `cross-cutting-remote-write-barrier` | false — This establishes that an outbox-only possibly transmitted attempt could fail to block another lane; it does not establish that a deployed historical-context reply or unrelated remote write was repeated. Evidence: The barrier gap was reproduced with isolated outbox state after removing independent source-receipt and transport-journal authority and making the historical-context runtime unavailable. No remote transport, network, production state, X or provider was accessed. |
+| `DEF-0059` | runtime-defect | `mrsMThatcher2.py`; `tests/test_followup_fail_safe_hardening.py` | `production-bootstrap`; `scheduler-state-recovery`; `ordinary-cycle-history`; `regular-quote-image-post`; `daily-meme-post` | false — This establishes acceptance or following of under-proved local filesystem authority; it does not establish that deployed state or history was substituted or corrupted. Evidence: The namespace gaps were reproduced with isolated symlink, multi-link, ownership and same-inode mutation fixtures for required installation state and used histories. No production file, service, network, X or provider was accessed. |
+| `DEF-0060` | runtime-defect | `exact_receipt_retirement.py`; `mrsMThatcher2.py`; `remote_write_safety_protocol.py`; `tools/activate_remote_write_safety_protocol.py`; `tests/test_exact_receipt_retirement.py`; `tests/test_followup_fail_safe_hardening.py`; `tests/test_remote_write_safety_second_restart.py` | `regular-quote-image-post`; `daily-meme-post`; `conversational-reply`; `historical-context-reply`; `production-bootstrap`; `cross-cutting-remote-write-barrier` | false — This establishes a safety-proof gap at the evidence cut-off and a separate availability deadlock in the first post-cutoff ledger proposal; it does not establish that a deployed post was duplicated or that a production startup was stranded. Evidence: The missing permanent completion authority and the post-cutoff startup ordering problem were established with isolated receipt namespaces, crash injection and fresh-process fixtures. No production durable file, remote transport, network, X or provider was accessed. |
 
 ## Chronology projection
 
@@ -268,6 +273,12 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0053` | 2026-08-01 | `4e548b0a` | Cutoff review showed that the same attempting-state shape represented both a definitely pre-remote interruption and a potentially transmitted claim, then removed terminal history and observed the latter become retryable instead of remaining blocked. | Isolated historical-context outbox phase and history-monotonicity fixtures |
 | `DEF-0054` | 2026-08-01 | `4e548b0a` | Application-boundary review fed noncanonical and non-private receipt documents through each production reader and changed or removed receipt content at the stable-read and source-binding boundaries. | Offline common, historical and journal stable-source document matrix |
 | `DEF-0055` | 2026-08-01 | `4e548b0a` | Cutoff review substituted numeric public identifiers, bool/negative/non-string nested source fields and the special basenames '.' and '..' in receipt, journal and media owner documents and found incomplete rejection. | Offline public receipt and journal/media nested-identity validation matrix |
+| `DEF-0056` | 2026-08-01 | `4e548b0a` | Cutoff review injected failures before and after the first state, schedule, history and outbox publications and showed that 4e548b0a had no durable pre-write installation barrier or complete rollback inventory. | Isolated first-install ordering, hard-exit, rollback and marker-less restart matrix |
+| `DEF-0057` | 2026-08-01 | `4e548b0a` | Cutoff review removed and made uninspectable established historical-context history and outbox authorities and found that their ordinary readers could return empty defaults rather than report durable-state loss. | Isolated production-factory disappearance and namespace-inspection matrix |
+| `DEF-0058` | 2026-08-01 | `4e548b0a` | Cutoff review retained a remote-started or legacy attempting outbox row while removing its source receipt and journal and making the historical-context runtime unavailable, then observed that the remaining outbox authority was not a global remote-write barrier. | Isolated True, legacy-absent and explicit-False outbox-phase cross-lane matrix |
+| `DEF-0059` | 2026-08-01 | `4e548b0a` | Cutoff review replaced required state and used-history paths with symlinks and exercised unstable or non-single-link authorities, establishing that discovery and loading did not share one strict no-follow file-generation proof. | Isolated core-state symlink, owner/link and same-inode mutation matrix |
+| `DEF-0060` | 2026-08-01 | `4e548b0a` | Exact-cutoff source review established that the final cleanup path could unlink the last receipt-retirement auxiliary without publishing a permanent generation-bound completion record. | 4e548b0a exact_receipt_retirement.py final cleanup and all-absent inspection paths |
+| `DEF-0060` | 2026-08-01 | unknown | Post-cutoff crash injection against the proposed permanent ledger found that an exact recoverable exchange could be rejected as an incomplete installation before the daemon's authorised startup resumer was called. | Uncommitted startup ledger-exchange ordering regression and fresh-process recovery fixtures |
 
 ## Summary
 
@@ -287,9 +298,9 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0012` | assurance-weakness | assurance | Integration and simulator fixtures did not model the complete production integrity generation | `INV-TEST-004`, `INV-ART-001`, `INV-ELIG-001` | `fe8f7713`, bounded | `be882e81` | not applicable |
 | `DEF-0013` | assurance-weakness | assurance | Subprocess network egress is not denied at the operating-system boundary | `INV-TEST-003` | unknown | unfixed | not applicable |
 | `DEF-0014` | assurance-weakness | assurance | Final validation is not bound to a frozen candidate tree and artifact inventory | `INV-REL-001`, `INV-ART-001` | unknown | unfixed | not applicable |
-| `DEF-0015` | active | medium | Process health does not expose the loaded commit and artifact generation identity | `INV-PROC-004`, `INV-ART-001` | `2179d71e`, bounded | unfixed | observed in production `be882e81` |
+| `DEF-0015` | active | medium | Process health does not expose the loaded commit and artifact generation identity | `INV-PROC-004`, `INV-ART-001` | `2179d71e`, bounded | unfixed | active at the ledger evidence cut-off; production presence not established |
 | `DEF-0016` | latent-disabled | medium | Semantic-veto manifest pins a multi-purpose formatter as its attribution predicate | `INV-VETO-001`, `INV-ART-001` | `2220df1e` | unfixed | enforcement unsupported; shadow only |
-| `DEF-0017` | active | high | Duplicate JSON object names remain last-wins in configuration and pause controls | `INV-CONFIG-001`, `INV-PAUSE-001` | `36edf036`, bounded | unfixed | present in observed production and at evidence cut-off |
+| `DEF-0017` | active | high | Duplicate JSON object names remain last-wins in configuration and pause controls | `INV-CONFIG-001`, `INV-PAUSE-001` | `36edf036`, bounded | unfixed | active at the ledger evidence cut-off; production presence not established |
 | `DEF-0018` | assurance-weakness | assurance | Priority-0 release-control JSON accepts ambiguous duplicate object names | `INV-REL-JSON-001` | `516b9b40`, bounded | unfixed | not applicable |
 | `DEF-0019` | assurance-weakness | assurance | Candidate-owned gate can certify the candidate which supplies it | `INV-REL-TRUST-001` | `516b9b40` | unfixed | not applicable |
 | `DEF-0020` | assurance-weakness | assurance | Validation containment exposes unrelated host-user files | `INV-REL-SANDBOX-001` | `516b9b40`, bounded | unfixed | not applicable |
@@ -317,17 +328,22 @@ This table projects every `chronology` event from `defect_ledger.json`; it is ge
 | `DEF-0042` | repaired-not-deployed | critical | Destructive transaction helpers lacked verified caller lock authority | `INV-PROC-002`, `INV-TXN-RECEIPT-001` | unknown | `634fd6cd` | not-deployed; observed `be882e81` |
 | `DEF-0043` | repaired-not-deployed | critical | Unsafe receipt namespaces and ambiguous JSON could be treated as absent or authoritative | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | `634fd6cd` | not-deployed; observed `be882e81` |
 | `DEF-0044` | assurance-weakness | assurance | Candidate-owned pytest hooks could forge internally consistent release evidence | `INV-REL-TRUST-001` | unknown | unfixed | not applicable |
-| `DEF-0045` | active | medium | Exact exchange staging could require manual recovery after a safe hard exit | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0045` | active | medium | Exact exchange staging could require manual recovery after a safe hard exit | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
 | `DEF-0046` | repaired-not-deployed | critical | Stale confirmed receipt replay could regress newer post state | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | `5a11bbf4` | not-deployed; observed `be882e81` |
 | `DEF-0047` | repaired-not-deployed | critical | Path-bearing X bases could desynchronise prepared and literal create-route classification | `INV-API-001`, `INV-TXN-RECEIPT-001` | unknown | `5a11bbf4` | not-deployed; observed `be882e81` |
 | `DEF-0048` | repaired-not-deployed | critical | Accepted legacy confirmed receipts could leave auxiliary provider work unblocked | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-RECEIPT-001` | unknown | `5a11bbf4` | not-deployed; observed `be882e81` |
 | `DEF-0049` | repaired-not-deployed | medium | Configured X upload origin was ignored by v2 media requests | `INV-API-001` | unknown | `ce970f81` | not-deployed; observed `be882e81` |
 | `DEF-0050` | repaired-not-deployed | medium | Final pretransport pause could strand a definitely untransmitted media barrier pair | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001` | unknown | `ce970f81` | not-deployed; observed `be882e81` |
 | `DEF-0051` | repaired-not-deployed | medium | Post-media-handoff tweet pauses stranded definitely untransmitted main-post transactions | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-RECEIPT-001`, `INV-PAUSE-001` | unknown | `fb8eb25f` | not-deployed; observed `be882e81` |
-| `DEF-0052` | active | critical | A valid primary state file could silently outrank a newer valid backup | `INV-TXN-HIST-001` | unknown | unfixed | present in observed production and at evidence cut-off |
-| `DEF-0053` | active | critical | Historical-context recovery lacked a durable pre-remote versus remote-started phase | `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
-| `DEF-0054` | active | critical | Receipt readers and source binding did not prove one stable canonical private file generation | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
-| `DEF-0055` | active | medium | Durable public identifiers and nested source identities lacked exact type, range and basename constraints | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | not deployed; absent from observed production `be882e81` |
+| `DEF-0052` | active | critical | A valid primary state file could silently outrank a newer valid backup | `INV-TXN-HIST-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0053` | active | critical | Historical-context recovery lacked a durable pre-remote versus remote-started phase | `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0054` | active | critical | Receipt readers and source binding did not prove one stable canonical private file generation | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0055` | active | medium | Durable public identifiers and nested source identities lacked exact type, range and basename constraints | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0056` | active | critical | First-install publication could expose partially established current-schema state without a durable in-progress barrier | `INV-TXN-HIST-001`, `INV-PROC-002` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0057` | active | critical | Established historical-context history or outbox loss could be reinterpreted as empty state | `INV-TXN-HCTX-001`, `INV-TXN-HIST-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | observed in production `be882e81` |
+| `DEF-0058` | active | critical | Remote-started historical-context outbox attempts were absent from the global remote-write barrier | `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0059` | active | critical | Core state and used-history readers followed or incompletely proved filesystem authorities | `INV-TXN-HIST-001`, `INV-PROC-002` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
+| `DEF-0060` | active | critical | Exact source-receipt retirement lacked a permanent completion proof and recoverable ledger exchanges could block startup | `INV-TXN-REG-001`, `INV-TXN-MEME-001`, `INV-TXN-REPLY-001`, `INV-TXN-HCTX-001`, `INV-TXN-RECEIPT-001` | unknown | unfixed | active at the ledger evidence cut-off; production presence not established |
 
 ## Records
 
@@ -1020,6 +1036,69 @@ Post-cutoff regressions require exact non-boolean bounded integers and string
 digests; no fixing commit is inside the evidence boundary, so the medium-
 severity defect remains active and was not deployed.
 
+### DEF-0056 — First-install publication and rollback atomicity
+
+At `4e548b0a`, explicit initialisation did not acquire the process-lifetime
+instance lock before trusting namespace absence, did not publish a durable
+in-progress sentinel before its first data write and added some cleanup paths
+only after fallible publication. A hard exit or post-replacement error could
+therefore leave marker-less current-schema state which the narrower
+established-installation predicate accepted as complete. Post-cutoff candidate
+tests require lock-first inspection, sentinel-first publication, complete
+pre-registration of rollback paths, explicit history/outbox creation and
+fail-closed treatment of interrupted new installs. No fixing commit is inside
+this ledger boundary.
+
+### DEF-0057 — Established historical-context authority loss
+
+At `4e548b0a`, an apparently absent historical-context history or outbox was
+read as an empty default, production factories did not require an established
+authority, and the installation completeness check omitted both files.
+Disappearance or failed namespace inspection could therefore hide durable
+history or obligation loss as a valid empty store. Post-cutoff candidate tests
+separate explicit one-time creation from require-existing production readers
+and require both authorities in an established installation. No fixing commit
+is inside the evidence boundary, so the defect remains active.
+
+### DEF-0058 — Remote-started historical-context outbox global barrier
+
+At `4e548b0a`, a `context_reply_attempting` outbox row was not itself part of
+the global remote-write barrier. If its source receipt and transport journal
+were absent and the historical-context runtime was unavailable, an explicit
+remote-started or legacy phase-absent attempt could remain durable while an
+unrelated remote-write lane saw no blocker. Post-cutoff candidate tests require
+the true and legacy phase forms to block globally while preserving bounded
+local recovery for an explicit false phase. No fixing commit is inside the
+evidence boundary, so the defect remains active.
+
+### DEF-0059 — Stable no-follow core state authority
+
+At `4e548b0a`, required-installation checks, `load_state` and `load_used_set`
+did not uniformly prove that their source was one current-owner, single-link
+ordinary file opened without following links and stable through the final
+pathname check. A symlink, multi-link or mutating core state or used-history
+authority could therefore supply bootstrap, schedule or duplicate-suppression
+state without one exact file-generation proof. Post-cutoff candidate tests use
+a shared stable no-follow reader and cover symlink and same-inode mutation
+boundaries. No fixing commit is inside the evidence boundary, so the defect
+remains active.
+
+### DEF-0060 — Permanent exact-retirement proof and startup recovery
+
+At `4e548b0a`, final source-receipt retirement could remove its last transient
+completion artefact without publishing a permanent generation-bound record.
+Later code could therefore lose the durable evidence needed to distinguish
+exact completion from lost authority. The first post-cutoff permanent-ledger
+proposal closed that safety-proof gap but introduced a separate fail-closed
+availability problem: establishment validation rejected an exact crash-left
+ledger exchange before the authorised startup resumer could complete it. The
+current uncommitted proposal publishes a monotonic exact completion ledger
+before final cleanup and recovers only a structurally exact exchange beneath a
+current schema-3 activation and the verifier-bound instance lock. Missing,
+malformed or unrelated ledger states remain blocking. No fixing commit is
+inside the evidence boundary, so the defect remains active; arbitrary hostile
+same-UID namespace mutation is outside the cooperative/crash safety claim.
+
 ## Unknown-value policy
 
 The following are intentionally unknown rather than inferred:
@@ -1033,7 +1112,7 @@ The following are intentionally unknown rather than inferred:
 - `DEF-0040` through `DEF-0043` and `DEF-0046` through `DEF-0051`: introduction
   bounds remain unknown, but their exact fixing commits, fix parents and bound
   regressions are recorded rather than inferred.
-- `DEF-0044`, `DEF-0045`, and `DEF-0052` through `DEF-0055`: introduction and
+- `DEF-0044`, `DEF-0045`, and `DEF-0052` through `DEF-0059`: introduction and
   fix commits remain unknown. Their explicit unfixed ranges end at exact
   evidence cut-off `4e548b0a` until post-merge regeneration records a fix.
 

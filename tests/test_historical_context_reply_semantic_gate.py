@@ -8,6 +8,7 @@ from types import MappingProxyType
 
 import pytest
 
+import exact_receipt_retirement as exact_retirement
 import historical_context_formatter as context_formatter
 import mrsMThatcher2 as bot
 from historical_context_formatter import (
@@ -31,6 +32,7 @@ from historical_context_published_reply_semantic_review import build_review
 from historical_context_source_curated_evidence import (
     CURATED_EVIDENCE_FILENAME,
 )
+from transaction_mutation_authority import issue_transaction_mutation_authority
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -767,15 +769,26 @@ def test_regular_receipt_replay_clears_after_policy_skip_without_context_write(
         gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
     )
     regular_receipt = tmp_path / "regular-receipt.json"
-    regular_receipt.write_text(json.dumps({
-        "schema_version": 1,
-        "post_id": "950001",
-        "quote_hash": OPEN_FUTURE,
-        "image_basename": "t01.jpg",
-        "quote_post_epoch": 1_800_000_000,
-        "next_quote_post_epoch": 1_800_007_200,
-        "text": quote_text,
-    }), encoding="utf-8")
+    exact_retirement.initialise_retirement_ledger(
+        regular_receipt,
+        mutation_authority=issue_transaction_mutation_authority(
+            lambda _operation: None,
+            operation="semantic-gate replay fixture ledger initialisation",
+        ),
+    )
+    bot.atomic_write_json(
+        regular_receipt,
+        {
+            "schema_version": 1,
+            "post_id": "950001",
+            "quote_hash": OPEN_FUTURE,
+            "image_basename": "t01.jpg",
+            "quote_post_epoch": 1_800_000_000,
+            "next_quote_post_epoch": 1_800_007_200,
+            "text": quote_text,
+        },
+        durable=True,
+    )
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", regular_receipt)
     monkeypatch.setattr(
         bot,

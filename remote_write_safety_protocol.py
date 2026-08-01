@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from exact_receipt_retirement import retirement_ledger_contract_sha256
+
 
 PROTOCOL_VERSION = 2
 ACTIVATION_BASENAME = ".mrs_remote_write_safety_protocol_v2"
@@ -37,8 +39,12 @@ ACTIVATION_BYTES = (
 ACTIVATION_MODE = 0o400
 ACTIVATION_AUDIT_BASENAME = f"{ACTIVATION_BASENAME}.activation_audit.json"
 ACTIVATION_AUDIT_MODE = 0o400
-ACTIVATION_AUDIT_SCHEMA_VERSION = 2
+ACTIVATION_AUDIT_SCHEMA_VERSION = 3
 ACTIVATION_AUDIT_DOCUMENT_KIND = (
+    "mrsMThatcher_remote_write_safety_protocol_v2_ledger_activation_audit"
+)
+PRE_LEDGER_ACTIVATION_AUDIT_SCHEMA_VERSION = 2
+PRE_LEDGER_ACTIVATION_AUDIT_DOCUMENT_KIND = (
     "mrsMThatcher_remote_write_safety_protocol_v2_activation_audit"
 )
 LEGACY_PROTOCOL_VERSION = 1
@@ -56,6 +62,12 @@ LEGACY_ACTIVATION_AUDIT_DOCUMENT_KIND = (
 )
 ESTABLISHED_INSTALL_ACTIVATION_KIND = (
     "established_install_external_clean_state_attestation"
+)
+RETIREMENT_LEDGER_RECEIPT_BASENAMES = (
+    "regular_post_receipt.json",
+    "meme_post_receipt.json",
+    "confirmed_reply_receipt.json",
+    "historical_context_reply_receipt.json",
 )
 _ACTIVATION_STAGING_PREFIX = f"{ACTIVATION_BASENAME}.pending."
 _AUDIT_STAGING_PREFIX = f"{ACTIVATION_AUDIT_BASENAME}.pending."
@@ -278,6 +290,7 @@ def _parse_activation_audit_version(
     schema_version: int,
     document_kind: str,
     protocol_version: int,
+    retirement_ledger_aware: bool = False,
 ) -> dict[str, object]:
     """Parse one canonical companion audit for an exact protocol generation."""
 
@@ -317,6 +330,11 @@ def _parse_activation_audit_version(
             "legacy_namespace_required_absent",
             "protocol_version",
         }
+    if retirement_ledger_aware:
+        common |= {
+            "retirement_ledger_contract_sha256",
+            "retirement_ledger_initial_inventory_sha256",
+        }
     kind = value.get("activation_kind")
     if kind == ESTABLISHED_INSTALL_ACTIVATION_KIND:
         required = common | {
@@ -343,6 +361,30 @@ def _parse_activation_audit_version(
             and not any(
                 ord(character) < 0x20
                 for character in str(value.get("reconciliation_reference"))
+            )
+            and (
+                not retirement_ledger_aware
+                or (
+                    isinstance(
+                        value.get("retirement_ledger_contract_sha256"), str
+                    )
+                    and _SHA256_RE.fullmatch(
+                        str(value.get("retirement_ledger_contract_sha256"))
+                    )
+                    is not None
+                    and isinstance(
+                        value.get("retirement_ledger_initial_inventory_sha256"),
+                        str,
+                    )
+                    and _SHA256_RE.fullmatch(
+                        str(
+                            value.get(
+                                "retirement_ledger_initial_inventory_sha256"
+                            )
+                        )
+                    )
+                    is not None
+                )
             )
         )
     else:
@@ -389,11 +431,32 @@ def _parse_activation_audit_version(
 def _parse_activation_audit(data: bytes) -> dict[str, object]:
     """Parse and validate one canonical current-protocol companion audit."""
 
-    return _parse_activation_audit_version(
+    value = _parse_activation_audit_version(
         data,
         activation_bytes=ACTIVATION_BYTES,
         schema_version=ACTIVATION_AUDIT_SCHEMA_VERSION,
         document_kind=ACTIVATION_AUDIT_DOCUMENT_KIND,
+        protocol_version=PROTOCOL_VERSION,
+        retirement_ledger_aware=True,
+    )
+    expected_contract = retirement_ledger_contract_sha256(
+        tuple(Path(name) for name in RETIREMENT_LEDGER_RECEIPT_BASENAMES)
+    )
+    if value["retirement_ledger_contract_sha256"] != expected_contract:
+        raise ProtocolActivationError(
+            "protocol activation audit has the wrong retirement-ledger contract"
+        )
+    return value
+
+
+def _parse_pre_ledger_activation_audit(data: bytes) -> dict[str, object]:
+    """Parse the exact pre-ledger v2 audit solely for stopped migration."""
+
+    return _parse_activation_audit_version(
+        data,
+        activation_bytes=ACTIVATION_BYTES,
+        schema_version=PRE_LEDGER_ACTIVATION_AUDIT_SCHEMA_VERSION,
+        document_kind=PRE_LEDGER_ACTIVATION_AUDIT_DOCUMENT_KIND,
         protocol_version=PROTOCOL_VERSION,
     )
 
@@ -529,6 +592,63 @@ def _inspect_legacy_protocol_activation_at(
     )
 
 
+def _inspect_pre_ledger_protocol_activation_at(
+    directory_fd: int,
+) -> ProtocolActivationSnapshot:
+    """Validate one complete pre-ledger v2 pair for stopped migration."""
+
+    directory_identity = os.fstat(directory_fd)
+    if not stat.S_ISDIR(directory_identity.st_mode):
+        raise ProtocolActivationError("protocol activation parent is not a directory")
+    _require_legacy_activation_namespace_absent_at(directory_fd)
+    sentinel = _inspect_activation_sentinel_at(directory_fd)
+    audit = _inspect_stable_regular_at(
+        directory_fd,
+        ACTIVATION_AUDIT_BASENAME,
+        expected_mode=ACTIVATION_AUDIT_MODE,
+        maximum_size=_MAX_AUDIT_BYTES,
+        label="pre-ledger remote-write protocol activation audit",
+    )
+    audit_value = _parse_pre_ledger_activation_audit(audit.data)
+    _revalidate_stable_path_at(
+        directory_fd,
+        ACTIVATION_BASENAME,
+        sentinel,
+        label="pre-ledger remote-write protocol activation sentinel",
+    )
+    _revalidate_stable_path_at(
+        directory_fd,
+        ACTIVATION_AUDIT_BASENAME,
+        audit,
+        label="pre-ledger remote-write protocol activation audit",
+    )
+    if (
+        int(audit_value["project_device"]) != int(directory_identity.st_dev)
+        or int(audit_value["project_inode"]) != int(directory_identity.st_ino)
+        or audit_value["activation_sha256"]
+        != hashlib.sha256(sentinel.data).hexdigest()
+        or audit_value["activation_size"] != len(sentinel.data)
+        or audit_value["activation_mode"]
+        != oct(stat.S_IMODE(sentinel.metadata.st_mode))
+    ):
+        raise ProtocolActivationError(
+            "pre-ledger protocol activation audit does not bind the activation or parent"
+        )
+    return ProtocolActivationSnapshot(
+        device=int(sentinel.metadata.st_dev),
+        inode=int(sentinel.metadata.st_ino),
+        mode=ACTIVATION_MODE,
+        size=len(sentinel.data),
+        sha256=hashlib.sha256(sentinel.data).hexdigest(),
+        activation_kind=str(audit_value["activation_kind"]),
+        audit_device=int(audit.metadata.st_dev),
+        audit_inode=int(audit.metadata.st_ino),
+        audit_mode=ACTIVATION_AUDIT_MODE,
+        audit_size=len(audit.data),
+        audit_sha256=hashlib.sha256(audit.data).hexdigest(),
+    )
+
+
 def _inspect_protocol_activation_at(
     directory_fd: int,
     *,
@@ -553,6 +673,9 @@ def _inspect_protocol_activation_at(
         fsync_file=fsync_files,
     )
     audit_value = _parse_activation_audit(audit.data)
+    expected_ledger_contract = retirement_ledger_contract_sha256(
+        tuple(Path(name) for name in RETIREMENT_LEDGER_RECEIPT_BASENAMES)
+    )
     # Neither independently stable read is sufficient on its own: a namespace
     # mutation between them could otherwise compose a sentinel and audit from
     # different generations.  Revalidate both path identities only after both
@@ -577,6 +700,8 @@ def _inspect_protocol_activation_at(
         or audit_value["activation_size"] != len(sentinel.data)
         or audit_value["activation_mode"]
         != oct(stat.S_IMODE(sentinel.metadata.st_mode))
+        or audit_value["retirement_ledger_contract_sha256"]
+        != expected_ledger_contract
     ):
         raise ProtocolActivationError(
             "protocol activation audit does not bind the activation or parent"
@@ -800,6 +925,8 @@ def build_established_install_activation_audit_bytes(
     clean_state_attestation_size: int,
     activator_cli_sha256: str,
     reconciliation_reference: str,
+    retirement_ledger_contract_sha256_value: str,
+    retirement_ledger_initial_inventory_sha256: str,
 ) -> bytes:
     """Build the exact companion audit for stopped established activation."""
 
@@ -823,10 +950,54 @@ def build_established_install_activation_audit_bytes(
         "project_inode": int(project_inode),
         "protocol_version": PROTOCOL_VERSION,
         "reconciliation_reference": str(reconciliation_reference),
+        "retirement_ledger_contract_sha256": str(
+            retirement_ledger_contract_sha256_value
+        ),
+        "retirement_ledger_initial_inventory_sha256": str(
+            retirement_ledger_initial_inventory_sha256
+        ),
         "schema_version": ACTIVATION_AUDIT_SCHEMA_VERSION,
     }
     data = _canonical_json_bytes(value)
     _parse_activation_audit(data)
+    return data
+
+
+def build_pre_ledger_established_install_activation_audit_bytes(
+    *,
+    project_device: int,
+    project_inode: int,
+    clean_state_attestation_sha256: str,
+    clean_state_attestation_size: int,
+    activator_cli_sha256: str,
+    reconciliation_reference: str,
+) -> bytes:
+    """Reproduce the exact pre-ledger v2 audit for migration tests."""
+
+    value = {
+        "activation_kind": ESTABLISHED_INSTALL_ACTIVATION_KIND,
+        "activation_mode": oct(ACTIVATION_MODE),
+        "activation_sha256": hashlib.sha256(ACTIVATION_BYTES).hexdigest(),
+        "activation_size": len(ACTIVATION_BYTES),
+        "activator_cli_sha256": str(activator_cli_sha256),
+        "clean_state_attestation_sha256": str(clean_state_attestation_sha256),
+        "clean_state_attestation_size": int(clean_state_attestation_size),
+        "document_kind": PRE_LEDGER_ACTIVATION_AUDIT_DOCUMENT_KIND,
+        "external_operator_attestation_used": True,
+        "legacy_activation_basename": LEGACY_ACTIVATION_BASENAME,
+        "legacy_activation_sha256": hashlib.sha256(
+            LEGACY_ACTIVATION_BYTES
+        ).hexdigest(),
+        "legacy_namespace_required_absent": True,
+        "operator_clean_state_claim_locally_proven": False,
+        "project_device": int(project_device),
+        "project_inode": int(project_inode),
+        "protocol_version": PROTOCOL_VERSION,
+        "reconciliation_reference": str(reconciliation_reference),
+        "schema_version": PRE_LEDGER_ACTIVATION_AUDIT_SCHEMA_VERSION,
+    }
+    data = _canonical_json_bytes(value)
+    _parse_pre_ledger_activation_audit(data)
     return data
 
 

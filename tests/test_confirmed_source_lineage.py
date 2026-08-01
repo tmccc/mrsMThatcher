@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import exact_receipt_retirement as exact_retirement
 import historical_context_formatter as context
 import mrsMThatcher2 as bot
 import remote_write_transport_journal as journal
@@ -62,6 +63,10 @@ def _confirm_source(
     validator_id: str = "tests.confirmed-source-lineage.v1",
     payload: dict | None = None,
 ) -> None:
+    exact_retirement.initialise_retirement_ledger(
+        path,
+        mutation_authority=_mutation_authority(),
+    )
     _write_exact(path, source_bytes)
     payload = payload or {"text": "Reviewed text"}
     prepared = journal.begin_transport_transaction(

@@ -523,6 +523,14 @@
             }
           ]
         },
+        "production_presence_at_observed_commit": {
+          "enum": [
+            "present",
+            "absent",
+            "not-established",
+            "not-applicable"
+          ]
+        },
         "evidence": {
           "$ref": "#/$defs/nonEmptyString"
         }

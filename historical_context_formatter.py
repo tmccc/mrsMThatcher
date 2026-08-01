@@ -19,6 +19,8 @@ from urllib.parse import urlsplit
 from remote_write_transport_journal import (
     BoundSourceReceiptTransitionError,
     LANE_SOURCE_VALIDATOR_ID,
+    MAX_CONFIRMATION_EPOCH,
+    MIN_CONFIRMATION_EPOCH,
     bind_confirmed_transport_source,
     canonical_json_bytes,
     journal_path_for_receipt,
@@ -39,6 +41,7 @@ DEFAULT_RESEARCH_DIR = Path("semantic_alignment_research/quote_research_full_001
 DEFAULT_MAXIMUM_LENGTH = 4000
 MAXIMUM_SUPPORTED_LENGTH = 25_000
 MAXIMUM_TRANSACTION_RECEIPT_BYTES = 256 * 1024
+_RECEIPT_NOT_PRELOADED = object()
 _RENAME_EXCHANGE = 2
 _RECEIPT_RETIREMENT_TOMBSTONE = (
     b"historical-context receipt retirement in progress\n"
@@ -142,6 +145,29 @@ class AmbiguousContextReplyOutcome(RuntimeError):
         super().__init__(message)
         self.parent_post_id = parent_post_id
         self.reply_text = reply_text
+
+
+class DefiniteContextReplyLocalPersistenceError(RuntimeError):
+    """A proved non-success remains locally blocked by durable state."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        parent_post_id: str | None = None,
+        reply_text: str | None = None,
+        source_receipt_sha256: str | None = None,
+        source_receipt_attempt_number: int | None = None,
+        remote_error: BaseException | None = None,
+    ):
+        """Preserve diagnostic identity without claiming remote ambiguity."""
+
+        super().__init__(message)
+        self.parent_post_id = parent_post_id
+        self.reply_text = reply_text
+        self.source_receipt_sha256 = source_receipt_sha256
+        self.source_receipt_attempt_number = source_receipt_attempt_number
+        self.remote_error = remote_error
 
 
 def utc_now() -> str:
@@ -1215,12 +1241,14 @@ class HistoricalContextReplyStore:
             Callable[[str], TransactionMutationAuthority] | None
         ) = None,
         retirement_uncertainty_callback: Callable[[], None] | None = None,
+        require_existing_history: bool = False,
     ):
         """Initialise the historical context reply store."""
         self.history_path = history_path
         self.receipt_path = receipt_path
         self._mutation_authority_provider = mutation_authority_provider
         self._retirement_uncertainty_callback = retirement_uncertainty_callback
+        self._require_existing_history = bool(require_existing_history)
 
     def _mutation_authority(self, operation: str) -> TransactionMutationAuthority:
         if self._mutation_authority_provider is None:
@@ -1231,28 +1259,99 @@ class HistoricalContextReplyStore:
 
     def history(self) -> dict[str, Any]:
         """Return the history."""
-        if not self.history_path.exists(): return {"schema_version": 1, "items": {}}
-        value = json.loads(self.history_path.read_text())
-        if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
-                or value.get("schema_version") != 1 or not isinstance(value.get("items"), dict)):
+        try:
+            os.lstat(self.history_path)
+        except FileNotFoundError:
+            if self._require_existing_history:
+                raise RuntimeError(
+                    "established historical context reply history is missing"
+                )
+            return {"schema_version": 1, "items": {}}
+        except OSError as exc:
+            raise RuntimeError(
+                "historical context reply history namespace cannot be inspected"
+            ) from exc
+        history_bytes = self._read_stable_private_bytes(
+            self.history_path,
+            maximum=None,
+            label="historical context reply history",
+        )
+        value = self._parse_history_json(history_bytes)
+        if (
+            not isinstance(value, dict)
+            or set(value) != {"schema_version", "items"}
+            or type(value.get("schema_version")) is not int
+            or value.get("schema_version") != 1
+            or not isinstance(value.get("items"), dict)
+        ):
             raise RuntimeError("invalid context reply history")
         for parent_post_id, item in value["items"].items():
-            if not isinstance(item, dict) or str(item.get("parent_post_id") or "") != str(parent_post_id):
+            if (
+                not isinstance(item, dict)
+                or type(item.get("parent_post_id")) is not str
+                or item["parent_post_id"] != parent_post_id
+            ):
                 raise RuntimeError("invalid context reply history item")
             if item.get("status") == "completed":
                 receipt = {key: value for key, value in item.items() if key != "status"}
                 if not self._valid_receipt(receipt):
                     raise RuntimeError("invalid completed context reply history")
             elif item.get("status") == "failed":
+                required_failed_fields = {
+                    "parent_post_id",
+                    "quote_id",
+                    "reply_text",
+                    "status",
+                    "failure",
+                    "attempt_count",
+                    "updated_at",
+                }
+                source_proof_fields = {
+                    "remote_outcome",
+                    "source_receipt_sha256",
+                    "source_receipt_attempt_number",
+                }
+                permitted_failed_fields = {
+                    frozenset(required_failed_fields),
+                    frozenset(required_failed_fields | {"formatter_metadata"}),
+                    frozenset(required_failed_fields | source_proof_fields),
+                    frozenset(
+                        required_failed_fields
+                        | source_proof_fields
+                        | {"formatter_metadata"}
+                    ),
+                }
                 if (
-                    not re.fullmatch(r"\d{1,30}", str(parent_post_id))
-                    or not re.fullmatch(r"[0-9a-f]{64}", str(item.get("quote_id") or ""))
+                    frozenset(item) not in permitted_failed_fields
+                    or not re.fullmatch(r"\d{1,30}", parent_post_id)
+                    or type(item.get("quote_id")) is not str
+                    or not re.fullmatch(r"[0-9a-f]{64}", item["quote_id"])
                     or not isinstance(item.get("reply_text"), str)
                     or not item["reply_text"].strip()
+                    or len(item["reply_text"]) > MAXIMUM_SUPPORTED_LENGTH
                     or type(item.get("attempt_count")) is not int
                     or item["attempt_count"] < 1
-                    or not isinstance(item.get("failure"), str)
+                    or type(item.get("failure")) is not str
+                    or not item["failure"].strip()
+                    or not self._valid_utc_timestamp(item.get("updated_at"))
                     or ("formatter_metadata" in item and not self._valid_formatter_metadata(item["formatter_metadata"]))
+                    or (
+                        bool(source_proof_fields & set(item))
+                        and (
+                            not source_proof_fields.issubset(item)
+                            or item.get("remote_outcome") != "proved_non_success"
+                            or type(item.get("source_receipt_sha256")) is not str
+                            or not re.fullmatch(
+                                r"[0-9a-f]{64}",
+                                item["source_receipt_sha256"],
+                            )
+                            or type(item.get("source_receipt_attempt_number"))
+                            is not int
+                            or item["source_receipt_attempt_number"] < 1
+                            or item["attempt_count"]
+                            != item["source_receipt_attempt_number"]
+                        )
+                    )
                 ):
                     raise RuntimeError("invalid failed context reply history")
             else:
@@ -1260,6 +1359,59 @@ class HistoricalContextReplyStore:
         return value
 
     def _save_history(self, value: dict[str, Any]) -> None: atomic_write_json(self.history_path, value)
+
+    def initialise_empty_history(self) -> dict[str, Any]:
+        """Create the empty history authority for a genuinely new install."""
+
+        try:
+            os.lstat(self.history_path)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise RuntimeError(
+                "historical context history namespace cannot be inspected"
+            ) from exc
+        else:
+            raise FileExistsError(
+                "refusing to initialise an existing historical context history"
+            )
+        value = {"schema_version": 1, "items": {}}
+        self._save_history(value)
+        return copy.deepcopy(value)
+
+    @staticmethod
+    def _parse_history_json(data: bytes) -> Any:
+        """Parse one canonical history document without ambiguous JSON."""
+
+        def reject_duplicate_names(
+            pairs: list[tuple[str, Any]],
+        ) -> dict[str, Any]:
+            value: dict[str, Any] = {}
+            for name, item in pairs:
+                if name in value:
+                    raise ValueError(
+                        "duplicate historical-context history object name: "
+                        f"{name}"
+                    )
+                value[name] = item
+            return value
+
+        def reject_nonfinite_constant(value: str) -> Any:
+            raise ValueError(
+                "non-finite historical-context history JSON constant: "
+                f"{value}"
+            )
+
+        value = json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=reject_duplicate_names,
+            parse_constant=reject_nonfinite_constant,
+        )
+        if canonical_json_bytes(value) != data:
+            raise ValueError(
+                "historical-context history is not canonical JSON"
+            )
+        return value
 
     @staticmethod
     def _parse_receipt_json(data: bytes) -> Any:
@@ -1295,8 +1447,20 @@ class HistoricalContextReplyStore:
         return value
 
     @staticmethod
-    def _read_stable_receipt_bytes(path: Path) -> bytes:
-        """Read one owned, single-link ordinary receipt without following links."""
+    def _read_stable_private_bytes(
+        path: Path,
+        *,
+        maximum: int | None,
+        label: str,
+    ) -> bytes:
+        """Read one stable private regular file without following links.
+
+        ``maximum=None`` is reserved for the non-prunable reply-history
+        authority.  That file is intentionally lifetime-unbounded because it
+        supplies duplicate suppression; transaction receipts remain bounded.
+        The observed size still bounds this individual read and all identity
+        metadata is revalidated afterwards.
+        """
 
         path = Path(path)
         before = os.lstat(path)
@@ -1305,35 +1469,30 @@ class HistoricalContextReplyStore:
             or before.st_nlink != 1
             or before.st_uid != os.geteuid()
             or stat.S_IMODE(before.st_mode) != 0o600
-            or before.st_size > MAXIMUM_TRANSACTION_RECEIPT_BYTES
+            or (maximum is not None and before.st_size > maximum)
         ):
-            raise RuntimeError(
-                "historical context reply receipt has unsafe filesystem metadata"
-            )
+            raise RuntimeError(f"{label} has unsafe filesystem metadata")
         nofollow = getattr(os, "O_NOFOLLOW", 0)
         if not nofollow:
-            raise RuntimeError(
-                "historical context reply receipt inspection requires O_NOFOLLOW"
-            )
+            raise RuntimeError(f"{label} inspection requires O_NOFOLLOW")
         try:
             descriptor = os.open(
                 path,
                 os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
             )
         except FileNotFoundError as exc:
-            raise RuntimeError(
-                "historical context reply receipt disappeared after observation"
-            ) from exc
+            raise RuntimeError(f"{label} disappeared after observation") from exc
         try:
             opened = os.fstat(descriptor)
             chunks: list[bytes] = []
             total = 0
-            while total <= MAXIMUM_TRANSACTION_RECEIPT_BYTES:
+            read_limit = before.st_size if maximum is None else maximum
+            while total <= read_limit:
                 chunk = os.read(
                     descriptor,
                     min(
                         65536,
-                        MAXIMUM_TRANSACTION_RECEIPT_BYTES + 1 - total,
+                        read_limit + 1 - total,
                     ),
                 )
                 if not chunk:
@@ -1344,13 +1503,12 @@ class HistoricalContextReplyStore:
             try:
                 after_path = os.lstat(path)
             except FileNotFoundError as exc:
-                raise RuntimeError(
-                    "historical context reply receipt disappeared while it was read"
-                ) from exc
+                raise RuntimeError(f"{label} disappeared while it was read") from exc
         finally:
             os.close(descriptor)
         if (
-            total > MAXIMUM_TRANSACTION_RECEIPT_BYTES
+            total > read_limit
+            or total != before.st_size
             or not stat.S_ISREG(opened.st_mode)
             or opened.st_nlink != 1
             or opened.st_uid != os.geteuid()
@@ -1394,10 +1552,34 @@ class HistoricalContextReplyStore:
             or after_path.st_uid != os.geteuid()
             or stat.S_IMODE(after_path.st_mode) != 0o600
         ):
-            raise RuntimeError(
-                "historical context reply receipt changed while it was read"
-            )
+            raise RuntimeError(f"{label} changed while it was read")
         return b"".join(chunks)
+
+    @staticmethod
+    def _valid_utc_timestamp(value: Any) -> bool:
+        """Return whether *value* is one bounded canonical UTC timestamp."""
+
+        if type(value) is not str or not value.endswith("Z") or len(value) > 64:
+            return False
+        try:
+            parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+        except ValueError:
+            return False
+        return (
+            parsed.tzinfo is not None
+            and parsed.utcoffset() == timezone.utc.utcoffset(parsed)
+            and parsed.isoformat().replace("+00:00", "Z") == value
+        )
+
+    @staticmethod
+    def _read_stable_receipt_bytes(path: Path) -> bytes:
+        """Read one owned, single-link ordinary receipt without following links."""
+
+        return HistoricalContextReplyStore._read_stable_private_bytes(
+            path,
+            maximum=MAXIMUM_TRANSACTION_RECEIPT_BYTES,
+            label="historical context reply receipt",
+        )
 
     @classmethod
     def receipt_path_is_safe_regular(cls, path: Path) -> bool:
@@ -1582,7 +1764,11 @@ class HistoricalContextReplyStore:
             or not re.fullmatch(r"[0-9a-f]{64}", receipt["quote_id"])
         ):
             return False
-        if not isinstance(receipt.get("reply_text"), str) or not receipt["reply_text"].strip():
+        if (
+            not isinstance(receipt.get("reply_text"), str)
+            or not receipt["reply_text"].strip()
+            or len(receipt["reply_text"]) > MAXIMUM_SUPPORTED_LENGTH
+        ):
             return False
         if type(receipt.get("reply_epoch")) is not int or receipt["reply_epoch"] < 0:
             return False
@@ -1625,8 +1811,11 @@ class HistoricalContextReplyStore:
             and re.fullmatch(r"[0-9a-f]{64}", receipt["quote_id"])
             and isinstance(receipt.get("reply_text"), str)
             and receipt["reply_text"].strip()
+            and len(receipt["reply_text"]) <= MAXIMUM_SUPPORTED_LENGTH
             and type(receipt.get("reply_epoch")) is int
-            and receipt["reply_epoch"] >= 0
+            and MIN_CONFIRMATION_EPOCH
+            <= receipt["reply_epoch"]
+            <= MAX_CONFIRMATION_EPOCH
             and isinstance(receipt.get("started_at"), str)
             and receipt["started_at"].strip()
             and type(receipt.get("attempt_number")) is int
@@ -1673,24 +1862,180 @@ class HistoricalContextReplyStore:
             )
         return source_bytes
 
-    def reconcile_receipt(self) -> bool:
-        """Reconcile receipt."""
+    @staticmethod
+    def _failed_history_matches_source_receipt(
+        history_item: Any,
+        receipt: dict[str, Any],
+        receipt_bytes: bytes,
+    ) -> bool:
+        """Return whether one failure is bound to these exact source bytes."""
+
+        return bool(
+            isinstance(history_item, dict)
+            and history_item.get("status") == "failed"
+            and history_item.get("remote_outcome") == "proved_non_success"
+            and history_item.get("parent_post_id") == receipt.get("parent_post_id")
+            and history_item.get("quote_id") == receipt.get("quote_id")
+            and history_item.get("reply_text") == receipt.get("reply_text")
+            and history_item.get("source_receipt_attempt_number")
+            == receipt.get("attempt_number")
+            and history_item.get("attempt_count") == receipt.get("attempt_number")
+            and history_item.get("source_receipt_sha256")
+            == hashlib.sha256(receipt_bytes).hexdigest()
+        )
+
+    def ensure_proved_failure_history_from_outbox(
+        self,
+        context_reply: dict[str, Any],
+    ) -> bool:
+        """Recover a missing failure history from one exact outbox proof.
+
+        This helper never infers an outcome from parent/quote identity or from
+        independent attempt ordinals.  The failed outbox row must name the
+        exact canonical sending-receipt bytes and the receipt's own attempt
+        number.  A transport journal still present defeats the local
+        non-success proof and remains fail closed.
+        """
+
+        if (
+            not isinstance(context_reply, dict)
+            or context_reply.get("state")
+            not in {"context_reply_failed_retryable", "context_reply_failed_terminal"}
+            or not isinstance(context_reply.get("failure"), dict)
+        ):
+            raise RuntimeError("outbox has no proved historical-context failure")
+        failure = context_reply["failure"]
+        if (
+            failure.get("remote_outcome") != "proved_non_success"
+            or type(failure.get("source_receipt_sha256")) is not str
+            or not re.fullmatch(r"[0-9a-f]{64}", failure["source_receipt_sha256"])
+            or type(failure.get("source_receipt_attempt_number")) is not int
+            or failure["source_receipt_attempt_number"] < 1
+        ):
+            raise RuntimeError(
+                "outbox failure lacks an exact proved-non-success source binding"
+            )
         loaded = self._load_receipt_safely()
-        if loaded is None:
-            return False
+        if loaded is None or not self._valid_sending_receipt(loaded[0]):
+            raise RuntimeError(
+                "proved historical-context failure has no valid source receipt"
+            )
         receipt, receipt_bytes = loaded
+        if (
+            context_reply.get("quote_id") != receipt.get("quote_id")
+            or failure["source_receipt_sha256"]
+            != hashlib.sha256(receipt_bytes).hexdigest()
+            or failure["source_receipt_attempt_number"]
+            != receipt.get("attempt_number")
+            or transport_journal_is_blocking(
+                journal_path_for_receipt(self.receipt_path)
+            )
+        ):
+            raise RuntimeError(
+                "outbox failure does not prove this exact untransmitted receipt"
+            )
+        history = self.history()
+        parent_post_id = str(receipt["parent_post_id"])
+        previous = history["items"].get(parent_post_id)
+        if previous is not None:
+            if self._failed_history_matches_source_receipt(
+                previous,
+                receipt,
+                receipt_bytes,
+            ):
+                return False
+            # The bounded history retains the latest source-store attempt for
+            # one parent.  A newly proved exact non-success may legitimately
+            # supersede the immediately preceding failed attempt.  Require a
+            # strict same-identity, one-step progression; completed, gapped,
+            # different-quote, or otherwise conflicting history stays closed.
+            if not (
+                previous.get("status") == "failed"
+                and previous.get("parent_post_id") == parent_post_id
+                and previous.get("quote_id") == receipt.get("quote_id")
+                and previous.get("attempt_count")
+                == int(receipt["attempt_number"]) - 1
+            ):
+                raise RuntimeError(
+                    "historical-context history conflicts with the exact outbox proof"
+                )
+        try:
+            updated_at = datetime.fromtimestamp(
+                int(failure["failed_epoch"]),
+                tz=timezone.utc,
+            ).isoformat().replace("+00:00", "Z")
+        except (OverflowError, OSError, ValueError) as exc:
+            raise RuntimeError("outbox failure timestamp is not representable") from exc
+        history["items"][parent_post_id] = {
+            "parent_post_id": parent_post_id,
+            "quote_id": str(receipt["quote_id"]),
+            "reply_text": str(receipt["reply_text"]),
+            "status": "failed",
+            "failure": str(failure["error"]),
+            "attempt_count": int(receipt["attempt_number"]),
+            "updated_at": updated_at,
+            "remote_outcome": "proved_non_success",
+            "source_receipt_sha256": str(failure["source_receipt_sha256"]),
+            "source_receipt_attempt_number": int(
+                failure["source_receipt_attempt_number"]
+            ),
+            **(
+                {"formatter_metadata": copy.deepcopy(receipt["formatter_metadata"])}
+                if "formatter_metadata" in receipt
+                else {}
+            ),
+        }
+        self._save_history(history)
+        return True
+
+    def reconcile_receipt_disposition(
+        self,
+        *,
+        retain_definite_failure_receipt: bool = False,
+        preloaded_receipt: tuple[Any, bytes] | None | object = (
+            _RECEIPT_NOT_PRELOADED
+        ),
+    ) -> str:
+        """Reconcile one receipt and describe the exact durable outcome."""
+        loaded = (
+            self._load_receipt_safely()
+            if preloaded_receipt is _RECEIPT_NOT_PRELOADED
+            else preloaded_receipt
+        )
+        if loaded is None:
+            return "absent"
+        receipt, receipt_bytes = loaded
+        if preloaded_receipt is not _RECEIPT_NOT_PRELOADED:
+            current = self._load_receipt_safely()
+            if (
+                current is None
+                or current[0] != receipt
+                or current[1] != receipt_bytes
+            ):
+                raise RuntimeError(
+                    "historical context reply receipt changed after its "
+                    "preloaded authority was inspected"
+                )
         if self._valid_sending_receipt(receipt):
             history = self.history()
             previous = history["items"].get(str(receipt["parent_post_id"]))
-            if (
-                previous
-                and previous.get("status") == "failed"
-                and previous.get("quote_id") == receipt["quote_id"]
-                and previous.get("reply_text") == receipt["reply_text"]
-                and previous.get("attempt_count") == receipt["attempt_number"]
+            if self._failed_history_matches_source_receipt(
+                previous,
+                receipt,
+                receipt_bytes,
             ):
-                self._retire_exact_receipt(receipt_bytes)
-                return False
+                if transport_journal_is_blocking(
+                    journal_path_for_receipt(self.receipt_path)
+                ):
+                    raise AmbiguousContextReplyOutcome(
+                        "historical context failure history conflicts with an "
+                        "unresolved transport journal",
+                        parent_post_id=str(receipt["parent_post_id"]),
+                        reply_text=str(receipt["reply_text"]),
+                    )
+                if not retain_definite_failure_receipt:
+                    self._retire_exact_receipt(receipt_bytes)
+                return "definite_failure"
             raise AmbiguousContextReplyOutcome(
                 "historical context reply was interrupted while sending; manual reconciliation required",
                 parent_post_id=str(receipt["parent_post_id"]),
@@ -1721,8 +2066,12 @@ class HistoricalContextReplyStore:
         parent_post_id = str(receipt["parent_post_id"])
         previous = history["items"].get(parent_post_id)
         if previous and previous.get("status") == "completed":
-            comparable = {key: previous.get(key) for key in receipt}
-            if comparable != receipt:
+            previous_receipt = {
+                key: value
+                for key, value in previous.items()
+                if key != "status"
+            }
+            if previous_receipt != receipt:
                 raise RuntimeError("historical context reply receipt conflicts with completed history")
         history["items"][parent_post_id] = {**receipt, "status": "completed"}
         self._save_history(history)
@@ -1749,7 +2098,12 @@ class HistoricalContextReplyStore:
                 post_id=str(receipt["reply_post_id"]),
             )
         self._retire_exact_receipt(receipt_bytes)
-        return True
+        return "confirmed"
+
+    def reconcile_receipt(self) -> bool:
+        """Reconcile a receipt and retain the historical boolean API."""
+
+        return self.reconcile_receipt_disposition() == "confirmed"
 
     def reconcile_confirmed_receipt_if_present(self) -> bool:
         """Reconcile only a proved-confirmed receipt, never a sending attempt.
@@ -1849,21 +2203,87 @@ class HistoricalContextReplyStore:
             atomic_write_json(self.receipt_path, confirmed)
         return confirmed
 
-    def record_failure(self, parent_post_id: str, quote_id: str, text: str, error: BaseException,
-                       formatter_metadata: dict[str, Any] | None = None) -> None:
-        """Record failure."""
-        history = self.history(); previous = history["items"].get(str(parent_post_id), {})
+    def record_failure(
+        self,
+        parent_post_id: str,
+        quote_id: str,
+        text: str,
+        error: BaseException,
+        formatter_metadata: dict[str, Any] | None = None,
+        *,
+        source_receipt_sha256: str | None = None,
+        source_receipt_attempt_number: int | None = None,
+    ) -> None:
+        """Record one definite failure, optionally bound to exact source bytes."""
+        proof_present = (
+            source_receipt_sha256 is not None
+            or source_receipt_attempt_number is not None
+        )
+        if (
+            type(parent_post_id) is not str
+            or not re.fullmatch(r"\d{1,30}", parent_post_id)
+            or type(quote_id) is not str
+            or not re.fullmatch(r"[0-9a-f]{64}", quote_id)
+            or type(text) is not str
+            or not text.strip()
+            or len(text) > MAXIMUM_SUPPORTED_LENGTH
+            or (
+                formatter_metadata is not None
+                and not self._valid_formatter_metadata(formatter_metadata)
+            )
+            or (
+                proof_present
+                and (
+                    type(source_receipt_sha256) is not str
+                    or not re.fullmatch(r"[0-9a-f]{64}", source_receipt_sha256)
+                    or type(source_receipt_attempt_number) is not int
+                    or source_receipt_attempt_number < 1
+                )
+            )
+        ):
+            raise ValueError("invalid historical context failure record")
+        failure = f"{type(error).__name__}: {error}".strip()
+        history = self.history()
+        previous = history["items"].get(str(parent_post_id), {})
+        if (
+            proof_present
+            and previous.get("status") == "failed"
+            and previous.get("source_receipt_sha256") == source_receipt_sha256
+            and previous.get("source_receipt_attempt_number")
+            == source_receipt_attempt_number
+        ):
+            return
+        attempt_count = (
+            int(source_receipt_attempt_number)
+            if proof_present
+            else int(previous.get("attempt_count", 0)) + 1
+        )
+        if proof_present and attempt_count != int(previous.get("attempt_count", 0)) + 1:
+            raise RuntimeError(
+                "historical context failure source attempt is not the next history attempt"
+            )
         history["items"][str(parent_post_id)] = {"parent_post_id": str(parent_post_id), "quote_id": quote_id,
-            "reply_text": text, "status": "failed", "failure": f"{type(error).__name__}: {error}",
-            "attempt_count": int(previous.get("attempt_count", 0)) + 1, "updated_at": utc_now(),
+            "reply_text": text, "status": "failed", "failure": failure,
+            "attempt_count": attempt_count, "updated_at": utc_now(),
+            **(
+                {
+                    "remote_outcome": "proved_non_success",
+                    "source_receipt_sha256": source_receipt_sha256,
+                    "source_receipt_attempt_number": source_receipt_attempt_number,
+                }
+                if proof_present
+                else {}
+            ),
             **({"formatter_metadata": formatter_metadata} if formatter_metadata else {})}
         self._save_history(history)
 
     def post(self, *, parent_post_id: str, quote_id: str, reply_text: str,
              create_post: Callable[..., dict[str, Any]], now_epoch: Callable[[], int], dry_run: bool = False,
              formatter_metadata: dict[str, Any] | None = None,
-             on_confirmed_receipt: Callable[[dict[str, Any]], None] | None = None,
+             on_confirmed_receipt: Callable[[dict[str, Any], int], None] | None = None,
+             on_source_receipt_published: Callable[[str, int], None] | None = None,
              on_remote_transaction_started: Callable[[], None] | None = None,
+             on_definite_non_success: Callable[[BaseException], str] | None = None,
              remote_failure_is_definite_non_success: Callable[[BaseException], bool] | None = None,
              require_confirmed_transport: bool = False) -> dict[str, Any]:
         """Post and persist one historical-context reply transactionally."""
@@ -1874,15 +2294,26 @@ class HistoricalContextReplyStore:
             or not re.fullmatch(r"[0-9a-f]{64}", quote_id)
             or not isinstance(reply_text, str)
             or not reply_text.strip()
+            or len(reply_text) > MAXIMUM_SUPPORTED_LENGTH
         ):
             raise ValueError("invalid historical context reply request")
         if formatter_metadata is not None and not self._valid_formatter_metadata(formatter_metadata):
             raise ValueError("invalid historical context formatter metadata")
         if (
+            on_source_receipt_published is not None
+            and not callable(on_source_receipt_published)
+        ):
+            raise ValueError("invalid source receipt publication callback")
+        if (
             on_remote_transaction_started is not None
             and not callable(on_remote_transaction_started)
         ):
             raise ValueError("invalid remote transaction phase callback")
+        if (
+            on_definite_non_success is not None
+            and not callable(on_definite_non_success)
+        ):
+            raise ValueError("invalid definite non-success callback")
         if dry_run:
             return {"status": "dry_run", "parent_post_id": str(parent_post_id), "quote_id": quote_id,
                     "reply_text": reply_text, "character_count": len(reply_text)}
@@ -1892,12 +2323,16 @@ class HistoricalContextReplyStore:
                 parent_post_id=str(parent_post_id),
                 reply_text=reply_text,
             )
-        self.reconcile_receipt(); history = self.history(); previous = history["items"].get(str(parent_post_id))
+        self.reconcile_receipt()
+        history = self.history()
+        previous = history["items"].get(str(parent_post_id))
         if previous and previous.get("quote_id") != quote_id:
             raise RuntimeError("historical context reply quote identity conflicts with parent history")
         if previous and previous.get("status") == "completed": return {**previous, "status": "already_completed"}
         reply_epoch = int(now_epoch())
-        if require_confirmed_transport and not 1_500_000_000 <= reply_epoch <= 4_102_444_800:
+        if not (
+            MIN_CONFIRMATION_EPOCH <= reply_epoch <= MAX_CONFIRMATION_EPOCH
+        ):
             raise RuntimeError(
                 "historical context pre-transport clock is outside the "
                 "supported durable receipt range"
@@ -1914,10 +2349,14 @@ class HistoricalContextReplyStore:
             "attempt_number": int(previous.get("attempt_count", 0) if previous else 0) + 1,
             **({"formatter_metadata": formatter_metadata} if formatter_metadata else {}),
         }
+        sending_bytes = canonical_json_bytes(sending)
+        sending_sha256 = hashlib.sha256(sending_bytes).hexdigest()
+        if len(sending_bytes) > MAXIMUM_TRANSACTION_RECEIPT_BYTES:
+            raise ValueError("historical context sending receipt is too large")
         try:
             publish_exact_source_receipt_document(
                 self.receipt_path,
-                receipt_bytes=canonical_json_bytes(sending),
+                receipt_bytes=sending_bytes,
                 mutation_authority=self._mutation_authority(
                     "historical-context sending receipt publication"
                 ),
@@ -1930,14 +2369,66 @@ class HistoricalContextReplyStore:
                 reply_text=reply_text,
             ) from exc
 
-        def finish_definite_non_success(error: BaseException) -> dict[str, str]:
+        if on_source_receipt_published is not None:
             try:
-                self.record_failure(parent_post_id, quote_id, reply_text, error, formatter_metadata)
+                on_source_receipt_published(
+                    sending_sha256,
+                    int(sending["attempt_number"]),
+                )
+            except Exception as binding_error:
+                # The callback is before journal arming and before any remote
+                # request.  Keep the exact source receipt as the durable local
+                # recovery authority.  Beginning its retirement here creates
+                # a crash state with neither terminal history nor a terminal
+                # outbox outcome capable of authorising retirement on restart.
+                raise DefiniteContextReplyLocalPersistenceError(
+                    "could not bind the historical context source receipt; "
+                    "the exact pre-transport receipt was retained",
+                    parent_post_id=str(parent_post_id),
+                    reply_text=reply_text,
+                    source_receipt_sha256=sending_sha256,
+                    source_receipt_attempt_number=int(sending["attempt_number"]),
+                ) from binding_error
+
+        def finish_definite_non_success(error: BaseException) -> dict[str, str]:
+            durable_outbox_failure_state: str | None = None
+            try:
+                if on_definite_non_success is not None:
+                    durable_outbox_failure_state = on_definite_non_success(error)
+                    if (
+                        type(durable_outbox_failure_state) is not str
+                        or not durable_outbox_failure_state
+                    ):
+                        raise RuntimeError(
+                            "definite non-success callback returned no durable state"
+                        )
             except Exception as persistence_error:
-                raise AmbiguousContextReplyOutcome(
+                raise DefiniteContextReplyLocalPersistenceError(
+                    "could not persist the context outbox failure; manual reconciliation required",
+                    parent_post_id=str(parent_post_id),
+                    reply_text=reply_text,
+                    source_receipt_sha256=sending_sha256,
+                    source_receipt_attempt_number=int(sending["attempt_number"]),
+                    remote_error=error,
+                ) from persistence_error
+            try:
+                self.record_failure(
+                    parent_post_id,
+                    quote_id,
+                    reply_text,
+                    error,
+                    formatter_metadata,
+                    source_receipt_sha256=sending_sha256,
+                    source_receipt_attempt_number=int(sending["attempt_number"]),
+                )
+            except Exception as persistence_error:
+                raise DefiniteContextReplyLocalPersistenceError(
                     "could not persist context reply failure history; manual reconciliation required",
                     parent_post_id=str(parent_post_id),
                     reply_text=reply_text,
+                    source_receipt_sha256=sending_sha256,
+                    source_receipt_attempt_number=int(sending["attempt_number"]),
+                    remote_error=error,
                 ) from persistence_error
             try:
                 loaded = self._load_receipt_safely()
@@ -1947,16 +2438,23 @@ class HistoricalContextReplyStore:
                     )
                 self._retire_exact_receipt(loaded[1])
             except Exception as persistence_error:
-                raise AmbiguousContextReplyOutcome(
+                raise DefiniteContextReplyLocalPersistenceError(
                     "could not clear context reply sending record; manual reconciliation required",
                     parent_post_id=str(parent_post_id),
                     reply_text=reply_text,
+                    source_receipt_sha256=sending_sha256,
+                    source_receipt_attempt_number=int(sending["attempt_number"]),
+                    remote_error=error,
                 ) from persistence_error
             result: dict[str, Any] = {
                 "status": "failed",
                 "error": str(error),
                 "error_type": type(error).__name__,
             }
+            if durable_outbox_failure_state is not None:
+                result["durable_outbox_failure_state"] = (
+                    durable_outbox_failure_state
+                )
             service = getattr(error, "service", None)
             status_code = getattr(error, "status_code", None)
             reset_epoch = getattr(error, "reset_epoch", None)
@@ -2013,7 +2511,7 @@ class HistoricalContextReplyStore:
             if require_confirmed_transport:
                 details = verify_confirmed_transport_source_lineage(
                     receipt_path=self.receipt_path,
-                    expected_source_receipt_bytes=canonical_json_bytes(sending),
+                    expected_source_receipt_bytes=sending_bytes,
                     lane="historical_context_reply",
                     post_id=str(reply_id),
                     validator_id=LANE_SOURCE_VALIDATOR_ID,
@@ -2034,7 +2532,11 @@ class HistoricalContextReplyStore:
                 reply_text=reply_text,
             ) from exc
         if on_confirmed_receipt is not None:
-            on_confirmed_receipt(receipt)
+            # The owning outbox must durably record the confirmed remote
+            # identity before completed history or either transport/source
+            # barrier is retired.  Propagate callback failure with all of
+            # those barriers intact for restart reconciliation.
+            on_confirmed_receipt(receipt, confirmation_epoch)
         self.reconcile_receipt()
         return {"status": "completed", **receipt}
 

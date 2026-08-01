@@ -26,11 +26,25 @@ def _authority():
 
 def _retire_exact_receipt(*args, **kwargs):
     kwargs.setdefault("mutation_authority", _authority())
+    source = Path(args[0])
+    ledger, exchange = retirement.retirement_ledger_paths(source)
+    if not os.path.lexists(ledger) and not os.path.lexists(exchange):
+        retirement.initialise_retirement_ledger(
+            source,
+            mutation_authority=_authority(),
+        )
     return retirement.retire_exact_receipt(*args, **kwargs)
 
 
 def _prepare_exact_receipt_retirement(*args, **kwargs):
     kwargs.setdefault("mutation_authority", _authority())
+    source = Path(args[0])
+    ledger, exchange = retirement.retirement_ledger_paths(source)
+    if not os.path.lexists(ledger) and not os.path.lexists(exchange):
+        retirement.initialise_retirement_ledger(
+            source,
+            mutation_authority=_authority(),
+        )
     return retirement.prepare_exact_receipt_retirement(*args, **kwargs)
 
 
@@ -42,6 +56,10 @@ def _resume_interrupted_receipt_retirement(*args, **kwargs):
 def write_receipt(path: Path, data: bytes = RECEIPT) -> None:
     path.write_bytes(data)
     path.chmod(0o600)
+    retirement.initialise_retirement_ledger(
+        path,
+        mutation_authority=_authority(),
+    )
 
 
 def test_shared_retirement_boundary_latches_even_for_process_control_exception(
@@ -105,7 +123,7 @@ print(json.dumps(dataclasses.asdict(result), sort_keys=True))
     )
 
 
-def test_absence_is_unproved_unless_idempotence_is_independently_authorised(
+def test_completed_ledger_permanently_proves_exact_idempotence(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "regular_post_receipt.json"
@@ -124,26 +142,26 @@ def test_absence_is_unproved_unless_idempotence_is_independently_authorised(
         "displaced_source_removed",
         "prepare_guard_moved_to_cleanup",
         "prepare_guard_removed",
+        "retirement_ledger_completed",
         "commit_guard_moved_to_cleanup",
         "commit_guard_removed",
     )
 
     inspection = retirement.inspect_exact_receipt_retirement(source, RECEIPT)
-    assert inspection.phase == "absent_unproven"
-    assert inspection.valid is False
-    assert inspection.blocking is True
-    with pytest.raises(
-        retirement.ExactReceiptRetirementError,
-        match="absent without independent idempotence authority",
-    ):
-        _retire_exact_receipt(source, RECEIPT)
+    assert inspection.phase == "ledger_completed"
+    assert inspection.valid is True
+    assert inspection.blocking is False
+    repeated = _retire_exact_receipt(source, RECEIPT)
+    assert repeated.completed is True
+    assert repeated.initial_phase == "ledger_completed"
+    assert repeated.transitions == ()
 
     authorised_inspection = retirement.inspect_exact_receipt_retirement(
         source,
         RECEIPT,
         independently_authorised_absence=True,
     )
-    assert authorised_inspection.phase == "complete"
+    assert authorised_inspection.phase == "ledger_completed"
     assert authorised_inspection.valid is True
     assert authorised_inspection.blocking is False
     authorised = _retire_exact_receipt(
@@ -152,7 +170,7 @@ def test_absence_is_unproved_unless_idempotence_is_independently_authorised(
         independently_authorised_absence=True,
     )
     assert authorised.completed is True
-    assert authorised.initial_phase == "complete"
+    assert authorised.initial_phase == "ledger_completed"
     assert authorised.transitions == ()
 
 
@@ -346,7 +364,7 @@ HARD_EXIT_PHASES = [
     ("prepare_guard_moved_to_cleanup", "prepare_guard_moved", True),
     ("prepare_guard_removed", "commit_guard_only", True),
     ("commit_guard_moved_to_cleanup", "commit_guard_moved", True),
-    ("commit_guard_removed", "absent_unproven", False),
+    ("commit_guard_removed", "ledger_completed", True),
 ]
 
 
@@ -418,6 +436,8 @@ def unlink(directory_fd, **kwargs):
         transition = "displaced_source_removed"
     else:
         marker = json.loads(marker_or_receipt)
+        if marker.get("document_kind") == retirement.RETIREMENT_LEDGER_DOCUMENT_KIND:
+            return
         transition = (
             "prepare_guard_removed"
             if marker["phase"] == "prepared"
@@ -450,20 +470,11 @@ raise SystemExit(0)
 
     assert crashed.returncode == 73, crashed.stderr
     assert phase(source) == expected_phase
-    assert retirement.retirement_auxiliary_barrier_exists(source) is resume_is_proved
+    assert retirement.retirement_auxiliary_barrier_exists(source) is (
+        expected_phase != "ledger_completed"
+    )
 
     resumed = run_resume_process(source)
-    if not resume_is_proved:
-        assert resumed.returncode == 74
-        assert "no marker-proved interrupted" in resumed.stdout
-        explicitly_authorised = _retire_exact_receipt(
-            source,
-            RECEIPT,
-            independently_authorised_absence=True,
-        )
-        assert explicitly_authorised.initial_phase == "complete"
-        return
-
     assert resumed.returncode == 0, resumed.stderr
     result = json.loads(resumed.stdout)
     assert result["completed"] is True
@@ -484,6 +495,11 @@ def test_fresh_process_resume_rejects_namespaces_without_auxiliary_proof(
     source = tmp_path / "receipt.json"
     if initial != "absent":
         write_receipt(source)
+    else:
+        retirement.initialise_retirement_ledger(
+            source,
+            mutation_authority=_authority(),
+        )
     if initial == "cleanup_without_marker":
         paths = retirement._retirement_paths(source)
         source.rename(paths.cleanup)
@@ -747,6 +763,346 @@ def test_final_cleanup_unlink_failure_before_effect_preserves_blocking_cleanup(
     assert (after.st_dev, after.st_ino) == (before.st_dev, before.st_ino)
     assert phase(source) == "commit_guard_moved"
     assert retirement.retirement_auxiliary_barrier_exists(source) is True
+
+
+def test_required_permanent_ledger_missing_torn_and_unsafe_states_block(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "receipt.json"
+    source.write_bytes(RECEIPT)
+    source.chmod(0o600)
+
+    missing = retirement.inspect_retirement_ledger(source)
+    assert missing.valid is False
+    assert missing.blocking is True
+    assert "missing" in missing.detail
+    with pytest.raises(retirement.ExactReceiptRetirementError, match="ledger is missing"):
+        retirement.retire_exact_receipt(
+            source,
+            RECEIPT,
+            mutation_authority=_authority(),
+        )
+
+    retirement.initialise_retirement_ledger(
+        source,
+        mutation_authority=_authority(),
+    )
+    ledger, exchange = retirement.retirement_ledger_paths(source)
+    assert not exchange.exists()
+    ledger.write_bytes(b'{"document_kind":')
+    ledger.chmod(0o600)
+    torn = retirement.inspect_retirement_ledger(source)
+    assert torn.valid is False
+    assert torn.blocking is True
+    assert "invalid retirement ledger JSON" in torn.detail
+
+    ledger.unlink()
+    ledger.mkdir()
+    unsafe = retirement.inspect_retirement_ledger(source)
+    assert unsafe.valid is False
+    assert unsafe.blocking is True
+    assert "unsafe" in unsafe.detail
+
+
+@pytest.mark.parametrize(
+    ("fault", "expected_ledger_state", "expected_receipt_phase"),
+    [
+        ("ledger_stage", "exchange_staged", "ledger_exchange_pending"),
+        ("ledger_exchange", "exchange_committed", "ledger_exchange_pending"),
+        ("ledger_completed", "completed", "completed_commit_guard_only"),
+        ("final_cleanup_removed", "completed", "ledger_completed"),
+    ],
+)
+def test_literal_hard_exit_around_permanent_ledger_and_final_cleanup_resumes(
+    tmp_path: Path,
+    fault: str,
+    expected_ledger_state: str,
+    expected_receipt_phase: str,
+) -> None:
+    source = tmp_path / "receipt.json"
+    write_receipt(source)
+    script = r'''
+import json
+import os
+import sys
+from pathlib import Path
+import exact_receipt_retirement as retirement
+from transaction_mutation_authority import issue_transaction_mutation_authority
+
+source = Path(sys.argv[1])
+fault = sys.argv[2]
+expected = source.read_bytes()
+paths = retirement._retirement_paths(source)
+ledger_path, exchange_path = retirement.retirement_ledger_paths(source)
+original_stage = retirement._stage_new
+original_exchange = retirement._rename_exchange
+original_complete = retirement._complete_retirement_ledger
+original_unlink = retirement._unlink_exact_cleanup
+
+def stage(directory_fd, name, data):
+    result = original_stage(directory_fd, name, data)
+    if fault == "ledger_stage" and name == exchange_path.name:
+        os._exit(81)
+    return result
+
+def exchange(directory_fd, first_name, second_name):
+    original_exchange(directory_fd, first_name, second_name)
+    if fault == "ledger_exchange" and {
+        first_name, second_name
+    } == {ledger_path.name, exchange_path.name}:
+        os._exit(82)
+
+def complete(*args, **kwargs):
+    result = original_complete(*args, **kwargs)
+    if fault == "ledger_completed":
+        os._exit(83)
+    return result
+
+def unlink(directory_fd, **kwargs):
+    entry = kwargs["expected_entry"]
+    original_unlink(directory_fd, **kwargs)
+    if kwargs["cleanup_name"] != paths.cleanup.name:
+        return
+    try:
+        value = json.loads(entry.data)
+    except Exception:
+        return
+    if fault == "final_cleanup_removed" and value.get("phase") == "source_retired":
+        os._exit(84)
+
+retirement._stage_new = stage
+retirement._rename_exchange = exchange
+retirement._complete_retirement_ledger = complete
+retirement._unlink_exact_cleanup = unlink
+retirement.retire_exact_receipt(
+    source,
+    expected,
+    mutation_authority=issue_transaction_mutation_authority(
+        lambda _operation: None,
+        operation="permanent-ledger hard-exit test",
+    ),
+)
+raise SystemExit(0)
+'''
+    crashed = subprocess.run(
+        [sys.executable, "-c", script, os.fspath(source), fault],
+        cwd=PROJECT_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert crashed.returncode in {81, 82, 83, 84}, crashed.stderr
+    ledger_inspection = retirement.inspect_retirement_ledger(source)
+    assert ledger_inspection.valid is True
+    assert ledger_inspection.state == expected_ledger_state
+    assert ledger_inspection.blocking is expected_ledger_state.startswith("exchange_")
+    assert retirement.inspect_exact_receipt_retirement(
+        source,
+        RECEIPT,
+    ).phase == expected_receipt_phase
+
+    if expected_ledger_state.startswith("exchange_"):
+        assert retirement.recover_retirement_ledger_exchange_if_present(
+            source,
+            mutation_authority=_authority(),
+        ) is True
+        recovered_ledger = retirement.inspect_retirement_ledger(source)
+        assert recovered_ledger.valid is True
+        assert recovered_ledger.blocking is False
+        assert recovered_ledger.state == "completed"
+        assert retirement.recover_retirement_ledger_exchange_if_present(
+            source,
+            mutation_authority=_authority(),
+        ) is False
+
+    resumed = run_resume_process(source)
+    assert resumed.returncode == 0, resumed.stderr
+    result = json.loads(resumed.stdout)
+    assert result["completed"] is True
+    assert retirement.inspect_exact_receipt_retirement(
+        source,
+        RECEIPT,
+    ).phase == "ledger_completed"
+    assert retirement.inspect_retirement_ledger(source).blocking is False
+
+
+def test_completed_ledger_advances_monotonically_for_reused_source_path(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "receipt.json"
+    first_receipt = RECEIPT
+    second_receipt = b'{"lifecycle_state":"confirmed","post_id":"456"}\n'
+    write_receipt(source, first_receipt)
+    ledger_path, exchange_path = retirement.retirement_ledger_paths(source)
+    genesis_bytes = ledger_path.read_bytes()
+    _retire_exact_receipt(source, first_receipt)
+    first_bytes = ledger_path.read_bytes()
+    first = json.loads(first_bytes)
+    assert first["sequence"] == 1
+    assert first["previous_record_sha256"] == hashlib.sha256(genesis_bytes).hexdigest()
+    assert not exchange_path.exists()
+
+    source.write_bytes(second_receipt)
+    source.chmod(0o600)
+    _retire_exact_receipt(source, second_receipt)
+    second = json.loads(ledger_path.read_bytes())
+    assert second["sequence"] == 2
+    assert second["previous_record_sha256"] == hashlib.sha256(first_bytes).hexdigest()
+    assert second["source_binding"]["expected_sha256"] == hashlib.sha256(
+        second_receipt
+    ).hexdigest()
+    assert not exchange_path.exists()
+    assert retirement.inspect_exact_receipt_retirement(
+        source,
+        second_receipt,
+    ).phase == "ledger_completed"
+
+
+def test_ledger_inventory_hash_is_deterministic_and_order_independent(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "regular_post_receipt.json"
+    second = tmp_path / "meme_post_receipt.json"
+    retirement.initialise_retirement_ledger(first, mutation_authority=_authority())
+    retirement.initialise_retirement_ledger(second, mutation_authority=_authority())
+    forward = retirement.retirement_ledger_inventory_sha256([first, second])
+    reverse = retirement.retirement_ledger_inventory_sha256([second, first])
+    assert forward == reverse
+    assert len(forward) == 64
+    with pytest.raises(
+        retirement.ExactReceiptRetirementError,
+        match="duplicate receipt",
+    ):
+        retirement.retirement_ledger_inventory_sha256([first, first])
+
+
+def test_ledger_contract_hash_is_deterministic_and_order_independent(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "regular_post_receipt.json"
+    second = tmp_path / "meme_post_receipt.json"
+    forward = retirement.retirement_ledger_contract_sha256([first, second])
+    reverse = retirement.retirement_ledger_contract_sha256([second, first])
+    assert forward == reverse
+    assert len(forward) == 64
+    with pytest.raises(
+        retirement.ExactReceiptRetirementError,
+        match="duplicate receipt",
+    ):
+        retirement.retirement_ledger_contract_sha256([first, first])
+
+
+def test_ledger_contract_hash_does_not_change_when_ledger_advances(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "regular_post_receipt.json"
+    retirement.initialise_retirement_ledger(source, mutation_authority=_authority())
+    contract_before = retirement.retirement_ledger_contract_sha256([source])
+    inventory_before = retirement.retirement_ledger_inventory_sha256([source])
+
+    write_receipt(source)
+    _retire_exact_receipt(source, RECEIPT)
+
+    assert retirement.retirement_ledger_contract_sha256([source]) == contract_before
+    assert retirement.retirement_ledger_inventory_sha256([source]) != inventory_before
+
+
+@pytest.mark.parametrize("cleanup_ordinal", [1, 2, 3])
+def test_cleanup_aba_never_erases_the_permanent_completion_proof(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_ordinal: int,
+) -> None:
+    source = tmp_path / "receipt.json"
+    write_receipt(source)
+    paths = retirement._retirement_paths(source)
+    foreign = tmp_path / "foreign-entry"
+    foreign.write_bytes(b"F" * len(RECEIPT))
+    foreign.chmod(0o600)
+    escaped = tmp_path / "escaped-exact-entry"
+    original_unlink = retirement.os.unlink
+    seen = 0
+
+    def swap_inside_unlink(path, *args, **kwargs):
+        nonlocal seen
+        if os.fspath(path) == paths.cleanup.name:
+            seen += 1
+            if seen == cleanup_ordinal:
+                directory_fd = kwargs["dir_fd"]
+                os.rename(
+                    paths.cleanup.name,
+                    escaped.name,
+                    src_dir_fd=directory_fd,
+                    dst_dir_fd=directory_fd,
+                )
+                os.rename(
+                    foreign.name,
+                    paths.cleanup.name,
+                    src_dir_fd=directory_fd,
+                    dst_dir_fd=directory_fd,
+                )
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(retirement.os, "unlink", swap_inside_unlink)
+    with pytest.raises(
+        retirement.ExactReceiptRetirementError,
+        match="different namespace generation",
+    ):
+        _retire_exact_receipt(source, RECEIPT)
+    assert escaped.exists()
+    ledger = retirement.inspect_retirement_ledger(source)
+    assert ledger.valid is True
+    if cleanup_ordinal == 3:
+        assert ledger.state == "completed"
+        assert retirement.inspect_exact_receipt_retirement(
+            source,
+            RECEIPT,
+        ).phase == "ledger_completed"
+    else:
+        assert ledger.state == "idle"
+        assert retirement.retirement_auxiliary_barrier_exists(source) is True
+
+
+def test_same_inode_mutation_inside_final_cleanup_is_detected_after_unlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "receipt.json"
+    write_receipt(source)
+    paths = retirement._retirement_paths(source)
+    original_unlink = retirement.os.unlink
+    seen = 0
+
+    def mutate_inside_unlink(path, *args, **kwargs):
+        nonlocal seen
+        if os.fspath(path) == paths.cleanup.name:
+            seen += 1
+            if seen == 3:
+                original_bytes = paths.cleanup.read_bytes()
+                descriptor = os.open(
+                    paths.cleanup.name,
+                    os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+                    dir_fd=kwargs["dir_fd"],
+                )
+                try:
+                    os.ftruncate(descriptor, 0)
+                    os.write(descriptor, b"X" * len(original_bytes))
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+        return original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(retirement.os, "unlink", mutate_inside_unlink)
+    with pytest.raises(
+        retirement.ExactReceiptRetirementError,
+        match="different namespace generation",
+    ):
+        _retire_exact_receipt(source, RECEIPT)
+    assert retirement.inspect_retirement_ledger(source).state == "completed"
+    assert retirement.inspect_exact_receipt_retirement(
+        source,
+        RECEIPT,
+    ).phase == "ledger_completed"
 
 
 def test_symlink_source_and_auxiliary_entries_fail_closed(tmp_path: Path) -> None:

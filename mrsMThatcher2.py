@@ -19,7 +19,6 @@ import posixpath
 import random
 import re
 import signal
-import shutil
 import socket
 import stat
 import struct
@@ -46,6 +45,8 @@ from remote_write_safety_protocol import (
     inspect_protocol_activation,
 )
 from remote_media_upload_receipt import (
+    RETIREMENT_GUARD_PREFIX as MEDIA_RETIREMENT_GUARD_PREFIX,
+    TRANSITION_PREFIX as MEDIA_TRANSITION_PREFIX,
     ReceiptBoundMediaPayload,
     MediaUploadAuthority,
     MediaUploadReceiptError,
@@ -65,6 +66,10 @@ from remote_media_upload_receipt import (
 from remote_write_transport_journal import (
     BoundSourceReceiptTransitionError,
     LANE_SOURCE_VALIDATOR_ID,
+    JOURNAL_RETIREMENT_PREFIX,
+    JOURNAL_STAGING_PREFIX,
+    MAX_CONFIRMATION_EPOCH,
+    MIN_CONFIRMATION_EPOCH,
     SourceReceiptBinding,
     TransportAuthority,
     TransportJournalError,
@@ -89,9 +94,16 @@ from remote_write_transport_journal import (
 )
 from exact_receipt_retirement import (
     ExactReceiptRetirementError,
+    inspect_exact_receipt_retirement,
+    inspect_interrupted_receipt_retirement,
+    inspect_retirement_ledger,
+    initialise_retirement_ledger,
     prepare_exact_receipt_retirement,
+    recover_retirement_ledger_exchange_if_present,
     retirement_auxiliary_barrier_exists,
     retirement_auxiliary_paths,
+    retirement_ledger_is_blocking,
+    retirement_ledger_paths,
     resume_interrupted_receipt_retirement,
     retire_or_resume_exact_receipt,
 )
@@ -378,6 +390,7 @@ PICKLE_FILE = BASE_DIR / "lines_used.pickle"
 IMAGE_PICKLE_FILE = BASE_DIR / "images_used.pickle"
 STATE_FILE = BASE_DIR / "bot_state.json"
 INSTALLATION_MARKER_FILE = BASE_DIR / ".mrsMThatcher.initialised.json"
+INSTALLATION_IN_PROGRESS_FILE = BASE_DIR / ".mrsMThatcher.initialising.json"
 LOG_FILE = Path(os.getenv("MRS_LOG_FILE", str(BASE_DIR / "mrsMThatcher.log"))).expanduser()
 if SELF_TEST_REQUESTED and "MRS_LOG_FILE" not in os.environ:
     LOG_FILE = BASE_DIR / "mrsMThatcher.selftest.log"
@@ -1696,16 +1709,7 @@ def production_bootstrap(
         # History validation is read-only here because bootstrap precedes the
         # single-process lock. Durable receipt/outbox reconciliation happens
         # immediately after that lock is acquired.
-        from historical_context_formatter import HistoricalContextReplyStore
-
-        context_store = HistoricalContextReplyStore(
-            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-            mutation_authority_provider=transaction_mutation_authority,
-            retirement_uncertainty_callback=(
-                latch_source_receipt_retirement_uncertainty
-            ),
-        )
+        context_store = historical_context_reply_store()
         try:
             context_store.history()
         except Exception as exc:
@@ -1774,61 +1778,20 @@ def require_production_bootstrap() -> None:
 
 def reconcile_runtime_historical_context_state() -> None:
     """Validate and reconcile durable context state while holding the process lock."""
+    from historical_context_formatter import HistoricalContextReplyStore
+
     maintenance_paused = global_remote_writes_paused()
     resume_source_receipt_retirement_for_control_snapshot(
         maintenance_paused=maintenance_paused,
     )
     global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
-    from historical_context_formatter import HistoricalContextReplyStore
-
-    context_store = HistoricalContextReplyStore(
-        HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        mutation_authority_provider=transaction_mutation_authority,
-        retirement_uncertainty_callback=(
-            latch_source_receipt_retirement_uncertainty
-        ),
-    )
-    defer_to_confirmed_transport_recovery = False
-    if maintenance_paused:
-        defer_to_confirmed_transport_recovery = bool(
-            os.path.lexists(HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE)
-        )
-        if defer_to_confirmed_transport_recovery:
-            log.warning(
-                "Global maintenance pause is active; leaving the historical-"
-                "context transaction untouched until an unpaused loop tick"
-            )
-    else:
-        loaded_receipt = context_store._load_receipt_safely()
-        if (
-            loaded_receipt is not None
-            and HistoricalContextReplyStore._valid_sending_receipt(
-                loaded_receipt[0]
-            )
-            and inspect_transport_state(
-                journal_path_for_receipt(HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE)
-            ).classification
-            == "confirmed_pair"
-        ):
-            defer_to_confirmed_transport_recovery = True
-            log.warning(
-                "Deferring a transport-confirmed historical-context sending "
-                "receipt to the pre-barrier local recovery path"
-            )
-    if not defer_to_confirmed_transport_recovery:
-        try:
-            context_store.reconcile_receipt()
-        except Exception:
-            log.critical(
-                "Historical-context durable receipt could not be reconciled; "
-                "refusing production startup to preserve the ambiguity barrier",
-                exc_info=True,
-            )
-            raise
+    context_store = historical_context_reply_store()
+    outbox_store = historical_context_outbox_store()
+    outbox_available = True
     try:
-        historical_context_outbox_store().snapshot()
+        outbox_store.snapshot()
     except Exception as exc:
+        outbox_available = False
         _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
             f"{type(exc).__name__}: {exc}"
         )
@@ -1844,19 +1807,303 @@ def reconcile_runtime_historical_context_state() -> None:
             reason=str(exc)[:500],
             unrelated_lanes_available=True,
         )
+    defer_to_confirmed_transport_recovery = False
+    defer_to_outbox_recovery = False
+    reconciliation_parent_id: str | None = None
+    preloaded_confirmed_context_receipt = None
+    leave_receipt_untouched = False
+    if maintenance_paused:
+        leave_receipt_untouched = receipt_namespace_entry_exists(
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        )
+        if leave_receipt_untouched:
+            log.warning(
+                "Global maintenance pause is active; leaving the historical-"
+                "context transaction untouched until an unpaused loop tick"
+            )
+    else:
+        loaded_receipt = context_store._load_receipt_safely()
+        loaded_receipt_document = (
+            loaded_receipt[0] if loaded_receipt is not None else None
+        )
+        loaded_is_confirmed_receipt = bool(
+            HistoricalContextReplyStore._valid_receipt(
+                loaded_receipt_document
+            )
+        )
+        if loaded_is_confirmed_receipt:
+            preloaded_confirmed_context_receipt = loaded_receipt
+        loaded_is_confirmed_lineage = bool(
+            loaded_is_confirmed_receipt
+            and loaded_receipt_document.get("lifecycle_state")
+            == "confirmed"
+            and "source_receipt_sha256" in loaded_receipt_document
+        )
+        loaded_requires_outbox_authority = bool(
+            HistoricalContextReplyStore._valid_sending_receipt(
+                loaded_receipt_document
+            )
+            or loaded_is_confirmed_receipt
+        )
+        loaded_has_source_lineage = bool(
+            HistoricalContextReplyStore._valid_sending_receipt(
+                loaded_receipt_document
+            )
+            or loaded_is_confirmed_lineage
+        )
+        loaded_journal_classification = (
+            inspect_transport_state(
+                journal_path_for_receipt(
+                    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+                )
+            ).classification
+            if loaded_has_source_lineage
+            else "absent"
+        )
+        if (
+            loaded_receipt is not None
+            and not outbox_available
+            and loaded_requires_outbox_authority
+        ):
+            leave_receipt_untouched = True
+            log.critical(
+                "Leaving the historical-context transaction receipt untouched "
+                "because its outbox authority is unavailable"
+            )
+        elif (
+            loaded_has_source_lineage
+            and loaded_journal_classification == "confirmed_pair"
+        ):
+            defer_to_confirmed_transport_recovery = True
+            log.warning(
+                "Deferring a transport-confirmed historical-context receipt "
+                "to the pre-barrier local recovery path"
+            )
+        elif loaded_is_confirmed_receipt:
+            reconciliation_parent_id = str(
+                loaded_receipt_document["parent_post_id"]
+            )
+            obligation = outbox_store.get(reconciliation_parent_id)
+            context = (
+                obligation.get("context_reply")
+                if isinstance(obligation, dict)
+                else None
+            )
+            if not isinstance(obligation, dict):
+                raise RuntimeError(
+                    "confirmed historical-context receipt has no matching "
+                    "outbox obligation"
+                )
+            if (
+                not isinstance(context, dict)
+                or context.get("quote_id")
+                != loaded_receipt_document["quote_id"]
+            ):
+                raise RuntimeError(
+                    "confirmed historical-context receipt conflicts with "
+                    "its outbox identity"
+                )
+            if context.get("state") == "context_reply_attempting":
+                if loaded_is_confirmed_lineage:
+                    defer_to_outbox_recovery = True
+                    log.warning(
+                        "Deferring a confirmed historical-context receipt to "
+                        "its exact attempting outbox recovery"
+                    )
+                else:
+                    if {
+                        "source_receipt_sha256",
+                        "source_receipt_attempt_number",
+                    } & set(context):
+                        raise RuntimeError(
+                            "legacy confirmed historical-context receipt "
+                            "conflicts with a source-bound attempting outbox"
+                        )
+                    if context.get("attempt_count") != (
+                        loaded_receipt_document.get("attempt_number")
+                    ):
+                        raise RuntimeError(
+                            "legacy confirmed historical-context receipt "
+                            "conflicts with its outbox attempt"
+                        )
+                    outbox_store.record_confirmed(
+                        reconciliation_parent_id,
+                        attempt_number=int(context["attempt_count"]),
+                        reply_post_id=loaded_receipt_document[
+                            "reply_post_id"
+                        ],
+                        confirmed_epoch=int(
+                            loaded_receipt_document["reply_epoch"]
+                        ),
+                    )
+            elif not confirmed_context_outbox_matches_receipt(
+                context,
+                loaded_receipt_document,
+            ):
+                raise RuntimeError(
+                    "confirmed historical-context receipt conflicts with "
+                    "its durable outbox outcome"
+                )
+        elif (
+            loaded_receipt is not None
+            and HistoricalContextReplyStore._valid_sending_receipt(
+                loaded_receipt[0]
+            )
+        ):
+            sending_receipt = loaded_receipt[0]
+            reconciliation_parent_id = str(
+                sending_receipt["parent_post_id"]
+            )
+            obligation = outbox_store.get(reconciliation_parent_id)
+            context = (
+                obligation.get("context_reply")
+                if isinstance(obligation, dict)
+                else None
+            )
+            if not isinstance(obligation, dict):
+                disposition = context_store.reconcile_receipt_disposition(
+                    retain_definite_failure_receipt=True,
+                )
+                if disposition != "definite_failure":
+                    raise RuntimeError(
+                        "historical-context sending receipt had an "
+                        f"unexpected local disposition: {disposition}"
+                    )
+                raise RuntimeError(
+                    "historical-context sending receipt has no matching "
+                    "outbox obligation"
+                )
+            if (
+                not isinstance(context, dict)
+                or context.get("quote_id") != sending_receipt["quote_id"]
+            ):
+                raise RuntimeError(
+                    "historical-context sending receipt conflicts with "
+                    "its outbox identity"
+                )
+            if context.get("state") == "context_reply_attempting":
+                defer_to_outbox_recovery = True
+                log.warning(
+                    "Deferring a historical-context sending receipt to "
+                    "its exact attempting outbox recovery"
+                )
+            elif context.get("state") in {
+                "context_reply_failed_retryable",
+                "context_reply_failed_terminal",
+            }:
+                context_store.ensure_proved_failure_history_from_outbox(
+                    context
+                )
+            else:
+                raise RuntimeError(
+                    "historical-context failure receipt conflicts with "
+                    "its outbox state"
+                )
+    if not (
+        defer_to_confirmed_transport_recovery
+        or defer_to_outbox_recovery
+        or leave_receipt_untouched
+    ):
+        try:
+            if preloaded_confirmed_context_receipt is not None:
+                context_store.reconcile_receipt_disposition(
+                    preloaded_receipt=preloaded_confirmed_context_receipt,
+                )
+            else:
+                context_store.reconcile_receipt()
+        except Exception:
+            log.critical(
+                "Historical-context durable receipt could not be reconciled; "
+                "refusing production startup to preserve the ambiguity barrier",
+                exc_info=True,
+            )
+            raise
+    if defer_to_outbox_recovery:
+        if reconciliation_parent_id is None:
+            raise RuntimeError(
+                "historical-context outbox recovery has no parent identity"
+            )
+        with outbox_store.worker_lock():
+            obligation = outbox_store.get(reconciliation_parent_id)
+            if not isinstance(obligation, dict):
+                raise RuntimeError(
+                    "historical-context attempting outbox record disappeared"
+                )
+            recovered = recover_interrupted_historical_context_attempt(
+                outbox_store,
+                obligation,
+                recovered_epoch=now_epoch(),
+                receipt_was_observed=True,
+            )
+        log_event(
+            "historical_context_obligation",
+            **recovered,
+        )
 
 
 def required_installation_files_missing() -> list[Path]:
     """Return durable files that cannot be recovered from local backups."""
-    missing = [path for path in (LINES_USED_FILE, IMAGES_USED_FILE) if not path.is_file()]
+    missing = [
+        path
+        for path in (
+            LINES_USED_FILE,
+            IMAGES_USED_FILE,
+        )
+        if not durable_state_namespace_is_owned_single_link_file(path)
+    ]
+    # The history and outbox stores apply their own schema-specific read
+    # limits. Establishment checks only their shared namespace contract here;
+    # imposing the smaller core-state limit would reject a valid store before
+    # its authoritative loader could inspect it.
+    missing.extend(
+        path
+        for path in (
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+        )
+        if not durable_state_namespace_is_owned_single_link_file(
+            path,
+            maximum_bytes=None,
+        )
+    )
+    for receipt_path in remote_source_receipt_paths():
+        if retirement_ledger_is_blocking(receipt_path):
+            ledger_path, _exchange_path = retirement_ledger_paths(receipt_path)
+            missing.append(ledger_path)
+    # Installations created before the explicit marker protocol remain valid
+    # when all established durable files are present.  A new initializer
+    # publishes this separate sentinel before its first data write, so any
+    # interrupted new installation remains fail closed without rejecting the
+    # already deployed legacy installation.
+    try:
+        os.lstat(INSTALLATION_IN_PROGRESS_FILE)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        missing.append(INSTALLATION_IN_PROGRESS_FILE)
+    else:
+        missing.append(INSTALLATION_IN_PROGRESS_FILE)
     state_candidates = [STATE_FILE]
     state_candidates.extend(
         STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}")
         for i in range(1, STATE_BACKUP_COUNT + 1)
     )
-    if not any(path.is_file() for path in state_candidates):
+    for candidate in state_candidates:
+        try:
+            os.lstat(candidate)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            missing.append(candidate)
+            continue
+        if not durable_state_namespace_is_owned_single_link_file(candidate):
+            missing.append(candidate)
+    if not any(
+        durable_state_namespace_is_owned_single_link_file(path)
+        for path in state_candidates
+    ):
         missing.append(STATE_FILE)
-    return missing
+    return list(dict.fromkeys(missing))
 
 
 def require_established_installation() -> None:
@@ -1870,16 +2117,102 @@ def require_established_installation() -> None:
         )
 
 
+def recover_interrupted_retirement_ledger_exchanges_at_startup() -> tuple[Path, ...]:
+    """Finish exact ledger exchanges before installation completeness checks.
+
+    A completed ledger transition can leave its old generation in the fixed
+    exchange pathname if the process dies between the atomic exchange and its
+    final cleanup.  That pathname must block every remote preflight, but under
+    the already-held singleton lock a current ledger-aware activation may
+    deterministically finish the exact predecessor/successor exchange.  No
+    missing, malformed, ambiguous, or pre-ledger installation is repaired
+    here.
+    """
+
+    inspections = {
+        receipt_path: inspect_retirement_ledger(receipt_path)
+        for receipt_path in remote_source_receipt_paths()
+    }
+    recoverable = tuple(
+        receipt_path
+        for receipt_path, inspection in inspections.items()
+        if inspection.valid
+        and inspection.blocking
+        and inspection.state in {"exchange_staged", "exchange_committed"}
+    )
+    if not recoverable:
+        return ()
+    try:
+        inspect_protocol_activation(
+            REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE
+        )
+    except (ProtocolActivationError, OSError):
+        # Installation validation below remains fail closed.  An absent or
+        # invalid permission generation cannot authorise namespace mutation.
+        return ()
+    authority = transaction_mutation_authority(
+        "startup retirement-ledger atomic exchange recovery"
+    )
+    recovered: list[Path] = []
+    for receipt_path in recoverable:
+        if recover_retirement_ledger_exchange_if_present(
+            receipt_path,
+            mutation_authority=authority,
+        ):
+            recovered.append(receipt_path)
+    return tuple(recovered)
+
+
+def require_established_installation_after_ledger_recovery() -> None:
+    """Recover exact ledger exchanges, then require a complete installation."""
+
+    recovered = recover_interrupted_retirement_ledger_exchanges_at_startup()
+    if recovered:
+        log.warning(
+            "Recovered crash-left permanent retirement-ledger exchanges "
+            "before installation validation: %s",
+            [str(path) for path in recovered],
+        )
+    require_established_installation()
+
+
 def initialise_installation() -> int:
     """Create a new state/history set without starting production."""
+    from historical_context_formatter import HistoricalContextReplyStore
+
     require_production_bootstrap()
-    candidates = [INSTALLATION_MARKER_FILE, STATE_FILE, LINES_USED_FILE, IMAGES_USED_FILE]
+    # This one-shot command mutates the daemon's durable namespace.  Own the
+    # ordinary process/state-directory lock before proving that namespace
+    # empty so a running daemon or concurrent initializer cannot race the
+    # inspection/write interval.  The command exits immediately afterwards
+    # and deliberately retains the lock until process exit.
+    acquire_instance_lock()
+    candidates = [
+        INSTALLATION_MARKER_FILE,
+        INSTALLATION_IN_PROGRESS_FILE,
+        STATE_FILE,
+        STATE_FILE.with_suffix(".tmp"),
+        LINES_USED_FILE,
+        LINES_USED_FILE.with_suffix(f"{LINES_USED_FILE.suffix}.tmp"),
+        IMAGES_USED_FILE,
+        IMAGES_USED_FILE.with_suffix(f"{IMAGES_USED_FILE.suffix}.tmp"),
+    ]
     candidates.extend(STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}") for i in range(1, STATE_BACKUP_COUNT + 1))
+    candidates.extend(
+        STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}.tmp")
+        for i in range(1, STATE_BACKUP_COUNT + 1)
+    )
     candidates.extend(
         (
             REGULAR_POST_RECEIPT_FILE,
             MEME_POST_RECEIPT_FILE,
             CONFIRMED_REPLY_RECEIPT_FILE,
+            journal_path_for_receipt(REGULAR_POST_RECEIPT_FILE),
+            fence_path_for_journal(
+                journal_path_for_receipt(REGULAR_POST_RECEIPT_FILE)
+            ),
+            MEDIA_UPLOAD_RECEIPT_FILE,
+            media_fence_path_for_receipt(MEDIA_UPLOAD_RECEIPT_FILE),
             AMBIGUOUS_POST_OUTCOME_FILE,
             AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE,
             REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE.with_name(
@@ -1892,18 +2225,45 @@ def initialise_installation() -> int:
             HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.with_name(
                 f"{HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.name}.lock"
             ),
+            HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.with_name(
+                f"{HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.name}.worker.lock"
+            ),
         )
     )
     candidates.extend(
         auxiliary
-        for receipt_path in (
-            REGULAR_POST_RECEIPT_FILE,
-            MEME_POST_RECEIPT_FILE,
-            CONFIRMED_REPLY_RECEIPT_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        )
+        for receipt_path in remote_source_receipt_paths()
         for auxiliary in retirement_auxiliary_paths(receipt_path)
     )
+    candidates.extend(
+        ledger_path
+        for receipt_path in remote_source_receipt_paths()
+        for ledger_path in retirement_ledger_paths(receipt_path)
+    )
+    # Transition/retirement auxiliaries carry random identity suffixes. Inspect
+    # their exact reserved lexical prefixes without following entries rather
+    # than guessing names or treating an orphan as a fresh installation.
+    try:
+        with os.scandir(BASE_DIR) as entries:
+            candidates.extend(
+                BASE_DIR / entry.name
+                for entry in entries
+                if entry.name.startswith(
+                    (
+                        JOURNAL_STAGING_PREFIX,
+                        JOURNAL_RETIREMENT_PREFIX,
+                        MEDIA_TRANSITION_PREFIX,
+                        MEDIA_RETIREMENT_GUARD_PREFIX,
+                    )
+                )
+            )
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise RuntimeError(
+            "Refusing to initialise because the state directory namespace "
+            "cannot be inventoried"
+        ) from exc
     existing: list[Path] = []
     for path in candidates:
         try:
@@ -1925,34 +2285,107 @@ def initialise_installation() -> int:
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     created: list[Path] = []
     try:
-        state = default_state()
         current = now_epoch()
+        created.append(INSTALLATION_IN_PROGRESS_FILE)
+        atomic_write_json(
+            INSTALLATION_IN_PROGRESS_FILE,
+            {
+                "schema_version": 1,
+                "state": "initialising",
+                "started_at_epoch": current,
+            },
+            durable=True,
+        )
+        # Register every state pathname before schedule initialisation: that
+        # helper may persist state when daily memes are enabled.
+        created.append(STATE_FILE)
+        created.append(STATE_FILE.with_suffix(".tmp"))
+        created.extend(
+            STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}")
+            for i in range(1, STATE_BACKUP_COUNT + 1)
+        )
+        created.extend(
+            STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}.tmp")
+            for i in range(1, STATE_BACKUP_COUNT + 1)
+        )
+        state = default_state()
         state["next_quote_post_epoch"] = current + POST_SLEEP_MIN
         if ENABLE_DAILY_MEME_POSTS:
             ensure_meme_schedule_initialized(state)
         save_state(state, durable=True)
-        created.append(STATE_FILE)
-        created.extend(
-            path
-            for path in STATE_FILE.parent.glob(f"{STATE_FILE.name}.bak*")
-            if path.is_file()
+        created.append(LINES_USED_FILE)
+        created.append(
+            LINES_USED_FILE.with_suffix(f"{LINES_USED_FILE.suffix}.tmp")
         )
         save_quote_used_hashes(LINES_USED_FILE, set(), durable=True)
-        created.append(LINES_USED_FILE)
-        save_image_used_basenames(IMAGES_USED_FILE, set(), durable=True)
         created.append(IMAGES_USED_FILE)
+        created.append(
+            IMAGES_USED_FILE.with_suffix(f"{IMAGES_USED_FILE.suffix}.tmp")
+        )
+        save_image_used_basenames(IMAGES_USED_FILE, set(), durable=True)
+        context_store = historical_context_reply_store(
+            allow_missing_history=True
+        )
+        created.append(context_store.history_path)
+        context_store.initialise_empty_history()
+        outbox = historical_context_outbox_store()
+        created.extend((outbox.path, outbox.lock_path))
+        outbox.initialise_empty()
+        ledger_authority = transaction_mutation_authority(
+            "new-install retirement-ledger initialisation"
+        )
+        for receipt_path in remote_source_receipt_paths():
+            ledger_path, exchange_path = retirement_ledger_paths(receipt_path)
+            created.extend((ledger_path, exchange_path))
+            inspection = initialise_retirement_ledger(
+                receipt_path,
+                mutation_authority=ledger_authority,
+            )
+            if (
+                not inspection.valid
+                or inspection.blocking
+                or inspection.state != "idle"
+                or inspection.sequence != 0
+            ):
+                raise RuntimeError(
+                    "New-install retirement ledger did not reach its exact "
+                    f"genesis state: {receipt_path}"
+                )
+        created.append(INSTALLATION_MARKER_FILE)
         atomic_write_json(
             INSTALLATION_MARKER_FILE,
             {"schema_version": 1, "initialised_at_epoch": current},
             durable=True,
         )
-        created.append(INSTALLATION_MARKER_FILE)
-    except Exception:
+        INSTALLATION_IN_PROGRESS_FILE.unlink()
+        fsync_parent_dir(INSTALLATION_IN_PROGRESS_FILE, strict=True)
+    except Exception as initialisation_error:
+        cleanup_failures: list[str] = []
         for path in reversed(created):
             try:
                 path.unlink()
             except FileNotFoundError:
                 pass
+            except OSError as cleanup_error:
+                # Never recurse through, replace, or follow an unexpected
+                # namespace object.  Continue removing the remaining files,
+                # preserve the initiating failure, and leave the installation
+                # completeness checks to keep any residue non-operational.
+                cleanup_failures.append(
+                    f"{path}: {type(cleanup_error).__name__}: {cleanup_error}"
+                )
+        if cleanup_failures:
+            # Python 3.10 has no BaseException.add_note().  Attach structured
+            # diagnostics without replacing the initiating exception and emit
+            # the same information to the local log.
+            initialisation_error.initialisation_cleanup_failures = tuple(
+                cleanup_failures
+            )
+            log.error(
+                "Initialisation rollback left exact non-file or unremovable "
+                "paths: %s",
+                "; ".join(cleanup_failures),
+            )
         raise
     print(
         f"Initialised durable MrsMThatcher state in {BASE_DIR}; production was "
@@ -2447,6 +2880,18 @@ def require_remote_operation_unpaused(
         # the transport boundary.  Recheck only process-wide incident state
         # here so the transaction does not block itself.
         block_if_remote_write_safety_incident_latched()
+        if historical_context_outbox_remote_attempt_is_blocking(
+            prepared_transport_authority=(
+                transaction_authorization
+                if isinstance(transaction_authorization, TransportAuthority)
+                else None
+            )
+        ):
+            raise AmbiguousRemotePostOutcome(
+                "A historical-context outbox attempt may have reached remote "
+                "transport and blocks this remote operation",
+                service="x",
+            )
     else:
         # Direct transport/provider calls have no prepared-receipt authority.
         # Every unresolved transaction lane must therefore block them.
@@ -2587,6 +3032,139 @@ def api_error_is_permanent_target_failure(error: Exception) -> bool:
 # Persistence
 # ---------------------------------------------------------------------
 
+DURABLE_RUNTIME_JSON_MAX_BYTES = 64 * 1024 * 1024
+
+
+class UnsafeDurableStateNamespace(RuntimeError):
+    """A state/history pathname exists but is not one stable owned file."""
+
+
+def durable_state_namespace_is_owned_single_link_file(
+    path: Path,
+    *,
+    maximum_bytes: int | None = DURABLE_RUNTIME_JSON_MAX_BYTES,
+) -> bool:
+    """Return true only for one current-owner ordinary-file namespace entry."""
+
+    try:
+        metadata = os.lstat(path)
+    except (FileNotFoundError, OSError):
+        return False
+    return bool(
+        stat.S_ISREG(metadata.st_mode)
+        and metadata.st_nlink == 1
+        and metadata.st_uid == os.geteuid()
+        and (
+            maximum_bytes is None
+            or metadata.st_size <= maximum_bytes
+        )
+    )
+
+
+def read_stable_owned_json_bytes_no_follow(
+    path: Path,
+) -> tuple[bool, bytes | None]:
+    """Read one bounded stable owned JSON authority without following links."""
+
+    try:
+        before = os.lstat(path)
+    except FileNotFoundError:
+        return False, None
+    except OSError as exc:
+        raise UnsafeDurableStateNamespace(
+            f"durable JSON namespace cannot be inspected: {path}"
+        ) from exc
+    if not durable_state_namespace_is_owned_single_link_file(path):
+        raise UnsafeDurableStateNamespace(
+            f"durable JSON namespace is not one bounded owned ordinary file: {path}"
+        )
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise UnsafeDurableStateNamespace(
+            "O_NOFOLLOW is required for durable JSON reads"
+        )
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+        )
+    except OSError as exc:
+        raise UnsafeDurableStateNamespace(
+            f"durable JSON namespace changed before opening: {path}"
+        ) from exc
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_uid != os.geteuid()
+            or opened.st_dev != before.st_dev
+            or opened.st_ino != before.st_ino
+            or opened.st_size != before.st_size
+            or opened.st_size > DURABLE_RUNTIME_JSON_MAX_BYTES
+        ):
+            raise UnsafeDurableStateNamespace(
+                f"durable JSON identity changed while opening: {path}"
+            )
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            block = os.read(
+                descriptor,
+                min(
+                    64 * 1024,
+                    DURABLE_RUNTIME_JSON_MAX_BYTES + 1 - total,
+                ),
+            )
+            if not block:
+                break
+            chunks.append(block)
+            total += len(block)
+            if total > DURABLE_RUNTIME_JSON_MAX_BYTES:
+                raise UnsafeDurableStateNamespace(
+                    f"durable JSON exceeds its byte limit: {path}"
+                )
+        reopened_data = os.pread(descriptor, opened.st_size + 1, 0)
+        after_fd = os.fstat(descriptor)
+        try:
+            after_path = os.lstat(path)
+        except OSError as exc:
+            raise UnsafeDurableStateNamespace(
+                f"durable JSON disappeared while reading: {path}"
+            ) from exc
+    finally:
+        os.close(descriptor)
+    stable_fields = (
+        "st_dev",
+        "st_ino",
+        "st_mode",
+        "st_nlink",
+        "st_uid",
+        "st_size",
+        "st_ctime_ns",
+        "st_mtime_ns",
+    )
+    if (
+        any(getattr(before, field) != getattr(opened, field) for field in stable_fields)
+        or any(
+            getattr(opened, field) != getattr(after_fd, field)
+            for field in stable_fields
+        )
+        or any(
+            getattr(opened, field) != getattr(after_path, field)
+            for field in stable_fields
+        )
+    ):
+        raise UnsafeDurableStateNamespace(
+            f"durable JSON changed while reading: {path}"
+        )
+    data = b"".join(chunks)
+    if len(data) != opened.st_size or reopened_data != data:
+        raise UnsafeDurableStateNamespace(
+            f"durable JSON changed while reading: {path}"
+        )
+    return True, data
+
 def coerce_used_set(value: object, *, path: Path) -> set:
     """Normalise persisted used-history data to a set."""
     if isinstance(value, set):
@@ -2613,8 +3191,10 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
     log.debug("Loading used-history set from %s", path)
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            value = json.load(f)
+        present, data = read_stable_owned_json_bytes_no_follow(path)
+        if not present or data is None:
+            raise FileNotFoundError(path)
+        value = json.loads(data.decode("utf-8"))
         converted = coerce_used_set(value, path=path)
         if isinstance(value, list) and value != used_set_to_sorted_list(converted):
             save_used_set(path, converted)
@@ -2623,7 +3203,7 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
         return converted
     except FileNotFoundError:
         log.warning("Used-history JSON file does not exist yet: %s", path)
-    except OSError:
+    except (OSError, UnsafeDurableStateNamespace):
         log.exception("OS error loading existing used-history JSON file %s; refusing stale legacy fallback", path)
         raise CorruptUsedHistoryError(f"Existing used-history JSON is unreadable: {path}")
     except Exception:
@@ -2644,20 +3224,7 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
 def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
     """Persist a used-history set atomically."""
     log.debug("Saving %d entries to used-history JSON %s", len(value), path)
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    serializable = used_set_to_sorted_list(value)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(serializable, f, indent=2)
-        f.write("\n")
-        if durable:
-            f.flush()
-            os.fsync(f.fileno())
-    os.replace(tmp, path)
-    if durable:
-        fsync_parent_dir(path, strict=durable)
+    atomic_write_json(path, used_set_to_sorted_list(value), durable=durable)
 
 
 def default_state() -> dict:
@@ -3222,14 +3789,23 @@ def load_state() -> dict:
 
     def load_candidate(candidate: Path, *, reject_legacy: bool) -> dict | None:
         nonlocal existing_candidates
-        if not candidate.exists():
+        try:
+            present, data = read_stable_owned_json_bytes_no_follow(candidate)
+        except UnsafeDurableStateNamespace:
+            existing_candidates = True
+            log.critical(
+                "State candidate namespace is unsafe; refusing backup fallback: %s",
+                candidate,
+                exc_info=True,
+            )
+            raise
+        if not present or data is None:
             log.warning("State file candidate does not exist: %s", candidate)
             return None
         existing_candidates = True
 
         try:
-            with open(candidate, "r") as f:
-                state = json.load(f)
+            state = json.loads(data.decode("utf-8"))
         except Exception:
             log.exception("Failed loading state candidate %s", candidate)
             return None
@@ -3255,7 +3831,11 @@ def load_state() -> dict:
     latest_backup_path = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
     primary = load_candidate(STATE_FILE, reject_legacy=True)
     if primary is not None:
-        latest_backup = load_candidate(latest_backup_path, reject_legacy=False)
+        latest_backup = (
+            load_candidate(latest_backup_path, reject_legacy=False)
+            if STATE_BACKUP_COUNT > 0
+            else None
+        )
         if latest_backup is not None and latest_backup != primary:
             message = (
                 "Primary state and latest committed backup are both valid but "
@@ -3320,23 +3900,36 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
     return value, False
 
 
-def fsync_file(path: Path) -> None:
-    """Synchronise file."""
-    with open(path, "rb") as f:
-        os.fsync(f.fileno())
-
-
 def copy_state_backup(src: Path, dst: Path, *, durable: bool = False) -> None:
-    """Copy state backup."""
+    """Copy one exact stable state generation without following links."""
+
+    present, data = read_stable_owned_json_bytes_no_follow(src)
+    if not present or data is None:
+        raise UnsafeDurableStateNamespace(
+            f"state backup source disappeared before copying: {src}"
+        )
     dst.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dst.with_name(f"{dst.name}.tmp")
-    shutil.copyfile(src, tmp)
-    shutil.copystat(src, tmp)
-    if durable:
-        fsync_file(tmp)
-    os.replace(tmp, dst)
-    if durable:
-        fsync_parent_dir(dst, strict=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{dst.name}.",
+        dir=dst.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(data)
+            if durable:
+                handle.flush()
+                os.fsync(handle.fileno())
+        os.replace(temporary, dst)
+        if durable:
+            fsync_parent_dir(dst, strict=True)
+    except BaseException:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def rotate_state_backups_before_commit(*, durable: bool = False) -> None:
@@ -3381,17 +3974,29 @@ def save_state(state: dict, *, durable: bool = False) -> None:
 
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    tmp = STATE_FILE.with_suffix(".tmp")
-    with open(tmp, "w") as f:
-        json.dump(state, f, indent=2, sort_keys=True)
-        if durable:
-            f.flush()
-            os.fsync(f.fileno())
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{STATE_FILE.name}.",
+        dir=STATE_FILE.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), 0o600)
+            json.dump(state, handle, indent=2, sort_keys=True)
+            if durable:
+                handle.flush()
+                os.fsync(handle.fileno())
 
-    rotate_state_backups_before_commit(durable=durable)
-    os.replace(tmp, STATE_FILE)
-    if durable:
-        fsync_parent_dir(STATE_FILE, strict=durable)
+        rotate_state_backups_before_commit(durable=durable)
+        os.replace(temporary, STATE_FILE)
+        if durable:
+            fsync_parent_dir(STATE_FILE, strict=durable)
+    except BaseException:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
     try:
         write_latest_state_backup(durable=durable)
     except Exception as exc:
@@ -5915,7 +6520,7 @@ def remote_write_safety_protocol_is_active() -> bool:
         )
     except (ProtocolActivationError, OSError):
         return False
-    return True
+    return not remote_receipt_retirement_is_blocking()
 
 
 def historical_context_receipt_path_present_or_unsafe() -> bool:
@@ -5933,6 +6538,170 @@ def historical_context_receipt_path_present_or_unsafe() -> bool:
         )
         return True
     return True
+
+
+def historical_context_outbox_remote_attempt_is_blocking(
+    *,
+    prepared_receipt: dict | None = None,
+    prepared_transport_authority: TransportAuthority | None = None,
+    allow_local_reconciliation_parent_id: str | None = None,
+) -> bool:
+    """Treat every possibly transmitted outbox attempt as a global barrier.
+
+    The outbox can outlive a lost source receipt and transport journal.  An
+    explicit ``False`` phase proves only local pre-transport work; ``True`` or
+    an absent legacy phase means the remote create may have started and must
+    block every unrelated remote-write lane until reconciliation.
+    """
+
+    try:
+        snapshot = historical_context_outbox_store().snapshot()
+        obligations = snapshot.get("obligations")
+        if not isinstance(obligations, dict):
+            raise RuntimeError("historical-context outbox has no obligations map")
+        exact_prepared_identity: dict[str, object] | None = None
+        exact_prepared_attempt_required = bool(
+            prepared_transport_authority is not None
+            and prepared_transport_authority.lane == "historical_context_reply"
+            and prepared_transport_authority.lifecycle_state == "attempting"
+        )
+        exact_prepared_attempt_observed = False
+        if (
+            prepared_transport_authority is not None
+            and prepared_transport_authority.lane == "historical_context_reply"
+            and prepared_transport_authority.lifecycle_state == "attempting"
+            and Path(prepared_transport_authority.journal_path).absolute()
+            == journal_path_for_receipt(
+                HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+            ).absolute()
+        ):
+            from historical_context_formatter import HistoricalContextReplyStore
+
+            state = inspect_transport_state(
+                Path(prepared_transport_authority.journal_path)
+            )
+            loaded = historical_context_reply_store()._load_receipt_safely()
+            if (
+                not state.errors
+                and state.classification == "attempting_pair"
+                and state.journal is not None
+                and state.fence is not None
+                and state.journal.sha256
+                == prepared_transport_authority.journal_sha256
+                and state.fence.sha256
+                == prepared_transport_authority.fence_sha256
+                and state.journal.document.get("transaction_id")
+                == prepared_transport_authority.transaction_id
+                and state.fence.document.get("transaction_id")
+                == prepared_transport_authority.transaction_id
+                and state.journal.document.get("source_receipt")
+                == state.fence.document.get("source_receipt")
+                and isinstance(loaded, tuple)
+                and len(loaded) == 2
+            ):
+                receipt, receipt_bytes = loaded
+                source = state.journal.document.get("source_receipt")
+                receipt_sha256 = hashlib.sha256(receipt_bytes).hexdigest()
+                if (
+                    isinstance(receipt, dict)
+                    and type(receipt_bytes) is bytes
+                    and isinstance(source, dict)
+                    and HistoricalContextReplyStore._valid_sending_receipt(
+                        receipt
+                    )
+                    and (
+                        prepared_receipt is None
+                        or receipt == prepared_receipt
+                    )
+                    and source.get("basename")
+                    == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.name
+                    == prepared_transport_authority.source_receipt_basename
+                    and source.get("sha256") == receipt_sha256
+                ):
+                    exact_prepared_identity = {
+                        "parent_post_id": receipt.get("parent_post_id"),
+                        "quote_id": receipt.get("quote_id"),
+                        "source_receipt_sha256": receipt_sha256,
+                        "source_receipt_attempt_number": receipt.get(
+                            "attempt_number"
+                        ),
+                    }
+        for obligation in obligations.values():
+            context_reply = (
+                obligation.get("context_reply")
+                if isinstance(obligation, dict)
+                else None
+            )
+            if (
+                isinstance(context_reply, dict)
+                and context_reply.get("state") == "context_reply_attempting"
+                and context_reply.get("remote_transaction_started") is not False
+            ):
+                if (
+                    context_reply.get("remote_transaction_started") is True
+                    and exact_prepared_identity is not None
+                    and obligation.get("parent_post_id")
+                    == exact_prepared_identity["parent_post_id"]
+                    and context_reply.get("quote_id")
+                    == exact_prepared_identity["quote_id"]
+                    and context_reply.get("source_receipt_sha256")
+                    == exact_prepared_identity["source_receipt_sha256"]
+                    and context_reply.get("source_receipt_attempt_number")
+                    == exact_prepared_identity[
+                        "source_receipt_attempt_number"
+                    ]
+                ):
+                    # The ordinary checks below still prove the exact source
+                    # receipt and armed journal pair. This exception is only
+                    # for that one currently executing context attempt.
+                    exact_prepared_attempt_observed = True
+                    continue
+                if (
+                    allow_local_reconciliation_parent_id is not None
+                    and obligation.get("parent_post_id")
+                    == str(allow_local_reconciliation_parent_id)
+                ):
+                    # The outbox worker may inspect and reconcile this one
+                    # already-attempting parent while every remote boundary
+                    # remains barred. Any second risky row still blocks entry.
+                    continue
+                return True
+        return bool(
+            exact_prepared_attempt_required
+            and not exact_prepared_attempt_observed
+        )
+    except Exception:
+        log.critical(
+            "The historical-context outbox cannot prove that no remote-started "
+            "attempt remains; treating every remote write as blocked",
+            exc_info=True,
+        )
+        return True
+
+
+def historical_context_outbox_remote_attempt_parent_for_local_reconciliation(
+) -> str | None:
+    """Return the sole risky outbox parent eligible for local-only recovery."""
+
+    try:
+        snapshot = historical_context_outbox_store().snapshot()
+        obligations = snapshot.get("obligations")
+        if not isinstance(obligations, dict):
+            return None
+        parents = [
+            str(obligation.get("parent_post_id"))
+            for obligation in obligations.values()
+            if isinstance(obligation, dict)
+            and isinstance(obligation.get("context_reply"), dict)
+            and obligation["context_reply"].get("state")
+            == "context_reply_attempting"
+            and obligation["context_reply"].get("remote_transaction_started")
+            is not False
+            and str(obligation.get("parent_post_id") or "")
+        ]
+    except Exception:
+        return None
+    return parents[0] if len(parents) == 1 else None
 
 
 def historical_context_receipt_parent_for_local_reconciliation() -> str | None:
@@ -6065,6 +6834,17 @@ def remote_write_transport_journal_paths() -> tuple[Path, ...]:
     )
 
 
+def remote_source_receipt_paths() -> tuple[Path, ...]:
+    """Return the four current public-create source receipt paths."""
+
+    return (
+        REGULAR_POST_RECEIPT_FILE,
+        MEME_POST_RECEIPT_FILE,
+        CONFIRMED_REPLY_RECEIPT_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )
+
+
 def canonical_transport_receipt_path_for_lane(lane: str) -> Path | None:
     """Return the only receipt pathname allowed to authorise one public lane."""
 
@@ -6161,7 +6941,16 @@ def block_if_unrelated_receipt_appeared_for_tweet_transport(
         CONFIRMED_REPLY_RECEIPT_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
     ):
-        if path != expected_receipt_path and os.path.lexists(path):
+        if path == expected_receipt_path:
+            continue
+        try:
+            receipt_present = receipt_namespace_entry_exists(path)
+        except OSError as exc:
+            raise TransportJournalError(
+                "an unrelated receipt namespace could not be inspected "
+                "before tweet transport"
+            ) from exc
+        if receipt_present:
             raise TransportJournalError(
                 "an unrelated durable receipt appeared before tweet transport"
             )
@@ -6189,7 +6978,14 @@ def block_if_unrelated_receipt_appeared_for_media_transport() -> None:
         CONFIRMED_REPLY_RECEIPT_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
     ):
-        if os.path.lexists(path):
+        try:
+            receipt_present = receipt_namespace_entry_exists(path)
+        except OSError as exc:
+            raise MediaUploadReceiptError(
+                "an unrelated receipt namespace could not be inspected "
+                "before media upload"
+            ) from exc
+        if receipt_present:
             raise MediaUploadReceiptError(
                 "an unrelated durable receipt appeared before media upload"
             )
@@ -6209,13 +7005,205 @@ def remote_receipt_retirement_is_blocking() -> bool:
 
     return any(
         retirement_auxiliary_barrier_exists(path)
-        for path in (
-            REGULAR_POST_RECEIPT_FILE,
-            MEME_POST_RECEIPT_FILE,
-            CONFIRMED_REPLY_RECEIPT_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        )
+        or retirement_ledger_is_blocking(path)
+        for path in remote_source_receipt_paths()
     )
+
+
+def confirmed_context_outbox_matches_receipt(
+    context_reply: dict,
+    receipt: dict,
+) -> bool:
+    """Match one confirmed outbox outcome to the receipt's exact lineage.
+
+    Legacy confirmed receipts and legacy terminal outbox rows both predate the
+    source-receipt hash.  They may be paired only with each other.  A current
+    lineage-bearing receipt must never be reconciled through a legacy terminal
+    row, because parent/quote/reply identity alone cannot distinguish a stale
+    or substituted receipt generation.
+    """
+
+    if (
+        not isinstance(context_reply, dict)
+        or not isinstance(receipt, dict)
+        or context_reply.get("state") != "context_reply_confirmed"
+        or context_reply.get("quote_id") != receipt.get("quote_id")
+        or context_reply.get("reply_post_id") != receipt.get("reply_post_id")
+    ):
+        return False
+    outbox_source_fields = {
+        "source_receipt_sha256",
+        "source_receipt_attempt_number",
+    }
+    outbox_has_source = outbox_source_fields.issubset(context_reply)
+    receipt_has_source = "source_receipt_sha256" in receipt
+    if outbox_has_source != receipt_has_source:
+        return False
+    if not receipt_has_source:
+        # The oldest accepted confirmed receipt predates attempt ordinals as
+        # well as source hashes.  Preserve that deliberately weaker legacy
+        # replay, while requiring exact ordinals for the later legacy shape
+        # which does carry one.
+        if "attempt_number" not in receipt:
+            return True
+        return context_reply.get("attempt_count") == receipt.get("attempt_number")
+    return bool(
+        context_reply.get("source_receipt_sha256")
+        == receipt.get("source_receipt_sha256")
+        and context_reply.get("source_receipt_attempt_number")
+        == receipt.get("attempt_number")
+    )
+
+
+def require_historical_context_retirement_outbox_authority() -> None:
+    """Bind an interrupted context retirement to its durable outbox outcome.
+
+    A confirmed reply or a proved remote non-success is written to history and
+    outbox before exact source retirement starts.  No retirement namespace may
+    be resumed until its marker hash matches exactly one such durable outcome.
+    """
+
+    if not retirement_auxiliary_barrier_exists(
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    ):
+        return
+    from historical_context_formatter import (
+        HistoricalContextReplyStore,
+        canonical_json_bytes,
+    )
+
+    context_store = historical_context_reply_store()
+    retirement = inspect_interrupted_receipt_retirement(
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+    if not retirement.valid or not re.fullmatch(
+        r"[0-9a-f]{64}", retirement.expected_sha256
+    ):
+        raise ExactReceiptRetirementError(
+            "historical-context retirement has no valid marker-bound source"
+        )
+
+    authorities: list[tuple[str, dict]] = []
+    for item in context_store.history()["items"].values():
+        if not isinstance(item, dict):
+            continue
+        if item.get("status") == "completed":
+            receipt = {
+                key: value for key, value in item.items() if key != "status"
+            }
+            receipt_bytes = canonical_json_bytes(receipt)
+            inspection = inspect_exact_receipt_retirement(
+                HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+                receipt_bytes,
+            )
+            if inspection.valid:
+                authorities.append(("completed", receipt))
+        elif (
+            item.get("status") == "failed"
+            and item.get("remote_outcome") == "proved_non_success"
+            and item.get("source_receipt_sha256")
+            == retirement.expected_sha256
+            and item.get("source_receipt_attempt_number")
+            == item.get("attempt_count")
+        ):
+            authorities.append(("failed", item))
+    if len(authorities) != 1:
+        raise ExactReceiptRetirementError(
+            "historical-context retirement has no unique terminal-history "
+            "authority"
+        )
+    authority_kind, receipt = authorities[0]
+    parent_id = str(receipt["parent_post_id"])
+    outbox_store = historical_context_outbox_store()
+    obligation = outbox_store.get(parent_id)
+    context = (
+        obligation.get("context_reply")
+        if isinstance(obligation, dict)
+        else None
+    )
+    if not isinstance(obligation, dict):
+        raise ExactReceiptRetirementError(
+            "historical-context retirement has no matching outbox obligation"
+        )
+    if (
+        not isinstance(context, dict)
+        or context.get("quote_id") != receipt["quote_id"]
+    ):
+        raise ExactReceiptRetirementError(
+            "historical-context retirement conflicts with its outbox identity"
+        )
+    if authority_kind == "failed":
+        failure = context.get("failure")
+        if (
+            context.get("state")
+            not in {
+                "context_reply_failed_retryable",
+                "context_reply_failed_terminal",
+            }
+            or not isinstance(failure, dict)
+            or failure.get("remote_outcome") != "proved_non_success"
+            or failure.get("source_receipt_sha256")
+            != retirement.expected_sha256
+            or failure.get("source_receipt_attempt_number")
+            != receipt.get("source_receipt_attempt_number")
+            or context.get("attempt_count") != failure.get("attempt_number")
+            or transport_journal_is_blocking(
+                journal_path_for_receipt(
+                    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+                )
+            )
+        ):
+            raise ExactReceiptRetirementError(
+                "historical-context retirement conflicts with its exact "
+                "proved-failure outbox authority"
+            )
+        return
+
+    if context.get("state") == "context_reply_attempting":
+        source_sha256 = receipt.get("source_receipt_sha256")
+        source_attempt = receipt.get("attempt_number")
+        if source_sha256 is not None:
+            if (
+                context.get("remote_transaction_started") is not True
+                or context.get("source_receipt_sha256") != source_sha256
+                or context.get("source_receipt_attempt_number")
+                != source_attempt
+            ):
+                raise ExactReceiptRetirementError(
+                    "historical-context retirement conflicts with its exact "
+                    "attempting outbox source"
+                )
+        elif {
+            "source_receipt_sha256",
+            "source_receipt_attempt_number",
+        } & set(context):
+            raise ExactReceiptRetirementError(
+                "legacy historical-context retirement conflicts with a "
+                "source-bound attempting outbox"
+            )
+        elif (
+            "attempt_number" in receipt
+            and context.get("attempt_count") != receipt.get("attempt_number")
+        ):
+            raise ExactReceiptRetirementError(
+                "legacy historical-context retirement conflicts with its "
+                "outbox attempt"
+            )
+        outbox_store.record_confirmed(
+            parent_id,
+            attempt_number=int(context["attempt_count"]),
+            reply_post_id=receipt["reply_post_id"],
+            # Legacy confirmed_at values were not canonical timestamps.  The
+            # outbox records the local recovery observation and clamps it to
+            # its already durable timeline, just like the ordinary
+            # already_completed path.
+            confirmed_epoch=now_epoch(),
+        )
+    elif not confirmed_context_outbox_matches_receipt(context, receipt):
+        raise ExactReceiptRetirementError(
+            "historical-context retirement conflicts with its durable outbox "
+            "outcome"
+        )
 
 
 def resume_interrupted_source_receipt_retirement_if_present() -> bool:
@@ -6244,6 +7232,8 @@ def resume_interrupted_source_receipt_retirement_if_present() -> bool:
             "multiple source-receipt retirement lanes require manual inspection"
         )
     source_path = active[0]
+    if source_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
+        require_historical_context_retirement_outbox_authority()
     blocking_journals = [
         path
         for path in remote_write_transport_journal_paths()
@@ -6293,14 +7283,7 @@ def resume_interrupted_source_receipt_retirement_if_present() -> bool:
         else:
             from historical_context_formatter import HistoricalContextReplyStore
 
-            loaded = HistoricalContextReplyStore(
-                HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-                HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-                mutation_authority_provider=transaction_mutation_authority,
-                retirement_uncertainty_callback=(
-                    latch_source_receipt_retirement_uncertainty
-                ),
-            )._load_receipt_safely()
+            loaded = historical_context_reply_store()._load_receipt_safely()
             receipt = loaded[0] if loaded is not None else None
             receipt_bytes = loaded[1] if loaded is not None else b""
         if not isinstance(receipt, dict) or not receipt_bytes:
@@ -6406,7 +7389,9 @@ def confirmed_main_receipt_is_sole_local_recovery_barrier() -> bool:
         CONFIRMED_REPLY_RECEIPT_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
     )
-    present = [path for path in source_paths if os.path.lexists(path)]
+    present = [
+        path for path in source_paths if receipt_namespace_entry_exists(path)
+    ]
     if len(present) != 1 or present[0] not in {
         REGULAR_POST_RECEIPT_FILE,
         MEME_POST_RECEIPT_FILE,
@@ -6745,6 +7730,7 @@ def block_if_ambiguous_remote_post(
     prepared_main_post_attempt: dict | None = None,
     allow_confirmed_pending_schedule_reconciliation: bool = False,
     allow_historical_context_receipt_reconciliation: bool = False,
+    allow_historical_context_outbox_reconciliation_parent_id: str | None = None,
     prepared_transport_authority: TransportAuthority | None = None,
 ) -> None:
     """Refuse posting while a remote-write safety incident is unresolved."""
@@ -6767,6 +7753,18 @@ def block_if_ambiguous_remote_post(
         and confirmed_main_receipt_is_sole_local_recovery_barrier()
     )
     block_if_remote_write_safety_incident_latched()
+    if historical_context_outbox_remote_attempt_is_blocking(
+        prepared_receipt=prepared_historical_context_reply_receipt,
+        prepared_transport_authority=prepared_transport_authority,
+        allow_local_reconciliation_parent_id=(
+            allow_historical_context_outbox_reconciliation_parent_id
+        ),
+    ):
+        raise AmbiguousRemotePostOutcome(
+            "A historical-context outbox attempt may have reached remote "
+            "transport and blocks every remote-write lane",
+            service="x",
+        )
     block_if_remote_receipt_retirement_exists()
     if prepared_transport_authority is None:
         if not local_main_reconciliation_authorised:
@@ -6902,6 +7900,8 @@ def ambiguous_remote_post_is_blocking() -> bool:
     if remote_write_safety_incident_is_latched():
         return True
     if remote_write_safety_marker_path_present_or_unsafe():
+        return True
+    if historical_context_outbox_remote_attempt_is_blocking():
         return True
     if remote_write_transport_journal_is_blocking():
         return True
@@ -7380,14 +8380,9 @@ def durable_remote_write_safety_barrier_exists() -> bool:
     try:
         from historical_context_formatter import HistoricalContextReplyStore
 
-        historical_loaded = HistoricalContextReplyStore(
-            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-            mutation_authority_provider=transaction_mutation_authority,
-            retirement_uncertainty_callback=(
-                latch_source_receipt_retirement_uncertainty
-            ),
-        )._load_receipt_safely()
+        historical_loaded = (
+            historical_context_reply_store()._load_receipt_safely()
+        )
         if historical_loaded is not None and (
             HistoricalContextReplyStore._valid_sending_receipt(
                 historical_loaded[0]
@@ -8469,18 +9464,11 @@ def current_image_paths() -> list[str]:
 
 def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
     """Save image used basenames."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    serializable = sorted(str(item) for item in value)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(serializable, f, indent=2)
-        f.write("\n")
-        if durable:
-            f.flush()
-            os.fsync(f.fileno())
-    os.replace(tmp, path)
-    if durable:
-        fsync_parent_dir(path, strict=durable)
+    atomic_write_json(
+        path,
+        sorted(str(item) for item in value),
+        durable=durable,
+    )
 
 
 def fsync_parent_dir(path: Path, *, strict: bool = False) -> None:
@@ -8764,7 +9752,7 @@ def valid_receipt_epoch(value: object) -> bool:
     if type(value) is not int:
         return False
     epoch = value
-    return 1_500_000_000 <= epoch <= 4_102_444_800
+    return MIN_CONFIRMATION_EPOCH <= epoch <= MAX_CONFIRMATION_EPOCH
 
 
 def receipt_int(value: object, default: int | None = None) -> int | None:
@@ -10727,7 +11715,10 @@ def maybe_post_historical_context_reply(
     quote_text: str,
     parent_post_id: str,
     dry_run: bool = False,
+    on_source_receipt_published: Callable[[str, int], None] | None = None,
     on_remote_transaction_started: Callable[[], None] | None = None,
+    on_definite_non_success: Callable[[BaseException], str] | None = None,
+    on_confirmed_receipt: Callable[[dict, int], None] | None = None,
 ) -> dict:
     """Post an optional canonical context reply without affecting the main post."""
     if not dry_run:
@@ -10741,14 +11732,7 @@ def maybe_post_historical_context_reply(
             x_weighted_length,
         )
 
-        store = HistoricalContextReplyStore(
-            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-            mutation_authority_provider=transaction_mutation_authority,
-            retirement_uncertainty_callback=(
-                latch_source_receipt_retirement_uncertainty
-            ),
-        )
+        store = historical_context_reply_store()
         if not dry_run:
             # Reconcile before every policy/configuration exit. A durable
             # receipt describes an earlier remote attempt and must not be
@@ -10868,13 +11852,21 @@ def maybe_post_historical_context_reply(
                 # The store retires its journal only after completed history is
                 # durable, so the prepared source-removal guard is always safe
                 # to resume in a later process.
-                on_confirmed_receipt=None,
+                on_confirmed_receipt=(
+                    None if dry_run else on_confirmed_receipt
+                ),
                 remote_failure_is_definite_non_success=(
                     lambda error: isinstance(error, RemoteOperationsPaused)
                 ),
                 require_confirmed_transport=not dry_run,
+                on_source_receipt_published=(
+                    None if dry_run else on_source_receipt_published
+                ),
                 on_remote_transaction_started=(
                     None if dry_run else on_remote_transaction_started
+                ),
+                on_definite_non_success=(
+                    None if dry_run else on_definite_non_success
                 ),
             )
         finally:
@@ -10954,11 +11946,34 @@ def maybe_post_historical_context_reply(
         raise
 
 
+def historical_context_reply_store(*, allow_missing_history: bool = False):
+    """Return the reply store with production history-loss protection."""
+    from historical_context_formatter import HistoricalContextReplyStore
+
+    return HistoricalContextReplyStore(
+        HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            latch_source_receipt_retirement_uncertainty
+        ),
+        require_existing_history=(
+            not TEST_MODE and not allow_missing_history
+        ),
+    )
+
+
 def historical_context_outbox_store():
     """Return the durable store for auxiliary context-reply obligations."""
     from historical_context_outbox import HistoricalContextOutbox
 
-    return HistoricalContextOutbox(HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE)
+    return HistoricalContextOutbox(
+        HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+        # Production installation creates this authority explicitly.  Focused
+        # test fixtures may still construct isolated stores lazily; production
+        # must never reinterpret later disappearance as a fresh empty outbox.
+        require_existing=not TEST_MODE,
+    )
 
 
 def require_historical_context_outbox_writable() -> None:
@@ -11082,6 +12097,7 @@ def _record_context_outbox_failure(
     error: BaseException | str,
     failed_epoch: int,
     force_terminal: bool = False,
+    proved_remote_non_success: bool = False,
 ) -> str:
     """Record one bounded context failure and return its durable state."""
     if force_terminal or attempt_number >= store.max_attempts:
@@ -11090,6 +12106,7 @@ def _record_context_outbox_failure(
             attempt_number=attempt_number,
             error=error,
             failed_epoch=failed_epoch,
+            proved_remote_non_success=proved_remote_non_success,
         )
     else:
         obligation = store.record_retryable_failure(
@@ -11097,8 +12114,72 @@ def _record_context_outbox_failure(
             attempt_number=attempt_number,
             error=error,
             failed_epoch=failed_epoch,
+            proved_remote_non_success=proved_remote_non_success,
         )
     return str(obligation["context_reply"]["state"])
+
+
+def _record_or_verify_proved_context_failure(
+    store,
+    *,
+    parent_post_id: str,
+    attempt_number: int,
+    error,
+    failed_epoch: int,
+) -> str:
+    """Preserve or verify one exact proved-non-success outbox outcome."""
+
+    source_sha256 = getattr(error, "source_receipt_sha256", None)
+    source_attempt = getattr(error, "source_receipt_attempt_number", None)
+    remote_error = getattr(error, "remote_error", None)
+    if (
+        type(source_sha256) is not str
+        or not re.fullmatch(r"[0-9a-f]{64}", source_sha256)
+        or type(source_attempt) is not int
+        or source_attempt < 1
+        or not isinstance(remote_error, BaseException)
+    ):
+        raise RuntimeError(
+            "definite historical-context persistence error lacks exact source proof"
+        )
+    obligation = store.get(parent_post_id)
+    context = (
+        obligation.get("context_reply") if isinstance(obligation, dict) else None
+    )
+    if not isinstance(context, dict) or context.get("attempt_count") != attempt_number:
+        raise RuntimeError("historical-context outbox attempt changed after failure")
+    if context.get("state") in {
+        "context_reply_failed_retryable",
+        "context_reply_failed_terminal",
+    }:
+        failure = context.get("failure")
+        if not (
+            isinstance(failure, dict)
+            and failure.get("remote_outcome") == "proved_non_success"
+            and failure.get("source_receipt_sha256") == source_sha256
+            and failure.get("source_receipt_attempt_number") == source_attempt
+        ):
+            raise RuntimeError(
+                "durable historical-context failure does not match source proof"
+            )
+        return str(context["state"])
+    if (
+        context.get("state") != "context_reply_attempting"
+        or context.get("source_receipt_sha256") != source_sha256
+        or context.get("source_receipt_attempt_number") != source_attempt
+    ):
+        raise RuntimeError(
+            "historical-context source binding changed before failure persistence"
+        )
+    return _record_context_outbox_failure(
+        store,
+        parent_post_id=parent_post_id,
+        attempt_number=attempt_number,
+        error=remote_error,
+        failed_epoch=failed_epoch,
+        force_terminal=attempt_number >= store.max_attempts,
+        proved_remote_non_success=True,
+    )
 
 
 def recover_interrupted_historical_context_attempt(
@@ -11119,35 +12200,166 @@ def recover_interrupted_historical_context_attempt(
     if context.get("state") != "context_reply_attempting":
         raise ValueError("only an interrupted attempting state can be recovered")
     attempt_number = int(context["attempt_count"])
-    context_store = HistoricalContextReplyStore(
-        HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        mutation_authority_provider=transaction_mutation_authority,
-        retirement_uncertainty_callback=(
-            latch_source_receipt_retirement_uncertainty
-        ),
-    )
+    context_store = historical_context_reply_store()
     transport_journal_path = journal_path_for_receipt(
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
     )
     journal_was_observed = transport_journal_is_blocking(
         transport_journal_path
     )
+    bound_source_sha256 = context.get("source_receipt_sha256")
+    bound_source_attempt = context.get("source_receipt_attempt_number")
+    source_binding_present = bool(
+        type(bound_source_sha256) is str
+        and re.fullmatch(r"[0-9a-f]{64}", bound_source_sha256)
+        and type(bound_source_attempt) is int
+        and bound_source_attempt >= 1
+    )
+    loaded_before_reconciliation = context_store._load_receipt_safely()
+    exact_current_sending_receipt = False
+    if loaded_before_reconciliation is not None:
+        source_receipt, source_receipt_bytes = loaded_before_reconciliation
+        if HistoricalContextReplyStore._valid_sending_receipt(source_receipt):
+            observed_source_sha256 = hashlib.sha256(
+                source_receipt_bytes
+            ).hexdigest()
+            observed_source_attempt = source_receipt["attempt_number"]
+            if (
+                not source_binding_present
+                and context.get("remote_transaction_started") is False
+                and not journal_was_observed
+                and not transport_journal_is_blocking(
+                    transport_journal_path
+                )
+            ):
+                history = context_store.history()
+                previous = history["items"].get(parent_id)
+                expected_source_attempt = (
+                    int(previous.get("attempt_count", 0)) + 1
+                    if isinstance(previous, dict)
+                    else 1
+                )
+                if (
+                    (
+                        isinstance(previous, dict)
+                        and previous.get("status") != "failed"
+                    )
+                    or
+                    source_receipt.get("parent_post_id") != parent_id
+                    or source_receipt.get("quote_id")
+                    != context.get("quote_id")
+                    or source_receipt.get("attempt_number")
+                    != expected_source_attempt
+                ):
+                    raise AmbiguousContextReplyOutcome(
+                        "unbound historical-context source receipt does not "
+                        "match the exact pre-transport attempt",
+                        parent_post_id=parent_id,
+                        reply_text=str(source_receipt.get("reply_text") or ""),
+                    )
+                rebound = store.bind_attempt_source_receipt(
+                    parent_id,
+                    attempt_number=attempt_number,
+                    source_receipt_sha256=observed_source_sha256,
+                    source_receipt_attempt_number=observed_source_attempt,
+                )
+                context = rebound["context_reply"]
+                bound_source_sha256 = observed_source_sha256
+                bound_source_attempt = observed_source_attempt
+                source_binding_present = True
+            exact_current_sending_receipt = bool(
+                source_binding_present
+                and bound_source_sha256 == observed_source_sha256
+                and bound_source_attempt == observed_source_attempt
+            )
+        elif HistoricalContextReplyStore._valid_receipt(source_receipt):
+            observed_source_sha256 = source_receipt.get(
+                "source_receipt_sha256"
+            )
+            observed_source_attempt = source_receipt.get("attempt_number")
+        else:
+            raise RuntimeError("invalid historical context reply receipt")
+        if (
+            not source_binding_present
+            or bound_source_sha256 != observed_source_sha256
+            or bound_source_attempt != observed_source_attempt
+        ):
+            raise AmbiguousContextReplyOutcome(
+                "historical-context receipt does not match the exact current "
+                "outbox source binding",
+                parent_post_id=parent_id,
+                reply_text=str(source_receipt.get("reply_text") or ""),
+            )
+    journal_is_blocking = transport_journal_is_blocking(
+        transport_journal_path
+    )
+    if (
+        context.get("remote_transaction_started") is False
+        and exact_current_sending_receipt
+        and not journal_was_observed
+        and not journal_is_blocking
+    ):
+        # The exact source receipt exists, but the durable outbox still proves
+        # that journal arming and transport never began.  Persist that proof
+        # before writing failed history and retiring only this receipt.  Calling
+        # generic receipt reconciliation first would incorrectly classify the
+        # safely pre-transport crash as an ambiguous remote outcome.
+        state_name = _record_context_outbox_failure(
+            store,
+            parent_post_id=parent_id,
+            attempt_number=attempt_number,
+            error="context attempt was interrupted before remote transaction start",
+            failed_epoch=recovered_epoch,
+            force_terminal=attempt_number >= store.max_attempts,
+            proved_remote_non_success=True,
+        )
+        updated = store.get(parent_id)
+        if updated is None or updated["context_reply"]["state"] != state_name:
+            raise RuntimeError("pre-remote context recovery was not durable")
+        context_store.ensure_proved_failure_history_from_outbox(
+            updated["context_reply"]
+        )
+        if context_store.reconcile_receipt_disposition() != "definite_failure":
+            raise RuntimeError(
+                "exact pre-remote context receipt changed before retirement"
+            )
+        return {
+            "parent_post_id": parent_id,
+            "status": "recovered_pre_remote_interruption",
+            "context_reply_state": state_name,
+            "attempt_number": attempt_number,
+            "remote_work_repeated": False,
+        }
     # The sending receipt is the authoritative ambiguity barrier.  It must be
     # reconciled (confirmed, definitely failed, or left ambiguous) before an
     # interrupted outbox claim can be downgraded or retried.
-    context_store.reconcile_receipt()
+    receipt_disposition = context_store.reconcile_receipt_disposition(
+        retain_definite_failure_receipt=True,
+        preloaded_receipt=loaded_before_reconciliation,
+    )
     journal_is_blocking = transport_journal_is_blocking(
         transport_journal_path
     )
     history = context_store.history()
     previous = history["items"].get(parent_id)
+    previous_source_matches = bool(
+        source_binding_present
+        and isinstance(previous, dict)
+        and previous.get("source_receipt_sha256") == bound_source_sha256
+        and (
+            previous.get("source_receipt_attempt_number")
+            if previous.get("status") == "failed"
+            else previous.get("attempt_number")
+        )
+        == bound_source_attempt
+    )
     if (
         receipt_was_observed
         and not (
             isinstance(previous, dict)
             and previous.get("quote_id") == context["quote_id"]
             and previous.get("status") in {"completed", "failed"}
+            and previous_source_matches
         )
     ):
         raise AmbiguousContextReplyOutcome(
@@ -11160,21 +12372,77 @@ def recover_interrupted_historical_context_attempt(
         raise RuntimeError(
             "context history identity conflicts with interrupted outbox attempt"
         )
+    if (
+        context.get("remote_transaction_started") is False
+        and receipt_disposition == "absent"
+        and not source_binding_present
+        and not receipt_was_observed
+        and not journal_was_observed
+        and not journal_is_blocking
+        and isinstance(previous, dict)
+        and previous.get("status") == "completed"
+        and previous.get("quote_id") == context["quote_id"]
+    ):
+        # store.post() returns ``already_completed`` before publishing a new
+        # source receipt.  A crash before the worker copies that durable result
+        # into its newly claimed outbox must recover the existing confirmed
+        # identity, not recast it as a terminal pre-transport failure.
+        updated = store.record_confirmed(
+            parent_id,
+            attempt_number=attempt_number,
+            reply_post_id=str(previous["reply_post_id"]),
+            confirmed_epoch=recovered_epoch,
+        )
+        return {
+            "parent_post_id": parent_id,
+            "status": "recovered_confirmed_history",
+            "context_reply_state": str(updated["context_reply"]["state"]),
+            "attempt_number": attempt_number,
+            "remote_work_repeated": False,
+        }
     proved_pre_remote = bool(
         context.get("remote_transaction_started") is False
+        and receipt_disposition == "absent"
+        and not previous_source_matches
+        and not journal_was_observed
+        and not journal_is_blocking
+    )
+    if proved_pre_remote:
+        state_name = _record_context_outbox_failure(
+            store,
+            parent_post_id=parent_id,
+            attempt_number=attempt_number,
+            error="context attempt was interrupted before remote transaction start",
+            failed_epoch=recovered_epoch,
+            force_terminal=attempt_number >= store.max_attempts,
+        )
+        updated = store.get(parent_id)
+        if updated is None or updated["context_reply"]["state"] != state_name:
+            raise RuntimeError("pre-remote context recovery was not durable")
+        return {
+            "parent_post_id": parent_id,
+            "status": "recovered_pre_remote_interruption",
+            "context_reply_state": state_name,
+            "attempt_number": attempt_number,
+            "remote_work_repeated": False,
+        }
+    exact_current_failure = bool(
+        receipt_disposition == "definite_failure"
+        and previous_source_matches
         and not journal_was_observed
         and not journal_is_blocking
     )
     if (
         isinstance(previous, dict)
-        and previous.get("status") == "failed"
+        and not previous_source_matches
         and not proved_pre_remote
     ):
         # A failed history row is keyed only by parent/quote identity.  The
         # reply store and outbox deliberately have independent attempt
         # ordinals, so an older definite failure cannot prove the outcome of a
         # later attempt which may have reached transport.  Only an explicit
-        # current-schema pre-remote phase may consume that stale row safely.
+        # current-schema pre-remote phase or the exact matching sending receipt
+        # reconciled above may consume the row safely.
         raise AmbiguousContextReplyOutcome(
             "an interrupted historical-context attempt may have reached its "
             "remote transaction but only an older failed history outcome is "
@@ -11183,32 +12451,6 @@ def recover_interrupted_historical_context_attempt(
             reply_text=str(context.get("reply_text") or ""),
         )
     if not isinstance(previous, dict):
-        if proved_pre_remote:
-            # A current-schema claim starts in a definite local-only phase.
-            # The only transition to True is durably written after the
-            # transport journal is armed and immediately before the request.
-            # With no receipt ever observed, no receipt now present, and no
-            # terminal history, an interruption in this phase is therefore a
-            # definite preparation failure rather than an unknown remote
-            # outcome.
-            state_name = _record_context_outbox_failure(
-                store,
-                parent_post_id=parent_id,
-                attempt_number=attempt_number,
-                error="context attempt was interrupted before remote transaction start",
-                failed_epoch=recovered_epoch,
-                force_terminal=attempt_number >= store.max_attempts,
-            )
-            updated = store.get(parent_id)
-            if updated is None or updated["context_reply"]["state"] != state_name:
-                raise RuntimeError("pre-remote context recovery was not durable")
-            return {
-                "parent_post_id": parent_id,
-                "status": "recovered_pre_remote_interruption",
-                "context_reply_state": state_name,
-                "attempt_number": attempt_number,
-                "remote_work_repeated": False,
-            }
         # Missing phase metadata denotes a legacy record whose remote boundary
         # is unknown. True denotes the current schema's explicit remote phase.
         # A journal object or unsafe journal namespace likewise remains an
@@ -11221,6 +12463,13 @@ def recover_interrupted_historical_context_attempt(
             reply_text=str(context.get("reply_text") or ""),
         )
     if isinstance(previous, dict) and previous.get("status") == "completed":
+        if not previous_source_matches:
+            raise AmbiguousContextReplyOutcome(
+                "completed historical-context history does not match the exact "
+                "current outbox source binding",
+                parent_post_id=parent_id,
+                reply_text=str(context.get("quote_text") or ""),
+            )
         # HistoricalContextReplyStore counts only attempts which reached its
         # remote-write transaction.  The outbox also counts formatter and
         # policy failures, so the two ordinals are deliberately not compared.
@@ -11236,6 +12485,13 @@ def recover_interrupted_historical_context_attempt(
     else:
         failure = "context attempt was interrupted before a durable outcome"
         if isinstance(previous, dict) and previous.get("status") == "failed":
+            if not previous_source_matches:
+                raise AmbiguousContextReplyOutcome(
+                    "failed historical-context history does not match the exact "
+                    "current outbox source binding",
+                    parent_post_id=parent_id,
+                    reply_text=str(context.get("quote_text") or ""),
+                )
             # The failed history may describe this remote attempt or an older
             # one because pre-transaction failures are counted only by the
             # outbox.  Either way, no confirmed reply exists; consuming the
@@ -11249,11 +12505,20 @@ def recover_interrupted_historical_context_attempt(
             error=failure,
             failed_epoch=recovered_epoch,
             force_terminal=attempt_number >= store.max_attempts,
+            proved_remote_non_success=exact_current_failure,
         )
         updated = store.get(parent_id)
         status = "recovered_interrupted_attempt"
         if updated is None or updated["context_reply"]["state"] != state_name:
             raise RuntimeError("interrupted context recovery was not durable")
+        if exact_current_failure:
+            if (
+                context_store.reconcile_receipt_disposition()
+                != "definite_failure"
+            ):
+                raise RuntimeError(
+                    "exact context failure receipt changed before retirement"
+                )
     return {
         "parent_post_id": parent_id,
         "status": status,
@@ -11270,6 +12535,7 @@ def _process_due_historical_context_obligations(
     limit: int = 1,
     runtime_state: dict | None = None,
     historical_context_receipt_reconciliation_only: bool = False,
+    historical_context_outbox_reconciliation_only: bool = False,
 ) -> list[dict]:
     """Retry only auxiliary context work; never invoke the main-post path."""
     global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
@@ -11395,11 +12661,15 @@ def _process_due_historical_context_obligations(
                 **recovered,
             )
             results.append(recovered)
-            if historical_context_receipt_reconciliation_only:
+            if (
+                historical_context_receipt_reconciliation_only
+                or historical_context_outbox_reconciliation_only
+            ):
                 break
             continue
         if (
             historical_context_receipt_reconciliation_only
+            or historical_context_outbox_reconciliation_only
             or historical_context_receipt_path_present_or_unsafe()
         ):
             log.critical(
@@ -11419,7 +12689,11 @@ def _process_due_historical_context_obligations(
         try:
             claimed = store.claim_attempt(
                 parent_id,
-                started_epoch=now_epoch(),
+                # The obligation was selected as due at ``current``.  A
+                # subsequent CLOCK_REALTIME rollback must not invalidate that
+                # already observed eligibility or strand the lane until a
+                # restart; preserve the later of the two observations.
+                started_epoch=max(current, now_epoch()),
             )
             context = claimed["context_reply"]
             attempt_number = int(context["attempt_count"])
@@ -11453,11 +12727,54 @@ def _process_due_historical_context_obligations(
                 quote_hash=str(context["quote_id"]),
                 quote_text=str(context["quote_text"]),
                 parent_post_id=parent_id,
+                on_source_receipt_published=(
+                    lambda source_sha256,
+                    source_attempt_number,
+                    parent_id=parent_id,
+                    attempt_number=attempt_number: (
+                        store.bind_attempt_source_receipt(
+                            parent_id,
+                            attempt_number=attempt_number,
+                            source_receipt_sha256=source_sha256,
+                            source_receipt_attempt_number=(
+                                source_attempt_number
+                            ),
+                        )
+                    )
+                ),
                 on_remote_transaction_started=(
                     lambda parent_id=parent_id, attempt_number=attempt_number: (
                         store.mark_remote_transaction_started(
                             parent_id,
                             attempt_number=attempt_number,
+                        )
+                    )
+                ),
+                on_definite_non_success=(
+                    lambda error,
+                    parent_id=parent_id,
+                    attempt_number=attempt_number: (
+                        _record_context_outbox_failure(
+                            store,
+                            parent_post_id=parent_id,
+                            attempt_number=attempt_number,
+                            error=error,
+                            failed_epoch=now_epoch(),
+                            force_terminal=attempt_number >= store.max_attempts,
+                            proved_remote_non_success=True,
+                        )
+                    )
+                ),
+                on_confirmed_receipt=(
+                    lambda confirmed_receipt,
+                    confirmation_epoch,
+                    parent_id=parent_id,
+                    attempt_number=attempt_number: (
+                        store.record_confirmed(
+                            parent_id,
+                            attempt_number=attempt_number,
+                            reply_post_id=confirmed_receipt["reply_post_id"],
+                            confirmed_epoch=confirmation_epoch,
                         )
                     )
                 ),
@@ -11475,15 +12792,75 @@ def _process_due_historical_context_obligations(
                     }
                 )
                 state_name = "ambiguous_remote_outcome"
-            else:
+            elif type(exc).__name__ == "DefiniteContextReplyLocalPersistenceError":
                 try:
-                    state_name = _record_context_outbox_failure(
+                    state_name = _record_or_verify_proved_context_failure(
                         store,
                         parent_post_id=parent_id,
                         attempt_number=attempt_number,
                         error=exc,
                         failed_epoch=now_epoch(),
                     )
+                except Exception:
+                    _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+                        "proved context outcome persistence failed"
+                    )
+                    log.critical(
+                        "Could not preserve the exact proved historical-context "
+                        "failure parent_post_id=%s",
+                        parent_id,
+                        exc_info=True,
+                    )
+                    state_name = "outbox_persistence_failed"
+            else:
+                try:
+                    current_obligation = store.get(parent_id)
+                    current_context = (
+                        current_obligation.get("context_reply")
+                        if isinstance(current_obligation, dict)
+                        else None
+                    )
+                    remote_phase_is_unproved = bool(
+                        isinstance(current_context, dict)
+                        and current_context.get("state")
+                        == "context_reply_attempting"
+                        and current_context.get("attempt_count")
+                        == attempt_number
+                        and current_context.get(
+                            "remote_transaction_started"
+                        )
+                        is not False
+                    )
+                    confirmed_outbox_outcome = bool(
+                        isinstance(current_context, dict)
+                        and current_context.get("state")
+                        == "context_reply_confirmed"
+                    )
+                    if remote_phase_is_unproved or confirmed_outbox_outcome:
+                        # Once the durable phase says transport may have
+                        # started, an arbitrary local exception cannot prove a
+                        # remote non-success.  The same applies after the
+                        # outbox already holds the confirmed identity. Preserve
+                        # that exact outcome and the independent receipt/journal
+                        # barriers for local or manual reconciliation.
+                        state_name = (
+                            "confirmed_local_reconciliation_pending"
+                            if confirmed_outbox_outcome
+                            or inspect_transport_state(
+                                journal_path_for_receipt(
+                                    HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+                                )
+                            ).classification == "confirmed_pair"
+                            else "remote_outcome_reconciliation_pending"
+                        )
+                    else:
+                        state_name = _record_context_outbox_failure(
+                            store,
+                            parent_post_id=parent_id,
+                            attempt_number=attempt_number,
+                            error=exc,
+                            failed_epoch=now_epoch(),
+                        )
                 except Exception:
                     _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
                         "outbox outcome persistence failed"
@@ -11571,14 +12948,60 @@ def _process_due_historical_context_obligations(
                     exc_info=True,
                 )
         try:
-            if status in {"completed", "already_completed"}:
-                reply_post_id = str(result.get("reply_post_id") or "")
-                updated = store.record_confirmed(
-                    parent_id,
-                    attempt_number=attempt_number,
-                    reply_post_id=reply_post_id,
-                    confirmed_epoch=now_epoch(),
+            durable_outbox_failure_state = result.get(
+                "durable_outbox_failure_state"
+            )
+            if status == "failed" and type(durable_outbox_failure_state) is str:
+                updated = store.get(parent_id)
+                updated_context = (
+                    updated.get("context_reply")
+                    if isinstance(updated, dict)
+                    else None
                 )
+                if (
+                    not isinstance(updated_context, dict)
+                    or updated_context.get("state")
+                    != durable_outbox_failure_state
+                ):
+                    raise RuntimeError(
+                        "durable context outbox failure state changed after "
+                        "source-receipt retirement"
+                    )
+            elif status in {"completed", "already_completed"}:
+                reply_post_id = str(result.get("reply_post_id") or "")
+                current_after_post = store.get(parent_id)
+                current_context_after_post = (
+                    current_after_post.get("context_reply")
+                    if isinstance(current_after_post, dict)
+                    else None
+                )
+                if (
+                    isinstance(current_context_after_post, dict)
+                    and current_context_after_post.get("state")
+                    == "context_reply_confirmed"
+                    and current_context_after_post.get("reply_post_id")
+                    == reply_post_id
+                    and (
+                        status == "already_completed"
+                        or confirmed_context_outbox_matches_receipt(
+                            current_context_after_post,
+                            result,
+                        )
+                    )
+                ):
+                    updated = current_after_post
+                elif status == "already_completed":
+                    updated = store.record_confirmed(
+                        parent_id,
+                        attempt_number=attempt_number,
+                        reply_post_id=reply_post_id,
+                        confirmed_epoch=now_epoch(),
+                    )
+                else:
+                    raise RuntimeError(
+                        "completed historical-context reply lacks its durable "
+                        "outbox confirmation"
+                    )
             elif status in {
                 "disabled",
                 "skipped_no_completed_packet",
@@ -11680,10 +13103,30 @@ def process_due_historical_context_obligations(
         if receipt_reconciliation_only
         else None
     )
+    outbox_reconciliation_parent_id = (
+        historical_context_outbox_remote_attempt_parent_for_local_reconciliation()
+    )
+    outbox_reconciliation_only = outbox_reconciliation_parent_id is not None
+    if (
+        receipt_reconciliation_only
+        and reconciliation_parent_id is not None
+        and outbox_reconciliation_parent_id is not None
+        and reconciliation_parent_id != outbox_reconciliation_parent_id
+    ):
+        log.critical(
+            "Historical-context receipt and risky outbox rows identify "
+            "different parents; no local reconciliation was attempted"
+        )
+        return []
+    if reconciliation_parent_id is None:
+        reconciliation_parent_id = outbox_reconciliation_parent_id
     try:
         block_if_ambiguous_remote_post(
             allow_historical_context_receipt_reconciliation=(
                 receipt_reconciliation_only
+            ),
+            allow_historical_context_outbox_reconciliation_parent_id=(
+                outbox_reconciliation_parent_id
             ),
         )
     except (
@@ -11696,7 +13139,7 @@ def process_due_historical_context_obligations(
             "global remote-write ambiguity barrier"
         )
         return []
-    if receipt_reconciliation_only:
+    if receipt_reconciliation_only or outbox_reconciliation_only:
         if reconciliation_parent_id is None:
             return []
         if (
@@ -11704,9 +13147,9 @@ def process_due_historical_context_obligations(
             and str(parent_post_id) != reconciliation_parent_id
         ):
             log.critical(
-                "Historical-context receipt reconciliation was requested for "
+                "Historical-context local reconciliation was requested for "
                 "a different parent; no outbox work was performed. "
-                "receipt_parent_id=%s requested_parent_id=%s",
+                "reconciliation_parent_id=%s requested_parent_id=%s",
                 reconciliation_parent_id,
                 parent_post_id,
             )
@@ -11722,6 +13165,9 @@ def process_due_historical_context_obligations(
                 runtime_state=runtime_state,
                 historical_context_receipt_reconciliation_only=(
                     receipt_reconciliation_only
+                ),
+                historical_context_outbox_reconciliation_only=(
+                    outbox_reconciliation_only
                 ),
             )
     except OutboxWorkerBusy:
@@ -11944,14 +13390,16 @@ def reconcile_confirmed_transactions_before_global_barrier(
     state: dict,
     current: int | None = None,
 ) -> dict[str, bool]:
-    """Finish one exact confirmed local transaction before global blocking.
+    """Finish one exact locally recoverable transaction before global blocking.
 
     Transport journals are intentionally global barriers, but a confirmed
     journal plus its confirmed lane receipt is also enough local authority to
     finish state persistence without another remote request.  This narrow
     pre-barrier reconciler promotes a sending/attempting source only when its
-    exact confirmed journal proves the remote identity; it never runs auxiliary
-    remote work and refuses to choose between multiple lane receipts.
+    exact confirmed journal proves the remote identity.  It may also consume an
+    exact historical-context definite-failure pair through the matching outbox
+    attempt.  It never runs auxiliary remote work and refuses to choose between
+    multiple lane receipts.
     """
 
     result = {
@@ -11975,7 +13423,9 @@ def reconcile_confirmed_transactions_before_global_barrier(
         CONFIRMED_REPLY_RECEIPT_FILE,
         HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
     )
-    present = [path for path in receipt_paths if os.path.lexists(path)]
+    present = [
+        path for path in receipt_paths if receipt_namespace_entry_exists(path)
+    ]
     if len(present) != 1:
         return result
 
@@ -11983,6 +13433,15 @@ def reconcile_confirmed_transactions_before_global_barrier(
     journal_path = journal_path_for_receipt(owning_path)
     journal_state = inspect_transport_state(journal_path)
     needs_transport_promotion = False
+    historical_store = None
+    historical_sending_receipt = None
+    historical_sending_receipt_bytes = None
+    historical_confirmed_receipt = None
+    historical_legacy_confirmed_receipt = None
+    historical_outbox_store = None
+    historical_outbox_obligation = None
+    historical_outbox_context = None
+    historical_loaded_receipt = None
     if owning_path == REGULAR_POST_RECEIPT_FILE:
         status, source = load_regular_post_receipt()
         needs_transport_promotion = bool(
@@ -12003,18 +13462,285 @@ def reconcile_confirmed_transactions_before_global_barrier(
     elif owning_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
         from historical_context_formatter import HistoricalContextReplyStore
 
-        loaded = HistoricalContextReplyStore(
-            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-            mutation_authority_provider=transaction_mutation_authority,
-            retirement_uncertainty_callback=(
-                latch_source_receipt_retirement_uncertainty
-            ),
-        )._load_receipt_safely()
+        historical_store = historical_context_reply_store()
+        loaded = historical_store._load_receipt_safely()
+        historical_loaded_receipt = loaded
         needs_transport_promotion = bool(
             loaded is not None
             and HistoricalContextReplyStore._valid_sending_receipt(loaded[0])
         )
+        if needs_transport_promotion:
+            historical_sending_receipt = loaded[0]
+            historical_sending_receipt_bytes = loaded[1]
+        elif (
+            loaded is not None
+            and HistoricalContextReplyStore._valid_receipt(loaded[0])
+            and loaded[0].get("lifecycle_state") == "confirmed"
+            and "source_receipt_sha256" in loaded[0]
+        ):
+            historical_confirmed_receipt = loaded[0]
+            historical_sending_receipt = (
+                HistoricalContextReplyStore.sending_receipt_from_confirmed(
+                    loaded[0]
+                )
+            )
+            historical_sending_receipt_bytes = (
+                HistoricalContextReplyStore.source_receipt_bytes_from_confirmed(
+                    loaded[0]
+                )
+            )
+        elif (
+            loaded is not None
+            and HistoricalContextReplyStore._valid_receipt(loaded[0])
+        ):
+            historical_legacy_confirmed_receipt = loaded[0]
+    if historical_legacy_confirmed_receipt is not None:
+        if journal_state.classification != "clear":
+            raise RuntimeError(
+                "legacy confirmed historical-context receipt conflicts with "
+                "an independent transport journal"
+            )
+        parent_id = str(
+            historical_legacy_confirmed_receipt["parent_post_id"]
+        )
+        historical_outbox_store = historical_context_outbox_store()
+        historical_outbox_obligation = historical_outbox_store.get(parent_id)
+        historical_outbox_context = (
+            historical_outbox_obligation.get("context_reply")
+            if isinstance(historical_outbox_obligation, dict)
+            else None
+        )
+        if not isinstance(historical_outbox_obligation, dict):
+            raise RuntimeError(
+                "confirmed historical-context receipt has no matching "
+                "outbox obligation"
+            )
+        if (
+            not isinstance(historical_outbox_context, dict)
+            or historical_outbox_context.get("quote_id")
+            != historical_legacy_confirmed_receipt["quote_id"]
+        ):
+            raise RuntimeError(
+                "confirmed historical-context receipt conflicts with its "
+                "outbox identity"
+            )
+        if historical_outbox_context.get("state") == (
+            "context_reply_attempting"
+        ):
+            if {
+                "source_receipt_sha256",
+                "source_receipt_attempt_number",
+            } & set(historical_outbox_context):
+                raise RuntimeError(
+                    "legacy confirmed historical-context receipt conflicts "
+                    "with a source-bound attempting outbox"
+                )
+            if historical_outbox_context.get("attempt_count") != (
+                historical_legacy_confirmed_receipt.get("attempt_number")
+            ):
+                raise RuntimeError(
+                    "legacy confirmed historical-context receipt conflicts "
+                    "with its outbox attempt"
+                )
+            historical_outbox_store.record_confirmed(
+                parent_id,
+                attempt_number=int(
+                    historical_outbox_context["attempt_count"]
+                ),
+                reply_post_id=historical_legacy_confirmed_receipt[
+                    "reply_post_id"
+                ],
+                confirmed_epoch=int(
+                    historical_legacy_confirmed_receipt["reply_epoch"]
+                ),
+            )
+        elif not confirmed_context_outbox_matches_receipt(
+            historical_outbox_context,
+            historical_legacy_confirmed_receipt,
+        ):
+            raise RuntimeError(
+                "confirmed historical-context receipt conflicts with its "
+                "durable outbox outcome"
+            )
+    if (
+        owning_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        and historical_sending_receipt is not None
+    ):
+        if (
+            historical_store is None
+            or historical_sending_receipt is None
+            or historical_sending_receipt_bytes is None
+        ):
+            raise RuntimeError(
+                "historical-context local recovery lost its source receipt"
+            )
+        parent_id = str(historical_sending_receipt["parent_post_id"])
+        historical_outbox_store = historical_context_outbox_store()
+        historical_outbox_obligation = historical_outbox_store.get(parent_id)
+        historical_outbox_context = (
+            historical_outbox_obligation.get("context_reply")
+            if isinstance(historical_outbox_obligation, dict)
+            else None
+        )
+        if not isinstance(historical_outbox_obligation, dict):
+            # A confirmed receipt is durable proof that the remote operation
+            # succeeded.  Without its matching outbox obligation there is no
+            # authority to complete local history or retire either transport
+            # barrier.  In particular, ``reconcile_receipt_disposition`` is a
+            # mutating operation for confirmed receipts, so fail before
+            # invoking it and preserve every byte for operator reconciliation.
+            if historical_confirmed_receipt is not None:
+                raise RuntimeError(
+                    "confirmed historical-context receipt has no matching "
+                    "outbox obligation"
+                )
+            disposition = historical_store.reconcile_receipt_disposition(
+                retain_definite_failure_receipt=True,
+            )
+            if disposition != "definite_failure":
+                raise RuntimeError(
+                    "historical-context sending receipt had an unexpected "
+                    f"local disposition: {disposition}"
+                )
+            raise RuntimeError(
+                "historical-context sending receipt has no matching outbox "
+                "obligation"
+            )
+        if (
+            not isinstance(historical_outbox_context, dict)
+            or historical_outbox_context.get("quote_id")
+            != historical_sending_receipt["quote_id"]
+        ):
+            raise RuntimeError(
+                "historical-context sending receipt conflicts with its "
+                "outbox identity"
+            )
+        if journal_state.classification == "confirmed_pair":
+            confirmed_details = inspect_confirmed_transport_transaction(
+                journal_path
+            )
+            if (
+                confirmed_details.lane != "historical_context_reply"
+                or confirmed_details.source_receipt_sha256
+                != hashlib.sha256(historical_sending_receipt_bytes).hexdigest()
+                or (
+                    historical_confirmed_receipt is not None
+                    and confirmed_details.post_id
+                    != historical_confirmed_receipt["reply_post_id"]
+                )
+            ):
+                raise RuntimeError(
+                    "confirmed historical-context transport conflicts with "
+                    "its exact receipt lineage"
+                )
+            if historical_outbox_context.get("state") == (
+                "context_reply_attempting"
+            ):
+                if (
+                    historical_outbox_context.get(
+                        "remote_transaction_started"
+                    )
+                    is not True
+                    or historical_outbox_context.get(
+                        "source_receipt_sha256"
+                    )
+                    != hashlib.sha256(
+                        historical_sending_receipt_bytes
+                    ).hexdigest()
+                    or historical_outbox_context.get(
+                        "source_receipt_attempt_number"
+                    )
+                    != historical_sending_receipt["attempt_number"]
+                ):
+                    raise RuntimeError(
+                        "confirmed historical-context transport conflicts "
+                        "with its exact attempting outbox source"
+                    )
+                if historical_confirmed_receipt is not None:
+                    historical_outbox_store.record_confirmed(
+                        str(historical_sending_receipt["parent_post_id"]),
+                        attempt_number=int(
+                            historical_outbox_context["attempt_count"]
+                        ),
+                        reply_post_id=confirmed_details.post_id,
+                        confirmed_epoch=confirmed_details.confirmation_epoch,
+                    )
+                    historical_outbox_context = (
+                        historical_outbox_store.get(parent_id)[
+                            "context_reply"
+                        ]
+                    )
+            elif not confirmed_context_outbox_matches_receipt(
+                historical_outbox_context,
+                (
+                    historical_confirmed_receipt
+                    if historical_confirmed_receipt is not None
+                    else {
+                        "quote_id": historical_sending_receipt["quote_id"],
+                        "reply_post_id": confirmed_details.post_id,
+                        "source_receipt_sha256": hashlib.sha256(
+                            historical_sending_receipt_bytes
+                        ).hexdigest(),
+                        "attempt_number": historical_sending_receipt[
+                            "attempt_number"
+                        ],
+                    }
+                ),
+            ):
+                raise RuntimeError(
+                    "confirmed historical-context transport conflicts with "
+                    "its durable outbox outcome"
+                )
+        elif historical_confirmed_receipt is not None:
+            if not confirmed_context_outbox_matches_receipt(
+                historical_outbox_context,
+                historical_confirmed_receipt,
+            ):
+                raise RuntimeError(
+                    "confirmed historical-context receipt conflicts with its "
+                    "durable outbox outcome"
+                )
+            # The journal may already have been retired after durable remote
+            # confirmation.  The exact lineage-bearing receipt and terminal
+            # outbox row jointly authorise the ordinary history/receipt
+            # reconciliation below; neither parent/reply identity alone does.
+        elif historical_outbox_context.get("state") == "context_reply_attempting":
+            with historical_outbox_store.worker_lock():
+                current_obligation = historical_outbox_store.get(parent_id)
+                if current_obligation != historical_outbox_obligation:
+                    raise RuntimeError(
+                        "historical-context outbox changed before local "
+                        "recovery"
+                    )
+                recovered = recover_interrupted_historical_context_attempt(
+                    historical_outbox_store,
+                    current_obligation,
+                    recovered_epoch=now_epoch(),
+                    receipt_was_observed=True,
+                )
+            log_event("historical_context_obligation", **recovered)
+            result["historical_context"] = True
+            return result
+        elif historical_outbox_context.get("state") not in {
+            "context_reply_failed_retryable",
+            "context_reply_failed_terminal",
+        }:
+            raise RuntimeError(
+                "historical-context failure receipt conflicts with its "
+                "outbox state"
+            )
+        else:
+            historical_store.ensure_proved_failure_history_from_outbox(
+                historical_outbox_context
+            )
+            disposition = historical_store.reconcile_receipt_disposition()
+            if disposition != "definite_failure":
+                raise RuntimeError(
+                    "historical-context sending receipt has no local recovery "
+                    "disposition"
+                )
+            result["historical_context"] = True
+            return result
     if journal_state.classification == "confirmed_pair" and needs_transport_promotion:
         recovery = bind_confirmed_transport_source(
             journal_path=journal_path,
@@ -12051,18 +13777,27 @@ def reconcile_confirmed_transactions_before_global_barrier(
         elif details.lane == "historical_context_reply":
             from historical_context_formatter import HistoricalContextReplyStore
 
-            HistoricalContextReplyStore(
-                HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-                HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-                mutation_authority_provider=transaction_mutation_authority,
-                retirement_uncertainty_callback=(
-                    latch_source_receipt_retirement_uncertainty
-                ),
-            ).promote_sending_receipt_from_confirmed_transport(
+            if (
+                historical_outbox_store is None
+                or not isinstance(historical_outbox_context, dict)
+            ):
+                raise TransportJournalError(
+                    "confirmed historical-context transport has no exact "
+                    "outbox authority"
+                )
+            historical_context_reply_store().promote_sending_receipt_from_confirmed_transport(
                 source_receipt,
                 reply_post_id=details.post_id,
                 confirmation_epoch=details.confirmation_epoch,
                 require_confirmed_transport=True,
+            )
+            historical_outbox_store.record_confirmed(
+                str(source_receipt["parent_post_id"]),
+                attempt_number=int(
+                    historical_outbox_context["attempt_count"]
+                ),
+                reply_post_id=details.post_id,
+                confirmed_epoch=details.confirmation_epoch,
             )
         else:
             raise TransportJournalError(
@@ -12072,17 +13807,24 @@ def reconcile_confirmed_transactions_before_global_barrier(
     if owning_path == HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
         from historical_context_formatter import HistoricalContextReplyStore
 
-        store = HistoricalContextReplyStore(
-            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-            mutation_authority_provider=transaction_mutation_authority,
-            retirement_uncertainty_callback=(
-                latch_source_receipt_retirement_uncertainty
-            ),
-        )
-        result["historical_context"] = (
-            store.reconcile_confirmed_receipt_if_present()
-        )
+        store = historical_context_reply_store()
+        if (
+            historical_loaded_receipt is not None
+            and (
+                historical_confirmed_receipt is not None
+                or historical_legacy_confirmed_receipt is not None
+            )
+        ):
+            result["historical_context"] = (
+                store.reconcile_receipt_disposition(
+                    preloaded_receipt=historical_loaded_receipt,
+                )
+                == "confirmed"
+            )
+        else:
+            result["historical_context"] = (
+                store.reconcile_confirmed_receipt_if_present()
+            )
         return result
 
     if owning_path == CONFIRMED_REPLY_RECEIPT_FILE:
@@ -18877,9 +20619,13 @@ def maintain_global_remote_write_barrier_tick(
 def main() -> None:
     """Run the command-line entry point."""
     require_production_bootstrap()
-    require_established_installation()
     random.seed()
     acquire_instance_lock()
+    # The durable namespace must be proved only while this process owns the
+    # installation lock.  Checking it before the lock leaves a stale-success
+    # interval in which a cooperating maintenance process can change the very
+    # files whose presence authorises startup.
+    require_established_installation_after_ledger_recovery()
     if not global_remote_writes_paused():
         try:
             resume_interrupted_confirmed_media_retirement_if_present()
@@ -19326,12 +21072,12 @@ def run_self_test() -> int:
 def run_test_cycle() -> int:
     """Run one local integration-test pass without entering the posting loop."""
     require_production_bootstrap()
-    require_established_installation()
     if os.getenv("MRS_TEST_MODE") != "1":
         log.error("--test-cycle requires MRS_TEST_MODE=1")
         return 2
 
     acquire_instance_lock()
+    require_established_installation_after_ledger_recovery()
     reconcile_runtime_historical_context_state()
     block_if_ambiguous_remote_post()
 
@@ -19446,11 +21192,11 @@ def run_test_cycle() -> int:
 def run_test_main_tick() -> int:
     """Run the production reply-lane tick once for local integration tests."""
     require_production_bootstrap()
-    require_established_installation()
     if not require_test_mode("--test-main-tick"):
         return 2
 
     acquire_instance_lock()
+    require_established_installation_after_ledger_recovery()
     reconcile_runtime_historical_context_state()
     block_if_ambiguous_remote_post()
 
@@ -19526,11 +21272,11 @@ def wait_for_durable_barrier_before_one_shot_exit(*, lane: str) -> None:
 def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
     require_production_bootstrap()
-    require_established_installation()
     if not require_test_mode("--test-post-quote"):
         return 2
 
     acquire_instance_lock()
+    require_established_installation_after_ledger_recovery()
     reconcile_runtime_historical_context_state()
     block_if_ambiguous_remote_post(
         allow_confirmed_pending_schedule_reconciliation=True
@@ -19596,11 +21342,11 @@ def run_test_post_quote() -> int:
 def run_test_post_meme() -> int:
     """Run one daily meme post cycle for local integration tests."""
     require_production_bootstrap()
-    require_established_installation()
     if not require_test_mode("--test-post-meme"):
         return 2
 
     acquire_instance_lock()
+    require_established_installation_after_ledger_recovery()
     reconcile_runtime_historical_context_state()
     block_if_ambiguous_remote_post()
 

@@ -11,7 +11,10 @@ then a small filesystem protocol:
 * durably stage and atomically publish a commit guard before deleting the
   displaced inode;
 * retire the prepare and commit guards in turn, using the cleanup pathname as
-  the barrier while either guard is being removed.
+  the barrier while either guard is being removed;
+* before final commit-guard cleanup, atomically exchange a permanent,
+  hash-chained completion ledger generation while the exact commit guard still
+  provides the overlapping restart barrier.
 
 Every legitimate interrupted state is recognisable and resumable.  Unknown
 namespace states fail closed.  In particular, a replacement source entry --
@@ -43,9 +46,15 @@ from transaction_mutation_authority import (
 
 RETIREMENT_SCHEMA_VERSION: Final = 1
 RETIREMENT_DOCUMENT_KIND: Final = "mrsMThatcher_exact_receipt_retirement"
+RETIREMENT_LEDGER_SCHEMA_VERSION: Final = 1
+RETIREMENT_LEDGER_DOCUMENT_KIND: Final = (
+    "mrsMThatcher_exact_receipt_retirement_ledger"
+)
 RETIREMENT_MODE: Final = 0o600
 DEFAULT_MAXIMUM_RECEIPT_BYTES: Final = 1024 * 1024
 _RENAME_NOREPLACE: Final = 1
+_RENAME_EXCHANGE: Final = 2
+_GENESIS_PREVIOUS_RECORD_SHA256: Final = "0" * 64
 _MARKER_KEYS: Final = frozenset(
     {
         "document_kind",
@@ -68,6 +77,21 @@ _IDENTITY_KEYS: Final = frozenset(
         "owner_uid",
         "size",
     }
+)
+_LEDGER_KEYS: Final = frozenset(
+    {
+        "commit_sha256",
+        "document_kind",
+        "previous_record_sha256",
+        "schema_version",
+        "sequence",
+        "source_basename",
+        "source_binding",
+        "state",
+    }
+)
+_LEDGER_BINDING_KEYS: Final = frozenset(
+    {"expected_sha256", "expected_size", "source_identity"}
 )
 
 
@@ -167,6 +191,34 @@ class ReceiptRetirementResult:
     expected_sha256: str
 
 
+@dataclass(frozen=True)
+class RetirementLedgerRecord:
+    """One strict permanent retirement-ledger generation."""
+
+    sequence: int
+    state: str
+    previous_record_sha256: str
+    expected_sha256: str
+    expected_size: int
+    source_identity: FileIdentity | None
+    commit_sha256: str
+    data: bytes
+
+
+@dataclass(frozen=True)
+class RetirementLedgerInspection:
+    """Read-only status for one required permanent ledger namespace."""
+
+    valid: bool
+    blocking: bool
+    state: str
+    sequence: int
+    detail: str
+    ledger_path: str
+    exchange_path: str
+    record_sha256: str
+
+
 def _absolute_path(path: Path) -> Path:
     value = Path(os.path.abspath(os.fspath(path)))
     if not value.name or value.name in {".", ".."}:
@@ -190,12 +242,26 @@ def _retirement_paths(source_path: Path) -> RetirementPaths:
     )
 
 
+def retirement_ledger_paths(source_path: Path) -> tuple[Path, Path]:
+    """Return the permanent ledger and its fixed atomic-exchange pathname."""
+
+    source = _absolute_path(source_path)
+    prefix = f".{source.name}.retirement.ledger.json"
+    return source.parent / prefix, source.parent / f"{prefix}.exchange"
+
+
+def retirement_ledger_path_for_receipt(source_path: Path) -> Path:
+    """Return the canonical permanent ledger pathname for one receipt."""
+
+    return retirement_ledger_paths(source_path)[0]
+
+
 def retirement_auxiliary_paths(source_path: Path) -> tuple[Path, ...]:
-    """Return every non-source pathname which can be a retirement barrier.
+    """Return every transient non-source retirement pathname.
 
     The first three entries retain the original guard/commit/cleanup ordering.
-    The two fixed staging names are also public inventory entries: a torn or
-    unexpected staging file must therefore block every remote-write lane.
+    The permanent ledger has a separate API because its normal idle/completed
+    presence is not itself a transient auxiliary barrier.
     """
 
     paths = _retirement_paths(source_path)
@@ -434,6 +500,156 @@ def _canonical_json(value: Any) -> bytes:
         ) from exc
 
 
+def _ledger_document(
+    *,
+    source_name: str,
+    sequence: int,
+    previous_record_sha256: str,
+    expectation: RetirementExpectation | None,
+    commit_sha256: str | None,
+) -> dict[str, Any]:
+    state = "idle" if expectation is None else "completed"
+    binding = None
+    if expectation is not None:
+        binding = {
+            "expected_sha256": expectation.sha256,
+            "expected_size": expectation.size,
+            "source_identity": expectation.identity.to_document(),
+        }
+    return {
+        "commit_sha256": commit_sha256,
+        "document_kind": RETIREMENT_LEDGER_DOCUMENT_KIND,
+        "previous_record_sha256": previous_record_sha256,
+        "schema_version": RETIREMENT_LEDGER_SCHEMA_VERSION,
+        "sequence": sequence,
+        "source_basename": source_name,
+        "source_binding": binding,
+        "state": state,
+    }
+
+
+def _parse_ledger_record(
+    entry: StableEntry,
+    *,
+    source_name: str,
+    maximum: int,
+) -> RetirementLedgerRecord:
+    if entry.identity.mode != RETIREMENT_MODE:
+        raise ExactReceiptRetirementError("retirement ledger mode is unsafe")
+    value = _strict_object(entry.data, label="retirement ledger")
+    if frozenset(value) != _LEDGER_KEYS:
+        raise ExactReceiptRetirementError("retirement ledger keys differ")
+    sequence = value.get("sequence")
+    state = value.get("state")
+    previous = value.get("previous_record_sha256")
+    commit_sha256 = value.get("commit_sha256")
+    if (
+        value.get("document_kind") != RETIREMENT_LEDGER_DOCUMENT_KIND
+        or type(value.get("schema_version")) is not int
+        or value.get("schema_version") != RETIREMENT_LEDGER_SCHEMA_VERSION
+        or value.get("source_basename") != source_name
+        or type(sequence) is not int
+        or sequence < 0
+        or state not in {"idle", "completed"}
+        or not isinstance(previous, str)
+        or re.fullmatch(r"[0-9a-f]{64}", previous) is None
+        or _canonical_json(value) != entry.data
+    ):
+        raise ExactReceiptRetirementError(
+            "retirement ledger is not a strict canonical record"
+        )
+    binding = value.get("source_binding")
+    if state == "idle":
+        if (
+            sequence != 0
+            or previous != _GENESIS_PREVIOUS_RECORD_SHA256
+            or binding is not None
+            or commit_sha256 is not None
+        ):
+            raise ExactReceiptRetirementError("retirement ledger idle record is invalid")
+        return RetirementLedgerRecord(
+            sequence=sequence,
+            state=state,
+            previous_record_sha256=previous,
+            expected_sha256="",
+            expected_size=0,
+            source_identity=None,
+            commit_sha256="",
+            data=entry.data,
+        )
+    if (
+        not isinstance(binding, dict)
+        or frozenset(binding) != _LEDGER_BINDING_KEYS
+        or not isinstance(commit_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", commit_sha256) is None
+        or sequence <= 0
+    ):
+        raise ExactReceiptRetirementError(
+            "retirement ledger completed record is invalid"
+        )
+    expected_sha256 = binding.get("expected_sha256")
+    expected_size = binding.get("expected_size")
+    identity = binding.get("source_identity")
+    if (
+        not isinstance(expected_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None
+        or type(expected_size) is not int
+        or expected_size <= 0
+        or expected_size > maximum
+        or not isinstance(identity, dict)
+        or frozenset(identity) != _IDENTITY_KEYS
+        or any(type(identity[key]) is not int for key in _IDENTITY_KEYS)
+    ):
+        raise ExactReceiptRetirementError(
+            "retirement ledger source binding is invalid"
+        )
+    source_identity = FileIdentity(
+        device=identity["device"],
+        inode=identity["inode"],
+        ctime_ns=identity["ctime_ns"],
+        mtime_ns=identity["mtime_ns"],
+        size=identity["size"],
+        mode=identity["mode"],
+        owner_uid=identity["owner_uid"],
+        link_count=identity["link_count"],
+    )
+    if (
+        source_identity.device <= 0
+        or source_identity.inode <= 0
+        or source_identity.ctime_ns < 0
+        or source_identity.mtime_ns < 0
+        or source_identity.size != expected_size
+        or source_identity.mode != RETIREMENT_MODE
+        or source_identity.owner_uid != os.geteuid()
+        or source_identity.link_count != 1
+    ):
+        raise ExactReceiptRetirementError(
+            "retirement ledger source identity is unsafe"
+        )
+    return RetirementLedgerRecord(
+        sequence=sequence,
+        state=state,
+        previous_record_sha256=previous,
+        expected_sha256=expected_sha256,
+        expected_size=expected_size,
+        source_identity=source_identity,
+        commit_sha256=commit_sha256,
+        data=entry.data,
+    )
+
+
+def _ledger_record_is_successor(
+    predecessor: RetirementLedgerRecord,
+    successor: RetirementLedgerRecord,
+) -> bool:
+    return bool(
+        successor.state == "completed"
+        and successor.sequence == predecessor.sequence + 1
+        and successor.previous_record_sha256
+        == hashlib.sha256(predecessor.data).hexdigest()
+    )
+
+
 def _parse_marker_unbound(
     entry: StableEntry | None,
     *,
@@ -614,6 +830,37 @@ def _rename_noreplace(
         )
 
 
+def _rename_exchange(
+    directory_fd: int,
+    first_name: str,
+    second_name: str,
+) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise ExactReceiptRetirementError("renameat2(RENAME_EXCHANGE) is required")
+    renameat2.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    if (
+        renameat2(
+            directory_fd,
+            os.fsencode(first_name),
+            directory_fd,
+            os.fsencode(second_name),
+            _RENAME_EXCHANGE,
+        )
+        != 0
+    ):
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), first_name, second_name)
+
+
 def _publish_staged(
     directory_fd: int,
     *,
@@ -699,13 +946,558 @@ def _unlink_exact_cleanup(
     expected_entry: StableEntry,
     maximum: int,
 ) -> None:
-    current = _read_stable_entry(directory_fd, cleanup_name, maximum=maximum)
-    if current != expected_entry:
-        raise ExactReceiptRetirementError(
-            "receipt retirement cleanup entry changed before removal"
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise ExactReceiptRetirementError("O_NOFOLLOW is required")
+    try:
+        descriptor = os.open(
+            cleanup_name,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=directory_fd,
         )
-    os.unlink(cleanup_name, dir_fd=directory_fd)
-    _fsync_directory(directory_fd)
+    except OSError as exc:
+        raise ExactReceiptRetirementError(
+            "receipt retirement cleanup entry cannot be opened for removal"
+        ) from exc
+    try:
+        opened = FileIdentity.from_stat(os.fstat(descriptor))
+        chunks: list[bytes] = []
+        observed = 0
+        while True:
+            chunk = os.read(descriptor, min(65536, maximum + 1 - observed))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            observed += len(chunk)
+            if observed > maximum:
+                raise ExactReceiptRetirementError(
+                    "receipt retirement cleanup entry is oversized"
+                )
+        before_unlink = FileIdentity.from_stat(os.fstat(descriptor))
+        try:
+            path_identity = FileIdentity.from_stat(
+                os.stat(
+                    cleanup_name,
+                    dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+            )
+        except FileNotFoundError as exc:
+            raise ExactReceiptRetirementError(
+                "receipt retirement cleanup entry vanished before removal"
+            ) from exc
+        if (
+            opened != expected_entry.identity
+            or before_unlink != expected_entry.identity
+            or path_identity != expected_entry.identity
+            or b"".join(chunks) != expected_entry.data
+        ):
+            raise ExactReceiptRetirementError(
+                "receipt retirement cleanup entry changed before removal"
+            )
+        os.unlink(cleanup_name, dir_fd=directory_fd)
+        _fsync_directory(directory_fd)
+        retired = os.fstat(descriptor)
+        retired_chunks: list[bytes] = []
+        retired_offset = 0
+        while retired_offset <= maximum:
+            chunk = os.pread(
+                descriptor,
+                min(65536, maximum + 1 - retired_offset),
+                retired_offset,
+            )
+            if not chunk:
+                break
+            retired_chunks.append(chunk)
+            retired_offset += len(chunk)
+            if retired_offset > maximum:
+                break
+        if (
+            int(retired.st_dev) != expected_entry.identity.device
+            or int(retired.st_ino) != expected_entry.identity.inode
+            or int(retired.st_nlink) != 0
+            or int(retired.st_size) != expected_entry.identity.size
+            or stat.S_IMODE(retired.st_mode) != expected_entry.identity.mode
+            or int(retired.st_uid) != expected_entry.identity.owner_uid
+            or int(retired.st_mtime_ns) != expected_entry.identity.mtime_ns
+            or b"".join(retired_chunks) != expected_entry.data
+        ):
+            raise ExactReceiptRetirementError(
+                "receipt retirement removed or changed a different namespace generation"
+            )
+        try:
+            os.stat(
+                cleanup_name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            pass
+        else:
+            raise ExactReceiptRetirementError(
+                "receipt retirement cleanup pathname reappeared during removal"
+            )
+    finally:
+        os.close(descriptor)
+
+
+def _read_ledger_pair(
+    directory_fd: int,
+    *,
+    source_name: str,
+    ledger_name: str,
+    exchange_name: str,
+    maximum: int,
+) -> tuple[
+    StableEntry,
+    RetirementLedgerRecord,
+    StableEntry | None,
+    RetirementLedgerRecord | None,
+    str,
+]:
+    ledger_entry = _read_stable_entry(directory_fd, ledger_name, maximum=maximum)
+    if ledger_entry is None:
+        raise ExactReceiptRetirementError("required retirement ledger is missing")
+    ledger = _parse_ledger_record(
+        ledger_entry,
+        source_name=source_name,
+        maximum=maximum,
+    )
+    exchange_entry = _read_stable_entry(
+        directory_fd,
+        exchange_name,
+        maximum=maximum,
+    )
+    if exchange_entry is None:
+        return ledger_entry, ledger, None, None, "stable"
+    exchange = _parse_ledger_record(
+        exchange_entry,
+        source_name=source_name,
+        maximum=maximum,
+    )
+    if _ledger_record_is_successor(ledger, exchange):
+        relation = "exchange_staged"
+    elif _ledger_record_is_successor(exchange, ledger):
+        relation = "exchange_committed"
+    else:
+        raise ExactReceiptRetirementError(
+            "retirement ledger exchange generations do not form one exact transition"
+        )
+    return ledger_entry, ledger, exchange_entry, exchange, relation
+
+
+def _recover_ledger_exchange(
+    directory_fd: int,
+    *,
+    source_name: str,
+    ledger_name: str,
+    exchange_name: str,
+    maximum: int,
+) -> RetirementLedgerRecord:
+    ledger_entry, ledger, exchange_entry, exchange, relation = _read_ledger_pair(
+        directory_fd,
+        source_name=source_name,
+        ledger_name=ledger_name,
+        exchange_name=exchange_name,
+        maximum=maximum,
+    )
+    if relation == "stable":
+        return ledger
+    assert exchange_entry is not None and exchange is not None
+    if relation == "exchange_staged":
+        _rename_exchange(directory_fd, ledger_name, exchange_name)
+        _fsync_directory(directory_fd)
+        published_entry = _read_stable_entry(
+            directory_fd,
+            ledger_name,
+            maximum=maximum,
+        )
+        displaced_entry = _read_stable_entry(
+            directory_fd,
+            exchange_name,
+            maximum=maximum,
+        )
+        if (
+            published_entry is None
+            or displaced_entry is None
+            or published_entry.data != exchange_entry.data
+            or displaced_entry.data != ledger_entry.data
+        ):
+            raise ExactReceiptRetirementError(
+                "retirement ledger atomic exchange changed either generation"
+            )
+        ledger_entry, ledger = published_entry, exchange
+        exchange_entry = displaced_entry
+    _unlink_exact_cleanup(
+        directory_fd,
+        cleanup_name=exchange_name,
+        expected_entry=exchange_entry,
+        maximum=maximum,
+    )
+    final_entry = _read_stable_entry(directory_fd, ledger_name, maximum=maximum)
+    if final_entry is None or final_entry.data != ledger_entry.data:
+        raise ExactReceiptRetirementError(
+            "retirement ledger changed while retiring its displaced generation"
+        )
+    return _parse_ledger_record(
+        final_entry,
+        source_name=source_name,
+        maximum=maximum,
+    )
+
+
+def _ledger_matches_completion(
+    record: RetirementLedgerRecord,
+    *,
+    expectation: RetirementExpectation,
+    commit_sha256: str,
+) -> bool:
+    return bool(
+        record.state == "completed"
+        and record.expected_sha256 == expectation.sha256
+        and record.expected_size == expectation.size
+        and record.source_identity == expectation.identity
+        and record.commit_sha256 == commit_sha256
+    )
+
+
+def _complete_retirement_ledger(
+    source: Path,
+    *,
+    expectation: RetirementExpectation,
+    commit_entry: StableEntry,
+    directory_fd: int,
+    maximum: int,
+) -> RetirementLedgerRecord:
+    ledger_path, exchange_path = retirement_ledger_paths(source)
+    current = _recover_ledger_exchange(
+        directory_fd,
+        source_name=source.name,
+        ledger_name=ledger_path.name,
+        exchange_name=exchange_path.name,
+        maximum=maximum,
+    )
+    commit_sha256 = hashlib.sha256(commit_entry.data).hexdigest()
+    if _ledger_matches_completion(
+        current,
+        expectation=expectation,
+        commit_sha256=commit_sha256,
+    ):
+        return current
+    next_bytes = _canonical_json(
+        _ledger_document(
+            source_name=source.name,
+            sequence=current.sequence + 1,
+            previous_record_sha256=hashlib.sha256(current.data).hexdigest(),
+            expectation=expectation,
+            commit_sha256=commit_sha256,
+        )
+    )
+    staged = _stage_new(directory_fd, exchange_path.name, next_bytes)
+    next_record = _parse_ledger_record(
+        staged,
+        source_name=source.name,
+        maximum=maximum,
+    )
+    if not _ledger_record_is_successor(current, next_record):
+        raise ExactReceiptRetirementError(
+            "retirement ledger staged generation is not the exact successor"
+        )
+    return _recover_ledger_exchange(
+        directory_fd,
+        source_name=source.name,
+        ledger_name=ledger_path.name,
+        exchange_name=exchange_path.name,
+        maximum=maximum,
+    )
+
+
+def inspect_retirement_ledger(
+    source_path: Path,
+    *,
+    maximum_receipt_bytes: int = DEFAULT_MAXIMUM_RECEIPT_BYTES,
+) -> RetirementLedgerInspection:
+    """Inspect the mandatory permanent ledger without changing it."""
+
+    source = _absolute_path(source_path)
+    ledger_path, exchange_path = retirement_ledger_paths(source)
+
+    def result(
+        *,
+        valid: bool,
+        blocking: bool,
+        state: str,
+        sequence: int,
+        detail: str,
+        record_sha256: str = "",
+    ) -> RetirementLedgerInspection:
+        return RetirementLedgerInspection(
+            valid=valid,
+            blocking=blocking,
+            state=state,
+            sequence=sequence,
+            detail=detail,
+            ledger_path=os.fspath(ledger_path),
+            exchange_path=os.fspath(exchange_path),
+            record_sha256=record_sha256,
+        )
+
+    try:
+        directory_fd = _open_directory(source.parent)
+    except ExactReceiptRetirementError as exc:
+        return result(
+            valid=False,
+            blocking=True,
+            state="invalid",
+            sequence=-1,
+            detail=str(exc),
+        )
+    try:
+        try:
+            _entry, ledger, _exchange_entry, _exchange, relation = _read_ledger_pair(
+                directory_fd,
+                source_name=source.name,
+                ledger_name=ledger_path.name,
+                exchange_name=exchange_path.name,
+                maximum=maximum_receipt_bytes,
+            )
+        except ExactReceiptRetirementError as exc:
+            return result(
+                valid=False,
+                blocking=True,
+                state="invalid",
+                sequence=-1,
+                detail=str(exc),
+            )
+        return result(
+            valid=True,
+            blocking=relation != "stable",
+            state=ledger.state if relation == "stable" else relation,
+            sequence=ledger.sequence,
+            detail=(
+                "retirement ledger is stable"
+                if relation == "stable"
+                else "retirement ledger has one recoverable atomic exchange"
+            ),
+            record_sha256=hashlib.sha256(ledger.data).hexdigest(),
+        )
+    finally:
+        os.close(directory_fd)
+
+
+def recover_retirement_ledger_exchange_if_present(
+    source_path: Path,
+    *,
+    mutation_authority: TransactionMutationAuthority | None = None,
+    maximum_receipt_bytes: int = DEFAULT_MAXIMUM_RECEIPT_BYTES,
+) -> bool:
+    """Finish one exact crash-left atomic ledger exchange, if present.
+
+    This is deliberately narrower than receipt-retirement recovery.  It never
+    creates a missing ledger and it never infers a transition: the current and
+    staged records must form the exact monotonic predecessor/successor pair
+    accepted by :func:`inspect_retirement_ledger`.  Callers must already own
+    the installation mutation boundary.
+    """
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="retirement-ledger atomic exchange recovery",
+    )
+    source = _absolute_path(source_path)
+    ledger_path, exchange_path = retirement_ledger_paths(source)
+    directory_fd = _open_directory(source.parent)
+    changed = False
+    try:
+        _ledger_entry, _ledger, _exchange_entry, _exchange, relation = (
+            _read_ledger_pair(
+                directory_fd,
+                source_name=source.name,
+                ledger_name=ledger_path.name,
+                exchange_name=exchange_path.name,
+                maximum=maximum_receipt_bytes,
+            )
+        )
+        if relation != "stable":
+            _recover_ledger_exchange(
+                directory_fd,
+                source_name=source.name,
+                ledger_name=ledger_path.name,
+                exchange_name=exchange_path.name,
+                maximum=maximum_receipt_bytes,
+            )
+            changed = True
+    finally:
+        os.close(directory_fd)
+    inspection = inspect_retirement_ledger(
+        source,
+        maximum_receipt_bytes=maximum_receipt_bytes,
+    )
+    if not inspection.valid or inspection.blocking:
+        raise ExactReceiptRetirementError(
+            "retirement ledger exchange recovery did not reach a stable generation"
+        )
+    return changed
+
+
+def retirement_ledger_is_blocking(source_path: Path) -> bool:
+    """Fail closed for a missing, unsafe, torn, or exchanging ledger."""
+
+    inspection = inspect_retirement_ledger(source_path)
+    return not inspection.valid or inspection.blocking
+
+
+def retirement_ledger_inventory_sha256(
+    receipt_paths: list[Path] | tuple[Path, ...],
+) -> str:
+    """Hash a stable basename-bound inventory for activation attestation."""
+
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for supplied in receipt_paths:
+        source = _absolute_path(supplied)
+        ledger_path = retirement_ledger_path_for_receipt(source)
+        key = (source.name, ledger_path.name)
+        if key in seen:
+            raise ExactReceiptRetirementError(
+                "retirement ledger inventory contains a duplicate receipt"
+            )
+        seen.add(key)
+        inspection = inspect_retirement_ledger(source)
+        if not inspection.valid or inspection.blocking:
+            raise ExactReceiptRetirementError(
+                f"retirement ledger inventory is not stable: {source.name}"
+            )
+        rows.append(
+            {
+                "ledger_basename": ledger_path.name,
+                "record_sha256": inspection.record_sha256,
+                "sequence": inspection.sequence,
+                "source_basename": source.name,
+                "state": inspection.state,
+            }
+        )
+    document = {
+        "document_kind": "mrsMThatcher_retirement_ledger_inventory",
+        "ledgers": sorted(rows, key=lambda row: row["source_basename"]),
+        "schema_version": 1,
+    }
+    return hashlib.sha256(_canonical_json(document)).hexdigest()
+
+
+def retirement_ledger_contract_sha256(
+    receipt_paths: list[Path] | tuple[Path, ...],
+) -> str:
+    """Hash the immutable required-ledger namespace and schema contract.
+
+    Unlike :func:`retirement_ledger_inventory_sha256`, this value deliberately
+    excludes mutable record bytes, sequence numbers and states.  It is suitable
+    for an immutable activation audit: the audit binds which ledger and
+    exchange pathnames are mandatory, while runtime inspection independently
+    validates each current generation after every completed transaction.
+    """
+
+    rows: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for supplied in receipt_paths:
+        source = _absolute_path(supplied)
+        ledger_path, exchange_path = retirement_ledger_paths(source)
+        key = (source.name, ledger_path.name, exchange_path.name)
+        if key in seen:
+            raise ExactReceiptRetirementError(
+                "retirement ledger contract contains a duplicate receipt"
+            )
+        seen.add(key)
+        rows.append(
+            {
+                "exchange_basename": exchange_path.name,
+                "ledger_basename": ledger_path.name,
+                "source_basename": source.name,
+            }
+        )
+    document = {
+        "document_kind": "mrsMThatcher_retirement_ledger_contract",
+        "ledger_document_kind": RETIREMENT_LEDGER_DOCUMENT_KIND,
+        "ledger_schema_version": RETIREMENT_LEDGER_SCHEMA_VERSION,
+        "ledgers": sorted(rows, key=lambda row: row["source_basename"]),
+        "schema_version": 1,
+    }
+    return hashlib.sha256(_canonical_json(document)).hexdigest()
+
+
+def initialise_retirement_ledger(
+    source_path: Path,
+    *,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> RetirementLedgerInspection:
+    """Create the permanent idle ledger before installation activation.
+
+    Established ledger-aware installations must never call this function to
+    infer a missing ledger.  Their initializer/migrator must create every idle
+    ledger first and only then publish the separately audited activation
+    generation which requires them.
+    """
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="permanent receipt-retirement ledger initialisation",
+    )
+    source = _absolute_path(source_path)
+    ledger_path, exchange_path = retirement_ledger_paths(source)
+    genesis = _canonical_json(
+        _ledger_document(
+            source_name=source.name,
+            sequence=0,
+            previous_record_sha256=_GENESIS_PREVIOUS_RECORD_SHA256,
+            expectation=None,
+            commit_sha256=None,
+        )
+    )
+    directory_fd = _open_directory(source.parent)
+    try:
+        ledger = _read_stable_entry(
+            directory_fd,
+            ledger_path.name,
+            maximum=DEFAULT_MAXIMUM_RECEIPT_BYTES,
+        )
+        exchange = _read_stable_entry(
+            directory_fd,
+            exchange_path.name,
+            maximum=DEFAULT_MAXIMUM_RECEIPT_BYTES,
+        )
+        if ledger is None:
+            if exchange is None:
+                exchange = _stage_new(directory_fd, exchange_path.name, genesis)
+            if exchange.data != genesis:
+                raise ExactReceiptRetirementError(
+                    "missing retirement ledger has a non-genesis exchange entry"
+                )
+            _rename_noreplace(directory_fd, exchange_path.name, ledger_path.name)
+            _fsync_directory(directory_fd)
+        else:
+            _parse_ledger_record(
+                ledger,
+                source_name=source.name,
+                maximum=DEFAULT_MAXIMUM_RECEIPT_BYTES,
+            )
+            if exchange is not None:
+                _recover_ledger_exchange(
+                    directory_fd,
+                    source_name=source.name,
+                    ledger_name=ledger_path.name,
+                    exchange_name=exchange_path.name,
+                    maximum=DEFAULT_MAXIMUM_RECEIPT_BYTES,
+                )
+    finally:
+        os.close(directory_fd)
+    inspection = inspect_retirement_ledger(source)
+    if not inspection.valid or inspection.blocking:
+        raise ExactReceiptRetirementError(inspection.detail)
+    return inspection
+
+
+# American spelling is retained as an explicit API alias for deployment tools.
+initialize_retirement_ledger = initialise_retirement_ledger
 
 
 def _entry_matches_expectation(
@@ -793,9 +1585,71 @@ def _inspection(
             commit_staging_path=os.fspath(paths.commit_staging),
         )
 
+    ledger_path, exchange_path = retirement_ledger_paths(source)
+    try:
+        _ledger_entry, ledger, _exchange_entry, _exchange, ledger_relation = (
+            _read_ledger_pair(
+                directory_fd,
+                source_name=source.name,
+                ledger_name=ledger_path.name,
+                exchange_name=exchange_path.name,
+                maximum=maximum,
+            )
+        )
+    except ExactReceiptRetirementError as exc:
+        return result("invalid", False, True, str(exc)), entries, {}, None
+    if ledger_relation != "stable":
+        return (
+            result(
+                "ledger_exchange_pending",
+                False,
+                True,
+                "retirement ledger has a recoverable atomic exchange",
+            ),
+            entries,
+            {},
+            None,
+        )
+
+    def ledger_expectation() -> RetirementExpectation:
+        if ledger.state != "completed" or ledger.source_identity is None:
+            raise ExactReceiptRetirementError(
+                "retirement ledger does not contain a completed source binding"
+            )
+        if expected is not None and (
+            ledger.expected_sha256 != expected_hash
+            or ledger.expected_size != len(expected)
+        ):
+            raise ExactReceiptRetirementError(
+                "completed retirement ledger does not bind the expected receipt"
+            )
+        return RetirementExpectation(
+            sha256=ledger.expected_sha256,
+            size=ledger.expected_size,
+            identity=ledger.source_identity,
+            data=expected,
+        )
+
     source_entry = entries["source"]
     present = {key for key, entry in entries.items() if entry is not None}
     if not present:
+        if ledger.state == "completed":
+            try:
+                expectation = ledger_expectation()
+            except ExactReceiptRetirementError as exc:
+                return result("invalid", False, True, str(exc)), entries, {}, None
+            return (
+                result(
+                    "ledger_completed",
+                    True,
+                    False,
+                    "permanent ledger proves exact receipt retirement",
+                    expectation,
+                ),
+                entries,
+                {},
+                expectation,
+            )
         if independently_authorised_absence:
             return (
                 result("complete", True, False, "receipt absence was independently authorised"),
@@ -1033,14 +1887,36 @@ def _inspection(
             )
         if present == {"commit"}:
             expectation = parse("commit", "source_retired")
+            commit_entry = entries["commit"]
+            assert commit_entry is not None
+            if _ledger_matches_completion(
+                ledger,
+                expectation=expectation,
+                commit_sha256=hashlib.sha256(commit_entry.data).hexdigest(),
+            ):
+                phase = "completed_commit_guard_only"
+                detail = "permanent ledger is completed; final commit guard remains"
+            else:
+                phase = "commit_guard_only"
+                detail = "final commit guard remains"
             return (
-                result("commit_guard_only", True, True, "final commit guard remains", expectation),
+                result(phase, True, True, detail, expectation),
                 entries,
                 marker_bytes,
                 expectation,
             )
         if present == {"cleanup"}:
             expectation = parse("cleanup", "source_retired")
+            cleanup_entry = entries["cleanup"]
+            assert cleanup_entry is not None
+            if not _ledger_matches_completion(
+                ledger,
+                expectation=expectation,
+                commit_sha256=hashlib.sha256(cleanup_entry.data).hexdigest(),
+            ):
+                raise ExactReceiptRetirementError(
+                    "final commit cleanup is not covered by the permanent ledger"
+                )
             return (
                 result(
                     "commit_guard_moved",
@@ -1097,6 +1973,36 @@ def inspect_exact_receipt_retirement(
             expected_mode=expected_mode,
             maximum=maximum_receipt_bytes,
             independently_authorised_absence=independently_authorised_absence,
+        )
+        return inspection
+    finally:
+        os.close(directory_fd)
+
+
+def inspect_interrupted_receipt_retirement(
+    source_path: Path,
+    *,
+    expected_mode: int = RETIREMENT_MODE,
+    maximum_receipt_bytes: int = DEFAULT_MAXIMUM_RECEIPT_BYTES,
+) -> ReceiptRetirementInspection:
+    """Inspect marker-bound interrupted retirement without supplied bytes.
+
+    This deliberately cannot authorise a fresh source receipt.  It exposes the
+    exact hash carried by a valid retirement marker so a caller can bind that
+    marker to an independently durable terminal outcome before permitting the
+    marker-driven resumer to mutate the namespace.
+    """
+
+    source = _absolute_path(source_path)
+    directory_fd = _open_directory(source.parent)
+    try:
+        inspection, _, _, _ = _inspection(
+            source=source,
+            expected=None,
+            directory_fd=directory_fd,
+            expected_mode=expected_mode,
+            maximum=maximum_receipt_bytes,
+            independently_authorised_absence=False,
         )
         return inspection
     finally:
@@ -1188,8 +2094,9 @@ def retire_exact_receipt(
     """Retire only ``expected_bytes`` and resume every valid crash state.
 
     The caller must have completed all protected local transitions before
-    invoking this function.  A returned result means every retirement
-    namespace paths have been durably removed.
+    invoking this function.  A returned result means every transient
+    retirement pathname has been durably removed and the permanent ledger
+    retains the exact completed generation.
     """
 
     require_transaction_mutation_authority(
@@ -1292,6 +2199,14 @@ def _run_retirement(
     bound_expectation: RetirementExpectation | None = None
     try:
         for _ in range(24):
+            ledger_path, exchange_path = retirement_ledger_paths(source)
+            _recover_ledger_exchange(
+                directory_fd,
+                source_name=source.name,
+                ledger_name=ledger_path.name,
+                exchange_name=exchange_path.name,
+                maximum=maximum_receipt_bytes,
+            )
             inspection, entries, _markers, expectation = _inspection(
                 source=source,
                 expected=expected,
@@ -1324,7 +2239,7 @@ def _run_retirement(
                     )
                 bound_expectation = expectation
             phase = inspection.phase
-            if phase == "complete":
+            if phase in {"complete", "ledger_completed"}:
                 if bound_expectation is None:
                     if expected is None:
                         raise ExactReceiptRetirementError(
@@ -1337,7 +2252,10 @@ def _run_retirement(
                     expected_sha256 = bound_expectation.sha256
                 return ReceiptRetirementResult(
                     completed=True,
-                    resumed=initial_phase not in {"fresh", "complete"},
+                    resumed=(
+                        require_interrupted
+                        or initial_phase not in {"fresh", "complete", "ledger_completed"}
+                    ),
                     initial_phase=initial_phase,
                     transitions=tuple(transitions),
                     expected_sha256=expected_sha256,
@@ -1441,6 +2359,19 @@ def _run_retirement(
                 transitions.append("prepare_guard_removed")
                 continue
             if phase == "commit_guard_only":
+                commit_entry = entries["commit"]
+                assert commit_entry is not None
+                assert expectation is not None
+                _complete_retirement_ledger(
+                    source,
+                    expectation=expectation,
+                    commit_entry=commit_entry,
+                    directory_fd=directory_fd,
+                    maximum=maximum_receipt_bytes,
+                )
+                transitions.append("retirement_ledger_completed")
+                continue
+            if phase == "completed_commit_guard_only":
                 commit_entry = entries["commit"]
                 assert commit_entry is not None
                 _move_exact_to_cleanup(

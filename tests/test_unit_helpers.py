@@ -70,6 +70,13 @@ from reply_strategy import (  # noqa: E402
 SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
 
 
+def test_valid_receipt_epoch_uses_fixed_transaction_policy() -> None:
+    assert bot.valid_receipt_epoch(1_499_999_999) is False
+    assert bot.valid_receipt_epoch(1_500_000_000) is True
+    assert bot.valid_receipt_epoch(4_102_444_800) is True
+    assert bot.valid_receipt_epoch(4_102_444_801) is False
+
+
 class UnitReplyEvidenceRepository:
     """Exact local evidence fixture accepted by draft revalidation."""
 
@@ -3946,13 +3953,11 @@ def test_pending_to_full_receipt_atomic_replace_survives_hard_death(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if lane == "quote_image":
-        receipt_path = tmp_path / "regular.json"
-        monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", receipt_path)
+        receipt_path = bot.REGULAR_POST_RECEIPT_FILE
         loader = bot.load_regular_post_receipt
         post_id = "950001"
     else:
-        receipt_path = tmp_path / "meme.json"
-        monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", receipt_path)
+        receipt_path = bot.MEME_POST_RECEIPT_FILE
         loader = bot.load_meme_post_receipt
         post_id = "970001"
 
@@ -4186,10 +4191,8 @@ def test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    regular_path = tmp_path / "regular.json"
-    meme_path = tmp_path / "meme.json"
-    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", regular_path)
-    monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", meme_path)
+    regular_path = bot.REGULAR_POST_RECEIPT_FILE
+    meme_path = bot.MEME_POST_RECEIPT_FILE
     attempt = schema_current_main_attempt(lane)
     bot.write_main_post_attempt(attempt)
     attempting = bot.mark_main_post_attempt_attempting(attempt)
@@ -6252,7 +6255,6 @@ def test_ambiguous_context_outcome_propagates_for_manual_reconciliation(
     monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", research)
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE", tmp_path / "history.json")
-    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE", tmp_path / "receipt.json")
     monkeypatch.setattr(
         HistoricalContextReplyStore,
         "post",
@@ -6421,7 +6423,6 @@ def test_main_context_reply_path_uses_public_v5_and_persists_metadata(
     monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", tmp_path / "research")
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE", tmp_path / "history.json")
-    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE", tmp_path / "receipt.json")
     monkeypatch.setattr(
         context_module,
         "load_and_validate_corpus",
@@ -9242,6 +9243,30 @@ def test_load_state_accepts_matching_primary_and_latest_backup_after_save(
     assert bot.load_state()["last_reply_epoch"] == 1_800_000_100
 
 
+def test_load_state_accepts_semantically_equal_differently_encoded_latest_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """JSON layout differences do not constitute state-generation divergence."""
+
+    state_file = tmp_path / "bot_state.json"
+    backup_file = tmp_path / "bot_state.json.bak1"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
+    state = bot.default_state()
+    state["last_reply_epoch"] = 1_800_000_100
+    bot.atomic_write_json(state_file, state)
+    reordered = dict(reversed(list(state.items())))
+    backup_file.write_text(
+        json.dumps(reordered, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    backup_file.chmod(0o600)
+
+    assert state_file.read_bytes() != backup_file.read_bytes()
+    assert bot.load_state()["last_reply_epoch"] == 1_800_000_100
+
+
 def test_load_state_does_not_let_stale_older_backup_veto_usable_latest_pair(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -9262,6 +9287,36 @@ def test_load_state_does_not_let_stale_older_backup_veto_usable_latest_pair(
     )
 
     assert bot.load_state()["last_reply_epoch"] == 1_800_000_100
+
+
+def test_load_state_ignores_stale_backup_when_backups_are_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A disabled backup generation is not part of the recovery authority."""
+
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    bot.atomic_write_json(
+        state_file,
+        {
+            "last_reply_epoch": 1_800_000_100,
+            "next_quote_post_epoch": 1_800_001_000,
+        },
+    )
+    bot.atomic_write_json(
+        tmp_path / "bot_state.json.bak1",
+        {
+            "last_reply_epoch": 1_800_000_000,
+            "next_quote_post_epoch": 1_800_000_500,
+        },
+    )
+
+    recovered = bot.load_state()
+
+    assert recovered["last_reply_epoch"] == 1_800_000_100
+    assert recovered["next_quote_post_epoch"] == 1_800_001_000
 
 
 def test_common_receipt_loader_requires_canonical_owned_private_file(
@@ -12144,7 +12199,6 @@ def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal
     current_candidates = [correction]
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
-    monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply.json")
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
     enabled_strategy = copy.deepcopy(bot.ai_first_reply_strategy)
     enabled_strategy["enabled"] = True

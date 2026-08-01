@@ -40,6 +40,11 @@ from transaction_mutation_authority import (
     TransactionMutationAuthority,
     require_transaction_mutation_authority,
 )
+from remote_write_transport_journal import (
+    JOURNAL_MAX_BYTES,
+    MAX_CONFIRMATION_EPOCH,
+    MIN_CONFIRMATION_EPOCH,
+)
 
 
 SCHEMA_VERSION = 1
@@ -48,6 +53,8 @@ FENCE_DOCUMENT_KIND = "mrsMThatcher_remote_media_upload_fence"
 RECEIPT_MODE = 0o600
 RECEIPT_MAX_BYTES = 128 * 1024
 IMAGE_MAX_BYTES = 256 * 1024 * 1024
+MAX_FILESYSTEM_IDENTITY_INTEGER = (1 << 64) - 1
+MAX_FILESYSTEM_TIMESTAMP_NS = (1 << 64) - 1
 TRANSITION_PREFIX = ".remote-media-upload.transition."
 # Kept as a fail-closed legacy auxiliary prefix so any interrupted receipt-
 # guarded retirement from an older candidate cannot be mistaken for a clear
@@ -348,6 +355,111 @@ def _read_stable_regular(
     return _StableFile(data=data, metadata=opened)
 
 
+def _unlink_exact_stable_file(
+    directory_fd: int,
+    path: Path,
+    expected: _StableFile,
+    *,
+    maximum: int,
+    label: str,
+) -> None:
+    """Remove the open, validated inode rather than trusting a pathname read."""
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise MediaUploadReceiptError("O_NOFOLLOW is required")
+    try:
+        descriptor = os.open(
+            path.name,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=directory_fd,
+        )
+    except OSError as exc:
+        raise MediaUploadReceiptError(f"{label} cannot be opened for removal") from exc
+    try:
+        opened = os.fstat(descriptor)
+        data = _read_all(descriptor, maximum)
+        before_unlink = os.fstat(descriptor)
+        try:
+            path_metadata = os.stat(
+                path.name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError as exc:
+            raise MediaUploadReceiptError(
+                f"{label} vanished before exact removal"
+            ) from exc
+        expected_identity = _metadata_identity(expected.metadata)
+        if (
+            _metadata_identity(opened) != expected_identity
+            or _metadata_identity(before_unlink) != expected_identity
+            or _metadata_identity(path_metadata) != expected_identity
+            or data != expected.data
+        ):
+            raise MediaUploadReceiptError(f"{label} changed before exact removal")
+        os.unlink(path.name, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+        retired = os.fstat(descriptor)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        retired_data = _read_all(descriptor, maximum)
+        after_retired_read = os.fstat(descriptor)
+        if (
+            int(retired.st_dev) != int(expected.metadata.st_dev)
+            or int(retired.st_ino) != int(expected.metadata.st_ino)
+            or int(retired.st_nlink) != int(expected.metadata.st_nlink) - 1
+            or stat.S_IFMT(retired.st_mode)
+            != stat.S_IFMT(expected.metadata.st_mode)
+            or stat.S_IMODE(retired.st_mode)
+            != stat.S_IMODE(expected.metadata.st_mode)
+            or int(retired.st_uid) != int(expected.metadata.st_uid)
+            or int(retired.st_size) != int(expected.metadata.st_size)
+            or int(retired.st_mtime_ns) != int(expected.metadata.st_mtime_ns)
+            or retired_data != expected.data
+            or _metadata_identity(after_retired_read)
+            != _metadata_identity(retired)
+        ):
+            raise MediaUploadReceiptError(
+                f"{label} pathname removal did not retire the unchanged "
+                "validated inode"
+            )
+        try:
+            os.stat(
+                path.name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            pass
+        else:
+            raise MediaUploadReceiptError(
+                f"{label} pathname reappeared during exact removal"
+            )
+    finally:
+        os.close(descriptor)
+
+
+def _stable_file_matching_snapshot(
+    path: Path,
+    snapshot: MediaReceiptSnapshot,
+    *,
+    label: str,
+) -> _StableFile:
+    current = _read_stable_regular(
+        path,
+        maximum=RECEIPT_MAX_BYTES,
+        expected_mode=RECEIPT_MODE,
+    )
+    if (
+        current.data != snapshot.data
+        or int(current.metadata.st_dev) != snapshot.device
+        or int(current.metadata.st_ino) != snapshot.inode
+        or int(current.metadata.st_ctime_ns) != snapshot.ctime_ns
+    ):
+        raise MediaUploadReceiptError(f"{label} changed before removal")
+    return current
+
+
 def _write_all(descriptor: int, data: bytes) -> None:
     view = memoryview(data)
     written = 0
@@ -510,8 +622,13 @@ def _replace_exact(
             raise MediaUploadReceiptError(
                 "media receipt changed during atomic lifecycle transition"
             )
-        os.unlink(staging_name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        _unlink_exact_stable_file(
+            directory_fd,
+            staging,
+            displaced,
+            maximum=RECEIPT_MAX_BYTES,
+            label="displaced media receipt",
+        )
     finally:
         os.close(directory_fd)
         if not exchanged:
@@ -626,9 +743,13 @@ def _validate_document(
         or type(image.get("ctime_ns")) is not int
         or type(image.get("size")) is not int
         or image["device"] < 0
+        or image["device"] > MAX_FILESYSTEM_IDENTITY_INTEGER
         or image["inode"] <= 0
+        or image["inode"] > MAX_FILESYSTEM_IDENTITY_INTEGER
         or image["ctime_ns"] < 0
+        or image["ctime_ns"] > MAX_FILESYSTEM_TIMESTAMP_NS
         or image["size"] <= 0
+        or image["size"] > IMAGE_MAX_BYTES
         or type(image.get("sha256")) is not str
         or not _SHA256_RE.fullmatch(image["sha256"])
         or type(image.get("mime_type")) is not str
@@ -1306,8 +1427,18 @@ def abort_untransmitted_media_upload(
             mutation_authority,
             operation="untransmitted media-upload receipt removal",
         )
-        os.unlink(receipt_path.name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        exact_current_receipt = _stable_file_matching_snapshot(
+            receipt_path,
+            current_receipt,
+            label="untransmitted media receipt",
+        )
+        _unlink_exact_stable_file(
+            directory_fd,
+            receipt_path,
+            exact_current_receipt,
+            maximum=RECEIPT_MAX_BYTES,
+            label="untransmitted media receipt",
+        )
 
         if _auxiliary_names(receipt_path):
             raise MediaUploadReceiptError(
@@ -1342,8 +1473,18 @@ def abort_untransmitted_media_upload(
             mutation_authority,
             operation="untransmitted media-upload fence removal",
         )
-        os.unlink(fence_path.name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        exact_surviving_fence = _stable_file_matching_snapshot(
+            fence_path,
+            surviving_fence,
+            label="untransmitted media fence",
+        )
+        _unlink_exact_stable_file(
+            directory_fd,
+            fence_path,
+            exact_surviving_fence,
+            maximum=RECEIPT_MAX_BYTES,
+            label="untransmitted media fence",
+        )
 
         for retired_path in (receipt_path, fence_path):
             try:
@@ -1513,9 +1654,13 @@ def _transport_owner_snapshot(
         or type(source.get("ctime_ns")) is not int
         or type(source.get("size")) is not int
         or source["device"] < 0
+        or source["device"] > MAX_FILESYSTEM_IDENTITY_INTEGER
         or source["inode"] <= 0
+        or source["inode"] > MAX_FILESYSTEM_IDENTITY_INTEGER
         or source["ctime_ns"] < 0
+        or source["ctime_ns"] > MAX_FILESYSTEM_TIMESTAMP_NS
         or source["size"] <= 0
+        or source["size"] > JOURNAL_MAX_BYTES
         or type(source.get("sha256")) is not str
         or not _SHA256_RE.fullmatch(source["sha256"])
         or not isinstance(source_validation, dict)
@@ -1551,7 +1696,9 @@ def _transport_owner_snapshot(
             type(remote_post_id) is not str
             or not _POST_ID_RE.fullmatch(remote_post_id)
             or type(confirmation_epoch) is not int
-            or confirmation_epoch < 0
+            or not MIN_CONFIRMATION_EPOCH
+            <= confirmation_epoch
+            <= MAX_CONFIRMATION_EPOCH
         ):
             raise MediaUploadReceiptError(
                 "confirmed transport handoff owner is invalid"
@@ -1853,8 +2000,18 @@ def retire_confirmed_media_upload(
                 raise MediaUploadReceiptError(
                     "media receipt changed immediately before retirement"
                 )
-            os.unlink(receipt_path.name, dir_fd=directory_fd)
-            os.fsync(directory_fd)
+            exact_current = _stable_file_matching_snapshot(
+                receipt_path,
+                current,
+                label="confirmed media receipt",
+            )
+            _unlink_exact_stable_file(
+                directory_fd,
+                receipt_path,
+                exact_current,
+                maximum=RECEIPT_MAX_BYTES,
+                label="confirmed media receipt",
+            )
             state = inspect_media_retirement_state(receipt_path, handoff)
         if state.media_fence_present:
             fence_path = fence_path_for_receipt(receipt_path)
@@ -1867,8 +2024,18 @@ def retire_confirmed_media_upload(
                 raise MediaUploadReceiptError(
                     "media fence changed immediately before retirement"
                 )
-            os.unlink(fence_path.name, dir_fd=directory_fd)
-            os.fsync(directory_fd)
+            exact_fence = _stable_file_matching_snapshot(
+                fence_path,
+                current_fence,
+                label="confirmed media fence",
+            )
+            _unlink_exact_stable_file(
+                directory_fd,
+                fence_path,
+                exact_fence,
+                maximum=RECEIPT_MAX_BYTES,
+                label="confirmed media fence",
+            )
             state = inspect_media_retirement_state(receipt_path, handoff)
         if state.state != "retired":
             raise MediaUploadReceiptError("media retirement did not complete")

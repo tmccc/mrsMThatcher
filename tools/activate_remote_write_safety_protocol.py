@@ -53,11 +53,16 @@ from remote_write_safety_protocol import (  # noqa: E402
     ACTIVATION_MODE,
     LEGACY_ACTIVATION_AUDIT_BASENAME,
     LEGACY_ACTIVATION_BASENAME,
+    PRE_LEDGER_ACTIVATION_AUDIT_SCHEMA_VERSION,
     PROTOCOL_VERSION,
     ProtocolActivationError,
     _inspect_stable_regular_at,
     _inspect_legacy_protocol_activation_at,
+    _inspect_pre_ledger_protocol_activation_at,
+    _inspect_protocol_activation_at,
+    _parse_activation_audit,
     _parse_legacy_activation_audit,
+    _parse_pre_ledger_activation_audit,
     build_established_install_activation_audit_bytes,
     _create_or_revalidate_protocol_activation_at,
 )
@@ -72,7 +77,18 @@ from remote_write_transport_journal import (  # noqa: E402
     JOURNAL_RETIREMENT_PREFIX,
     JOURNAL_STAGING_PREFIX,
 )
-from exact_receipt_retirement import retirement_auxiliary_paths  # noqa: E402
+from exact_receipt_retirement import (  # noqa: E402
+    initialise_retirement_ledger,
+    inspect_retirement_ledger,
+    recover_retirement_ledger_exchange_if_present,
+    retirement_auxiliary_paths,
+    retirement_ledger_contract_sha256,
+    retirement_ledger_inventory_sha256,
+    retirement_ledger_paths,
+)
+from transaction_mutation_authority import (  # noqa: E402
+    issue_transaction_mutation_authority,
+)
 from tools.reconcile_remote_write_safety_marker import (  # noqa: E402
     LOCK_BASENAME,
     MARKER_BASENAME,
@@ -104,6 +120,14 @@ RECEIPT_RETIREMENT_AUXILIARY_BASENAMES = tuple(
     auxiliary.name
     for receipt_basename in RECEIPT_BASENAMES
     for auxiliary in retirement_auxiliary_paths(Path(receipt_basename))
+)
+RECEIPT_RETIREMENT_LEDGER_BASENAMES = tuple(
+    retirement_ledger_paths(Path(receipt_basename))[0].name
+    for receipt_basename in RECEIPT_BASENAMES
+)
+RECEIPT_RETIREMENT_LEDGER_EXCHANGE_BASENAMES = tuple(
+    retirement_ledger_paths(Path(receipt_basename))[1].name
+    for receipt_basename in RECEIPT_BASENAMES
 )
 REFUSED_STATE_BASENAMES = (
     MARKER_BASENAME,
@@ -155,6 +179,7 @@ class ProtocolActivationResult:
     activation_inode: int
     activation_reused_existing: bool
     activation_migrated_from_protocol_version: int | None
+    activation_migrated_from_audit_schema_version: int | None
     activation_kind: str
     activation_audit_path: str
     activation_audit_sha256: str
@@ -179,6 +204,9 @@ class ProtocolActivationResult:
     refused_state_basenames: tuple[str, ...]
     refused_state_prefixes: tuple[str, ...]
     refused_state_inventory_sha256: str
+    retirement_ledger_basenames: tuple[str, ...]
+    retirement_ledger_contract_sha256: str
+    retirement_ledger_initial_inventory_sha256: str
     legacy_activation_namespace_absent: bool
     successful_return_requires_exact_sentinel: bool
     rollback_to_protocol_unaware_runtime_prohibited: bool
@@ -190,6 +218,9 @@ class ProtocolActivationResult:
         value["established_state_files"] = list(self.established_state_files)
         value["refused_state_basenames"] = list(self.refused_state_basenames)
         value["refused_state_prefixes"] = list(self.refused_state_prefixes)
+        value["retirement_ledger_basenames"] = list(
+            self.retirement_ledger_basenames
+        )
         return value
 
 
@@ -208,10 +239,15 @@ class _ActivationNamespacePlan:
     """One fail-closed current/legacy activation namespace disposition."""
 
     migrate_legacy: bool
+    migrate_pre_ledger: bool
     resume_after_legacy_sentinel_removal: bool
+    resume_after_pre_ledger_sentinel_removal: bool
     reuse_current: bool
     legacy_sentinel_identity: tuple[int, int] | None
     legacy_audit_identity: tuple[int, int] | None
+    pre_ledger_sentinel_identity: tuple[int, int] | None
+    pre_ledger_audit_identity: tuple[int, int] | None
+    current_audit_value: dict[str, object] | None
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -577,7 +613,9 @@ def _activation_namespace_plan(directory_fd: int) -> _ActivationNamespacePlan:
             ) from exc
         return _ActivationNamespacePlan(
             migrate_legacy=True,
+            migrate_pre_ledger=False,
             resume_after_legacy_sentinel_removal=False,
+            resume_after_pre_ledger_sentinel_removal=False,
             reuse_current=False,
             legacy_sentinel_identity=(
                 legacy_snapshot.device,
@@ -587,6 +625,9 @@ def _activation_namespace_plan(directory_fd: int) -> _ActivationNamespacePlan:
                 legacy_snapshot.audit_device,
                 legacy_snapshot.audit_inode,
             ),
+            pre_ledger_sentinel_identity=None,
+            pre_ledger_audit_identity=None,
+            current_audit_value=None,
         )
     if legacy_audit:
         # The migrator removes and synchronises the v1 sentinel first.  A lone
@@ -614,32 +655,126 @@ def _activation_namespace_plan(directory_fd: int) -> _ActivationNamespacePlan:
             ) from exc
         return _ActivationNamespacePlan(
             migrate_legacy=True,
+            migrate_pre_ledger=False,
             resume_after_legacy_sentinel_removal=True,
+            resume_after_pre_ledger_sentinel_removal=False,
             reuse_current=False,
             legacy_sentinel_identity=None,
             legacy_audit_identity=(
                 int(inspected.metadata.st_dev),
                 int(inspected.metadata.st_ino),
             ),
+            pre_ledger_sentinel_identity=None,
+            pre_ledger_audit_identity=None,
+            current_audit_value=None,
+        )
+    if current_audit:
+        inspected = _inspect_stable_regular_at(
+            directory_fd,
+            ACTIVATION_AUDIT_BASENAME,
+            expected_mode=ACTIVATION_AUDIT_MODE,
+            maximum_size=16 * 1024,
+            label="remote-write protocol activation audit",
+        )
+        directory_identity = os.fstat(directory_fd)
+        try:
+            current_value = _parse_activation_audit(inspected.data)
+        except ProtocolActivationError as current_error:
+            try:
+                pre_ledger_value = _parse_pre_ledger_activation_audit(
+                    inspected.data
+                )
+            except ProtocolActivationError as pre_ledger_error:
+                raise ProtocolActivationRefused(
+                    "v2 activation audit is neither current nor a supported "
+                    "pre-ledger migration source"
+                ) from pre_ledger_error
+            if (
+                int(pre_ledger_value["project_device"])
+                != int(directory_identity.st_dev)
+                or int(pre_ledger_value["project_inode"])
+                != int(directory_identity.st_ino)
+            ):
+                raise ProtocolActivationRefused(
+                    "pre-ledger v2 activation audit does not bind this project"
+                ) from current_error
+            if current_sentinel:
+                try:
+                    snapshot = _inspect_pre_ledger_protocol_activation_at(
+                        directory_fd
+                    )
+                except ProtocolActivationError as exc:
+                    raise ProtocolActivationRefused(
+                        "pre-ledger v2 activation pair is not valid for migration"
+                    ) from exc
+                sentinel_identity = (snapshot.device, snapshot.inode)
+                audit_identity = (snapshot.audit_device, snapshot.audit_inode)
+            else:
+                sentinel_identity = None
+                audit_identity = (
+                    int(inspected.metadata.st_dev),
+                    int(inspected.metadata.st_ino),
+                )
+            return _ActivationNamespacePlan(
+                migrate_legacy=False,
+                migrate_pre_ledger=True,
+                resume_after_legacy_sentinel_removal=False,
+                resume_after_pre_ledger_sentinel_removal=not current_sentinel,
+                reuse_current=False,
+                legacy_sentinel_identity=None,
+                legacy_audit_identity=None,
+                pre_ledger_sentinel_identity=sentinel_identity,
+                pre_ledger_audit_identity=audit_identity,
+                current_audit_value=None,
+            )
+        if (
+            int(current_value["project_device"]) != int(directory_identity.st_dev)
+            or int(current_value["project_inode"])
+            != int(directory_identity.st_ino)
+        ):
+            raise ProtocolActivationRefused(
+                "current activation audit does not bind this project"
+            )
+        if current_sentinel:
+            try:
+                _inspect_protocol_activation_at(directory_fd)
+            except ProtocolActivationError as exc:
+                raise ProtocolActivationRefused(
+                    "current ledger-aware activation pair is invalid"
+                ) from exc
+        return _ActivationNamespacePlan(
+            migrate_legacy=False,
+            migrate_pre_ledger=False,
+            resume_after_legacy_sentinel_removal=False,
+            resume_after_pre_ledger_sentinel_removal=False,
+            reuse_current=current_sentinel,
+            legacy_sentinel_identity=None,
+            legacy_audit_identity=None,
+            pre_ledger_sentinel_identity=None,
+            pre_ledger_audit_identity=None,
+            current_audit_value=current_value,
         )
     return _ActivationNamespacePlan(
         migrate_legacy=False,
+        migrate_pre_ledger=False,
         resume_after_legacy_sentinel_removal=False,
-        reuse_current=current_sentinel,
+        resume_after_pre_ledger_sentinel_removal=False,
+        reuse_current=False,
         legacy_sentinel_identity=None,
         legacy_audit_identity=None,
+        pre_ledger_sentinel_identity=None,
+        pre_ledger_audit_identity=None,
+        current_audit_value=None,
     )
 
 
-def _remove_legacy_activation_for_v2(
+def _disable_prior_activation_permission(
     directory_fd: int,
     plan: _ActivationNamespacePlan,
 ) -> None:
-    """Durably disable v1 before any v2 permission sentinel is published."""
+    """Durably remove an older permission sentinel, retaining its audit."""
 
-    if not plan.migrate_legacy:
-        return
-    if not plan.resume_after_legacy_sentinel_removal:
+    if plan.migrate_legacy and not plan.resume_after_legacy_sentinel_removal:
         current_sentinel = os.stat(
             LEGACY_ACTIVATION_BASENAME,
             dir_fd=directory_fd,
@@ -654,26 +789,68 @@ def _remove_legacy_activation_for_v2(
             )
         os.unlink(LEGACY_ACTIVATION_BASENAME, dir_fd=directory_fd)
         os.fsync(directory_fd)
+    if (
+        plan.migrate_pre_ledger
+        and not plan.resume_after_pre_ledger_sentinel_removal
+    ):
+        current_sentinel = os.stat(
+            ACTIVATION_BASENAME,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        if (
+            int(current_sentinel.st_dev),
+            int(current_sentinel.st_ino),
+        ) != plan.pre_ledger_sentinel_identity:
+            raise ProtocolActivationRefused(
+                "pre-ledger activation sentinel changed before migration"
+            )
+        os.unlink(ACTIVATION_BASENAME, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+
+
+def _remove_prior_activation_audit(
+    directory_fd: int,
+    plan: _ActivationNamespacePlan,
+) -> None:
+    """Remove old provenance only after every genesis ledger is durable."""
+
+    if plan.migrate_legacy:
+        basename = LEGACY_ACTIVATION_AUDIT_BASENAME
+        expected_identity = plan.legacy_audit_identity
+        sentinel_basename = LEGACY_ACTIVATION_BASENAME
+        label = "legacy"
+    elif plan.migrate_pre_ledger:
+        basename = ACTIVATION_AUDIT_BASENAME
+        expected_identity = plan.pre_ledger_audit_identity
+        sentinel_basename = ACTIVATION_BASENAME
+        label = "pre-ledger"
+    else:
+        return
+    if not _entry_absent(directory_fd, sentinel_basename):
+        raise ProtocolActivationRefused(
+            f"{label} activation permission remained enabled during migration"
+        )
     current_audit = os.stat(
-        LEGACY_ACTIVATION_AUDIT_BASENAME,
+        basename,
         dir_fd=directory_fd,
         follow_symlinks=False,
     )
     if (
         int(current_audit.st_dev),
         int(current_audit.st_ino),
-    ) != plan.legacy_audit_identity:
+    ) != expected_identity:
         raise ProtocolActivationRefused(
-            "legacy activation audit changed before migration"
+            f"{label} activation audit changed before migration"
         )
-    os.unlink(LEGACY_ACTIVATION_AUDIT_BASENAME, dir_fd=directory_fd)
+    os.unlink(basename, dir_fd=directory_fd)
     os.fsync(directory_fd)
-    if not _entry_absent(
+    if not _entry_absent(directory_fd, sentinel_basename) or not _entry_absent(
         directory_fd,
-        LEGACY_ACTIVATION_BASENAME,
-    ) or not _entry_absent(directory_fd, LEGACY_ACTIVATION_AUDIT_BASENAME):
+        basename,
+    ):
         raise ProtocolActivationRefused(
-            "legacy activation namespace survived v1-to-v2 migration"
+            f"{label} activation namespace survived ledger-aware migration"
         )
 
 
@@ -723,6 +900,80 @@ def _require_established_state(directory_fd: int) -> tuple[str, ...]:
         finally:
             os.close(descriptor)
     return ESTABLISHED_STATE_BASENAMES
+
+
+def _prepare_retirement_ledgers(
+    project: Path,
+    *,
+    plan: _ActivationNamespacePlan,
+    verify_mutation_authority,
+) -> tuple[str, str]:
+    """Create genesis ledgers before first activation, or validate current ones.
+
+    A ledger-aware activation is never allowed to infer a missing ledger.  A
+    stopped migration may create only the four genesis records and publishes
+    the permission audit afterwards.  Re-running a current activation merely
+    validates the mutable ledgers and retains the immutable initial inventory
+    hash already bound by its audit.
+    """
+
+    receipt_paths = tuple(project / name for name in RECEIPT_BASENAMES)
+    contract_sha256 = retirement_ledger_contract_sha256(receipt_paths)
+    authority = issue_transaction_mutation_authority(
+        verify_mutation_authority,
+        operation="stopped retirement-ledger activation migration",
+    )
+    if plan.current_audit_value is not None:
+        for receipt_path in receipt_paths:
+            inspection = inspect_retirement_ledger(receipt_path)
+            if (
+                inspection.valid
+                and inspection.blocking
+                and inspection.state
+                in {"exchange_staged", "exchange_committed"}
+            ):
+                recover_retirement_ledger_exchange_if_present(
+                    receipt_path,
+                    mutation_authority=authority,
+                )
+                inspection = inspect_retirement_ledger(receipt_path)
+            if not inspection.valid or inspection.blocking:
+                raise ProtocolActivationRefused(
+                    "current ledger-aware activation has a missing or unsafe "
+                    f"retirement ledger: {receipt_path.name}"
+                )
+        if (
+            plan.current_audit_value.get("retirement_ledger_contract_sha256")
+            != contract_sha256
+        ):
+            raise ProtocolActivationRefused(
+                "current activation audit has the wrong retirement-ledger contract"
+            )
+        return (
+            contract_sha256,
+            str(
+                plan.current_audit_value[
+                    "retirement_ledger_initial_inventory_sha256"
+                ]
+            ),
+        )
+
+    for receipt_path in receipt_paths:
+        inspection = initialise_retirement_ledger(
+            receipt_path,
+            mutation_authority=authority,
+        )
+        if (
+            not inspection.valid
+            or inspection.blocking
+            or inspection.state != "idle"
+            or inspection.sequence != 0
+        ):
+            raise ProtocolActivationRefused(
+                "first ledger-aware activation requires an exact genesis "
+                f"retirement ledger: {receipt_path.name}"
+            )
+    return contract_sha256, retirement_ledger_inventory_sha256(receipt_paths)
 
 
 def _require_expected_project_identity(
@@ -878,6 +1129,49 @@ def activate_protocol_offline(
             project_identity=project_identity,
             activator_cli_sha256=cli_sha256,
         )
+        namespace_plan = _activation_namespace_plan(project_fd)
+        activation_reused_existing = namespace_plan.reuse_current
+
+        def verify_ledger_mutation_authority(_operation: str) -> None:
+            _revalidate_locked_instance_lock(
+                project_fd,
+                lock_fd,
+                lock_identity,
+                instance_socket,
+                socket_name,
+            )
+            _require_project_path_identity(project, project_fd, project_identity)
+            _require_expected_project_identity(
+                project,
+                project_fd,
+                expected_project_root=expected_project_root,
+                expected_project_device=expected_project_device,
+                expected_project_inode=expected_project_inode,
+            )
+            if not _descriptor_owns_exclusive_flock(
+                project_fd,
+                expected_device=int(project_identity.st_dev),
+                expected_inode=int(project_identity.st_ino),
+            ):
+                raise BotStillRunningError(
+                    "state-directory flock was lost during ledger migration"
+                )
+
+        # Permission from an older generation is disabled and synchronised
+        # first.  Its exact audit remains as crash-resume provenance while the
+        # four genesis ledgers are created or recovered.  Only after all four
+        # are stable is the older audit removed and the ledger-aware pair
+        # published.
+        _disable_prior_activation_permission(project_fd, namespace_plan)
+        (
+            retirement_ledger_contract,
+            retirement_ledger_initial_inventory,
+        ) = _prepare_retirement_ledgers(
+            project,
+            plan=namespace_plan,
+            verify_mutation_authority=verify_ledger_mutation_authority,
+        )
+        _remove_prior_activation_audit(project_fd, namespace_plan)
         activation_audit_bytes = build_established_install_activation_audit_bytes(
             project_device=int(project_identity.st_dev),
             project_inode=int(project_identity.st_ino),
@@ -885,10 +1179,13 @@ def activate_protocol_offline(
             clean_state_attestation_size=len(external_attestation.data),
             activator_cli_sha256=cli_sha256,
             reconciliation_reference=external_attestation.reconciliation_reference,
+            retirement_ledger_contract_sha256_value=(
+                retirement_ledger_contract
+            ),
+            retirement_ledger_initial_inventory_sha256=(
+                retirement_ledger_initial_inventory
+            ),
         )
-        namespace_plan = _activation_namespace_plan(project_fd)
-        activation_reused_existing = namespace_plan.reuse_current
-        _remove_legacy_activation_for_v2(project_fd, namespace_plan)
         created = _create_or_revalidate_protocol_activation_at(
             project_fd,
             activation_audit_bytes=activation_audit_bytes,
@@ -942,7 +1239,7 @@ def activate_protocol_offline(
         )
         _require_project_path_identity(project, project_fd, project_identity)
         return ProtocolActivationResult(
-            schema_version=2,
+            schema_version=3,
             operation="offline_remote_write_safety_protocol_activation",
             protocol_version=PROTOCOL_VERSION,
             project_root=str(project),
@@ -954,7 +1251,18 @@ def activate_protocol_offline(
             activation_inode=int(final.inode),
             activation_reused_existing=activation_reused_existing,
             activation_migrated_from_protocol_version=(
-                1 if namespace_plan.migrate_legacy else None
+                1
+                if namespace_plan.migrate_legacy
+                else (2 if namespace_plan.migrate_pre_ledger else None)
+            ),
+            activation_migrated_from_audit_schema_version=(
+                1
+                if namespace_plan.migrate_legacy
+                else (
+                    PRE_LEDGER_ACTIVATION_AUDIT_SCHEMA_VERSION
+                    if namespace_plan.migrate_pre_ledger
+                    else None
+                )
             ),
             activation_kind=final.activation_kind,
             activation_audit_path=ACTIVATION_AUDIT_BASENAME,
@@ -980,6 +1288,13 @@ def activate_protocol_offline(
             refused_state_basenames=REFUSED_STATE_BASENAMES,
             refused_state_prefixes=REFUSED_STATE_PREFIXES,
             refused_state_inventory_sha256=_refused_state_inventory_sha256(),
+            retirement_ledger_basenames=(
+                RECEIPT_RETIREMENT_LEDGER_BASENAMES
+            ),
+            retirement_ledger_contract_sha256=retirement_ledger_contract,
+            retirement_ledger_initial_inventory_sha256=(
+                retirement_ledger_initial_inventory
+            ),
             legacy_activation_namespace_absent=True,
             successful_return_requires_exact_sentinel=True,
             rollback_to_protocol_unaware_runtime_prohibited=True,

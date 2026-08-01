@@ -13,7 +13,7 @@
       "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
       "tree": "a751f4b488ee20d268a082c7daf835d5786e7e23",
       "as_of": "2026-08-01",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0055. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0060. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.",
       "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 4e548b0a are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0055, remain external and unfixed in ledger truth until merge and post-merge regeneration."
+      "explanation": "The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0060, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0055 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0060 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -7148,6 +7148,744 @@
           "DEF-0038",
           "DEF-0039",
           "DEF-0043"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0056",
+      "title": "First-install publication could expose partially established current-schema state without a durable in-progress barrier",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-first-install-atomicity-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-HIST-001",
+        "INV-PROC-002"
+      ],
+      "components": [
+        "new-install namespace inspection",
+        "process-lifetime instance lock",
+        "initial state and schedule publication",
+        "used-history publication",
+        "historical-context history and outbox publication",
+        "installation marker and in-progress sentinel",
+        "partial-install rollback"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "historical_context_outbox.py",
+        "tests/test_followup_fail_safe_hardening.py",
+        "tests/test_historical_context_reply.py",
+        "tests/test_historical_context_outbox.py"
+      ],
+      "runtime_lanes": [
+        "explicit-installation-command",
+        "production-bootstrap",
+        "scheduler-state-recovery",
+        "historical-context-reply"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The publication and rollback gaps were reproduced against isolated 4e548b0a installation state using injected write, parent-directory synchronisation and hard-exit boundaries. No production file, service, network, X or provider was accessed.",
+        "explanation": "This establishes that a partial first install could be mistaken for an established namespace; it does not establish that a deployed installation was created or restarted in that state."
+      },
+      "summary": "At 4e548b0a, explicit initialisation inspected the durable namespace without first owning the process-lifetime instance lock, wrote the first state generation before recording every possible path for rollback, and published no durable in-progress sentinel before its first data write. A hard exit or a reported error after replacement but before the path was appended to the cleanup list could therefore leave marker-less current-schema state which the established-installation check accepted from state and used-history presence alone. The initializer also did not explicitly create the historical-context history and outbox authorities as part of one bounded installation transaction.",
+      "impact": "A concurrent initializer or an interrupted first install could leave a mixed namespace whose visible state, schedules and histories did not all belong to one completed installation. A later process could treat that residue as established, manufacture empty historical-context authorities through ordinary readers, or begin from incomplete schedule and duplicate-suppression state.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The missing instance-lock boundary, pre-write durable sentinel and complete rollback registration were established against the exact 4e548b0a initializer; their separate introducing revisions were not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Cutoff review injected failures before and after the first state, schedule, history and outbox publications and showed that 4e548b0a had no durable pre-write installation barrier or complete rollback inventory.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated first-install ordering, hard-exit, rollback and marker-less restart matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "The explicit installation command from singleton acquisition and namespace inspection through state, schedule, used-history, historical-context authority and final marker publication, including every rollback boundary.",
+        "exclusions": "The review used isolated paths and did not run a production initializer, alter a deployed namespace or claim that every historical installation requires the new marker.",
+        "source": "Independent exact-4e548b0a first-install transaction review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Trace and fault-inject the initializer at namespace inspection, the first state save, early meme-schedule persistence, parent-directory synchronisation, history/outbox creation and final marker publication, then evaluate the residue through the established-installation predicate.",
+        "reproducer": "The cutoff wrote durable data before any in-progress sentinel and appended some cleanup targets only after fallible publication, while the established predicate required only state and used-history files; an interrupted residue could therefore pass as an established marker-less installation.",
+        "source": "Focused first-install publication and rollback regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Post-cutoff candidate tests propose acquiring the singleton before namespace inspection, durably publishing an initialising sentinel before the first data write, pre-registering every possible state and temporary path, explicitly creating history and outbox authorities, and rolling back all registered paths while preserving any cleanup failure. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "present",
+        "evidence": "The incomplete first-install transaction shape is present in the observed production commit and remains present at 4e548b0a. No production initialisation or partial-install incident was observed by this review."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, any current-schema namespace left without a proved completed installation boundary must be treated as a partial installation and must not authorise operational startup; marker-less compatibility cannot be inferred from a subset of pathname-presence checks.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff initializer does not acquire the instance lock, has no durable in-progress sentinel, records some rollback paths only after fallible publication and does not explicitly publish historical-context history or outbox authorities."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_initialisation_acquires_singleton_before_namespace_inspection",
+          "claim": "The post-cutoff candidate regression requires singleton ownership before any fresh-namespace absence is trusted."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_initialisation_sentinel_precedes_first_data_write",
+          "claim": "The candidate regression requires a durably parent-synchronised in-progress sentinel before the first state write in both meme scheduling modes."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_initialisation_registers_state_before_meme_schedule_can_persist",
+          "claim": "The candidate regression requires every state generation to be in the rollback inventory before early schedule persistence can occur."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_initialisation_cleans_state_after_reported_post_replace_failure",
+          "claim": "The candidate regression removes a state generation whose replacement succeeded before parent-directory synchronisation reported failure."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_initialisation_cleans_outbox_after_reported_post_replace_failure",
+          "claim": "The candidate regression removes an outbox generation whose replacement succeeded before its writer reported failure."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_interrupted_new_initialisation_remains_fail_closed_and_legacy_does_not",
+          "claim": "The candidate regression keeps a new partial namespace fail closed while exercising a complete marker-less compatibility layout through the actual production-mode state, history and outbox readers."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_initialisation_cleanup_continues_past_unexpected_directory",
+          "claim": "The candidate rollback continues across an unremovable namespace entry, preserves the initiating exception and leaves the residue non-operational."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision with an unbounded or non-sentinel first-install transaction was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision with one durable first-install publication boundary was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The lock, sentinel, explicit-authority and rollback changes remain uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0046",
+          "DEF-0052",
+          "DEF-0057"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0057",
+      "title": "Established historical-context history or outbox loss could be reinterpreted as empty state",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-established-context-authority-loss-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-HCTX-001",
+        "INV-TXN-HIST-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "historical-context reply history",
+        "historical-context obligation outbox",
+        "production history-store factory",
+        "production outbox-store factory",
+        "absent-path fallback",
+        "namespace inspection failure",
+        "established-installation completeness check"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_formatter.py",
+        "historical_context_outbox.py",
+        "tests/test_followup_fail_safe_hardening.py",
+        "tests/test_historical_context_reply.py",
+        "tests/test_historical_context_outbox.py"
+      ],
+      "runtime_lanes": [
+        "production-bootstrap",
+        "historical-context-reply",
+        "historical-context-recovery",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The loss and inspection boundaries were reproduced with isolated established history and outbox documents which were removed or made uninspectable before production-mode reads. No live history, outbox, network, X, provider or service was accessed.",
+        "explanation": "This establishes that durable authority loss could be hidden as an empty default; it does not establish that a deployed historical-context record was lost or repeated."
+      },
+      "summary": "At 4e548b0a, the historical-context history reader returned an empty document whenever Path.exists reported false, and the outbox reader returned its empty default whenever its path appeared absent. Production factories did not distinguish an established authority from an intentionally not-yet-created test or migration store, while required_installation_files_missing omitted both files. Disappearance or a namespace inspection failure could therefore be converted into apparently valid empty history or outbox state.",
+      "impact": "Losing completed reply history could make an already handled parent appear unseen, while losing an outbox could erase pending, attempting or terminal obligation authority. Treating either loss as an empty store can suppress required recovery barriers or permit the system to rebuild a different transaction history instead of stopping for operator reconciliation.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The established-store absent-path fallback and omitted installation completeness checks were established against exact 4e548b0a; their first introducing revisions were not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Cutoff review removed and made uninspectable established historical-context history and outbox authorities and found that their ordinary readers could return empty defaults rather than report durable-state loss.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated production-factory disappearance and namespace-inspection matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Established historical-context history and outbox pathname discovery, production factory construction, missing-file defaults, failed namespace inspection and installation completeness checks.",
+        "exclusions": "Canonical byte, owner, mode and stable-generation validation of present receipt files is recorded separately as DEF-0054; no live history-loss incident was inferred.",
+        "source": "Independent exact-4e548b0a established historical-context authority review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Create valid history and outbox authorities, remove each after establishment, inject pathname inspection failure, then invoke the exact production factory readers and established-installation completeness predicate.",
+        "reproducer": "The cutoff history and outbox readers returned empty documents for an apparently absent path, and the established-installation predicate did not require either authority to exist.",
+        "source": "Focused established-history/outbox disappearance regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "Post-cutoff candidate tests propose explicit one-time empty-store initialisers, production factories which require established history and outbox files, lstat-based inspection errors which never become absence, and installation completeness checks covering both authorities. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "present",
+        "evidence": "The empty-default established-store behavior is present in the observed production commit and remains present at 4e548b0a. This review did not inspect or mutate deployed historical-context state."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, absence or failed inspection of an established historical-context history or outbox authority must be treated as durable-state loss and a fail-closed recovery condition, never as proof of an empty store.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:historical_context_formatter.py",
+          "claim": "The cutoff history reader returns an empty history whenever its pathname does not appear to exist."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:historical_context_outbox.py",
+          "claim": "The cutoff outbox reader returns its empty default whenever its pathname does not appear to exist."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff established-installation predicate omits the historical-context history and outbox, and its production factory does not request require-existing semantics."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_production_factories_reject_disappeared_history_and_outbox",
+          "claim": "The post-cutoff candidate regression removes both established authorities and requires production-mode factories and installation completeness checks to fail closed."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_reply.py::test_history_initialisation_fails_closed_on_namespace_inspection_error",
+          "claim": "The candidate explicit history initializer cannot convert failed namespace inspection into permission to create a replacement authority."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_reply.py::test_history_read_fails_closed_on_namespace_inspection_error",
+          "claim": "The candidate history reader reports failed namespace inspection instead of returning an empty document."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_outbox.py::test_empty_outbox_initialisation_is_explicit_and_non_overwriting",
+          "claim": "The candidate provides an explicit one-time empty-outbox initializer which cannot overwrite an existing authority."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_outbox.py::test_required_established_outbox_never_reinterprets_disappearance_as_empty",
+          "claim": "The candidate require-existing outbox reader rejects disappearance after establishment."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_outbox.py::test_outbox_initialisation_fails_closed_on_namespace_inspection_error",
+          "claim": "The candidate outbox initializer cannot overwrite a namespace it failed to inspect."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_historical_context_outbox.py::test_outbox_read_fails_closed_on_namespace_inspection_error",
+          "claim": "The candidate outbox reader reports namespace inspection failure instead of manufacturing an empty default."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision which used empty defaults for an absent established history or outbox was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision with explicit new-store creation and require-existing production readers was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The explicit initialisation and require-existing changes remain uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0036",
+          "DEF-0045",
+          "DEF-0053",
+          "DEF-0054",
+          "DEF-0056"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0058",
+      "title": "Remote-started historical-context outbox attempts were absent from the global remote-write barrier",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-historical-outbox-global-barrier-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "historical-context obligation outbox",
+        "context_reply_attempting phase",
+        "remote_transaction_started phase",
+        "global remote-write preflight",
+        "lost source receipt and transport journal",
+        "unavailable historical-context runtime"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "historical_context_outbox.py",
+        "tests/test_x_write_outcome_conservatism.py"
+      ],
+      "runtime_lanes": [
+        "historical-context-reply",
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "media-upload",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The barrier gap was reproduced with isolated outbox state after removing independent source-receipt and transport-journal authority and making the historical-context runtime unavailable. No remote transport, network, production state, X or provider was accessed.",
+        "explanation": "This establishes that an outbox-only possibly transmitted attempt could fail to block another lane; it does not establish that a deployed historical-context reply or unrelated remote write was repeated."
+      },
+      "summary": "At 4e548b0a, the global remote-write barrier inspected receipts, journals and other durable ambiguity authorities but did not treat a context_reply_attempting outbox row as independent remote-write authority. If its source receipt and transport journal disappeared and the historical-context runtime could not reconcile the row, a remote-started or legacy phase could remain in the durable outbox while unrelated remote-write preflight saw no blocker.",
+      "impact": "A historical-context create whose outcome remained unresolved in the outbox could cease to suppress regular, meme, conversational, media or other historical-context remote work. The outbox phase therefore was not a complete cross-lane restart barrier when its associated source files were unavailable.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The first revision whose global barrier omitted possibly transmitted historical-context outbox authority was not reconstructed; the gap was established at exact 4e548b0a."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Cutoff review retained a remote-started or legacy attempting outbox row while removing its source receipt and journal and making the historical-context runtime unavailable, then observed that the remaining outbox authority was not a global remote-write barrier.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated True, legacy-absent and explicit-False outbox-phase cross-lane matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Historical-context outbox attempt phases, source-receipt and journal loss, runtime unavailability, global ambiguity preflight and unrelated remote-write lanes.",
+        "exclusions": "No transport was allowed and no production outbox or receipt was inspected. The separate ability to distinguish pre-remote from remote-started recovery is DEF-0053.",
+        "source": "Independent exact-4e548b0a cross-lane outbox-barrier review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Create an attempting historical-context obligation, retain only its outbox authority with a remote-started or legacy-absent phase, make ordinary context reconciliation unavailable, and invoke global remote-write preflight; compare an explicit pre-remote false phase.",
+        "reproducer": "The remote-started and legacy attempting rows remained durable but did not independently block unrelated remote-write preflight once receipt and journal authority were absent.",
+        "source": "Focused historical-context outbox global-barrier regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-cutoff candidate proposal scans the durable outbox from global preflight, blocks any attempting row whose remote_transaction_started phase is true or absent for legacy data, fails closed when that authority cannot be inspected, and leaves an explicit false phase eligible only for bounded local recovery. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "not-established",
+        "evidence": "The omitted outbox barrier is present at the 4e548b0a evidence cut-off. The post-cutoff proposal was not deployed, and production state or runtime was not contacted."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, any attempting historical-context outbox row not durably proved pre-remote must remain a global barrier even when its source receipt, journal or ordinary runtime reconciliation path is unavailable.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff global ambiguity predicate does not derive a blocker from a possibly transmitted context_reply_attempting outbox row."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_remote_or_legacy_attempting_outbox_is_a_global_barrier_when_runtime_unavailable",
+          "claim": "The post-cutoff candidate regression requires both explicit remote-started and legacy phase-absent attempting rows to block direct preflight and historical-context processing when ordinary runtime recovery is unavailable."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_explicit_pre_remote_attempting_outbox_is_not_a_global_barrier",
+          "claim": "The paired candidate regression preserves the narrow distinction that an explicit false phase is locally recoverable and is not by itself a global remote-write barrier."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first global preflight implementation which omitted durable historical-context outbox authority was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier implementation with a complete outbox-derived cross-lane barrier was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The outbox-phase global-barrier changes remain uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0036",
+          "DEF-0045",
+          "DEF-0053",
+          "DEF-0057"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0059",
+      "title": "Core state and used-history readers followed or incompletely proved filesystem authorities",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-core-state-filesystem-authority-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-HIST-001",
+        "INV-PROC-002"
+      ],
+      "components": [
+        "required-installation durable-file checks",
+        "bot state primary and backups",
+        "quote and image used-history files",
+        "no-follow pathname opening",
+        "owner and single-link validation",
+        "stable inode and content validation"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "tests/test_followup_fail_safe_hardening.py"
+      ],
+      "runtime_lanes": [
+        "production-bootstrap",
+        "scheduler-state-recovery",
+        "ordinary-cycle-history",
+        "regular-quote-image-post",
+        "daily-meme-post"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The namespace gaps were reproduced with isolated symlink, multi-link, ownership and same-inode mutation fixtures for required installation state and used histories. No production file, service, network, X or provider was accessed.",
+        "explanation": "This establishes acceptance or following of under-proved local filesystem authority; it does not establish that deployed state or history was substituted or corrupted."
+      },
+      "summary": "At 4e548b0a, required-installation checks and the state and used-history readers relied on pathname operations which could follow symbolic links or did not uniformly prove one current-owner, single-link ordinary file with a stable opened inode and unchanged bytes through the final pathname check. A core state or history pathname could therefore resolve outside its intended namespace or change while it was being accepted.",
+      "impact": "Bootstrap and recovery could derive schedule, duplicate-suppression or ordinary-cycle authority from a different or unstable filesystem object rather than the intended durable runtime file. This weakens both transaction-history preservation and the claim that one healthy process owns a bounded established installation namespace.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The first revision whose core state/history discovery and loading lacked uniform stable no-follow authority checks was not reconstructed; the gap was established at exact 4e548b0a."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Cutoff review replaced required state and used-history paths with symlinks and exercised unstable or non-single-link authorities, establishing that discovery and loading did not share one strict no-follow file-generation proof.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated core-state symlink, owner/link and same-inode mutation matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Required-installation discovery and state/used-history loading across symlink, owner, hard-link, inode, content and final-path stability boundaries.",
+        "exclusions": "Historical-context history and outbox absence semantics are DEF-0057; state generation ordering is DEF-0052; no live durable file was inspected.",
+        "source": "Independent exact-4e548b0a core-state filesystem-authority review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Replace each core state or used-history namespace entry with a symlink, alter link/ownership assumptions, and mutate one opened inode between its first read and final identity check while invoking required-installation, load_state and load_used_set paths.",
+        "reproducer": "The cutoff path checks could follow or incompletely prove the authority which supplied required state and used-history bytes instead of uniformly requiring one stable current-owner single-link ordinary file.",
+        "source": "Focused core durable-state no-follow regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "A post-cutoff candidate proposal gives required-installation checks, load_state and load_used_set one lstat/O_NOFOLLOW reader which requires a bounded current-owner single-link ordinary file and proves stable device, inode, size, metadata and bytes through a final pathname check. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "not-established",
+        "evidence": "The under-proved core-state namespace behavior is present at the 4e548b0a evidence cut-off. The post-cutoff strict-reader proposal was not deployed, and no production durable file was inspected."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, required state and used-history authorities must not be accepted through link-following or pathname-presence checks; every accepted document needs one bounded, owned, single-link, no-follow and stable-generation proof.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff required-installation, state and used-history paths do not uniformly share one stable no-follow current-owner single-link authority reader."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_markerless_established_core_state_never_follows_symlinks",
+          "claim": "The post-cutoff candidate regression replaces each core required path with a symlink and requires required-installation, load_state and load_used_set to fail closed."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_stable_core_state_reader_rejects_same_inode_mutation",
+          "claim": "The paired candidate regression mutates one opened inode during the read and requires the shared strict reader to reject the unstable generation."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision using link-following or under-proved core durable-state reads was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier uniformly stable no-follow core state and used-history reader was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The shared strict core-state reader changes remain uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0003",
+          "DEF-0052",
+          "DEF-0056",
+          "DEF-0057"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0060",
+      "title": "Exact source-receipt retirement lacked a permanent completion proof and recoverable ledger exchanges could block startup",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-permanent-source-receipt-retirement-proof-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-REPLY-001",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "exact source-receipt retirement",
+        "final retirement cleanup unlink",
+        "permanent monotonic completion ledger",
+        "crash-left ledger exchange",
+        "startup recovery before installation validation",
+        "global remote-write barrier"
+      ],
+      "affected_files": [
+        "exact_receipt_retirement.py",
+        "mrsMThatcher2.py",
+        "remote_write_safety_protocol.py",
+        "tools/activate_remote_write_safety_protocol.py",
+        "tests/test_exact_receipt_retirement.py",
+        "tests/test_followup_fail_safe_hardening.py",
+        "tests/test_remote_write_safety_second_restart.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "conversational-reply",
+        "historical-context-reply",
+        "production-bootstrap",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The missing permanent completion authority and the post-cutoff startup ordering problem were established with isolated receipt namespaces, crash injection and fresh-process fixtures. No production durable file, remote transport, network, X or provider was accessed.",
+        "explanation": "This establishes a safety-proof gap at the evidence cut-off and a separate availability deadlock in the first post-cutoff ledger proposal; it does not establish that a deployed post was duplicated or that a production startup was stranded."
+      },
+      "summary": "At 4e548b0a, exact source-receipt retirement ended by unlinking its last cleanup or commit auxiliary and had no permanent monotonic record binding the completed source generation. A crash or cooperative namespace race at that final boundary could therefore remove the last durable completion proof and leave later code unable to distinguish exact completion from lost authority. The first post-cutoff permanent-ledger proposal closed that safety gap but exposed a distinct availability problem: establishment validation treated an exact crash-left ledger exchange as blocking before the startup resumer had authority to complete it.",
+      "impact": "All four public-create lanes reuse fixed source-receipt pathnames. Without a permanent exact completion witness, final cleanup cannot prove across restart that the retired generation, rather than a replacement or incomplete transaction, was consumed. Conversely, rejecting a recoverable permanent-ledger exchange before its exact resumer runs can strand a healthy installation in fail-closed startup even though no remote-write safety evidence is ambiguous.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "The first revision whose final source-receipt cleanup could remove every durable completion proof was not reconstructed; the absence is established at exact 4e548b0a. The recoverable-exchange startup deadlock was found only in uncommitted post-cutoff remediation and is not asserted to exist in the ledger cut-off implementation, which had no permanent ledger."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "Exact-cutoff source review established that the final cleanup path could unlink the last receipt-retirement auxiliary without publishing a permanent generation-bound completion record.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "4e548b0a exact_receipt_retirement.py final cleanup and all-absent inspection paths"
+        },
+        {
+          "date": "2026-08-01",
+          "event": "Post-cutoff crash injection against the proposed permanent ledger found that an exact recoverable exchange could be rejected as an incomplete installation before the daemon's authorised startup resumer was called.",
+          "commit": "unknown",
+          "evidence": "Uncommitted startup ledger-exchange ordering regression and fresh-process recovery fixtures"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "The last exact source-receipt cleanup boundary for all four public-create lanes, pathname reuse, crash persistence, permanent completion authority, activation binding, startup recovery ordering and the global remote-write barrier.",
+        "exclusions": "The cooperative/crash safety model assumes supported mutation paths hold the process and transaction authority locks. Arbitrary hostile same-UID namespace mutation is not claimed to be prevented, and no production receipt or runtime was inspected.",
+        "source": "Exact-4e548b0a retirement-proof audit plus post-cutoff crash-recovery review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Trace the final source, guard, commit and cleanup namespace transitions at the cutoff; inject hard exits and same-inode or ABA changes at the final unlink in a post-cutoff permanent-ledger design; then leave each exact ledger-exchange crash state and exercise the real startup ordering in a fresh process.",
+        "reproducer": "The cutoff had no surviving monotonic completion authority after final cleanup. In the initial post-cutoff proposal, exchange_staged and exchange_committed were exact and recoverable but establishment validation rejected them before recovery could run.",
+        "source": "Focused permanent-retirement-ledger and startup-resumer fault matrix"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An uncommitted post-cutoff candidate proposal publishes a required monotonic hash-chained ledger before final auxiliary cleanup, detects same-inode and ABA changes, binds the four ledger contracts into a new activation audit, refuses missing or malformed ledgers, and under the already-held singleton lock recovers only exact crash-left exchanges before establishment validation. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "not-established",
+        "evidence": "The permanent-proof absence is established at the 4e548b0a evidence cut-off. The proposed ledger, activation migration and startup recovery remain uncommitted post-cutoff worktree material; no deployment, loaded-process identity or production occurrence is claimed."
+      },
+      "residual_risk": "Until a descendant repair is committed and deployed, final source-receipt retirement lacks permanent generation-bound completion evidence. Any replacement must also recover only exact crash-left ledger exchanges before installation completeness checks, while every missing, malformed or unrelated ledger state remains fail closed.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:exact_receipt_retirement.py",
+          "claim": "The cutoff final cleanup removes the last transient receipt-retirement entries without advancing a permanent generation-bound completion ledger."
+        },
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "Cutoff startup validates established durable files before any permanent-ledger exchange recovery path, because that ledger protocol does not yet exist."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_around_permanent_ledger_and_final_cleanup_resumes",
+          "claim": "The post-cutoff candidate fault matrix requires a fresh process to resume exact crashes around ledger staging, atomic exchange, completion publication and final cleanup."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_exact_receipt_retirement.py::test_cleanup_aba_never_erases_the_permanent_completion_proof",
+          "claim": "The post-cutoff candidate regression requires every final-cleanup ABA injection either to preserve a blocker or leave the permanent exact completion proof."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_exact_receipt_retirement.py::test_same_inode_mutation_inside_final_cleanup_is_detected_after_unlink",
+          "claim": "The post-cutoff candidate regression detects same-inode content mutation at the final cleanup boundary while retaining a permanent barrier."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_real_main_start_recovers_exact_ledger_exchange_before_establishment",
+          "claim": "The post-cutoff candidate regression drives real main startup and requires exact ledger-exchange recovery before installation completeness is evaluated."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_literal_fresh_process_recovers_exchange_but_keeps_remote_lanes_blocked",
+          "claim": "A fresh-process candidate regression recovers only the exact ledger exchange while retaining the owning receipt-retirement barrier against every remote lane."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_followup_fail_safe_hardening.py::test_missing_or_unsafe_retirement_ledger_never_opens_startup_or_preflight",
+          "claim": "The paired candidate regression keeps missing, malformed and unrelated exchange ledger states fail closed rather than treating recovery as general repair authority."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_current_activation_never_recreates_a_missing_required_ledger",
+          "claim": "The offline activator candidate regression refuses to recreate a missing ledger after a current ledger-bound activation generation exists."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision whose exact retirement could remove its last durable completion proof was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier permanent generation-bound completion ledger was established."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The permanent-ledger, activation-migration and startup-recovery changes remain uncommitted post-cutoff candidate material."
+        },
+        {
+          "field": "chronology[1].commit",
+          "explanation": "The startup-ordering finding belongs to uncommitted post-cutoff worktree material and therefore has no immutable Git commit identity."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0036",
+          "DEF-0045",
+          "DEF-0053",
+          "DEF-0054",
+          "DEF-0056",
+          "DEF-0058"
         ]
       }
     }

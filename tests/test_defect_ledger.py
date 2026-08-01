@@ -583,6 +583,37 @@ def test_renderer_is_deterministic_and_markdown_drift_is_detected(
     ) == ledger_tool.render_diagnosis_chronology(ledger)
 
 
+def test_cutoff_defects_use_structured_production_presence_without_inference() -> None:
+    ledger, _schema, _invariants = _documents()
+    records = {item["id"]: item for item in ledger["defects"]}
+
+    assert records["DEF-0056"]["deployment"][
+        "production_presence_at_observed_commit"
+    ] == "present"
+    assert records["DEF-0057"]["deployment"][
+        "production_presence_at_observed_commit"
+    ] == "present"
+    for defect_id in ("DEF-0058", "DEF-0059"):
+        record = records[defect_id]
+        assert record["deployment"][
+            "production_presence_at_observed_commit"
+        ] == "not-established"
+        assert ledger_tool._deployment_cell(record) == (
+            "active at the ledger evidence cut-off; production presence "
+            "not established"
+        )
+
+    mutated = copy.deepcopy(records["DEF-0058"])
+    mutated["deployment"]["evidence"] = (
+        "Observed production words deliberately appear here but are not "
+        "structured proof."
+    )
+    assert ledger_tool._deployment_cell(mutated) == (
+        "active at the ledger evidence cut-off; production presence "
+        "not established"
+    )
+
+
 def test_repaired_remote_write_defects_render_honestly() -> None:
     ledger, _schema, _invariants = _documents()
     pending_receipt_repair = next(

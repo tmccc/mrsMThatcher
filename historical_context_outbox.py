@@ -14,6 +14,7 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 import re
+import stat
 import tempfile
 from typing import Any, Iterator
 
@@ -50,6 +51,7 @@ MAX_REASON_LENGTH = 1_000
 MAX_DUE_LIMIT = 1_000
 MAX_OUTBOX_OBLIGATIONS = 1_000
 TERMINAL_RETENTION_LIMIT = 500
+MAX_OUTBOX_BYTES = 128 * 1024 * 1024
 
 FINAL_STATES = frozenset({FAILED_TERMINAL, CONFIRMED, NOT_REQUIRED})
 
@@ -77,8 +79,26 @@ class OutboxWorkerBusy(OutboxConflictError):
     """Another process or thread currently owns context-reply execution."""
 
 
+def _canonical_json_bytes(value: Any) -> bytes:
+    """Return the only durable outbox JSON representation."""
+
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def _atomic_write_json(path: Path, value: Any) -> None:
     """Atomically replace *path*, fsyncing both the file and its directory."""
+    payload = _canonical_json_bytes(value)
+    if len(payload) > MAX_OUTBOX_BYTES:
+        raise OutboxValidationError("outbox exceeds its writer byte domain")
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
@@ -87,16 +107,8 @@ def _atomic_write_json(path: Path, value: Any) -> None:
     )
     temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(
-                value,
-                handle,
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-                allow_nan=False,
-            )
-            handle.write("\n")
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
@@ -142,6 +154,161 @@ def _strict_json_loads(payload: str) -> Any:
         raise OutboxValidationError("outbox is not valid JSON") from exc
 
 
+def _read_stable_private_outbox(path: Path) -> bytes:
+    """Read one canonical outbox generation without following links."""
+
+    path = Path(path)
+    try:
+        before = os.lstat(path)
+    except FileNotFoundError:
+        raise
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or before.st_nlink != 1
+        or before.st_uid != os.geteuid()
+        or stat.S_IMODE(before.st_mode) != 0o600
+        or before.st_size > MAX_OUTBOX_BYTES
+    ):
+        raise OutboxValidationError("outbox has unsafe filesystem metadata")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise OutboxValidationError("outbox inspection requires O_NOFOLLOW")
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+        )
+    except FileNotFoundError as exc:
+        raise OutboxValidationError(
+            "outbox disappeared after observation"
+        ) from exc
+    try:
+        opened = os.fstat(descriptor)
+        chunks: list[bytes] = []
+        total = 0
+        while total <= MAX_OUTBOX_BYTES:
+            chunk = os.read(
+                descriptor,
+                min(65536, MAX_OUTBOX_BYTES + 1 - total),
+            )
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        after_read = os.fstat(descriptor)
+        try:
+            after_path = os.lstat(path)
+        except FileNotFoundError as exc:
+            raise OutboxValidationError(
+                "outbox disappeared while it was read"
+            ) from exc
+    finally:
+        os.close(descriptor)
+    if (
+        total > MAX_OUTBOX_BYTES
+        or total != before.st_size
+        or not stat.S_ISREG(opened.st_mode)
+        or opened.st_nlink != 1
+        or opened.st_uid != os.geteuid()
+        or stat.S_IMODE(opened.st_mode) != 0o600
+        or not (
+            opened.st_dev
+            == before.st_dev
+            == after_read.st_dev
+            == after_path.st_dev
+        )
+        or not (
+            opened.st_ino
+            == before.st_ino
+            == after_read.st_ino
+            == after_path.st_ino
+        )
+        or not (
+            opened.st_nlink
+            == before.st_nlink
+            == after_read.st_nlink
+            == after_path.st_nlink
+        )
+        or not (
+            opened.st_size
+            == before.st_size
+            == after_read.st_size
+            == after_path.st_size
+        )
+        or not (
+            opened.st_ctime_ns
+            == before.st_ctime_ns
+            == after_read.st_ctime_ns
+            == after_path.st_ctime_ns
+        )
+        or not (
+            opened.st_mtime_ns
+            == before.st_mtime_ns
+            == after_read.st_mtime_ns
+            == after_path.st_mtime_ns
+        )
+        or after_path.st_uid != os.geteuid()
+        or stat.S_IMODE(after_path.st_mode) != 0o600
+    ):
+        raise OutboxValidationError("outbox changed while it was read")
+    return b"".join(chunks)
+
+
+def _open_private_lock(path: Path) -> int:
+    """Open one owned single-link lock pathname without following links."""
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise OutboxValidationError("outbox locking requires O_NOFOLLOW")
+    try:
+        descriptor = os.open(
+            path,
+            os.O_RDWR
+            | os.O_CREAT
+            | nofollow
+            | getattr(os, "O_CLOEXEC", 0),
+            0o600,
+        )
+    except OSError as exc:
+        raise OutboxValidationError("outbox lock pathname is unsafe") from exc
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_uid != os.geteuid()
+        ):
+            raise OutboxValidationError("outbox lock has unsafe metadata")
+        os.fchmod(descriptor, 0o600)
+    except Exception:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _require_current_lock_identity(descriptor: int, path: Path) -> None:
+    """Require the locked descriptor to remain the exact private pathname."""
+
+    try:
+        opened = os.fstat(descriptor)
+        current = os.lstat(path)
+    except OSError as exc:
+        raise OutboxValidationError("outbox lock disappeared") from exc
+    if (
+        not stat.S_ISREG(opened.st_mode)
+        or not stat.S_ISREG(current.st_mode)
+        or opened.st_dev != current.st_dev
+        or opened.st_ino != current.st_ino
+        or opened.st_nlink != current.st_nlink
+        or opened.st_nlink != 1
+        or opened.st_uid != current.st_uid
+        or opened.st_uid != os.geteuid()
+        or stat.S_IMODE(opened.st_mode) != 0o600
+        or stat.S_IMODE(current.st_mode) != 0o600
+    ):
+        raise OutboxValidationError("outbox lock identity changed")
+
+
 def _is_int(value: Any) -> bool:
     return type(value) is int
 
@@ -177,6 +344,21 @@ def _require_attempt_number(value: Any) -> int:
     if not _is_int(value) or not 1 <= value <= MAX_ATTEMPTS_LIMIT:
         raise ValueError(
             f"attempt_number must be an integer from 1 to {MAX_ATTEMPTS_LIMIT}"
+        )
+    return value
+
+
+def _require_source_receipt_attempt_number(value: Any) -> int:
+    """Validate the independent reply-store attempt ordinal.
+
+    The outbox retry ceiling applies only to one outbox obligation.  The
+    reply-history ordinal is a separate positive-integer domain and may
+    legitimately be higher when durable legacy failures already exist.
+    """
+
+    if not _is_int(value) or value < 1:
+        raise ValueError(
+            "source_receipt_attempt_number must be a positive integer"
         )
     return value
 
@@ -256,11 +438,20 @@ def _validate_failure(
     attempt_count: int,
     updated_epoch: int,
 ) -> None:
-    if not isinstance(value, dict) or set(value) != {
+    required = {
         "attempt_number",
         "failed_epoch",
         "error",
-    }:
+    }
+    proof_fields = {
+        "remote_outcome",
+        "source_receipt_sha256",
+        "source_receipt_attempt_number",
+    }
+    if (
+        not isinstance(value, dict)
+        or set(value) not in (required, required | proof_fields)
+    ):
         raise OutboxValidationError("invalid context reply failure fields")
     if value["attempt_number"] != attempt_count:
         raise OutboxValidationError("failure attempt_number does not match attempt_count")
@@ -270,6 +461,16 @@ def _validate_failure(
         raise OutboxValidationError("failure failed_epoch does not match updated_epoch")
     if not _valid_text(value["error"], MAX_ERROR_LENGTH):
         raise OutboxValidationError("invalid context reply failure error")
+    if set(value) == required | proof_fields and (
+        value.get("remote_outcome") != "proved_non_success"
+        or type(value.get("source_receipt_sha256")) is not str
+        or not _QUOTE_ID_RE.fullmatch(value["source_receipt_sha256"])
+        or not _is_int(value.get("source_receipt_attempt_number"))
+        or value["source_receipt_attempt_number"] < 1
+    ):
+        raise OutboxValidationError(
+            "invalid proved non-success source-receipt binding"
+        )
 
 
 def _validate_payload_identity(value: dict[str, Any]) -> None:
@@ -354,6 +555,12 @@ def _validate_context_reply(
             permitted.add("remote_transaction_started")
         if "previous_failure" in value:
             permitted.add("previous_failure")
+        source_fields = {
+            "source_receipt_sha256",
+            "source_receipt_attempt_number",
+        }
+        if source_fields & set(value):
+            permitted.update(source_fields)
         if set(value) != permitted:
             raise OutboxValidationError("invalid attempting context reply fields")
         if (
@@ -363,6 +570,19 @@ def _validate_context_reply(
             or (
                 "remote_transaction_started" in value
                 and type(value["remote_transaction_started"]) is not bool
+            )
+            or bool(source_fields & set(value))
+            != source_fields.issubset(value)
+            or (
+                source_fields.issubset(value)
+                and (
+                    type(value["source_receipt_sha256"]) is not str
+                    or not _QUOTE_ID_RE.fullmatch(
+                        value["source_receipt_sha256"]
+                    )
+                    or not _is_int(value["source_receipt_attempt_number"])
+                    or value["source_receipt_attempt_number"] < 1
+                )
             )
         ):
             raise OutboxValidationError("invalid attempting context reply metadata")
@@ -436,7 +656,7 @@ def _validate_context_reply(
         )
         return
 
-    if set(value) != {
+    confirmed_fields = {
         "state",
         "quote_id",
         "quote_text",
@@ -444,7 +664,15 @@ def _validate_context_reply(
         "reply_post_id",
         "confirmed_epoch",
         "updated_epoch",
-    }:
+    }
+    confirmed_source_fields = {
+        "source_receipt_sha256",
+        "source_receipt_attempt_number",
+    }
+    if set(value) not in (
+        confirmed_fields,
+        confirmed_fields | confirmed_source_fields,
+    ):
         raise OutboxValidationError("invalid confirmed context reply fields")
     if (
         not 1 <= attempt_count <= policy["max_attempts"]
@@ -454,6 +682,15 @@ def _validate_context_reply(
         or value["confirmed_epoch"] != updated_epoch
     ):
         raise OutboxValidationError("invalid confirmed context reply metadata")
+    if confirmed_source_fields.issubset(value) and (
+        type(value["source_receipt_sha256"]) is not str
+        or not _QUOTE_ID_RE.fullmatch(value["source_receipt_sha256"])
+        or not _is_int(value["source_receipt_attempt_number"])
+        or value["source_receipt_attempt_number"] < 1
+    ):
+        raise OutboxValidationError(
+            "invalid confirmed context reply source-receipt binding"
+        )
 
 
 def _validate_obligation(
@@ -525,11 +762,13 @@ class HistoricalContextOutbox:
         max_attempts: int = 5,
         base_backoff_seconds: int = 60,
         max_backoff_seconds: int = 3_600,
+        require_existing: bool = False,
     ):
         """Initialise an outbox at *path* with bounded retry settings."""
         self.path = Path(path)
         self.lock_path = self.path.with_name(f"{self.path.name}.lock")
         self.worker_lock_path = self.path.with_name(f"{self.path.name}.worker.lock")
+        self._require_existing = bool(require_existing)
         self._policy = {
             "max_attempts": max_attempts,
             "base_backoff_seconds": base_backoff_seconds,
@@ -548,23 +787,25 @@ class HistoricalContextOutbox:
     @contextmanager
     def _locked(self) -> Iterator[None]:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        descriptor = _open_private_lock(self.lock_path)
         try:
-            os.fchmod(descriptor, 0o600)
             fcntl.flock(descriptor, fcntl.LOCK_EX)
+            _require_current_lock_identity(descriptor, self.lock_path)
             yield
         finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
-            os.close(descriptor)
+            try:
+                _require_current_lock_identity(descriptor, self.lock_path)
+            finally:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+                os.close(descriptor)
 
     @contextmanager
     def worker_lock(self) -> Iterator[None]:
         """Hold the single nonblocking worker lease across remote reply work."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor = os.open(self.worker_lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+        descriptor = _open_private_lock(self.worker_lock_path)
         locked = False
         try:
-            os.fchmod(descriptor, 0o600)
             try:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 locked = True
@@ -572,11 +813,19 @@ class HistoricalContextOutbox:
                 raise OutboxWorkerBusy(
                     "historical-context outbox worker is already active"
                 ) from exc
+            _require_current_lock_identity(descriptor, self.worker_lock_path)
             yield
         finally:
-            if locked:
-                fcntl.flock(descriptor, fcntl.LOCK_UN)
-            os.close(descriptor)
+            try:
+                if locked:
+                    _require_current_lock_identity(
+                        descriptor,
+                        self.worker_lock_path,
+                    )
+            finally:
+                if locked:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                os.close(descriptor)
 
     def _empty_document(self) -> dict[str, Any]:
         return {
@@ -586,14 +835,52 @@ class HistoricalContextOutbox:
             "obligations": {},
         }
 
+    def initialise_empty(self) -> dict[str, Any]:
+        """Create the durable empty authority for one new installation.
+
+        Runtime readers retain backward-compatible absent-file parsing for
+        isolated construction and migration tooling.  Production installation
+        code calls this once, then treats later absence as durable-state loss.
+        """
+
+        with self._locked():
+            try:
+                os.lstat(self.path)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                raise OutboxValidationError(
+                    "outbox namespace cannot be inspected during initialisation"
+                ) from exc
+            else:
+                raise OutboxConflictError(
+                    "refusing to initialise an existing outbox namespace"
+                )
+            document = self._empty_document()
+            self._write_unlocked(document)
+            return self._copy(document)
+
     def _read_unlocked(self) -> dict[str, Any]:
-        if not self.path.exists():
-            return self._empty_document()
         try:
-            payload = self.path.read_text(encoding="utf-8")
+            os.lstat(self.path)
+        except FileNotFoundError:
+            if self._require_existing:
+                raise OutboxValidationError(
+                    "established historical-context outbox is missing"
+                )
+            return self._empty_document()
+        except OSError as exc:
+            raise OutboxValidationError(
+                "historical-context outbox namespace cannot be inspected"
+            ) from exc
+        try:
+            payload_bytes = _read_stable_private_outbox(self.path)
+            payload = payload_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise OutboxValidationError("outbox is not valid UTF-8") from exc
         value = _strict_json_loads(payload)
+        if _canonical_json_bytes(value) != payload_bytes:
+            raise OutboxValidationError("outbox is not canonical JSON")
         _validate_document(value)
         if value["retry_policy"] != self._policy:
             raise OutboxPolicyMismatchError(
@@ -909,7 +1196,67 @@ class HistoricalContextOutbox:
                 raise OutboxConflictError(
                     "remote transaction is already durably marked as started"
                 )
+            if not {
+                "source_receipt_sha256",
+                "source_receipt_attempt_number",
+            }.issubset(context_reply):
+                raise OutboxConflictError(
+                    "remote transaction has no exact source-receipt binding"
+                )
             context_reply["remote_transaction_started"] = True
+            self._write_unlocked(document)
+            return self._copy(obligation)
+
+    def bind_attempt_source_receipt(
+        self,
+        parent_post_id: str | int,
+        *,
+        attempt_number: int,
+        source_receipt_sha256: str,
+        source_receipt_attempt_number: int,
+    ) -> dict[str, Any]:
+        """Bind the current claimed attempt to one exact published receipt."""
+
+        parent_id = _normalise_post_id(parent_post_id, "parent_post_id")
+        attempt = _require_attempt_number(attempt_number)
+        if (
+            type(source_receipt_sha256) is not str
+            or not _QUOTE_ID_RE.fullmatch(source_receipt_sha256)
+        ):
+            raise ValueError("source_receipt_sha256 must be lowercase SHA-256")
+        source_attempt = _require_source_receipt_attempt_number(
+            source_receipt_attempt_number
+        )
+        with self._locked():
+            document = self._read_unlocked()
+            obligation = document["obligations"].get(parent_id)
+            if obligation is None:
+                raise OutboxConflictError("unknown parent post obligation")
+            context_reply = obligation["context_reply"]
+            if (
+                context_reply["state"] != CONTEXT_REPLY_ATTEMPTING
+                or context_reply.get("attempt_count") != attempt
+                or context_reply.get("remote_transaction_started") is not False
+            ):
+                raise OutboxConflictError(
+                    "source receipt binding requires the current pre-remote claim"
+                )
+            proposed = {
+                "source_receipt_sha256": source_receipt_sha256,
+                "source_receipt_attempt_number": source_attempt,
+            }
+            present = {
+                key: context_reply.get(key)
+                for key in proposed
+                if key in context_reply
+            }
+            if present:
+                if present != proposed:
+                    raise OutboxConflictError(
+                        "claimed attempt has a conflicting source receipt"
+                    )
+                return self._copy(obligation)
+            context_reply.update(proposed)
             self._write_unlocked(document)
             return self._copy(obligation)
 
@@ -937,6 +1284,7 @@ class HistoricalContextOutbox:
         event_epoch: int,
         error: BaseException | str | None = None,
         reply_post_id: str | int | None = None,
+        proved_remote_non_success: bool = False,
     ) -> dict[str, Any]:
         parent_id = _normalise_post_id(parent_post_id, "parent_post_id")
         attempt = _require_attempt_number(attempt_number)
@@ -954,6 +1302,16 @@ class HistoricalContextOutbox:
             if obligation is None:
                 raise OutboxConflictError("unknown parent post obligation")
             context_reply = obligation["context_reply"]
+            # Every locally observed attempt outcome remains true across a
+            # wall-clock rollback.  Preserve the durable nondecreasing
+            # timeline from the claimed attempt instead of stranding either a
+            # pre-transport failure, a proved non-success, or an independently
+            # confirmed identity merely because CLOCK_REALTIME moved backwards.
+            epoch = max(
+                epoch,
+                obligation["main_post"]["confirmed_epoch"],
+                context_reply["updated_epoch"],
+            )
 
             if context_reply["state"] == target_state and context_reply.get(
                 "attempt_count"
@@ -965,6 +1323,7 @@ class HistoricalContextOutbox:
                     event_epoch=epoch,
                     error_text=error_text,
                     reply_post_id=canonical_reply_id,
+                    proved_remote_non_success=proved_remote_non_success,
                 )
                 if context_reply != desired:
                     raise OutboxConflictError(
@@ -996,6 +1355,15 @@ class HistoricalContextOutbox:
                 raise ValueError("event_epoch precedes main post confirmation")
             if epoch < context_reply["updated_epoch"]:
                 raise ValueError("event_epoch precedes the previous context update")
+            if (
+                target_state in {FAILED_RETRYABLE, FAILED_TERMINAL}
+                and context_reply.get("remote_transaction_started") is not False
+                and not proved_remote_non_success
+            ):
+                raise OutboxConflictError(
+                    "a possibly transmitted attempt requires exact proved "
+                    "remote non-success before failure can be recorded"
+                )
 
             obligation["context_reply"] = self._build_attempt_outcome(
                 context_reply,
@@ -1004,6 +1372,7 @@ class HistoricalContextOutbox:
                 event_epoch=epoch,
                 error_text=error_text,
                 reply_post_id=canonical_reply_id,
+                proved_remote_non_success=proved_remote_non_success,
             )
             self._write_unlocked(document)
             return self._copy(obligation)
@@ -1017,8 +1386,40 @@ class HistoricalContextOutbox:
         event_epoch: int,
         error_text: str | None,
         reply_post_id: str | None,
+        proved_remote_non_success: bool,
     ) -> dict[str, Any]:
         identity = self._attempt_identity(context_reply)
+        source_proof: dict[str, Any] = {}
+        if proved_remote_non_success:
+            if {
+                "source_receipt_sha256",
+                "source_receipt_attempt_number",
+            }.issubset(context_reply):
+                source_proof = {
+                    "remote_outcome": "proved_non_success",
+                    "source_receipt_sha256": context_reply[
+                        "source_receipt_sha256"
+                    ],
+                    "source_receipt_attempt_number": context_reply[
+                        "source_receipt_attempt_number"
+                    ],
+                }
+            elif isinstance(context_reply.get("failure"), dict) and (
+                context_reply["failure"].get("remote_outcome")
+                == "proved_non_success"
+            ):
+                source_proof = {
+                    key: context_reply["failure"][key]
+                    for key in (
+                        "remote_outcome",
+                        "source_receipt_sha256",
+                        "source_receipt_attempt_number",
+                    )
+                }
+            else:
+                raise OutboxConflictError(
+                    "proved non-success has no exact source-receipt binding"
+                )
         if target_state == FAILED_RETRYABLE:
             if error_text is None or reply_post_id is not None:
                 raise ValueError("retryable failure requires only error metadata")
@@ -1033,6 +1434,7 @@ class HistoricalContextOutbox:
                     "attempt_number": attempt_number,
                     "failed_epoch": event_epoch,
                     "error": error_text,
+                    **source_proof,
                 },
                 "next_attempt_epoch": event_epoch + backoff,
                 "backoff_seconds": backoff,
@@ -1049,6 +1451,7 @@ class HistoricalContextOutbox:
                     "attempt_number": attempt_number,
                     "failed_epoch": event_epoch,
                     "error": error_text,
+                    **source_proof,
                 },
                 "updated_epoch": event_epoch,
             }
@@ -1056,6 +1459,19 @@ class HistoricalContextOutbox:
             raise ValueError(f"unsupported target state: {target_state}")
         if error_text is not None or reply_post_id is None:
             raise ValueError("confirmed outcome requires only reply_post_id metadata")
+        confirmed_source: dict[str, Any] = {}
+        if {
+            "source_receipt_sha256",
+            "source_receipt_attempt_number",
+        }.issubset(context_reply):
+            confirmed_source = {
+                "source_receipt_sha256": context_reply[
+                    "source_receipt_sha256"
+                ],
+                "source_receipt_attempt_number": context_reply[
+                    "source_receipt_attempt_number"
+                ],
+            }
         return {
             "state": CONFIRMED,
             **identity,
@@ -1063,6 +1479,7 @@ class HistoricalContextOutbox:
             "reply_post_id": reply_post_id,
             "confirmed_epoch": event_epoch,
             "updated_epoch": event_epoch,
+            **confirmed_source,
         }
 
     def record_retryable_failure(
@@ -1072,6 +1489,7 @@ class HistoricalContextOutbox:
         attempt_number: int,
         error: BaseException | str,
         failed_epoch: int,
+        proved_remote_non_success: bool = False,
     ) -> dict[str, Any]:
         """Record one definite retryable failure with bounded exponential delay."""
         return self._record_attempt_outcome(
@@ -1080,6 +1498,7 @@ class HistoricalContextOutbox:
             target_state=FAILED_RETRYABLE,
             event_epoch=failed_epoch,
             error=error,
+            proved_remote_non_success=proved_remote_non_success,
         )
 
     def record_terminal_failure(
@@ -1089,6 +1508,7 @@ class HistoricalContextOutbox:
         attempt_number: int,
         error: BaseException | str,
         failed_epoch: int,
+        proved_remote_non_success: bool = False,
     ) -> dict[str, Any]:
         """Record one definite terminal failure and retain it for inspection."""
         return self._record_attempt_outcome(
@@ -1097,6 +1517,7 @@ class HistoricalContextOutbox:
             target_state=FAILED_TERMINAL,
             event_epoch=failed_epoch,
             error=error,
+            proved_remote_non_success=proved_remote_non_success,
         )
 
     def record_confirmed(
@@ -1127,17 +1548,25 @@ class HistoricalContextOutbox:
         parent_id = _normalise_post_id(parent_post_id, "parent_post_id")
         canonical_reason = _require_reason(reason)
         epoch = _require_epoch(decided_epoch, "decided_epoch")
-        desired = {
-            "state": NOT_REQUIRED,
-            "reason": canonical_reason,
-            "updated_epoch": epoch,
-        }
         with self._locked():
             document = self._read_unlocked()
             obligation = document["obligations"].get(parent_id)
             if obligation is None:
                 raise OutboxConflictError("unknown parent post obligation")
             context_reply = obligation["context_reply"]
+            # A local first-attempt policy decision remains valid across a
+            # CLOCK_REALTIME rollback.  Keep its durable timeline monotonic in
+            # the same way as every other attempt outcome.
+            epoch = max(
+                epoch,
+                obligation["main_post"]["confirmed_epoch"],
+                context_reply["updated_epoch"],
+            )
+            desired = {
+                "state": NOT_REQUIRED,
+                "reason": canonical_reason,
+                "updated_epoch": epoch,
+            }
             if context_reply["state"] == NOT_REQUIRED:
                 if context_reply != desired:
                     raise OutboxConflictError(
@@ -1153,8 +1582,11 @@ class HistoricalContextOutbox:
                 raise OutboxConflictError(
                     "only a durably claimed first context decision can become not_required"
                 )
-            if epoch < context_reply["updated_epoch"]:
-                raise ValueError("decided_epoch precedes the claimed context attempt")
+            if context_reply.get("remote_transaction_started") is not False:
+                raise OutboxConflictError(
+                    "an unknown or started remote transaction cannot become "
+                    "not_required"
+                )
             obligation["context_reply"] = desired
             self._write_unlocked(document)
             return self._copy(obligation)

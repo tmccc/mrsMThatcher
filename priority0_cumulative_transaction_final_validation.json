@@ -1,0 +1,109 @@
+{
+  "adversarial_review_gate": {
+    "completed_exact_candidate_lanes": 0,
+    "exact_candidate_commit": null,
+    "exact_candidate_tree": null,
+    "findings": null,
+    "required_lanes": [
+      "transaction_crash_restart_retirement_and_aba",
+      "historical_context_outbox_lineage_and_reconciliation",
+      "activation_installation_pause_recovery_and_rollback",
+      "full_diff_claims_registry_bindings_and_omitted_boundaries"
+    ],
+    "restart_all_lanes_after_any_candidate_change": true,
+    "status": "pending exact candidate freeze"
+  },
+  "candidate_identity": {
+    "commit": null,
+    "identity_source": "external frozen-candidate attestation after commit",
+    "stored_in_candidate_document": false,
+    "tree": null
+  },
+  "conclusion_scope": "pre-freeze patch-local candidate evidence; exact review and external qualification pending",
+  "cumulative_remediation": {
+    "confirmed_pending_receipt": {
+      "exact_bytes_revalidated": true,
+      "parent_directory_durability_retried": true,
+      "remote_write_block_retained_while_uncertain": true,
+      "repeated_blocked_ticks_recheck_recovery": true,
+      "signal_guard_retained_while_uncertain": true
+    },
+    "historical_context_transaction": {
+      "exact_source_attempt_bound": true,
+      "exact_source_receipt_sha256_bound": true,
+      "legacy_or_remote_started_outbox_is_global_barrier": true,
+      "pre_remote_false_outbox_remains_locally_recoverable": true,
+      "restart_phases_distinguished": true,
+      "retirement_requires_exact_durable_outcome": true
+    },
+    "marker_and_successor": {
+      "durable_successor_precedes_legacy_marker_loss": true,
+      "hard_restart_remains_blocked": true,
+      "retirement_is_owner_bound_and_last": true
+    },
+    "pause_linearisation": {
+      "authority_consumption_is_transaction_linearisation_point": true,
+      "post_consumption_pause_is_prospective": true,
+      "pre_consumption_pause_prevents_transport": true,
+      "quiescence_requires_no_durable_transaction_in_flight": true
+    },
+    "permanent_retirement_ledger": {
+      "activation_schema": 3,
+      "exact_exchange_recovery_precedes_establishment": true,
+      "fixed_ledger_count": 4,
+      "invalid_activation_never_authorises_recovery": true,
+      "ledger_completion_precedes_final_guard_removal": true,
+      "missing_or_unsafe_ledger_blocks": true,
+      "monotonic_hash_chain": true
+    },
+    "remote_create_and_media": {
+      "ambiguous_media_endpoint_is_not_automatically_retried_elsewhere": true,
+      "authority_is_exact_and_single_use": true,
+      "authority_is_restart_discoverable": true,
+      "namespace_conflicts_fail_closed": true,
+      "remote_payload_is_bound": true
+    },
+    "safety_model": {
+      "arbitrary_hostile_same_uid_namespace_mutation_claimed": false,
+      "cooperative_single_instance_crash_safety_claimed": true,
+      "unrelated_exchange_states_may_require_operator_reconciliation": true
+    }
+  },
+  "document_kind": "priority0_cumulative_transaction_pre_freeze_validation",
+  "focused_validation": {
+    "changed_python_compilation_passed": true,
+    "counts_are_non_additive": true,
+    "defect_ledger_validation_passed": true,
+    "git_diff_check_passed": true,
+    "historical_context_passed": 296,
+    "historical_context_semantic_and_lineage_passed": 44,
+    "integration_passed": 839,
+    "ledger_journal_media_source_retirement_passed": 265,
+    "registry_and_ledger_tests_effectively_passed": 61,
+    "registry_validation_passed": true,
+    "restart_bootstrap_pause_outcome_passed": 320
+  },
+  "identity": {
+    "implementation_parent_commit": "5eb518b5e7790d6b74559fa5c24fe05c417ef0ce",
+    "release_and_ledger_evidence_cutoff_base": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad"
+  },
+  "pending": {
+    "complete_isolated_application_suite": true,
+    "deterministic_attestation_and_package": true,
+    "exact_candidate_four_lane_review": true,
+    "exact_external_release_gate": true,
+    "final_application_freeze": true,
+    "final_assurance_freeze": true,
+    "separate_independent_review": true
+  },
+  "schema_version": 2,
+  "scope": {
+    "deployments": 0,
+    "merges": 0,
+    "production_file_mutations": 0,
+    "provider_actions": 0,
+    "pushes": 0,
+    "service_actions": 0,
+    "x_actions": 0
+  }
+}

@@ -530,15 +530,17 @@ def _deployment_cell(defect: Mapping[str, Any]) -> str:
     if status == "assurance-weakness":
         return "not applicable"
     if status == "active":
-        evidence = str(deployment.get("evidence", "")).lower()
-        if "never deployed" in evidence:
+        presence = deployment.get("production_presence_at_observed_commit")
+        if presence == "absent":
             return f"not deployed; absent from observed production `{observed}`"
-        if (
-            "observed production" in evidence
-            and "ledger evidence cut-off" in evidence
-        ):
-            return "present in observed production and at evidence cut-off"
-        return f"observed in production `{observed}`"
+        if presence == "present":
+            return f"observed in production `{observed}`"
+        if presence == "not-applicable":
+            return "production presence not applicable"
+        return (
+            "active at the ledger evidence cut-off; production presence "
+            "not established"
+        )
     if status == "latent-disabled" and fix_state == "unfixed":
         return "enforcement unsupported; shadow only"
     if state == "not-applicable":

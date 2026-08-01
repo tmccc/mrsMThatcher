@@ -6,6 +6,31 @@ import os
 from pathlib import Path
 
 import remote_write_safety_protocol as protocol
+from exact_receipt_retirement import (
+    initialise_retirement_ledger,
+    retirement_ledger_contract_sha256,
+    retirement_ledger_inventory_sha256,
+)
+from transaction_mutation_authority import issue_transaction_mutation_authority
+
+
+def initialise_test_retirement_ledgers(parent: Path) -> tuple[Path, ...]:
+    """Create the four genesis ledgers in one disposable fixture directory."""
+
+    parent = Path(parent)
+    receipt_paths = tuple(
+        parent / name for name in protocol.RETIREMENT_LEDGER_RECEIPT_BASENAMES
+    )
+    authority = issue_transaction_mutation_authority(
+        lambda _operation: None,
+        operation="isolated test protocol ledger initialisation",
+    )
+    for receipt_path in receipt_paths:
+        initialise_retirement_ledger(
+            receipt_path,
+            mutation_authority=authority,
+        )
+    return receipt_paths
 
 
 def create_test_protocol_activation(path: Path) -> protocol.ProtocolActivationSnapshot:
@@ -28,6 +53,7 @@ def create_test_protocol_activation(path: Path) -> protocol.ProtocolActivationSn
     )
     directory_fd = os.open(path.parent, flags)
     try:
+        receipt_paths = initialise_test_retirement_ledgers(path.parent)
         identity = os.fstat(directory_fd)
         audit = protocol.build_established_install_activation_audit_bytes(
             project_device=int(identity.st_dev),
@@ -36,6 +62,12 @@ def create_test_protocol_activation(path: Path) -> protocol.ProtocolActivationSn
             clean_state_attestation_size=1,
             activator_cli_sha256="2" * 64,
             reconciliation_reference="isolated-test-fixture-only",
+            retirement_ledger_contract_sha256_value=(
+                retirement_ledger_contract_sha256(receipt_paths)
+            ),
+            retirement_ledger_initial_inventory_sha256=(
+                retirement_ledger_inventory_sha256(receipt_paths)
+            ),
         )
         return protocol._create_or_revalidate_protocol_activation_at(
             directory_fd,

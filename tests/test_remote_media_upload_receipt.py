@@ -14,6 +14,83 @@ import remote_write_transport_journal as transport_journal
 from transaction_mutation_authority import issue_transaction_mutation_authority
 
 
+def test_filesystem_and_image_size_policy_literals_are_stable() -> None:
+    """Prevent host-width and byte-limit tests from following policy drift."""
+
+    assert (
+        media_receipt.MAX_FILESYSTEM_IDENTITY_INTEGER,
+        media_receipt.MAX_FILESYSTEM_TIMESTAMP_NS,
+        media_receipt.RECEIPT_MAX_BYTES,
+        media_receipt.IMAGE_MAX_BYTES,
+    ) == (
+        18_446_744_073_709_551_615,
+        18_446_744_073_709_551_615,
+        131_072,
+        268_435_456,
+    )
+    assert (
+        media_receipt.MAX_FILESYSTEM_IDENTITY_INTEGER
+        == transport_journal.MAX_FILESYSTEM_IDENTITY_INTEGER
+    )
+    assert (
+        media_receipt.MAX_FILESYSTEM_TIMESTAMP_NS
+        == transport_journal.MAX_FILESYSTEM_TIMESTAMP_NS
+    )
+    assert media_receipt.RECEIPT_MAX_BYTES == transport_journal.JOURNAL_MAX_BYTES
+
+
+def test_exact_unlink_rejects_same_inode_mutation_after_path_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A peer-held inode cannot change unnoticed during exact retirement."""
+
+    target = tmp_path / "media-receipt.json"
+    expected_bytes = b'{"a":1}\n'
+    replacement_bytes = b'{"b":2}\n'
+    target.write_bytes(expected_bytes)
+    target.chmod(media_receipt.RECEIPT_MODE)
+    expected = media_receipt._read_stable_regular(
+        target,
+        maximum=media_receipt.RECEIPT_MAX_BYTES,
+        expected_mode=media_receipt.RECEIPT_MODE,
+    )
+    peer_fd = os.open(target, os.O_RDWR)
+    directory_fd = os.open(tmp_path, os.O_RDONLY | os.O_DIRECTORY)
+    real_fsync = os.fsync
+    mutated = False
+
+    def mutate_after_directory_sync(descriptor: int) -> None:
+        nonlocal mutated
+        real_fsync(descriptor)
+        if descriptor == directory_fd and not mutated:
+            mutated = True
+            os.lseek(peer_fd, 0, os.SEEK_SET)
+            os.write(peer_fd, replacement_bytes)
+            os.ftruncate(peer_fd, len(replacement_bytes))
+            real_fsync(peer_fd)
+
+    monkeypatch.setattr(media_receipt.os, "fsync", mutate_after_directory_sync)
+    try:
+        with pytest.raises(
+            media_receipt.MediaUploadReceiptError,
+            match="unchanged validated inode",
+        ):
+            media_receipt._unlink_exact_stable_file(
+                directory_fd,
+                target,
+                expected,
+                maximum=media_receipt.RECEIPT_MAX_BYTES,
+                label="test media receipt",
+            )
+    finally:
+        os.close(directory_fd)
+        os.close(peer_fd)
+
+    assert mutated is True
+    assert not target.exists()
+
+
 def _mutation_authority():
     return issue_transaction_mutation_authority(
         lambda _operation: None,
@@ -214,6 +291,23 @@ def _prepared_handoff(
     (
         ("basename", "."),
         ("basename", ".."),
+        ("device", -1),
+        (
+            "device",
+            media_receipt.MAX_FILESYSTEM_IDENTITY_INTEGER + 1,
+        ),
+        ("inode", 0),
+        (
+            "inode",
+            media_receipt.MAX_FILESYSTEM_IDENTITY_INTEGER + 1,
+        ),
+        ("ctime_ns", -1),
+        (
+            "ctime_ns",
+            media_receipt.MAX_FILESYSTEM_TIMESTAMP_NS + 1,
+        ),
+        ("size", 0),
+        ("size", transport_journal.JOURNAL_MAX_BYTES + 1),
         ("sha256", int("1" * 64)),
     ),
 )
@@ -1067,6 +1161,23 @@ def test_media_receipt_requires_integer_schema_version(
         ("image.basename", ""),
         ("image.basename", "."),
         ("image.basename", ".."),
+        ("image.device", -1),
+        (
+            "image.device",
+            media_receipt.MAX_FILESYSTEM_IDENTITY_INTEGER + 1,
+        ),
+        ("image.inode", 0),
+        (
+            "image.inode",
+            media_receipt.MAX_FILESYSTEM_IDENTITY_INTEGER + 1,
+        ),
+        ("image.ctime_ns", -1),
+        (
+            "image.ctime_ns",
+            media_receipt.MAX_FILESYSTEM_TIMESTAMP_NS + 1,
+        ),
+        ("image.size", 0),
+        ("image.size", media_receipt.IMAGE_MAX_BYTES + 1),
     ),
 )
 def test_media_receipt_requires_exact_string_hash_and_image_fields(
@@ -1081,6 +1192,15 @@ def test_media_receipt_requires_exact_string_hash_and_image_fields(
         document["image"][field.split(".", 1)[1]] = value
     else:
         document[field] = value
+    if field == "image.size":
+        document["transaction_id"] = media_receipt._transaction_id(
+            lane=document["lane"],
+            image_basename=document["image"]["basename"],
+            image_size=document["image"]["size"],
+            image_sha256=document["image"]["sha256"],
+            mime_type=document["image"]["mime_type"],
+            payload_metadata_sha256=document["payload_metadata_sha256"],
+        )
     _durable_write(receipt_path, media_receipt.canonical_json_bytes(document))
 
     with pytest.raises(media_receipt.MediaUploadReceiptError):
@@ -1154,6 +1274,44 @@ def test_confirmed_handoff_owner_requires_string_remote_post_id(
         lifecycle_state="confirmed",
         remote_post_id=123,
         confirmation_epoch=1_800_000_010,
+    )
+    _durable_write(
+        journal_path,
+        media_receipt.canonical_json_bytes(document),
+    )
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="confirmed transport handoff owner is invalid",
+    ):
+        media_receipt._transport_owner_snapshot(
+            journal_path,
+            expected_kind="mrsMThatcher_remote_write_transport_journal",
+        )
+
+
+@pytest.mark.parametrize(
+    "confirmation_epoch",
+    (
+        transport_journal.MIN_CONFIRMATION_EPOCH - 1,
+        transport_journal.MAX_CONFIRMATION_EPOCH + 1,
+    ),
+)
+def test_confirmed_handoff_owner_requires_writer_epoch_range(
+    tmp_path: Path,
+    confirmation_epoch: int,
+) -> None:
+    receipt_path, _image_path, _metadata, confirmation = _confirmed(tmp_path)
+    _source_path, journal_path, _handoff = _prepared_handoff(
+        tmp_path,
+        receipt_path,
+        confirmation,
+    )
+    document = json.loads(journal_path.read_bytes())
+    document.update(
+        lifecycle_state="confirmed",
+        remote_post_id="950001",
+        confirmation_epoch=confirmation_epoch,
     )
     _durable_write(
         journal_path,

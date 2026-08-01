@@ -283,7 +283,7 @@ def test_malformed_control_fails_closed_after_cached_unpaused_document(
     assert bot.global_remote_writes_paused() is True
 
 
-@pytest.mark.parametrize("boundary", ["x_write", "media", "provider", "post"])
+@pytest.mark.parametrize("boundary", ["x_create", "media", "provider", "post"])
 def test_global_pause_is_rechecked_at_remote_boundaries(
     boundary,
     tmp_path,
@@ -347,7 +347,7 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
             "parent_post_id": "123",
             "quote_id": "a" * 64,
             "reply_text": "blocked",
-            "reply_epoch": 1,
+            "reply_epoch": 1_800_000_000,
             "started_at": "2026-07-31T12:00:00Z",
             "attempt_number": 1,
         }
@@ -371,11 +371,31 @@ def test_global_pause_is_rechecked_at_remote_boundaries(
     )
 
     with pytest.raises(bot.RemoteOperationsPaused, match="Global runtime control"):
-        if boundary == "x_write":
+        if boundary == "x_create":
+            authority = bot.TransportAuthority(
+                transaction_id="a" * 64,
+                journal_path=str(tmp_path / "remote_write_transport_journal.json"),
+                journal_sha256="b" * 64,
+                journal_device=1,
+                journal_inode=1,
+                journal_ctime_ns=1,
+                fence_path=str(tmp_path / "remote_write_transport_fence.json"),
+                fence_sha256="c" * 64,
+                fence_device=1,
+                fence_inode=2,
+                fence_ctime_ns=1,
+                payload_sha256="d" * 64,
+                lane="quote_image",
+                source_receipt_basename="regular_post_receipt.json",
+                source_validator_id="test.pause-boundary",
+                lifecycle_state="attempting",
+            )
             bot.x_request(
                 "POST",
-                "/2/users/123/likes",
-                json={"tweet_id": "456"},
+                "/2/tweets",
+                ambiguous_write=True,
+                _remote_write_authorization=authority,
+                json={"text": "blocked"},
             )
         elif boundary == "media":
             image_path = tmp_path / "image.jpg"

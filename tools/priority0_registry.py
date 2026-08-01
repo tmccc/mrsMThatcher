@@ -8,8 +8,10 @@ import ast
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
+import site
 import subprocess
 import sys
 from typing import Any, Iterable, Mapping, Sequence
@@ -340,8 +342,20 @@ def _named_ast_child(nodes: Iterable[ast.AST], name: str) -> ast.AST | None:
     return None
 
 
-def test_node_exists(repository_root: Path, nodeid: str) -> tuple[bool, str]:
-    """Check both the test file and named Python test node."""
+def test_node_exists(
+    repository_root: Path,
+    nodeid: str,
+    *,
+    tree_cache: dict[Path, tuple[ast.Module | None, str]] | None = None,
+) -> tuple[bool, str]:
+    """Check the test file and statically reject obvious non-test helpers.
+
+    This is only a cheap structural preflight.  ``validate_registry`` also
+    performs one batched pytest collection and treats that result as the
+    authority for exact parameter IDs and custom collection behaviour.
+    """
+    if not isinstance(nodeid, str):
+        return False, "test node is not a string"
     parts = nodeid.split("::")
     path, path_error = _safe_repository_path(repository_root, parts[0])
     if path_error is not None or path is None:
@@ -350,18 +364,152 @@ def test_node_exists(repository_root: Path, nodeid: str) -> tuple[bool, str]:
         return False, f"test file does not exist: {parts[0]}"
     if len(parts) == 1:
         return True, ""
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (OSError, SyntaxError) as exc:
-        return False, f"test file cannot be parsed: {parts[0]}: {exc}"
+    cached = tree_cache.get(path) if tree_cache is not None else None
+    if cached is None:
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except (OSError, SyntaxError) as exc:
+            parse_error = f"test file cannot be parsed: {parts[0]}: {exc}"
+            if tree_cache is not None:
+                tree_cache[path] = (None, parse_error)
+            return False, parse_error
+        if tree_cache is not None:
+            tree_cache[path] = (tree, "")
+    else:
+        tree, parse_error = cached
+        if tree is None:
+            return False, parse_error
     current_nodes: Iterable[ast.AST] = tree.body
-    for raw_name in parts[1:]:
+    for index, raw_name in enumerate(parts[1:]):
         name = raw_name.split("[", 1)[0]
         node = _named_ast_child(current_nodes, name)
         if node is None:
             return False, f"test node does not exist: {nodeid}"
+        if index == 0:
+            if isinstance(node, ast.ClassDef):
+                if not name.startswith("Test"):
+                    return False, f"test node is not pytest-collectable: {nodeid}"
+            elif not name.startswith("test"):
+                return False, f"test node is not pytest-collectable: {nodeid}"
+        elif isinstance(node, ast.ClassDef):
+            if not name.startswith("Test"):
+                return False, f"test node is not pytest-collectable: {nodeid}"
+        elif not name.startswith("test"):
+            return False, f"test node is not pytest-collectable: {nodeid}"
         current_nodes = getattr(node, "body", ())
     return True, ""
+
+
+def _sanitized_pytest_environment() -> dict[str, str]:
+    """Return an environment without inherited Python/pytest path injection."""
+    environment = os.environ.copy()
+    for name in (
+        "COVERAGE_PROCESS_START",
+        "PYTHONBREAKPOINT",
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "PYTHONSTARTUP",
+        "PYTHONUSERBASE",
+        "PYTEST_ADDOPTS",
+        "PYTEST_PLUGINS",
+    ):
+        environment.pop(name, None)
+    environment.update(
+        {
+            "PYTHONHASHSEED": "0",
+            "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        }
+    )
+    user_site = site.getusersitepackages()
+    user_site_paths = [user_site] if isinstance(user_site, str) else list(user_site)
+    explicit_dependency_roots = [
+        str(Path(item).resolve())
+        for item in user_site_paths
+        if Path(item).is_dir()
+    ]
+    if explicit_dependency_roots:
+        # ``-s`` prevents Python from processing user-site ``.pth`` files.  The
+        # explicit root keeps installed test dependencies importable without
+        # inheriting arbitrary source paths injected by those files.
+        environment["PYTHONPATH"] = os.pathsep.join(explicit_dependency_roots)
+    return environment
+
+
+def _collect_pytest_nodes(
+    repository_root: Path,
+    selectors: Iterable[str],
+) -> tuple[frozenset[str], str | None]:
+    """Collect all referenced files in one sanitized pytest subprocess."""
+    files: set[str] = set()
+    for selector in selectors:
+        relative = selector.split("::", 1)[0]
+        path, path_error = _safe_repository_path(repository_root, relative)
+        if path_error is not None or path is None or not path.is_file():
+            continue
+        files.add(relative)
+    if not files:
+        return frozenset(), None
+
+    command = [
+        sys.executable,
+        "-s",
+        "-m",
+        "pytest",
+        "--collect-only",
+        "-q",
+        "--color=no",
+        "-p",
+        "no:cacheprovider",
+        *sorted(files),
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=repository_root,
+            env=_sanitized_pytest_environment(),
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return frozenset(), (
+            "batched pytest collection could not run: "
+            f"{type(exc).__name__}"
+        )
+    if completed.returncode:
+        stdout_sha = hashlib.sha256(completed.stdout.encode("utf-8")).hexdigest()
+        stderr_sha = hashlib.sha256(completed.stderr.encode("utf-8")).hexdigest()
+        return frozenset(), (
+            "batched pytest collection failed with exit status "
+            f"{completed.returncode} (stdout_sha256={stdout_sha}, "
+            f"stderr_sha256={stderr_sha})"
+        )
+
+    collected = frozenset(
+        line.strip()
+        for line in completed.stdout.splitlines()
+        if "::" in line and line.split("::", 1)[0] in files
+    )
+    return collected, None
+
+
+def _selector_matches_collection(
+    selector: str,
+    collected: frozenset[str],
+) -> bool:
+    """Return whether an exact selector denotes at least one collected test."""
+    if "::" not in selector:
+        prefix = f"{selector}::"
+        return any(nodeid.startswith(prefix) for nodeid in collected)
+    if "[" in selector.rsplit("::", 1)[-1]:
+        return selector in collected
+    return selector in collected or any(
+        nodeid.startswith(f"{selector}[")
+        or nodeid.startswith(f"{selector}::")
+        for nodeid in collected
+    )
 
 
 def _markdown_escape(value: Any) -> str:
@@ -855,6 +1003,23 @@ def validate_registry(
     warnings: list[str] = []
     invariants_value = registry.get("invariants", [])
     invariants = invariants_value if isinstance(invariants_value, list) else []
+    collection_references: dict[str, set[str]] = {}
+    test_tree_cache: dict[Path, tuple[ast.Module | None, str]] = {}
+    test_node_cache: dict[str, tuple[bool, str]] = {}
+
+    def require_collected(selector: str, context: str) -> None:
+        collection_references.setdefault(selector, set()).add(context)
+
+    def check_test_node(nodeid: str) -> tuple[bool, str]:
+        cached = test_node_cache.get(nodeid)
+        if cached is None:
+            cached = test_node_exists(
+                repository_root,
+                nodeid,
+                tree_cache=test_tree_cache,
+            )
+            test_node_cache[nodeid] = cached
+        return cached
 
     seen_ids: set[str] = set()
     affected_paths: set[str] = set()
@@ -1004,10 +1169,26 @@ def validate_registry(
             elif path is not None and not path.is_file():
                 errors.append(f"{invariant_id}: referenced file does not exist: {raw_path}")
         if isinstance(enforcement, Mapping):
+            enforcement_tests = enforcement.get("tests", [])
+            if isinstance(enforcement_tests, list):
+                duplicate_tests = sorted(
+                    {
+                        nodeid
+                        for nodeid in enforcement_tests
+                        if isinstance(nodeid, str)
+                        and enforcement_tests.count(nodeid) > 1
+                    }
+                )
+                for nodeid in duplicate_tests:
+                    errors.append(
+                        f"{invariant_id}: duplicate enforcement test {nodeid}"
+                    )
             for nodeid in enforcement.get("tests", []):
-                exists, reason = test_node_exists(repository_root, nodeid)
+                exists, reason = check_test_node(nodeid)
                 if not exists:
                     errors.append(f"{invariant_id}: {reason}")
+                else:
+                    require_collected(nodeid, invariant_id)
             for validation_index, validation in enumerate(
                 enforcement.get("validations", [])
             ):
@@ -1034,6 +1215,18 @@ def validate_registry(
                             f"{invariant_id}: pytest validation {validation_index} "
                             "must name selectors"
                         )
+                    duplicate_selectors = sorted(
+                        {
+                            selector
+                            for selector in selectors
+                            if selectors.count(selector) > 1
+                        }
+                    )
+                    for selector in duplicate_selectors:
+                        errors.append(
+                            f"{invariant_id}: duplicate pytest selector "
+                            f"{selector}"
+                        )
                     for selector in selectors:
                         if (
                             not TEST_SELECTOR.fullmatch(selector)
@@ -1046,10 +1239,28 @@ def validate_registry(
                                 f"{invariant_id}: unsafe pytest selector "
                                 f"{selector!r}"
                             )
+                        else:
+                            exists, reason = check_test_node(selector)
+                            if not exists:
+                                errors.append(f"{invariant_id}: {reason}")
+                            else:
+                                require_collected(selector, invariant_id)
                 elif selectors:
                     errors.append(
                         f"{invariant_id}: {validation_id} does not accept selectors"
                     )
+
+        for evidence in invariant.get("evidence_references", []):
+            if not isinstance(evidence, Mapping) or evidence.get("type") != "test":
+                continue
+            nodeid = evidence.get("reference")
+            if not isinstance(nodeid, str):
+                continue
+            exists, reason = check_test_node(nodeid)
+            if not exists:
+                errors.append(f"{invariant_id}: evidence reference: {reason}")
+            else:
+                require_collected(nodeid, f"{invariant_id}: evidence reference")
 
     runtime_artifact_declarations = {
         str(artifact)
@@ -1224,9 +1435,11 @@ def validate_registry(
                         f"{record_id}: evidence file does not exist: {reference}"
                     )
         for nodeid in record.get("validator_tests", []):
-            exists, reason = test_node_exists(repository_root, nodeid)
+            exists, reason = check_test_node(nodeid)
             if not exists:
                 errors.append(f"{record_id}: {reason}")
+            else:
+                require_collected(nodeid, record_id)
         for invariant_id in record.get("invariant_ids", []):
             if invariant_id not in seen_ids:
                 errors.append(
@@ -1241,9 +1454,11 @@ def validate_registry(
         if nodeid in skip_node_ids:
             errors.append(f"expected_full_suite_skips: duplicate test node {nodeid}")
         skip_node_ids.add(nodeid)
-        exists, reason = test_node_exists(repository_root, nodeid)
+        exists, reason = check_test_node(nodeid)
         if not exists:
             errors.append(f"expected_full_suite_skips: {reason}")
+        else:
+            require_collected(nodeid, "expected_full_suite_skips")
         for invariant_id in record.get("invariant_ids", []):
             if invariant_id not in seen_ids:
                 errors.append(
@@ -1281,6 +1496,25 @@ def validate_registry(
             errors.append(
                 f"priority0 control file is not mapped by any invariant: {raw_path}"
             )
+
+    # A structurally invalid registry is already rejected; avoid importing its
+    # test modules merely to accumulate secondary diagnostics.  Every registry
+    # which would otherwise pass receives exactly one authoritative collection.
+    if not errors:
+        collected_nodes, collection_error = _collect_pytest_nodes(
+            repository_root,
+            collection_references,
+        )
+        if collection_error is not None:
+            errors.append(collection_error)
+        else:
+            for selector, contexts in sorted(collection_references.items()):
+                if _selector_matches_collection(selector, collected_nodes):
+                    continue
+                for context in sorted(contexts):
+                    errors.append(
+                        f"{context}: pytest selector was not collected: {selector}"
+                    )
 
     unsupported = _status_ids(registry, "implementation_status", "missing")
     partial = _status_ids(registry, "implementation_status", "partial")

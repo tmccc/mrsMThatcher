@@ -153,11 +153,15 @@ def _import_candidate(root: Path, state_directory: Path):
 
 
 def _activate(bot: Any) -> None:
+    import remote_write_safety_protocol as protocol
     from tests.helpers.protocol_activation import create_test_protocol_activation
 
-    create_test_protocol_activation(
-        Path(bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE)
-    )
+    activation_path = Path(bot.REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE)
+    audit_path = activation_path.parent / protocol.ACTIVATION_AUDIT_BASENAME
+    if os.path.lexists(activation_path) or os.path.lexists(audit_path):
+        protocol.inspect_protocol_activation(activation_path)
+    else:
+        create_test_protocol_activation(activation_path)
     bot._PRODUCTION_BOOTSTRAPPED = True
     bot._AMBIGUOUS_REMOTE_POST_SEEN = False
     bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN = False

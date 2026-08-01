@@ -43,6 +43,10 @@ FENCE_BASENAME = "remote_write_transport_fence.json"
 JOURNAL_SCHEMA_VERSION = 2
 JOURNAL_MODE = 0o600
 JOURNAL_MAX_BYTES = 128 * 1024
+MAX_FILESYSTEM_IDENTITY_INTEGER = (1 << 64) - 1
+MAX_FILESYSTEM_TIMESTAMP_NS = (1 << 64) - 1
+MIN_CONFIRMATION_EPOCH = 1_500_000_000
+MAX_CONFIRMATION_EPOCH = 4_102_444_800
 JOURNAL_STAGING_PREFIX = f".{JOURNAL_BASENAME}.transition."
 JOURNAL_RETIREMENT_PREFIX = f".{JOURNAL_BASENAME}.retirement-guard."
 LANE_SOURCE_VALIDATOR_ID = "mrs-lane-source-binding-v2"
@@ -524,6 +528,118 @@ def _read_stable_regular(
     return _StableFile(data=data, metadata=opened)
 
 
+def _unlink_exact_stable_file(
+    directory_fd: int,
+    path: Path,
+    expected: _StableFile,
+    *,
+    maximum: int,
+    label: str,
+) -> None:
+    """Remove only the still-open exact inode and prove its link retired.
+
+    A pathname validation followed by ``unlink`` is not an atomic comparison:
+    another process can replace the entry in that interval.  Keep the
+    validated inode open across unlink and the directory fsync, then require
+    that its link count fell by exactly one.  A raced replacement therefore
+    raises while a surviving companion remains the fail-closed barrier.
+    """
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise TransportJournalError("O_NOFOLLOW is required")
+    try:
+        descriptor = os.open(
+            path.name,
+            os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+            dir_fd=directory_fd,
+        )
+    except OSError as exc:
+        raise TransportJournalError(f"{label} cannot be opened for removal") from exc
+    try:
+        opened = os.fstat(descriptor)
+        data = _read_all(descriptor, maximum)
+        before_unlink = os.fstat(descriptor)
+        try:
+            path_metadata = os.stat(
+                path.name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError as exc:
+            raise TransportJournalError(
+                f"{label} vanished before exact removal"
+            ) from exc
+        expected_identity = _metadata_identity(expected.metadata)
+        if (
+            _metadata_identity(opened) != expected_identity
+            or _metadata_identity(before_unlink) != expected_identity
+            or _metadata_identity(path_metadata) != expected_identity
+            or data != expected.data
+        ):
+            raise TransportJournalError(f"{label} changed before exact removal")
+        os.unlink(path.name, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+        retired = os.fstat(descriptor)
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        retired_data = _read_all(descriptor, maximum)
+        after_retired_read = os.fstat(descriptor)
+        if (
+            int(retired.st_dev) != int(expected.metadata.st_dev)
+            or int(retired.st_ino) != int(expected.metadata.st_ino)
+            or int(retired.st_nlink) != int(expected.metadata.st_nlink) - 1
+            or stat.S_IFMT(retired.st_mode)
+            != stat.S_IFMT(expected.metadata.st_mode)
+            or stat.S_IMODE(retired.st_mode)
+            != stat.S_IMODE(expected.metadata.st_mode)
+            or int(retired.st_uid) != int(expected.metadata.st_uid)
+            or int(retired.st_size) != int(expected.metadata.st_size)
+            or int(retired.st_mtime_ns) != int(expected.metadata.st_mtime_ns)
+            or retired_data != expected.data
+            or _metadata_identity(after_retired_read)
+            != _metadata_identity(retired)
+        ):
+            raise TransportJournalError(
+                f"{label} pathname removal did not retire the unchanged "
+                "validated inode"
+            )
+        try:
+            os.stat(
+                path.name,
+                dir_fd=directory_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            pass
+        else:
+            raise TransportJournalError(
+                f"{label} pathname reappeared during exact removal"
+            )
+    finally:
+        os.close(descriptor)
+
+
+def _stable_file_matching_snapshot(
+    path: Path,
+    snapshot: JournalSnapshot,
+    *,
+    label: str,
+) -> _StableFile:
+    current = _read_stable_regular(
+        path,
+        maximum=JOURNAL_MAX_BYTES,
+        expected_mode=JOURNAL_MODE,
+    )
+    if (
+        current.data != snapshot.data
+        or int(current.metadata.st_dev) != snapshot.device
+        or int(current.metadata.st_ino) != snapshot.inode
+        or int(current.metadata.st_ctime_ns) != snapshot.ctime_ns
+    ):
+        raise TransportJournalError(f"{label} changed before removal")
+    return current
+
+
 def _write_all(descriptor: int, data: bytes) -> None:
     view = memoryview(data)
     written = 0
@@ -684,8 +800,13 @@ def _replace_exact(
             raise TransportJournalError(
                 "transport journal changed during atomic lifecycle transition"
             )
-        os.unlink(staging_name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        _unlink_exact_stable_file(
+            directory_fd,
+            staging,
+            displaced,
+            maximum=JOURNAL_MAX_BYTES,
+            label="displaced transport journal",
+        )
     finally:
         os.close(directory_fd)
         if not exchanged:
@@ -746,10 +867,13 @@ def replace_exact_source_receipt_generation(
         or len(replacement_bytes) > JOURNAL_MAX_BYTES
         or type(expected_device) is not int
         or expected_device < 0
+        or expected_device > MAX_FILESYSTEM_IDENTITY_INTEGER
         or type(expected_inode) is not int
         or expected_inode <= 0
+        or expected_inode > MAX_FILESYSTEM_IDENTITY_INTEGER
         or type(expected_ctime_ns) is not int
         or expected_ctime_ns < 0
+        or expected_ctime_ns > MAX_FILESYSTEM_TIMESTAMP_NS
     ):
         raise TransportJournalError(
             "exact source receipt generation authority is invalid"
@@ -944,9 +1068,13 @@ def _validate_document(
         or type(source.get("ctime_ns")) is not int
         or type(source.get("size")) is not int
         or source["device"] < 0
+        or source["device"] > MAX_FILESYSTEM_IDENTITY_INTEGER
         or source["inode"] <= 0
+        or source["inode"] > MAX_FILESYSTEM_IDENTITY_INTEGER
         or source["ctime_ns"] < 0
+        or source["ctime_ns"] > MAX_FILESYSTEM_TIMESTAMP_NS
         or source["size"] <= 0
+        or source["size"] > JOURNAL_MAX_BYTES
         or type(source.get("sha256")) is not str
         or not _SHA256_RE.fullmatch(source["sha256"])
     ):
@@ -987,7 +1115,9 @@ def _validate_document(
             type(remote_post_id) is not str
             or not _POST_ID_RE.fullmatch(remote_post_id)
             or type(confirmation_epoch) is not int
-            or confirmation_epoch < 0
+            or not MIN_CONFIRMATION_EPOCH
+            <= confirmation_epoch
+            <= MAX_CONFIRMATION_EPOCH
         ):
             raise TransportJournalError("confirmed journal has no valid post ID")
     elif remote_post_id is not None or confirmation_epoch is not None:
@@ -1538,7 +1668,12 @@ def confirm_transport_transaction(
     )
     if not _POST_ID_RE.fullmatch(str(post_id or "")):
         raise TransportJournalError("remote confirmation has no valid post ID")
-    if type(confirmation_epoch) is not int or confirmation_epoch < 0:
+    if (
+        type(confirmation_epoch) is not int
+        or not MIN_CONFIRMATION_EPOCH
+        <= confirmation_epoch
+        <= MAX_CONFIRMATION_EPOCH
+    ):
         raise TransportJournalError("remote confirmation epoch is invalid")
     snapshot = _required_snapshot(Path(path))
     fence = _required_fence_snapshot(Path(authority.fence_path))
@@ -1839,12 +1974,33 @@ def abort_untransmitted_transport_transaction(
     directory_fd: int | None = None
     try:
         directory_fd = _open_directory(path.parent)
-        os.unlink(path.name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        current_journal = _stable_file_matching_snapshot(
+            path,
+            state.journal,
+            label="untransmitted transport journal",
+        )
+        _unlink_exact_stable_file(
+            directory_fd,
+            path,
+            current_journal,
+            maximum=JOURNAL_MAX_BYTES,
+            label="untransmitted transport journal",
+        )
         # The immutable fence remains the restart barrier until journal
         # removal is durable.
-        os.unlink(fence_path_for_journal(path).name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
+        fence_path = fence_path_for_journal(path)
+        current_fence = _stable_file_matching_snapshot(
+            fence_path,
+            state.fence,
+            label="untransmitted transport fence",
+        )
+        _unlink_exact_stable_file(
+            directory_fd,
+            fence_path,
+            current_fence,
+            maximum=JOURNAL_MAX_BYTES,
+            label="untransmitted transport fence",
+        )
     finally:
         if directory_fd is not None:
             os.close(directory_fd)
@@ -2035,12 +2191,32 @@ def retire_confirmed_transport_transaction(
         try:
             require_exact_prepared_source("fence")
             if state.fence is not None:
-                os.unlink(fence_path.name, dir_fd=directory_fd)
-                os.fsync(directory_fd)
+                current_fence = _stable_file_matching_snapshot(
+                    fence_path,
+                    state.fence,
+                    label="confirmed transport fence",
+                )
+                _unlink_exact_stable_file(
+                    directory_fd,
+                    fence_path,
+                    current_fence,
+                    maximum=JOURNAL_MAX_BYTES,
+                    label="confirmed transport fence",
+                )
             require_exact_prepared_source("journal")
             if state.journal is not None:
-                os.unlink(path.name, dir_fd=directory_fd)
-                os.fsync(directory_fd)
+                current_journal = _stable_file_matching_snapshot(
+                    path,
+                    state.journal,
+                    label="confirmed transport journal",
+                )
+                _unlink_exact_stable_file(
+                    directory_fd,
+                    path,
+                    current_journal,
+                    maximum=JOURNAL_MAX_BYTES,
+                    label="confirmed transport journal",
+                )
             require_exact_prepared_source("completion")
         finally:
             os.close(directory_fd)
@@ -2062,7 +2238,9 @@ def retire_confirmed_transport_transaction(
             )
             os.fsync(directory_fd)
 
-        def require_exact_guarded_receipt(stage: str) -> None:
+        def require_exact_guarded_receipt(
+            stage: str,
+        ) -> tuple[_StableFile, _StableFile]:
             current = _read_stable_regular(
                 receipt_path,
                 maximum=JOURNAL_MAX_BYTES,
@@ -2084,18 +2262,44 @@ def retire_confirmed_transport_transaction(
                 raise TransportJournalError(
                     f"receipt changed during {stage} retirement"
                 )
+            return current, guard
 
         require_exact_guarded_receipt("journal")
         if state.journal is not None:
-            os.unlink(path.name, dir_fd=directory_fd)
-            os.fsync(directory_fd)
+            current_journal = _stable_file_matching_snapshot(
+                path,
+                state.journal,
+                label="confirmed transport journal",
+            )
+            _unlink_exact_stable_file(
+                directory_fd,
+                path,
+                current_journal,
+                maximum=JOURNAL_MAX_BYTES,
+                label="confirmed transport journal",
+            )
         require_exact_guarded_receipt("fence")
         if state.fence is not None:
-            os.unlink(fence_path.name, dir_fd=directory_fd)
-            os.fsync(directory_fd)
-        require_exact_guarded_receipt("guard")
-        os.unlink(guard_name, dir_fd=directory_fd)
-        os.fsync(directory_fd)
+            current_fence = _stable_file_matching_snapshot(
+                fence_path,
+                state.fence,
+                label="confirmed transport fence",
+            )
+            _unlink_exact_stable_file(
+                directory_fd,
+                fence_path,
+                current_fence,
+                maximum=JOURNAL_MAX_BYTES,
+                label="confirmed transport fence",
+            )
+        _current_receipt, current_guard = require_exact_guarded_receipt("guard")
+        _unlink_exact_stable_file(
+            directory_fd,
+            guard_path,
+            current_guard,
+            maximum=JOURNAL_MAX_BYTES,
+            label="confirmed transport retirement guard",
+        )
     finally:
         os.close(directory_fd)
 

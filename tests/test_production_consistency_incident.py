@@ -41,6 +41,8 @@ import historical_context_formatter as context_formatter  # noqa: E402
 import historical_context_outbox as outbox_module  # noqa: E402
 import mrsMThatcher2 as bot  # noqa: E402
 
+_REAL_CREATE_POST = bot.create_post
+
 for _name, _value in _ORIGINAL_ENV.items():
     if _value is None:
         os.environ.pop(_name, None)
@@ -53,6 +55,235 @@ def _forbid(operation: str):
         pytest.fail(f"test attempted forbidden live operation: {operation}")
 
     return forbidden
+
+
+def _bind_context_attempt_to_source_receipt(
+    store,
+    *,
+    parent_id: str,
+    outbox_attempt: int,
+    source_receipt: dict,
+) -> str:
+    """Bind one claimed outbox attempt to exact canonical source bytes."""
+
+    source_sha256 = hashlib.sha256(
+        context_formatter.canonical_json_bytes(source_receipt)
+    ).hexdigest()
+    store.bind_attempt_source_receipt(
+        parent_id,
+        attempt_number=outbox_attempt,
+        source_receipt_sha256=source_sha256,
+        source_receipt_attempt_number=int(source_receipt["attempt_number"]),
+    )
+    return source_sha256
+
+
+def _proved_failure_history_item(
+    *,
+    source_receipt: dict,
+    source_sha256: str,
+    failure: str = "RemoteOperationsPaused: paused before transport",
+    updated_at: str = "2026-08-01T12:00:01Z",
+) -> dict:
+    """Return one exact failed-history row for a source receipt."""
+
+    return {
+        "parent_post_id": str(source_receipt["parent_post_id"]),
+        "quote_id": str(source_receipt["quote_id"]),
+        "reply_text": str(source_receipt["reply_text"]),
+        "status": "failed",
+        "failure": failure,
+        "attempt_count": int(source_receipt["attempt_number"]),
+        "updated_at": updated_at,
+        "remote_outcome": "proved_non_success",
+        "source_receipt_sha256": source_sha256,
+        "source_receipt_attempt_number": int(source_receipt["attempt_number"]),
+    }
+
+
+def _seed_confirmed_context_transport(
+    *,
+    parent_id: str,
+    quote_id: str,
+    reply_post_id: str,
+    source_attempt_number: int = 1,
+):
+    """Create one exact confirmed journal over an attempting outbox source."""
+
+    reply_epoch = 1_800_000_000
+    reply_text = "Context — A confirmed transport awaits local completion."
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=reply_epoch,
+        quote_id=quote_id,
+        quote_text="A quotation with a locally recoverable confirmed reply.",
+    )
+    store.claim_attempt(parent_id, started_epoch=reply_epoch)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": reply_text,
+        "reply_epoch": reply_epoch,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": source_attempt_number,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    payload = {
+        "text": reply_text,
+        "reply": {"in_reply_to_tweet_id": parent_id},
+    }
+    binding = bot.bind_lane_transport_source(
+        receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        receipt=source_receipt,
+        lane="historical_context_reply",
+        payload=payload,
+    )
+    authority = bot.begin_transport_transaction(
+        receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_binding=binding,
+    )
+    journal_path = bot.journal_path_for_receipt(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+    authority = bot.arm_transport_transaction(
+        journal_path,
+        authority,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused historical-context journal arming"
+        ),
+    )
+    bot.consume_transport_authority(
+        journal_path,
+        authority,
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+        expected_receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )
+    bot.confirm_transport_transaction(
+        journal_path,
+        authority,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused historical-context journal confirmation"
+        ),
+        post_id=reply_post_id,
+        confirmation_epoch=reply_epoch + 1,
+    )
+    return store, source_receipt, journal_path
+
+
+def _install_real_context_worker_success_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    parent_id: str,
+    quote_id: str,
+    reply_text: str,
+    reply_post_id: str,
+):
+    """Install a local-only formatter and exact confirmed transport path."""
+
+    from historical_context_source_roles import POLICY_VERSION
+
+    outbox = bot.historical_context_outbox_store()
+    outbox.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A complete worker-to-store callback fixture.",
+    )
+    packet = {"quote_id": quote_id, "quote_text": "Canonical quotation."}
+    formatted = {
+        "text": reply_text,
+        "formatter_version": context_formatter.HISTORICAL_CONTEXT_FORMATTER_V5,
+        "template_variant": "test_confirmed_callback_forwarding",
+        "meaning_included": False,
+        "meaning_decision_reason": "Focused transaction fixture.",
+        "raw_character_count": len(reply_text),
+        "character_count": len(reply_text),
+        "weighted_character_count": len(reply_text),
+        "maximum_length": 4_000,
+        "verification_label": "Exact wording",
+        "source_class": "primary",
+        "historical_confidence": "high",
+        "confidence_dimensions": {
+            name: "high"
+            for name in (
+                "attribution",
+                "wording",
+                "source_event",
+                "date",
+                "historical_context",
+                "interpretation",
+            )
+        },
+        "source_role_audit_version": POLICY_VERSION,
+        "rendering_mode": context_formatter.PUBLIC_RENDERING_MODE,
+        "shortening_applied": False,
+    }
+    gate = SimpleNamespace(
+        available=True,
+        ledger_sha256="a" * 64,
+        projection_sha256="b" * 64,
+        disposition=lambda _quote_id: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
+    monkeypatch.setattr(
+        bot,
+        "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT",
+        ({quote_id: packet}, set()),
+    )
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_SEMANTIC_GATE", gate)
+    monkeypatch.setattr(
+        context_formatter,
+        "packet_for_posted_quote",
+        lambda *_args, **_kwargs: packet,
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: formatted,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_010)
+
+    def local_transport(
+        method,
+        path,
+        *,
+        json,
+        _remote_write_authorization,
+        **_kwargs,
+    ):
+        assert (method, path) == ("POST", "/2/tweets")
+        bot.consume_transport_authority(
+            Path(_remote_write_authorization.journal_path),
+            _remote_write_authorization,
+            method=method,
+            request_path=path,
+            payload=json,
+            expected_receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        )
+        return {"data": {"id": reply_post_id}}
+
+    monkeypatch.setattr(bot, "x_request", local_transport)
+    monkeypatch.setattr(bot, "create_post", _REAL_CREATE_POST)
+    return outbox
 
 
 @pytest.fixture(autouse=True)
@@ -69,7 +300,9 @@ def isolated_incident_paths(
         "REGULAR_POST_RECEIPT_FILE": tmp_path / "regular_post_receipt.json",
         "MEME_POST_RECEIPT_FILE": tmp_path / "meme_post_receipt.json",
         "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE": tmp_path / "context_history.json",
-        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE": tmp_path / "context_receipt.json",
+        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE": (
+            tmp_path / "historical_context_reply_receipt.json"
+        ),
         "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE": tmp_path / "context_outbox.json",
         "CONFIRMED_REPLY_RECEIPT_FILE": tmp_path / "confirmed_reply_receipt.json",
         "AMBIGUOUS_POST_OUTCOME_FILE": tmp_path / "ambiguous_post_outcome.json",
@@ -716,6 +949,1897 @@ def test_outbox_outcome_write_failure_latches_retry_after_durable_claim(
     assert attempts == ["attempt"]
 
 
+def test_definite_context_local_persistence_failure_never_creates_ambiguity_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proved remote non-success stays a local recovery problem."""
+
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        "800031",
+        main_post_confirmed_epoch=8_000,
+        quote_id="6" * 64,
+        quote_text="A definite non-success with incomplete local persistence.",
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 9_000)
+    def fail_after_exact_source_binding(**kwargs):
+        kwargs["on_source_receipt_published"]("a" * 64, 1)
+        raise context_formatter.DefiniteContextReplyLocalPersistenceError(
+            "outbox callback did not finish",
+            parent_post_id="800031",
+            reply_text="Context",
+            source_receipt_sha256="a" * 64,
+            source_receipt_attempt_number=1,
+            remote_error=bot.RemoteOperationsPaused("paused before transport"),
+        )
+
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        fail_after_exact_source_binding,
+    )
+    monkeypatch.setattr(
+        bot,
+        "record_ambiguous_remote_post",
+        _forbid("a definite local persistence failure ambiguity marker"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id="800031",
+    )
+
+    assert result == [
+        {
+            "parent_post_id": "800031",
+            "status": "failed",
+            "context_reply_state": "context_reply_failed_retryable",
+        }
+    ]
+    assert (
+        store.get("800031")["context_reply"]["state"]
+        == "context_reply_failed_retryable"
+    )
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_proved_context_failure_recovers_missing_history_from_exact_outbox_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A history fsync failure remains locally recoverable after restart."""
+
+    parent_id = "800032"
+    quote_id = "7" * 64
+    outbox = bot.historical_context_outbox_store()
+    outbox.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A proved local non-success whose history write failed.",
+    )
+    outbox.claim_attempt(parent_id, started_epoch=1_800_000_001)
+    reply_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            bot.latch_source_receipt_retirement_uncertainty
+        ),
+    )
+    monkeypatch.setattr(
+        reply_store,
+        "record_failure",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("injected history directory fsync failure")
+        ),
+    )
+
+    def definite_local_pause(**kwargs):
+        kwargs["on_remote_transaction_started"]()
+        raise bot.RemoteOperationsPaused("paused before transport")
+
+    with pytest.raises(
+        context_formatter.DefiniteContextReplyLocalPersistenceError,
+        match="failure history",
+    ) as captured:
+        reply_store.post(
+            parent_post_id=parent_id,
+            quote_id=quote_id,
+            reply_text="Context — The request was definitely not transmitted.",
+            create_post=definite_local_pause,
+            now_epoch=lambda: 1_800_000_002,
+            on_source_receipt_published=(
+                lambda source_sha256, source_attempt: (
+                    outbox.bind_attempt_source_receipt(
+                        parent_id,
+                        attempt_number=1,
+                        source_receipt_sha256=source_sha256,
+                        source_receipt_attempt_number=source_attempt,
+                    )
+                )
+            ),
+            on_remote_transaction_started=(
+                lambda: outbox.mark_remote_transaction_started(
+                    parent_id,
+                    attempt_number=1,
+                )
+            ),
+            on_definite_non_success=(
+                lambda error: bot._record_context_outbox_failure(
+                    outbox,
+                    parent_post_id=parent_id,
+                    attempt_number=1,
+                    error=error,
+                    failed_epoch=1_800_000_003,
+                    proved_remote_non_success=True,
+                )
+            ),
+            remote_failure_is_definite_non_success=lambda error: isinstance(
+                error,
+                bot.RemoteOperationsPaused,
+            ),
+        )
+
+    assert captured.value.remote_error is not None
+    failed_context = outbox.get(parent_id)["context_reply"]
+    assert failed_context["state"] == "context_reply_failed_retryable"
+    assert failed_context["failure"]["remote_outcome"] == "proved_non_success"
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+    assert reply_store.ensure_proved_failure_history_from_outbox(failed_context)
+    assert reply_store.reconcile_receipt_disposition() == "definite_failure"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    recovered = reply_store.history()["items"][parent_id]
+    assert recovered["remote_outcome"] == "proved_non_success"
+    assert recovered["source_receipt_sha256"] == failed_context["failure"][
+        "source_receipt_sha256"
+    ]
+
+
+def test_new_proved_context_failure_advances_prior_source_attempt_history() -> None:
+    """Exact attempt twenty-one may supersede exact failed attempt twenty."""
+
+    parent_id = "800043"
+    quote_id = "4" * 64
+    prior_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": "Context — Prior proved source attempt.",
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 20,
+    }
+    prior_sha256 = hashlib.sha256(
+        context_formatter.canonical_json_bytes(prior_receipt)
+    ).hexdigest()
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: _proved_failure_history_item(
+                    source_receipt=prior_receipt,
+                    source_sha256=prior_sha256,
+                )
+            },
+        },
+    )
+    current_receipt = {
+        **prior_receipt,
+        "reply_text": "Context — Current proved source attempt.",
+        "reply_epoch": 1_800_000_010,
+        "started_at": "2026-08-01T12:00:10Z",
+        "attempt_number": 21,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        current_receipt,
+    )
+    current_sha256 = hashlib.sha256(
+        context_formatter.canonical_json_bytes(current_receipt)
+    ).hexdigest()
+    failed_context = {
+        "state": "context_reply_failed_retryable",
+        "quote_id": quote_id,
+        "quote_text": "Canonical quotation.",
+        "attempt_count": 1,
+        "failure": {
+            "attempt_number": 1,
+            "failed_epoch": 1_800_000_011,
+            "error": "RemoteOperationsPaused: paused before transport",
+            "remote_outcome": "proved_non_success",
+            "source_receipt_sha256": current_sha256,
+            "source_receipt_attempt_number": 21,
+        },
+        "next_attempt_epoch": 1_800_000_071,
+        "backoff_seconds": 60,
+        "updated_epoch": 1_800_000_011,
+    }
+    reply_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    )
+
+    assert reply_store.ensure_proved_failure_history_from_outbox(failed_context)
+    current = reply_store.history()["items"][parent_id]
+    assert current["attempt_count"] == 21
+    assert current["reply_text"] == current_receipt["reply_text"]
+    assert current["source_receipt_sha256"] == current_sha256
+
+
+def test_real_context_worker_wires_exact_source_before_remote_phase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Protect every worker-to-store callback edge with one real entrypoint."""
+
+    from historical_context_source_roles import POLICY_VERSION
+
+    parent_id = "800033"
+    quote_id = "8" * 64
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A quotation requiring one historical context reply.",
+    )
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: {
+                    "parent_post_id": parent_id,
+                    "quote_id": quote_id,
+                    "reply_text": "Earlier local failure.",
+                    "status": "failed",
+                    "failure": "RuntimeError: legacy failure",
+                    "attempt_count": 20,
+                    "updated_at": "2026-07-31T23:59:59Z",
+                }
+            },
+        },
+    )
+    packet = {"quote_id": quote_id, "quote_text": "Canonical quotation."}
+    formatted_text = "Context — A definite local pause prevented transmission."
+    formatted = {
+        "text": formatted_text,
+        "formatter_version": context_formatter.HISTORICAL_CONTEXT_FORMATTER_V5,
+        "template_variant": "test_exact_source_binding",
+        "meaning_included": False,
+        "meaning_decision_reason": "Focused transactional fixture.",
+        "raw_character_count": len(formatted_text),
+        "character_count": len(formatted_text),
+        "weighted_character_count": len(formatted_text),
+        "maximum_length": 4_000,
+        "verification_label": "Exact wording",
+        "source_class": "primary",
+        "historical_confidence": "high",
+        "confidence_dimensions": {
+            name: "high"
+            for name in (
+                "attribution",
+                "wording",
+                "source_event",
+                "date",
+                "historical_context",
+                "interpretation",
+            )
+        },
+        "source_role_audit_version": POLICY_VERSION,
+        "rendering_mode": context_formatter.PUBLIC_RENDERING_MODE,
+        "shortening_applied": False,
+    }
+    gate = SimpleNamespace(
+        available=True,
+        ledger_sha256="a" * 64,
+        projection_sha256="b" * 64,
+        disposition=lambda _quote_id: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
+    monkeypatch.setattr(
+        bot,
+        "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT",
+        ({quote_id: packet}, set()),
+    )
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_SEMANTIC_GATE", gate)
+    monkeypatch.setattr(
+        context_formatter,
+        "packet_for_posted_quote",
+        lambda *_args, **_kwargs: packet,
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: formatted,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_010)
+    order: list[str] = []
+
+    real_publish = context_formatter.publish_exact_source_receipt_document
+    real_bind = outbox_module.HistoricalContextOutbox.bind_attempt_source_receipt
+    real_mark = outbox_module.HistoricalContextOutbox.mark_remote_transaction_started
+    real_outcome = bot._record_context_outbox_failure
+    real_history = context_formatter.HistoricalContextReplyStore.record_failure
+    real_retire = context_formatter.HistoricalContextReplyStore._retire_exact_receipt
+    real_arm = bot.arm_transport_transaction
+    real_abort = bot.abort_untransmitted_transport_transaction
+
+    def publish(*args, **kwargs):
+        result = real_publish(*args, **kwargs)
+        order.append("receipt_published")
+        return result
+
+    def bind(self, *args, **kwargs):
+        result = real_bind(self, *args, **kwargs)
+        order.append("source_bound")
+        return result
+
+    def mark(self, *args, **kwargs):
+        result = real_mark(self, *args, **kwargs)
+        order.append("remote_started")
+        return result
+
+    def outcome(*args, **kwargs):
+        result = real_outcome(*args, **kwargs)
+        order.append("outbox_failure")
+        return result
+
+    def history(self, *args, **kwargs):
+        result = real_history(self, *args, **kwargs)
+        order.append("history_failure")
+        return result
+
+    def retire(self, *args, **kwargs):
+        result = real_retire(self, *args, **kwargs)
+        order.append("receipt_retired")
+        return result
+
+    def arm(*args, **kwargs):
+        receipt = context_formatter.HistoricalContextReplyStore(
+            bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        )._load_receipt_safely()[0]
+        receipt_bytes = context_formatter.canonical_json_bytes(receipt)
+        current = store.get(parent_id)["context_reply"]
+        assert current["source_receipt_sha256"] == hashlib.sha256(
+            receipt_bytes
+        ).hexdigest()
+        assert current["source_receipt_attempt_number"] == receipt["attempt_number"]
+        assert receipt["attempt_number"] == 21
+        order.append("journal_armed")
+        return real_arm(*args, **kwargs)
+
+    def pause_at_transport_boundary(
+        method,
+        path,
+        *,
+        _remote_write_authorization=None,
+        **_kwargs,
+    ):
+        assert (method, path) == ("POST", "/2/tweets")
+        assert _remote_write_authorization is not None
+        assert store.get(parent_id)["context_reply"][
+            "remote_transaction_started"
+        ] is True
+        order.append("transport_boundary")
+        raise bot.RemoteOperationsPaused("focused local pause")
+
+    def abort(*args, **kwargs):
+        result = real_abort(*args, **kwargs)
+        order.append("journal_aborted")
+        return result
+
+    monkeypatch.setattr(
+        context_formatter,
+        "publish_exact_source_receipt_document",
+        publish,
+    )
+    monkeypatch.setattr(
+        outbox_module.HistoricalContextOutbox,
+        "bind_attempt_source_receipt",
+        bind,
+    )
+    monkeypatch.setattr(
+        outbox_module.HistoricalContextOutbox,
+        "mark_remote_transaction_started",
+        mark,
+    )
+    monkeypatch.setattr(bot, "_record_context_outbox_failure", outcome)
+    monkeypatch.setattr(
+        context_formatter.HistoricalContextReplyStore,
+        "record_failure",
+        history,
+    )
+    monkeypatch.setattr(
+        context_formatter.HistoricalContextReplyStore,
+        "_retire_exact_receipt",
+        retire,
+    )
+    monkeypatch.setattr(bot, "arm_transport_transaction", arm)
+    monkeypatch.setattr(bot, "x_request", pause_at_transport_boundary)
+    monkeypatch.setattr(bot, "abort_untransmitted_transport_transaction", abort)
+    monkeypatch.setattr(bot, "create_post", _REAL_CREATE_POST)
+
+    result = bot.process_due_historical_context_obligations(parent_post_id=parent_id)
+
+    assert result == [
+        {
+            "parent_post_id": parent_id,
+            "status": "failed",
+            "context_reply_state": "context_reply_failed_retryable",
+        }
+    ]
+    assert order == [
+        "receipt_published",
+        "source_bound",
+        "journal_armed",
+        "remote_started",
+        "transport_boundary",
+        "journal_aborted",
+        "outbox_failure",
+        "history_failure",
+        "receipt_retired",
+    ]
+    final_context = store.get(parent_id)["context_reply"]
+    assert final_context["failure"]["remote_outcome"] == "proved_non_success"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+
+
+def test_confirmed_context_journal_requires_consistent_attempting_outbox() -> None:
+    """A confirmed journal cannot override contradictory durable outbox proof."""
+
+    parent_id = "800035"
+    store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="c" * 64,
+        reply_post_id="980035",
+    )
+    store.record_retryable_failure(
+        parent_id,
+        attempt_number=1,
+        error="contradictory synthetic local non-success",
+        failed_epoch=1_800_000_002,
+        proved_remote_non_success=True,
+    )
+    receipt_before = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    journal_before = journal_path.read_bytes()
+    outbox_before = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes()
+
+    bot.reconcile_runtime_historical_context_state()
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert journal_path.read_bytes() == journal_before
+    assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes() == outbox_before
+
+    with pytest.raises(
+        RuntimeError,
+        match="confirmed historical-context transport conflicts",
+    ):
+        bot.reconcile_confirmed_transactions_before_global_barrier(
+            set(),
+            set(),
+            {},
+        )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert journal_path.read_bytes() == journal_before
+    assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes() == outbox_before
+    assert source_receipt["lifecycle_state"] == "sending"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+def test_confirmed_context_journal_completes_outbox_history_and_receipt() -> None:
+    """One exact confirmed pair completes every local context authority."""
+
+    parent_id = "800036"
+    store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="d" * 64,
+        reply_post_id="980036",
+    )
+
+    result = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    )
+
+    assert result["historical_context"] is True
+    context_reply = store.get(parent_id)["context_reply"]
+    assert context_reply["state"] == "context_reply_confirmed"
+    assert context_reply["reply_post_id"] == "980036"
+    history_item = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]
+    assert history_item["status"] == "completed"
+    assert history_item["reply_post_id"] == "980036"
+    assert history_item["source_receipt_sha256"] == hashlib.sha256(
+        context_formatter.canonical_json_bytes(source_receipt)
+    ).hexdigest()
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not journal_path.exists()
+
+
+def test_confirmed_context_accepts_independent_source_attempt_ordinal() -> None:
+    """Outbox attempt one may confirm exact source-history attempt twenty-one."""
+
+    parent_id = "800040"
+    store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="1" * 64,
+        reply_post_id="980040",
+        source_attempt_number=21,
+    )
+    store.record_confirmed(
+        parent_id,
+        attempt_number=1,
+        reply_post_id="980040",
+        confirmed_epoch=1_800_000_001,
+    )
+
+    result = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    )
+
+    assert result["historical_context"] is True
+    assert store.get(parent_id)["context_reply"]["attempt_count"] == 1
+    history_item = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]
+    assert history_item["attempt_number"] == 21
+    assert history_item["reply_post_id"] == "980040"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not journal_path.exists()
+
+
+def test_promoted_context_receipt_cannot_consume_contradictory_outbox() -> None:
+    """The post-promotion crash state still requires one consistent outbox."""
+
+    parent_id = "800037"
+    store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="e" * 64,
+        reply_post_id="980037",
+    )
+    context_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    )
+    context_store.promote_sending_receipt_from_confirmed_transport(
+        source_receipt,
+        reply_post_id="980037",
+        confirmation_epoch=1_800_000_001,
+        require_confirmed_transport=True,
+    )
+    store.record_retryable_failure(
+        parent_id,
+        attempt_number=1,
+        error="post-promotion local persistence failure",
+        failed_epoch=1_800_000_002,
+        proved_remote_non_success=True,
+    )
+    receipt_before = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    journal_before = journal_path.read_bytes()
+    outbox_before = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes()
+
+    bot.reconcile_runtime_historical_context_state()
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert journal_path.read_bytes() == journal_before
+    assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes() == outbox_before
+    with pytest.raises(
+        RuntimeError,
+        match="confirmed historical-context transport conflicts",
+    ):
+        bot.reconcile_confirmed_transactions_before_global_barrier(
+            set(),
+            set(),
+            {},
+        )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert journal_path.read_bytes() == journal_before
+    assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes() == outbox_before
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+def test_promoted_context_receipt_confirms_outbox_before_local_completion() -> None:
+    """The post-promotion crash state closes its outbox before retirement."""
+
+    parent_id = "800038"
+    store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="f" * 64,
+        reply_post_id="980038",
+    )
+    context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    ).promote_sending_receipt_from_confirmed_transport(
+        source_receipt,
+        reply_post_id="980038",
+        confirmation_epoch=1_800_000_001,
+        require_confirmed_transport=True,
+    )
+
+    bot.reconcile_runtime_historical_context_state()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_attempting"
+    )
+    result = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    )
+
+    assert result["historical_context"] is True
+    context_reply = store.get(parent_id)["context_reply"]
+    assert context_reply["state"] == "context_reply_confirmed"
+    assert context_reply["reply_post_id"] == "980038"
+    history_item = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]
+    assert history_item["status"] == "completed"
+    assert history_item["reply_post_id"] == "980038"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not journal_path.exists()
+
+
+def test_promoted_context_receipt_without_outbox_preserves_all_evidence() -> None:
+    """Missing outbox authority cannot consume confirmed transport evidence."""
+
+    parent_id = "800041"
+    _store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="2" * 64,
+        reply_post_id="980041",
+    )
+    context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    ).promote_sending_receipt_from_confirmed_transport(
+        source_receipt,
+        reply_post_id="980041",
+        confirmation_epoch=1_800_000_001,
+        require_confirmed_transport=True,
+    )
+    bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.unlink()
+
+    receipt_before = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    journal_before = journal_path.read_bytes()
+
+    # Startup discovery deliberately defers this exact crash state to the
+    # global pre-barrier reconciliation without mutating it.
+    bot.reconcile_runtime_historical_context_state()
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert journal_path.read_bytes() == journal_before
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+    with pytest.raises(
+        RuntimeError,
+        match="confirmed historical-context receipt has no matching outbox",
+    ):
+        bot.reconcile_confirmed_transactions_before_global_barrier(
+            set(),
+            set(),
+            {},
+        )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert journal_path.read_bytes() == journal_before
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+def test_confirmed_context_receipt_without_journal_still_requires_outbox() -> None:
+    """Journal retirement cannot make a missing outbox safe to ignore."""
+
+    parent_id = "800042"
+    _store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="3" * 64,
+        reply_post_id="980042",
+    )
+    context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    ).promote_sending_receipt_from_confirmed_transport(
+        source_receipt,
+        reply_post_id="980042",
+        confirmation_epoch=1_800_000_001,
+        require_confirmed_transport=True,
+    )
+    # Model a crash/corruption boundary after journal retirement but before
+    # the confirmed source receipt is consumed.  The surviving receipt still
+    # requires its exact outbox authority.
+    bot.fence_path_for_journal(journal_path).unlink()
+    journal_path.unlink()
+    bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.unlink()
+    receipt_before = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+
+    with pytest.raises(
+        RuntimeError,
+        match="confirmed historical-context receipt has no matching outbox",
+    ):
+        bot.reconcile_runtime_historical_context_state()
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+@pytest.mark.parametrize("entrypoint", ("startup", "prebarrier"))
+def test_legacy_confirmed_context_receipt_rejects_failed_outbox(
+    entrypoint: str,
+) -> None:
+    """Upgrade-era confirmed receipts cannot override a failed outbox."""
+
+    parent_id = "800045"
+    quote_id = "6" * 64
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="An upgrade-era confirmed context reply.",
+    )
+    store.claim_attempt(parent_id, started_epoch=1_800_000_001)
+    store.record_retryable_failure(
+        parent_id,
+        attempt_number=1,
+        error="contradictory pre-upgrade local failure",
+        failed_epoch=1_800_000_002,
+    )
+    legacy_confirmed = {
+        "schema_version": 1,
+        "lifecycle_state": "confirmed",
+        "parent_post_id": parent_id,
+        "reply_post_id": "980045",
+        "quote_id": quote_id,
+        "reply_text": "Context — The legacy receipt proves confirmation.",
+        "reply_epoch": 1_800_000_001,
+        "started_at": "2026-08-01T12:00:01Z",
+        "attempt_number": 1,
+        "confirmed_at": "2026-08-01T12:00:02Z",
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        legacy_confirmed,
+    )
+    receipt_before = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    outbox_before = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes()
+
+    with pytest.raises(
+        RuntimeError,
+        match="confirmed historical-context receipt conflicts",
+    ):
+        if entrypoint == "startup":
+            bot.reconcile_runtime_historical_context_state()
+        else:
+            bot.reconcile_confirmed_transactions_before_global_barrier(
+                set(), set(), {}
+            )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes() == outbox_before
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+@pytest.mark.parametrize("entrypoint", ("startup", "prebarrier"))
+def test_legacy_confirmed_context_receipt_confirms_attempting_outbox_first(
+    entrypoint: str,
+) -> None:
+    """One consistent upgrade-era receipt advances its outbox before retirement."""
+
+    parent_id = "800046"
+    quote_id = "7" * 64
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A consistent upgrade-era confirmed context reply.",
+    )
+    store.claim_attempt(parent_id, started_epoch=1_800_000_001)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "confirmed",
+            "parent_post_id": parent_id,
+            "reply_post_id": "980046",
+            "quote_id": quote_id,
+            "reply_text": "Context — The legacy receipt is locally complete.",
+            "reply_epoch": 1_800_000_001,
+            "started_at": "2026-08-01T12:00:01Z",
+            "attempt_number": 1,
+            "confirmed_at": "2026-08-01T12:00:02Z",
+        },
+    )
+
+    if entrypoint == "startup":
+        bot.reconcile_runtime_historical_context_state()
+    else:
+        result = bot.reconcile_confirmed_transactions_before_global_barrier(
+            set(), set(), {}
+        )
+        assert result["historical_context"] is True
+
+    outcome = store.get(parent_id)["context_reply"]
+    assert outcome["state"] == "context_reply_confirmed"
+    assert outcome["reply_post_id"] == "980046"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]["reply_post_id"] == "980046"
+
+
+@pytest.mark.parametrize("entrypoint", ("startup", "prebarrier"))
+def test_legacy_confirmed_context_reconciliation_rejects_receipt_replacement(
+    entrypoint: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Outbox advancement cannot authorise a later pathname generation."""
+
+    parent_id = "800051"
+    quote_id = "b" * 64
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A legacy receipt subject to a local namespace race.",
+    )
+    store.claim_attempt(parent_id, started_epoch=1_800_000_001)
+    original = {
+        "schema_version": 1,
+        "lifecycle_state": "confirmed",
+        "parent_post_id": parent_id,
+        "reply_post_id": "980051",
+        "quote_id": quote_id,
+        "reply_text": "Context — The initially inspected legacy receipt.",
+        "reply_epoch": 1_800_000_001,
+        "started_at": "2026-08-01T12:00:01Z",
+        "attempt_number": 1,
+        "confirmed_at": "2026-08-01T12:00:02Z",
+    }
+    replacement = {
+        **original,
+        "reply_post_id": "980052",
+        "reply_text": "Context — A replacement receipt generation.",
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        original,
+    )
+    real_record_confirmed = outbox_module.HistoricalContextOutbox.record_confirmed
+
+    def replace_after_outbox_confirmation(self, *args, **kwargs):
+        result = real_record_confirmed(self, *args, **kwargs)
+        context_formatter.atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            replacement,
+        )
+        return result
+
+    monkeypatch.setattr(
+        outbox_module.HistoricalContextOutbox,
+        "record_confirmed",
+        replace_after_outbox_confirmation,
+    )
+
+    with pytest.raises(RuntimeError, match="changed after its preloaded authority"):
+        if entrypoint == "startup":
+            bot.reconcile_runtime_historical_context_state()
+        else:
+            bot.reconcile_confirmed_transactions_before_global_barrier(
+                set(), set(), {}
+            )
+
+    assert json.loads(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_text(encoding="utf-8")
+    ) == replacement
+    assert store.get(parent_id)["context_reply"]["reply_post_id"] == "980051"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+@pytest.mark.parametrize("entrypoint", ("startup", "prebarrier"))
+def test_legacy_confirmed_context_requires_same_terminal_attempt(
+    entrypoint: str,
+) -> None:
+    """Legacy parent/quote/reply identity cannot hide a later generation."""
+
+    parent_id = "800052"
+    quote_id = "e" * 64
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A legacy terminal attempt identity fixture.",
+    )
+    store.claim_attempt(parent_id, started_epoch=1_800_000_001)
+    store.record_confirmed(
+        parent_id,
+        attempt_number=1,
+        reply_post_id="980052",
+        confirmed_epoch=1_800_000_002,
+    )
+    receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "confirmed",
+        "parent_post_id": parent_id,
+        "reply_post_id": "980052",
+        "quote_id": quote_id,
+        "reply_text": "Context — A different legacy source attempt.",
+        "reply_epoch": 1_800_000_002,
+        "started_at": "2026-08-01T12:00:01Z",
+        "attempt_number": 2,
+        "confirmed_at": "2026-08-01T12:00:02Z",
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        receipt,
+    )
+    receipt_before = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    outbox_before = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes()
+
+    with pytest.raises(
+        RuntimeError,
+        match="confirmed historical-context .*conflicts",
+    ):
+        if entrypoint == "startup":
+            bot.reconcile_runtime_historical_context_state()
+        else:
+            bot.reconcile_confirmed_transactions_before_global_barrier(
+                set(), set(), {}
+            )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes() == outbox_before
+
+
+@pytest.mark.parametrize("state", ("terminal", "interrupted_retirement"))
+def test_oldest_base_confirmed_receipt_remains_recoverable(state: str) -> None:
+    """The oldest supported receipt has no ordinal or source-hash lineage."""
+
+    parent_id = "800059"
+    quote_id = "3" * 64
+    outbox = bot.historical_context_outbox_store()
+    outbox.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="An oldest-schema confirmed context receipt.",
+    )
+    outbox.claim_attempt(parent_id, started_epoch=1_800_000_001)
+    receipt = {
+        "schema_version": 1,
+        "parent_post_id": parent_id,
+        "reply_post_id": "980059",
+        "quote_id": quote_id,
+        "reply_text": "Context — This receipt predates attempt ordinals.",
+        "reply_epoch": 1_800_000_001,
+        "confirmed_at": "2026-08-01T12:00:02Z",
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        receipt,
+    )
+    if state == "terminal":
+        outbox.record_confirmed(
+            parent_id,
+            attempt_number=1,
+            reply_post_id="980059",
+            confirmed_epoch=1_800_000_002,
+        )
+        bot.reconcile_runtime_historical_context_state()
+    else:
+        context_formatter.atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            {
+                "schema_version": 1,
+                "items": {parent_id: {**receipt, "status": "completed"}},
+            },
+        )
+        receipt_bytes = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+        bot.prepare_exact_receipt_retirement(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            receipt_bytes,
+            mutation_authority=bot.transaction_mutation_authority(
+                "focused oldest-schema context retirement preparation"
+            ),
+        )
+        assert bot.resume_interrupted_source_receipt_retirement_if_present()
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert outbox.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_confirmed"
+    )
+    assert context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]["reply_post_id"] == "980059"
+
+
+@pytest.mark.parametrize("entrypoint", ("startup", "prebarrier"))
+def test_confirmed_context_receipt_requires_exact_terminal_outbox_lineage(
+    entrypoint: str,
+) -> None:
+    """Same reply identity cannot authorise a different receipt generation."""
+
+    parent_id = "800048"
+    quote_id = "9" * 64
+    store, source_a, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id=quote_id,
+        reply_post_id="980048",
+    )
+    context_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    )
+    context_store.promote_sending_receipt_from_confirmed_transport(
+        source_a,
+        reply_post_id="980048",
+        confirmation_epoch=1_800_000_001,
+        require_confirmed_transport=True,
+    )
+    store.record_confirmed(
+        parent_id,
+        attempt_number=1,
+        reply_post_id="980048",
+        confirmed_epoch=1_800_000_001,
+    )
+    bot.fence_path_for_journal(journal_path).unlink()
+    journal_path.unlink()
+
+    source_b = {
+        **source_a,
+        "reply_text": "Context — A different receipt generation.",
+        "reply_epoch": 1_800_000_002,
+        "attempt_number": 2,
+    }
+    confirmed_b = {
+        **source_b,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": "980048",
+        "confirmed_at": "2026-08-01T12:00:03Z",
+        "source_receipt_sha256": hashlib.sha256(
+            context_formatter.canonical_json_bytes(source_b)
+        ).hexdigest(),
+    }
+    assert context_formatter.HistoricalContextReplyStore._valid_receipt(
+        confirmed_b
+    )
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        confirmed_b,
+    )
+    receipt_before = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    outbox_before = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes()
+
+    with pytest.raises(
+        RuntimeError,
+        match="confirmed historical-context .*conflicts",
+    ):
+        if entrypoint == "startup":
+            bot.reconcile_runtime_historical_context_state()
+        else:
+            bot.reconcile_confirmed_transactions_before_global_barrier(
+                set(), set(), {}
+            )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes() == receipt_before
+    assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_bytes() == outbox_before
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+def test_interrupted_context_retirement_requires_outbox_before_resume(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Startup cannot resume retirement before validating its outbox authority."""
+
+    parent_id = "800047"
+    store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="8" * 64,
+        reply_post_id="980047",
+    )
+    context_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            bot.latch_source_receipt_retirement_uncertainty
+        ),
+    )
+    context_store.promote_sending_receipt_from_confirmed_transport(
+        source_receipt,
+        reply_post_id="980047",
+        confirmation_epoch=1_800_000_001,
+        require_confirmed_transport=True,
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "retire_confirmed_transport_transaction",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            OSError("injected journal retirement failure")
+        ),
+    )
+    with pytest.raises(OSError, match="journal retirement"):
+        context_store.reconcile_receipt_disposition()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_attempting"
+    )
+    bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.unlink()
+    protected_paths = [
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        journal_path,
+        bot.fence_path_for_journal(journal_path),
+        *[
+            path
+            for path in bot.retirement_auxiliary_paths(
+                bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+            )
+            if path.exists()
+        ],
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+    ]
+    before = {path: path.read_bytes() for path in protected_paths}
+
+    with pytest.raises(
+        bot.ExactReceiptRetirementError,
+        match="no matching outbox obligation",
+    ):
+        bot.reconcile_runtime_historical_context_state()
+
+    assert {path: path.read_bytes() for path in protected_paths} == before
+
+
+def test_interrupted_context_retirement_rejects_terminal_outbox_lineage_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retirement requires the terminal outbox's exact source generation."""
+
+    parent_id = "800053"
+    store, source_receipt, journal_path = _seed_confirmed_context_transport(
+        parent_id=parent_id,
+        quote_id="c" * 64,
+        reply_post_id="980053",
+    )
+    context_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            bot.latch_source_receipt_retirement_uncertainty
+        ),
+    )
+    context_store.promote_sending_receipt_from_confirmed_transport(
+        source_receipt,
+        reply_post_id="980053",
+        confirmation_epoch=1_800_000_001,
+        require_confirmed_transport=True,
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "retire_confirmed_transport_transaction",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            OSError("injected journal retirement failure")
+        ),
+    )
+    with pytest.raises(OSError, match="journal retirement"):
+        context_store.reconcile_receipt_disposition()
+    store.record_confirmed(
+        parent_id,
+        attempt_number=1,
+        reply_post_id="980053",
+        confirmed_epoch=1_800_000_001,
+    )
+    outbox_document = json.loads(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_text(encoding="utf-8")
+    )
+    outbox_document["obligations"][parent_id]["context_reply"][
+        "source_receipt_attempt_number"
+    ] += 1
+    outbox_module._atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+        outbox_document,
+    )
+    protected_paths = [
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        journal_path,
+        bot.fence_path_for_journal(journal_path),
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+        *[
+            path
+            for path in bot.retirement_auxiliary_paths(
+                bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+            )
+            if path.exists()
+        ],
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+    ]
+    before = {path: path.read_bytes() for path in protected_paths}
+
+    with pytest.raises(
+        bot.ExactReceiptRetirementError,
+        match="durable outbox outcome",
+    ):
+        bot.reconcile_runtime_historical_context_state()
+
+    assert {path: path.read_bytes() for path in protected_paths} == before
+
+
+@pytest.mark.parametrize(
+    ("terminal_state", "source_attempt_number"),
+    (
+        ("context_reply_failed_retryable", 1),
+        ("context_reply_failed_terminal", 1),
+        ("context_reply_failed_retryable", 21),
+    ),
+)
+def test_interrupted_proved_failure_retirement_resumes_exactly(
+    terminal_state: str,
+    source_attempt_number: int,
+) -> None:
+    """A crash resumes exact failure even across independent attempt domains."""
+
+    parent_id = str(800054 + source_attempt_number + int(terminal_state.endswith("terminal")))
+    store = _seed_exact_failed_context_attempt(
+        parent_id=parent_id,
+        quote_id=("d" if terminal_state.endswith("retryable") else "e") * 64,
+        reply_text="Context — The remote operation was proved not to occur.",
+        source_attempt_number=source_attempt_number,
+    )
+    receipt_bytes = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    recorder = (
+        store.record_retryable_failure
+        if terminal_state.endswith("retryable")
+        else store.record_terminal_failure
+    )
+    recorder(
+        parent_id,
+        attempt_number=1,
+        error="RemoteOperationsPaused: stopped before transport",
+        failed_epoch=8_200,
+        proved_remote_non_success=True,
+    )
+    bot.prepare_exact_receipt_retirement(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        receipt_bytes,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused failed context retirement preparation"
+        ),
+    )
+
+    assert bot.resume_interrupted_source_receipt_retirement_if_present() is True
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not any(
+        os.path.lexists(path)
+        for path in bot.retirement_auxiliary_paths(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        )
+    )
+    assert store.get(parent_id)["context_reply"]["state"] == terminal_state
+
+
+def test_real_proved_failure_writer_recovers_interrupted_retirement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real failure ordering produces the exact resumable proof triple."""
+
+    parent_id = "800058"
+    quote_id = "2" * 64
+    reply_text = "Context — Local policy proved the request was not sent."
+    outbox = bot.historical_context_outbox_store()
+    outbox.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A quotation with a proved pre-transport failure.",
+    )
+    outbox.claim_attempt(parent_id, started_epoch=8_100)
+    reply_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            bot.latch_source_receipt_retirement_uncertainty
+        ),
+    )
+    real_retire = context_formatter.retire_or_resume_exact_receipt
+
+    def prepare_then_interrupt(source_path, expected_bytes, **kwargs):
+        bot.prepare_exact_receipt_retirement(
+            source_path,
+            expected_bytes,
+            mutation_authority=kwargs["mutation_authority"],
+        )
+        raise OSError("injected post-prepare retirement interruption")
+
+    monkeypatch.setattr(
+        context_formatter,
+        "retire_or_resume_exact_receipt",
+        prepare_then_interrupt,
+    )
+
+    def definite_pretransport_failure(**kwargs):
+        kwargs["on_remote_transaction_started"]()
+        raise bot.RemoteOperationsPaused("paused before transport")
+
+    with pytest.raises(
+        context_formatter.DefiniteContextReplyLocalPersistenceError,
+        match="clear context reply sending record",
+    ):
+        reply_store.post(
+            parent_post_id=parent_id,
+            quote_id=quote_id,
+            reply_text=reply_text,
+            create_post=definite_pretransport_failure,
+            now_epoch=lambda: 1_800_000_000,
+            on_source_receipt_published=(
+                lambda source_sha256, source_attempt: (
+                    outbox.bind_attempt_source_receipt(
+                        parent_id,
+                        attempt_number=1,
+                        source_receipt_sha256=source_sha256,
+                        source_receipt_attempt_number=source_attempt,
+                    )
+                )
+            ),
+            on_remote_transaction_started=(
+                lambda: outbox.mark_remote_transaction_started(
+                    parent_id,
+                    attempt_number=1,
+                )
+            ),
+            on_definite_non_success=(
+                lambda error: bot._record_context_outbox_failure(
+                    outbox,
+                    parent_post_id=parent_id,
+                    attempt_number=1,
+                    error=error,
+                    failed_epoch=1_800_000_001,
+                    proved_remote_non_success=True,
+                )
+            ),
+            remote_failure_is_definite_non_success=lambda error: isinstance(
+                error, bot.RemoteOperationsPaused
+            ),
+        )
+
+    assert outbox.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_failed_retryable"
+    )
+    assert reply_store.history()["items"][parent_id]["status"] == "failed"
+    assert any(
+        os.path.lexists(path)
+        for path in bot.retirement_auxiliary_paths(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        )
+    )
+
+    monkeypatch.setattr(
+        context_formatter,
+        "retire_or_resume_exact_receipt",
+        real_retire,
+    )
+    bot.reconcile_runtime_historical_context_state()
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not any(
+        os.path.lexists(path)
+        for path in bot.retirement_auxiliary_paths(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        )
+    )
+
+
+@pytest.mark.parametrize("mismatch", ("history", "outbox", "marker"))
+def test_interrupted_proved_failure_retirement_rejects_mismatched_authority(
+    mismatch: str,
+) -> None:
+    """Marker, failed history and outbox must bind the same exact source."""
+
+    parent_id = "800056"
+    store = _seed_exact_failed_context_attempt(
+        parent_id=parent_id,
+        quote_id="f" * 64,
+        reply_text="Context — Every local proof must name the same source.",
+    )
+    receipt_bytes = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    store.record_retryable_failure(
+        parent_id,
+        attempt_number=1,
+        error="RemoteOperationsPaused: stopped before transport",
+        failed_epoch=8_200,
+        proved_remote_non_success=True,
+    )
+    if mismatch == "marker":
+        source = json.loads(receipt_bytes)
+        source["reply_text"] += " changed"
+        context_formatter.atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            source,
+        )
+        receipt_bytes = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    bot.prepare_exact_receipt_retirement(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        receipt_bytes,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused mismatched failed context retirement preparation"
+        ),
+    )
+    if mismatch == "history":
+        history = json.loads(
+            bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.read_text(encoding="utf-8")
+        )
+        history["items"][parent_id]["source_receipt_sha256"] = "0" * 64
+        context_formatter.atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            history,
+        )
+    elif mismatch == "outbox":
+        document = json.loads(
+            bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.read_text(encoding="utf-8")
+        )
+        document["obligations"][parent_id]["context_reply"]["failure"][
+            "source_receipt_sha256"
+        ] = "0" * 64
+        outbox_module._atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+            document,
+        )
+    protected = {
+        path: path.read_bytes()
+        for path in (
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+            *bot.retirement_auxiliary_paths(
+                bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+            ),
+        )
+        if path.exists()
+    }
+
+    with pytest.raises(bot.ExactReceiptRetirementError):
+        bot.resume_interrupted_source_receipt_retirement_if_present()
+
+    assert {path: path.read_bytes() for path in protected} == protected
+
+
+def test_source_binding_callback_failure_retains_pretransport_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A local binding fault leaves exact authority for restart recovery."""
+
+    parent_id = "800057"
+    quote_id = "1" * 64
+    reply_text = "Context — Binding failed before transport could begin."
+    outbox = bot.historical_context_outbox_store()
+    outbox.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A quotation whose context receipt remains recoverable.",
+    )
+    outbox.claim_attempt(parent_id, started_epoch=8_100)
+    reply_store = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+        retirement_uncertainty_callback=(
+            bot.latch_source_receipt_retirement_uncertainty
+        ),
+    )
+
+    with pytest.raises(
+        context_formatter.DefiniteContextReplyLocalPersistenceError,
+        match="exact pre-transport receipt was retained",
+    ):
+        reply_store.post(
+            parent_post_id=parent_id,
+            quote_id=quote_id,
+            reply_text=reply_text,
+            create_post=_forbid("transport after failed source binding"),
+            now_epoch=lambda: 1_800_000_000,
+            on_source_receipt_published=lambda *_args: (_ for _ in ()).throw(
+                OSError("injected source-binding persistence failure")
+            ),
+        )
+
+    retained = bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.read_bytes()
+    assert json.loads(retained)["lifecycle_state"] == "sending"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+    assert not bot.journal_path_for_receipt(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    ).exists()
+    assert not any(
+        os.path.lexists(path)
+        for path in bot.retirement_auxiliary_paths(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        )
+    )
+
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_001)
+    bot.reconcile_runtime_historical_context_state()
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    failed = outbox.get(parent_id)["context_reply"]
+    assert failed["state"] == "context_reply_failed_retryable"
+    assert failed["failure"]["remote_outcome"] == "proved_non_success"
+    history = reply_store.history()["items"][parent_id]
+    assert history["status"] == "failed"
+    assert history["source_receipt_sha256"] == hashlib.sha256(retained).hexdigest()
+
+
+def test_worker_never_recasts_confirmed_transport_as_outbox_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A local post-confirmation error preserves the confirmed outbox."""
+
+    parent_id = "800039"
+    quote_id = "0" * 64
+    reply_text = "Context — Remote confirmation precedes local completion."
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A confirmed context reply with interrupted local state.",
+    )
+
+    def confirmed_then_local_failure(**callbacks):
+        source_receipt = {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": parent_id,
+            "quote_id": quote_id,
+            "reply_text": reply_text,
+            "reply_epoch": 1_800_000_000,
+            "started_at": "2026-08-01T12:00:00Z",
+            "attempt_number": 1,
+        }
+        context_formatter.atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            source_receipt,
+        )
+        source_bytes = context_formatter.canonical_json_bytes(source_receipt)
+        callbacks["on_source_receipt_published"](
+            hashlib.sha256(source_bytes).hexdigest(),
+            1,
+        )
+        payload = {
+            "text": reply_text,
+            "reply": {"in_reply_to_tweet_id": parent_id},
+        }
+        binding = bot.bind_lane_transport_source(
+            receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            receipt=source_receipt,
+            lane="historical_context_reply",
+            payload=payload,
+        )
+        authority = bot.begin_transport_transaction(
+            receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            source_binding=binding,
+        )
+        journal_path = bot.journal_path_for_receipt(
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+        )
+        authority = bot.arm_transport_transaction(
+            journal_path,
+            authority,
+            mutation_authority=bot.transaction_mutation_authority(
+                "focused worker journal arming"
+            ),
+        )
+        callbacks["on_remote_transaction_started"]()
+        bot.consume_transport_authority(
+            journal_path,
+            authority,
+            method="POST",
+            request_path="/2/tweets",
+            payload=payload,
+            expected_receipt_path=(
+                bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+            ),
+        )
+        bot.confirm_transport_transaction(
+            journal_path,
+            authority,
+            mutation_authority=bot.transaction_mutation_authority(
+                "focused worker journal confirmation"
+            ),
+            post_id="980039",
+            confirmation_epoch=1_800_000_001,
+        )
+        confirmed_receipt = context_formatter.HistoricalContextReplyStore(
+            bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            mutation_authority_provider=bot.transaction_mutation_authority,
+        ).promote_sending_receipt_from_confirmed_transport(
+            source_receipt,
+            reply_post_id="980039",
+            confirmation_epoch=1_800_000_001,
+            require_confirmed_transport=True,
+        )
+        callbacks["on_confirmed_receipt"](
+            confirmed_receipt,
+            1_800_000_001,
+        )
+        raise OSError("synthetic history directory fsync interruption")
+
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        confirmed_then_local_failure,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    )
+
+    assert result == [
+        {
+            "parent_post_id": parent_id,
+            "status": "failed",
+            "context_reply_state": (
+                "confirmed_local_reconciliation_pending"
+            ),
+        }
+    ]
+    context_reply = store.get(parent_id)["context_reply"]
+    assert context_reply["state"] == "context_reply_confirmed"
+    assert context_reply["reply_post_id"] == "980039"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+    recovered = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    )
+
+    assert recovered["historical_context"] is True
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_confirmed"
+    )
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+
+
+def test_real_context_worker_forwards_confirmed_receipt_before_history_retirement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise worker -> formatter -> store, not a hand-invoked callback."""
+
+    from historical_context_source_roles import POLICY_VERSION
+
+    parent_id = "800049"
+    quote_id = "a" * 64
+    reply_text = "Context — Confirmation is durable before local completion."
+    outbox = bot.historical_context_outbox_store()
+    outbox.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="A complete worker-to-store callback fixture.",
+    )
+    packet = {"quote_id": quote_id, "quote_text": "Canonical quotation."}
+    formatted = {
+        "text": reply_text,
+        "formatter_version": context_formatter.HISTORICAL_CONTEXT_FORMATTER_V5,
+        "template_variant": "test_confirmed_callback_forwarding",
+        "meaning_included": False,
+        "meaning_decision_reason": "Focused transaction fixture.",
+        "raw_character_count": len(reply_text),
+        "character_count": len(reply_text),
+        "weighted_character_count": len(reply_text),
+        "maximum_length": 4_000,
+        "verification_label": "Exact wording",
+        "source_class": "primary",
+        "historical_confidence": "high",
+        "confidence_dimensions": {
+            name: "high"
+            for name in (
+                "attribution",
+                "wording",
+                "source_event",
+                "date",
+                "historical_context",
+                "interpretation",
+            )
+        },
+        "source_role_audit_version": POLICY_VERSION,
+        "rendering_mode": context_formatter.PUBLIC_RENDERING_MODE,
+        "shortening_applied": False,
+    }
+    gate = SimpleNamespace(
+        available=True,
+        ledger_sha256="a" * 64,
+        projection_sha256="b" * 64,
+        disposition=lambda _quote_id: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
+    monkeypatch.setattr(
+        bot,
+        "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT",
+        ({quote_id: packet}, set()),
+    )
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_SEMANTIC_GATE", gate)
+    monkeypatch.setattr(
+        context_formatter,
+        "packet_for_posted_quote",
+        lambda *_args, **_kwargs: packet,
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: formatted,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_010)
+
+    def local_transport(
+        method,
+        path,
+        *,
+        json,
+        _remote_write_authorization,
+        **_kwargs,
+    ):
+        assert (method, path) == ("POST", "/2/tweets")
+        bot.consume_transport_authority(
+            Path(_remote_write_authorization.journal_path),
+            _remote_write_authorization,
+            method=method,
+            request_path=path,
+            payload=json,
+            expected_receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        )
+        return {"data": {"id": "980049"}}
+
+    real_save_history = context_formatter.HistoricalContextReplyStore._save_history
+
+    def fail_completed_history(self, value):
+        item = value.get("items", {}).get(parent_id)
+        if isinstance(item, dict) and item.get("status") == "completed":
+            confirmed = outbox.get(parent_id)["context_reply"]
+            assert confirmed["state"] == "context_reply_confirmed"
+            assert confirmed["reply_post_id"] == "980049"
+            assert confirmed["source_receipt_sha256"] == item[
+                "source_receipt_sha256"
+            ]
+            assert confirmed["source_receipt_attempt_number"] == item[
+                "attempt_number"
+            ]
+            raise OSError("injected completed-history persistence failure")
+        return real_save_history(self, value)
+
+    monkeypatch.setattr(bot, "x_request", local_transport)
+    monkeypatch.setattr(bot, "create_post", _REAL_CREATE_POST)
+    monkeypatch.setattr(
+        context_formatter.HistoricalContextReplyStore,
+        "_save_history",
+        fail_completed_history,
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    )
+
+    assert result == [
+        {
+            "parent_post_id": parent_id,
+            "status": "failed",
+            "context_reply_state": "confirmed_local_reconciliation_pending",
+        }
+    ]
+    confirmed = outbox.get(parent_id)["context_reply"]
+    assert confirmed["state"] == "context_reply_confirmed"
+    assert confirmed["reply_post_id"] == "980049"
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+
+def test_real_context_worker_recovers_confirmed_callback_persistence_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed outbox callback retains exact confirmed recovery authority."""
+
+    parent_id = "800054"
+    outbox = _install_real_context_worker_success_fixture(
+        monkeypatch,
+        parent_id=parent_id,
+        quote_id="d" * 64,
+        reply_text="Context — The confirmation callback failed locally.",
+        reply_post_id="980054",
+    )
+    real_record_confirmed = outbox_module.HistoricalContextOutbox.record_confirmed
+    attempts = {"count": 0}
+
+    def fail_first_confirmation(self, *args, **kwargs):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise OSError("injected outbox confirmation persistence failure")
+        return real_record_confirmed(self, *args, **kwargs)
+
+    monkeypatch.setattr(
+        outbox_module.HistoricalContextOutbox,
+        "record_confirmed",
+        fail_first_confirmation,
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    )
+
+    assert result == [
+        {
+            "parent_post_id": parent_id,
+            "status": "failed",
+            "context_reply_state": "confirmed_local_reconciliation_pending",
+        }
+    ]
+    attempting = outbox.get(parent_id)["context_reply"]
+    assert attempting["state"] == "context_reply_attempting"
+    assert attempting["remote_transaction_started"] is True
+    assert attempting["source_receipt_sha256"]
+    receipt = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )._load_receipt_safely()
+    assert receipt is not None
+    assert receipt[0]["lifecycle_state"] == "confirmed"
+    journal_path = bot.journal_path_for_receipt(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+    assert bot.inspect_transport_state(journal_path).classification == (
+        "confirmed_pair"
+    )
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
+
+    recovered = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(), set(), {}
+    )
+
+    assert recovered["historical_context"] is True
+    confirmed = outbox.get(parent_id)["context_reply"]
+    assert confirmed["state"] == "context_reply_confirmed"
+    assert confirmed["reply_post_id"] == "980054"
+    assert confirmed["source_receipt_sha256"] == attempting[
+        "source_receipt_sha256"
+    ]
+    assert attempts["count"] == 2
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not journal_path.exists()
+
+
 def test_concurrent_context_worker_cannot_claim_a_second_parent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -740,6 +2864,45 @@ def test_concurrent_context_worker_cannot_claim_a_second_parent(
     assert store.get("800021")["context_reply"]["state"] == "context_reply_pending"
 
 
+def test_due_context_claim_survives_clock_rollback_between_observations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A due row remains claimable when the next wall-clock read moves back."""
+
+    parent_id = "800050"
+    due_epoch = 1_800_000_400
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=due_epoch,
+        quote_id="b" * 64,
+        quote_text="A due context obligation across clock rollback.",
+    )
+    observations = iter((due_epoch, due_epoch - 1, due_epoch - 1))
+    monkeypatch.setattr(bot, "now_epoch", lambda: next(observations))
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        lambda **_kwargs: {"status": "disabled"},
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    )
+
+    assert result == [
+        {
+            "parent_post_id": parent_id,
+            "status": "disabled",
+            "context_reply_state": "context_reply_not_required",
+        }
+    ]
+    context = store.get(parent_id)["context_reply"]
+    assert context["state"] == "context_reply_not_required"
+    assert context["updated_epoch"] == due_epoch
+    assert bot._HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON is None
+
+
 def test_interrupted_claim_is_recovered_with_backoff_after_restart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -752,24 +2915,22 @@ def test_interrupted_claim_is_recovered_with_backoff_after_restart(
     )
     claimed = store.claim_attempt("800008", started_epoch=8_100)
     assert claimed["context_reply"]["state"] == "context_reply_attempting"
-    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "items": {
-                    "800008": {
-                        "parent_post_id": "800008",
-                        "quote_id": "7" * 64,
-                        "reply_text": "Rendered context text.",
-                        "status": "failed",
-                        "failure": "TimeoutError: definite pre-send failure",
-                        "attempt_count": 1,
-                        "updated_at": "2026-07-24T00:00:00Z",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800008": {
+                    "parent_post_id": "800008",
+                    "quote_id": "7" * 64,
+                    "reply_text": "Rendered context text.",
+                    "status": "failed",
+                    "failure": "TimeoutError: definite pre-send failure",
+                    "attempt_count": 1,
+                    "updated_at": "2026-07-24T00:00:00Z",
+                }
+            },
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
     monkeypatch.setattr(
@@ -785,7 +2946,7 @@ def test_interrupted_claim_is_recovered_with_backoff_after_restart(
     assert result == [
         {
             "parent_post_id": "800008",
-            "status": "recovered_interrupted_attempt",
+            "status": "recovered_pre_remote_interruption",
             "context_reply_state": "context_reply_failed_retryable",
             "attempt_number": 1,
             "remote_work_repeated": False,
@@ -794,7 +2955,7 @@ def test_interrupted_claim_is_recovered_with_backoff_after_restart(
     recovered = store.get("800008")["context_reply"]
     assert recovered["attempt_count"] == 1
     assert recovered["next_attempt_epoch"] == 8_260
-    assert "definite pre-send failure" in recovered["failure"]["error"]
+    assert "interrupted before remote transaction start" in recovered["failure"]["error"]
     assert bot.process_due_historical_context_obligations(
         parent_post_id="800008",
     ) == []
@@ -841,6 +3002,175 @@ def test_interrupted_pre_remote_context_claim_becomes_retryable_without_marker(
     assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
     assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
     assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_bound_source_receipt_before_journal_recovers_as_pre_remote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exact bound source with no journal still proves transport never began."""
+
+    parent_id = "800044"
+    quote_id = "5" * 64
+    durable_epoch = 1_800_000_100
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=durable_epoch - 10,
+        quote_id=quote_id,
+        quote_text="A crash after source publication but before journal arming.",
+    )
+    store.claim_attempt(parent_id, started_epoch=durable_epoch)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": "Context — The source was durable before transport.",
+        "reply_epoch": durable_epoch,
+        "started_at": "2026-08-01T12:01:40Z",
+        "attempt_number": 21,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: durable_epoch - 1)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("remote work after a proved pre-transport crash"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    )
+
+    assert result == [
+        {
+            "parent_post_id": parent_id,
+            "status": "recovered_pre_remote_interruption",
+            "context_reply_state": "context_reply_failed_retryable",
+            "attempt_number": 1,
+            "remote_work_repeated": False,
+        }
+    ]
+    recovered = store.get(parent_id)["context_reply"]
+    assert recovered["failure"]["failed_epoch"] == durable_epoch
+    assert recovered["failure"]["source_receipt_attempt_number"] == 21
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    history = context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]
+    assert history["attempt_count"] == 21
+    assert history["remote_outcome"] == "proved_non_success"
+
+
+def test_unbound_source_receipt_before_callback_recovers_as_pre_remote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hard crash after publication but before its bind callback is local."""
+
+    parent_id = "800048"
+    quote_id = "9" * 64
+    durable_epoch = 1_800_000_200
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=durable_epoch - 10,
+        quote_id=quote_id,
+        quote_text="A crash between source publication and binding callback.",
+    )
+    store.claim_attempt(parent_id, started_epoch=durable_epoch)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": "Context — Publication preceded the callback crash.",
+        "reply_epoch": durable_epoch,
+        "started_at": "2026-08-01T12:03:20Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: durable_epoch + 1)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("remote work after the publication-to-callback crash"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    )
+
+    assert result[0]["status"] == "recovered_pre_remote_interruption"
+    recovered = store.get(parent_id)["context_reply"]
+    assert recovered["state"] == "context_reply_failed_retryable"
+    assert recovered["failure"]["source_receipt_attempt_number"] == 1
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]["attempt_count"] == 1
+
+
+def test_already_completed_crash_confirms_newly_claimed_outbox() -> None:
+    """A crash after already_completed cannot recast confirmed history as failure."""
+
+    parent_id = "800049"
+    quote_id = "a" * 64
+    durable_epoch = 1_800_000_300
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=durable_epoch - 10,
+        quote_id=quote_id,
+        quote_text="A reply already present in completed history.",
+    )
+    store.claim_attempt(parent_id, started_epoch=durable_epoch)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: {
+                    "schema_version": 1,
+                    "parent_post_id": parent_id,
+                    "reply_post_id": "980049",
+                    "quote_id": quote_id,
+                    "reply_text": "Context — This reply was already completed.",
+                    "reply_epoch": durable_epoch - 20,
+                    "confirmed_at": "legacy-writer-time",
+                    "status": "completed",
+                }
+            },
+        },
+    )
+
+    recovered = bot.recover_interrupted_historical_context_attempt(
+        store,
+        store.get(parent_id),
+        recovered_epoch=durable_epoch + 1,
+    )
+
+    assert recovered["status"] == "recovered_confirmed_history"
+    context = store.get(parent_id)["context_reply"]
+    assert context["state"] == "context_reply_confirmed"
+    assert context["reply_post_id"] == "980049"
+    assert context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]["status"] == "completed"
 
 
 def test_pre_remote_claim_with_transport_journal_stays_blocked(
@@ -893,6 +3223,12 @@ def test_interrupted_remote_started_context_claim_without_history_stays_blocked(
         quote_text="A context reply whose completed history was lost.",
     )
     store.claim_attempt("800018", started_epoch=8_100)
+    store.bind_attempt_source_receipt(
+        "800018",
+        attempt_number=1,
+        source_receipt_sha256="1" * 64,
+        source_receipt_attempt_number=1,
+    )
     store.mark_remote_transaction_started("800018", attempt_number=1)
     context_formatter.atomic_write_json(
         bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
@@ -905,7 +3241,7 @@ def test_interrupted_remote_started_context_claim_without_history_stays_blocked(
                     "reply_post_id": "900018",
                     "quote_id": "6" * 64,
                     "reply_text": "Rendered context text.",
-                    "reply_epoch": 8_101,
+                    "reply_epoch": 1_800_000_101,
                     "confirmed_at": "2026-07-24T00:00:00Z",
                     "status": "completed",
                 }
@@ -1005,24 +3341,22 @@ def test_interrupted_claim_does_not_compare_distinct_store_attempt_ordinals(
     claimed = store.claim_attempt("800010", started_epoch=8_200)
     assert claimed["context_reply"]["attempt_count"] == 2
     assert claimed["context_reply"]["remote_transaction_started"] is False
-    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "items": {
-                    "800010": {
-                        "parent_post_id": "800010",
-                        "quote_id": "9" * 64,
-                        "reply_text": "Rendered context text.",
-                        "status": "failed",
-                        "failure": "TimeoutError: first reply-store attempt failed",
-                        "attempt_count": 1,
-                        "updated_at": "2026-07-24T00:00:00Z",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800010": {
+                    "parent_post_id": "800010",
+                    "quote_id": "9" * 64,
+                    "reply_text": "Rendered context text.",
+                    "status": "failed",
+                    "failure": "TimeoutError: first reply-store attempt failed",
+                    "attempt_count": 1,
+                    "updated_at": "2026-07-24T00:00:00Z",
+                }
+            },
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_300)
     monkeypatch.setattr(
@@ -1035,11 +3369,11 @@ def test_interrupted_claim_does_not_compare_distinct_store_attempt_ordinals(
         parent_post_id="800010",
     )
 
-    assert result[0]["status"] == "recovered_interrupted_attempt"
+    assert result[0]["status"] == "recovered_pre_remote_interruption"
     recovered = store.get("800010")["context_reply"]
     assert recovered["state"] == "context_reply_failed_retryable"
     assert recovered["attempt_count"] == 2
-    assert "first reply-store attempt failed" in recovered["failure"]["error"]
+    assert "interrupted before remote transaction start" in recovered["failure"]["error"]
 
 
 def test_remote_started_claim_cannot_consume_stale_failed_history(
@@ -1062,25 +3396,42 @@ def test_remote_started_claim_cannot_consume_stale_failed_history(
         failed_epoch=8_100,
     )
     store.claim_attempt("800020", started_epoch=8_200)
+    store.bind_attempt_source_receipt(
+        "800020",
+        attempt_number=2,
+        source_receipt_sha256="2" * 64,
+        source_receipt_attempt_number=2,
+    )
     store.mark_remote_transaction_started("800020", attempt_number=2)
-    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "items": {
-                    "800020": {
-                        "parent_post_id": "800020",
-                        "quote_id": "a" * 64,
-                        "reply_text": "Rendered context text.",
-                        "status": "failed",
-                        "failure": "TimeoutError: older first attempt",
-                        "attempt_count": 1,
-                        "updated_at": "2026-08-01T00:00:00Z",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": "800020",
+            "quote_id": "a" * 64,
+            "reply_text": "Rendered context text.",
+            "reply_epoch": 1_800_000_000,
+            "started_at": "2026-08-01T00:00:00Z",
+            "attempt_number": 1,
+        },
+    )
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800020": {
+                    "parent_post_id": "800020",
+                    "quote_id": "a" * 64,
+                    "reply_text": "Rendered context text.",
+                    "status": "failed",
+                    "failure": "TimeoutError: older first attempt",
+                    "attempt_count": 1,
+                    "updated_at": "2026-08-01T00:00:00Z",
+                }
+            },
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_300)
     monkeypatch.setattr(
@@ -1106,6 +3457,503 @@ def test_remote_started_claim_cannot_consume_stale_failed_history(
     )
     assert bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
     assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_remote_started_claim_consumes_exact_failed_sending_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exact same-attempt failure receipt proves definite non-success."""
+
+    parent_id = "800023"
+    quote_id = "d" * 64
+    reply_text = "Context — The local pause prevented transmission."
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A context attempt with exact failure evidence.",
+    )
+    store.claim_attempt(parent_id, started_epoch=8_100)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": reply_text,
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    source_sha256 = _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: _proved_failure_history_item(
+                    source_receipt=source_receipt,
+                    source_sha256=source_sha256,
+                )
+            },
+        },
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("repeating an exactly failed historical-context attempt"),
+    )
+
+    bot.reconcile_runtime_historical_context_state()
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_failed_retryable"
+    )
+    assert bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    ) == []
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_exact_failed_context_receipt_cannot_override_transport_journal() -> None:
+    """Independent transport evidence keeps an exact failed row blocked."""
+
+    parent_id = "800024"
+    quote_id = "e" * 64
+    reply_text = "Context — Failure evidence conflicts with a journal."
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A context attempt with conflicting transport evidence.",
+    )
+    store.claim_attempt(parent_id, started_epoch=8_100)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": reply_text,
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    source_sha256 = _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: _proved_failure_history_item(
+                    source_receipt=source_receipt,
+                    source_sha256=source_sha256,
+                )
+            },
+        },
+    )
+    journal_path = bot.journal_path_for_receipt(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
+    )
+    journal_path.write_bytes(b"unresolved transport evidence\n")
+
+    with pytest.raises(
+        context_formatter.AmbiguousContextReplyOutcome,
+        match="failure history conflicts with an unresolved transport journal",
+    ):
+        bot.recover_interrupted_historical_context_attempt(
+            store,
+            store.get(parent_id),
+            recovered_epoch=8_200,
+            receipt_was_observed=True,
+        )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert journal_path.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_attempting"
+    )
+
+
+def test_exact_failed_context_receipt_survives_outbox_recovery_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The receipt remains until the exact outbox failure is durable."""
+
+    parent_id = "800025"
+    quote_id = "f" * 64
+    reply_text = "Context — Local failure evidence remains restart-safe."
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A context attempt whose outbox write is interrupted.",
+    )
+    store.claim_attempt(parent_id, started_epoch=8_100)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": reply_text,
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    source_sha256 = _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: _proved_failure_history_item(
+                    source_receipt=source_receipt,
+                    source_sha256=source_sha256,
+                )
+            },
+        },
+    )
+    real_record_failure = bot._record_context_outbox_failure
+    monkeypatch.setattr(
+        bot,
+        "_record_context_outbox_failure",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("outbox directory fsync interrupted")
+        ),
+    )
+
+    with pytest.raises(OSError, match="outbox directory fsync interrupted"):
+        bot.reconcile_runtime_historical_context_state()
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_attempting"
+    )
+
+    monkeypatch.setattr(bot, "_record_context_outbox_failure", real_record_failure)
+    bot.reconcile_runtime_historical_context_state()
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_failed_retryable"
+    )
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_unpaused_prebarrier_tick_recovers_paused_exact_context_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exact local failure left by maintenance pause resumes locally."""
+
+    parent_id = "800026"
+    quote_id = "1" * 64
+    reply_text = "Context — Maintenance deferred local reconciliation."
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A context attempt paused across startup.",
+    )
+    store.claim_attempt(parent_id, started_epoch=8_100)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": reply_text,
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    source_sha256 = _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: _proved_failure_history_item(
+                    source_receipt=source_receipt,
+                    source_sha256=source_sha256,
+                )
+            },
+        },
+    )
+    paused = {"value": True}
+    monkeypatch.setattr(
+        bot,
+        "global_remote_writes_paused",
+        lambda: paused["value"],
+    )
+
+    bot.reconcile_runtime_historical_context_state()
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_attempting"
+    )
+
+    paused["value"] = False
+    result = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    )
+
+    assert result["historical_context"] is True
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_failed_retryable"
+    )
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def _seed_exact_failed_context_attempt(
+    *,
+    parent_id: str,
+    quote_id: str,
+    reply_text: str,
+    source_attempt_number: int = 1,
+):
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A context attempt with exact local failure proof.",
+    )
+    store.claim_attempt(parent_id, started_epoch=8_100)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": reply_text,
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": source_attempt_number,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    source_sha256 = _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: _proved_failure_history_item(
+                    source_receipt=source_receipt,
+                    source_sha256=source_sha256,
+                )
+            },
+        },
+    )
+    return store
+
+
+def test_startup_retires_failure_receipt_after_outbox_failure_is_durable() -> None:
+    """A crash after the outbox write leaves a locally completable receipt."""
+
+    parent_id = "800027"
+    store = _seed_exact_failed_context_attempt(
+        parent_id=parent_id,
+        quote_id="2" * 64,
+        reply_text="Context — The durable outbox failure came first.",
+    )
+    store.record_retryable_failure(
+        parent_id,
+        attempt_number=1,
+        error="RemoteOperationsPaused: paused before transport",
+        failed_epoch=8_200,
+        proved_remote_non_success=True,
+    )
+
+    bot.reconcile_runtime_historical_context_state()
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_failed_retryable"
+    )
+
+
+def test_startup_rejects_failure_receipt_conflicting_with_confirmed_outbox() -> None:
+    """Definite failure proof cannot retire against a confirmed outbox."""
+
+    parent_id = "800028"
+    store = _seed_exact_failed_context_attempt(
+        parent_id=parent_id,
+        quote_id="3" * 64,
+        reply_text="Context — Contradictory durable outcomes stay blocked.",
+    )
+    store.record_confirmed(
+        parent_id,
+        attempt_number=1,
+        reply_post_id="980028",
+        confirmed_epoch=8_200,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="failure receipt conflicts with its outbox state",
+    ):
+        bot.reconcile_runtime_historical_context_state()
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_confirmed"
+    )
+
+
+@pytest.mark.parametrize("entrypoint", ("startup", "prebarrier"))
+def test_failed_context_receipt_without_outbox_obligation_stays_blocked(
+    entrypoint: str,
+) -> None:
+    """Local failure proof alone cannot erase its missing outbox authority."""
+
+    parent_id = "800029"
+    quote_id = "4" * 64
+    reply_text = "Context — Missing outbox authority remains blocked."
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": reply_text,
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_receipt,
+    )
+    source_sha256 = hashlib.sha256(
+        context_formatter.canonical_json_bytes(source_receipt)
+    ).hexdigest()
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: _proved_failure_history_item(
+                    source_receipt=source_receipt,
+                    source_sha256=source_sha256,
+                )
+            },
+        },
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="no matching outbox obligation",
+    ):
+        if entrypoint == "startup":
+            bot.reconcile_runtime_historical_context_state()
+        else:
+            bot.reconcile_confirmed_transactions_before_global_barrier(
+                set(),
+                set(),
+                {},
+            )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert context_formatter.HistoricalContextReplyStore(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    ).history()["items"][parent_id]["status"] == "failed"
+
+
+@pytest.mark.parametrize("entrypoint", ("startup", "prebarrier"))
+def test_ambiguous_context_sending_without_outbox_remains_ambiguous(
+    entrypoint: str,
+) -> None:
+    """A plain interrupted send is not recast as a proved local failure."""
+
+    parent_id = "800030"
+    reply_text = "Context — This send has no proved remote outcome."
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        {
+            "schema_version": 1,
+            "lifecycle_state": "sending",
+            "parent_post_id": parent_id,
+            "quote_id": "5" * 64,
+            "reply_text": reply_text,
+            "reply_epoch": 1_800_000_000,
+            "started_at": "2026-08-01T12:00:00Z",
+            "attempt_number": 1,
+        },
+    )
+
+    with pytest.raises(
+        context_formatter.AmbiguousContextReplyOutcome,
+        match="interrupted while sending",
+    ):
+        if entrypoint == "startup":
+            bot.reconcile_runtime_historical_context_state()
+        else:
+            bot.reconcile_confirmed_transactions_before_global_barrier(
+                set(),
+                set(),
+                {},
+            )
+
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.exists()
 
 
 def test_legacy_claim_cannot_consume_stale_failed_history(
@@ -1138,24 +3986,22 @@ def test_legacy_claim_cannot_consume_stale_failed_history(
         bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
         document,
     )
-    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "items": {
-                    "800021": {
-                        "parent_post_id": "800021",
-                        "quote_id": "b" * 64,
-                        "reply_text": "Rendered context text.",
-                        "status": "failed",
-                        "failure": "TimeoutError: older first attempt",
-                        "attempt_count": 1,
-                        "updated_at": "2026-08-01T00:00:00Z",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800021": {
+                    "parent_post_id": "800021",
+                    "quote_id": "b" * 64,
+                    "reply_text": "Rendered context text.",
+                    "status": "failed",
+                    "failure": "TimeoutError: older first attempt",
+                    "attempt_count": 1,
+                    "updated_at": "2026-08-01T00:00:00Z",
+                }
+            },
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_300)
     monkeypatch.setattr(
@@ -1202,24 +4048,22 @@ def test_pre_remote_claim_cannot_consume_stale_failure_over_transport_journal() 
     )
     claimed = store.claim_attempt("800022", started_epoch=8_200)
     assert claimed["context_reply"]["remote_transaction_started"] is False
-    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "items": {
-                    "800022": {
-                        "parent_post_id": "800022",
-                        "quote_id": "c" * 64,
-                        "reply_text": "Rendered context text.",
-                        "status": "failed",
-                        "failure": "TimeoutError: older first attempt",
-                        "attempt_count": 1,
-                        "updated_at": "2026-08-01T00:00:00Z",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800022": {
+                    "parent_post_id": "800022",
+                    "quote_id": "c" * 64,
+                    "reply_text": "Rendered context text.",
+                    "status": "failed",
+                    "failure": "TimeoutError: older first attempt",
+                    "attempt_count": 1,
+                    "updated_at": "2026-08-01T00:00:00Z",
+                }
+            },
+        },
     )
     journal_path = bot.journal_path_for_receipt(
         bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE
@@ -1254,25 +4098,39 @@ def test_interrupted_claim_reconciles_completed_history_without_reposting(
         quote_text="A context reply already confirmed before interruption.",
     )
     store.claim_attempt("800009", started_epoch=8_100)
-    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "items": {
-                    "800009": {
-                        "schema_version": 1,
-                        "parent_post_id": "800009",
-                        "reply_post_id": "900009",
-                        "quote_id": "8" * 64,
-                        "reply_text": "Rendered context text.",
-                        "reply_epoch": 8_101,
-                        "confirmed_at": "2026-07-24T00:00:00Z",
-                        "status": "completed",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "800009",
+        "quote_id": "8" * 64,
+        "reply_text": "Rendered context text.",
+        "reply_epoch": 1_800_000_101,
+        "started_at": "2026-07-24T00:00:00Z",
+        "attempt_number": 1,
+    }
+    _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id="800009",
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800009": {
+                    **source_receipt,
+                    "lifecycle_state": "confirmed",
+                    "reply_post_id": "900009",
+                    "confirmed_at": "2026-07-24T00:00:01Z",
+                    "source_receipt_sha256": hashlib.sha256(
+                        context_formatter.canonical_json_bytes(source_receipt)
+                    ).hexdigest(),
+                    "status": "completed",
+                }
+            },
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
     monkeypatch.setattr(
@@ -1290,6 +4148,74 @@ def test_interrupted_claim_reconciles_completed_history_without_reposting(
     confirmed = store.get("800009")["context_reply"]
     assert confirmed["state"] == "context_reply_confirmed"
     assert confirmed["reply_post_id"] == "900009"
+
+
+def test_interrupted_claim_rejects_stale_completed_history_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A completed row for another source receipt cannot resolve this claim."""
+
+    parent_id = "800034"
+    quote_id = "9" * 64
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=8_000,
+        quote_id=quote_id,
+        quote_text="A later attempt with stale completed history.",
+    )
+    store.claim_attempt(parent_id, started_epoch=8_100)
+    store.bind_attempt_source_receipt(
+        parent_id,
+        attempt_number=1,
+        source_receipt_sha256="c" * 64,
+        source_receipt_attempt_number=1,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    stale_source = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": "Rendered stale context.",
+        "reply_epoch": 1_800_000_101,
+        "started_at": "2026-08-01T00:00:00Z",
+        "attempt_number": 1,
+    }
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: {
+                    **stale_source,
+                    "lifecycle_state": "confirmed",
+                    "reply_post_id": "900034",
+                    "confirmed_at": "2026-08-01T00:00:01Z",
+                    "source_receipt_sha256": hashlib.sha256(
+                        context_formatter.canonical_json_bytes(stale_source)
+                    ).hexdigest(),
+                    "status": "completed",
+                }
+            },
+        },
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 8_200)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("reposting from stale completed history"),
+    )
+
+    result = bot.process_due_historical_context_obligations(
+        parent_post_id=parent_id,
+    )
+
+    assert result[0]["status"] == "interrupted_attempt_recovery_failed"
+    assert result[0]["error_type"] == "AmbiguousContextReplyOutcome"
+    assert store.get(parent_id)["context_reply"]["state"] == (
+        "context_reply_attempting"
+    )
 
 
 def test_interrupted_claim_accepts_completed_history_with_independent_ordinal(
@@ -1310,28 +4236,39 @@ def test_interrupted_claim_accepts_completed_history_with_independent_ordinal(
         failed_epoch=8_100,
     )
     store.claim_attempt("800011", started_epoch=8_200)
-    bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "items": {
-                    "800011": {
-                        "schema_version": 1,
-                        "lifecycle_state": "confirmed",
-                        "parent_post_id": "800011",
-                        "reply_post_id": "900011",
-                        "quote_id": "a" * 64,
-                        "reply_text": "Rendered context text.",
-                        "reply_epoch": 8_201,
-                        "started_at": "2026-07-24T00:00:00Z",
-                        "attempt_number": 1,
-                        "confirmed_at": "2026-07-24T00:00:01Z",
-                        "status": "completed",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "800011",
+        "quote_id": "a" * 64,
+        "reply_text": "Rendered context text.",
+        "reply_epoch": 1_800_000_201,
+        "started_at": "2026-07-24T00:00:00Z",
+        "attempt_number": 1,
+    }
+    _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id="800011",
+        outbox_attempt=2,
+        source_receipt=source_receipt,
+    )
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                "800011": {
+                    **source_receipt,
+                    "lifecycle_state": "confirmed",
+                    "reply_post_id": "900011",
+                    "confirmed_at": "2026-07-24T00:00:01Z",
+                    "source_receipt_sha256": hashlib.sha256(
+                        context_formatter.canonical_json_bytes(source_receipt)
+                    ).hexdigest(),
+                    "status": "completed",
+                }
+            },
+        },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_300)
     monkeypatch.setattr(
@@ -1552,6 +4489,11 @@ def test_bootstrap_refuses_ambiguous_context_sending_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {"schema_version": 1, "items": {}},
+    )
+    bot.historical_context_outbox_store().initialise_empty()
+    context_formatter.atomic_write_json(
         bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         {
             "schema_version": 1,
@@ -1559,7 +4501,7 @@ def test_bootstrap_refuses_ambiguous_context_sending_receipt(
             "parent_post_id": "830001",
             "quote_id": "2" * 64,
             "reply_text": "Context reply text.",
-            "reply_epoch": 8_300,
+            "reply_epoch": 1_800_000_300,
             "started_at": "2026-07-23T20:00:00Z",
             "attempt_number": 1,
         },
@@ -1603,7 +4545,7 @@ def test_context_transport_source_requires_private_receipt_mode() -> None:
         "parent_post_id": "830009",
         "quote_id": "a" * 64,
         "reply_text": "Context reply text.",
-        "reply_epoch": 8_300,
+        "reply_epoch": 1_800_000_300,
         "started_at": "2026-07-23T20:00:00Z",
         "attempt_number": 1,
     }
@@ -1616,16 +4558,16 @@ def test_context_transport_source_requires_private_receipt_mode() -> None:
     assert bot.exact_historical_context_sending_receipt_matches(receipt) is False
 
 
-def test_interrupted_outbox_claim_preserves_sending_receipt_as_global_ambiguity(
+def test_interrupted_outbox_claim_recovers_unbound_pretransport_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    reply_text = "Context — A reply whose remote outcome is not known."
+    reply_text = "Context — A reply published before its binding callback."
     store = bot.historical_context_outbox_store()
     store.enqueue(
         "830002",
         main_post_confirmed_epoch=8_300,
         quote_id="4" * 64,
-        quote_text="The quotation attached to the ambiguous context reply.",
+        quote_text="The quotation attached to the pre-transport context reply.",
     )
     store.claim_attempt("830002", started_epoch=8_301)
     context_formatter.atomic_write_json(
@@ -1636,7 +4578,7 @@ def test_interrupted_outbox_claim_preserves_sending_receipt_as_global_ambiguity(
             "parent_post_id": "830002",
             "quote_id": "4" * 64,
             "reply_text": reply_text,
-            "reply_epoch": 8_301,
+            "reply_epoch": 1_800_000_301,
             "started_at": "2026-07-23T20:00:00Z",
             "attempt_number": 1,
         },
@@ -1647,14 +4589,13 @@ def test_interrupted_outbox_claim_preserves_sending_receipt_as_global_ambiguity(
         parent_post_id="830002",
     )
 
-    assert result[0]["status"] == "interrupted_attempt_recovery_failed"
-    assert (
-        store.get("830002")["context_reply"]["state"]
-        == "context_reply_attempting"
-    )
-    marker = json.loads(bot.AMBIGUOUS_POST_OUTCOME_FILE.read_text(encoding="utf-8"))
-    assert marker["reply_to_id"] == "830002"
-    assert marker["text_sha256"] == hashlib.sha256(reply_text.encode()).hexdigest()
+    assert result[0]["status"] == "recovered_pre_remote_interruption"
+    context = store.get("830002")["context_reply"]
+    assert context["state"] == "context_reply_failed_retryable"
+    assert context["failure"]["remote_outcome"] == "proved_non_success"
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
     assert bot.process_due_historical_context_obligations(
         parent_post_id="830002",
     ) == []
@@ -1683,7 +4624,7 @@ def test_observed_context_receipt_disappearance_remains_globally_blocking(
             "parent_post_id": "830007",
             "quote_id": "9" * 64,
             "reply_text": "Context — The outcome remains unknown.",
-            "reply_epoch": 8_301,
+            "reply_epoch": 1_800_000_301,
             "started_at": "2026-07-23T20:00:00Z",
             "attempt_number": 1,
         },
@@ -1735,7 +4676,7 @@ def test_context_receipt_reconciliation_exception_cannot_claim_another_attempt(
             "parent_post_id": "830002",
             "quote_id": "4" * 64,
             "reply_text": "Context — An unresolved earlier attempt.",
-            "reply_epoch": 8_301,
+            "reply_epoch": 1_800_000_301,
             "started_at": "2026-07-23T20:00:00Z",
             "attempt_number": 1,
         },
@@ -1775,19 +4716,30 @@ def test_confirmed_context_receipt_reconciliation_ends_the_worker_tick(
             quote_text=f"Historical-context quotation {parent_id}.",
         )
     store.claim_attempt("830004", started_epoch=8_301)
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "830004",
+        "quote_id": "6" * 64,
+        "reply_text": "Context — The first attempt was confirmed.",
+        "reply_epoch": 1_800_000_301,
+        "started_at": "2026-07-23T19:59:59Z",
+        "attempt_number": 1,
+    }
+    source_sha256 = _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id="830004",
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
     context_formatter.atomic_write_json(
         bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         {
-            "schema_version": 1,
+            **source_receipt,
             "lifecycle_state": "confirmed",
-            "parent_post_id": "830004",
             "reply_post_id": "930004",
-            "quote_id": "6" * 64,
-            "reply_text": "Context — The first attempt was confirmed.",
-            "reply_epoch": 8_301,
             "confirmed_at": "2026-07-23T20:00:00Z",
-            "started_at": "2026-07-23T19:59:59Z",
-            "attempt_number": 1,
+            "source_receipt_sha256": source_sha256,
         },
     )
     monkeypatch.setattr(bot, "now_epoch", lambda: 8_302)
@@ -1831,7 +4783,7 @@ def test_symlink_context_receipt_never_enters_local_reconciliation(
                 "reply_post_id": "930006",
                 "quote_id": "8" * 64,
                 "reply_text": "Context — Unsafe receipt target.",
-                "reply_epoch": 8_301,
+                "reply_epoch": 1_800_000_301,
                 "confirmed_at": "2026-07-23T20:00:00Z",
             }
         ),
@@ -1880,6 +4832,44 @@ def test_main_acquires_process_lock_before_context_reconciliation(
     assert order == ["lock", "context_reconcile"]
 
 
+def test_main_checks_established_namespace_only_after_process_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Startup authority cannot be derived from a pre-lock namespace view."""
+
+    order: list[str] = []
+
+    class StopAfterReconcile(RuntimeError):
+        pass
+
+    monkeypatch.setattr(bot, "require_production_bootstrap", lambda: None)
+    monkeypatch.setattr(
+        bot,
+        "acquire_instance_lock",
+        lambda: order.append("lock"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "require_established_installation",
+        lambda: order.append("installation"),
+    )
+
+    def stop_after_reconcile() -> None:
+        order.append("context_reconcile")
+        raise StopAfterReconcile
+
+    monkeypatch.setattr(
+        bot,
+        "reconcile_runtime_historical_context_state",
+        stop_after_reconcile,
+    )
+
+    with pytest.raises(StopAfterReconcile):
+        bot.main()
+
+    assert order == ["lock", "installation", "context_reconcile"]
+
+
 @pytest.mark.parametrize(
     "command_name",
     [
@@ -1901,7 +4891,7 @@ def test_one_shot_commands_reconcile_ambiguous_context_receipt_after_lock(
             "parent_post_id": "830003",
             "quote_id": "5" * 64,
             "reply_text": "Context reply with an unresolved remote outcome.",
-            "reply_epoch": 8_303,
+            "reply_epoch": 1_800_000_303,
             "started_at": "2026-07-27T19:00:00Z",
             "attempt_number": 1,
         },
@@ -2006,12 +4996,45 @@ def test_context_runtime_unavailable_does_not_require_outbox_for_main_post(
     assert bot._HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
 
 
+@pytest.mark.parametrize("recovery_entry", ("sole_main", "global_prebarrier"))
+def test_local_recovery_refuses_uninspectable_context_receipt_namespace(
+    recovery_entry: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Local-only recovery also refuses to guess among uninspectable owners."""
+
+    real_lstat = bot.os.lstat
+
+    def fail_context_receipt(path, *args, **kwargs):
+        if Path(path) == bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
+            raise PermissionError("injected context receipt inspection failure")
+        return real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(bot.os, "lstat", fail_context_receipt)
+    with pytest.raises(PermissionError, match="context receipt inspection"):
+        if recovery_entry == "sole_main":
+            bot.confirmed_main_receipt_is_sole_local_recovery_barrier()
+        else:
+            bot.reconcile_confirmed_transactions_before_global_barrier(
+                set(),
+                set(),
+                {},
+                current=1_800_000_000,
+            )
+
+
 @pytest.mark.parametrize(
     "existing_name",
-    ["outbox", "outbox_lock", "remote_write_restart_barrier"],
+    [
+        "outbox",
+        "outbox_lock",
+        "outbox_worker_lock",
+        "remote_write_restart_barrier",
+    ],
 )
 def test_installation_initialisation_refuses_existing_durable_state(
     existing_name: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # This test exercises refusal caused by the selected pre-existing durable
     # target.  Remove the fixture's normal active-protocol sentinel so it
@@ -2023,9 +5046,14 @@ def test_installation_initialisation_refuses_existing_durable_state(
         path = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.with_name(
             f"{bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.name}.lock"
         )
+    elif existing_name == "outbox_worker_lock":
+        path = bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.with_name(
+            f"{bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.name}.worker.lock"
+        )
     else:
         path = bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE
     path.write_text("durable sentinel\n", encoding="utf-8")
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
 
     with pytest.raises(RuntimeError, match="Refusing to initialise"):
         bot.initialise_installation()
@@ -2037,6 +5065,9 @@ def test_main_post_preflight_stops_before_x_when_outbox_becomes_unwritable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class UnwritableOutbox:
+        def snapshot(self) -> dict:
+            return {"schema_version": 1, "obligations": {}}
+
         def verify_writable(self) -> None:
             raise OSError("injected outbox write failure")
 
@@ -2077,10 +5108,17 @@ def test_meme_failure_stage_preserves_quote_state_and_ignores_context_state(
         failed_epoch=8_201,
     )
     outbox_before = outbox.snapshot()
+    class SafetySnapshotOnly:
+        def snapshot(self) -> dict:
+            return outbox_before
+
+        def __getattr__(self, _name: str):
+            return _forbid("daily meme mutation of historical-context outbox")
+
     monkeypatch.setattr(
         bot,
         "historical_context_outbox_store",
-        _forbid("daily meme access to historical-context outbox"),
+        lambda: SafetySnapshotOnly(),
     )
 
     quote_state = {

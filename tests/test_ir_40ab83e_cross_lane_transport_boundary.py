@@ -605,8 +605,26 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
         return
 
     from historical_context_formatter import HistoricalContextReplyStore
+    from historical_context_outbox import HistoricalContextOutbox
     from transaction_mutation_authority import issue_transaction_mutation_authority
 
+    parent_post_id = "111"
+    quote_id = "a" * 64
+    reply_text = "Context — IR-40AB83E local adversarial fixture."
+    outbox = HistoricalContextOutbox(
+        Path(bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE)
+    )
+    outbox.enqueue(
+        parent_post_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id=quote_id,
+        quote_text="IR-40AB83E local adversarial fixture quote.",
+    )
+    claimed = outbox.claim_attempt(
+        parent_post_id,
+        started_epoch=1_800_000_000,
+    )
+    attempt_number = int(claimed["context_reply"]["attempt_count"])
     store = HistoricalContextReplyStore(
         Path(bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE),
         Path(bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE),
@@ -618,11 +636,27 @@ def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:
         ),
     )
     store.post(
-        parent_post_id="111",
-        quote_id="a" * 64,
-        reply_text="Context — IR-40AB83E local adversarial fixture.",
+        parent_post_id=parent_post_id,
+        quote_id=quote_id,
+        reply_text=reply_text,
         create_post=bot.create_post,
         now_epoch=lambda: 1_800_000_000,
+        on_source_receipt_published=(
+            lambda source_sha256, source_attempt_number: (
+                outbox.bind_attempt_source_receipt(
+                    parent_post_id,
+                    attempt_number=attempt_number,
+                    source_receipt_sha256=source_sha256,
+                    source_receipt_attempt_number=source_attempt_number,
+                )
+            )
+        ),
+        on_remote_transaction_started=(
+            lambda: outbox.mark_remote_transaction_started(
+                parent_post_id,
+                attempt_number=attempt_number,
+            )
+        ),
     )
 
 

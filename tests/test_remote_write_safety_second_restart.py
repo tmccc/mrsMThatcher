@@ -14,8 +14,12 @@ from pathlib import Path
 
 import pytest
 
+import exact_receipt_retirement as retirement
 import remote_write_safety_protocol as protocol
-from tests.helpers.protocol_activation import create_test_protocol_activation
+from tests.helpers.protocol_activation import (
+    create_test_protocol_activation,
+    initialise_test_retirement_ledgers,
+)
 from tools import activate_remote_write_safety_protocol as activate
 from tools import reconcile_remote_write_safety_marker as reconcile
 
@@ -135,6 +139,7 @@ def _write_context_sending_receipt(state_directory: Path) -> Path:
             indent=2,
             sort_keys=True,
             allow_nan=False,
+            ensure_ascii=False,
         )
         + "\n"
     ).encode("utf-8")
@@ -184,6 +189,38 @@ def _write_legacy_protocol_activation(state_directory: Path) -> tuple[Path, Path
     audit.write_bytes(audit_bytes)
     audit.chmod(protocol.ACTIVATION_AUDIT_MODE)
     sentinel.write_bytes(protocol.LEGACY_ACTIVATION_BYTES)
+    sentinel.chmod(protocol.ACTIVATION_MODE)
+    for path in (audit, sentinel):
+        descriptor = os.open(path, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    _fsync_directory(state_directory)
+    return sentinel, audit
+
+
+def _write_pre_ledger_protocol_activation(
+    state_directory: Path,
+) -> tuple[Path, Path]:
+    """Publish the exact schema-2 v2 pair accepted only by the migrator."""
+
+    identity = os.stat(state_directory, follow_symlinks=False)
+    audit_bytes = (
+        protocol.build_pre_ledger_established_install_activation_audit_bytes(
+            project_device=int(identity.st_dev),
+            project_inode=int(identity.st_ino),
+            clean_state_attestation_sha256="3" * 64,
+            clean_state_attestation_size=1,
+            activator_cli_sha256="4" * 64,
+            reconciliation_reference="isolated-pre-ledger-v2-migration-fixture",
+        )
+    )
+    audit = state_directory / protocol.ACTIVATION_AUDIT_BASENAME
+    sentinel = state_directory / protocol.ACTIVATION_BASENAME
+    audit.write_bytes(audit_bytes)
+    audit.chmod(protocol.ACTIVATION_AUDIT_MODE)
+    sentinel.write_bytes(protocol.ACTIVATION_BYTES)
     sentinel.chmod(protocol.ACTIVATION_MODE)
     for path in (audit, sentinel):
         descriptor = os.open(path, os.O_RDONLY)
@@ -526,7 +563,8 @@ def test_literal_context_sending_receipt_blocks_every_unrelated_remote_lane(
         "x_request": "blocked",
     }
     assert record["transport_sentinel_calls"] == []
-    assert record["scheduler_sleep_calls"] == 3
+    assert record["scheduler_sleep_calls"] == 0
+    assert record["scheduler_blocked_exception"] == "AmbiguousContextReplyOutcome"
     assert record["scheduler_entries"] == []
     assert record["blocking_after_scheduler"] is True
     assert receipt.read_bytes() == receipt_bytes
@@ -636,14 +674,12 @@ def test_offline_activation_refuses_legacy_then_opens_after_reconciliation(
         "create_post": "blocked",
         "media_upload": "local_transport_reached",
         "provider_request": "local_transport_reached",
-        "receipt_bound_create_post": "local_transport_reached",
         "remote_operation_preflight": "returned",
         "shared_barrier": "returned",
         "x_bearer_request": "blocked",
         "x_request": "blocked",
     }
     assert clean_record["transport_sentinel_calls"] == [
-        "requests.request",
         "requests.post",
         "requests.request",
     ]
@@ -723,6 +759,137 @@ def test_stopped_v1_to_v2_migration_disables_pre_v2_runtime(
             protocol._inspect_legacy_protocol_activation_at(legacy_fd)
     finally:
         os.close(legacy_fd)
+
+
+def test_runtime_rejects_pre_ledger_v2_activation_pair(tmp_path: Path) -> None:
+    """Only the stopped migrator may accept the schema-2 v2 generation."""
+
+    _write_pre_ledger_protocol_activation(tmp_path)
+    with pytest.raises(protocol.ProtocolActivationError):
+        protocol.inspect_protocol_activation(
+            tmp_path / protocol.ACTIVATION_BASENAME
+        )
+
+
+@pytest.mark.parametrize("audit_only", (False, True))
+def test_stopped_pre_ledger_v2_migration_creates_bound_genesis_ledgers(
+    tmp_path: Path,
+    audit_only: bool,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    sentinel, old_audit = _write_pre_ledger_protocol_activation(state_directory)
+    old_audit_bytes = old_audit.read_bytes()
+    if audit_only:
+        sentinel.unlink()
+        _fsync_directory(state_directory)
+
+    result = activate.activate_protocol_offline(
+        **_activation_kwargs(state_directory)
+    )
+
+    assert result.activation_migrated_from_protocol_version == 2
+    assert result.activation_migrated_from_audit_schema_version == 2
+    assert result.schema_version == 3
+    assert result.retirement_ledger_basenames == (
+        activate.RECEIPT_RETIREMENT_LEDGER_BASENAMES
+    )
+    assert old_audit.exists()
+    assert old_audit.read_bytes() != old_audit_bytes
+    assert json.loads(old_audit.read_bytes())["schema_version"] == 3
+    receipt_paths = tuple(
+        state_directory / name for name in activate.RECEIPT_BASENAMES
+    )
+    assert result.retirement_ledger_contract_sha256 == (
+        retirement.retirement_ledger_contract_sha256(receipt_paths)
+    )
+    assert result.retirement_ledger_initial_inventory_sha256 == (
+        retirement.retirement_ledger_inventory_sha256(receipt_paths)
+    )
+    for receipt_path in receipt_paths:
+        inspection = retirement.inspect_retirement_ledger(receipt_path)
+        assert (inspection.valid, inspection.blocking) == (True, False)
+        assert (inspection.state, inspection.sequence) == ("idle", 0)
+
+
+def test_pre_ledger_migration_keeps_old_audit_until_all_ledgers_are_stable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    old_sentinel, old_audit = _write_pre_ledger_protocol_activation(
+        state_directory
+    )
+    original = activate.initialise_retirement_ledger
+    calls = 0
+
+    def fail_during_ledger_creation(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected ledger migration interruption")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        activate,
+        "initialise_retirement_ledger",
+        fail_during_ledger_creation,
+    )
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="offline protocol activation failed",
+    ):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+
+    assert not old_sentinel.exists()
+    assert old_audit.exists()
+    assert not os.path.lexists(state_directory / protocol.ACTIVATION_BASENAME)
+    monkeypatch.setattr(activate, "initialise_retirement_ledger", original)
+    result = activate.activate_protocol_offline(
+        **_activation_kwargs(state_directory)
+    )
+    assert result.activation_migrated_from_audit_schema_version == 2
+
+
+@pytest.mark.parametrize("audit_only", (False, True))
+def test_current_activation_never_recreates_a_missing_required_ledger(
+    tmp_path: Path,
+    audit_only: bool,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    _write_established_activation_state(state_directory)
+    (state_directory / reconcile.LOCK_BASENAME).write_text(
+        f"pid={STOPPED_DAEMON_PID}\n",
+        encoding="ascii",
+    )
+    activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+    if audit_only:
+        (state_directory / protocol.ACTIVATION_BASENAME).unlink()
+        _fsync_directory(state_directory)
+    missing, _exchange = retirement.retirement_ledger_paths(
+        state_directory / activate.RECEIPT_BASENAMES[0]
+    )
+    missing.unlink()
+    _fsync_directory(state_directory)
+
+    with pytest.raises(
+        activate.ProtocolActivationRefused,
+        match="missing or unsafe retirement ledger",
+    ):
+        activate.activate_protocol_offline(**_activation_kwargs(state_directory))
+    assert not os.path.lexists(missing)
 
 
 def test_activation_rejects_torn_dual_v1_v2_namespace(tmp_path: Path) -> None:
@@ -1012,6 +1179,12 @@ def test_v2_activation_audit_and_inventory_are_deterministic(
 ) -> None:
     """Identical bound inputs yield byte-identical v2 audit and inventory."""
 
+    ledger_contract = retirement.retirement_ledger_contract_sha256(
+        tuple(
+            Path(name)
+            for name in protocol.RETIREMENT_LEDGER_RECEIPT_BASENAMES
+        )
+    )
     first = protocol.build_established_install_activation_audit_bytes(
         project_device=11,
         project_inode=22,
@@ -1019,6 +1192,8 @@ def test_v2_activation_audit_and_inventory_are_deterministic(
         clean_state_attestation_size=33,
         activator_cli_sha256="6" * 64,
         reconciliation_reference="deterministic-v2-audit",
+        retirement_ledger_contract_sha256_value=ledger_contract,
+        retirement_ledger_initial_inventory_sha256="8" * 64,
     )
     second = protocol.build_established_install_activation_audit_bytes(
         project_device=11,
@@ -1027,6 +1202,8 @@ def test_v2_activation_audit_and_inventory_are_deterministic(
         clean_state_attestation_size=33,
         activator_cli_sha256="6" * 64,
         reconciliation_reference="deterministic-v2-audit",
+        retirement_ledger_contract_sha256_value=ledger_contract,
+        retirement_ledger_initial_inventory_sha256="8" * 64,
     )
 
     assert first == second
@@ -1037,6 +1214,8 @@ def test_v2_activation_audit_and_inventory_are_deterministic(
         protocol.LEGACY_ACTIVATION_BASENAME
     )
     assert value["legacy_namespace_required_absent"] is True
+    assert value["retirement_ledger_contract_sha256"] == ledger_contract
+    assert value["retirement_ledger_initial_inventory_sha256"] == "8" * 64
     assert activate.REFUSED_STATE_BASENAMES == tuple(
         dict.fromkeys(activate.REFUSED_STATE_BASENAMES)
     )
@@ -1144,6 +1323,7 @@ def test_protocol_activation_never_exposes_partial_final_and_retry_succeeds(
     state_directory = tmp_path / "state"
     state_directory.mkdir()
     activation = state_directory / protocol.ACTIVATION_BASENAME
+    initialise_test_retirement_ledgers(state_directory)
     real_write = protocol.os.write
     writes = 0
 
@@ -1175,6 +1355,7 @@ def test_protocol_activation_persists_audit_before_sentinel_and_retry_succeeds(
     state_directory = tmp_path / "state"
     state_directory.mkdir()
     activation = state_directory / protocol.ACTIVATION_BASENAME
+    initialise_test_retirement_ledgers(state_directory)
     directory_identity = os.stat(state_directory)
     real_fsync = protocol.os.fsync
     directory_fsyncs = 0

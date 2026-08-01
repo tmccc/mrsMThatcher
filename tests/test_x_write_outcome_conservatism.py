@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import signal
 from pathlib import Path
@@ -7,7 +8,9 @@ from types import SimpleNamespace
 
 import pytest
 
+import historical_context_outbox as outbox_module
 import mrsMThatcher2 as bot
+import remote_media_upload_receipt as media_receipt_module
 from historical_context_formatter import (
     AmbiguousContextReplyOutcome,
     HistoricalContextReplyStore,
@@ -58,6 +61,37 @@ def _armed_x_create_authority(payload: dict[str, object]) -> bot.TransportAuthor
             "focused transport arming"
         ),
     )
+
+
+@pytest.mark.parametrize("transport", ("tweet", "media"))
+def test_uninspectable_context_receipt_namespace_blocks_final_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    transport: str,
+) -> None:
+    """A final receipt inspection error is never interpreted as absence."""
+
+    real_lstat = bot.os.lstat
+
+    def deny_context_receipt(path, *args, **kwargs):
+        if Path(path) == bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE:
+            raise PermissionError("injected context receipt inspection failure")
+        return real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(bot.os, "lstat", deny_context_receipt)
+    if transport == "tweet":
+        with pytest.raises(
+            bot.TransportJournalError,
+            match="receipt namespace could not be inspected",
+        ):
+            bot.block_if_unrelated_receipt_appeared_for_tweet_transport(
+                bot.CONFIRMED_REPLY_RECEIPT_FILE
+            )
+    else:
+        with pytest.raises(
+            bot.MediaUploadReceiptError,
+            match="receipt namespace could not be inspected",
+        ):
+            bot.block_if_unrelated_receipt_appeared_for_media_transport()
 
 
 def test_raw_and_bearer_x_create_require_receipt_bound_internal_authority(
@@ -540,6 +574,140 @@ def test_final_pretransport_pause_exactly_aborts_media_pair_without_marker(
     assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
 
 
+def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pause cannot retroactively cancel a durably committed tweet attempt."""
+
+    receipt = unit_sending_v4_reply_receipt(text="unit reply")
+    bot.write_sending_reply_receipt(receipt)
+    pause_active = False
+    consume_calls = 0
+    request_calls = 0
+    durable_attempt_observed = False
+    real_consume = bot.consume_transport_authority
+
+    def consume_then_pause(*args: object, **kwargs: object) -> None:
+        nonlocal pause_active, consume_calls
+        real_consume(*args, **kwargs)
+        consume_calls += 1
+        pause_active = True
+
+    def confirmed_once(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        nonlocal request_calls, durable_attempt_observed
+        request_calls += 1
+        state = bot.inspect_transport_state(
+            bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
+        )
+        durable_attempt_observed = bool(
+            pause_active
+            and state.journal is not None
+            and state.fence is not None
+            and state.journal.document["lifecycle_state"] == "attempting"
+        )
+        return _x_response(201, {"data": {"id": "123456"}})
+
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: pause_active)
+    monkeypatch.setattr(bot, "consume_transport_authority", consume_then_pause)
+    monkeypatch.setattr(bot.requests, "request", confirmed_once)
+
+    result = bot.create_post(
+        "unit reply",
+        reply_to_id=str(receipt["target_id"]),
+        made_with_ai=True,
+        prepared_conversational_reply_receipt=receipt,
+    )
+
+    assert result == {"data": {"id": "123456"}}
+    assert pause_active is True
+    assert consume_calls == 1
+    assert request_calls == 1
+    assert durable_attempt_observed is True
+    details = bot.inspect_confirmed_transport_transaction(
+        bot.journal_path_for_receipt(bot.CONFIRMED_REPLY_RECEIPT_FILE)
+    )
+    assert details.post_id == "123456"
+    confirmed = bot.promote_sending_reply_receipt(
+        receipt,
+        reply_post_id=details.post_id,
+        confirmation_epoch=details.confirmation_epoch,
+    )
+    bot.retire_lane_transport_journal_if_present(
+        receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        receipt=confirmed,
+        lane="conversational_reply",
+        post_id=details.post_id,
+    )
+    bot.remove_confirmed_reply_receipt(confirmed)
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert not Path(details.journal_path).exists()
+    assert not bot.fence_path_for_journal(Path(details.journal_path)).exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_pause_after_media_authority_consumption_is_prospective_and_confirms_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A committed media attempt completes once when pause changes afterwards."""
+
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    pause_active = False
+    consume_calls = 0
+    request_calls = 0
+    durable_attempt_observed = False
+    real_consume = bot.consume_media_upload_authority
+
+    def consume_then_pause(*args: object, **kwargs: object) -> object:
+        nonlocal pause_active, consume_calls
+        result = real_consume(*args, **kwargs)
+        consume_calls += 1
+        pause_active = True
+        return result
+
+    def confirmed_once(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        nonlocal request_calls, durable_attempt_observed
+        request_calls += 1
+        snapshot = media_receipt_module.inspect_media_upload_receipt(
+            bot.MEDIA_UPLOAD_RECEIPT_FILE
+        )
+        durable_attempt_observed = bool(
+            pause_active
+            and snapshot is not None
+            and snapshot.document["lifecycle_state"] == "sending"
+            and bot.media_fence_path_for_receipt(
+                bot.MEDIA_UPLOAD_RECEIPT_FILE
+            ).exists()
+        )
+        return _x_response(201, {"data": {"id": "780001"}})
+
+    monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: pause_active)
+    monkeypatch.setattr(bot, "consume_media_upload_authority", consume_then_pause)
+    monkeypatch.setattr(bot.requests, "request", confirmed_once)
+
+    assert bot.upload_media(str(image), lane="quote_image") == "780001"
+    assert pause_active is True
+    assert consume_calls == 1
+    assert request_calls == 1
+    assert durable_attempt_observed is True
+    confirmed = bot.load_confirmed_media_upload(bot.MEDIA_UPLOAD_RECEIPT_FILE)
+    assert confirmed is not None
+    assert confirmed.media_id == "780001"
+    assert bot._RETAINED_CONFIRMED_POST_SIGINT_GUARD is None
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
 def test_pause_after_media_authority_consumption_cannot_abort_and_records_marker(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -729,6 +897,225 @@ def test_create_post_requires_exactly_one_prepared_durable_receipt(
         match="exactly one prepared durable transaction receipt",
     ):
         bot.create_post("unbound")
+
+
+def _install_attempting_context_outbox(*, remote_phase: bool | None):
+    outbox = outbox_module.HistoricalContextOutbox(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE
+    )
+    parent_id = "1800000001"
+    outbox.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_000,
+        quote_id="a" * 64,
+        quote_text="A reviewed historical-context quotation.",
+    )
+    outbox.claim_attempt(parent_id, started_epoch=1_800_000_001)
+    outbox.bind_attempt_source_receipt(
+        parent_id,
+        attempt_number=1,
+        source_receipt_sha256="d" * 64,
+        source_receipt_attempt_number=1,
+    )
+    if remote_phase is True:
+        outbox.mark_remote_transaction_started(parent_id, attempt_number=1)
+    elif remote_phase is None:
+        snapshot = outbox.snapshot()
+        del snapshot["obligations"][parent_id]["context_reply"][
+            "remote_transaction_started"
+        ]
+        outbox_module._atomic_write_json(
+            bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+            snapshot,
+        )
+    return outbox
+
+
+def _claimed_context_outbox_callbacks(
+    *,
+    parent_post_id: str,
+    quote_id: str,
+    quote_text: str,
+    started_epoch: int,
+) -> tuple[
+    outbox_module.HistoricalContextOutbox,
+    dict[str, object],
+]:
+    """Build the exact production outbox lifecycle for a direct store test."""
+
+    outbox = outbox_module.HistoricalContextOutbox(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE
+    )
+    outbox.enqueue(
+        parent_post_id,
+        main_post_confirmed_epoch=started_epoch,
+        quote_id=quote_id,
+        quote_text=quote_text,
+    )
+    claimed = outbox.claim_attempt(
+        parent_post_id,
+        started_epoch=started_epoch,
+    )
+    attempt_number = int(claimed["context_reply"]["attempt_count"])
+    callbacks: dict[str, object] = {
+        "on_source_receipt_published": (
+            lambda source_sha256, source_attempt_number: (
+                outbox.bind_attempt_source_receipt(
+                    parent_post_id,
+                    attempt_number=attempt_number,
+                    source_receipt_sha256=source_sha256,
+                    source_receipt_attempt_number=source_attempt_number,
+                )
+            )
+        ),
+        "on_remote_transaction_started": (
+            lambda: outbox.mark_remote_transaction_started(
+                parent_post_id,
+                attempt_number=attempt_number,
+            )
+        ),
+        "on_confirmed_receipt": (
+            lambda confirmed_receipt, confirmation_epoch: (
+                outbox.record_confirmed(
+                    parent_post_id,
+                    attempt_number=attempt_number,
+                    reply_post_id=confirmed_receipt["reply_post_id"],
+                    confirmed_epoch=confirmation_epoch,
+                )
+            )
+        ),
+    }
+    return outbox, callbacks
+
+
+@pytest.mark.parametrize("remote_phase", [True, None])
+def test_remote_or_legacy_attempting_outbox_is_a_global_barrier_when_runtime_unavailable(
+    remote_phase: bool | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lost source files cannot hide a durable possibly transmitted attempt."""
+
+    outbox = _install_attempting_context_outbox(remote_phase=remote_phase)
+    monkeypatch.setattr(
+        bot,
+        "_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON",
+        "injected unavailable runtime",
+    )
+
+    assert bot.historical_context_outbox_remote_attempt_is_blocking() is True
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="outbox attempt may have reached remote transport",
+    ):
+        bot.block_if_ambiguous_remote_post()
+    assert bot._process_due_historical_context_obligations(store=outbox) == []
+    assert outbox.get("1800000001")["context_reply"]["state"] == (
+        "context_reply_attempting"
+    )
+
+
+def test_explicit_pre_remote_attempting_outbox_is_not_a_global_barrier() -> None:
+    """The durable false phase remains eligible for bounded local recovery."""
+
+    _install_attempting_context_outbox(remote_phase=False)
+
+    assert bot.historical_context_outbox_remote_attempt_is_blocking() is False
+    assert bot.ambiguous_remote_post_is_blocking() is False
+    bot.block_if_ambiguous_remote_post()
+
+
+@pytest.mark.parametrize(
+    "outbox_scenario",
+    ["exact", "unrelated_attempt", "missing_remote_phase", "missing_obligation"],
+)
+def test_exact_armed_context_attempt_requires_own_row_and_blocks_unrelated_barrier(
+    outbox_scenario: str,
+) -> None:
+    """Final preflight exempts only its exact armed remote-started row."""
+
+    receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "123",
+        "quote_id": "a" * 64,
+        "reply_text": "reviewed context",
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 1,
+    }
+    bot.atomic_write_json(bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE, receipt)
+    payload = {
+        "text": receipt["reply_text"],
+        "reply": {"in_reply_to_tweet_id": receipt["parent_post_id"]},
+    }
+    prepared = bot.begin_transport_transaction(
+        receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        expected_receipt=receipt,
+        lane="historical_context_reply",
+        payload=payload,
+        source_validator_id="unit-test-context-outbox-binding-v1",
+        source_validator=lambda lane, observed, body: bool(
+            lane == "historical_context_reply"
+            and observed == receipt
+            and body == payload
+        ),
+    )
+    authority = bot.arm_transport_transaction(
+        Path(prepared.journal_path),
+        prepared,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused exact context outbox arming"
+        ),
+    )
+    outbox = outbox_module.HistoricalContextOutbox(
+        bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE
+    )
+    if outbox_scenario != "missing_obligation":
+        outbox.enqueue(
+            "123",
+            main_post_confirmed_epoch=1_800_000_000,
+            quote_id=receipt["quote_id"],
+            quote_text="A reviewed quotation.",
+        )
+        outbox.claim_attempt("123", started_epoch=1_800_000_001)
+        outbox.bind_attempt_source_receipt(
+            "123",
+            attempt_number=1,
+            source_receipt_sha256=hashlib.sha256(
+                bot.canonical_atomic_json_bytes(receipt)
+            ).hexdigest(),
+            source_receipt_attempt_number=1,
+        )
+        if outbox_scenario != "missing_remote_phase":
+            outbox.mark_remote_transaction_started("123", attempt_number=1)
+    if outbox_scenario == "unrelated_attempt":
+        outbox.enqueue(
+            "124",
+            main_post_confirmed_epoch=1_800_000_000,
+            quote_id="b" * 64,
+            quote_text="Another reviewed quotation.",
+        )
+        outbox.claim_attempt("124", started_epoch=1_800_000_001)
+        outbox.bind_attempt_source_receipt(
+            "124",
+            attempt_number=1,
+            source_receipt_sha256="e" * 64,
+            source_receipt_attempt_number=1,
+        )
+        outbox.mark_remote_transaction_started("124", attempt_number=1)
+
+    if outbox_scenario != "exact":
+        with pytest.raises(bot.AmbiguousRemotePostOutcome, match="outbox attempt"):
+            bot.require_remote_operation_unpaused(
+                "focused historical-context transport",
+                transaction_authorization=authority,
+            )
+    else:
+        bot.require_remote_operation_unpaused(
+            "focused historical-context transport",
+            transaction_authorization=authority,
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -1136,13 +1523,8 @@ def test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry
 ) -> None:
     store = HistoricalContextReplyStore(
         tmp_path / "context-history.json",
-        tmp_path / "context-receipt.json",
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         mutation_authority_provider=bot.transaction_mutation_authority,
-    )
-    monkeypatch.setattr(
-        bot,
-        "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
-        store.receipt_path,
     )
     remote_calls = 0
 
@@ -1156,6 +1538,12 @@ def test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry
         return _x_response(409, {"errors": [{"detail": "generic conflict"}]})
 
     monkeypatch.setattr(bot.requests, "request", generic_409)
+    _outbox, callbacks = _claimed_context_outbox_callbacks(
+        parent_post_id="111",
+        quote_id="a" * 64,
+        quote_text="A reviewed historical-context quotation.",
+        started_epoch=1_800_000_000,
+    )
 
     def create_context_post(**kwargs: object) -> dict:
         return bot.create_post(**kwargs)
@@ -1166,7 +1554,8 @@ def test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry
             quote_id="a" * 64,
             reply_text="Context",
             create_post=create_context_post,
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
+            **callbacks,
         )
 
     sending = json.loads(store.receipt_path.read_text(encoding="utf-8"))
@@ -1182,7 +1571,7 @@ def test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry
             create_post=lambda **_kwargs: pytest.fail(
                 "restart must not repeat an ambiguous context create"
             ),
-            now_epoch=lambda: 124,
+            now_epoch=lambda: 1_800_000_001,
         )
 
     assert remote_calls == 1
@@ -1210,6 +1599,12 @@ def test_exact_owning_historical_context_create_is_allowed_once(
         return _x_response(201, {"data": {"id": "222"}})
 
     monkeypatch.setattr(bot.requests, "request", accepted)
+    _outbox, callbacks = _claimed_context_outbox_callbacks(
+        parent_post_id="111",
+        quote_id="a" * 64,
+        quote_text="A reviewed historical-context quotation.",
+        started_epoch=1_800_000_000,
+    )
 
     result = store.post(
         parent_post_id="111",
@@ -1217,6 +1612,7 @@ def test_exact_owning_historical_context_create_is_allowed_once(
         reply_text="Context — exact transaction owner.",
         create_post=bot.create_post,
         now_epoch=lambda: 1_800_000_000,
+        **callbacks,
     )
 
     assert result["status"] == "completed"
@@ -1239,6 +1635,12 @@ def test_historical_context_remote_phase_callback_runs_after_arm_before_transpor
     )
     events: list[str] = []
     real_arm = bot.arm_transport_transaction
+    outbox, callbacks = _claimed_context_outbox_callbacks(
+        parent_post_id="112",
+        quote_id="b" * 64,
+        quote_text="A reviewed historical-context quotation.",
+        started_epoch=1_800_000_000,
+    )
 
     def recording_arm(*args: object, **kwargs: object) -> bot.TransportAuthority:
         authority = real_arm(*args, **kwargs)
@@ -1249,6 +1651,7 @@ def test_historical_context_remote_phase_callback_runs_after_arm_before_transpor
         assert bot.transport_journal_is_blocking(
             bot.journal_path_for_receipt(store.receipt_path)
         )
+        callbacks["on_remote_transaction_started"]()
         events.append("remote_phase_durable")
 
     def accepted(
@@ -1268,7 +1671,9 @@ def test_historical_context_remote_phase_callback_runs_after_arm_before_transpor
         reply_text="Context — durable remote phase ordering.",
         create_post=bot.create_post,
         now_epoch=lambda: 1_800_000_000,
+        on_source_receipt_published=callbacks["on_source_receipt_published"],
         on_remote_transaction_started=mark_remote_started,
+        on_confirmed_receipt=callbacks["on_confirmed_receipt"],
     )
 
     assert result["status"] == "completed"

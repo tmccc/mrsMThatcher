@@ -29,6 +29,13 @@ def _mutation_authority():
 
 def _prepare_exact_receipt_retirement(*args, **kwargs):
     kwargs.setdefault("mutation_authority", _mutation_authority())
+    source = Path(args[0])
+    ledger, exchange = exact.retirement_ledger_paths(source)
+    if not os.path.lexists(ledger) and not os.path.lexists(exchange):
+        exact.initialise_retirement_ledger(
+            source,
+            mutation_authority=_mutation_authority(),
+        )
     return exact.prepare_exact_receipt_retirement(*args, **kwargs)
 
 
@@ -361,6 +368,10 @@ def install_confirmed_lane_transaction(
         "historical_context_reply": "historical_context_reply_receipt.json",
     }[lane]
     write_exact(receipt_path, source_bytes)
+    exact.initialise_retirement_ledger(
+        receipt_path,
+        mutation_authority=_mutation_authority(),
+    )
     payload = {"text": f"reviewed {lane}"}
     authority = journal.begin_transport_transaction(
         receipt_path=receipt_path,
@@ -413,7 +424,65 @@ def test_pause_snapshot_preserves_then_resumes_each_lane_exactly(
 ) -> None:
     paths = configure_lane_paths(monkeypatch, tmp_path)
     source = paths[lane_index]
-    data = b'{"confirmed":true,"lane":%d}\n' % lane_index
+    if lane_index == 3:
+        from historical_context_outbox import HistoricalContextOutbox
+
+        _sending, confirmed, _sending_bytes, data, reply_post_id = (
+            production_lane_documents("historical_context_reply")
+        )
+        history_path = tmp_path / "historical_context_reply_history.json"
+        outbox_path = tmp_path / "historical_context_reply_outbox.json"
+        monkeypatch.setattr(
+            bot,
+            "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE",
+            history_path,
+        )
+        monkeypatch.setattr(
+            bot,
+            "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE",
+            outbox_path,
+        )
+        context.atomic_write_json(
+            history_path,
+            {
+                "schema_version": 1,
+                "items": {
+                    confirmed["parent_post_id"]: {
+                        **confirmed,
+                        "status": "completed",
+                    }
+                },
+            },
+        )
+        outbox = HistoricalContextOutbox(outbox_path)
+        outbox.enqueue(
+            confirmed["parent_post_id"],
+            main_post_confirmed_epoch=1_800_000_000,
+            quote_id=confirmed["quote_id"],
+            quote_text="A reviewed historical-context quotation.",
+        )
+        outbox.claim_attempt(
+            confirmed["parent_post_id"],
+            started_epoch=1_800_000_001,
+        )
+        outbox.bind_attempt_source_receipt(
+            confirmed["parent_post_id"],
+            attempt_number=1,
+            source_receipt_sha256=confirmed["source_receipt_sha256"],
+            source_receipt_attempt_number=confirmed["attempt_number"],
+        )
+        outbox.mark_remote_transaction_started(
+            confirmed["parent_post_id"],
+            attempt_number=1,
+        )
+        outbox.record_confirmed(
+            confirmed["parent_post_id"],
+            attempt_number=1,
+            reply_post_id=reply_post_id,
+            confirmed_epoch=1_800_000_010,
+        )
+    else:
+        data = b'{"confirmed":true,"lane":%d}\n' % lane_index
     write_exact(source, data)
     _prepare_exact_receipt_retirement(source, data)
     before = namespace_snapshot(source)
@@ -477,7 +546,7 @@ def test_prepared_source_guard_overlaps_journal_restart_without_hard_link(
         journal_path,
         authority,
         post_id="123",
-        confirmation_epoch=10,
+        confirmation_epoch=1_800_000_010,
     )
     confirmed = {**source, "lifecycle_state": "confirmed", "post_id": "123"}
     confirmed_bytes = journal.canonical_json_bytes(confirmed)

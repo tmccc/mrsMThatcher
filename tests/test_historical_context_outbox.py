@@ -5,6 +5,7 @@ import multiprocessing
 import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -94,6 +95,82 @@ def test_multiple_obligations_separate_confirmed_main_post_from_optional_context
     assert detached is not None
     detached["main_post"]["state"] = "tampered"
     assert outbox.get("100")["main_post"]["state"] == MAIN_POST_CONFIRMED
+
+
+def test_empty_outbox_initialisation_is_explicit_and_non_overwriting(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "historical_context_outbox.json"
+    outbox = HistoricalContextOutbox(path)
+
+    initial = outbox.initialise_empty()
+
+    assert path.is_file()
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert initial == outbox.snapshot()
+    assert initial["obligations"] == {}
+    before = path.read_bytes()
+    with pytest.raises(OutboxConflictError, match="existing outbox namespace"):
+        outbox.initialise_empty()
+    assert path.read_bytes() == before
+
+
+def test_required_established_outbox_never_reinterprets_disappearance_as_empty(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "historical_context_outbox.json"
+    outbox = HistoricalContextOutbox(path, require_existing=True)
+    outbox.initialise_empty()
+    outbox.enqueue(
+        "102",
+        main_post_confirmed_epoch=1_002,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    path.unlink()
+
+    with pytest.raises(OutboxValidationError, match="established.*missing"):
+        outbox.snapshot()
+
+
+def test_outbox_initialisation_fails_closed_on_namespace_inspection_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Initialisation cannot overwrite a namespace it failed to inspect."""
+
+    path = tmp_path / "historical_context_outbox.json"
+    real_lstat = outbox_module.os.lstat
+
+    def fail_target(target, *args, **kwargs):
+        if Path(target) == path:
+            raise PermissionError("injected outbox inspection failure")
+        return real_lstat(target, *args, **kwargs)
+
+    monkeypatch.setattr(outbox_module.os, "lstat", fail_target)
+    with pytest.raises(OutboxValidationError, match="cannot be inspected"):
+        HistoricalContextOutbox(path).initialise_empty()
+    assert not path.exists()
+
+
+def test_outbox_read_fails_closed_on_namespace_inspection_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reader cannot reinterpret failed inspection as an empty outbox."""
+
+    path = tmp_path / "historical_context_outbox.json"
+    outbox = HistoricalContextOutbox(path)
+    real_lstat = outbox_module.os.lstat
+
+    def fail_target(target, *args, **kwargs):
+        if Path(target) == path:
+            raise PermissionError("injected outbox inspection failure")
+        return real_lstat(target, *args, **kwargs)
+
+    monkeypatch.setattr(outbox_module.os, "lstat", fail_target)
+    with pytest.raises(OutboxValidationError, match="cannot be inspected"):
+        outbox.snapshot()
 
 
 def test_enqueue_and_retry_updates_are_idempotent_and_do_not_regress(
@@ -323,6 +400,32 @@ def test_remote_transaction_phase_is_strict_durable_and_one_way(
     claimed = outbox.claim_attempt("306", started_epoch=3_010)
 
     assert claimed["context_reply"]["remote_transaction_started"] is False
+    with pytest.raises(OutboxConflictError, match="no exact source-receipt binding"):
+        outbox.mark_remote_transaction_started("306", attempt_number=1)
+    bound = outbox.bind_attempt_source_receipt(
+        "306",
+        attempt_number=1,
+        source_receipt_sha256="a" * 64,
+        source_receipt_attempt_number=7,
+    )
+    assert bound["context_reply"]["source_receipt_sha256"] == "a" * 64
+    assert bound["context_reply"]["source_receipt_attempt_number"] == 7
+    assert (
+        outbox.bind_attempt_source_receipt(
+            "306",
+            attempt_number=1,
+            source_receipt_sha256="a" * 64,
+            source_receipt_attempt_number=7,
+        )
+        == bound
+    )
+    with pytest.raises(OutboxConflictError, match="conflicting source receipt"):
+        outbox.bind_attempt_source_receipt(
+            "306",
+            attempt_number=1,
+            source_receipt_sha256="b" * 64,
+            source_receipt_attempt_number=7,
+        )
     started = outbox.mark_remote_transaction_started(
         "306",
         attempt_number=1,
@@ -336,6 +439,126 @@ def test_remote_transaction_phase_is_strict_durable_and_one_way(
         outbox.mark_remote_transaction_started("306", attempt_number=1)
     with pytest.raises(OutboxConflictError, match="does not match"):
         outbox.mark_remote_transaction_started("306", attempt_number=2)
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    ("retryable", "terminal", "not_required"),
+)
+def test_remote_started_attempt_rejects_every_unproved_local_outcome(
+    outcome: str,
+    tmp_path: Path,
+) -> None:
+    """A peer phase transition cannot be recast as safe local failure."""
+
+    outbox = HistoricalContextOutbox(tmp_path / f"{outcome}.json")
+    outbox.enqueue(
+        "316",
+        main_post_confirmed_epoch=3_000,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("316", started_epoch=3_010)
+    outbox.bind_attempt_source_receipt(
+        "316",
+        attempt_number=1,
+        source_receipt_sha256="f" * 64,
+        source_receipt_attempt_number=7,
+    )
+    outbox.mark_remote_transaction_started("316", attempt_number=1)
+
+    with pytest.raises(OutboxConflictError, match="remote non-success|not_required"):
+        if outcome == "retryable":
+            outbox.record_retryable_failure(
+                "316",
+                attempt_number=1,
+                error="unproved local error",
+                failed_epoch=3_011,
+            )
+        elif outcome == "terminal":
+            outbox.record_terminal_failure(
+                "316",
+                attempt_number=1,
+                error="unproved local error",
+                failed_epoch=3_011,
+            )
+        else:
+            outbox.mark_not_required(
+                "316",
+                reason="unproved local decision",
+                decided_epoch=3_011,
+            )
+
+    current = outbox.get("316")["context_reply"]
+    assert current["state"] == CONTEXT_REPLY_ATTEMPTING
+    assert current["remote_transaction_started"] is True
+
+
+def test_legacy_unknown_phase_rejects_unproved_failure(
+    tmp_path: Path,
+) -> None:
+    """Missing legacy phase is ambiguous, never an implicit local failure."""
+
+    path = tmp_path / "legacy.json"
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "317",
+        main_post_confirmed_epoch=3_000,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("317", started_epoch=3_010)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["obligations"]["317"]["context_reply"].pop(
+        "remote_transaction_started"
+    )
+    outbox_module._atomic_write_json(path, document)
+
+    with pytest.raises(OutboxConflictError, match="remote non-success"):
+        outbox.record_retryable_failure(
+            "317",
+            attempt_number=1,
+            error="unproved legacy error",
+            failed_epoch=3_011,
+        )
+
+
+def test_outbox_attempt_one_can_bind_source_receipt_attempt_twenty_one(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "outbox.json"
+    outbox = HistoricalContextOutbox(path, base_backoff_seconds=10)
+    outbox.enqueue(
+        "308",
+        main_post_confirmed_epoch=3_000,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    claimed = outbox.claim_attempt("308", started_epoch=3_010)
+
+    assert claimed["context_reply"]["attempt_count"] == 1
+    bound = outbox.bind_attempt_source_receipt(
+        "308",
+        attempt_number=1,
+        source_receipt_sha256="c" * 64,
+        source_receipt_attempt_number=21,
+    )
+    assert bound["context_reply"]["source_receipt_attempt_number"] == 21
+
+    failed = outbox.record_retryable_failure(
+        "308",
+        attempt_number=1,
+        error="definite pre-send failure",
+        failed_epoch=3_011,
+        proved_remote_non_success=True,
+    )
+    assert failed["context_reply"]["failure"][
+        "source_receipt_attempt_number"
+    ] == 21
+    assert HistoricalContextOutbox(
+        path,
+        base_backoff_seconds=10,
+    ).snapshot()["obligations"]["308"] == failed
 
 
 def test_attempting_phase_accepts_only_boolean_and_legacy_is_not_upgradeable(
@@ -366,7 +589,7 @@ def test_attempting_phase_accepts_only_boolean_and_legacy_is_not_upgradeable(
         outbox.mark_remote_transaction_started("307", attempt_number=1)
 
 
-def test_outcomes_require_a_durable_claim_and_reject_clock_regression(
+def test_outcomes_require_a_durable_claim_and_clamp_policy_clock_regression(
     tmp_path: Path,
 ) -> None:
     outbox = HistoricalContextOutbox(tmp_path / "outbox.json")
@@ -392,13 +615,203 @@ def test_outcomes_require_a_durable_claim_and_reject_clock_regression(
         )
     claimed = outbox.claim_attempt("305", started_epoch=3_010)
     assert claimed["context_reply"]["state"] == CONTEXT_REPLY_ATTEMPTING
-    with pytest.raises(ValueError, match="precedes the claimed"):
-        outbox.mark_not_required(
-            "305",
-            reason="clock regression fixture",
-            decided_epoch=3_009,
-        )
-    assert outbox.get("305")["context_reply"] == claimed["context_reply"]
+    decided = outbox.mark_not_required(
+        "305",
+        reason="clock regression fixture",
+        decided_epoch=3_009,
+    )
+    assert decided["context_reply"] == {
+        "state": NOT_REQUIRED,
+        "reason": "clock regression fixture",
+        "updated_epoch": 3_010,
+    }
+
+
+def test_proved_non_success_clamps_wall_clock_rollback_to_durable_epoch(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "outbox.json"
+    durable_epoch = 3_100
+    outbox = HistoricalContextOutbox(path, base_backoff_seconds=10)
+    outbox.enqueue(
+        "309",
+        main_post_confirmed_epoch=durable_epoch - 10,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("309", started_epoch=durable_epoch)
+    outbox.bind_attempt_source_receipt(
+        "309",
+        attempt_number=1,
+        source_receipt_sha256="d" * 64,
+        source_receipt_attempt_number=1,
+    )
+
+    failed = outbox.record_retryable_failure(
+        "309",
+        attempt_number=1,
+        error="definite pre-send failure after wall-clock rollback",
+        failed_epoch=durable_epoch - 1,
+        proved_remote_non_success=True,
+    )
+    context_reply = failed["context_reply"]
+    assert context_reply["updated_epoch"] == durable_epoch
+    assert context_reply["failure"]["failed_epoch"] == durable_epoch
+    assert context_reply["next_attempt_epoch"] == durable_epoch + 10
+    assert HistoricalContextOutbox(
+        path,
+        base_backoff_seconds=10,
+    ).snapshot()["obligations"]["309"] == failed
+
+
+def test_pre_remote_failure_clamps_wall_clock_rollback_to_durable_epoch(
+    tmp_path: Path,
+) -> None:
+    """A local pre-transport crash is not stranded by CLOCK_REALTIME rollback."""
+
+    path = tmp_path / "outbox.json"
+    durable_epoch = 3_150
+    outbox = HistoricalContextOutbox(path, base_backoff_seconds=10)
+    outbox.enqueue(
+        "311",
+        main_post_confirmed_epoch=durable_epoch - 10,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("311", started_epoch=durable_epoch)
+
+    failed = outbox.record_retryable_failure(
+        "311",
+        attempt_number=1,
+        error="interrupted before the transport transaction",
+        failed_epoch=durable_epoch - 1,
+    )
+
+    context_reply = failed["context_reply"]
+    assert context_reply["updated_epoch"] == durable_epoch
+    assert context_reply["failure"]["failed_epoch"] == durable_epoch
+    assert context_reply["next_attempt_epoch"] == durable_epoch + 10
+    assert HistoricalContextOutbox(
+        path,
+        base_backoff_seconds=10,
+    ).snapshot()["obligations"]["311"] == failed
+
+
+def test_confirmed_outcome_clamps_wall_clock_rollback_to_durable_epoch(
+    tmp_path: Path,
+) -> None:
+    """Remote identity proof is not stranded by CLOCK_REALTIME rollback."""
+
+    path = tmp_path / "outbox.json"
+    durable_epoch = 3_200
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "310",
+        main_post_confirmed_epoch=durable_epoch - 10,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("310", started_epoch=durable_epoch)
+
+    confirmed = outbox.record_confirmed(
+        "310",
+        attempt_number=1,
+        reply_post_id="9310",
+        confirmed_epoch=durable_epoch - 1,
+    )
+
+    context_reply = confirmed["context_reply"]
+    assert context_reply["updated_epoch"] == durable_epoch
+    assert context_reply["confirmed_epoch"] == durable_epoch
+    assert HistoricalContextOutbox(path).snapshot()["obligations"]["310"] == (
+        confirmed
+    )
+
+
+def test_confirmed_outcome_retains_exact_source_receipt_lineage(
+    tmp_path: Path,
+) -> None:
+    """A terminal outcome cannot forget which local source it confirmed."""
+
+    path = tmp_path / "outbox.json"
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "312",
+        main_post_confirmed_epoch=3_200,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("312", started_epoch=3_210)
+    outbox.bind_attempt_source_receipt(
+        "312",
+        attempt_number=1,
+        source_receipt_sha256="d" * 64,
+        source_receipt_attempt_number=7,
+    )
+    outbox.mark_remote_transaction_started("312", attempt_number=1)
+
+    confirmed = outbox.record_confirmed(
+        "312",
+        attempt_number=1,
+        reply_post_id="9312",
+        confirmed_epoch=3_220,
+    )["context_reply"]
+
+    assert confirmed["source_receipt_sha256"] == "d" * 64
+    assert confirmed["source_receipt_attempt_number"] == 7
+    assert outbox.record_confirmed(
+        "312",
+        attempt_number=1,
+        reply_post_id="9312",
+        confirmed_epoch=3_220,
+    )["context_reply"] == confirmed
+    assert HistoricalContextOutbox(path).get("312")["context_reply"] == confirmed
+
+
+@pytest.mark.parametrize(
+    "source_fields",
+    (
+        {"source_receipt_sha256": "d" * 64},
+        {"source_receipt_attempt_number": 1},
+        {
+            "source_receipt_sha256": "not-a-sha256",
+            "source_receipt_attempt_number": 1,
+        },
+        {
+            "source_receipt_sha256": "d" * 64,
+            "source_receipt_attempt_number": True,
+        },
+        {
+            "source_receipt_sha256": "d" * 64,
+            "source_receipt_attempt_number": 0,
+        },
+    ),
+)
+def test_confirmed_outcome_rejects_partial_or_invalid_source_lineage(
+    tmp_path: Path,
+    source_fields: dict,
+) -> None:
+    path = tmp_path / "outbox.json"
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "313",
+        main_post_confirmed_epoch=3_200,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    outbox.claim_attempt("313", started_epoch=3_210)
+    outbox.record_confirmed(
+        "313",
+        attempt_number=1,
+        reply_post_id="9313",
+        confirmed_epoch=3_220,
+    )
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["obligations"]["313"]["context_reply"].update(source_fields)
+    outbox_module._atomic_write_json(path, document)
+
+    with pytest.raises(OutboxValidationError, match="confirmed context reply"):
+        outbox.snapshot()
 
 
 def test_long_or_nul_failure_text_is_safely_bounded_before_persistence(
@@ -608,7 +1021,7 @@ def test_strict_loader_rejects_tampered_schedule_and_policy_mismatch(
 
     tampered = json.loads(path.read_text(encoding="utf-8"))
     tampered["obligations"]["600"]["context_reply"]["next_attempt_epoch"] += 1
-    path.write_text(json.dumps(tampered), encoding="utf-8")
+    outbox_module._atomic_write_json(path, tampered)
     with pytest.raises(OutboxValidationError, match="scheduling metadata"):
         outbox.snapshot()
 
@@ -652,7 +1065,7 @@ def test_strict_loader_rejects_boolean_retry_metadata(
     for key in field_path[:-1]:
         target = target[key]
     target[field_path[-1]] = value
-    path.write_text(json.dumps(tampered), encoding="utf-8")
+    outbox_module._atomic_write_json(path, tampered)
 
     with pytest.raises(OutboxValidationError, match=message):
         outbox.snapshot()
@@ -914,3 +1327,113 @@ def test_worker_lock_excludes_a_second_process(
         process.join(timeout=5)
         assert process.exitcode == 0
         assert result_queue.get(timeout=1) == "busy"
+
+
+@pytest.mark.parametrize(
+    "unsafe_kind",
+    ("symlink", "hardlink", "public_mode", "wrong_owner"),
+)
+def test_outbox_authority_requires_owned_private_single_link_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    unsafe_kind: str,
+) -> None:
+    path = tmp_path / "outbox.json"
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "1000",
+        main_post_confirmed_epoch=10_000,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    if unsafe_kind == "wrong_owner":
+        real_lstat = os.lstat
+
+        def wrong_owner_lstat(candidate):
+            metadata = real_lstat(candidate)
+            if Path(candidate) != path:
+                return metadata
+            return SimpleNamespace(
+                st_mode=metadata.st_mode,
+                st_nlink=metadata.st_nlink,
+                st_uid=metadata.st_uid + 1,
+                st_size=metadata.st_size,
+            )
+
+        monkeypatch.setattr(outbox_module.os, "lstat", wrong_owner_lstat)
+    elif unsafe_kind == "public_mode":
+        path.chmod(0o644)
+    else:
+        original = tmp_path / "outbox-original.json"
+        path.replace(original)
+        if unsafe_kind == "symlink":
+            path.symlink_to(original)
+        else:
+            os.link(original, path)
+
+    with pytest.raises(OutboxValidationError, match="unsafe filesystem metadata"):
+        outbox.snapshot()
+
+
+def test_outbox_authority_rejects_noncanonical_json(tmp_path: Path) -> None:
+    path = tmp_path / "outbox.json"
+    outbox = HistoricalContextOutbox(path)
+    outbox.enqueue(
+        "1001",
+        main_post_confirmed_epoch=10_001,
+        quote_id=QUOTE_ID,
+        quote_text=QUOTE_TEXT,
+    )
+    value = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps(value), encoding="utf-8")
+    path.chmod(0o600)
+
+    with pytest.raises(OutboxValidationError, match="not canonical JSON"):
+        outbox.snapshot()
+
+
+@pytest.mark.parametrize("lock_suffix", (".lock", ".worker.lock"))
+def test_outbox_lock_paths_reject_symlinks_without_touching_target(
+    tmp_path: Path,
+    lock_suffix: str,
+) -> None:
+    path = tmp_path / "outbox.json"
+    target = tmp_path / "unrelated.txt"
+    target.write_bytes(b"unrelated lock target\n")
+    target.chmod(0o644)
+    lock_path = path.with_name(path.name + lock_suffix)
+    lock_path.symlink_to(target)
+    outbox = HistoricalContextOutbox(path)
+
+    with pytest.raises(OutboxValidationError, match="lock pathname is unsafe"):
+        if lock_suffix == ".lock":
+            outbox.snapshot()
+        else:
+            with outbox.worker_lock():
+                pytest.fail("unsafe worker lock was accepted")
+
+    assert target.read_bytes() == b"unrelated lock target\n"
+    assert target.stat().st_mode & 0o777 == 0o644
+
+
+def test_outbox_writer_and_reader_share_the_same_byte_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "outbox.json"
+    assert outbox_module.MAX_OUTBOX_BYTES == 128 * 1024 * 1024
+    monkeypatch.setattr(outbox_module, "MAX_OUTBOX_BYTES", 128)
+
+    with pytest.raises(OutboxValidationError, match="writer byte domain"):
+        HistoricalContextOutbox(path).enqueue(
+            "1002",
+            main_post_confirmed_epoch=10_002,
+            quote_id=QUOTE_ID,
+            quote_text=QUOTE_TEXT,
+        )
+    assert not path.exists()
+
+    path.write_bytes(b"x" * 129)
+    path.chmod(0o600)
+    with pytest.raises(OutboxValidationError, match="unsafe filesystem metadata"):
+        HistoricalContextOutbox(path).snapshot()

@@ -8,10 +8,12 @@ from pathlib import Path
 
 import pytest
 from jsonschema import validate as validate_json_schema
+import exact_receipt_retirement as exact_retirement
 import historical_context_formatter as context_module
 
 from historical_context_formatter import (
     AmbiguousContextReplyOutcome,
+    DefiniteContextReplyLocalPersistenceError,
     HistoricalContextReplyStore,
     VERIFICATION_LABELS,
     format_context_reply,
@@ -41,7 +43,118 @@ def _historical_store(*args, **kwargs):
         "mutation_authority_provider",
         _test_mutation_authority,
     )
+    if len(args) >= 2:
+        receipt_path = Path(args[1])
+    else:
+        receipt_path = Path(kwargs["receipt_path"])
+    ledger_path = exact_retirement.retirement_ledger_path_for_receipt(receipt_path)
+    if not ledger_path.exists():
+        exact_retirement.initialise_retirement_ledger(
+            receipt_path,
+            mutation_authority=_test_mutation_authority(
+                "historical-context fixture ledger initialisation"
+            ),
+        )
     return HistoricalContextReplyStore(*args, **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("reply_epoch", "expected"),
+    (
+        (1_500_000_000, True),
+        (4_102_444_800, True),
+        (1_499_999_999, False),
+        (4_102_444_801, False),
+    ),
+)
+def test_sending_receipt_validator_enforces_fixed_epoch_boundaries(
+    reply_epoch: int,
+    expected: bool,
+) -> None:
+    receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "111",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": reply_epoch,
+        "started_at": "2026-08-01T00:00:00Z",
+        "attempt_number": 1,
+    }
+
+    assert HistoricalContextReplyStore._valid_sending_receipt(receipt) is expected
+
+
+@pytest.mark.parametrize(
+    ("reply_length", "expected"),
+    (
+        (context_module.MAXIMUM_SUPPORTED_LENGTH, True),
+        (context_module.MAXIMUM_SUPPORTED_LENGTH + 1, False),
+    ),
+)
+def test_sending_receipt_validator_enforces_reply_text_domain(
+    reply_length: int,
+    expected: bool,
+) -> None:
+    receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "111",
+        "quote_id": "a" * 64,
+        "reply_text": "x" * reply_length,
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T00:00:00Z",
+        "attempt_number": 1,
+    }
+
+    assert HistoricalContextReplyStore._valid_sending_receipt(receipt) is expected
+
+
+@pytest.mark.parametrize("reply_epoch", (1_500_000_000, 4_102_444_800))
+def test_context_source_receipt_accepts_exact_fixed_epoch_boundaries(
+    tmp_path: Path,
+    reply_epoch: int,
+) -> None:
+    store = _historical_store(
+        tmp_path / "history.json",
+        tmp_path / "receipt.json",
+    )
+    reached: list[int] = []
+
+    def create_boundary(**_kwargs):
+        reached.append(reply_epoch)
+        raise RuntimeError("focused transport boundary sentinel")
+
+    with pytest.raises(AmbiguousContextReplyOutcome):
+        store.post(
+            parent_post_id="111",
+            quote_id="a" * 64,
+            reply_text="Context",
+            create_post=create_boundary,
+            now_epoch=lambda: reply_epoch,
+            require_confirmed_transport=True,
+        )
+    assert reached == [reply_epoch]
+
+
+@pytest.mark.parametrize("reply_epoch", (1_499_999_999, 4_102_444_801))
+def test_context_source_receipt_rejects_fixed_outside_epoch_boundaries(
+    tmp_path: Path,
+    reply_epoch: int,
+) -> None:
+    store = _historical_store(
+        tmp_path / "history.json",
+        tmp_path / "receipt.json",
+    )
+    with pytest.raises(RuntimeError, match="pre-transport clock"):
+        store.post(
+            parent_post_id="111",
+            quote_id="a" * 64,
+            reply_text="Context",
+            create_post=lambda **_kwargs: pytest.fail("transport reached"),
+            now_epoch=lambda: reply_epoch,
+            require_confirmed_transport=True,
+        )
 
 
 @pytest.fixture(scope="module")
@@ -557,9 +670,9 @@ def test_transactional_receipt_resume_and_duplicate_prevention(tmp_path):
     store = _historical_store(tmp_path / "history.json", tmp_path / "receipt.json")
     calls = []
     create = lambda **kwargs: calls.append(kwargs) or {"data": {"id": "222"}}
-    result = store.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context", create_post=create, now_epoch=lambda: 123)
+    result = store.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context", create_post=create, now_epoch=lambda: 1_800_000_000)
     assert result["status"] == "completed" and not store.receipt_path.exists()
-    again = store.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context", create_post=create, now_epoch=lambda: 124)
+    again = store.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context", create_post=create, now_epoch=lambda: 1_800_000_001)
     assert again["status"] == "already_completed" and len(calls) == 1
     assert json.loads(store.history_path.read_text())["items"]["111"]["reply_post_id"] == "222"
 
@@ -571,7 +684,7 @@ def test_completed_parent_with_different_quote_identity_is_conflict(tmp_path):
         quote_id="a" * 64,
         reply_text="Context",
         create_post=lambda **kwargs: {"data": {"id": "222"}},
-        now_epoch=lambda: 123,
+        now_epoch=lambda: 1_800_000_000,
     )
 
     with pytest.raises(RuntimeError, match="quote identity conflicts"):
@@ -580,7 +693,7 @@ def test_completed_parent_with_different_quote_identity_is_conflict(tmp_path):
             quote_id="b" * 64,
             reply_text="Different context",
             create_post=lambda **kwargs: pytest.fail("identity conflict must not post"),
-            now_epoch=lambda: 124,
+            now_epoch=lambda: 1_800_000_001,
         )
 
 
@@ -634,7 +747,7 @@ def test_malformed_response_data_is_ambiguous_and_preserves_receipt(tmp_path):
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: {"data": ["not", "an", "object"]},
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
         )
 
     assert json.loads(store.receipt_path.read_text())["lifecycle_state"] == "sending"
@@ -649,7 +762,7 @@ def test_overlong_numeric_response_id_remains_ambiguous_and_preserves_receipt(tm
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: {"data": {"id": "2" * 31}},
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
         )
     assert json.loads(store.receipt_path.read_text())["lifecycle_state"] == "sending"
     assert not store.history_path.exists()
@@ -676,7 +789,7 @@ def test_post_transmission_rate_limit_is_ambiguous_and_preserves_receipt(
             create_post=lambda **_kwargs: (_ for _ in ()).throw(
                 RateLimitError("rate limited")
             ),
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
         )
     assert json.loads(store.receipt_path.read_text())["lifecycle_state"] == "sending"
     assert not store.history_path.exists()
@@ -692,7 +805,7 @@ def test_long_reply_is_sent_unchanged_through_existing_post_path(tmp_path):
         quote_id="a" * 64,
         reply_text=reply,
         create_post=lambda **kwargs: calls.append(kwargs) or {"data": {"id": "222"}},
-        now_epoch=lambda: 123,
+        now_epoch=lambda: 1_800_000_000,
     )
     assert result["status"] == "completed"
     prepared = calls[0].pop("prepared_historical_context_reply_receipt")
@@ -739,7 +852,7 @@ def test_formatter_v5_metadata_is_durable_and_prevents_duplicate_after_restart(
         reply_text=formatted["text"],
         formatter_metadata=metadata,
         create_post=lambda **kwargs: calls.append(kwargs) or {"data": {"id": "222"}},
-        now_epoch=lambda: 123,
+        now_epoch=lambda: 1_800_000_000,
     )
     assert result["status"] == "completed"
     assert store.history()["items"]["111"]["formatter_metadata"] == metadata
@@ -751,7 +864,7 @@ def test_formatter_v5_metadata_is_durable_and_prevents_duplicate_after_restart(
         reply_text=formatted["text"],
         formatter_metadata=metadata,
         create_post=lambda **kwargs: pytest.fail("completed v5 reply must not be duplicated"),
-        now_epoch=lambda: 124,
+        now_epoch=lambda: 1_800_000_001,
     )
     assert duplicate["status"] == "already_completed"
     assert len(calls) == 1
@@ -796,7 +909,7 @@ def test_deployed_v8_metadata_is_durable_and_accepted_under_v9(
         reply_text=formatted["text"],
         formatter_metadata=metadata,
         create_post=lambda **kwargs: {"data": {"id": "222"}},
-        now_epoch=lambda: 123,
+        now_epoch=lambda: 1_800_000_000,
     )
 
     assert result["status"] == "completed"
@@ -892,7 +1005,7 @@ def test_production_shaped_legacy_history_accepts_exact_v5_source_role_policy(
         "reply_post_id": "222",
         "quote_id": formatted["quote_id"],
         "reply_text": formatted["text"],
-        "reply_epoch": 123,
+        "reply_epoch": 1_800_000_000,
         "started_at": "2026-07-21T00:00:00Z",
         "attempt_number": 1,
         "confirmed_at": "2026-07-21T00:00:01Z",
@@ -900,9 +1013,9 @@ def test_production_shaped_legacy_history_accepts_exact_v5_source_role_policy(
         "status": "completed",
     }
     history_path = tmp_path / "history.json"
-    history_path.write_text(
-        json.dumps({"schema_version": 1, "items": {"111": item}}),
-        encoding="utf-8",
+    context_module.atomic_write_json(
+        history_path,
+        {"schema_version": 1, "items": {"111": item}},
     )
 
     loaded = _historical_store(
@@ -967,20 +1080,24 @@ def test_v5_formatter_metadata_rejects_unknown_or_future_source_role_policy(
 
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is False
     history_path = tmp_path / "history.json"
-    history_path.write_text(json.dumps({
-        "schema_version": 1,
-        "items": {
-            "111": {
-                "status": "failed",
-                "parent_post_id": "111",
-                "quote_id": formatted["quote_id"],
-                "reply_text": formatted["text"],
-                "attempt_count": 1,
-                "failure": "test failure",
-                "formatter_metadata": metadata,
+    context_module.atomic_write_json(
+        history_path,
+        {
+            "schema_version": 1,
+            "items": {
+                "111": {
+                    "status": "failed",
+                    "parent_post_id": "111",
+                    "quote_id": formatted["quote_id"],
+                    "reply_text": formatted["text"],
+                    "attempt_count": 1,
+                    "failure": "test failure",
+                    "updated_at": "2026-08-01T12:00:00Z",
+                    "formatter_metadata": metadata,
+                },
             },
         },
-    }))
+    )
     store = _historical_store(history_path, tmp_path / "receipt.json")
 
     with pytest.raises(RuntimeError, match="invalid failed context reply history"):
@@ -1030,8 +1147,8 @@ def test_invalid_context_request_is_rejected_before_remote_post(
             quote_id=quote_id,
             reply_text=reply_text,
             create_post=lambda **kwargs: pytest.fail("invalid request must not reach remote post"),
-            now_epoch=lambda: 123,
-            on_confirmed_receipt=lambda _receipt: pytest.fail(
+            now_epoch=lambda: 1_800_000_000,
+            on_confirmed_receipt=lambda _receipt, _epoch: pytest.fail(
                 "invalid request must not reach the receipt callback"
             ),
         )
@@ -1078,7 +1195,7 @@ def test_initial_sending_publication_does_not_overwrite_raced_entry(
             create_post=lambda **_kwargs: pytest.fail(
                 "a raced receipt entry must block before remote transport"
             ),
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
         )
 
     if raced_kind == "file":
@@ -1098,7 +1215,7 @@ def test_confirmed_receipt_reconciles_after_restart_without_posting(tmp_path):
     restarted = _historical_store(tmp_path / "history.json", tmp_path / "receipt.json")
     assert restarted.reconcile_receipt() is True and not restarted.receipt_path.exists()
     result = restarted.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context",
-        create_post=lambda **kwargs: pytest.fail("reconciled receipt must prevent duplicate"), now_epoch=lambda: 124)
+        create_post=lambda **kwargs: pytest.fail("reconciled receipt must prevent duplicate"), now_epoch=lambda: 1_800_000_001)
     assert result["status"] == "already_completed"
 
 
@@ -1110,7 +1227,7 @@ def test_context_receipt_reader_rejects_symlink_without_following_it(tmp_path):
         "reply_post_id": "222",
         "quote_id": "a" * 64,
         "reply_text": "Context",
-        "reply_epoch": 123,
+        "reply_epoch": 1_800_000_000,
         "confirmed_at": "now",
     }
     target.write_text(json.dumps(receipt), encoding="utf-8")
@@ -1279,9 +1396,49 @@ def test_context_receipt_duplicate_lifecycle_cannot_fabricate_confirmation(
     )
     with pytest.raises(RuntimeError, match="invalid context reply receipt JSON"):
         store.reconcile_receipt()
-
     assert receipt_path.read_bytes() == receipt_bytes
     assert not store.history_path.exists()
+
+
+def test_history_initialisation_fails_closed_on_namespace_inspection_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed lstat cannot be converted into permission to create history."""
+
+    history_path = tmp_path / "history.json"
+    store = _historical_store(history_path, tmp_path / "receipt.json")
+    real_lstat = context_module.os.lstat
+
+    def fail_target(target, *args, **kwargs):
+        if Path(target) == history_path:
+            raise PermissionError("injected history inspection failure")
+        return real_lstat(target, *args, **kwargs)
+
+    monkeypatch.setattr(context_module.os, "lstat", fail_target)
+    with pytest.raises(RuntimeError, match="cannot be inspected"):
+        store.initialise_empty_history()
+    assert not history_path.exists()
+
+
+def test_history_read_fails_closed_on_namespace_inspection_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reader cannot reinterpret failed inspection as empty history."""
+
+    history_path = tmp_path / "history.json"
+    store = _historical_store(history_path, tmp_path / "receipt.json")
+    real_lstat = context_module.os.lstat
+
+    def fail_target(target, *args, **kwargs):
+        if Path(target) == history_path:
+            raise PermissionError("injected history inspection failure")
+        return real_lstat(target, *args, **kwargs)
+
+    monkeypatch.setattr(context_module.os, "lstat", fail_target)
+    with pytest.raises(RuntimeError, match="cannot be inspected"):
+        store.history()
 
 
 def test_context_receipt_retirement_preserves_barrier_on_path_replacement(
@@ -1354,7 +1511,10 @@ def test_malformed_context_receipt_is_blocked_without_mutating_history(tmp_path,
 def test_context_store_rejects_boolean_schema_versions(tmp_path):
     history_path = tmp_path / "history.json"
     receipt_path = tmp_path / "receipt.json"
-    history_path.write_text(json.dumps({"schema_version": True, "items": {}}))
+    context_module.atomic_write_json(
+        history_path,
+        {"schema_version": True, "items": {}},
+    )
     store = _historical_store(history_path, receipt_path)
 
     with pytest.raises(RuntimeError, match="invalid context reply history"):
@@ -1407,6 +1567,298 @@ def test_historical_receipts_require_exact_string_identifiers() -> None:
     assert HistoricalContextReplyStore._valid_receipt(confirmed) is False
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("parent_post_id", 111),
+        ("quote_id", int("1" * 64)),
+    ),
+)
+def test_failed_historical_records_require_exact_string_identifiers(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    item = {
+        "parent_post_id": "111",
+        "quote_id": "1" * 64,
+        "reply_text": "Context",
+        "status": "failed",
+        "failure": "RemoteOperationsPaused: paused before transport",
+        "attempt_count": 1,
+        "updated_at": "2026-08-01T12:00:00Z",
+    }
+    item[field] = value
+    history_path = tmp_path / "history.json"
+    context_module.atomic_write_json(
+        history_path,
+        {"schema_version": 1, "items": {"111": item}},
+    )
+    store = _historical_store(history_path, tmp_path / "receipt.json")
+
+    with pytest.raises(RuntimeError, match="invalid .*context reply history"):
+        store.history()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "value"),
+    (
+        ("remove_updated_at", None),
+        ("failure", ""),
+        ("unexpected", "not emitted by the writer"),
+        ("attempt_count", True),
+        ("updated_at", ""),
+        ("updated_at", "2026-08-01 12:00:00Z"),
+        ("updated_at", "2026-08-01T12:00:00+00:00"),
+    ),
+)
+def test_failed_history_requires_exact_writer_schema(
+    tmp_path: Path,
+    mutation: str,
+    value: object,
+) -> None:
+    item = {
+        "parent_post_id": "111",
+        "quote_id": "1" * 64,
+        "reply_text": "Context",
+        "status": "failed",
+        "failure": "RemoteOperationsPaused: paused before transport",
+        "attempt_count": 1,
+        "updated_at": "2026-08-01T12:00:00Z",
+    }
+    if mutation == "remove_updated_at":
+        item.pop("updated_at")
+    else:
+        item[mutation] = value
+    history_path = tmp_path / "history.json"
+    context_module.atomic_write_json(
+        history_path,
+        {"schema_version": 1, "items": {"111": item}},
+    )
+
+    with pytest.raises(RuntimeError, match="invalid failed context reply history"):
+        _historical_store(history_path, tmp_path / "receipt.json").history()
+
+
+@pytest.mark.parametrize(
+    "raw_history",
+    (
+        b'{"items":{},"schema_version":1,"schema_version":1}\n',
+        b'{"items":{"111":{"attempt_count":1,"failure":"x",'
+        b'"parent_post_id":"111","quote_id":"'
+        + b"1" * 64
+        + b'","reply_text":"Context","status":"failed",'
+        b'"unexpected":NaN,"updated_at":"2026-08-01T12:00:00Z"}},'
+        b'"schema_version":1}\n',
+        b'{"schema_version": 1, "items": {}}\n',
+    ),
+)
+def test_history_authority_rejects_duplicate_nonfinite_and_noncanonical_json(
+    tmp_path: Path,
+    raw_history: bytes,
+) -> None:
+    history_path = tmp_path / "history.json"
+    history_path.write_bytes(raw_history)
+    history_path.chmod(0o600)
+
+    with pytest.raises((RuntimeError, ValueError)):
+        _historical_store(history_path, tmp_path / "receipt.json").history()
+
+
+@pytest.mark.parametrize(
+    "unsafe_kind",
+    ("public_mode", "symlink", "hardlink", "wrong_owner"),
+)
+def test_history_authority_requires_private_regular_file(
+    tmp_path: Path,
+    unsafe_kind: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    history_path = tmp_path / "history.json"
+    receipt_path = tmp_path / "receipt.json"
+    exact_retirement.initialise_retirement_ledger(
+        receipt_path,
+        mutation_authority=_test_mutation_authority(
+            "history-authority fixture ledger initialisation"
+        ),
+    )
+    if unsafe_kind == "public_mode":
+        context_module.atomic_write_json(
+            history_path,
+            {"schema_version": 1, "items": {}},
+        )
+        history_path.chmod(0o644)
+    elif unsafe_kind == "symlink":
+        target = tmp_path / "history-target.json"
+        context_module.atomic_write_json(
+            target,
+            {"schema_version": 1, "items": {}},
+        )
+        history_path.symlink_to(target)
+    elif unsafe_kind == "hardlink":
+        target = tmp_path / "history-target.json"
+        context_module.atomic_write_json(
+            target,
+            {"schema_version": 1, "items": {}},
+        )
+        history_path.hardlink_to(target)
+    else:
+        context_module.atomic_write_json(
+            history_path,
+            {"schema_version": 1, "items": {}},
+        )
+        monkeypatch.setattr(
+            context_module.os,
+            "geteuid",
+            lambda: history_path.stat().st_uid + 1,
+        )
+
+    with pytest.raises(RuntimeError, match="unsafe filesystem metadata"):
+        _historical_store(history_path, receipt_path).history()
+
+
+def test_history_authority_has_no_reader_only_lifetime_size_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Permanent duplicate history must not outgrow its own reader domain."""
+
+    history_path = tmp_path / "history.json"
+    context_module.atomic_write_json(
+        history_path,
+        {"schema_version": 1, "items": {}},
+    )
+    observed_maxima: list[int | None] = []
+    real_reader = HistoricalContextReplyStore._read_stable_private_bytes
+
+    def observe_reader(path: Path, *, maximum: int | None, label: str) -> bytes:
+        observed_maxima.append(maximum)
+        return real_reader(path, maximum=maximum, label=label)
+
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "_read_stable_private_bytes",
+        staticmethod(observe_reader),
+    )
+
+    assert _historical_store(
+        history_path,
+        tmp_path / "receipt.json",
+    ).history() == {"schema_version": 1, "items": {}}
+    assert observed_maxima == [None]
+
+
+def test_history_accepts_legacy_writer_unbounded_failure_diagnostic(
+    tmp_path: Path,
+) -> None:
+    store = _historical_store(
+        tmp_path / "history.json",
+        tmp_path / "receipt.json",
+    )
+    store.record_failure(
+        "111",
+        "1" * 64,
+        "Context",
+        RuntimeError("x" * (20 * 1024)),
+    )
+
+    failure = store.history()["items"]["111"]["failure"]
+    assert failure == "RuntimeError: " + "x" * (20 * 1024)
+
+
+def test_history_writer_rejects_reply_text_outside_receipt_domain(
+    tmp_path: Path,
+) -> None:
+    history_path = tmp_path / "history.json"
+    store = _historical_store(
+        history_path,
+        tmp_path / "receipt.json",
+    )
+    reply_text = "x" * (context_module.MAXIMUM_SUPPORTED_LENGTH + 1)
+
+    with pytest.raises(ValueError, match="invalid historical context"):
+        store.record_failure(
+            "111",
+            "1" * 64,
+            reply_text,
+            RuntimeError("synthetic failure"),
+        )
+    assert not history_path.exists()
+
+
+def test_history_reader_rejects_reply_text_outside_receipt_domain(
+    tmp_path: Path,
+) -> None:
+    history_path = tmp_path / "history.json"
+    store = _historical_store(
+        history_path,
+        tmp_path / "receipt.json",
+    )
+    store.record_failure(
+        "111",
+        "1" * 64,
+        "Context",
+        RuntimeError("synthetic failure"),
+    )
+    history = json.loads(history_path.read_bytes())
+    history["items"]["111"]["reply_text"] = (
+        "x" * (context_module.MAXIMUM_SUPPORTED_LENGTH + 1)
+    )
+    history_path.write_bytes(context_module.canonical_json_bytes(history))
+    history_path.chmod(0o600)
+
+    with pytest.raises(RuntimeError, match="invalid failed context reply history"):
+        store.history()
+
+
+def test_completed_history_rejects_reply_text_outside_receipt_domain(
+    tmp_path: Path,
+) -> None:
+    history_path = tmp_path / "history.json"
+    receipt = {
+        "schema_version": 1,
+        "parent_post_id": "111",
+        "reply_post_id": "222",
+        "quote_id": "a" * 64,
+        "reply_text": "x" * (context_module.MAXIMUM_SUPPORTED_LENGTH + 1),
+        "reply_epoch": 1_800_000_000,
+        "confirmed_at": "2026-08-01T00:00:01Z",
+    }
+    context_module.atomic_write_json(
+        history_path,
+        {"schema_version": 1, "items": {"111": {**receipt, "status": "completed"}}},
+    )
+
+    with pytest.raises(RuntimeError, match="invalid completed context reply history"):
+        _historical_store(history_path, tmp_path / "receipt.json").history()
+
+
+def test_confirmed_callback_precedes_history_and_receipt_retirement(
+    tmp_path: Path,
+) -> None:
+    history_path = tmp_path / "history.json"
+    receipt_path = tmp_path / "receipt.json"
+    store = _historical_store(history_path, receipt_path)
+
+    with pytest.raises(OSError, match="outbox confirmation fsync"):
+        store.post(
+            parent_post_id="111",
+            quote_id="a" * 64,
+            reply_text="Context",
+            create_post=lambda **_kwargs: {"data": {"id": "222"}},
+            now_epoch=lambda: 1_800_000_000,
+            on_confirmed_receipt=lambda _receipt, _epoch: (_ for _ in ()).throw(
+                OSError("outbox confirmation fsync")
+            ),
+        )
+
+    loaded = store._load_receipt_safely()
+    assert loaded is not None
+    assert loaded[0]["lifecycle_state"] == "confirmed"
+    assert loaded[0]["reply_post_id"] == "222"
+    assert not history_path.exists()
+
+
 def test_historical_receipt_loader_rejects_noncanonical_confirmed_bytes(
     tmp_path: Path,
 ) -> None:
@@ -1447,7 +1899,7 @@ def test_conflicting_completed_receipt_is_blocked_without_overwrite(tmp_path):
     }
     conflicting = {**existing["items"]["111"], "reply_post_id": "333"}
     conflicting.pop("status")
-    history_path.write_text(json.dumps(existing))
+    context_module.atomic_write_json(history_path, existing)
     context_module.atomic_write_json(receipt_path, conflicting)
     store = _historical_store(history_path, receipt_path)
 
@@ -1458,17 +1910,75 @@ def test_conflicting_completed_receipt_is_blocked_without_overwrite(tmp_path):
     assert receipt_path.exists()
 
 
+def test_legacy_receipt_cannot_downgrade_lineage_completed_history(
+    tmp_path: Path,
+) -> None:
+    """Replay requires the exact completed receipt shape, not a field subset."""
+
+    history_path = tmp_path / "history.json"
+    receipt_path = tmp_path / "receipt.json"
+    sending = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": "111",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 1_800_000_000,
+        "started_at": "2026-08-01T12:00:00Z",
+        "attempt_number": 1,
+    }
+    completed_receipt = {
+        **sending,
+        "lifecycle_state": "confirmed",
+        "reply_post_id": "222",
+        "confirmed_at": "2026-08-01T12:00:01Z",
+        "source_receipt_sha256": hashlib.sha256(
+            context_module.canonical_json_bytes(sending)
+        ).hexdigest(),
+    }
+    history = {
+        "schema_version": 1,
+        "items": {"111": {**completed_receipt, "status": "completed"}},
+    }
+    legacy_subset = {
+        key: completed_receipt[key]
+        for key in (
+            "schema_version",
+            "parent_post_id",
+            "reply_post_id",
+            "quote_id",
+            "reply_text",
+            "reply_epoch",
+            "confirmed_at",
+        )
+    }
+    context_module.atomic_write_json(history_path, history)
+    context_module.atomic_write_json(receipt_path, legacy_subset)
+    history_before = history_path.read_bytes()
+    receipt_before = receipt_path.read_bytes()
+    store = _historical_store(history_path, receipt_path)
+
+    with pytest.raises(RuntimeError, match="conflicts with completed history"):
+        store.reconcile_receipt()
+
+    assert history_path.read_bytes() == history_before
+    assert receipt_path.read_bytes() == receipt_before
+
+
 def test_malformed_completed_history_cannot_suppress_reply(tmp_path):
     history_path = tmp_path / "history.json"
-    history_path.write_text(json.dumps({
-        "schema_version": 1,
-        "items": {"111": {
-            "parent_post_id": "111",
-            "quote_id": "a" * 64,
-            "reply_text": "Context",
-            "status": "completed",
-        }},
-    }))
+    context_module.atomic_write_json(
+        history_path,
+        {
+            "schema_version": 1,
+            "items": {"111": {
+                "parent_post_id": "111",
+                "quote_id": "a" * 64,
+                "reply_text": "Context",
+                "status": "completed",
+            }},
+        },
+    )
     store = _historical_store(history_path, tmp_path / "receipt.json")
 
     with pytest.raises(RuntimeError, match="invalid completed context reply history"):
@@ -1477,7 +1987,7 @@ def test_malformed_completed_history_cannot_suppress_reply(tmp_path):
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: pytest.fail("invalid history must block before posting"),
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
         )
 
 
@@ -1485,11 +1995,11 @@ def test_failure_is_recorded_and_can_be_replayed_without_main_post(tmp_path):
     store = _historical_store(tmp_path / "history.json", tmp_path / "receipt.json")
     failed = store.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context",
         create_post=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("offline")),
-        now_epoch=lambda: 123,
+        now_epoch=lambda: 1_800_000_000,
         remote_failure_is_definite_non_success=lambda _error: True)
     assert failed["status"] == "failed"
     recovered = store.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context",
-        create_post=lambda **kwargs: {"data": {"id": "223"}}, now_epoch=lambda: 124)
+        create_post=lambda **kwargs: {"data": {"id": "223"}}, now_epoch=lambda: 1_800_000_001)
     assert recovered["status"] == "completed"
 
 
@@ -1502,7 +2012,7 @@ def test_keyboard_interrupt_is_not_swallowed_or_recorded_as_provider_failure(tmp
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
         )
 
     assert not store.history_path.exists()
@@ -1516,7 +2026,7 @@ def test_keyboard_interrupt_is_not_swallowed_or_recorded_as_provider_failure(tmp
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: pytest.fail("ambiguous request must never be repeated"),
-            now_epoch=lambda: 124,
+            now_epoch=lambda: 1_800_000_001,
         )
 
 
@@ -1536,7 +2046,7 @@ def test_confirmed_receipt_write_failure_leaves_sending_barrier(tmp_path, monkey
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: {"data": {"id": "222"}},
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
         )
 
     assert json.loads(store.receipt_path.read_text())["lifecycle_state"] == "sending"
@@ -1552,16 +2062,64 @@ def test_failure_history_write_failure_retains_sending_barrier(tmp_path, monkeyp
         return real_atomic_write(path, value, **kwargs)
 
     monkeypatch.setattr(context_module, "atomic_write_json", fail_history)
-    with pytest.raises(AmbiguousContextReplyOutcome, match="failure history"):
+    with pytest.raises(
+        DefiniteContextReplyLocalPersistenceError,
+        match="failure history",
+    ):
         store.post(
             parent_post_id="111",
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("confirmed failure")),
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
             remote_failure_is_definite_non_success=lambda _error: True,
         )
 
+    assert json.loads(store.receipt_path.read_text())["lifecycle_state"] == "sending"
+
+
+def test_definite_failure_persists_external_state_before_receipt_retirement(
+    tmp_path,
+    monkeypatch,
+):
+    store = _historical_store(tmp_path / "history.json", tmp_path / "receipt.json")
+    durable_outbox_proof = tmp_path / "outbox-failure.json"
+
+    def persist_outbox_failure(_error):
+        context_module.atomic_write_json(
+            durable_outbox_proof,
+            {"state": "context_reply_failed_retryable"},
+        )
+        return "context_reply_failed_retryable"
+
+    monkeypatch.setattr(
+        store,
+        "_retire_exact_receipt",
+        lambda _expected: (_ for _ in ()).throw(
+            OSError("receipt retirement interrupted")
+        ),
+    )
+
+    with pytest.raises(
+        DefiniteContextReplyLocalPersistenceError,
+        match="clear context reply sending record",
+    ):
+        store.post(
+            parent_post_id="111",
+            quote_id="a" * 64,
+            reply_text="Context",
+            create_post=lambda **kwargs: (_ for _ in ()).throw(
+                RuntimeError("definite local pause")
+            ),
+            now_epoch=lambda: 1_800_000_000,
+            on_definite_non_success=persist_outbox_failure,
+            remote_failure_is_definite_non_success=lambda _error: True,
+        )
+
+    assert json.loads(durable_outbox_proof.read_text()) == {
+        "state": "context_reply_failed_retryable"
+    }
+    assert store.history()["items"]["111"]["status"] == "failed"
     assert json.loads(store.receipt_path.read_text())["lifecycle_state"] == "sending"
 
 
@@ -1576,13 +2134,16 @@ def test_recorded_failure_reconciles_stale_sending_marker_by_attempt_number(tmp_
         ),
     )
 
-    with pytest.raises(AmbiguousContextReplyOutcome, match="clear context reply sending record"):
+    with pytest.raises(
+        DefiniteContextReplyLocalPersistenceError,
+        match="clear context reply sending record",
+    ):
         store.post(
             parent_post_id="111",
             quote_id="a" * 64,
             reply_text="Context",
             create_post=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("confirmed failure")),
-            now_epoch=lambda: 123,
+            now_epoch=lambda: 1_800_000_000,
             remote_failure_is_definite_non_success=lambda _error: True,
         )
 
@@ -1602,7 +2163,7 @@ def test_recorded_failure_reconciles_stale_sending_marker_by_attempt_number(tmp_
 def test_dry_run_makes_no_post_and_includes_count(tmp_path):
     store = _historical_store(tmp_path / "history.json", tmp_path / "receipt.json")
     result = store.post(parent_post_id="111", quote_id="a" * 64, reply_text="Context",
-        create_post=lambda **kwargs: pytest.fail("dry run must not post"), now_epoch=lambda: 123, dry_run=True)
+        create_post=lambda **kwargs: pytest.fail("dry run must not post"), now_epoch=lambda: 1_800_000_000, dry_run=True)
     assert result == {"status": "dry_run", "parent_post_id": "111", "quote_id": "a" * 64,
                       "reply_text": "Context", "character_count": 7}
     assert not store.history_path.exists() and not store.receipt_path.exists()

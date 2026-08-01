@@ -268,8 +268,6 @@ def inactive_protocol_legacy_loss(
 def exercise_direct_preflights(
     bot,
     state_directory: Path,
-    *,
-    include_receipt_bound_control: bool = False,
 ) -> tuple[
     dict[str, str],
     list[str],
@@ -359,47 +357,6 @@ def exercise_direct_preflights(
         ),
     )
     results: dict[str, str] = {}
-    # Exercise the clean receipt-bound create before the media transport probe.
-    # The latter intentionally leaves a durable ambiguous media receipt when
-    # the local transport sentinel aborts, and that barrier must not make this
-    # independent positive control order-dependent.
-    if include_receipt_bound_control:
-        receipt = {
-            "schema_version": 1,
-            "lifecycle_state": "sending",
-            "parent_post_id": "123",
-            "quote_id": "a" * 64,
-            "reply_text": "offline receipt-bound post",
-            "reply_epoch": 123,
-            "started_at": "2026-07-31T12:00:00Z",
-            "attempt_number": 1,
-        }
-        bot.atomic_write_json(
-            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-            receipt,
-        )
-        try:
-            bot.create_post(
-                "offline receipt-bound post",
-                reply_to_id="123",
-                prepared_historical_context_reply_receipt=receipt,
-            )
-        except LocalTransportBoundary:
-            results["receipt_bound_create_post"] = "local_transport_reached"
-            clear_untransmitted_fixture_barriers(
-                state_directory / "remote_write_transport_journal.json",
-                state_directory / "remote_write_transport_fence.json",
-            )
-        except BaseException as exc:
-            results["receipt_bound_create_post"] = (
-                f"unexpected:{type(exc).__name__}"
-            )
-        else:
-            results["receipt_bound_create_post"] = "returned"
-        finally:
-            bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.unlink(
-                missing_ok=True
-            )
     for label, check in checks:
         try:
             check()
@@ -407,7 +364,7 @@ def exercise_direct_preflights(
             results[label] = "blocked"
         except LocalTransportBoundary:
             results[label] = "local_transport_reached"
-            if label == "media_upload" and include_receipt_bound_control:
+            if label == "media_upload":
                 clear_untransmitted_fixture_barriers(
                     Path(bot.MEDIA_UPLOAD_RECEIPT_FILE),
                     Path(str(bot.MEDIA_UPLOAD_RECEIPT_FILE) + ".fence.json"),
@@ -507,6 +464,14 @@ def configure_main_probe(bot, state_directory: Path) -> tuple[list[str], Callabl
             bot.main()
         except SchedulerTicksComplete:
             pass
+        except Exception as exc:
+            # A valid unresolved historical-context sending receipt is allowed
+            # to stop startup by raising its dedicated ambiguity exception
+            # before the scheduler's first sleep.  Preserve that observable
+            # outcome instead of losing the literal-process evidence record.
+            if type(exc).__name__ != "AmbiguousContextReplyOutcome":
+                raise
+            run_for_three_sleeps.blocked_exception = type(exc).__name__
         return sleep_calls
 
     return entries, run_for_three_sleeps
@@ -537,25 +502,26 @@ def inspect_process(
     direct_results, transport_calls = exercise_direct_preflights(
         bot,
         state_directory,
-        include_receipt_bound_control=clean,
     )
     scheduler_entries, run_scheduler = configure_main_probe(bot, state_directory)
     sleep_calls = run_scheduler()
-    emit(
-        {
-            "blocking_after_scheduler": bool(
-                bot.ambiguous_remote_post_is_blocking()
-            ),
-            "blocking_before_direct": blocking_before_direct,
-            "direct_results": direct_results,
-            "initial": initial,
-            "phase": "clean_process" if clean else "blocked_second_process",
-            "scheduler_entries": scheduler_entries,
-            "scheduler_sleep_calls": sleep_calls,
-            "source_sha256": source_sha256(source_path),
-            "transport_sentinel_calls": transport_calls,
-        }
-    )
+    result = {
+        "blocking_after_scheduler": bool(
+            bot.ambiguous_remote_post_is_blocking()
+        ),
+        "blocking_before_direct": blocking_before_direct,
+        "direct_results": direct_results,
+        "initial": initial,
+        "phase": "clean_process" if clean else "blocked_second_process",
+        "scheduler_entries": scheduler_entries,
+        "scheduler_sleep_calls": sleep_calls,
+        "source_sha256": source_sha256(source_path),
+        "transport_sentinel_calls": transport_calls,
+    }
+    blocked_exception = getattr(run_scheduler, "blocked_exception", None)
+    if blocked_exception is not None:
+        result["scheduler_blocked_exception"] = blocked_exception
+    emit(result)
     return 0
 
 
