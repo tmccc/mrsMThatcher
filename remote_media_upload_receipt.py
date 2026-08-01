@@ -60,9 +60,16 @@ _MEDIA_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _POST_ID_RE = re.compile(r"\d{1,30}")
 _VALIDATOR_ID_RE = re.compile(r"[a-z][a-z0-9_.:-]{2,159}")
 _ALLOWED_LANES = frozenset({"quote_image", "daily_meme"})
-_consumed_authorities: set[
-    tuple[str, int, int, int, str, int, int, int, str, str]
-] = set()
+_AuthorityKey = tuple[str, int, int, int, str, int, int, int, str, str]
+_consumed_authorities: dict[
+    _AuthorityKey,
+    tuple[int, "MediaUploadAuthority"],
+] = {}
+_issued_untransmitted_authorities: dict[
+    _AuthorityKey,
+    tuple[int, "MediaUploadAuthority"],
+] = {}
+_aborting_authorities: set[_AuthorityKey] = set()
 _authority_lock = threading.Lock()
 
 
@@ -808,6 +815,92 @@ def load_confirmed_media_upload(path: Path) -> ConfirmedMediaUpload | None:
     )
 
 
+def _authority_key_from_snapshots(
+    receipt_path: Path,
+    receipt: MediaReceiptSnapshot,
+    fence: MediaReceiptSnapshot,
+    transaction_id: str,
+) -> _AuthorityKey:
+    """Return the process registry key for one exact companion pair."""
+
+    return (
+        str(_normalised_path(receipt_path)),
+        receipt.device,
+        receipt.inode,
+        receipt.ctime_ns,
+        receipt.sha256,
+        fence.device,
+        fence.inode,
+        fence.ctime_ns,
+        fence.sha256,
+        transaction_id,
+    )
+
+
+def _authority_key_from_authority(
+    authority: MediaUploadAuthority,
+) -> _AuthorityKey:
+    """Return the exact pair key embedded in a media authority."""
+
+    return (
+        authority.receipt_path,
+        authority.receipt_device,
+        authority.receipt_inode,
+        authority.receipt_ctime_ns,
+        authority.receipt_sha256,
+        authority.fence_device,
+        authority.fence_inode,
+        authority.fence_ctime_ns,
+        authority.fence_sha256,
+        authority.transaction_id,
+    )
+
+
+def _validate_exact_sending_pair(
+    receipt_path: Path,
+    authority: MediaUploadAuthority,
+) -> tuple[MediaReceiptSnapshot, MediaReceiptSnapshot, _AuthorityKey]:
+    """Validate the complete exact sending pair bound to ``authority``."""
+
+    receipt_path = _normalised_path(receipt_path)
+    if _auxiliary_names(receipt_path):
+        raise MediaUploadReceiptError(
+            "unfinished media-receipt transition blocks authority use"
+        )
+    snapshot = _required_snapshot(receipt_path)
+    fence_path = fence_path_for_receipt(receipt_path)
+    fence = _required_fence_snapshot(fence_path)
+    expected_fence = {
+        **snapshot.document,
+        "document_kind": FENCE_DOCUMENT_KIND,
+    }
+    key = _authority_key_from_snapshots(
+        receipt_path,
+        snapshot,
+        fence,
+        authority.transaction_id,
+    )
+    if (
+        authority.lifecycle_state != "sending"
+        or authority.receipt_path != str(receipt_path)
+        or authority.fence_path != str(fence_path)
+        or key != _authority_key_from_authority(authority)
+        or authority.transaction_id != snapshot.document["transaction_id"]
+        or authority.transaction_id != fence.document["transaction_id"]
+        or authority.lane != snapshot.document["lane"]
+        or snapshot.document["lifecycle_state"] != "sending"
+        or fence.document["lifecycle_state"] != "sending"
+        or fence.document != expected_fence
+        or authority.image_sha256 != snapshot.document["image"]["sha256"]
+        or authority.payload_metadata_sha256
+        != snapshot.document["payload_metadata_sha256"]
+    ):
+        raise MediaUploadReceiptError(
+            "media-upload authority does not bind the exact sending pair"
+        )
+    return snapshot, fence, key
+
+
 def begin_media_upload(
     *,
     receipt_path: Path,
@@ -880,7 +973,7 @@ def begin_media_upload(
     fence = _required_fence_snapshot(fence_path)
     if fence.data != fence_data:
         raise MediaUploadReceiptError("published media fence changed")
-    return MediaUploadAuthority(
+    authority = MediaUploadAuthority(
         transaction_id=transaction_id,
         receipt_path=str(receipt_path),
         receipt_device=snapshot.device,
@@ -896,6 +989,23 @@ def begin_media_upload(
         payload_metadata_sha256=metadata_hash,
         lane=lane,
     )
+    key = _authority_key_from_snapshots(
+        receipt_path,
+        snapshot,
+        fence,
+        transaction_id,
+    )
+    with _authority_lock:
+        if (
+            key in _issued_untransmitted_authorities
+            or key in _consumed_authorities
+            or key in _aborting_authorities
+        ):
+            raise MediaUploadReceiptError(
+                "media-upload authority generation is already registered"
+            )
+        _issued_untransmitted_authorities[key] = (os.getpid(), authority)
+    return authority
 
 
 def _validate_sending_authority(
@@ -909,9 +1019,11 @@ def _validate_sending_authority(
     """Validate one exact sending generation without consuming it."""
 
     receipt_path = _normalised_path(receipt_path)
-    snapshot = _required_snapshot(receipt_path)
+    snapshot, fence, _key = _validate_exact_sending_pair(
+        receipt_path,
+        authority,
+    )
     fence_path = fence_path_for_receipt(receipt_path)
-    fence = _required_fence_snapshot(fence_path)
     metadata_hash = _metadata_hash(dict(payload_metadata))
     if (
         authority.lifecycle_state != "sending"
@@ -1085,8 +1197,165 @@ def consume_media_upload_authority(
     with _authority_lock:
         if key in _consumed_authorities:
             raise MediaUploadReceiptError("media-upload authority was already consumed")
-        _consumed_authorities.add(key)
+        if key in _aborting_authorities:
+            raise MediaUploadReceiptError(
+                "media-upload authority abort is in progress"
+            )
+        issued = _issued_untransmitted_authorities.get(key)
+        if (
+            issued is None
+            or issued[0] != os.getpid()
+            or issued[1] is not authority
+        ):
+            raise MediaUploadReceiptError(
+                "media-upload authority was not issued in this process"
+            )
+        del _issued_untransmitted_authorities[key]
+        _consumed_authorities[key] = (os.getpid(), authority)
     return payload
+
+
+def abort_untransmitted_media_upload(
+    receipt_path: Path,
+    authority: MediaUploadAuthority,
+    *,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> None:
+    """Retire an exact process-issued pair proven not to reach transport.
+
+    The caller must possess the original in-process authority and independent
+    mutation authority.  Authority consumption and abort claiming are atomic
+    with respect to each other.  The mutable receipt is removed and durably
+    synced first; the immutable fence remains the restart barrier until it is
+    revalidated, removed and durably synced.
+
+    This transition is intentionally not restart-resumable.  A fresh process
+    cannot reconstruct process-only proof that transport was never attempted,
+    so any surviving sending companion remains a manual-reconciliation
+    barrier.
+    """
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="untransmitted media-upload abort",
+    )
+    receipt_path = _normalised_path(receipt_path)
+    if not isinstance(authority, MediaUploadAuthority):
+        raise MediaUploadReceiptError(
+            "untransmitted media-upload abort requires typed authority"
+        )
+    if authority.receipt_path != str(receipt_path):
+        raise MediaUploadReceiptError(
+            "untransmitted media-upload authority targets another receipt"
+        )
+    key = _authority_key_from_authority(authority)
+    with _authority_lock:
+        if key in _consumed_authorities:
+            raise MediaUploadReceiptError(
+                "consumed media-upload authority cannot be aborted"
+            )
+        if key in _aborting_authorities:
+            raise MediaUploadReceiptError(
+                "media-upload authority abort is already in progress"
+            )
+        issued = _issued_untransmitted_authorities.get(key)
+        if (
+            issued is None
+            or issued[0] != os.getpid()
+            or issued[1] is not authority
+        ):
+            raise MediaUploadReceiptError(
+                "untransmitted media-upload authority was not issued in this process"
+            )
+        del _issued_untransmitted_authorities[key]
+        _aborting_authorities.add(key)
+
+    directory_fd: int | None = None
+    try:
+        snapshot, fence, current_key = _validate_exact_sending_pair(
+            receipt_path,
+            authority,
+        )
+        if current_key != key:
+            raise MediaUploadReceiptError(
+                "untransmitted media-upload generation changed"
+            )
+        directory_fd = _open_directory(receipt_path.parent)
+
+        # Re-read the complete pair immediately before the first destructive
+        # boundary.  The process-only abort claim prevents a supported
+        # authority consumer from winning the remaining interval.
+        current_receipt, current_fence, immediate_key = (
+            _validate_exact_sending_pair(receipt_path, authority)
+        )
+        if (
+            immediate_key != key
+            or current_receipt.data != snapshot.data
+            or current_fence.data != fence.data
+        ):
+            raise MediaUploadReceiptError(
+                "media-upload pair changed immediately before abort"
+            )
+        require_transaction_mutation_authority(
+            mutation_authority,
+            operation="untransmitted media-upload receipt removal",
+        )
+        os.unlink(receipt_path.name, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+
+        if _auxiliary_names(receipt_path):
+            raise MediaUploadReceiptError(
+                "unfinished media-receipt transition appeared during abort"
+            )
+        try:
+            os.stat(receipt_path, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise MediaUploadReceiptError(
+                "cannot verify media receipt removal"
+            ) from exc
+        else:
+            raise MediaUploadReceiptError(
+                "media receipt reappeared during untransmitted abort"
+            )
+
+        fence_path = fence_path_for_receipt(receipt_path)
+        surviving_fence = _required_fence_snapshot(fence_path)
+        if (
+            surviving_fence.data != fence.data
+            or surviving_fence.device != authority.fence_device
+            or surviving_fence.inode != authority.fence_inode
+            or surviving_fence.ctime_ns != authority.fence_ctime_ns
+            or surviving_fence.sha256 != authority.fence_sha256
+        ):
+            raise MediaUploadReceiptError(
+                "media-upload fence changed before untransmitted abort"
+            )
+        require_transaction_mutation_authority(
+            mutation_authority,
+            operation="untransmitted media-upload fence removal",
+        )
+        os.unlink(fence_path.name, dir_fd=directory_fd)
+        os.fsync(directory_fd)
+
+        for retired_path in (receipt_path, fence_path):
+            try:
+                os.stat(retired_path, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise MediaUploadReceiptError(
+                    "cannot verify untransmitted media-upload retirement"
+                ) from exc
+            raise MediaUploadReceiptError(
+                "untransmitted media-upload companion survived retirement"
+            )
+    finally:
+        if directory_fd is not None:
+            os.close(directory_fd)
+        with _authority_lock:
+            _aborting_authorities.discard(key)
 
 
 def confirm_media_upload(
@@ -1121,9 +1390,11 @@ def confirm_media_upload(
         authority.transaction_id,
     )
     with _authority_lock:
-        consumed = key in _consumed_authorities
+        consumed = _consumed_authorities.get(key)
     if (
-        not consumed
+        consumed is None
+        or consumed[0] != os.getpid()
+        or consumed[1] is not authority
         or authority.lifecycle_state != "sending"
         or authority.receipt_path != str(receipt_path)
         or authority.receipt_device != snapshot.device

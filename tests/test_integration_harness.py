@@ -290,6 +290,7 @@ def run_bot_command(
     x_api_base_url: str | None = None,
     x_upload_base_url: str | None = None,
     xai_api_base_url: str | None = None,
+    unset_x_upload_base_url: bool = False,
     extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = base_test_env()
@@ -313,6 +314,8 @@ def run_bot_command(
     )
     if extra_env:
         env.update(extra_env)
+    if unset_x_upload_base_url:
+        env.pop("X_UPLOAD_BASE_URL", None)
     return subprocess.run(
         [sys.executable, str(BOT), command],
         cwd=ROOT,
@@ -4158,6 +4161,90 @@ def test_quote_image_post_uploads_media_records_state_and_schedules_meme(tmp_pat
     assert state["last_regular_image_filename"] == "t01.jpg"
 
 
+def test_distinct_upload_origin_receives_only_media_while_api_receives_tweet(
+    tmp_path: Path,
+) -> None:
+    api_server = FakeApiServer(
+        {"next_post_id": 901500}
+    ).start()
+    upload_server = FakeApiServer(
+        {"v2_media_id": "distinct-upload-media"}
+    ).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        result = run_bot_command(
+            base_dir,
+            api_server,
+            "--test-post-quote",
+            x_api_base_url=api_server.url,
+            x_upload_base_url=upload_server.url,
+            xai_api_base_url=f"{api_server.url}/v1",
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert upload_server.path_counts["/2/media/upload"] == 1
+        assert upload_server.posts == []
+        assert api_server.path_counts.get("/2/media/upload", 0) == 0
+        assert len(api_server.posts) == 1
+        assert api_server.posts[0]["media"]["media_ids"] == [
+            "distinct-upload-media"
+        ]
+    finally:
+        upload_server.stop()
+        api_server.stop()
+
+
+def test_unset_upload_origin_inherits_api_origin_for_media_and_tweet(
+    tmp_path: Path,
+) -> None:
+    api_server = FakeApiServer(
+        {"next_post_id": 901600, "v2_media_id": "inherited-media"}
+    ).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        result = run_bot_command(
+            base_dir,
+            api_server,
+            "--test-post-quote",
+            x_api_base_url=api_server.url,
+            xai_api_base_url=f"{api_server.url}/v1",
+            unset_x_upload_base_url=True,
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert api_server.path_counts["/2/media/upload"] == 1
+        assert len(api_server.posts) == 1
+        assert api_server.posts[0]["media"]["media_ids"] == [
+            "inherited-media"
+        ]
+    finally:
+        api_server.stop()
+
+
+def test_distinct_upload_origin_never_receives_x_reads(tmp_path: Path) -> None:
+    api_server = FakeApiServer({}).start()
+    upload_server = FakeApiServer({}).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        result = run_bot_command(
+            base_dir,
+            api_server,
+            "--test-cycle",
+            x_api_base_url=api_server.url,
+            x_upload_base_url=upload_server.url,
+            xai_api_base_url=f"{api_server.url}/v1",
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert any(
+            request["method"] == "GET" for request in api_server.requests
+        )
+        assert upload_server.requests == []
+    finally:
+        upload_server.stop()
+        api_server.stop()
+
+
 def test_test_post_quote_replays_receipt_without_second_post(tmp_path: Path) -> None:
     server = FakeApiServer({"next_post_id": 950000}).start()
     try:
@@ -4741,7 +4828,9 @@ def test_live_endpoint_override_exact_phrase_does_not_break_fake_endpoints(tmp_p
     assert len(fake_server.posts) == 1
 
 
-def test_self_test_in_test_mode_refuses_each_default_live_endpoint(tmp_path: Path) -> None:
+def test_self_test_refuses_live_defaults_and_upload_inherits_fake_x_origin(
+    tmp_path: Path,
+) -> None:
     base_dir = prepare_base_dir(tmp_path, local_config={"MIN_SECONDS_BETWEEN_REPLIES": 1})
     fake = "http://127.0.0.1:9"
 
@@ -4756,7 +4845,7 @@ def test_self_test_in_test_mode_refuses_each_default_live_endpoint(tmp_path: Pat
     assert live_x.returncode == 2
     assert "X_API_BASE_URL=https://api.x.com" in live_x.stdout
 
-    live_upload = run_bot_with_env(
+    inherited_upload = run_bot_with_env(
         base_dir,
         "--self-test",
         extra_env={
@@ -4764,8 +4853,9 @@ def test_self_test_in_test_mode_refuses_each_default_live_endpoint(tmp_path: Pat
             "XAI_API_BASE_URL": f"{fake}/v1",
         },
     )
-    assert live_upload.returncode == 2
-    assert "X_UPLOAD_BASE_URL=https://upload.twitter.com" in live_upload.stdout
+    assert inherited_upload.returncode == 0, (
+        inherited_upload.stderr + inherited_upload.stdout
+    )
 
     live_xai = run_bot_with_env(
         base_dir,

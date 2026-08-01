@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import signal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -291,7 +292,10 @@ def test_prepared_and_literal_create_routes_must_agree(
     path: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(bot, "X_BASE", "https://api.x.invalid/prefix")
+    selected_base = (
+        "X_UPLOAD_BASE" if path == "/2/media/upload" else "X_BASE"
+    )
+    monkeypatch.setattr(bot, selected_base, "https://api.x.invalid/prefix")
     monkeypatch.setattr(
         bot.requests,
         "request",
@@ -305,6 +309,26 @@ def test_prepared_and_literal_create_routes_must_agree(
         match="Prepared and literal X create-route classifications disagree",
     ):
         bot.x_request("POST", path)
+
+
+def test_only_exact_literal_media_post_selects_upload_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "X_BASE", "http://127.0.0.1:18081")
+    monkeypatch.setattr(bot, "X_UPLOAD_BASE", "http://127.0.0.1:18082")
+
+    assert (
+        bot.x_request_base_url("POST", "/2/media/upload")
+        == "http://127.0.0.1:18082"
+    )
+    for method, path in (
+        ("GET", "/2/media/upload"),
+        ("POST", "/2/tweets"),
+        ("post", "/2/media/upload"),
+        ("POST", "/2/media/upload/"),
+        ("POST", "/2/media/%75pload"),
+    ):
+        assert bot.x_request_base_url(method, path) == "http://127.0.0.1:18081"
 
 
 def test_direct_media_upload_requires_explicit_ambiguous_write_handling(
@@ -448,6 +472,138 @@ def test_v2_media_upload_uses_ambiguous_write_transport(
     method, path, kwargs = calls[0]
     assert (method, path) == ("POST", "/2/media/upload")
     assert kwargs["ambiguous_write"] is True
+
+
+def test_pause_before_media_receipt_publication_leaves_no_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    monkeypatch.setattr(
+        bot,
+        "require_remote_operation_unpaused",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            bot.RemoteOperationsPaused("paused before begin")
+        ),
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail("pause must precede transport"),
+    )
+
+    with pytest.raises(bot.RemoteOperationsPaused, match="before begin"):
+        bot.upload_media(str(image), lane="quote_image")
+
+    assert not bot.MEDIA_UPLOAD_RECEIPT_FILE.exists()
+    assert not bot.media_fence_path_for_receipt(
+        bot.MEDIA_UPLOAD_RECEIPT_FILE
+    ).exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_final_pretransport_pause_exactly_aborts_media_pair_without_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    pause_observations = iter((False, True))
+    request_calls: list[str] = []
+    monkeypatch.setattr(
+        bot,
+        "require_instance_lock_for_remote_write",
+        lambda _operation: None,
+    )
+    monkeypatch.setattr(
+        bot,
+        "global_remote_writes_paused",
+        lambda: next(pause_observations),
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: request_calls.append("request"),
+    )
+
+    with pytest.raises(bot.RemoteOperationsPaused, match="runtime control"):
+        bot.upload_media(str(image), lane="quote_image")
+
+    assert request_calls == []
+    assert not bot.MEDIA_UPLOAD_RECEIPT_FILE.exists()
+    assert not bot.media_fence_path_for_receipt(
+        bot.MEDIA_UPLOAD_RECEIPT_FILE
+    ).exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot._AMBIGUOUS_REMOTE_POST_SEEN is False
+    assert bot._AMBIGUOUS_MARKER_DURABILITY_UNCERTAIN is False
+
+
+def test_pause_after_media_authority_consumption_cannot_abort_and_records_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = tmp_path / "image.png"
+    image.write_bytes(b"image")
+    prior_sigint_handler = signal.getsignal(signal.SIGINT)
+    marker_guard_observations: list[bool] = []
+    real_record_ambiguous = bot.record_ambiguous_remote_post
+
+    monkeypatch.setattr(
+        bot,
+        "require_remote_operation_unpaused",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(
+        bot,
+        "require_instance_lock_for_remote_write",
+        lambda _operation: None,
+    )
+
+    def consumed_then_paused(
+        *,
+        authority: bot.MediaUploadAuthority,
+        payload: bot.ReceiptBoundMediaPayload,
+    ) -> str:
+        form = {
+            "media_category": "tweet_image",
+            "media_type": payload.mime_type,
+        }
+        bot.consume_media_upload_authority(
+            bot.MEDIA_UPLOAD_RECEIPT_FILE,
+            authority,
+            payload=payload,
+            lane=authority.lane,
+            mime_type=payload.mime_type,
+            payload_metadata=bot.media_upload_payload_metadata(form),
+        )
+        raise bot.RemoteOperationsPaused("synthetic post-consumption pause")
+
+    def record_while_guarded(payload: dict[str, object]) -> None:
+        marker_guard_observations.append(
+            signal.getsignal(signal.SIGINT) != prior_sigint_handler
+        )
+        real_record_ambiguous(payload)
+
+    monkeypatch.setattr(bot, "upload_media_v2", consumed_then_paused)
+    monkeypatch.setattr(bot, "record_ambiguous_remote_post", record_while_guarded)
+
+    with pytest.raises(
+        bot.AmbiguousRemotePostOutcome,
+        match="locally paused media upload",
+    ):
+        bot.upload_media(str(image), lane="quote_image")
+
+    assert marker_guard_observations == [True]
+    assert signal.getsignal(signal.SIGINT) == prior_sigint_handler
+    assert bot.MEDIA_UPLOAD_RECEIPT_FILE.exists()
+    assert bot.media_fence_path_for_receipt(
+        bot.MEDIA_UPLOAD_RECEIPT_FILE
+    ).exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
 
 
 @pytest.mark.parametrize(

@@ -26,6 +26,11 @@ def _confirm_media_upload(*args, **kwargs):
     return media_receipt.confirm_media_upload(*args, **kwargs)
 
 
+def _abort_untransmitted_media_upload(*args, **kwargs):
+    kwargs.setdefault("mutation_authority", _mutation_authority())
+    return media_receipt.abort_untransmitted_media_upload(*args, **kwargs)
+
+
 def _retire_confirmed_media_upload(*args, **kwargs):
     kwargs.setdefault("mutation_authority", _mutation_authority())
     return media_receipt.retire_confirmed_media_upload(*args, **kwargs)
@@ -290,6 +295,337 @@ def test_authority_is_exact_and_one_shot(tmp_path: Path) -> None:
             mime_type="image/jpeg",
             payload_metadata=metadata,
         )
+
+
+def test_exact_process_issued_unconsumed_authority_aborts_sending_pair(
+    tmp_path: Path,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    fence_path = media_receipt.fence_path_for_receipt(receipt_path)
+
+    _abort_untransmitted_media_upload(receipt_path, authority)
+
+    assert not receipt_path.exists()
+    assert not fence_path.exists()
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is False
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="not issued",
+    ):
+        _abort_untransmitted_media_upload(receipt_path, authority)
+
+
+def test_reconstructed_or_consumed_authority_cannot_abort_sending_pair(
+    tmp_path: Path,
+) -> None:
+    reconstructed_dir = tmp_path / "reconstructed"
+    consumed_dir = tmp_path / "consumed"
+    reconstructed_dir.mkdir()
+    consumed_dir.mkdir()
+
+    receipt_path, image_path, metadata = _fixture(reconstructed_dir)
+    authority = _begin(receipt_path, image_path, metadata)
+    reconstructed = media_receipt.MediaUploadAuthority(**authority.__dict__)
+    payload = media_receipt.bind_media_upload_payload(
+        receipt_path,
+        authority,
+        image_path=image_path,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata=metadata,
+    )
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="not issued",
+    ):
+        media_receipt.consume_media_upload_authority(
+            receipt_path,
+            reconstructed,
+            payload=payload,
+            lane="quote_image",
+            mime_type="image/jpeg",
+            payload_metadata=metadata,
+        )
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="not issued",
+    ):
+        _abort_untransmitted_media_upload(receipt_path, reconstructed)
+    assert receipt_path.exists()
+    assert media_receipt.fence_path_for_receipt(receipt_path).exists()
+    _abort_untransmitted_media_upload(receipt_path, authority)
+
+    receipt_path, image_path, metadata = _fixture(consumed_dir)
+    consumed_authority = _begin(receipt_path, image_path, metadata)
+    _consume(receipt_path, image_path, metadata, consumed_authority)
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="consumed.*cannot be aborted",
+    ):
+        _abort_untransmitted_media_upload(receipt_path, consumed_authority)
+    assert receipt_path.exists()
+    assert media_receipt.fence_path_for_receipt(receipt_path).exists()
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "auxiliary",
+        "receipt_hardlink",
+        "fence_hardlink",
+        "receipt_same_bytes_replace",
+        "receipt_symlink",
+        "receipt_directory",
+        "missing_fence",
+    ),
+)
+def test_untransmitted_abort_rejects_nonexact_or_unsafe_companions(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    fence_path = media_receipt.fence_path_for_receipt(receipt_path)
+    if mutation == "auxiliary":
+        _durable_write(
+            tmp_path / f"{media_receipt.TRANSITION_PREFIX}synthetic",
+            b"barrier",
+        )
+    elif mutation == "receipt_hardlink":
+        os.link(receipt_path, tmp_path / "receipt-peer")
+    elif mutation == "fence_hardlink":
+        os.link(fence_path, tmp_path / "fence-peer")
+    elif mutation == "receipt_same_bytes_replace":
+        replacement = tmp_path / "replacement-receipt"
+        _durable_write(replacement, receipt_path.read_bytes())
+        os.replace(replacement, receipt_path)
+    elif mutation == "receipt_symlink":
+        target = tmp_path / "receipt-target"
+        _durable_write(target, receipt_path.read_bytes())
+        receipt_path.unlink()
+        receipt_path.symlink_to(target.name)
+    elif mutation == "receipt_directory":
+        receipt_path.unlink()
+        receipt_path.mkdir()
+    else:
+        fence_path.unlink()
+
+    with pytest.raises(media_receipt.MediaUploadReceiptError):
+        _abort_untransmitted_media_upload(receipt_path, authority)
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+@pytest.mark.parametrize("operation", ("unlink", "fsync"))
+@pytest.mark.parametrize("fail_at", (1, 2))
+@pytest.mark.parametrize("after_effect", (False, True))
+def test_untransmitted_abort_faults_never_authorise_reuse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    fail_at: int,
+    after_effect: bool,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority = _begin(receipt_path, image_path, metadata)
+    fence_path = media_receipt.fence_path_for_receipt(receipt_path)
+    real_unlink = media_receipt.os.unlink
+    real_fsync = media_receipt.os.fsync
+    unlink_calls = 0
+    fsync_calls = 0
+
+    def maybe_fail_unlink(*args: object, **kwargs: object) -> None:
+        nonlocal unlink_calls
+        unlink_calls += 1
+        if operation == "unlink" and unlink_calls == fail_at and not after_effect:
+            raise OSError("synthetic media-abort unlink failure")
+        real_unlink(*args, **kwargs)
+        if operation == "unlink" and unlink_calls == fail_at and after_effect:
+            raise OSError("synthetic media-abort unlink failure")
+
+    def maybe_fail_fsync(descriptor: int) -> None:
+        nonlocal fsync_calls
+        fsync_calls += 1
+        if operation == "fsync" and fsync_calls == fail_at and not after_effect:
+            raise OSError("synthetic media-abort fsync failure")
+        real_fsync(descriptor)
+        if operation == "fsync" and fsync_calls == fail_at and after_effect:
+            raise OSError("synthetic media-abort fsync failure")
+
+    monkeypatch.setattr(media_receipt.os, "unlink", maybe_fail_unlink)
+    monkeypatch.setattr(media_receipt.os, "fsync", maybe_fail_fsync)
+    with pytest.raises(OSError, match="synthetic media-abort"):
+        _abort_untransmitted_media_upload(receipt_path, authority)
+
+    # Until fence removal takes effect, the immutable companion is the durable
+    # blocker.  Once both removals take effect, the local non-transmission
+    # transition is observably complete even if the final call reports an
+    # error; the application layers its durable ambiguity marker over that
+    # error before releasing its SIGINT guard.
+    if fence_path.exists():
+        assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+    else:
+        assert not receipt_path.exists()
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="not issued|consumed",
+    ):
+        _abort_untransmitted_media_upload(receipt_path, authority)
+
+
+def test_fresh_process_cannot_reconstruct_untransmitted_abort_authority(
+    tmp_path: Path,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority_path = tmp_path / "authority.json"
+    script = "\n".join(
+        (
+            "import json",
+            "from dataclasses import asdict",
+            "from pathlib import Path",
+            "import remote_media_upload_receipt as m",
+            f"receipt = Path({str(receipt_path)!r})",
+            f"image = Path({str(image_path)!r})",
+            f"metadata = {metadata!r}",
+            "authority = m.begin_media_upload(",
+            "    receipt_path=receipt, image_path=image, lane='quote_image',",
+            "    mime_type='image/jpeg', payload_metadata=metadata,",
+            ")",
+            f"Path({str(authority_path)!r}).write_text(json.dumps(asdict(authority)))",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(media_receipt.__file__).parent,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert completed.returncode == 0, completed.stderr
+    reconstructed = media_receipt.MediaUploadAuthority(
+        **json.loads(authority_path.read_text(encoding="utf-8"))
+    )
+
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="not issued",
+    ):
+        _abort_untransmitted_media_upload(receipt_path, reconstructed)
+    assert receipt_path.exists()
+    assert media_receipt.fence_path_for_receipt(receipt_path).exists()
+    assert media_receipt.media_upload_receipt_is_blocking(receipt_path) is True
+
+
+@pytest.mark.parametrize(
+    ("phase", "receipt_present", "fence_present"),
+    (
+        ("before_receipt_unlink", True, True),
+        ("after_receipt_unlink", False, True),
+        ("at_first_directory_fsync", False, True),
+        ("before_fence_unlink", False, True),
+        ("after_fence_unlink", False, False),
+        ("at_final_directory_fsync", False, False),
+    ),
+)
+def test_hard_exit_during_untransmitted_abort_is_fresh_process_safe(
+    tmp_path: Path,
+    phase: str,
+    receipt_present: bool,
+    fence_present: bool,
+) -> None:
+    receipt_path, image_path, metadata = _fixture(tmp_path)
+    authority_path = tmp_path / "hard-exit-authority.json"
+    script = "\n".join(
+        (
+            "import json",
+            "import os",
+            "from dataclasses import asdict",
+            "from pathlib import Path",
+            "import remote_media_upload_receipt as m",
+            "from transaction_mutation_authority import issue_transaction_mutation_authority",
+            f"phase = {phase!r}",
+            f"receipt = Path({str(receipt_path)!r})",
+            f"image = Path({str(image_path)!r})",
+            f"metadata = {metadata!r}",
+            "authority = m.begin_media_upload(",
+            "    receipt_path=receipt, image_path=image, lane='quote_image',",
+            "    mime_type='image/jpeg', payload_metadata=metadata,",
+            ")",
+            f"Path({str(authority_path)!r}).write_text(json.dumps(asdict(authority)))",
+            "real_unlink = m.os.unlink",
+            "real_fsync = m.os.fsync",
+            "unlink_calls = 0",
+            "fsync_calls = 0",
+            "def controlled_unlink(*args, **kwargs):",
+            "    global unlink_calls",
+            "    unlink_calls += 1",
+            "    if unlink_calls == 1 and phase == 'before_receipt_unlink':",
+            "        os._exit(86)",
+            "    real_unlink(*args, **kwargs)",
+            "    if unlink_calls == 1 and phase == 'after_receipt_unlink':",
+            "        os._exit(86)",
+            "    if unlink_calls == 2 and phase == 'after_fence_unlink':",
+            "        os._exit(86)",
+            "def controlled_fsync(descriptor):",
+            "    global fsync_calls",
+            "    fsync_calls += 1",
+            "    if fsync_calls == 1 and phase == 'at_first_directory_fsync':",
+            "        os._exit(86)",
+            "    real_fsync(descriptor)",
+            "    if fsync_calls == 1 and phase == 'before_fence_unlink':",
+            "        os._exit(86)",
+            "    if fsync_calls == 2 and phase == 'at_final_directory_fsync':",
+            "        os._exit(86)",
+            "m.os.unlink = controlled_unlink",
+            "m.os.fsync = controlled_fsync",
+            "m.abort_untransmitted_media_upload(",
+            "    receipt, authority,",
+            "    mutation_authority=issue_transaction_mutation_authority(",
+            "        lambda _operation: None, operation='hard-exit abort test',",
+            "    ),",
+            ")",
+            "raise AssertionError('hard-exit checkpoint was not reached')",
+        )
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(media_receipt.__file__).parent,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert completed.returncode == 86, completed.stderr
+
+    fence_path = media_receipt.fence_path_for_receipt(receipt_path)
+    assert receipt_path.exists() is receipt_present
+    assert fence_path.exists() is fence_present
+    assert (
+        media_receipt.media_upload_receipt_is_blocking(receipt_path)
+        is (receipt_present or fence_present)
+    )
+    reconstructed = media_receipt.MediaUploadAuthority(
+        **json.loads(authority_path.read_text(encoding="utf-8"))
+    )
+    with pytest.raises(
+        media_receipt.MediaUploadReceiptError,
+        match="not issued",
+    ):
+        _abort_untransmitted_media_upload(receipt_path, reconstructed)
+    assert receipt_path.exists() is receipt_present
+    assert fence_path.exists() is fence_present
+
+    if fence_present and not receipt_present:
+        with pytest.raises(media_receipt.MediaUploadReceiptError):
+            _resume_interrupted_confirmed_media_retirement(
+                receipt_path,
+                transport_journal_path=tmp_path / "missing-journal",
+                transport_fence_path=tmp_path / "missing-transport-fence",
+                source_receipt_path=tmp_path / "missing-source",
+            )
+        assert fence_path.exists()
 
 
 def test_same_byte_image_replacement_is_rejected(tmp_path: Path) -> None:

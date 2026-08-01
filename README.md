@@ -92,12 +92,13 @@ deserialised; if JSON history is missing while a legacy pickle exists, the bot
 fails closed until JSON history is restored or migrated manually from a trusted
 backup. They use `MRS_LOG_FILE` for logs.
 
-Production defaults are unchanged when these environment variables are unset:
+Effective production routing and the remaining defaults are unchanged when
+these environment variables are unset:
 
 - `MRS_BASE_DIR` defaults to `/disks/disk1/etc/mrsMThatcher`
 - `MRS_LOG_FILE` defaults to `<MRS_BASE_DIR>/mrsMThatcher.log`
 - `X_API_BASE_URL` defaults to `https://api.x.com`
-- `X_UPLOAD_BASE_URL` defaults to `https://upload.twitter.com`
+- `X_UPLOAD_BASE_URL` inherits the resolved `X_API_BASE_URL` when unset
 - `XAI_API_BASE_URL` defaults to `https://api.x.ai/v1`
 
 Safety guards:
@@ -111,7 +112,7 @@ Safety guards:
 Endpoint override convention:
 
 - `X_API_BASE_URL` must be an origin only (scheme, host and optional port), with no path, query, fragment or user information; the bot appends `/2/...` endpoint paths.
-- `X_UPLOAD_BASE_URL` must likewise be an origin only; the bot appends `/2/media/upload` and does not fall back to a second legacy upload endpoint after an uncertain outcome.
+- `X_UPLOAD_BASE_URL` must likewise be an origin only. It is used only for the exact literal `POST /2/media/upload`; reads and `POST /2/tweets` continue to use `X_API_BASE_URL`. When unset it inherits the resolved `X_API_BASE_URL`. The bot does not fall back to a second legacy upload endpoint after an uncertain outcome.
 - `XAI_API_BASE_URL` should include `/v1` when the fake server exposes `/v1/chat/completions`.
 
 Scenario fixtures live in `tests/fixtures/scenarios/`. The fake server implements only the endpoints the bot currently uses:

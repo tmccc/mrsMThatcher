@@ -13,7 +13,7 @@
       "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
       "tree": "b83abb7af53f925eb8686825e09f4654a55ff40a",
       "as_of": "2026-08-01",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0048. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the unactivated 7ebcc096 transport-boundary candidate. By that cut-off, the second-restart, cross-lane receipt-authority, activation-pair, receipt-disappearance and ambiguous-media-fallback repairs recorded through DEF-0039 are committed. Independent review of that exact cut-off then established DEF-0040 through DEF-0050. No later worktree or candidate repair is treated as part of this ledger, and this ledger does not claim that 7ebcc096 or any descendant was merged, deployed or loaded.",
       "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 7ebcc096 are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0048, remain external and unfixed in ledger truth until merge and post-merge regeneration."
+      "explanation": "The exact release base for this ledger is 7ebcc09699a13848d55a33fd84d66cc8ce56d95c. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Fixes proposed after that base, including the current worktree proposals for DEF-0040 through DEF-0050, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0048 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-7ebcc096 candidate implementation, test or proposed repair may change DEF-0040 through DEF-0050 from active or assurance-weakness status in this ledger; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -5982,6 +5982,247 @@
           "DEF-0036",
           "DEF-0041",
           "DEF-0043"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0049",
+      "title": "Configured X upload origin was ignored by v2 media requests",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-upload-origin-routing-review",
+      "status": "active",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-API-001"
+      ],
+      "components": [
+        "X API base configuration",
+        "X upload base configuration",
+        "v2 media-upload URL routing"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "README.md",
+        "tests/test_integration_harness.py",
+        "tests/test_x_write_outcome_conservatism.py"
+      ],
+      "runtime_lanes": [
+        "media-upload"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The mismatch was reproduced with distinct synthetic loopback API and upload origins. No network, X, provider, service or production action occurred.",
+        "explanation": "This is a cutoff-bound configuration-routing defect, not evidence that production configured or required a distinct upload origin."
+      },
+      "summary": "At 7ebcc096, X_UPLOAD_BASE_URL was parsed, normalised and reported by configuration checks, but x_request constructed every X URL from X_BASE. An explicitly configured upload origin therefore had no effect on POST /2/media/upload.",
+      "impact": "A deployment which intentionally separates its v2 media-upload origin from its ordinary X API origin would silently send the upload request to the ordinary API origin. The reproduced impact is incorrect configuration behaviour and possible upload failure, not a demonstrated duplicate or live incident.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The ignored upload-origin behaviour was established against the exact 7ebcc096 evidence cut-off. Its introducing revision was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "A four-way post-cutoff adversarial review used distinct local API and upload origins and established that media upload still selected X_BASE at the evidence cut-off.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Distinct loopback-origin routing fixture with separate media, tweet and read observations"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "X API/upload environment parsing, effective defaults, media-upload URL construction, ordinary X reads and tweet creates.",
+        "exclusions": "No live endpoint was contacted and no claim is made that production supplied a distinct upload origin.",
+        "source": "Four-way pre-freeze API and media-routing review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Assign different local loopback origins to the X API and upload settings, then observe which origin receives media, tweet and read requests.",
+        "reproducer": "POST /2/media/upload reached the API-origin sentinel rather than the configured upload-origin sentinel.",
+        "source": "Focused distinct-origin integration review"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An external post-cutoff candidate routes only exact POST /2/media/upload requests to the configured upload origin, makes an unset upload origin inherit the effective API origin and keeps reads and tweet creates on the API origin. It remains unfixed in ledger truth until a descendant is frozen, attested and the ledger is regenerated."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "No descendant routing repair is recorded as deployed. Production was not changed or contacted by this review."
+      },
+      "residual_risk": "Until a descendant repair is frozen and attested, release validation cannot claim that a configured upload origin controls v2 media transport.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:mrsMThatcher2.py",
+          "claim": "The cutoff parses X_UPLOAD_BASE_URL but constructs X request URLs from X_BASE."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_integration_harness.py::test_distinct_upload_origin_receives_only_media_while_api_receives_tweet",
+          "claim": "The external descendant candidate regression proves media and tweet creates select their respective configured origins."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_only_exact_literal_media_post_selects_upload_origin",
+          "claim": "The external descendant unit regression limits upload-origin selection to the exact protected media-create route."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision which parsed but did not route through X_UPLOAD_BASE_URL was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was proved to route distinct API and upload origins correctly."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The repair remains uncommitted descendant candidate material and requires external frozen-candidate attestation."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0039",
+          "DEF-0047"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0050",
+      "title": "Final pretransport pause could strand a definitely untransmitted media barrier pair",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "post-7ebcc096-pretransport-pause-media-recovery-review",
+      "status": "active",
+      "severity": "medium",
+      "invariant_ids": [
+        "INV-TXN-REG-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001"
+      ],
+      "components": [
+        "v2 media receipt and fence",
+        "final remote-operation pause preflight",
+        "definitely untransmitted media cleanup authority",
+        "manual recovery barrier"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "remote_media_upload_receipt.py",
+        "tests/test_remote_media_upload_receipt.py",
+        "tests/test_transaction_mutation_authority.py",
+        "tests/test_x_write_outcome_conservatism.py"
+      ],
+      "runtime_lanes": [
+        "regular-quote-image-post",
+        "daily-meme-post",
+        "media-upload",
+        "global-pause-control"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The availability boundary was reproduced using a synthetic pause transition after durable receipt/fence publication and before a local transport sentinel. No HTTP, network, X, provider, service or production action occurred.",
+        "explanation": "The durable pair remained fail closed and therefore did not create a duplicate-write opening; the established defect is unnecessary manual recovery of a definitely untransmitted transaction."
+      },
+      "summary": "At 7ebcc096, if the supported pause became active at the final pretransport check after a v2 media receipt/fence pair had been durably published, the request was correctly not transmitted but the pair remained as an unresolved global barrier. No exact process-only authority existed to retire that definitely untransmitted pair.",
+      "impact": "The bot could remain conservatively blocked and require operator reconciliation even though the media request was proved not to have reached the transport boundary. This is an availability and recovery defect; the surviving receipt/fence preserved duplicate safety.",
+      "introduced": {
+        "first_bad_commit": "unknown",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:unknown..7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "confidence": "bounded",
+        "explanation": "The pause boundary was established against the exact 7ebcc096 evidence cut-off. Its first introducing revision was not reconstructed."
+      },
+      "chronology": [
+        {
+          "date": "2026-08-01",
+          "event": "A four-way transaction review paused the media lane after durable pair publication but before transport and established that the definitely untransmitted pair remained as a manual blocker.",
+          "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+          "evidence": "Final-pretransport pause fixture with a transport sentinel and exact receipt/fence inspection"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-01",
+        "reviewed_revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "scope": "Media receipt/fence publication, final pause preflight, one-shot transport-authority consumption and fail-closed recovery before and after consumption.",
+        "exclusions": "No remote transport occurred. Post-consumption uncertainty remains an ambiguity case and was not reclassified as definitely untransmitted.",
+        "source": "Four-way pre-freeze transaction and filesystem-boundary review"
+      },
+      "detection": {
+        "date": "2026-08-01",
+        "revision": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
+        "method": "Publish and revalidate an exact media receipt/fence pair, activate the supported pause before the final transport-authority consumption, and verify transport is not reached while the pair remains present.",
+        "reproducer": "RemoteOperationsPaused was raised before transport, but the exact sending pair remained and blocked later remote operations until manual recovery.",
+        "source": "Focused final-pretransport pause-boundary fixture"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An external post-cutoff candidate issues a process-local, exact-object, single-use cleanup authority only after durable pair publication and reread. A final pause before transport consumption can remove that definitely untransmitted pair with identity, content, lifecycle and durability checks; reconstructed, consumed, unsafe or interrupted cases remain fail closed. It remains unfixed in cutoff truth until frozen, attested and regenerated into a later ledger."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "evidence": "No descendant cleanup-authority repair is recorded as deployed. Production was not changed or contacted by this review."
+      },
+      "residual_risk": "Until a descendant repair is frozen and attested, a final pretransport pause after media pair publication may require manual operator recovery; the existing pair must remain treated as a duplicate-safe global barrier.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c:mrsMThatcher2.py",
+          "claim": "The cutoff performs a final pause check after media pair publication without an exact definitely-untransmitted retirement path."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "claim": "The external descendant regression proves a pre-consumption pause retires only the exact definitely untransmitted pair without creating an ambiguity marker."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
+          "claim": "The external descendant literal-process regression proves every interrupted cleanup state is either empty because no transport occurred or remains restart-blocking."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker",
+          "claim": "The paired regression proves a pause after transport-authority consumption is not misclassified as definitely untransmitted and remains fail closed."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.first_bad_commit",
+          "explanation": "The first revision with this final-pretransport pause and media-pair recovery interaction was not reconstructed."
+        },
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "No earlier revision was proved to cleanly retire only definitely untransmitted media pairs at this pause boundary."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The repair remains uncommitted descendant candidate material and requires external frozen-candidate attestation."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0039",
+          "DEF-0040",
+          "DEF-0042"
         ]
       }
     }

@@ -1004,7 +1004,16 @@
           "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
           "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
           "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
-          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "tests/test_remote_media_upload_receipt.py::test_exact_process_issued_unconsumed_authority_aborts_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_reconstructed_or_consumed_authority_cannot_abort_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_rejects_nonexact_or_unsafe_companions",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_faults_never_authorise_reuse",
+          "tests/test_remote_media_upload_receipt.py::test_fresh_process_cannot_reconstruct_untransmitted_abort_authority",
+          "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
+          "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
         ],
         "validations": [
           {
@@ -1056,7 +1065,16 @@
           "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
           "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
           "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
-          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "tests/test_remote_media_upload_receipt.py::test_exact_process_issued_unconsumed_authority_aborts_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_reconstructed_or_consumed_authority_cannot_abort_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_rejects_nonexact_or_unsafe_companions",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_faults_never_authorise_reuse",
+          "tests/test_remote_media_upload_receipt.py::test_fresh_process_cannot_reconstruct_untransmitted_abort_authority",
+          "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
+          "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
         ],
         "purpose": "Exercise durable pre-send intent, hard-death ambiguity retention, exact bound schedule after-state, pending-schedule recovery, conservative post-transmission status handling and at-most-once restart behavior."
           }
@@ -1281,7 +1299,16 @@
           "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
           "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
           "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
-          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "tests/test_remote_media_upload_receipt.py::test_exact_process_issued_unconsumed_authority_aborts_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_reconstructed_or_consumed_authority_cannot_abort_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_rejects_nonexact_or_unsafe_companions",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_faults_never_authorise_reuse",
+          "tests/test_remote_media_upload_receipt.py::test_fresh_process_cannot_reconstruct_untransmitted_abort_authority",
+          "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
+          "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
         ],
         "validations": [
           {
@@ -1335,7 +1362,16 @@
           "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
           "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
           "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
-          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "tests/test_remote_media_upload_receipt.py::test_exact_process_issued_unconsumed_authority_aborts_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_reconstructed_or_consumed_authority_cannot_abort_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_rejects_nonexact_or_unsafe_companions",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_faults_never_authorise_reuse",
+          "tests/test_remote_media_upload_receipt.py::test_fresh_process_cannot_reconstruct_untransmitted_abort_authority",
+          "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
+          "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
         ],
         "purpose": "Exercise meme pre-send durability, pending-schedule recovery, next-local-date and same-day constraints, conservative post-transmission status handling, mutual exclusion and at-most-once replay."
           }
@@ -2046,7 +2082,16 @@
           "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
           "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
           "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
-          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "tests/test_remote_media_upload_receipt.py::test_exact_process_issued_unconsumed_authority_aborts_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_reconstructed_or_consumed_authority_cannot_abort_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_rejects_nonexact_or_unsafe_companions",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_faults_never_authorise_reuse",
+          "tests/test_remote_media_upload_receipt.py::test_fresh_process_cannot_reconstruct_untransmitted_abort_authority",
+          "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
+          "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
         ],
         "validations": [
           {
@@ -2082,7 +2127,16 @@
           "tests/test_pending_receipt_directory_fsync.py::test_strict_transaction_object_releases_retained_sigint_once",
           "tests/test_exact_receipt_retirement.py::test_shared_retirement_boundary_latches_even_for_process_control_exception",
           "tests/test_unit_helpers.py::test_final_receipt_cleanup_fsync_failure_latches_every_public_lane",
-          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work"
+          "tests/test_unit_helpers.py::test_simultaneous_legacy_confirmed_receipts_block_auxiliary_provider_work",
+          "tests/test_remote_media_upload_receipt.py::test_exact_process_issued_unconsumed_authority_aborts_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_reconstructed_or_consumed_authority_cannot_abort_sending_pair",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_rejects_nonexact_or_unsafe_companions",
+          "tests/test_remote_media_upload_receipt.py::test_untransmitted_abort_faults_never_authorise_reuse",
+          "tests/test_remote_media_upload_receipt.py::test_fresh_process_cannot_reconstruct_untransmitted_abort_authority",
+          "tests/test_remote_media_upload_receipt.py::test_hard_exit_during_untransmitted_abort_is_fresh_process_safe",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_before_media_receipt_publication_leaves_no_transaction",
+          "tests/test_x_write_outcome_conservatism.py::test_final_pretransport_pause_exactly_aborts_media_pair_without_marker",
+          "tests/test_x_write_outcome_conservatism.py::test_pause_after_media_authority_consumption_cannot_abort_and_records_marker"
         ],
         "purpose": "Exercise the cross-lane ambiguity barrier, pending-schedule compatibility, conservative post-transmission status handling and safe retirement order."
           }
@@ -2551,14 +2605,14 @@
       "id": "INV-API-001",
       "category": "configuration_process",
       "title": "Bounded requests and conservative write outcomes",
-      "statement": "Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, disable redirects for writes, and classify every unproved post-transmission response or failure—including generic HTTP 3xx, 4xx and 5xx—as ambiguous without automatic reposting. X API and upload bases must be origins only, and the literal request URL and prepared endpoint classification must agree for tweet and media creates. A transmitted or possibly transmitted POST /2/media/upload whose outcome is not proved successful must retain its exact durable media receipt/fence barrier and must never be retried through the legacy v1.1 upload endpoint or any alternate endpoint.",
+      "statement": "Each HTTP attempt must use one bounded combined connect/read total budget within the service stop allowance, retry only explicitly safe operations within bounded counts, disable redirects for writes, and classify every unproved post-transmission response or failure—including generic HTTP 3xx, 4xx and 5xx—as ambiguous without automatic reposting. X API and upload bases must be origins only, POST /2/media/upload must use the configured upload origin while all other X requests use the API origin, and the literal request URL and prepared endpoint classification must agree for tweet and media creates. A transmitted or possibly transmitted POST /2/media/upload whose outcome is not proved successful must retain its exact durable media receipt/fence barrier and must never be retried through the legacy v1.1 upload endpoint or any alternate endpoint.",
       "failure_if_violated": "Shutdown can exceed the supervisor budget, or an uncertain remote write can be repeated and create duplicate public content.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "The request timeout parser caps the total budget, urllib3 receives a combined total timeout, and X create requests do not follow redirects. X API and upload configuration rejects paths, queries, fragments and user information; create transport also fails closed if literal and prepared route classifications disagree. X post and v2 media-upload paths publish and revalidate exact durable transport barriers before transmission and preserve those barriers for every post-transmission outcome not proved successful or definitely unsent. The legacy v1.1 media helper refuses before transport, so an ambiguous v2 outcome cannot become a second upload through a different endpoint. The separate xAI provider base deliberately retains its versioned /v1 path.",
+      "status_rationale": "The request timeout parser caps the total budget, urllib3 receives a combined total timeout, and X create requests do not follow redirects. X API and upload configuration rejects paths, queries, fragments and user information; the descendant candidate routes only exact POST /2/media/upload requests to the upload origin and all other X requests to the API origin, and create transport fails closed if literal and prepared route classifications disagree. X post and v2 media-upload paths publish and revalidate exact durable transport barriers before transmission and preserve those barriers for every post-transmission outcome not proved successful or definitely unsent. The legacy v1.1 media helper refuses before transport, so an ambiguous v2 outcome cannot become a second upload through a different endpoint. The separate xAI provider base deliberately retains its versioned /v1 path.",
       "verification": {
         "status": "verified",
-        "rationale": "Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, generic non-2xx responses and redirects, and prove ambiguous writes and made-with-AI rejection text are not retried. Literal-process media tests cover every v2 upload hard-exit boundary and prove a fresh process remains globally blocked, while a focused regression proves the legacy v1.1 helper refuses before any transport call. Configuration and unit regressions reject pathful or otherwise non-origin X bases, preserve the versioned xAI provider base and require prepared/literal tweet and media route classifications to agree before transport."
+    "rationale": "Tests inspect the combined timeout object, reject non-finite or oversized values, inject network failures, generic non-2xx responses and redirects, and prove ambiguous writes and made-with-AI rejection text are not retried. Literal-process media tests cover every v2 upload hard-exit boundary and prove a fresh process remains globally blocked, while a focused regression proves the legacy v1.1 helper refuses before any transport call. Configuration and unit regressions reject pathful or otherwise non-origin X bases, preserve the versioned xAI provider base, prove distinct API/upload-origin routing and require prepared/literal tweet and media route classifications to agree before transport."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -2593,7 +2647,12 @@
           "tests/test_x_write_outcome_conservatism.py::test_x_api_bases_must_be_origin_only",
           "tests/test_x_write_outcome_conservatism.py::test_xai_versioned_provider_base_remains_supported",
           "tests/test_x_write_outcome_conservatism.py::test_prepared_and_literal_create_routes_must_agree",
-          "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments"
+          "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments",
+          "tests/test_integration_harness.py::test_distinct_upload_origin_receives_only_media_while_api_receives_tweet",
+          "tests/test_integration_harness.py::test_unset_upload_origin_inherits_api_origin_for_media_and_tweet",
+          "tests/test_integration_harness.py::test_distinct_upload_origin_never_receives_x_reads",
+          "tests/test_integration_harness.py::test_self_test_refuses_live_defaults_and_upload_inherits_fake_x_origin",
+          "tests/test_x_write_outcome_conservatism.py::test_only_exact_literal_media_post_selects_upload_origin"
         ],
         "validations": [
           {
@@ -2609,7 +2668,12 @@
             "tests/test_x_write_outcome_conservatism.py::test_x_api_bases_must_be_origin_only",
             "tests/test_x_write_outcome_conservatism.py::test_xai_versioned_provider_base_remains_supported",
             "tests/test_x_write_outcome_conservatism.py::test_prepared_and_literal_create_routes_must_agree",
-            "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments"
+            "tests/test_integration_harness.py::test_x_endpoint_overrides_reject_terminal_version_segments",
+            "tests/test_integration_harness.py::test_distinct_upload_origin_receives_only_media_while_api_receives_tweet",
+            "tests/test_integration_harness.py::test_unset_upload_origin_inherits_api_origin_for_media_and_tweet",
+            "tests/test_integration_harness.py::test_distinct_upload_origin_never_receives_x_reads",
+            "tests/test_integration_harness.py::test_self_test_refuses_live_defaults_and_upload_inherits_fake_x_origin",
+            "tests/test_x_write_outcome_conservatism.py::test_only_exact_literal_media_post_selects_upload_origin"
           ],
           "purpose": "Exercise bounded total request time, single-hop writes, restart-visible v2 media ambiguity and non-retry of every unproved post-transmission outcome, including refusal of the alternate legacy upload endpoint."
           }

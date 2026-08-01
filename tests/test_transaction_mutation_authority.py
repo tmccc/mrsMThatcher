@@ -79,6 +79,12 @@ def _test_authority():
             "confirmation requires verified",
         ),
         (
+            lambda: media.abort_untransmitted_media_upload(
+                Path("missing"), None
+            ),
+            "abort requires verified",
+        ),
+        (
             lambda: media.retire_confirmed_media_upload(Path("missing"), None),
             "retirement requires verified",
         ),
@@ -140,7 +146,6 @@ def test_bot_source_retirement_passes_verified_authority(monkeypatch, tmp_path) 
     verifier_calls: list[str] = []
     observed = []
     monkeypatch.setattr(bot, "require_instance_lock_for_remote_write", verifier_calls.append)
-    monkeypatch.setattr(bot, "retirement_auxiliary_barrier_exists", lambda _path: False)
 
     def fake_retire(path, expected, *, mutation_authority, **_kwargs):
         require_transaction_mutation_authority(
@@ -149,13 +154,13 @@ def test_bot_source_retirement_passes_verified_authority(monkeypatch, tmp_path) 
         )
         observed.append((path, expected))
 
-    monkeypatch.setattr(bot, "retire_exact_receipt", fake_retire)
+    monkeypatch.setattr(bot, "retire_or_resume_exact_receipt", fake_retire)
 
     bot.retire_current_source_receipt(receipt, b"receipt")
 
     assert observed == [(receipt, b"receipt")]
     assert verifier_calls == [
-        "source receipt retirement authority issuance",
+        "source receipt exact retirement authority issuance",
         "fake low-level retirement",
     ]
 

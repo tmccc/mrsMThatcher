@@ -48,6 +48,7 @@ from remote_media_upload_receipt import (
     ReceiptBoundMediaPayload,
     MediaUploadAuthority,
     MediaUploadReceiptError,
+    abort_untransmitted_media_upload,
     begin_media_upload,
     bind_media_handoff_to_transport,
     bind_media_upload_payload,
@@ -2305,7 +2306,7 @@ X_BASE = normalise_base_url(
     require_origin=True,
 )
 X_UPLOAD_BASE = normalise_base_url(
-    os.getenv("X_UPLOAD_BASE_URL", "https://upload.twitter.com"),
+    os.getenv("X_UPLOAD_BASE_URL", X_BASE),
     require_origin=True,
 )
 XAI_BASE = normalise_base_url(os.getenv("XAI_API_BASE_URL", "https://api.x.ai/v1"))
@@ -3783,6 +3784,19 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
 # X API helpers
 # ---------------------------------------------------------------------
 
+def x_request_base_url(method: str, path: str) -> str:
+    """Select the configured origin for one literal X request.
+
+    Only the exact authorised v2 media-upload write uses the optional upload
+    origin.  Reads, tweet creation and every non-literal spelling stay on the
+    primary X API origin.
+    """
+
+    if str(method) == "POST" and str(path) == "/2/media/upload":
+        return X_UPLOAD_BASE
+    return X_BASE
+
+
 def normalised_prepared_x_request_path(method: str, path: str) -> str:
     """Return the conservative path which Requests will place on the wire.
 
@@ -3797,7 +3811,7 @@ def normalised_prepared_x_request_path(method: str, path: str) -> str:
     try:
         prepared = requests.Request(
             method=str(method).upper(),
-            url=f"{X_BASE}{path}",
+            url=f"{x_request_base_url(method, path)}{path}",
         ).prepare()
     except requests.RequestException as exc:
         raise AmbiguousRemotePostOutcome(
@@ -3934,7 +3948,7 @@ def x_request(
     **kwargs,
 ) -> dict:
     """Send an authenticated X API request with bounded retries."""
-    url = f"{X_BASE}{path}"
+    url = f"{x_request_base_url(method, path)}{path}"
     prepared_create_route = prepared_x_create_route(method, path)
     exact_create_route = exact_x_create_route(method, path)
     if prepared_create_route != exact_create_route:
@@ -5789,6 +5803,30 @@ def upload_media(image_path: str, *, lane: str) -> str:
                 media_id=media_id,
             )
             return media_id
+        except RemoteOperationsPaused:
+            # The final transport preflight runs before media authority is
+            # consumed.  Only that exact local non-transmission proof may
+            # retire this process-issued sending pair.
+            try:
+                abort_untransmitted_media_upload(
+                    MEDIA_UPLOAD_RECEIPT_FILE,
+                    authority,
+                    mutation_authority=transaction_mutation_authority(
+                        "untransmitted media-upload abort"
+                    ),
+                )
+            except Exception as abort_exc:
+                record_ambiguous_remote_post(
+                    {"text": "", "media": {"media_ids": []}}
+                )
+                raise AmbiguousRemotePostOutcome(
+                    "A locally paused media upload left an unresolved "
+                    "media-upload barrier",
+                    service="x",
+                    request_method="POST",
+                    request_path="/2/media/upload",
+                ) from abort_exc
+            raise
         except AmbiguousRemotePostOutcome:
             # The upload precedes the public-post sending receipt.  If its
             # response is lost, its media receipt and the ordinary incident
