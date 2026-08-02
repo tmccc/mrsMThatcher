@@ -65,6 +65,38 @@
       },
       "status": "rejected"
     },
+    "rejected_round_b5": {
+      "candidate_commit": "b5e62c0458732c56e4851f010bfa27efb9514567",
+      "candidate_tree": "50a14a3c4e8ac423b1b8ecaefd3a3950ef623d84",
+      "clean_lanes": [
+        "transaction_crash_restart_retirement_and_aba",
+        "full_diff_claims_registry_bindings_and_omitted_boundaries"
+      ],
+      "finding_count": 5,
+      "findings": [
+        {
+          "description": "a source-bound completed historical-context outcome could remain locally reconcilable after its source receipt disappeared, but the global barrier was evaluated before that reconciliation path and made it unreachable",
+          "lane": "historical_context_outbox_lineage_and_reconciliation"
+        },
+        {
+          "description": "runtime-control caching relied on file metadata and could miss changed bytes after a same-inode, same-size rewrite with restored mtime instead of re-reading a content-bound stable snapshot",
+          "lane": "activation_installation_pause_recovery_and_rollback"
+        },
+        {
+          "description": "test-mode authority could be changed through MRS_TEST_MODE after import and operational test-mode guards were not consistently enforced before bootstrap and side effects",
+          "lane": "activation_installation_pause_recovery_and_rollback"
+        },
+        {
+          "description": "configuration and runtime-control JSON parsing accepted duplicate object names and non-finite numeric constants instead of rejecting ambiguous input",
+          "lane": "activation_installation_pause_recovery_and_rollback"
+        },
+        {
+          "description": "the offline protocol activator accepted abbreviated option names and repeated critical options rather than requiring one exact unambiguous invocation",
+          "lane": "activation_installation_pause_recovery_and_rollback"
+        }
+      ],
+      "status": "rejected"
+    },
     "replacement_review_restarts_from_zero": true,
     "required_lanes": [
       "transaction_crash_restart_retirement_and_aba",
@@ -73,6 +105,11 @@
       "full_diff_claims_registry_bindings_and_omitted_boundaries"
     ],
     "restart_all_lanes_after_any_candidate_change": true,
+    "round_b5_results_reset": {
+      "all_four_lanes_reset": true,
+      "completed_exact_candidate_lanes_carried_forward": 0,
+      "reason": "the five findings changed the replacement worktree after round b5"
+    },
     "status": "pending next replacement candidate freeze",
     "unfrozen_repair_adversary": {
       "activator_repair_review": "no further finding",
@@ -90,7 +127,7 @@
     "stored_in_candidate_document": false,
     "tree": null
   },
-  "conclusion_scope": "patch-local evidence after rejected round-1 and round-A candidates; next replacement consolidation implemented but uncommitted, with freeze, exact review and external qualification pending",
+  "conclusion_scope": "patch-local evidence after rejected round-1, round-A and round-b5 candidates; five replacement repairs are implemented but uncommitted, with freeze, two clean four-lane review rounds and external qualification pending",
   "cumulative_remediation": {
     "confirmed_pending_receipt": {
       "exact_bytes_revalidated": true,
@@ -172,6 +209,33 @@
       "priority0_registry_module_passed": 33,
       "registry_validation_passed": true
     },
+    "round_b5_repair_batch": {
+      "affected_modules": {
+        "command": "python3 -m pytest -q -n 3 tests/test_fail_safe_bootstrap_and_control.py tests/test_production_consistency_incident.py tests/test_remote_write_safety_second_restart.py",
+        "duration_seconds": 12.0,
+        "passed": 344
+      },
+      "changed_python_py_compile_passed": true,
+      "counts_are_non_additive": true,
+      "defect_ledger_render_check_passed": true,
+      "defect_ledger_validation_passed": true,
+      "git_diff_check_passed": true,
+      "priority0_registry_render_check_passed": true,
+      "priority0_registry_validation_passed": true,
+      "registry_and_ledger_modules": {
+        "command": "python3 -m pytest -q -n 4 tests/test_priority0_registry.py tests/test_defect_ledger.py",
+        "duration_seconds": 64.4,
+        "passed": 66
+      },
+      "replacement_candidate_test_totals_recorded": true,
+      "ruff": {
+        "explicitly_excluded_pre_existing_classes": [
+          "E402",
+          "F401"
+        ],
+        "passed_with_only_listed_exclusions": true
+      }
+    },
     "round_1_repair_results_apply_to_rejected_round_a_candidate": true,
     "restart_bootstrap_pause_outcome_passed": 320
   },
@@ -202,6 +266,36 @@
       "validation_precedes_production_bootstrap": true
     },
     "future_candidate_identity": "pending external recording after freeze",
+    "round_b5_five_finding_repair_batch": {
+      "activator_exact_option_vocabulary": {
+        "duplicate_critical_options_rejected": true,
+        "option_abbreviations_rejected": true,
+        "status": "implemented_uncommitted"
+      },
+      "historical_context_prebarrier_completed_history_reconciliation": {
+        "multiple_risky_rows_remain_fail_closed": true,
+        "remote_work_repeated": false,
+        "sole_exact_source_bound_completed_outcome_reconciled_locally": true,
+        "status": "implemented_uncommitted"
+      },
+      "immutable_preimport_test_mode_authority": {
+        "authority_captured_before_application_imports": true,
+        "direct_and_callable_entry_points_guard_before_bootstrap": true,
+        "status": "implemented_uncommitted"
+      },
+      "runtime_control_content_bound_stable_snapshot": {
+        "cache_is_not_authority": true,
+        "every_poll_rereads_and_hashes_stable_bytes": true,
+        "race_or_parse_failure_preserves_prior_cache_and_fails_closed": true,
+        "status": "implemented_uncommitted"
+      },
+      "strict_runtime_json_config_and_control": {
+        "duplicate_object_names_rejected_at_all_depths": true,
+        "non_finite_and_overflowing_numbers_rejected": true,
+        "strict_utf8_required": true,
+        "status": "implemented_uncommitted"
+      }
+    },
     "round_a_consolidation": {
       "activation_fixture_count": 6,
       "activation_fixture_states": [
@@ -220,7 +314,7 @@
       "qualified_cooperative_writer_monotonicity_wording": "implemented_non_tamper_evident",
       "registry_known_pin_validation_reconstructs_exact_commit_tree_and_historical_selectors": true,
       "strengthened_invariant_last_verified_pins": "unknown_pending_external_frozen_candidate",
-      "status": "implemented_uncommitted"
+      "status": "incorporated_in_rejected_round_b5_candidate"
     }
   },
   "schema_version": 3,

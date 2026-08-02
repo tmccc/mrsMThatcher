@@ -1,9 +1,9 @@
-# Priority-0 cumulative transaction remediation — round-A rejection and replacement record
+# Priority-0 cumulative transaction remediation — round-b5 rejection and replacement record
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, the
-rejection of the first frozen candidate, and the uncommitted replacement
+This document records the cumulative transaction-safety implementation, three
+rejected frozen candidates, and the five current uncommitted replacement
 repairs before a new exact candidate is frozen. It is candidate-side evidence,
 not an external release attestation or an independent review.
 
@@ -19,13 +19,17 @@ not an external release attestation or an independent review.
   `e0e6e8cf123c4887042eefc8f72ba7042b34e10b`;
 - rejected round-A candidate tree:
   `f7ee598bdbb5065299e8e6efb6ae73cda1b2f131`;
+- rejected round-b5 candidate commit:
+  `b5e62c0458732c56e4851f010bfa27efb9514567`;
+- rejected round-b5 candidate tree:
+  `50a14a3c4e8ac423b1b8ecaefd3a3950ef623d84`;
 - next replacement candidate commit and tree: pending freeze and deliberately not
   embedded in this self-referential document.
 
 The ledger base fixes the evidence cut-off against which defect status is
 interpreted. The implementation parent is the immediate committed tree on
 which this cumulative work was built. The ledger therefore continues to mark
-post-cut-off repairs as uncommitted and unfixed. The rejected candidate
+post-cut-off repairs as uncommitted and unfixed. Each rejected candidate
 identity is historical review evidence only. None of these identities is a
 claim that the pending replacement passed the complete suite, the external
 gate, independent review, deployment or loaded-process verification.
@@ -209,10 +213,10 @@ passing tests; and the activation lane ran batches of 173 and 11 passing tests.
 These results qualify neither the rejected candidate nor its future
 replacement.
 
-## Implemented consolidated repairs
+## Round-A consolidation incorporated in rejected round-b5
 
-The next replacement consolidation is implemented in the worktree but remains
-uncommitted and has no frozen identity:
+The prior replacement consolidation was incorporated in rejected round-b5
+candidate `b5e62c0458732c56e4851f010bfa27efb9514567`:
 
 - CLI mode authority is one immutable `sys.argv[1:]` snapshot captured before
   application imports. `run_cli` rejects both current-process drift and an
@@ -246,17 +250,86 @@ Focused consolidation results are deliberately non-additive:
 - all six changed Python files compiled successfully; and
 - the global `git diff --check` passed.
 
-These are focused pre-freeze results. The complete application suite and
-external release gate remain deliberately deferred until the unchanged
-candidate survives the adversarial review rounds below.
+These focused results are historical evidence for the consolidation which was
+incorporated into the rejected round-b5 tree. They do not qualify the current
+uncommitted replacement work. The complete application suite and external
+release gate remain deliberately deferred until an unchanged candidate
+survives the adversarial review rounds below.
 
 No future replacement commit or tree is anticipated in this report.
 
+## Rejected round-b5 exact-candidate review
+
+The consolidated replacement was frozen as commit
+`b5e62c0458732c56e4851f010bfa27efb9514567` and tree
+`50a14a3c4e8ac423b1b8ecaefd3a3950ef623d84`. Its exact-tree review found five
+defects:
+
+1. when historical-context source receipt paths had disappeared, a sole exact
+   source-bound completed outcome could still be locally reconcilable, but the
+   global barrier ran before that existing reconciliation path and made it
+   unreachable;
+2. the runtime-control cache treated metadata as authority, so a same-inode,
+   same-size content rewrite with restored `mtime` could remain unseen instead
+   of being evaluated as a newly read, content-bound stable snapshot;
+3. `MRS_TEST_MODE` could change test-mode authority after import, and the
+   operational test entry-point guards were not consistently enforced before
+   bootstrap and side effects;
+4. configuration and runtime-control JSON parsing accepted duplicate object
+   names and non-finite numeric constants rather than rejecting ambiguous
+   input; and
+5. the offline protocol activator accepted abbreviated option names and
+   repeated critical options rather than one exact, unambiguous invocation.
+
+The transaction lane and full-diff lane reported no additional blocker against
+that exact tree. Those results, together with the results from the two lanes
+which found defects, were all reset when the worktree changed. Zero completed
+lane result is carried into the next candidate.
+
+## Current uncommitted five-finding repair batch
+
+The following repairs are implemented in the worktree but remain uncommitted
+and have no frozen candidate identity:
+
+- pre-barrier historical-context reconciliation now performs only the existing
+  local recovery for one exact source-bound completed outcome; multiple risky
+  rows remain fail closed and no remote work is repeated;
+- every runtime-control poll now obtains a bounded, no-follow, repeatedly read
+  stable byte snapshot, binds its content hash, and treats the cache only as
+  the isolated last-known state for fail-closed fallback;
+- test-mode authority is captured once before application imports, and both
+  direct and callable operational test entry points enforce that immutable
+  authority before bootstrap;
+- configuration and runtime-control documents now require strict UTF-8 JSON,
+  reject duplicate object names at every depth, and reject non-finite or
+  overflowing numeric values; and
+- the activator now disables argument abbreviation and rejects repeated
+  option destinations, including duplicates expressed through aliases.
+
+The observed replacement-batch validation is:
+
+- `python3 -m pytest -q -n 3
+  tests/test_fail_safe_bootstrap_and_control.py
+  tests/test_production_consistency_incident.py
+  tests/test_remote_write_safety_second_restart.py` — 344 passed in 12.00
+  seconds;
+- `python3 -m pytest -q -n 4 tests/test_priority0_registry.py
+  tests/test_defect_ledger.py` — 66 passed in 64.40 seconds;
+- registry and defect-ledger validation and render checks: passed;
+- changed-Python `py_compile`: passed;
+- `git diff --check`: passed; and
+- Ruff: passed with only the explicitly excluded pre-existing `E402` and
+  `F401` classes.
+
+The two pytest totals are non-additive focused worktree results. They do not
+assign a commit or tree identity, carry forward any adversarial lane result or
+qualify the still-unfrozen replacement candidate.
+
 ## Replacement exact-candidate adversarial review gate
 
-The next replacement application candidate has not yet been frozen. Four concurrent
-read-only review lanes must restart from zero and inspect its exact committed
-tree after all report, registry and test changes are present:
+The next replacement application candidate has not yet been frozen. Four
+concurrent read-only review lanes must restart from zero and inspect its exact
+committed tree after all report, registry and test changes are present:
 
 1. public-create transaction phases, crash/restart, exact retirement and ABA;
 2. historical-context outbox, source lineage and reconciliation;
@@ -264,9 +337,11 @@ tree after all report, registry and test changes are present:
 4. full-diff claims, registry/ledger bindings and omitted failure boundaries.
 
 If any lane finds a defect and the candidate changes, every lane must restart
-against the new exact commit. No clean or no-escape result from either rejected
-candidate qualifies the replacement, and no earlier partial or pre-report
-audit is called final-candidate approval here.
+against the new exact commit. No clean or no-escape result from any rejected
+candidate qualifies the replacement. Two consecutive clean four-lane rounds
+on the same exact unchanged tree are required before the expensive external
+gate and packaging work, and no earlier partial or pre-report audit is called
+final-candidate approval here.
 
 ## Focused validation checkpoint
 
@@ -312,7 +387,7 @@ external assurance run or packaging run has occurred for the replacement.
 
 ## Isolation record
 
-This remediation, the rejected review rounds and the uncommitted consolidation
-performed zero production-file or live-state mutation, service action, X
-action, provider action, merge, push, deployment, external-assurance execution
-or packaging.
+This remediation, the rejected review rounds and the current uncommitted
+five-finding repair batch performed zero production-file or live-state
+mutation, service action, X action, provider action, merge, push, deployment,
+external-assurance execution or packaging.

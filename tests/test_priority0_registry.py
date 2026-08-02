@@ -332,6 +332,7 @@ def test_every_record_exposes_explicit_assurance_semantics() -> None:
         for invariant_id, invariant in records.items()
         if invariant["last_verified_commit"]["status"] == "unknown"
     } == {
+        "INV-CONFIG-001",
         "INV-PAUSE-001",
         "INV-PROC-001",
         "INV-PROC-002",
@@ -408,7 +409,9 @@ def test_process_lock_invariant_requires_continuous_ownership_and_offline_exclus
     } <= set(invariant["enforcement"]["tests"])
     assert all("purely local" not in gap for gap in invariant["known_gaps"])
     assert any("automatically completed" in gap for gap in invariant["known_gaps"])
-    assert "six-state activation regression" in invariant["verification"]["rationale"]
+    assert "activation matrix" in invariant["verification"]["rationale"]
+    assert "abbreviations" in invariant["verification"]["rationale"]
+    assert "repeated destinations" in invariant["verification"]["rationale"]
     assert {
         "tests/test_fail_safe_bootstrap_and_control.py::"
         "test_run_cli_refuses_both_directions_of_post_import_argv_mutation",
@@ -852,23 +855,22 @@ def test_real_registry_is_valid_and_markdown_is_synchronised() -> None:
     assert set(report.partial) == {
         "INV-ART-001",
         "INV-CONFIG-001",
-            "INV-PAUSE-001",
-            "INV-REL-001",
-            "INV-REL-ART-001",
-            "INV-REL-CMD-001",
-            "INV-REL-IMPORT-001",
-            "INV-REL-JSON-001",
-            "INV-REL-SANDBOX-001",
-            "INV-REL-TRUST-001",
-            "INV-TEST-004",
-            "INV-PROC-002",
-            "INV-TXN-HCTX-001",
-            "INV-TXN-HIST-001",
-            "INV-TXN-MEME-001",
-            "INV-TXN-RECEIPT-001",
-            "INV-TXN-REG-001",
-            "INV-TXN-REPLY-001",
-        }
+        "INV-REL-001",
+        "INV-REL-ART-001",
+        "INV-REL-CMD-001",
+        "INV-REL-IMPORT-001",
+        "INV-REL-JSON-001",
+        "INV-REL-SANDBOX-001",
+        "INV-REL-TRUST-001",
+        "INV-TEST-004",
+        "INV-PROC-002",
+        "INV-TXN-HCTX-001",
+        "INV-TXN-HIST-001",
+        "INV-TXN-MEME-001",
+        "INV-TXN-RECEIPT-001",
+        "INV-TXN-REG-001",
+        "INV-TXN-REPLY-001",
+    }
 
 
 def test_current_registry_binds_post_cutoff_state_and_receipt_regressions() -> None:

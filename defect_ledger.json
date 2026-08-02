@@ -2,7 +2,7 @@
   "$schema": "./defect_ledger.schema.json",
   "schema_version": 2,
   "ledger_id": "mrsMThatcher-defect-evidence-ledger",
-  "as_of": "2026-08-01",
+  "as_of": "2026-08-02",
   "identity_scope": {
     "production_baseline": {
       "commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -12,8 +12,8 @@
     "ledger_evidence_cutoff": {
       "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
       "tree": "a751f4b488ee20d268a082c7daf835d5786e7e23",
-      "as_of": "2026-08-01",
-      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0062. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.",
+      "as_of": "2026-08-02",
+      "difference_from_production_baseline": "The evidence cut-off advances beyond the recorded production baseline to the exact reviewed 4e548b0a application candidate. By that cut-off, DEF-0040 through DEF-0043 are repaired by 634fd6c, DEF-0046 through DEF-0048 by 5a11bbf, DEF-0049 and DEF-0050 by ce970f8, and DEF-0051 by fb8eb25; none of those repairs is deployed. DEF-0044 remains an assurance weakness and DEF-0045 remains an active fail-closed availability gap. Independent review of the exact 4e548b0a commit and a751f4b4 tree established DEF-0052 through DEF-0065, including later evidence-backed discovery against that frozen cutoff. No later worktree repair is part of this ledger, and this ledger does not claim that 4e548b0a or any descendant was merged, deployed or loaded.",
       "meaning": "Every status and fix identity is an evidence claim valid only through this exact reviewed commit and tree. Candidate changes after 4e548b0a are external proposals and remain unresolved here until a later committed release base is merged and the ledger is regenerated."
     },
     "candidate_under_review": {
@@ -24,7 +24,7 @@
         "candidate_commit",
         "candidate_tree"
       ],
-      "explanation": "The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0062, remain external and unfixed in ledger truth until merge and post-merge regeneration."
+      "explanation": "The exact release base for this ledger is 4e548b0a5723a1f0c75e9646953b3f92c7db89ad. Any descendant candidate identity is supplied only by the frozen-candidate release attestation and is deliberately not embedded here. Repairs committed by that base are recorded with fix-bound evidence; worktree proposals after that base, including proposals for DEF-0052 through DEF-0065, remain external and unfixed in ledger truth until merge and post-merge regeneration."
     },
     "production_deployment_observation": {
       "repository_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
@@ -44,7 +44,7 @@
         "invariant-status-changed",
         "deployment-evidence-changed"
       ],
-      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0062 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
+      "requirement": "After a merge or deployment changes any recorded defect, invariant or deployment status, regenerate and revalidate this ledger from the new exact release base before using it for another release attestation. No uncommitted or post-4e548b0a candidate implementation, test or proposed repair may change DEF-0044, DEF-0045 or DEF-0052 through DEF-0065 from their recorded status; closure requires an ancestor of the regenerated cut-off with fix-bound tests and chronology."
     }
   },
   "external_evidence": [
@@ -2011,7 +2011,7 @@
     },
     {
       "id": "DEF-0017",
-      "title": "Duplicate JSON object names remain last-wins in configuration and pause controls",
+      "title": "Configuration and pause controls accepted duplicate names and non-finite JSON numbers",
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "related-current-master-duplicate-json-keys",
@@ -2024,29 +2024,33 @@
       "components": [
         "mrsMThatcher2.py",
         "runtime control",
-        "local configuration"
+        "local configuration",
+        "strict UTF-8 JSON decoding",
+        "nested duplicate-name rejection",
+        "non-finite number rejection"
       ],
       "affected_files": [
         "mrsMThatcher2.py",
         "mrsMThatcher.local.json",
-        "mrsMThatcher.control.json"
+        "mrsMThatcher.control.json",
+        "tests/test_fail_safe_bootstrap_and_control.py"
       ],
       "runtime_lanes": [
         "configuration-and-pause-controls"
       ],
       "incident": {
         "occurred": "unknown",
-        "evidence": "Default json.load behavior reproduces last-wins parsing for local configuration and runtime pause controls and remains present at 7ebcc096.",
-        "explanation": "No complete archive of production configuration or control documents establishes whether a duplicate name altered live behavior."
+        "evidence": "Default json.load behavior at the exact 4e548b0a cutoff reproduces last-wins parsing for duplicate local-configuration and runtime-control names and accepts NaN, Infinity and -Infinity constants; ordinary float decoding can also turn finite-looking exponent tokens into infinities.",
+        "explanation": "No complete archive of production configuration or control documents establishes whether a duplicate name or non-finite number altered live behavior."
       },
-      "summary": "Local configuration and pause-control JSON use standard decoding which accepts duplicate object names and keeps the last value. Transaction receipts are excluded from this record and are tracked separately by DEF-0043.",
-      "impact": "A configuration or pause document can visually contain both safe and unsafe values for one setting; effective behavior depends on ordering rather than an unambiguous control instruction.",
+      "summary": "Local configuration and pause-control JSON use standard decoding which accepts duplicate object names at any nesting depth with last-value-wins semantics, accepts the non-standard NaN and Infinity constants, and can decode overflowing exponent forms as non-finite floats. Transaction receipts and other transaction authorities are excluded from this record and are tracked separately by DEF-0043 and their lane-specific records.",
+      "impact": "A configuration or pause document can visually contain both safe and unsafe values for one setting, or carry a non-finite value outside the intended validation domain. Effective behavior can then depend on ordering or Python-specific number semantics rather than one unambiguous finite control instruction.",
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
         "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
         "confidence": "bounded",
-        "explanation": "Standard json.load is present in the initial config/state implementation; additional control and receipt consumers were added later. No earlier repository revision establishes safe duplicate rejection."
+        "explanation": "Standard json.load is present in the initial config/state implementation; additional control consumers were added later. No earlier repository revision establishes duplicate-name and non-finite-number rejection for both local configuration and runtime control."
       },
       "chronology": [
         {
@@ -2072,6 +2076,12 @@
           "event": "The 7ebcc096 audit narrowed this record to configuration and pause controls and separated unsafe transaction receipt namespaces and strict transaction JSON into DEF-0043.",
           "commit": "7ebcc09699a13848d55a33fd84d66cc8ce56d95c",
           "evidence": "Cut-off source and IR-40AB follow-up review"
+        },
+        {
+          "date": "2026-08-02",
+          "event": "Review of rejected descendant candidate b5e62c0 reconfirmed that local configuration and runtime control still used permissive JSON decoding and expanded the bounded defect to nested duplicate names, explicit non-finite constants and exponent overflow to non-finite floats.",
+          "commit": "unknown",
+          "evidence": "Exact 4e548b0a source reproduction and rejected-b5 strict runtime-document review"
         }
       ],
       "first_review_scope": {
@@ -2092,15 +2102,15 @@
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "Use one strict decoder for local configuration and pause controls which rejects duplicate names and non-finite values before schema validation."
+        "summary": "An uncommitted post-cutoff proposal uses one strict UTF-8 decoder only for local configuration and runtime control, rejecting duplicate object names at every depth, NaN/Infinity constants and floats which decode as non-finite before schema validation. It does not claim to replace unrelated state, history or transaction decoders. No fixing commit is inside this ledger boundary."
       },
       "deployment": {
         "state": "not-applicable",
         "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
         "observed_at": "2026-07-28T23:40:14+01:00",
-        "evidence": "The defect exists in the observed production commit be882e81 and remains present at the 7ebcc096 ledger evidence cut-off; no repair deployment is applicable."
+        "evidence": "The permissive local-configuration and runtime-control decoding exists in the observed production commit be882e81 and remains present at the exact 4e548b0a ledger evidence cut-off; no repair deployment is applicable."
       },
-      "residual_risk": "Active for local configuration and pause controls until their parser rejects ambiguous JSON. Transaction receipt namespace and strict-JSON risk remains separately active under DEF-0043.",
+      "residual_risk": "Active for local configuration and pause controls until one committed decoder rejects duplicate names at every depth and every non-finite number form before any proposed configuration applies or pause document replaces the last valid authority. Transaction-document strict-JSON risk remains separately tracked under DEF-0043 and lane-specific records.",
       "evidence": [
         {
           "type": "report",
@@ -2109,8 +2119,18 @@
         },
         {
           "type": "code",
-          "reference": "7ebcc096:mrsMThatcher2.py",
-          "claim": "Local configuration and runtime pause-control parsing still use ordinary last-wins JSON decoding at the evidence cut-off."
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "Local configuration and runtime pause-control parsing still use ordinary last-wins, non-finite-permissive JSON decoding at the exact ledger evidence cut-off."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants",
+          "claim": "The post-cutoff candidate regression requires local configuration to reject top-level and nested duplicate names, explicit non-finite constants and overflowing finite-looking exponent forms atomically."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_duplicate_names_and_nonfinite_constants",
+          "claim": "The post-cutoff candidate regression requires the same strict number and duplicate-name boundary for runtime control, preserving fail-closed pause behavior."
         }
       ],
       "unknowns": [
@@ -2125,6 +2145,10 @@
         {
           "field": "chronology[1].commit",
           "explanation": "The review report commit 370aee9b is external to the 7ebcc096 release lineage, so its exact SHA remains evidence provenance rather than a release-line chronology claim."
+        },
+        {
+          "field": "chronology[4].commit",
+          "explanation": "The rejected b5e62c0 review is post-cutoff evidence and is named in the event rather than asserted as an ancestor of the exact 4e548b0a ledger evidence cutoff."
         }
       ],
       "relations": {
@@ -2134,7 +2158,8 @@
           "DEF-0005",
           "DEF-0006",
           "DEF-0007",
-          "DEF-0043"
+          "DEF-0043",
+          "DEF-0063"
         ]
       }
     },
@@ -7484,13 +7509,16 @@
         "context_reply_attempting phase",
         "remote_transaction_started phase",
         "global remote-write preflight",
+        "pre-barrier local terminal reconciliation",
+        "exact source-bound completed history",
         "lost source receipt and transport journal",
         "unavailable historical-context runtime"
       ],
       "affected_files": [
         "mrsMThatcher2.py",
         "historical_context_outbox.py",
-        "tests/test_x_write_outcome_conservatism.py"
+        "tests/test_x_write_outcome_conservatism.py",
+        "tests/test_production_consistency_incident.py"
       ],
       "runtime_lanes": [
         "historical-context-reply",
@@ -7502,11 +7530,11 @@
       ],
       "incident": {
         "occurred": false,
-        "evidence": "The barrier gap was reproduced with isolated outbox state after removing independent source-receipt and transport-journal authority and making the historical-context runtime unavailable. No remote transport, network, production state, X or provider was accessed.",
-        "explanation": "This establishes that an outbox-only possibly transmitted attempt could fail to block another lane; it does not establish that a deployed historical-context reply or unrelated remote write was repeated."
+        "evidence": "The cutoff barrier gap was reproduced with isolated outbox state after removing independent source-receipt and transport-journal authority and making the historical-context runtime unavailable. Exact review of rejected descendant candidate b5e62c0 then retained a sole source-bound remote-started row plus exact completed history after receipt retirement and found that the new global blocker made its existing local-only reconciliation path unreachable. No remote transport, network, production state, X or provider was accessed.",
+        "explanation": "This establishes both that an outbox-only possibly transmitted attempt could fail to block another lane at the cutoff and that the first descendant global-barrier repair could strand a safely locally reconcilable terminal outcome. It does not establish that a deployed historical-context reply or unrelated remote write was repeated."
       },
-      "summary": "At 4e548b0a, the global remote-write barrier inspected receipts, journals and other durable ambiguity authorities but did not treat a context_reply_attempting outbox row as independent remote-write authority. If its source receipt and transport journal disappeared and the historical-context runtime could not reconcile the row, a remote-started or legacy phase could remain in the durable outbox while unrelated remote-write preflight saw no blocker.",
-      "impact": "A historical-context create whose outcome remained unresolved in the outbox could cease to suppress regular, meme, conversational, media or other historical-context remote work. The outbox phase therefore was not a complete cross-lane restart barrier when its associated source files were unavailable.",
+      "summary": "At 4e548b0a, the global remote-write barrier inspected receipts, journals and other durable ambiguity authorities but did not treat a context_reply_attempting outbox row as independent remote-write authority. If its source receipt and transport journal disappeared and the historical-context runtime could not reconcile the row, a remote-started or legacy phase could remain in the durable outbox while unrelated remote-write preflight saw no blocker. Rejected descendant candidate b5e62c0 made those rows global blockers but did not provide a pre-barrier route for the sole source-bound remote-started row whose exact completed history already proved the terminal reply after receipt retirement, so its safe local-only completion path could not run.",
+      "impact": "At the cutoff, a historical-context create whose outcome remained unresolved in the outbox could cease to suppress regular, meme, conversational, media or other historical-context remote work. In the rejected descendant repair, the same barrier could instead remain permanently raised after exact completed history already made remote retry unnecessary, causing avoidable fail-closed unavailability. Safe resolution requires both complete cross-lane blocking and a uniquely bounded local-only terminal reconciliation route.",
       "introduced": {
         "first_bad_commit": "unknown",
         "last_known_good_commit": "unknown",
@@ -7520,6 +7548,12 @@
           "event": "Cutoff review retained a remote-started or legacy attempting outbox row while removing its source receipt and journal and making the historical-context runtime unavailable, then observed that the remaining outbox authority was not a global remote-write barrier.",
           "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
           "evidence": "Isolated True, legacy-absent and explicit-False outbox-phase cross-lane matrix"
+        },
+        {
+          "date": "2026-08-02",
+          "event": "Exact review of rejected descendant candidate b5e62c0 showed that its remote-started outbox blocker ran before the only local reconciler which could consume a sole exact source-bound completed-history outcome after the receipt and journal had been retired.",
+          "commit": "unknown",
+          "evidence": "Receipt-absent pre-barrier reachability review with exact completed history and multiple-risky-row refusal"
         }
       ],
       "first_review_scope": {
@@ -7532,15 +7566,15 @@
       "detection": {
         "date": "2026-08-01",
         "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
-        "method": "Create an attempting historical-context obligation, retain only its outbox authority with a remote-started or legacy-absent phase, make ordinary context reconciliation unavailable, and invoke global remote-write preflight; compare an explicit pre-remote false phase.",
-        "reproducer": "The remote-started and legacy attempting rows remained durable but did not independently block unrelated remote-write preflight once receipt and journal authority were absent.",
-        "source": "Focused historical-context outbox global-barrier regression design"
+        "method": "Create an attempting historical-context obligation, retain only its outbox authority with a remote-started or legacy-absent phase, make ordinary context reconciliation unavailable, and invoke global remote-write preflight; compare an explicit pre-remote false phase. Against rejected b5e62c0, also retire the receipt and journal after publishing exact source-bound completed history, then invoke the pre-barrier reconciler with one and multiple risky parents.",
+        "reproducer": "At the cutoff, remote-started and legacy attempting rows remained durable but did not independently block unrelated remote-write preflight once receipt and journal authority were absent. In b5e62c0, the new blocker correctly stopped unrelated writes but also stopped the sole exact completed-history case before its local-only reconciler, while multiple risky rows supplied no safe parent choice.",
+        "source": "Focused historical-context outbox global-barrier and rejected-candidate pre-barrier reachability regression design"
       },
       "tests": [],
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "A post-cutoff candidate proposal scans the durable outbox from global preflight, blocks any attempting row whose remote_transaction_started phase is true or absent for legacy data, fails closed when that authority cannot be inspected, and leaves an explicit false phase eligible only for bounded local recovery. No fixing commit is inside this ledger boundary."
+        "summary": "Rejected descendant candidate b5e62c0 scans the durable outbox from global preflight and blocks remote-started or legacy attempting rows, but strands a receipt-absent exact completed-history outcome below that barrier. The current uncommitted replacement retains the global blocker while allowing only one uniquely identified source-bound remote-started parent to invoke the existing local-only reconciler before the barrier when exact completed history proves its outcome; missing, stale, conflicting, uninspectable or multiple candidates remain blocked and no remote work is permitted. No fixing commit is inside this ledger boundary."
       },
       "deployment": {
         "state": "not-applicable",
@@ -7549,7 +7583,7 @@
         "production_presence_at_observed_commit": "not-established",
         "evidence": "The omitted outbox barrier is present at the 4e548b0a evidence cut-off. The post-cutoff proposal was not deployed, and production state or runtime was not contacted."
       },
-      "residual_risk": "Until a descendant repair is committed and deployed, any attempting historical-context outbox row not durably proved pre-remote must remain a global barrier even when its source receipt, journal or ordinary runtime reconciliation path is unavailable.",
+      "residual_risk": "Until a descendant repair is committed and deployed, any attempting historical-context outbox row not durably proved pre-remote must remain a global barrier even when its source receipt or journal is unavailable. That barrier may be cleared locally only when one unique current outbox attempt is exactly source-bound to its terminal history and the reconciler can complete without transport; absence, conflict, multiplicity or inspection uncertainty must remain blocked.",
       "evidence": [
         {
           "type": "code",
@@ -7565,6 +7599,21 @@
           "type": "test",
           "reference": "tests/test_x_write_outcome_conservatism.py::test_explicit_pre_remote_attempting_outbox_is_not_a_global_barrier",
           "claim": "The paired candidate regression preserves the narrow distinction that an explicit false phase is locally recoverable and is not by itself a global remote-write barrier."
+        },
+        {
+          "type": "code",
+          "reference": "b5e62c0458732c56e4851f010bfa27efb9514567:mrsMThatcher2.py",
+          "claim": "The rejected candidate checks the remote-started outbox barrier before the receipt-driven local reconciliation path and has no receipt-absent exact-history exception at that boundary."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_prebarrier_reaches_source_bound_completed_context_without_receipt",
+          "claim": "The current post-cutoff regression requires a sole exact source-bound completed-history outcome to complete locally before the global barrier without reaching remote work."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows",
+          "claim": "The paired regression requires multiple remote-started rows to remain untouched and globally blocking rather than allowing the pre-barrier path to choose one."
         }
       ],
       "unknowns": [
@@ -7577,8 +7626,12 @@
           "explanation": "No earlier implementation with a complete outbox-derived cross-lane barrier was established."
         },
         {
+          "field": "chronology[1].commit",
+          "explanation": "The rejected b5e62c0 review is post-cutoff evidence and is named in the event rather than asserted as an ancestor of the exact 4e548b0a ledger evidence cutoff."
+        },
+        {
           "field": "fix.commit",
-          "explanation": "The outbox-phase global-barrier changes remain uncommitted post-cutoff candidate material."
+          "explanation": "The complete outbox-phase global barrier plus bounded receipt-absent pre-barrier terminal reconciliation remains uncommitted post-cutoff candidate material."
         }
       ],
       "relations": {
@@ -8160,6 +8213,376 @@
           "DEF-0045",
           "DEF-0056",
           "DEF-0060"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0063",
+      "title": "Runtime-control cache trusted metadata instead of stable document content",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-runtime-control-content-cache-review",
+      "status": "active",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-PAUSE-001"
+      ],
+      "components": [
+        "runtime-control loader",
+        "last-valid control cache",
+        "metadata-only cache signature",
+        "same-inode content replacement",
+        "stable byte snapshot",
+        "content SHA-256"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "mrsMThatcher.control.json",
+        "tests/test_fail_safe_bootstrap_and_control.py"
+      ],
+      "runtime_lanes": [
+        "cross-cutting-runtime-control",
+        "all-remote-write-lanes"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The stale-cache path was reproduced with an isolated control file by loading an unpaused document, rewriting the same inode with equal-length paused content, synchronising it and restoring the original mtime. Device, inode, size and mtime remained equal while the cutoff loader returned the cached unpaused value. No production control, service, network, X or provider was accessed.",
+        "explanation": "This establishes that a locally published pause could be hidden by cache reuse; it does not establish that a deployed operator pause was missed or that a live remote action occurred."
+      },
+      "summary": "At 4e548b0a, load_control built its valid-cache signature from resolved path, device, inode, size and mtime, then returned the cached document without reading current bytes when those fields matched. An equal-length same-inode rewrite with restored mtime could therefore change the control content without changing cache authority.",
+      "impact": "A process which had cached an unpaused document could continue to treat remote writes as enabled after a valid paused replacement was durably published with the same observed metadata. The new pause would remain ineffective until some signature field changed or the process restarted.",
+      "introduced": {
+        "first_bad_commit": "4a4afb4fc8bc340adaaebe17a9570f2d0db85368",
+        "last_known_good_commit": "cbe4ca77440a74d7919dde915253882a7d1fccf8",
+        "affected_range": "inclusive:4a4afb4fc8bc340adaaebe17a9570f2d0db85368..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "exact",
+        "explanation": "Commit 4a4afb4f introduced the runtime-control cache with a pathname/mtime/size signature; later revisions added device and inode but still permitted a cache hit without reading content. Its parent has no runtime-control cache."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-11",
+          "event": "The runtime-control cache was introduced with metadata, rather than current document bytes, as cache authority.",
+          "commit": "4a4afb4fc8bc340adaaebe17a9570f2d0db85368",
+          "evidence": "Git introduction of _CONTROL_CACHE and the early return in load_control"
+        },
+        {
+          "date": "2026-08-02",
+          "event": "Exact-cutoff review rewrote an equal-length control document in place, restored its mtime and observed the cached unpaused value survive despite different current bytes.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated same-inode, equal-size, restored-mtime control-cache reproducer"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-02",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Runtime-control pathname discovery, metadata signature, cache-hit ordering, current-content observation, same-inode rewrite, stable read and last-valid fail-closed behavior.",
+        "exclusions": "No production control was read or changed, and strict duplicate/non-finite JSON is tracked separately by DEF-0017.",
+        "source": "Independent exact-4e548b0a runtime-control cache-authority review"
+      },
+      "detection": {
+        "date": "2026-08-02",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Load an equal-length unpaused document, rewrite the same inode with paused content, fsync it, restore the original mtime, prove the cutoff signature fields are unchanged, and read control again in the same process.",
+        "reproducer": "The second load returned before opening the file because the metadata signature matched, so the process retained the stale unpaused document.",
+        "source": "Focused same-inode runtime-control content-cache regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An uncommitted post-cutoff proposal obtains a bounded no-follow regular-file byte snapshot with stable descriptor/path identity, reads current content before every cache decision, includes SHA-256 in the signature, returns copies of cached data, preserves the last valid document with a fail-closed global pause on any read or validation failure, and clears controls only for a pathname proved absent before the read. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "present",
+        "evidence": "The metadata-only early cache return exists in the observed production source, but no production pause/cache incident was established and no repair has been deployed."
+      },
+      "residual_risk": "Until a descendant fix is committed and deployed, runtime-control metadata equality cannot be treated as proof that the current control bytes equal the cached authority. Every operational read must observe stable current content before reusing an unpaused value.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff load_control returns cached valid data on a path/device/inode/size/mtime match before it opens or hashes the current control document."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_same_inode_control_change_cannot_reuse_cached_unpaused_value",
+          "claim": "The post-cutoff candidate regression requires an equal-length same-inode rewrite with restored mtime to replace the cached unpaused value with the current pause."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The stable content-bound runtime-control reader remains uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0007",
+          "DEF-0017"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0064",
+      "title": "Test CLI modes obtained authority from mutable post-import environment state",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-test-mode-import-authority-review",
+      "status": "active",
+      "severity": "critical",
+      "invariant_ids": [
+        "INV-PROC-001"
+      ],
+      "components": [
+        "MRS_TEST_MODE process environment",
+        "import-time mode globals",
+        "--test-cycle",
+        "--test-main-tick",
+        "--test-post-quote",
+        "--test-post-meme",
+        "direct test entry points",
+        "run_cli dispatch",
+        "production bootstrap ordering"
+      ],
+      "affected_files": [
+        "mrsMThatcher2.py",
+        "tests/test_fail_safe_bootstrap_and_control.py"
+      ],
+      "runtime_lanes": [
+        "command-line-dispatch",
+        "test-cycle",
+        "test-main-tick",
+        "test-quote-post",
+        "test-meme-post",
+        "production-bootstrap"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The authority drift was reproduced in literal isolated child processes for all four test modes and their direct entry points by importing with MRS_TEST_MODE absent or present, changing the environment after import, and instrumenting bootstrap, lock and operational boundaries. No production path, service, network, X or provider was accessed.",
+        "explanation": "This establishes that late environment mutation could authorise or revoke a test command inconsistently with the globals constructed during import; it does not establish that a deployed process used that path or performed a remote action."
+      },
+      "summary": "At 4e548b0a, the four test-only CLI entry points consulted os.getenv(\"MRS_TEST_MODE\") dynamically and only after production bootstrap or other establishment work had begun. A process imported without test authority could set the variable later and make a production-configured module enter a test command, while a process imported with authority could lose it later even though its test-mode globals were already fixed.",
+      "impact": "Mutable post-import environment state could make command authorisation disagree with path, logging, endpoint and safety configuration created during import. Late enablement could reach bootstrap, the instance lock and test operational lanes from a process which never held test authority at process start; late removal could unpredictably revoke an otherwise valid isolated test process.",
+      "introduced": {
+        "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+        "last_known_good_commit": "unknown",
+        "affected_range": "inclusive:36edf0369aae7ffe3b6b4b63089d26de71f59537..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "bounded",
+        "explanation": "Dynamic MRS_TEST_MODE checks are present in the repository's initial test-cycle and test-post entry points; the fourth test-main-tick mode was added later with the same live-environment helper. No earlier repository revision establishes immutable import-time test authority for the complete four-mode set."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-01",
+          "event": "Initial test-cycle and test-post entry points used live MRS_TEST_MODE environment reads as command authority.",
+          "commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
+          "evidence": "Initial bot source and integration harness"
+        },
+        {
+          "date": "2026-07-02",
+          "event": "The test-main-tick entry point extended the same mutable authority pattern to the fourth test CLI mode.",
+          "commit": "4eb54652de12a73efb15c497249a691c4c19ab1b",
+          "evidence": "Introduction of run_test_main_tick and shared require_test_mode use"
+        },
+        {
+          "date": "2026-08-02",
+          "event": "Exact-cutoff review mutated MRS_TEST_MODE after import in both directions for every test flag and direct entry point and observed authority disagree with import-time configuration and bootstrap ordering.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Literal-process four-mode late-enable and late-disable matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-02",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Import-time test-mode environment, all four test-only CLI flags, direct entry points, callable dispatch, both directions of post-import mutation and ordering before bootstrap, locks or operational work.",
+        "exclusions": "--self-test retains its separate read-only/write-blocking authority and --initialise is not a test command. No live test post or production action was performed.",
+        "source": "Independent exact-4e548b0a test-mode process-authority review"
+      },
+      "detection": {
+        "date": "2026-08-02",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "For each of the four test modes, import once without MRS_TEST_MODE then set it, and import once with it then remove it; invoke run_cli and the direct entry point while recording bootstrap and operational boundaries.",
+        "reproducer": "Late enablement authorised dynamic checks after import and after bootstrap despite production-mode globals, while late removal revoked a process whose import-time TEST_MODE configuration remained true.",
+        "source": "Focused immutable test-mode authority regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An uncommitted post-cutoff proposal captures IMPORT_TIME_TEST_MODE in the standard-library-only top gate, uses it as the compatibility TEST_MODE alias, rejects the four test flags before application imports when authority is absent, rechecks the same immutable value in run_cli, and gates every direct test entry point before production bootstrap. Later environment changes neither create nor revoke authority. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "present",
+        "evidence": "The live-environment test-mode checks are present in the observed production source, but no production invocation through them was established and no repair has been deployed."
+      },
+      "residual_risk": "Until a descendant fix is committed and deployed, none of the four test-only commands may be authorised by setting MRS_TEST_MODE after module import. A correctly isolated fresh process must establish that authority before imports, and every direct or CLI path must gate on the same immutable value before bootstrap.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:mrsMThatcher2.py",
+          "claim": "The cutoff run_test_cycle and shared require_test_mode reread os.getenv after import, and each test entry point calls production bootstrap or establishment work before that dynamic gate."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_test_mode_authority_is_captured_before_application_imports",
+          "claim": "Literal-process candidate regressions cover late enable and late disable for all four CLI flags across the first application import boundary."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_direct_test_entry_points_gate_before_bootstrap_using_import_authority",
+          "claim": "Direct entry-point regressions require absent import-time authority to refuse before bootstrap and retained import-time authority to survive later environment removal."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_real_script_rejects_test_mode_without_import_authority_or_runtime_writes",
+          "claim": "The real script must reject each test flag before application imports or configured state/log creation when MRS_TEST_MODE was absent at process start."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "introduced.last_known_good_commit",
+          "explanation": "The repository begins with dynamically authorised test commands; no earlier immutable import-time implementation is available."
+        },
+        {
+          "field": "fix.commit",
+          "explanation": "The immutable import-time test-mode authority change remains uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0004",
+          "DEF-0061"
+        ]
+      }
+    },
+    {
+      "id": "DEF-0065",
+      "title": "Stopped activation CLI accepted abbreviated and repeated safety-critical options",
+      "source_class": "established-related",
+      "defect_class": "runtime-defect",
+      "diagnosis_finding": "cutoff-4e548b0-activation-cli-grammar-review",
+      "status": "active",
+      "severity": "high",
+      "invariant_ids": [
+        "INV-TXN-RECEIPT-001",
+        "INV-PROC-002"
+      ],
+      "components": [
+        "stopped remote-write protocol activator",
+        "argparse option grammar",
+        "project-root identity options",
+        "external clean-state attestation options",
+        "supervisor and clean-activation confirmations",
+        "abbreviated long options",
+        "repeated-option last-value semantics"
+      ],
+      "affected_files": [
+        "tools/activate_remote_write_safety_protocol.py",
+        "tests/test_remote_write_safety_second_restart.py"
+      ],
+      "runtime_lanes": [
+        "offline-protocol-activation",
+        "cross-cutting-remote-write-barrier"
+      ],
+      "incident": {
+        "occurred": false,
+        "evidence": "The parser ambiguity was reproduced without activation by passing unique prefixes for documented long options and by repeating project identity options with different values. The cutoff parser accepted abbreviations and retained the later repeated value. No project namespace, production state, service, network, X or provider was accessed.",
+        "explanation": "This establishes an ambiguous stopped-tool instruction boundary; it does not establish that a production activation targeted the wrong namespace or that runtime fail-closed checks were bypassed."
+      },
+      "summary": "At 4e548b0a, the stopped activation tool used argparse's default long-option abbreviation and repeat handling. A unique prefix could stand in for a safety-critical documented option, and repeated store-style options silently replaced the earlier value, so one visually ambiguous command line did not have one exact parsed authority.",
+      "impact": "An operator, wrapper or reviewed command record could spell only a prefix or contain conflicting repeated project, attestation or confirmation options while the tool proceeded using argparse's inferred name or last value. Downstream identity and attestation checks could reject many inconsistent combinations, but the parser itself did not guarantee that the executed activation instruction exactly matched one documented, non-duplicated vector.",
+      "introduced": {
+        "first_bad_commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575",
+        "last_known_good_commit": "a65c91bf5b72b986f48b020d9d3096f8b57895c9",
+        "affected_range": "inclusive:5b0b61080ec2deac4ca3f49cf8aec6e51fc27575..4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "confidence": "exact",
+        "explanation": "Commit 5b0b6108 introduced the stopped activator with a default argparse.ArgumentParser. Its parent contains no activation CLI, and every revision through the ledger cutoff retained default abbreviation and repeat behavior."
+      },
+      "chronology": [
+        {
+          "date": "2026-07-31",
+          "event": "The stopped activation CLI was introduced with default argparse long-option abbreviation and repeated-option behavior.",
+          "commit": "5b0b61080ec2deac4ca3f49cf8aec6e51fc27575",
+          "evidence": "Initial tools/activate_remote_write_safety_protocol.py parser"
+        },
+        {
+          "date": "2026-08-02",
+          "event": "Exact-cutoff parser review supplied abbreviated long options and conflicting repeated project identity options and observed acceptance rather than a usage refusal.",
+          "commit": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+          "evidence": "Isolated activator exact-option and duplicate-destination matrix"
+        }
+      ],
+      "first_review_scope": {
+        "date": "2026-08-02",
+        "reviewed_revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "scope": "Every documented stopped-activation option, unique-prefix abbreviation, repeated destinations, project identity authority and rejection before activation inspection or mutation.",
+        "exclusions": "The parser was exercised without invoking activation. Downstream clean-state attestation validation and interrupted-install refusal are separately tracked, including DEF-0062.",
+        "source": "Independent exact-4e548b0a stopped-activation CLI grammar review"
+      },
+      "detection": {
+        "date": "2026-08-02",
+        "revision": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad",
+        "method": "Build one complete documented activation vector, substitute unique prefixes for long options, then append repeated project-root and expected-project-root destinations with conflicting values and parse without invoking activation.",
+        "reproducer": "Default argparse accepted unique long-option prefixes and silently retained the last repeated store value instead of returning usage status 2.",
+        "source": "Focused exact activator CLI regression design"
+      },
+      "tests": [],
+      "fix": {
+        "state": "unfixed",
+        "commit": "unknown",
+        "summary": "An uncommitted post-cutoff proposal uses an activation-specific ArgumentParser with allow_abbrev=False and rejects a second occurrence of any exact option destination, including aliases and --option=value form, before ordinary parsing or activation work. Exact documented non-duplicated invocations remain accepted. No fixing commit is inside this ledger boundary."
+      },
+      "deployment": {
+        "state": "not-applicable",
+        "observed_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
+        "observed_at": "2026-07-28T23:40:14+01:00",
+        "production_presence_at_observed_commit": "absent",
+        "evidence": "The stopped activator is absent from the observed production commit and was not run against production. The parser gap exists at the exact later ledger evidence cutoff, and no repair has been deployed."
+      },
+      "residual_risk": "Until a descendant fix is committed and operationally adopted, every stopped-activation invocation must be independently checked to contain each required option exactly once under its full documented spelling. Any prefix, repeated destination or inspection uncertainty must refuse activation before namespace mutation.",
+      "evidence": [
+        {
+          "type": "code",
+          "reference": "4e548b0a5723a1f0c75e9646953b3f92c7db89ad:tools/activate_remote_write_safety_protocol.py",
+          "claim": "The cutoff build_parser constructs a default argparse.ArgumentParser and supplies no exact-option or duplicate-destination control."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
+          "claim": "The post-cutoff candidate regression preserves one complete invocation using every documented exact option."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+          "claim": "The candidate parser must reject repeated project identity destinations rather than retaining the later value."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
+          "claim": "The candidate parser must reject safety-critical long-option prefixes and require complete documented spellings."
+        }
+      ],
+      "unknowns": [
+        {
+          "field": "fix.commit",
+          "explanation": "The exact non-repeating activation parser remains uncommitted post-cutoff candidate material."
+        }
+      ],
+      "relations": {
+        "supersedes": [],
+        "superseded_by": [],
+        "related": [
+          "DEF-0061",
+          "DEF-0062"
         ]
       }
     }

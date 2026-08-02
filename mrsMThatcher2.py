@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 
@@ -11,6 +12,7 @@ import sys
 # work.  Neither a later mutation of ``sys.argv`` nor the executable name may
 # silently change the mode whose module-level configuration was constructed.
 IMPORT_TIME_CLI_ARGUMENTS = tuple(sys.argv[1:])
+IMPORT_TIME_TEST_MODE = os.environ.get("MRS_TEST_MODE") == "1"
 
 
 DOCUMENTED_CLI_MODE_FLAGS = (
@@ -20,6 +22,14 @@ DOCUMENTED_CLI_MODE_FLAGS = (
     "--test-main-tick",
     "--test-post-quote",
     "--test-post-meme",
+)
+TEST_MODE_REQUIRED_CLI_FLAGS = frozenset(
+    {
+        "--test-cycle",
+        "--test-main-tick",
+        "--test-post-quote",
+        "--test-post-meme",
+    }
 )
 CLI_USAGE = (
     "usage: mrsMThatcher2.py ["
@@ -56,7 +66,14 @@ def parse_cli_mode(argv: list[str] | tuple[str, ...]) -> str | None:
 # any explicitly supplied argv to equal the immutable import-time arguments.
 if __name__ == "__main__":
     try:
-        parse_cli_mode(IMPORT_TIME_CLI_ARGUMENTS)
+        import_time_mode = parse_cli_mode(IMPORT_TIME_CLI_ARGUMENTS)
+        if (
+            import_time_mode in TEST_MODE_REQUIRED_CLI_FLAGS
+            and not IMPORT_TIME_TEST_MODE
+        ):
+            raise CliUsageError(
+                f"{import_time_mode} requires MRS_TEST_MODE=1 before bot import"
+            )
     except CliUsageError as exc:
         print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
@@ -71,7 +88,6 @@ import json
 import logging
 import math
 import mimetypes
-import os
 import posixpath
 import random
 import re
@@ -181,7 +197,7 @@ TEST_POST_MEME_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == (
     "--test-post-meme",
 )
 INITIALISE_REQUESTED = IMPORT_TIME_CLI_ARGUMENTS == ("--initialise",)
-TEST_MODE = os.getenv("MRS_TEST_MODE") == "1"
+TEST_MODE = IMPORT_TIME_TEST_MODE
 
 # ---------------------------------------------------------------------
 # Quote/image posting schedule
@@ -1297,6 +1313,43 @@ class LocalConfigError(RuntimeError):
     """An existing production local-config file is unsafe to apply."""
 
 
+def load_strict_runtime_json(handle_or_document, *, label: str) -> object:
+    """Load one UTF-8 control/config document without ambiguous JSON."""
+
+    def reject_duplicate_names(pairs: list[tuple[str, object]]) -> dict:
+        value: dict[str, object] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError(f"{label} contains a duplicate object name")
+            value[key] = item
+        return value
+
+    def reject_nonfinite_constant(value: str) -> object:
+        raise ValueError(f"{label} contains a non-finite JSON constant")
+
+    def parse_finite_float(value: str) -> float:
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise ValueError(f"{label} contains a non-finite JSON number")
+        return parsed
+
+    if isinstance(handle_or_document, (bytes, str)):
+        document = handle_or_document
+    else:
+        document = handle_or_document.read()
+    if isinstance(document, bytes):
+        document = document.decode("utf-8", errors="strict")
+    elif type(document) is not str:
+        raise ValueError(f"{label} reader returned unsupported content")
+
+    return json.loads(
+        document,
+        object_pairs_hook=reject_duplicate_names,
+        parse_constant=reject_nonfinite_constant,
+        parse_float=parse_finite_float,
+    )
+
+
 class ReplyEvidenceUnavailable(RuntimeError):
     """The local reply-evidence corpus could not be loaded safely."""
 
@@ -1534,8 +1587,8 @@ def apply_local_config() -> None:
         return
 
     try:
-        with open(LOCAL_CONFIG_FILE, "r") as f:
-            data = json.load(f)
+        with open(LOCAL_CONFIG_FILE, "rb") as f:
+            data = load_strict_runtime_json(f, label="local config")
     except Exception as exc:
         raise LocalConfigError(f"Failed to read local config file {LOCAL_CONFIG_FILE}: {exc}") from exc
 
@@ -2466,6 +2519,11 @@ _CONTROL_CACHE: dict[str, object] = {
     "has_valid": False,
     "failure_signature": None,
 }
+RUNTIME_CONTROL_MAX_BYTES = 64 * 1024
+
+
+class _RuntimeControlAbsent(FileNotFoundError):
+    """The optional control pathname was absent before a read began."""
 
 CONTROL_BOOLEAN_KEYS = frozenset({
     "disable_all",
@@ -2565,41 +2623,148 @@ def control_failure_result(reason: str, *, signature: object) -> dict:
     return {"disable_all": True, "_control_fail_closed": True}
 
 
+def _runtime_control_stat_identity(file_stat: os.stat_result) -> tuple[int, ...]:
+    """Return the fields which must remain stable for one control snapshot."""
+
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        stat.S_IFMT(file_stat.st_mode),
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+        file_stat.st_ctime_ns,
+    )
+
+
+def _read_stable_runtime_control() -> tuple[bytes, tuple[object, ...]]:
+    """Read one regular, non-symlink control file as a stable byte snapshot."""
+
+    control_path = os.path.abspath(os.fspath(CONTROL_FILE))
+    try:
+        before_path = os.lstat(control_path)
+    except FileNotFoundError as exc:
+        raise _RuntimeControlAbsent(control_path) from exc
+    if not stat.S_ISREG(before_path.st_mode):
+        raise ValueError("runtime control must be a regular file")
+
+    nonblock = getattr(os, "O_NONBLOCK", 0)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow or not nonblock:
+        raise RuntimeError(
+            "runtime control requires O_NOFOLLOW and O_NONBLOCK support"
+        )
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | nonblock
+    descriptor = os.open(control_path, flags | nofollow)
+    try:
+        before_fd = os.fstat(descriptor)
+        if not stat.S_ISREG(before_fd.st_mode):
+            raise ValueError("runtime control must be a regular file")
+        if _runtime_control_stat_identity(before_path) != _runtime_control_stat_identity(
+            before_fd
+        ):
+            raise RuntimeError("runtime control changed before it was opened")
+        if before_fd.st_size > RUNTIME_CONTROL_MAX_BYTES:
+            raise ValueError(
+                f"runtime control exceeds {RUNTIME_CONTROL_MAX_BYTES} bytes"
+            )
+
+        def read_document() -> bytes:
+            chunks: list[bytes] = []
+            observed = 0
+            while observed <= RUNTIME_CONTROL_MAX_BYTES:
+                chunk = os.read(
+                    descriptor,
+                    min(8192, RUNTIME_CONTROL_MAX_BYTES + 1 - observed),
+                )
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                observed += len(chunk)
+            return b"".join(chunks)
+
+        document = read_document()
+        middle_fd = os.fstat(descriptor)
+        if _runtime_control_stat_identity(before_fd) != _runtime_control_stat_identity(
+            middle_fd
+        ):
+            raise RuntimeError("runtime control changed during its first read")
+        if len(document) != before_fd.st_size:
+            raise ValueError(
+                "runtime control length did not match its stable file identity"
+            )
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        repeated_document = read_document()
+        after_fd = os.fstat(descriptor)
+        after_path = os.lstat(control_path)
+    finally:
+        os.close(descriptor)
+
+    if (
+        len(document) > RUNTIME_CONTROL_MAX_BYTES
+        or len(document) != before_fd.st_size
+    ):
+        raise ValueError(
+            "runtime control length did not match its stable file identity"
+        )
+    if repeated_document != document:
+        raise RuntimeError("runtime control bytes changed during stable read")
+    if _runtime_control_stat_identity(middle_fd) != _runtime_control_stat_identity(
+        after_fd
+    ):
+        raise RuntimeError("runtime control changed while it was read")
+
+    if _runtime_control_stat_identity(after_fd) != _runtime_control_stat_identity(
+        after_path
+    ):
+        raise RuntimeError("runtime control path changed while it was read")
+
+    signature: tuple[object, ...] = (
+        control_path,
+        *_runtime_control_stat_identity(after_fd),
+        hashlib.sha256(document).hexdigest(),
+    )
+    return document, signature
+
+
 def load_control() -> dict:
     """Load and validate the optional fail-safe runtime-control document."""
     try:
-        stat = CONTROL_FILE.stat()
-    except FileNotFoundError:
+        document, signature = _read_stable_runtime_control()
+    except _RuntimeControlAbsent:
         _CONTROL_CACHE["signature"] = None
         _CONTROL_CACHE["data"] = {}
         _CONTROL_CACHE["has_valid"] = False
         _CONTROL_CACHE["failure_signature"] = None
         return {}
     except OSError as exc:
-        return control_failure_result(str(exc), signature=("stat", type(exc).__name__, str(exc)))
-
-    signature = (
-        str(CONTROL_FILE.resolve()), stat.st_dev, stat.st_ino,
-        stat.st_size, stat.st_mtime_ns,
-    )
-    if _CONTROL_CACHE.get("signature") == signature and _CONTROL_CACHE.get("has_valid"):
-        data = _CONTROL_CACHE.get("data", {})
-        return data if isinstance(data, dict) else {}
+        return control_failure_result(
+            str(exc),
+            signature=("read", type(exc).__name__, str(exc)),
+        )
+    except Exception as exc:
+        return control_failure_result(
+            str(exc),
+            signature=("snapshot", type(exc).__name__, str(exc)),
+        )
 
     try:
-        with open(CONTROL_FILE, "r") as f:
-            data = json.load(f)
+        data = load_strict_runtime_json(document, label="runtime control")
         data = validate_control_document(data)
     except Exception as exc:
         return control_failure_result(str(exc), signature=("content", signature, type(exc).__name__, str(exc)))
 
+    changed = (
+        _CONTROL_CACHE.get("signature") != signature
+        or _CONTROL_CACHE.get("data") != data
+    )
     _CONTROL_CACHE["signature"] = signature
     _CONTROL_CACHE["data"] = dict(data)
     _CONTROL_CACHE["has_valid"] = True
     _CONTROL_CACHE["failure_signature"] = None
-    log.info("Loaded runtime control file %s", CONTROL_FILE)
-    log_json_debug("Runtime control", data)
-    return data
+    if changed:
+        log.info("Loaded runtime control file %s", CONTROL_FILE)
+        log_json_debug("Runtime control", data)
+    return dict(data)
 
 
 def control_bool(data: dict, key: str) -> bool:
@@ -13487,6 +13652,36 @@ def reconcile_confirmed_transactions_before_global_barrier(
     present = [
         path for path in receipt_paths if receipt_namespace_entry_exists(path)
     ]
+    if not present:
+        # A confirmed historical-context receipt can have completed exact
+        # history and retired its source/journal immediately before a crash,
+        # while the independently durable outbox still says that the remote
+        # transaction was attempting.  That outbox row is correctly a global
+        # barrier, so the ordinary worker below the barrier is unreachable.
+        # Permit only the sole risky parent to run the existing local-only
+        # reconciler here.  It requires exact source-bound completed/failed
+        # history and repeats no remote work; missing, stale, multiple or
+        # conflicting evidence raises and leaves the global barrier intact.
+        parent_id = (
+            historical_context_outbox_remote_attempt_parent_for_local_reconciliation()
+        )
+        if parent_id is not None:
+            outbox_store = historical_context_outbox_store()
+            with outbox_store.worker_lock():
+                obligation = outbox_store.get(parent_id)
+                if not isinstance(obligation, dict):
+                    raise RuntimeError(
+                        "risky historical-context outbox parent disappeared "
+                        "before local reconciliation"
+                    )
+                recovered = recover_interrupted_historical_context_attempt(
+                    outbox_store,
+                    obligation,
+                    recovered_epoch=now_epoch(),
+                )
+            log_event("historical_context_obligation", **recovered)
+            result["historical_context"] = True
+            return result
     if len(present) != 1:
         return result
 
@@ -21061,8 +21256,8 @@ def run_self_test() -> int:
     _self_test_warn("local config file present", LOCAL_CONFIG_FILE.exists(), str(LOCAL_CONFIG_FILE))
     if LOCAL_CONFIG_FILE.exists():
         try:
-            with open(LOCAL_CONFIG_FILE, "r") as f:
-                cfg = json.load(f)
+            with open(LOCAL_CONFIG_FILE, "rb") as f:
+                cfg = load_strict_runtime_json(f, label="local config")
             require("local config is JSON object", isinstance(cfg, dict), str(type(cfg).__name__))
         except Exception as exc:
             require("local config parses", False, str(exc))
@@ -21070,8 +21265,8 @@ def run_self_test() -> int:
     _self_test_warn("runtime control file absent", not CONTROL_FILE.exists(), str(CONTROL_FILE))
     if CONTROL_FILE.exists():
         try:
-            with open(CONTROL_FILE, "r") as f:
-                ctrl = json.load(f)
+            with open(CONTROL_FILE, "rb") as f:
+                ctrl = load_strict_runtime_json(f, label="runtime control")
             require("runtime control is JSON object", isinstance(ctrl, dict), str(type(ctrl).__name__))
         except Exception as exc:
             require("runtime control parses", False, str(exc))
@@ -21132,10 +21327,9 @@ def run_self_test() -> int:
 
 def run_test_cycle() -> int:
     """Run one local integration-test pass without entering the posting loop."""
-    require_production_bootstrap()
-    if os.getenv("MRS_TEST_MODE") != "1":
-        log.error("--test-cycle requires MRS_TEST_MODE=1")
+    if not require_test_mode("--test-cycle"):
         return 2
+    require_production_bootstrap()
 
     acquire_instance_lock()
     require_established_installation_after_ledger_recovery()
@@ -21252,9 +21446,9 @@ def run_test_cycle() -> int:
 
 def run_test_main_tick() -> int:
     """Run the production reply-lane tick once for local integration tests."""
-    require_production_bootstrap()
     if not require_test_mode("--test-main-tick"):
         return 2
+    require_production_bootstrap()
 
     acquire_instance_lock()
     require_established_installation_after_ledger_recovery()
@@ -21295,9 +21489,9 @@ def run_test_main_tick() -> int:
 
 
 def require_test_mode(command_name: str) -> bool:
-    """Require test mode."""
-    if os.getenv("MRS_TEST_MODE") != "1":
-        log.error("%s requires MRS_TEST_MODE=1", command_name)
+    """Require the immutable import-time test-mode safety configuration."""
+    if not IMPORT_TIME_TEST_MODE:
+        log.error("%s requires MRS_TEST_MODE=1 before bot import", command_name)
         return False
     return True
 
@@ -21332,9 +21526,9 @@ def wait_for_durable_barrier_before_one_shot_exit(*, lane: str) -> None:
 
 def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
-    require_production_bootstrap()
     if not require_test_mode("--test-post-quote"):
         return 2
+    require_production_bootstrap()
 
     acquire_instance_lock()
     require_established_installation_after_ledger_recovery()
@@ -21402,9 +21596,9 @@ def run_test_post_quote() -> int:
 
 def run_test_post_meme() -> int:
     """Run one daily meme post cycle for local integration tests."""
-    require_production_bootstrap()
     if not require_test_mode("--test-post-meme"):
         return 2
+    require_production_bootstrap()
 
     acquire_instance_lock()
     require_established_installation_after_ledger_recovery()
@@ -21476,6 +21670,10 @@ def run_cli(argv: list[str] | tuple[str, ...] | None = None) -> int | None:
                 "explicit argv must exactly match the import-time command line"
             )
         mode = parse_cli_mode(IMPORT_TIME_CLI_ARGUMENTS)
+        if mode in TEST_MODE_REQUIRED_CLI_FLAGS and not IMPORT_TIME_TEST_MODE:
+            raise CliUsageError(
+                f"{mode} requires MRS_TEST_MODE=1 before bot import"
+            )
     except CliUsageError as exc:
         print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
         return 2

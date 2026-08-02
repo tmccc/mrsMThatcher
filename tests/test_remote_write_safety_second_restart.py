@@ -2054,3 +2054,100 @@ def test_activation_cli_requires_external_attestation_arguments() -> None:
             ]
         )
     assert exc_info.value.code == 2
+
+
+def _valid_activation_cli_arguments() -> list[str]:
+    """Return one complete, documented activation parser invocation."""
+
+    return [
+        "--project-root",
+        "/srv/mrs-thatcher",
+        "--expected-project-root",
+        "/srv/mrs-thatcher",
+        "--expected-project-device",
+        "101",
+        "--expected-project-inode",
+        "202",
+        "--clean-state-attestation",
+        "/operator/clean-state-attestation.json",
+        "--clean-state-attestation-sha256",
+        "a" * 64,
+        "--confirm-clean-offline-activation",
+        "--confirm-supervisor-stopped",
+    ]
+
+
+def test_activation_cli_accepts_complete_documented_invocation() -> None:
+    """Exact documented option names remain accepted."""
+
+    args = activate.build_parser().parse_args(_valid_activation_cli_arguments())
+
+    assert args.project_root == Path("/srv/mrs-thatcher")
+    assert args.expected_project_root == Path("/srv/mrs-thatcher")
+    assert args.expected_project_device == 101
+    assert args.expected_project_inode == 202
+    assert args.clean_state_attestation == Path(
+        "/operator/clean-state-attestation.json"
+    )
+    assert args.clean_state_attestation_sha256 == "a" * 64
+    assert args.confirm_clean_offline_activation is True
+    assert args.confirm_supervisor_stopped is True
+
+
+@pytest.mark.parametrize(
+    ("duplicate_option", "duplicate_value"),
+    [
+        ("--project-root", "/different/project"),
+        ("--expected-project-root", "/different/expected-project"),
+    ],
+)
+def test_activation_cli_rejects_duplicate_project_identity_options(
+    duplicate_option: str,
+    duplicate_value: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A later identity option cannot silently replace operator intent."""
+
+    arguments = _valid_activation_cli_arguments()
+    arguments.extend((duplicate_option, duplicate_value))
+
+    with pytest.raises(SystemExit) as exc_info:
+        activate.build_parser().parse_args(arguments)
+
+    assert exc_info.value.code == 2
+    assert "may not be repeated" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("exact_option", "abbreviated_option"),
+    [
+        ("--project-root", "--project-r"),
+        ("--expected-project-root", "--expected-project-r"),
+        ("--expected-project-device", "--expected-project-d"),
+        ("--expected-project-inode", "--expected-project-i"),
+        (
+            "--clean-state-attestation-sha256",
+            "--clean-state-attestation-s",
+        ),
+        (
+            "--confirm-clean-offline-activation",
+            "--confirm-clean-o",
+        ),
+        ("--confirm-supervisor-stopped", "--confirm-s"),
+    ],
+)
+def test_activation_cli_rejects_abbreviated_options(
+    exact_option: str,
+    abbreviated_option: str,
+) -> None:
+    """Safety-critical options require their complete documented spelling."""
+
+    arguments = [
+        abbreviated_option if value == exact_option else value
+        for value in _valid_activation_cli_arguments()
+    ]
+
+    with pytest.raises(SystemExit) as exc_info:
+        activate.build_parser().parse_args(arguments)
+
+    assert exc_info.value.code == 2

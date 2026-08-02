@@ -3,7 +3,7 @@
   "registry_id": "mrsMThatcher-production-invariants",
   "registry_version": 2,
   "baseline_commit": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-  "reviewed_on": "2026-08-01",
+  "reviewed_on": "2026-08-02",
   "scope": "Priority-0 production safety contracts for quotation eligibility and evidence, durable transactions, configuration and process control, test isolation, and release/deployment assurance. Status describes the current repository honestly; it is not a claim that partial or missing controls are accepted.",
   "generated_document": "PRODUCTION_INVARIANTS.md",
   "status_definitions": {
@@ -1797,14 +1797,14 @@
       "id": "INV-TXN-HCTX-001",
       "category": "transaction",
       "title": "Historical-context reply at-most-once transaction",
-      "statement": "A historical-context reply must persist an exact stable single-link ordinary sending receipt before its remote request; that receipt is the sole source-binding authority, while only the subsequently consumed independent journal/fence authority may authorise transport. The outbox claim must bind the exact canonical receipt SHA-256 and receipt-local attempt number before journal arming, then durably advance from a proved pre-remote phase to a one-way remote-started phase immediately before transport. A current explicitly pre-remote claim may recover with no receipt, or may narrowly bind and retire one stable matching next-ordinal sending receipt when no independent transport barrier exists; legacy unknown-phase, conflicting unbound, stale-source or remote-started claims remain ambiguous. Any historical-context receipt namespace entry or inspection failure must block every unrelated remote lane. Local reconciliation may inspect only a no-follow, stable, valid receipt whose exact source binding matches the current outbox attempt, apart from that bounded publication-to-callback recovery; it must end that worker invocation without claiming another item, preserve a restart barrier across identity-bound retirement, reconcile exact confirmed history without reposting, retain ambiguity for unproved or potentially transmitted outcomes, and reject malformed, stale or conflicting state. A provider-proved non-success is instead an exact local failure: its bound outbox outcome must be durable before failed history or source-receipt retirement, and missing history may be reconstructed only from the matching receipt hash, receipt-local attempt and proved outbox outcome with no transport barrier. Confirmed terminal outbox rows must retain exact current source lineage; interrupted retirement may resume only when its marker hash matches one unique confirmed or proved-failure history/outbox authority. Within the supported lock-authorised cooperative-writer and crash-recovery model, terminal retirement must commit the next exact persistent-ledger generation in a monotonic sequence/hash chain, bound to its predecessor and the retired receipt, before the final guard is removed. Strict persistent retirement ledgers are mandatory for all four fixed source-receipt basenames; a missing, malformed or exchanging ledger blocks this lane and installation establishment. Only a current schema-3 activation plus instance-lock-bound mutation authority may recover one exact predecessor/successor ledger exchange before establishment; an invalid activation never authorises recovery. Established production history and outbox files must never be reinterpreted as empty after disappearance. This local sequence/hash chain is not an externally anchored tamper-evident record: arbitrary out-of-protocol rollback or replacement is not detected and is outside this guarantee.",
+      "statement": "A historical-context reply must persist an exact stable single-link ordinary sending receipt before its remote request; that receipt is the sole source-binding authority, while only the subsequently consumed independent journal/fence authority may authorise transport. The outbox claim must bind the exact canonical receipt SHA-256 and receipt-local attempt number before journal arming, then durably advance from a proved pre-remote phase to a one-way remote-started phase immediately before transport. A current explicitly pre-remote claim may recover with no receipt, or may narrowly bind and retire one stable matching next-ordinal sending receipt when no independent transport barrier exists; legacy unknown-phase, conflicting unbound, stale-source or remote-started claims remain ambiguous. If confirmed receipt/journal retirement and exact completed history become durable before the owning outbox is advanced, the pre-barrier local reconciler may advance only the sole source-bound remote-started outbox row from that exact completed history without remote work; stale, conflicting, uninspectable or multiple risky rows remain globally blocking. Any historical-context receipt namespace entry or inspection failure must block every unrelated remote lane. Local reconciliation may inspect only a no-follow, stable, valid receipt whose exact source binding matches the current outbox attempt, apart from that bounded publication-to-callback recovery; it must end that worker invocation without claiming another item, preserve a restart barrier across identity-bound retirement, reconcile exact confirmed history without reposting, retain ambiguity for unproved or potentially transmitted outcomes, and reject malformed, stale or conflicting state. A provider-proved non-success is instead an exact local failure: its bound outbox outcome must be durable before failed history or source-receipt retirement, and missing history may be reconstructed only from the matching receipt hash, receipt-local attempt and proved outbox outcome with no transport barrier. Confirmed terminal outbox rows must retain exact current source lineage; interrupted retirement may resume only when its marker hash matches one unique confirmed or proved-failure history/outbox authority. Within the supported lock-authorised cooperative-writer and crash-recovery model, terminal retirement must commit the next exact persistent-ledger generation in a monotonic sequence/hash chain, bound to its predecessor and the retired receipt, before the final guard is removed. Strict persistent retirement ledgers are mandatory for all four fixed source-receipt basenames; a missing, malformed or exchanging ledger blocks this lane and installation establishment. Only a current schema-3 activation plus instance-lock-bound mutation authority may recover one exact predecessor/successor ledger exchange before establishment; an invalid activation never authorises recovery. Established production history and outbox files must never be reinterpreted as empty after disappearance. This local sequence/hash chain is not an externally anchored tamper-evident record: arbitrary out-of-protocol rollback or replacement is not detected and is outside this guarantee.",
       "failure_if_violated": "An optional context reply can be duplicated or its ambiguous outcome can be hidden by policy disablement, missing packets, or later main-post work.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The context store uses strict separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips. Every new outbox claim records an exact pre-remote boolean; immediately after exclusive source-receipt publication, the real worker-to-formatter-to-store callback binds its canonical SHA-256 and receipt-local attempt number. A hard crash in that callback gap may bind only one stable same-parent, same-quote, next-source-ordinal receipt while the durable phase remains explicitly pre-remote and no journal exists; it is then recorded as a proved non-success before history and exact retirement. After the payload/source/inode-bound journal and immutable fence are armed, a second one-way callback durably marks remote-started immediately before the exact POST /2/tweets transport. Legacy unknown-phase, conflicting unbound, stale-source, remote-started or independently barred claims remain ambiguous. A definite non-success writes the exact bound outbox failure before failed history and source-receipt retirement. If history persistence fails, startup or the first unpaused pre-barrier path reconstructs it only from the matching retained receipt and outbox proof after excluding a transport barrier; contradictory or stale pairs remain blocked. Confirmed receipt promotion invokes the owning outbox callback before completed history or journal/source retirement, and interrupted retirement revalidates that exact outbox authority before resuming. Terminal retirement commits the next exact persistent-ledger sequence/hash-chain generation under lock-authorised supported writers before final guard removal. The schema-3 activation contract requires strict ledgers for all four fixed receipt basenames; a missing, malformed or exchanging ledger blocks every lane and installation establishment. Startup recovers only an exact predecessor/successor ledger exchange under a current activation and verifier-bound instance-lock authority, never under invalid activation. The shared preflight treats every context receipt namespace entry as a global barrier; a remote-started or legacy attempting outbox row is independently global even if its source receipt and journal are absent or context runtime loading is unavailable. Only a stable no-follow canonical, current-owner private receipt and outbox with compatible identifiers may enter local reconciliation, and one reconciliation-only invocation cannot claim a later item. Duplicate names, non-finite values, unsafe types, coercive identifiers, noncanonical or non-private bytes, same-inode mutation, final-path disappearance, pathname replacement and post-bind ABA fail closed. These descendant controls are proposed repairs for DEF-0053 through DEF-0055, DEF-0057 and DEF-0058, which remain active at the exact 4e548b0a ledger cutoff. Unrelated journal, media and source-generation exchange staging remains duplicate-safe but can still require operator inspection; the contract remains partial and does not claim safety against arbitrary hostile same-UID mutation. This local sequence/hash chain has no external tamper-evident anchor and does not detect arbitrary out-of-protocol rollback or replacement.",
+      "status_rationale": "The context store uses strict separate sending and confirmed receipt states, durable history, and startup reconciliation that precedes gate and policy skips. Every new outbox claim records an exact pre-remote boolean; immediately after exclusive source-receipt publication, the real worker-to-formatter-to-store callback binds its canonical SHA-256 and receipt-local attempt number. A hard crash in that callback gap may bind only one stable same-parent, same-quote, next-source-ordinal receipt while the durable phase remains explicitly pre-remote and no journal exists; it is then recorded as a proved non-success before history and exact retirement. After the payload/source/inode-bound journal and immutable fence are armed, a second one-way callback durably marks remote-started immediately before the exact POST /2/tweets transport. Legacy unknown-phase, conflicting unbound, stale-source, remote-started or independently barred claims remain ambiguous. A definite non-success writes the exact bound outbox failure before failed history and source-receipt retirement. If history persistence fails, startup or the first unpaused pre-barrier path reconstructs it only from the matching retained receipt and outbox proof after excluding a transport barrier; contradictory or stale pairs remain blocked. Confirmed receipt promotion invokes the owning outbox callback before completed history or journal/source retirement, and interrupted retirement revalidates that exact outbox authority before resuming. If exact completed source-bound history and source/journal retirement survive a crash before outbox confirmation, the recurring pre-barrier path advances the sole matching remote-started outbox locally and idempotently; it refuses missing, stale, conflicting or multiple risky rows and performs no transport. Terminal retirement commits the next exact persistent-ledger sequence/hash-chain generation under lock-authorised supported writers before final guard removal. The schema-3 activation contract requires strict ledgers for all four fixed receipt basenames; a missing, malformed or exchanging ledger blocks every lane and installation establishment. Startup recovers only an exact predecessor/successor ledger exchange under a current activation and verifier-bound instance-lock authority, never under invalid activation. The shared preflight treats every context receipt namespace entry as a global barrier; a remote-started or legacy attempting outbox row is independently global even if its source receipt and journal are absent or context runtime loading is unavailable. Only a stable no-follow canonical, current-owner private receipt and outbox with compatible identifiers may enter local reconciliation, and one reconciliation-only invocation cannot claim a later item. Duplicate names, non-finite values, unsafe types, coercive identifiers, noncanonical or non-private bytes, same-inode mutation, final-path disappearance, pathname replacement and post-bind ABA fail closed. These descendant controls are proposed repairs for DEF-0053 through DEF-0055, DEF-0057 and DEF-0058, which remain active at the exact 4e548b0a ledger cutoff. Unrelated journal, media and source-generation exchange staging remains duplicate-safe but can still require operator inspection; the contract remains partial and does not claim safety against arbitrary hostile same-UID mutation. This local sequence/hash chain has no external tamper-evident anchor and does not detect arbitrary out-of-protocol rollback or replacement.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover the real worker-to-formatter-to-store source-binding and confirmed-outbox callbacks; exact source SHA and distinct outbox/receipt attempt ordinals; the durable one-way pre-remote/remote-started phase and journal-before-phase-before-transport ordering; safe recovery of an unbarred pre-remote claim and the narrow publication-to-binding crash state; rejection of conflicting unbound, stale failed and completed source pairs; reconstruction and immediate-next-attempt advancement after injected failed-history persistence; fail-closed legacy unknown-phase, remote-started and independently barred recovery; strict private canonical outbox and receipt authorities; fixed epoch and reply-text boundaries; confirmed and upgrade-era receipt/outbox consistency; outbox-before-history ordering; outbox-authorised identity-bound retirement; single-item reconciliation-only worker behaviour; global lane blocking; generic-4xx ambiguity retention; and ambiguity that remains visible across policy and packet failures. Persistent-ledger tests cover terminal ordering, sequence/hash-chain completion under supported writers, all four fixed receipt basenames, exact startup exchange recovery, missing or unsafe ledger blocking and invalid-activation refusal. Hard exits in unrelated journal, media and source-generation exchange staging can still leave exact duplicate-safe barriers which are not all automatically completed, so verification remains partial."
+        "rationale": "Tests cover the real worker-to-formatter-to-store source-binding and confirmed-outbox callbacks; exact source SHA and distinct outbox/receipt attempt ordinals; the durable one-way pre-remote/remote-started phase and journal-before-phase-before-transport ordering; safe recovery of an unbarred pre-remote claim and the narrow publication-to-binding crash state; pre-barrier completion of the sole source-bound remote-started outbox from exact completed history after receipt retirement; refusal to choose among multiple risky rows; rejection of conflicting unbound, stale failed and completed source pairs; reconstruction and immediate-next-attempt advancement after injected failed-history persistence; fail-closed legacy unknown-phase, remote-started and independently barred recovery; strict private canonical outbox and receipt authorities; fixed epoch and reply-text boundaries; confirmed and upgrade-era receipt/outbox consistency; outbox-before-history ordering; outbox-authorised identity-bound retirement; single-item reconciliation-only worker behaviour; global lane blocking; generic-4xx ambiguity retention; and ambiguity that remains visible across policy and packet failures. Persistent-ledger tests cover terminal ordering, sequence/hash-chain completion under supported writers, all four fixed receipt basenames, exact startup exchange recovery, missing or unsafe ledger blocking and invalid-activation refusal. Hard exits in unrelated journal, media and source-generation exchange staging can still leave exact duplicate-safe barriers which are not all automatically completed, so verification remains partial."
       },
       "affected_paths": [
         "historical_context_formatter.py",
@@ -1887,6 +1887,8 @@
           "tests/test_production_consistency_incident.py::test_remote_started_claim_consumes_exact_failed_sending_receipt",
           "tests/test_production_consistency_incident.py::test_exact_failed_context_receipt_survives_outbox_recovery_failure",
           "tests/test_production_consistency_incident.py::test_unpaused_prebarrier_tick_recovers_paused_exact_context_failure",
+          "tests/test_production_consistency_incident.py::test_prebarrier_reaches_source_bound_completed_context_without_receipt",
+          "tests/test_production_consistency_incident.py::test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows",
           "tests/test_production_consistency_incident.py::test_startup_retires_failure_receipt_after_outbox_failure_is_durable",
           "tests/test_production_consistency_incident.py::test_startup_rejects_failure_receipt_conflicting_with_confirmed_outbox",
           "tests/test_production_consistency_incident.py::test_failed_context_receipt_without_outbox_obligation_stays_blocked",
@@ -2022,6 +2024,8 @@
               "tests/test_production_consistency_incident.py::test_remote_started_claim_consumes_exact_failed_sending_receipt",
               "tests/test_production_consistency_incident.py::test_exact_failed_context_receipt_survives_outbox_recovery_failure",
               "tests/test_production_consistency_incident.py::test_unpaused_prebarrier_tick_recovers_paused_exact_context_failure",
+              "tests/test_production_consistency_incident.py::test_prebarrier_reaches_source_bound_completed_context_without_receipt",
+              "tests/test_production_consistency_incident.py::test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows",
               "tests/test_production_consistency_incident.py::test_startup_retires_failure_receipt_after_outbox_failure_is_durable",
               "tests/test_production_consistency_incident.py::test_startup_rejects_failure_receipt_conflicting_with_confirmed_outbox",
               "tests/test_production_consistency_incident.py::test_failed_context_receipt_without_outbox_obligation_stays_blocked",
@@ -2159,6 +2163,7 @@
         "The main post is already durably confirmed before the optional context obligation runs.",
         "Any existing context receipt is reconciled through a stable no-follow ordinary-file identity before gate or policy skips.",
         "A current outbox claim durably records remote_transaction_started=false before formatter work, then binds the exact canonical source-receipt SHA-256 and receipt-local attempt number immediately after exclusive receipt publication; it advances to true only after the independent transport journal is armed and before the create request.",
+        "When no source receipt remains, pre-barrier local reconciliation may select only one risky source-bound outbox parent and must require exact completed history for that source generation; absent, stale, conflicting, uninspectable or multiple candidates remain blocking.",
         "A reconciliation-only worker invocation never claims or transmits another item, and unsupported namespace mutation observed at a documented validation boundary leaves a canonical tombstone or global incident barrier.",
         "The exact currently durable sending receipt is the sole source-binding authority, but the X create is authorised only after its payload/source-bound journal and fence authority is atomically consumed."
       ],
@@ -2174,6 +2179,7 @@
         "status": "required",
         "checks": [
           "Before restart, inspect deployed context receipt, history, and outbox together and require any sending state to remain an ambiguity barrier.",
+          "If a remote-started source-bound outbox row remains after exact completed history and receipt retirement, require the pre-barrier local reconciler to confirm only that sole exact row without remote work; multiple or conflicting rows remain blocking.",
           "Require strict stable persistent retirement ledgers for all four fixed source-receipt basenames. Missing, malformed or exchanging evidence blocks establishment; exact predecessor/successor exchange recovery requires the current protocol-v2/schema-3 activation and current instance-lock authority."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
@@ -2222,7 +2228,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0058",
-          "claim": "The cutoff-bound missing global barrier for a possibly transmitted outbox-only attempt is linked to this lane."
+          "claim": "The cutoff-bound missing global barrier for a possibly transmitted outbox-only attempt, and the rejected descendant's unreachable receipt-absent exact-history recovery path, are linked to this lane."
         },
         {
           "type": "test",
@@ -2283,6 +2289,16 @@
           "type": "test",
           "reference": "tests/test_production_consistency_incident.py::test_unpaused_prebarrier_tick_recovers_paused_exact_context_failure",
           "claim": "The first unpaused pre-barrier tick completes exact local failure recovery that maintenance-paused startup deliberately deferred."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_prebarrier_reaches_source_bound_completed_context_without_receipt",
+          "claim": "The recurring pre-barrier path advances one exact source-bound completed historical-context outcome after receipt retirement without repeating remote work."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows",
+          "claim": "Multiple risky outbox rows remain globally blocking rather than being selected by the local-only reconciler."
         },
         {
           "type": "test",
@@ -2972,6 +2988,9 @@
         ],
         "tests": [
           "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
           "tests/test_exact_receipt_retirement.py::test_required_permanent_ledger_missing_torn_and_unsafe_states_block",
           "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_around_permanent_ledger_and_final_cleanup_resumes",
           "tests/test_exact_receipt_retirement.py::test_completed_ledger_advances_monotonically_for_reused_source_path",
@@ -3107,6 +3126,8 @@
           "tests/test_production_consistency_incident.py::test_remote_started_claim_consumes_exact_failed_sending_receipt",
           "tests/test_production_consistency_incident.py::test_exact_failed_context_receipt_survives_outbox_recovery_failure",
           "tests/test_production_consistency_incident.py::test_unpaused_prebarrier_tick_recovers_paused_exact_context_failure",
+          "tests/test_production_consistency_incident.py::test_prebarrier_reaches_source_bound_completed_context_without_receipt",
+          "tests/test_production_consistency_incident.py::test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows",
           "tests/test_production_consistency_incident.py::test_startup_retires_failure_receipt_after_outbox_failure_is_durable",
           "tests/test_production_consistency_incident.py::test_startup_rejects_failure_receipt_conflicting_with_confirmed_outbox",
           "tests/test_production_consistency_incident.py::test_failed_context_receipt_without_outbox_obligation_stays_blocked",
@@ -3124,6 +3145,9 @@
             "validation_id": "pytest",
             "selectors": [
               "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
               "tests/test_exact_receipt_retirement.py::test_required_permanent_ledger_missing_torn_and_unsafe_states_block",
               "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_around_permanent_ledger_and_final_cleanup_resumes",
               "tests/test_exact_receipt_retirement.py::test_completed_ledger_advances_monotonically_for_reused_source_path",
@@ -3243,6 +3267,8 @@
               "tests/test_production_consistency_incident.py::test_remote_started_claim_consumes_exact_failed_sending_receipt",
               "tests/test_production_consistency_incident.py::test_exact_failed_context_receipt_survives_outbox_recovery_failure",
               "tests/test_production_consistency_incident.py::test_unpaused_prebarrier_tick_recovers_paused_exact_context_failure",
+              "tests/test_production_consistency_incident.py::test_prebarrier_reaches_source_bound_completed_context_without_receipt",
+              "tests/test_production_consistency_incident.py::test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows",
               "tests/test_production_consistency_incident.py::test_startup_retires_failure_receipt_after_outbox_failure_is_durable",
               "tests/test_production_consistency_incident.py::test_startup_rejects_failure_receipt_conflicting_with_confirmed_outbox",
               "tests/test_production_consistency_incident.py::test_failed_context_receipt_without_outbox_obligation_stays_blocked",
@@ -3332,7 +3358,9 @@
         "The running daemon owns the process-lifetime instance lock; supported barrier removal occurs only after shutdown through exact-hash offline reconciliation under that same lock, with the restart successor removed last.",
         "Enumerated one-path fault coverage applies when mutation is complete before the next documented revalidation boundary or after an independent barrier is durable. A non-cooperating same-UID actor mutating a reserved pathname inside a validation-to-pathname-syscall interval, or mutating the state directory itself, is outside this local guarantee; separately enumerated loss of the legacy ambiguity name alone remains covered.",
         "Receipt retirement occurs only after protected durable writes complete.",
-        "The stopped activator binds .mrsMThatcher.initialising.json into its exact refused-state/attestation inventory and performs no activation mutation while it exists."
+        "The stopped activator binds .mrsMThatcher.initialising.json into its exact refused-state/attestation inventory and performs no activation mutation while it exists.",
+        "The stopped activator accepts only fully spelled documented options exactly once per destination; abbreviations and repeated aliases are rejected before activation inspection or mutation.",
+        "A source-bound remote-started historical-context outbox row with no remaining source receipt may be advanced locally only when it is the sole risky row and exact completed history proves the same source generation."
       ],
       "failure_mode": {
         "mode": "mixed",
@@ -3346,6 +3374,8 @@
         "status": "required",
         "checks": [
           "Inspect all deployed receipt and ambiguity paths before service restart; simultaneous, malformed, or unresolved records block activation.",
+          "Invoke the stopped activator only through its exact documented non-repeated option grammar; any abbreviated or repeated option must be rejected before state inspection or mutation.",
+          "Require sole-parent exact-history pre-barrier recovery for a source-bound remote-started historical-context outbox row whose source receipt has already retired; multiple or conflicting rows remain blocking.",
           "Require .mrsMThatcher.initialising.json to be absent before activation and verify it is hash-bound in the stopped activator refused-state/attestation inventory; its presence must refuse first activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current and current-audit-only generations before mutation.",
           "Inspect the persistent ledger and fixed exchange pathname for each of regular_post_receipt.json, meme_post_receipt.json, confirmed_reply_receipt.json and historical_context_reply_receipt.json. A missing, malformed or exchanging ledger blocks all remote writes and establishment; complete only one exact predecessor/successor exchange under the current protocol-v2/schema-3 activation and current instance-lock authority, and never recover beneath invalid activation.",
           "Verify the deployed protocol module, activator and reconciler hashes match the committed files; require the user service, wrapper and Python child all stopped; bind the activator to the preflight project path/device/inode and an external canonical clean-state/reconciliation attestation with an independently recorded SHA-256 and exact activator CLI hash; refuse activation until both ambiguity names and every source receipt, transport journal/fence, media receipt/fence and retirement auxiliary are absent or exactly reconciled; then create and re-read the exact .mrs_remote_write_safety_protocol_v2 sentinel/audit pair under the established locks before starting only the compatible runtime.",
@@ -3418,7 +3448,27 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0058",
-          "claim": "The cutoff-bound missing global barrier for an outbox-only possibly transmitted attempt is linked to this invariant."
+          "claim": "The cutoff-bound missing global barrier for an outbox-only possibly transmitted attempt, and the rejected descendant's unreachable receipt-absent exact-history recovery path, are linked to this invariant."
+        },
+        {
+          "type": "report",
+          "reference": "defect_ledger.json#DEF-0065",
+          "claim": "The cutoff-bound stopped-activation parser accepted abbreviated and repeated safety-critical options; the candidate exact-option parser is recorded without claiming a committed fix or deployment."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
+          "claim": "The candidate parser preserves one complete invocation using every documented option exactly once."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+          "claim": "Conflicting repeated project-identity destinations and aliases are rejected before activation work."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
+          "claim": "Safety-critical long-option prefixes are rejected instead of being inferred by argparse."
         },
         {
           "type": "test",
@@ -3519,6 +3569,16 @@
           "type": "test",
           "reference": "tests/test_production_consistency_incident.py::test_unpaused_prebarrier_tick_recovers_paused_exact_context_failure",
           "claim": "A maintenance-paused startup retains the receipt and the first unpaused pre-barrier tick performs only its exact local recovery."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_prebarrier_reaches_source_bound_completed_context_without_receipt",
+          "claim": "The global pre-barrier path can complete one exact source-bound local historical-context outcome after receipt retirement without opening transport."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_production_consistency_incident.py::test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows",
+          "claim": "The global barrier remains closed when more than one risky historical-context outbox row exists."
         },
         {
           "type": "test",
@@ -3699,14 +3759,14 @@
       "id": "INV-CONFIG-001",
       "category": "configuration_process",
       "title": "Local configuration is allowlisted, atomic, and unambiguous",
-      "statement": "A present local configuration must be a readable JSON object containing only allowlisted top-level keys and valid types/ranges; the complete proposed top-level snapshot is validated before any override is applied. Allowlisted path-bearing scalar keys and the path fields inside ai_first_reply_strategy and quote_image_semantic_veto may replace their defaults. Nested configuration objects are replaced as complete top-level values rather than deep-merged.",
+      "statement": "A present local configuration must be a strictly decoded UTF-8 JSON object with no duplicate object names or non-finite numbers, containing only allowlisted top-level keys and valid types/ranges; the complete proposed top-level snapshot is validated before any override is applied. Allowlisted path-bearing scalar keys and the path fields inside ai_first_reply_strategy and quote_image_semantic_veto may replace their defaults. Nested configuration objects are replaced as complete top-level values rather than deep-merged.",
       "failure_if_violated": "A typo, duplicate name, partially valid safety configuration, or misunderstood whole-object/path override can be silently misread while operators believe the intended restriction or path binding is active.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "Configuration loading rejects unknown top-level keys and validates a proposed shallow top-level replacement snapshot before applying it atomically. It deliberately allows GENERATED_IMAGE_DIR, GENERATED_IMAGE_ANALYSIS_FILE, ORIGINAL_EDITORIAL_ANALYSIS_FILE, GENERATED_IDENTITY_AUDIT_FILE, ai_first_reply_strategy.research_corpus_path, and quote_image_semantic_veto.manifest_path. Standard JSON decoding still accepts duplicate object names with last-wins behavior, and path-bearing values are not constrained to the production root.",
+      "status_rationale": "Configuration loading strictly decodes UTF-8, rejects duplicate names and non-finite constants or numeric overflow at every nesting depth, rejects unknown top-level keys, and validates a proposed shallow top-level replacement snapshot before applying it atomically. It deliberately allows GENERATED_IMAGE_DIR, GENERATED_IMAGE_ANALYSIS_FILE, ORIGINAL_EDITORIAL_ANALYSIS_FILE, GENERATED_IDENTITY_AUDIT_FILE, ai_first_reply_strategy.research_corpus_path, and quote_image_semantic_veto.manifest_path. Those path-bearing values are not yet uniformly constrained to the production root.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover absent, malformed, unreadable, unknown, mixed-validity, prohibited base/API overrides, and complete example configurations. They do not reject duplicate names or prove containment of every allowlisted path-bearing value."
+        "rationale": "Tests cover absent, malformed, unreadable, duplicate-name, non-finite, numeric-overflow, unknown, mixed-validity, prohibited base/API overrides, and complete example configurations. They do not yet prove containment of every allowlisted path-bearing value."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -3721,6 +3781,7 @@
         ],
         "tests": [
           "tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants",
           "tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls",
           "tests/test_deployment_assets.py::test_local_config_example_is_accepted_as_one_atomic_override"
         ],
@@ -3737,7 +3798,6 @@
         ]
       },
       "known_gaps": [
-        "The local configuration decoder does not yet reject duplicate object names before validation.",
         "Allowlisted path-bearing overrides are checked for type/non-emptiness by their owning validators but are not uniformly constrained to, or inventory-bound against, the production root."
       ],
       "rationale": "Local configuration is allowlisted, atomic, and unambiguous is explicit because a typo, duplicate name, or partially valid safety configuration can be silently misread while operators believe the intended restriction is active.",
@@ -3756,7 +3816,7 @@
       ],
       "failure_mode": {
         "mode": "mixed",
-        "explanation": "Known parse, key, type, and range failures close bootstrap, but duplicate object names are still accepted last-wins and remain an open gap."
+        "explanation": "Malformed UTF-8/JSON, duplicate object names, non-finite values, unknown keys, and invalid types or ranges close bootstrap atomically. The remaining partial status concerns path containment, which is tracked explicitly rather than silently accepted."
       },
       "full_suite_relevance": {
         "status": "required",
@@ -3768,7 +3828,7 @@
           "Parse the deployed mrsMThatcher.local.json through production bootstrap validation before restart and record every effective override.",
           "Inventory every effective path-bearing override and resolve relative values against /disks/disk1/etc/mrsMThatcher before activation.",
           "At the 2026-07-29 read-only inspection, require the current resolved inventory to be: generated_review_approved_images/, generated_image_analysis.json, original_image_editorial_analysis_experiment_v1.json, generated_image_identity_dependence_audit.json, semantic_alignment_research/quote_research_full_001/, and semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json, all beneath /disks/disk1/etc/mrsMThatcher.",
-          "Do not treat duplicate-key or general path-containment safety as closed until those controls exist."
+          "Do not treat general path-containment safety as closed until those controls exist."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -3784,6 +3844,11 @@
           "claim": "Focused automated evidence for the principal recorded boundary."
         },
         {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants",
+          "claim": "The candidate strict decoder rejects duplicate names at every nesting depth, non-finite constants and finite-spelling overflow before any configuration mutation."
+        },
+        {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0006",
           "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
@@ -3791,7 +3856,7 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0017",
-          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
+          "claim": "The evidence-cut-off record tracks duplicate-name and non-finite-number acceptance in local configuration before the candidate strict decoder."
         },
         {
           "type": "operational",
@@ -3800,32 +3865,32 @@
         }
       ],
       "last_verified_commit": {
-        "status": "known",
-        "value": "be882e8121a7b4348a57b61b1cf526401a36f5c0",
-        "explanation": "The cited enforcement and focused tests are present at the recorded production baseline; this is verification evidence, not proof of deployment."
+        "status": "unknown",
+        "value": null,
+        "explanation": "The strict-decoder enforcement is candidate-only and this registry cannot self-attest its final frozen commit; the external gate must bind the exact candidate identity."
       },
       "last_verified_tree": {
-        "status": "known",
-        "value": "7965dbb935f2a9f993d14aa37d93283e16bc298a",
-        "explanation": "This is the Git tree recorded for the baseline commit in defect_ledger.json; open gaps remain governed by status."
+        "status": "unknown",
+        "value": null,
+        "explanation": "The strict-decoder enforcement is absent from the recorded production baseline and its final candidate tree remains externally attested."
       },
       "accepted_residual_risk": {
         "status": "unaccepted",
-        "explanation": "No acceptance is recorded. Open risks: the local configuration decoder does not reject duplicate object names, and allowlisted path-bearing values are not uniformly constrained to the production root."
+        "explanation": "No acceptance is recorded. Open risk: allowlisted path-bearing values are not uniformly constrained to the production root."
       }
     },
     {
       "id": "INV-PAUSE-001",
       "category": "configuration_process",
       "title": "Runtime pause and control state fail closed and unambiguously",
-      "statement": "Runtime control accepts only documented non-duplicate keys and valid values and preserves the last valid pause across unreadable or malformed replacements. A pause observed before tweet or media transport authority is consumed prevents transport. Successful authority consumption is the one-transaction linearization point: a pause activated afterwards applies prospectively to later transactions and cannot cancel or reclassify the already committed attempt. A later failure is ambiguous unless remote success is durably confirmed. Operational quiescence requires both pause acknowledgement and proof that no durable transaction remains in flight.",
+      "statement": "Runtime control accepts only a stable, content-hashed, regular non-symlink UTF-8 snapshot with documented non-duplicate keys, finite values and a bounded exact length, and preserves the last valid pause across unreadable, malformed, changing or unsafe replacements. A pause observed before tweet or media transport authority is consumed prevents transport. Successful authority consumption is the one-transaction linearization point: a pause activated afterwards applies prospectively to later transactions and cannot cancel or reclassify the already committed attempt. A later failure is ambiguous unless remote success is durably confirmed. Operational quiescence requires both pause acknowledgement and proof that no durable transaction remains in flight.",
       "failure_if_violated": "A malformed control file, duplicate or unknown pause-like key can open an unintended write path; treating a post-consumption pause as a retroactive cancellation can strand or repeat a committed remote attempt; and treating pause acknowledgement alone as quiescence can overlook an in-flight durable transaction.",
       "criticality": "critical",
-      "implementation_status": "partial",
-      "status_rationale": "Control documents are allowlisted and cached by content signature, invalid state preserves a prior valid pause or closes by default, and write helpers sample global control before consuming tweet or media authority. Successful authority consumption commits exactly one transaction; a later pause governs subsequent work while the committed attempt retains its durable barrier through confirmation or ambiguity handling. Standard JSON decoding still accepts duplicate object names with last-wins behavior.",
+      "implementation_status": "implemented",
+      "status_rationale": "Every control poll reads a bounded regular non-symlink file without blocking, binds the opened descriptor to pre-read and final pathname identities, requires two identical exact-length byte reads with stable metadata, hashes the bytes, strictly decodes UTF-8, and rejects duplicate names, non-finite constants and numeric overflow. Any race, unsafe type, read or validation failure retains an isolated copy of the last valid controls and forces the global pause; clean initial absence alone clears optional controls. Write helpers sample global control before consuming tweet or media authority. Successful authority consumption commits exactly one transaction, and a later pause governs subsequent work while the committed attempt retains its durable barrier through confirmation or ambiguity handling.",
       "verification": {
-        "status": "partial",
-        "rationale": "Tests cover unknown keys, malformed replacement, repair, cached pause preservation, expiry, pre-consumption aborts, and tweet/media pause changes immediately after real authority consumption. They prove one committed request completes under its durable in-flight barrier while the new pause remains prospective, but do not yet cover duplicate-name rejection."
+        "status": "verified",
+        "rationale": "Tests cover unknown and duplicate keys; malformed UTF-8/JSON; non-finite constants and overflow; same-inode, same-size restored-mtime rewrites; descriptor/path replacement and ABA; symlink, directory and FIFO entries; partial reads; changing repeat reads; clean absence versus mid-read disappearance; private cached-copy preservation; repair; expiry; pre-consumption aborts; and tweet/media pause changes immediately after real authority consumption. They prove one committed request completes under its durable in-flight barrier while the new pause remains prospective. Exact candidate identity remains externally attested rather than self-referentially embedded."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -3842,6 +3907,13 @@
         "tests": [
           "tests/test_fail_safe_bootstrap_and_control.py::test_unknown_runtime_control_keys_fail_closed",
           "tests/test_fail_safe_bootstrap_and_control.py::test_control_malformed_preserves_prior_pause_and_repair_recovers",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_duplicate_names_and_nonfinite_constants",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_same_inode_control_change_cannot_reuse_cached_unpaused_value",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_control_rejects_nonregular_or_symlink_namespace_entries",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_control_path_replacement_during_read_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_control_disappearance_at_final_path_check_fails_closed_then_absence_clears",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_control_aba_path_swap_cannot_authorise_the_opened_other_inode",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_control_rewrite_between_repeat_reads_fails_closed",
           "tests/test_fail_safe_bootstrap_and_control.py::test_global_pause_is_rechecked_at_remote_boundaries",
           "tests/test_media_upload_transaction_integration.py::test_pause_after_media_handoff_retires_untransmitted_main_transaction",
           "tests/test_media_upload_transaction_integration.py::test_initial_pause_abort_failure_retains_source_and_durable_blockers",
@@ -3868,9 +3940,7 @@
           }
         ]
       },
-      "known_gaps": [
-        "The runtime-control decoder does not yet reject duplicate object names before validation."
-      ],
+      "known_gaps": [],
       "rationale": "Pause is a prospective admission control, not a rollback mechanism. Sampling it before authority consumption prevents a remote attempt; successful consumption commits one durable transaction which must reach confirmed or ambiguous handling even if pause changes immediately afterwards. Operators can claim quiescence only after pause acknowledgement and independent proof that no durable transaction is in flight.",
       "owner_subsystem": "runtime_control",
       "runtime_consumed_artifacts": {
@@ -3887,8 +3957,8 @@
         "Operational pause procedures inspect all durable transaction barriers before declaring the process quiescent."
       ],
       "failure_mode": {
-        "mode": "mixed",
-        "explanation": "Unreadable, malformed, or unknown-key control state preserves or establishes a pause, but duplicate names remain a last-wins gap. Before authority consumption, pause fails closed without transport. After successful consumption, the committed attempt proceeds once under its durable barrier; any later failure remains ambiguous unless confirmation is durably established."
+        "mode": "fail_closed",
+        "explanation": "Unreadable, malformed, duplicate, non-finite, changing or unsafe control state preserves or establishes a pause. Before authority consumption, pause fails closed without transport. After successful consumption, the committed attempt proceeds once under its durable barrier; any later failure remains ambiguous unless confirmation is durably established."
       },
       "full_suite_relevance": {
         "status": "required",
@@ -3899,7 +3969,7 @@
         "checks": [
           "Read the deployed mrsMThatcher.control.json through the production control loader and record the effective global/lane pause immediately before restart.",
           "Before declaring operational quiescence, verify pause acknowledgement and separately prove that no tweet journal, media receipt/fence, source receipt, retirement exchange, or other durable in-flight transaction remains.",
-          "Do not treat duplicate-key safety as closed until the shared strict JSON decoder exists."
+          "Require the deployed loader to reject duplicate/non-finite JSON and unstable, nonregular or path-replaced control snapshots while preserving the last valid controls fail closed."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -3922,7 +3992,27 @@
         {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0017",
-          "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
+          "claim": "The evidence-cut-off record tracks duplicate-name and non-finite-number acceptance in runtime control before the candidate strict decoder."
+        },
+        {
+          "type": "report",
+          "reference": "defect_ledger.json#DEF-0063",
+          "claim": "The evidence-cut-off record tracks the metadata-only cache hit which could reuse stale control authority after current bytes changed."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_duplicate_names_and_nonfinite_constants",
+          "claim": "The candidate strict decoder rejects ambiguous names and every tested non-finite number spelling while retaining fail-closed pause authority."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_same_inode_control_change_cannot_reuse_cached_unpaused_value",
+          "claim": "An equal-length same-inode rewrite with restored modification time cannot reuse a cached unpaused document."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_control_rewrite_between_repeat_reads_fails_closed",
+          "claim": "A same-inode content change between the two bounded reads preserves the prior authority and forces the global pause."
         }
       ],
       "last_verified_commit": {
@@ -3936,8 +4026,8 @@
         "explanation": "The strengthened pause contract is not present in the historical baseline tree. Its exact final candidate tree remains external to this committed registry and must be verified independently."
       },
       "accepted_residual_risk": {
-        "status": "unaccepted",
-        "explanation": "No acceptance is recorded. Open risk: The runtime-control decoder does not yet reject duplicate object names before validation."
+        "status": "none",
+        "explanation": "No residual risk is accepted within this invariant's stated cooperative-writer scope; hostile directory ancestry or arbitrary same-UID mutation after a completed boundary check remains outside the stated threat model."
       }
     },
     {
@@ -4101,14 +4191,14 @@
       "id": "INV-PROC-001",
       "category": "configuration_process",
       "title": "Import safety and explicit production bootstrap",
-      "statement": "Importing production modules must not load private host configuration, open the production log, acquire the production lock, contact providers, or enter a posting loop; every operational entry point must require one successful explicit bootstrap. The real script must validate the complete argv vector in a standard-library-only top-of-file gate before importing any third-party or application module or touching configuration, logging or filesystem state. Command-line dispatch must accept only no arguments for the daemon or exactly one of --initialise, --self-test, --test-cycle, --test-main-tick, --test-post-quote and --test-post-meme. Unknown options, positional arguments, option values, duplicates and mixed modes must be rejected before production_bootstrap, instance-lock acquisition, state access or any remote boundary. run_cli must require its explicit argv to equal the already validated ambient process argv so a caller cannot create a mode/bootstrap mismatch. The immutable argument snapshot captured by the top-of-file gate is the dispatch authority: run_cli must require both the current process arguments and its explicit argument vector to equal that snapshot before bootstrap.",
+      "statement": "Importing production modules must not load private host configuration, open the production log, acquire the production lock, contact providers, or enter a posting loop; every operational entry point must require one successful explicit bootstrap. The real script must validate the complete argv vector in a standard-library-only top-of-file gate before importing any third-party or application module or touching configuration, logging or filesystem state. Command-line dispatch must accept only no arguments for the daemon or exactly one of --initialise, --self-test, --test-cycle, --test-main-tick, --test-post-quote and --test-post-meme. Unknown options, positional arguments, option values, duplicates and mixed modes must be rejected before production_bootstrap, instance-lock acquisition, state access or any remote boundary. run_cli must require its explicit argv to equal the already validated ambient process argv so a caller cannot create a mode/bootstrap mismatch. The immutable argument snapshot captured by the top-of-file gate is the dispatch authority: run_cli must require both the current process arguments and its explicit argument vector to equal that snapshot before bootstrap. MRS_TEST_MODE authority for --test-cycle, --test-main-tick, --test-post-quote and --test-post-meme must be captured before application imports and checked before bootstrap by run_cli and each direct entry point; later environment mutation cannot enable or disable it. --self-test and --initialise do not consume test-mode authority.",
       "failure_if_violated": "Tests, tools, or imports can accidentally touch live state or bypass configuration and safety initialization before a production action.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "A standard-library-only gate at the top of the real script validates argv before third-party/application imports and before configuration, logging or filesystem side effects. Production side effects are behind production_bootstrap and a closed operational guard, while module import uses source defaults and process-local logging. One explicit parser owns the complete argv grammar and dispatches no-argument daemon operation or exactly one of the six documented flags; every unknown, positional, valued, duplicate or mixed argument vector returns usage status before bootstrap or any operational entry point is called. run_cli compares its supplied vector with the ambient process argv before bootstrap, preventing a prevalidated daemon process from being programmatically dispatched as a different mode. The dispatcher binds to the immutable import-time argument snapshot and rejects drift in either the current process vector or the explicit vector before bootstrap.",
+      "status_rationale": "A standard-library-only gate at the top of the real script validates argv and captures test-mode authority before third-party/application imports and before configuration, logging or filesystem side effects. Production side effects are behind production_bootstrap and a closed operational guard, while module import uses source defaults and process-local logging. One explicit parser owns the complete argv grammar and dispatches no-argument daemon operation or exactly one of the six documented flags; every unknown, positional, valued, duplicate or mixed argument vector returns usage status before bootstrap or any operational entry point is called. run_cli compares its supplied vector with the ambient process argv before bootstrap, preventing a prevalidated daemon process from being programmatically dispatched as a different mode. The dispatcher binds to the immutable import-time argument and test-mode snapshots, rejects drift in either argument vector, and refuses the four operational test modes before bootstrap when import-time test authority is absent. Direct test entry points enforce the same immutable authority before bootstrap; later environment mutation has no effect.",
       "verification": {
         "status": "verified",
-        "rationale": "Tests import from foreign working directories, inspect logs and locks, call operational entry points before bootstrap, and prove failed bootstrap leaves the guard closed. Exact parser and literal-subprocess tests accept only no arguments or one of the six documented flags, reject unknown, positional, valued, duplicate and mixed forms, verify the selected dispatch, and prove invalid argv reaches no bootstrap, lock, state or remote operational boundary. A real-script subprocess test proves invalid argv is rejected before third-party/application import side effects or configuration/log/filesystem creation, and an explicit mismatch test proves run_cli cannot dispatch a mode different from the ambient validated argv. Literal subprocess regressions mutate the current process arguments in both directions, vary the explicit vector independently, and prove argv[0] cannot impersonate a documented command mode."
+        "rationale": "Tests import from foreign working directories, inspect logs and locks, call operational entry points before bootstrap, and prove failed bootstrap leaves the guard closed. Exact parser and literal-subprocess tests accept only no arguments or one of the six documented flags, reject unknown, positional, valued, duplicate and mixed forms, verify the selected dispatch, and prove invalid argv reaches no bootstrap, lock, state or remote operational boundary. A real-script subprocess test proves invalid argv is rejected before configuration/log/filesystem creation, and an explicit mismatch test proves run_cli cannot dispatch a mode different from the ambient validated argv. Literal subprocess regressions mutate current arguments in both directions, vary the explicit vector independently, prove argv[0] cannot impersonate a documented mode, mutate MRS_TEST_MODE at the first application import and after import in both directions, and require all four test-mode commands and direct entry points to use only the immutable pre-import authority before bootstrap."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -4134,7 +4224,10 @@
           "tests/test_logging_isolation.py::test_plain_import_does_not_open_production_log",
           "tests/test_fail_safe_bootstrap_and_control.py::test_run_cli_refuses_both_directions_of_post_import_argv_mutation",
           "tests/test_fail_safe_bootstrap_and_control.py::test_argv_zero_cannot_impersonate_a_documented_command_mode",
-          "tests/test_fail_safe_bootstrap_and_control.py::test_run_cli_refuses_explicit_argv_different_from_import_time_argv"
+          "tests/test_fail_safe_bootstrap_and_control.py::test_run_cli_refuses_explicit_argv_different_from_import_time_argv",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_test_mode_authority_is_captured_before_application_imports",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_direct_test_entry_points_gate_before_bootstrap_using_import_authority",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_real_script_rejects_test_mode_without_import_authority_or_runtime_writes"
         ],
         "validations": [
           {
@@ -4170,7 +4263,8 @@
         "Operational entry points call production_bootstrap before side effects.",
         "Plain imports retain source defaults and process-local logging only.",
         "The complete argv vector is validated by the standard-library-only top-of-file gate before non-standard imports or side effects and again before production_bootstrap or operational dispatch; no other command-line form is accepted.",
-        "run_cli receives exactly the ambient process argv which passed the top-of-file gate; a different supplied vector is rejected before bootstrap."
+        "run_cli receives exactly the ambient process argv which passed the top-of-file gate; a different supplied vector is rejected before bootstrap.",
+        "MRS_TEST_MODE is established before bot import for exactly the four operational test modes and cannot be granted or revoked by later environment mutation."
       ],
       "failure_mode": {
         "mode": "fail_closed",
@@ -4213,6 +4307,26 @@
           "type": "test",
           "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_run_cli_refuses_mode_different_from_process_argv_before_bootstrap",
           "claim": "Explicit dispatch argv cannot differ from the ambient vector validated before imports and bootstrap."
+        },
+        {
+          "type": "report",
+          "reference": "defect_ledger.json#DEF-0064",
+          "claim": "The evidence-cut-off record tracks the mutable post-import MRS_TEST_MODE authority used by all four operational test commands."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_test_mode_authority_is_captured_before_application_imports",
+          "claim": "Literal processes prove later environment mutation can neither grant nor revoke the pre-import test-mode authority."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_direct_test_entry_points_gate_before_bootstrap_using_import_authority",
+          "claim": "Every direct operational test entry point checks the same immutable authority before bootstrap."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_real_script_rejects_test_mode_without_import_authority_or_runtime_writes",
+          "claim": "The real script rejects all four test flags without pre-import authority before configured state or log writes."
         }
       ],
       "last_verified_commit": {
@@ -4234,14 +4348,14 @@
       "id": "INV-PROC-002",
       "category": "configuration_process",
       "title": "Single process owns recovery and posting",
-      "statement": "One process-lifetime instance lock must be acquired before receipt reconciliation, outbox recovery, scheduler mutation or remote-write preparation and must exclusively lock an opened state-directory inode. Invalid command-line arguments must be rejected by a standard-library-only top-of-file gate before third-party/application imports, configuration, logging, filesystem side effects, bootstrap, lock acquisition, state access or remote work. run_cli must reject any supplied mode vector that differs from the ambient process argv validated by that gate, before bootstrap or lock acquisition. The lock must, without following symbolic links, bind one ordinary, single-link lock pathname to the acquired descriptor's device, inode, exact canonical owner record and exclusive open-file-description lock. A state-directory-device/inode-derived Linux abstract socket supplies an additional same-network-namespace singleton but is not the cross-namespace authority. Before every non-read remote operation, the designated descriptors must prove their own exclusive flock and OFD ownership, separate descriptors must prove exclusion on both the file and directory inode, the bound path identities must remain unchanged and the abstract singleton must remain bound. Every destructive journal, media or source-receipt mutation must additionally consume a narrow authority bound to the exact live instance-lock verifier, and that verifier must re-prove ownership on every use before any namespace inspection or mutation. The supported offline marker reconciler must acquire and continuously revalidate the identical directory-inode and file-lock namespace and therefore cannot run concurrently with the daemon across network namespaces, lock-file replacement or path aliases. The stopped protocol activator must include .mrsMThatcher.initialising.json in its hash-bound refused-state/attestation inventory and reject it before any activation namespace mutation, whether activation is first-activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current, or current-audit-only. The immutable argument snapshot captured by the top-of-file gate is the dispatch authority: run_cli must require both the current process arguments and its explicit argument vector to equal that snapshot before bootstrap.",
+      "statement": "One process-lifetime instance lock must be acquired before receipt reconciliation, outbox recovery, scheduler mutation or remote-write preparation and must exclusively lock an opened state-directory inode. Invalid command-line arguments must be rejected by a standard-library-only top-of-file gate before third-party/application imports, configuration, logging, filesystem side effects, bootstrap, lock acquisition, state access or remote work. run_cli must reject any supplied mode vector that differs from the ambient process argv validated by that gate, before bootstrap or lock acquisition. The lock must, without following symbolic links, bind one ordinary, single-link lock pathname to the acquired descriptor's device, inode, exact canonical owner record and exclusive open-file-description lock. A state-directory-device/inode-derived Linux abstract socket supplies an additional same-network-namespace singleton but is not the cross-namespace authority. Before every non-read remote operation, the designated descriptors must prove their own exclusive flock and OFD ownership, separate descriptors must prove exclusion on both the file and directory inode, the bound path identities must remain unchanged and the abstract singleton must remain bound. Every destructive journal, media or source-receipt mutation must additionally consume a narrow authority bound to the exact live instance-lock verifier, and that verifier must re-prove ownership on every use before any namespace inspection or mutation. The supported offline marker reconciler must acquire and continuously revalidate the identical directory-inode and file-lock namespace and therefore cannot run concurrently with the daemon across network namespaces, lock-file replacement or path aliases. The stopped protocol activator must include .mrsMThatcher.initialising.json in its hash-bound refused-state/attestation inventory and reject it before any activation namespace mutation, whether activation is first-activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current, or current-audit-only. It must accept only fully spelled documented options exactly once per destination and reject abbreviations, duplicate aliases and repeated safety-critical values before inspecting or mutating activation state. The immutable argument snapshot captured by the top-of-file gate is the dispatch authority: run_cli must require both the current process arguments and its explicit argument vector to equal that snapshot before bootstrap.",
       "failure_if_violated": "A followed, aliased, replaced or no-longer-owned lock pathname can create two lock namespaces or make an unlocked process look like the owner. The daemon and an offline reconciler or second process can then reconcile or post concurrently, race state files, and defeat otherwise correct receipt and ambiguity barriers.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "The real script's standard-library-only gate rejects complete invalid argv before non-standard imports or configuration/log/filesystem effects. run_cli then requires its supplied vector to equal the ambient process argv before bootstrap, preventing a prevalidated no-argument process from being dispatched into another mode. For valid operational modes, the implementation opens and exclusively flocks the state-directory inode before any other ownership boundary. Linux inode-lock semantics make that lock common to path aliases and network namespaces; this host cannot create the second network namespace needed for a direct namespace test, so focused tests exercise the same-inode exclusion mechanism through path replacement and aliases. It binds a supplementary Linux abstract socket derived from the directory device/inode, opens the file lock relative to the held directory descriptor with no-follow semantics, requires one ordinary link, writes and reads back the exact canonical device/inode/PID identity, and holds both BSD flock and a Linux OFD write lock. Linux /proc/self/fdinfo, F_OFD_GETLK, independent exclusion probes, path identities and the supplementary socket are revalidated at remote boundaries. Destructive journal, media and exact source-retirement entry points reject callers before inspection unless they receive a narrow TransactionMutationAuthority issued from the daemon's exact verifier, and every authority use calls that verifier again. Historical-context mutation receives the same authority through its bound provider. The test bypass remains limited to explicit loopback endpoints. Bootstrap orders acquisition before recovery, one-shot commands share the guarded path, and the offline marker reconciler acquires all boundaries. The stopped activator's exact hash-bound refused-state and external-attestation inventory includes the first-install in-progress sentinel; it refuses that sentinel before modifying first-activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current, or current-audit-only activation state. The descendant first-install lock/sentinel ordering and stable no-follow core-state namespace checks are proposed repairs for DEF-0056 and DEF-0059, which remain active at the exact 4e548b0a ledger cutoff. Interrupted transaction and marker-reconciliation states preserve a blocking durable object but some legitimate staging/archive states still require deterministic operator inspection and rerun. The missing direct second-network-namespace regression and that automatic-resume liveness limitation keep the broader invariant partial. The dispatcher binds to the immutable import-time argument snapshot and rejects drift in either the current process vector or the explicit vector before bootstrap.",
+      "status_rationale": "The real script's standard-library-only gate rejects complete invalid argv before non-standard imports or configuration/log/filesystem effects. run_cli then requires its supplied vector to equal the ambient process argv before bootstrap, preventing a prevalidated no-argument process from being dispatched into another mode. For valid operational modes, the implementation opens and exclusively flocks the state-directory inode before any other ownership boundary. Linux inode-lock semantics make that lock common to path aliases and network namespaces; this host cannot create the second network namespace needed for a direct namespace test, so focused tests exercise the same-inode exclusion mechanism through path replacement and aliases. It binds a supplementary Linux abstract socket derived from the directory device/inode, opens the file lock relative to the held directory descriptor with no-follow semantics, requires one ordinary link, writes and reads back the exact canonical device/inode/PID identity, and holds both BSD flock and a Linux OFD write lock. Linux /proc/self/fdinfo, F_OFD_GETLK, independent exclusion probes, path identities and the supplementary socket are revalidated at remote boundaries. Destructive journal, media and exact source-retirement entry points reject callers before inspection unless they receive a narrow TransactionMutationAuthority issued from the daemon's exact verifier, and every authority use calls that verifier again. Historical-context mutation receives the same authority through its bound provider. The test bypass remains limited to explicit loopback endpoints. Bootstrap orders acquisition before recovery, one-shot commands share the guarded path, and the offline marker reconciler acquires all boundaries. The stopped activator's exact hash-bound refused-state and external-attestation inventory includes the first-install in-progress sentinel; it refuses that sentinel before modifying first-activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current, or current-audit-only activation state. Its parser disables abbreviations and rejects every repeated destination, including repeated aliases, before activation inspection or mutation. The descendant first-install lock/sentinel ordering and stable no-follow core-state namespace checks are proposed repairs for DEF-0056 and DEF-0059, which remain active at the exact 4e548b0a ledger cutoff. Interrupted transaction and marker-reconciliation states preserve a blocking durable object but some legitimate staging/archive states still require deterministic operator inspection and rerun. The missing direct second-network-namespace regression and that automatic-resume liveness limitation keep the broader invariant partial. The dispatcher binds to the immutable import-time argument snapshot and rejects drift in either the current process vector or the explicit vector before bootstrap.",
       "verification": {
         "status": "partial",
-        "rationale": "Focused tests cover real-script invalid-argv rejection before third-party/application import side effects, configuration, logging and filesystem creation; explicit run_cli/ambient-argv equality before bootstrap or lock acquisition; competing processes; same-inode exclusion; no-follow/single-link acquisition; exact owner-record round-trip; designated-descriptor flock/OFD ownership; independent file/directory exclusion; the abstract singleton; custom endpoint rejection; unlocked and replaced-path rejection; leak-free acquisition failure; lock-before-reconciliation ordering; and offline exclusion after path replacement. The six-state activation regression proves .mrsMThatcher.initialising.json is refused before any namespace mutation for first activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current and current-audit-only activation. Authority tests prove every destructive low-level entry point refuses before inspection without an authority, every use rechecks the bound verifier, the bot issues authority from the exact instance-lock verifier, and historical-context mutation refuses without its provider. Fresh-process retirement tests prove crash states preserve a barrier, but not automatic completion of every legitimate partial state. A second network namespace is not directly exercised. The exact candidate identity and result still require the external frozen-candidate gate. Literal subprocess regressions mutate the current process arguments in both directions, vary the explicit vector independently, and prove argv[0] cannot impersonate a documented command mode."
+        "rationale": "Focused tests cover real-script invalid-argv rejection before third-party/application import side effects, configuration, logging and filesystem creation; explicit run_cli/ambient-argv equality before bootstrap or lock acquisition; competing processes; same-inode exclusion; no-follow/single-link acquisition; exact owner-record round-trip; designated-descriptor flock/OFD ownership; independent file/directory exclusion; the abstract singleton; custom endpoint rejection; unlocked and replaced-path rejection; leak-free acquisition failure; lock-before-reconciliation ordering; and offline exclusion after path replacement. The activation matrix proves .mrsMThatcher.initialising.json is refused for every generation and that a complete documented invocation is accepted while abbreviations, repeated destinations and repeated aliases are rejected before any mutation. Authority tests prove every destructive low-level entry point refuses before inspection without an authority, every use rechecks the bound verifier, the bot issues authority from the exact instance-lock verifier, and historical-context mutation refuses without its provider. Fresh-process retirement tests prove crash states preserve a barrier, but not automatic completion of every legitimate partial state. A second network namespace is not directly exercised. The exact candidate identity and result still require the external frozen-candidate gate. Literal subprocess regressions mutate the current process arguments in both directions, vary the explicit vector independently, and prove argv[0] cannot impersonate a documented command mode."
       },
       "affected_paths": [
         "README.md",
@@ -4286,6 +4400,9 @@
           "tests/test_fail_safe_bootstrap_and_control.py::test_literal_subprocess_rejects_complete_invalid_argv_before_bootstrap",
           "tests/test_fail_safe_bootstrap_and_control.py::test_invalid_cli_argv_reaches_no_bootstrap_or_operational_boundary",
           "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
           "tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir",
       "tests/test_pending_receipt_directory_fsync.py::test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement",
       "tests/test_pending_receipt_directory_fsync.py::test_shared_ofd_lock_cannot_masquerade_as_exclusive_daemon_owner",
@@ -4333,6 +4450,9 @@
               "tests/test_fail_safe_bootstrap_and_control.py::test_literal_subprocess_rejects_complete_invalid_argv_before_bootstrap",
               "tests/test_fail_safe_bootstrap_and_control.py::test_invalid_cli_argv_reaches_no_bootstrap_or_operational_boundary",
               "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
               "tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir",
           "tests/test_pending_receipt_directory_fsync.py::test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement",
           "tests/test_pending_receipt_directory_fsync.py::test_shared_ofd_lock_cannot_masquerade_as_exclusive_daemon_owner",
@@ -4397,7 +4517,8 @@
         "All supported destructive transaction mutations are serialized within the lock-owning process. TransactionMutationAuthority rechecks lock ownership but supplies neither thread serialization nor protection from arbitrary same-UID code.",
         "Only explicit loopback endpoints may use the fake-endpoint test bypass; custom or external test endpoints require real process-lock ownership.",
         "Supported marker retirement is performed only by the offline reconciler after it exclusively acquires and revalidates the same directory-inode flock, abstract-socket, OFD and no-follow single-link lock namespace.",
-        "The stopped protocol activator treats .mrsMThatcher.initialising.json as a refused state bound into its external attestation inventory and performs no activation mutation while it exists."
+        "The stopped protocol activator treats .mrsMThatcher.initialising.json as a refused state bound into its external attestation inventory and performs no activation mutation while it exists.",
+        "The stopped activator accepts only fully spelled documented options exactly once per destination and rejects abbreviations, repeated options and repeated aliases before activation inspection or mutation."
       ],
       "failure_mode": {
         "mode": "fail_closed",
@@ -4414,7 +4535,8 @@
           "Verify the deployed mrsMThatcher2.py, transaction_mutation_authority.py, exact_receipt_retirement.py and tools/reconcile_remote_write_safety_marker.py hashes exactly match the frozen candidate and that no supported one-shot, low-level transaction helper or reconciler path bypasses the shared lock verifier.",
           "Against an isolated copy, run invalid argv through the real script and require no third-party/application import side effect, configuration/log/filesystem creation or lock acquisition; also require run_cli to reject an explicit vector different from the ambient process argv before bootstrap.",
           "Before activation, run the frozen directory-inode, lock-acquisition, designated-exclusive-OFD, abstract-singleton, separate-descriptor, custom-endpoint and offline-reconciler exclusion tests against copies rather than live state.",
-          "Require .mrsMThatcher.initialising.json to be absent before stopped activation; prove the activator's hash-bound refused-state/attestation inventory includes it and refuses first activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current and current-audit-only activation generations before mutation."
+          "Require .mrsMThatcher.initialising.json to be absent before stopped activation; prove the activator's hash-bound refused-state/attestation inventory includes it and refuses first activation, legacy-v1-pair, legacy-audit-only, pre-ledger, current and current-audit-only activation generations before mutation.",
+          "Require the stopped activator to reject abbreviated and repeated options before inspecting or mutating the activation namespace."
         ],
         "explanation": "These read-only checks must be recorded against the exact deployed paths before activation or write enablement."
       },
@@ -4463,6 +4585,26 @@
           "type": "report",
           "reference": "defect_ledger.json#DEF-0059",
           "claim": "The cutoff-bound symlink-following and unstable core-state namespace gap is linked to process ownership."
+        },
+        {
+          "type": "report",
+          "reference": "defect_ledger.json#DEF-0065",
+          "claim": "The cutoff-bound stopped-activation parser accepted abbreviated and repeated safety-critical options; candidate enforcement remains externally identity-bound and is not recorded as deployed."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
+          "claim": "The candidate parser preserves the complete documented non-repeated activation grammar."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+          "claim": "Repeated option destinations, including aliases, are rejected before activation inspection or mutation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
+          "claim": "Abbreviated long options are rejected before activation inspection or mutation."
         }
       ],
       "last_verified_commit": {

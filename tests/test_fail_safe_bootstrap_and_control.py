@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import hashlib
 import json
 import os
 import subprocess
@@ -125,6 +126,109 @@ print(
             "import_time_arguments": bot.IMPORT_TIME_CLI_ARGUMENTS,
             "self_test_requested": bot.SELF_TEST_REQUESTED,
             "status": status,
+        },
+        sort_keys=True,
+    )
+)
+"""
+
+TEST_MODE_DIRECT_MUTATION_DRIVER = r"""
+import json
+import os
+import sys
+
+entry_point = sys.argv[1]
+transition = sys.argv[2]
+sys.argv = ["driver"]
+if transition == "late_enable":
+    os.environ.pop("MRS_TEST_MODE", None)
+else:
+    os.environ["MRS_TEST_MODE"] = "1"
+
+import mrsMThatcher2 as bot
+
+if transition == "late_enable":
+    os.environ["MRS_TEST_MODE"] = "1"
+else:
+    os.environ.pop("MRS_TEST_MODE", None)
+
+events = []
+
+class BoundaryReached(Exception):
+    pass
+
+bot.require_production_bootstrap = lambda: events.append(
+    "require_production_bootstrap"
+)
+bot.acquire_instance_lock = lambda: (_ for _ in ()).throw(BoundaryReached())
+try:
+    status = getattr(bot, entry_point)()
+except BoundaryReached:
+    status = "authorised"
+print(
+    json.dumps(
+        {
+            "events": events,
+            "import_time_test_mode": bot.IMPORT_TIME_TEST_MODE,
+            "status": status,
+        },
+        sort_keys=True,
+    )
+)
+"""
+
+TEST_MODE_IMPORT_HOOK_DRIVER = r"""
+import builtins
+import json
+import os
+import sys
+
+mode = sys.argv[1]
+transition = sys.argv[2]
+sys.argv = ["mrsMThatcher2.py", mode]
+if transition == "late_enable":
+    os.environ.pop("MRS_TEST_MODE", None)
+else:
+    os.environ["MRS_TEST_MODE"] = "1"
+
+original_import = builtins.__import__
+hook_fired = False
+
+def mutate_at_first_application_import(name, *args, **kwargs):
+    global hook_fired
+    if name == "remote_write_safety_protocol" and not hook_fired:
+        hook_fired = True
+        if transition == "late_enable":
+            os.environ["MRS_TEST_MODE"] = "1"
+        else:
+            os.environ.pop("MRS_TEST_MODE", None)
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = mutate_at_first_application_import
+try:
+    import mrsMThatcher2 as bot
+finally:
+    builtins.__import__ = original_import
+
+events = []
+bot.production_bootstrap = lambda: events.append("production_bootstrap")
+entry_point = {
+    "--test-cycle": "run_test_cycle",
+    "--test-main-tick": "run_test_main_tick",
+    "--test-post-quote": "run_test_post_quote",
+    "--test-post-meme": "run_test_post_meme",
+}[mode]
+setattr(bot, entry_point, lambda: (events.append(entry_point), 0)[1])
+status = bot.run_cli()
+print(
+    json.dumps(
+        {
+            "events": events,
+            "hook_fired": hook_fired,
+            "import_time_test_mode": bot.IMPORT_TIME_TEST_MODE,
+            "live_test_mode": os.environ.get("MRS_TEST_MODE") == "1",
+            "status": status,
+            "test_mode_alias": bot.TEST_MODE,
         },
         sort_keys=True,
     )
@@ -397,6 +501,34 @@ def test_existing_invalid_local_config_fails_closed(tmp_path, monkeypatch, conte
         bot.apply_local_config()
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"POST_SLEEP_MIN":8000,"POST_SLEEP_MIN":9000}',
+        '{"historical_context_reply":{"enabled":true,"enabled":false}}',
+        '{"POST_SLEEP_MIN":NaN}',
+        '{"POST_SLEEP_MIN":Infinity}',
+        '{"POST_SLEEP_MIN":-Infinity}',
+        '{"POST_SLEEP_MIN":1e999}',
+        '{"POST_SLEEP_MIN":-1e999}',
+    ],
+)
+def test_local_config_rejects_duplicate_names_and_nonfinite_constants(
+    tmp_path,
+    monkeypatch,
+    content,
+):
+    path = tmp_path / "local.json"
+    path.write_text(content, encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    before = bot.POST_SLEEP_MIN
+
+    with pytest.raises(bot.LocalConfigError, match=str(path)):
+        bot.apply_local_config()
+
+    assert bot.POST_SLEEP_MIN == before
+
+
 def test_unreadable_local_config_fails_closed(tmp_path, monkeypatch):
     path = tmp_path / "local.json"
     path.write_text("{}")
@@ -461,6 +593,139 @@ def test_operational_entry_points_require_bootstrap_before_side_effects(monkeypa
         getattr(bot, entry_point_name)()
 
     assert calls == []
+
+
+@pytest.mark.parametrize(
+    "mode,entry_point_name",
+    (
+        ("--test-cycle", "run_test_cycle"),
+        ("--test-main-tick", "run_test_main_tick"),
+        ("--test-post-quote", "run_test_post_quote"),
+        ("--test-post-meme", "run_test_post_meme"),
+    ),
+)
+@pytest.mark.parametrize("transition", ("late_enable", "late_disable"))
+def test_test_mode_authority_is_captured_before_application_imports(
+    mode,
+    entry_point_name,
+    transition,
+):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            TEST_MODE_IMPORT_HOOK_DRIVER,
+            mode,
+            transition,
+        ],
+        cwd=Path(bot.__file__).resolve().parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(bot.__file__).resolve().parent),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload["hook_fired"] is True
+    if transition == "late_enable":
+        assert payload == {
+            "events": [],
+            "hook_fired": True,
+            "import_time_test_mode": False,
+            "live_test_mode": True,
+            "status": 2,
+            "test_mode_alias": False,
+        }
+    else:
+        assert payload == {
+            "events": ["production_bootstrap", entry_point_name],
+            "hook_fired": True,
+            "import_time_test_mode": True,
+            "live_test_mode": False,
+            "status": 0,
+            "test_mode_alias": True,
+        }
+
+
+@pytest.mark.parametrize(
+    "entry_point_name",
+    (
+        "run_test_cycle",
+        "run_test_main_tick",
+        "run_test_post_quote",
+        "run_test_post_meme",
+    ),
+)
+@pytest.mark.parametrize("transition", ("late_enable", "late_disable"))
+def test_direct_test_entry_points_gate_before_bootstrap_using_import_authority(
+    entry_point_name,
+    transition,
+):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            TEST_MODE_DIRECT_MUTATION_DRIVER,
+            entry_point_name,
+            transition,
+        ],
+        cwd=Path(bot.__file__).resolve().parent,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(bot.__file__).resolve().parent),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    if transition == "late_enable":
+        assert payload == {
+            "events": [],
+            "import_time_test_mode": False,
+            "status": 2,
+        }
+    else:
+        assert payload == {
+            "events": ["require_production_bootstrap"],
+            "import_time_test_mode": True,
+            "status": "authorised",
+        }
+
+
+@pytest.mark.parametrize(
+    "mode",
+    tuple(sorted(bot.TEST_MODE_REQUIRED_CLI_FLAGS)),
+)
+def test_real_script_rejects_test_mode_without_import_authority_or_runtime_writes(
+    tmp_path,
+    mode,
+):
+    base_directory = tmp_path / "must-not-be-created"
+    log_path = tmp_path / "must-not-be-created.log"
+    environment = {
+        **os.environ,
+        "MRS_BASE_DIR": str(base_directory),
+        "MRS_LOG_FILE": str(log_path),
+    }
+    environment.pop("MRS_TEST_MODE", None)
+    result = subprocess.run(
+        [sys.executable, str(Path(bot.__file__).resolve()), mode],
+        cwd=tmp_path,
+        env=environment,
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 2
+    assert "requires MRS_TEST_MODE=1 before bot import" in result.stderr
+    assert not base_directory.exists()
+    assert not log_path.exists()
 
 
 def test_successful_bootstrap_opens_guard_and_operational_dispatch(tmp_path, monkeypatch):
@@ -554,6 +819,65 @@ def test_control_malformed_preserves_prior_pause_and_repair_recovers(tmp_path, m
     assert bot.load_control()["disable_all"] is False
 
 
+def test_same_inode_control_change_cannot_reuse_cached_unpaused_value(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    initial = '{"pause_all":"off"}'
+    replacement = '{"pause_all":"yes"}'
+    assert len(initial) == len(replacement)
+    path.write_text(initial, encoding="utf-8")
+    original = path.stat()
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    assert bot.global_remote_writes_paused() is False
+
+    with path.open("r+", encoding="utf-8") as handle:
+        handle.seek(0)
+        handle.write(replacement)
+        handle.truncate()
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
+    changed = path.stat()
+    assert changed.st_ino == original.st_ino
+    assert changed.st_size == original.st_size
+    assert changed.st_mtime_ns == original.st_mtime_ns
+
+    assert bot.global_remote_writes_paused() is True
+    assert bot.load_control()["pause_all"] == "yes"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"disable_all":true,"disable_all":false}',
+        '{"generation":1,"generation":2}',
+        '{"disable_all_until":NaN}',
+        '{"disable_all_until":Infinity}',
+        '{"disable_all_until":-Infinity}',
+        '{"disable_all_until":1e999}',
+        '{"disable_all_until":-1e999}',
+    ],
+)
+def test_runtime_control_rejects_duplicate_names_and_nonfinite_constants(
+    tmp_path,
+    monkeypatch,
+    content,
+):
+    path = tmp_path / "control.json"
+    path.write_text(content, encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+    assert bot.global_remote_writes_paused() is True
+
+
 @pytest.mark.parametrize("payload", [[], {"disable_all": "perhaps"}, {"disable_all_until": "not-a-time"}])
 def test_control_invalid_without_prior_fails_closed(tmp_path, monkeypatch, payload):
     path = tmp_path / "control.json"
@@ -607,15 +931,316 @@ def test_control_stat_and_read_failure_preserve_prior_valid(tmp_path, monkeypatc
     reset_control_cache(monkeypatch)
     assert bot.load_control()["disable_all"] is True
 
-    original_stat = Path.stat
-    monkeypatch.setattr(Path, "stat", lambda self, *a, **k: (_ for _ in ()).throw(OSError("stat failed")) if self == path else original_stat(self, *a, **k))
+    original_lstat = os.lstat
+    monkeypatch.setattr(
+        os,
+        "lstat",
+        lambda value, *a, **k: (
+            (_ for _ in ()).throw(OSError("stat failed"))
+            if os.fspath(value) == os.fspath(path)
+            else original_lstat(value, *a, **k)
+        ),
+    )
     assert bot.load_control()["disable_all"] is True
-    monkeypatch.setattr(Path, "stat", original_stat)
+    monkeypatch.setattr(os, "lstat", original_lstat)
 
-    original_open = builtins.open
-    monkeypatch.setattr(builtins, "open", lambda value, *a, **k: (_ for _ in ()).throw(OSError("read failed")) if Path(value) == path else original_open(value, *a, **k))
-    path.write_text(json.dumps({"disable_all": False, "padding": "changed"}))
+    path.write_text(json.dumps({"disable_all": False}))
+    original_open = os.open
+    monkeypatch.setattr(
+        os,
+        "open",
+        lambda value, *a, **k: (
+            (_ for _ in ()).throw(OSError("read failed"))
+            if os.fspath(value) == os.fspath(path)
+            else original_open(value, *a, **k)
+        ),
+    )
     assert bot.load_control()["disable_all"] is True
+
+
+@pytest.mark.parametrize("kind", ("symlink", "directory", "fifo"))
+def test_control_rejects_nonregular_or_symlink_namespace_entries(
+    tmp_path,
+    monkeypatch,
+    kind,
+):
+    path = tmp_path / "control.json"
+    if kind == "symlink":
+        target = tmp_path / "target.json"
+        target.write_text('{"disable_all":false}', encoding="utf-8")
+        path.symlink_to(target)
+    elif kind == "directory":
+        path.mkdir()
+    else:
+        os.mkfifo(path)
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+
+
+def test_control_cache_is_bound_to_bytes_and_cannot_be_mutated_by_caller(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    document = b'{"disable_all":true}'
+    path.write_bytes(document)
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    loaded = bot.load_control()
+    assert bot._CONTROL_CACHE["signature"][-1] == hashlib.sha256(document).hexdigest()
+    loaded["disable_all"] = False
+
+    assert bot.load_control()["disable_all"] is True
+
+
+def test_control_path_replacement_during_read_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text('{"pause_all":"off"}', encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    assert bot.load_control()["pause_all"] == "off"
+
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text('{"pause_all":"yes"}', encoding="utf-8")
+    original_fstat = os.fstat
+    calls = 0
+
+    def replace_before_second_fstat(descriptor):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            os.replace(replacement, path)
+        return original_fstat(descriptor)
+
+    monkeypatch.setattr(os, "fstat", replace_before_second_fstat)
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+    monkeypatch.setattr(os, "fstat", original_fstat)
+    assert bot.load_control()["pause_all"] == "yes"
+
+
+def test_control_disappearance_after_initial_identity_check_does_not_clear_cache(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text('{"disable_all":false}', encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    assert bot.load_control()["disable_all"] is False
+
+    original_open = os.open
+
+    def disappear_before_open(value, *args, **kwargs):
+        if os.fspath(value) == os.fspath(path):
+            path.unlink()
+            raise FileNotFoundError(os.fspath(path))
+        return original_open(value, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", disappear_before_open)
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+    assert bot._CONTROL_CACHE["has_valid"] is True
+    assert bot._CONTROL_CACHE["data"] == {"disable_all": False}
+
+
+def test_control_disappearance_at_final_path_check_fails_closed_then_absence_clears(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text('{"disable_all":false}', encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    assert bot.load_control()["disable_all"] is False
+
+    original_lstat = os.lstat
+    calls = 0
+
+    def disappear_at_final_check(value, *args, **kwargs):
+        nonlocal calls
+        if os.fspath(value) == os.fspath(path):
+            calls += 1
+            if calls == 2:
+                path.unlink()
+        return original_lstat(value, *args, **kwargs)
+
+    monkeypatch.setattr(os, "lstat", disappear_at_final_check)
+    loaded = bot.load_control()
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+    assert bot._CONTROL_CACHE["data"] == {"disable_all": False}
+
+    monkeypatch.setattr(os, "lstat", original_lstat)
+    assert bot.load_control() == {}
+    assert bot._CONTROL_CACHE["has_valid"] is False
+
+
+def test_control_fifo_swap_before_open_is_nonblocking_and_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text('{"disable_all":false}', encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    original_open = os.open
+
+    def swap_to_fifo(value, flags, *args, **kwargs):
+        if os.fspath(value) == os.fspath(path):
+            path.unlink()
+            os.mkfifo(path)
+            assert flags & os.O_NONBLOCK
+        return original_open(value, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", swap_to_fifo)
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+
+
+def test_control_aba_path_swap_cannot_authorise_the_opened_other_inode(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    parked = tmp_path / "parked.json"
+    path.write_text('{"disable_all":false}', encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    original_open = os.open
+
+    def open_other_inode_then_restore_path(value, flags, *args, **kwargs):
+        if os.fspath(value) != os.fspath(path):
+            return original_open(value, flags, *args, **kwargs)
+        os.replace(path, parked)
+        path.write_text('{"disable_all":false}', encoding="utf-8")
+        descriptor = original_open(value, flags, *args, **kwargs)
+        path.unlink()
+        os.replace(parked, path)
+        return descriptor
+
+    monkeypatch.setattr(os, "open", open_other_inode_then_restore_path)
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+
+
+def test_control_reader_assembles_short_os_reads(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text('{"disable_all":true,"generation":7}', encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    original_read = os.read
+    monkeypatch.setattr(
+        os,
+        "read",
+        lambda descriptor, count: original_read(descriptor, min(count, 2)),
+    )
+
+    assert bot.load_control() == {"disable_all": True, "generation": 7}
+
+
+def test_control_reader_rejects_premature_eof(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text('{"disable_all":false}', encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    original_read = os.read
+    reads = 0
+
+    def stop_after_first_chunk(descriptor, count):
+        nonlocal reads
+        reads += 1
+        if reads == 1:
+            return original_read(descriptor, min(count, 4))
+        return b""
+
+    monkeypatch.setattr(os, "read", stop_after_first_chunk)
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+
+
+def test_control_rewrite_between_repeat_reads_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    initial = '{"pause_all":"off"}'
+    replacement = '{"pause_all":"yes"}'
+    assert len(initial) == len(replacement)
+    path.write_text(initial, encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    assert bot.load_control()["pause_all"] == "off"
+    original = path.stat()
+    original_lseek = os.lseek
+    mutated = False
+
+    def mutate_before_repeat(descriptor, offset, whence):
+        nonlocal mutated
+        if not mutated:
+            mutated = True
+            with path.open("r+", encoding="utf-8") as handle:
+                handle.write(replacement)
+                handle.truncate()
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.utime(path, ns=(original.st_atime_ns, original.st_mtime_ns))
+        return original_lseek(descriptor, offset, whence)
+
+    monkeypatch.setattr(os, "lseek", mutate_before_repeat)
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+
+
+def test_invalid_control_fallback_uses_private_cached_copy(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text(
+        '{"disable_all":false,"generation":7}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    loaded = bot.load_control()
+    loaded["generation"] = 999
+    path.write_bytes(b"\xff")
+
+    fallback = bot.load_control()
+
+    assert fallback == {
+        "disable_all": True,
+        "generation": 7,
+        "_control_fail_closed": True,
+    }
 
 
 def test_malformed_control_fails_closed_after_cached_unpaused_document(

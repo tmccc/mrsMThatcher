@@ -85,9 +85,11 @@ Run one daily meme post pass:
 python3 mrsMThatcher2.py --test-post-meme
 ```
 
-The test-only commands require `MRS_TEST_MODE=1`. They use `MRS_BASE_DIR` for
-state, local config, control files, quote lines, images, meme files, and
-used-history JSON files. Legacy pickle history files are no longer automatically
+The test-only commands require `MRS_TEST_MODE=1` before `mrsMThatcher2` is
+imported. That authority is fixed for the lifetime of the imported module;
+changing the environment later cannot enable or disable a test command. They
+use `MRS_BASE_DIR` for state, local config, control files, quote lines, images,
+meme files, and used-history JSON files. Legacy pickle history files are no longer automatically
 deserialised; if JSON history is missing while a legacy pickle exists, the bot
 fails closed until JSON history is restored or migrated manually from a trusted
 backup. They use `MRS_LOG_FILE` for logs.

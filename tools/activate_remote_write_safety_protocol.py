@@ -1322,10 +1322,42 @@ def activate_protocol_offline(
             pass
 
 
+class _ExactActivationArgumentParser(argparse.ArgumentParser):
+    """Reject abbreviated or repeated activation options."""
+
+    def _reject_duplicate_options(self, arguments: Sequence[str]) -> None:
+        seen_destinations: set[str] = set()
+        for argument in arguments:
+            if argument == "--":
+                break
+            option_string = argument.partition("=")[0]
+            action = self._option_string_actions.get(option_string)
+            if action is None or action.dest == argparse.SUPPRESS:
+                continue
+            if action.dest in seen_destinations:
+                self.error(
+                    f"argument {option_string}: may not be repeated "
+                    "(including through an alias)"
+                )
+            seen_destinations.add(action.dest)
+
+    def parse_known_args(
+        self,
+        args: Sequence[str] | None = None,
+        namespace: argparse.Namespace | None = None,
+    ) -> tuple[argparse.Namespace, list[str]]:
+        arguments = list(sys.argv[1:] if args is None else args)
+        self._reject_duplicate_options(arguments)
+        return super().parse_known_args(arguments, namespace)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the clean-state offline activation CLI."""
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _ExactActivationArgumentParser(
+        description=__doc__,
+        allow_abbrev=False,
+    )
     parser.add_argument("--project-root", required=True, type=Path)
     parser.add_argument("--expected-project-root", required=True, type=Path)
     parser.add_argument("--expected-project-device", required=True, type=int)

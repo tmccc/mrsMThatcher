@@ -4150,6 +4150,132 @@ def test_interrupted_claim_reconciles_completed_history_without_reposting(
     assert confirmed["reply_post_id"] == "900009"
 
 
+def test_prebarrier_reaches_source_bound_completed_context_without_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A crash after receipt retirement cannot strand confirmed outbox work."""
+
+    parent_id = "800059"
+    quote_id = "d" * 64
+    source_receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "parent_post_id": parent_id,
+        "quote_id": quote_id,
+        "reply_text": "Context — Exact completed history survived the crash.",
+        "reply_epoch": 1_800_000_501,
+        "started_at": "2026-08-01T12:08:20Z",
+        "attempt_number": 1,
+    }
+    store = bot.historical_context_outbox_store()
+    store.enqueue(
+        parent_id,
+        main_post_confirmed_epoch=1_800_000_400,
+        quote_id=quote_id,
+        quote_text="A confirmed reply whose outbox update was interrupted.",
+    )
+    store.claim_attempt(parent_id, started_epoch=1_800_000_500)
+    source_sha256 = _bind_context_attempt_to_source_receipt(
+        store,
+        parent_id=parent_id,
+        outbox_attempt=1,
+        source_receipt=source_receipt,
+    )
+    store.mark_remote_transaction_started(parent_id, attempt_number=1)
+    context_formatter.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        {
+            "schema_version": 1,
+            "items": {
+                parent_id: {
+                    **source_receipt,
+                    "lifecycle_state": "confirmed",
+                    "reply_post_id": "900059",
+                    "confirmed_at": "2026-08-01T12:08:21Z",
+                    "source_receipt_sha256": source_sha256,
+                    "status": "completed",
+                }
+            },
+        },
+    )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_502)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        _forbid("remote work during pre-barrier context recovery"),
+    )
+
+    assert not bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+    assert bot.historical_context_outbox_remote_attempt_is_blocking() is True
+
+    recovered = bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    )
+
+    assert recovered == {
+        "historical_context": True,
+        "conversational_reply": False,
+        "regular": False,
+        "meme": False,
+    }
+    context = store.get(parent_id)["context_reply"]
+    assert context["state"] == "context_reply_confirmed"
+    assert context["reply_post_id"] == "900059"
+    assert bot.historical_context_outbox_remote_attempt_is_blocking() is False
+
+    # The completed local transition is idempotent and cannot lend authority
+    # to another outbox item or remote lane on a later daemon tick.
+    assert bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    ) == {
+        "historical_context": False,
+        "conversational_reply": False,
+        "regular": False,
+        "meme": False,
+    }
+
+
+def test_prebarrier_refuses_to_choose_between_multiple_risky_context_rows() -> None:
+    """Local recovery cannot weaken the global barrier by choosing a parent."""
+
+    store = bot.historical_context_outbox_store()
+    for index, parent_id in enumerate(("800060", "800061"), start=1):
+        store.enqueue(
+            parent_id,
+            main_post_confirmed_epoch=1_800_000_600 + index,
+            quote_id=str(index) * 64,
+            quote_text=f"Risky historical-context row {index}.",
+        )
+        store.claim_attempt(parent_id, started_epoch=1_800_000_610 + index)
+        store.bind_attempt_source_receipt(
+            parent_id,
+            attempt_number=1,
+            source_receipt_sha256=("a" if index == 1 else "b") * 64,
+            source_receipt_attempt_number=1,
+        )
+        store.mark_remote_transaction_started(parent_id, attempt_number=1)
+
+    assert bot.reconcile_confirmed_transactions_before_global_barrier(
+        set(),
+        set(),
+        {},
+    ) == {
+        "historical_context": False,
+        "conversational_reply": False,
+        "regular": False,
+        "meme": False,
+    }
+    assert bot.historical_context_outbox_remote_attempt_is_blocking() is True
+    assert {
+        store.get("800060")["context_reply"]["state"],
+        store.get("800061")["context_reply"]["state"],
+    } == {"context_reply_attempting"}
+
+
 def test_interrupted_claim_rejects_stale_completed_history_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
