@@ -613,15 +613,89 @@ def test_unreadable_local_config_fails_closed(tmp_path, monkeypatch):
     path = tmp_path / "local.json"
     path.write_text("{}")
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
-    original_open = builtins.open
+    original_open = os.open
 
     def denied(value, *args, **kwargs):
         if Path(value) == path:
             raise PermissionError("denied")
         return original_open(value, *args, **kwargs)
 
-    monkeypatch.setattr(builtins, "open", denied)
+    monkeypatch.setattr(os, "open", denied)
     with pytest.raises(bot.LocalConfigError, match="denied"):
+        bot.apply_local_config()
+
+
+def test_local_config_rejects_broken_symlink_and_fifo_without_opening(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+
+    path.symlink_to(tmp_path / "missing.json")
+    with pytest.raises(bot.LocalConfigError, match="regular file"):
+        bot.apply_local_config()
+
+    path.unlink()
+    os.mkfifo(path)
+    with pytest.raises(bot.LocalConfigError, match="regular file"):
+        bot.apply_local_config()
+
+
+def test_local_config_disappearance_between_inspection_and_open_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    original_open = os.open
+
+    def disappear_before_open(value, *args, **kwargs):
+        if Path(value) == path:
+            path.unlink()
+        return original_open(value, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", disappear_before_open)
+    with pytest.raises(bot.LocalConfigError, match="changed before it was opened"):
+        bot.apply_local_config()
+
+
+def test_local_config_path_replacement_during_read_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    path.write_text("{}", encoding="utf-8")
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    original_open = os.open
+
+    def replace_after_open(value, *args, **kwargs):
+        descriptor = original_open(value, *args, **kwargs)
+        if Path(value) == path:
+            os.replace(replacement, path)
+        return descriptor
+
+    monkeypatch.setattr(os, "open", replace_after_open)
+    with pytest.raises(bot.LocalConfigError, match="changed while it was opened"):
+        bot.apply_local_config()
+
+
+def test_local_config_descriptor_read_error_is_classified(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+
+    def fail_repeated_read(*_args, **_kwargs):
+        raise OSError("injected read failure")
+
+    monkeypatch.setattr(os, "pread", fail_repeated_read)
+    with pytest.raises(bot.LocalConfigError, match="stable snapshot"):
         bot.apply_local_config()
 
 
@@ -1035,6 +1109,33 @@ def test_self_test_rejects_local_config_unknown_to_production_schema(
     with pytest.raises(bot.LocalConfigError, match="Unsupported local config key"):
         bot.load_validated_local_config_overrides()
     assert bot.run_self_test() == 1
+
+
+def test_self_test_validates_changed_local_config_against_source_defaults(
+    tmp_path,
+    monkeypatch,
+):
+    control_path = tmp_path / "control.json"
+    control_path.write_text('{"disable_all":false}', encoding="utf-8")
+    production_validator = bot.validate_runtime_config_values
+    prepare_self_test_control_case(tmp_path, monkeypatch, control_path)
+    monkeypatch.setattr(bot, "validate_runtime_config_values", production_validator)
+    local_path = tmp_path / "local.json"
+    local_path.write_text('{"POST_SLEEP_MIN":9500}', encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", local_path)
+
+    # Model a prior bootstrap which applied a different, valid maximum.  A
+    # fresh process would still validate the current file against the source
+    # maximum, not this already-mutated runtime value.
+    monkeypatch.setattr(bot, "POST_SLEEP_MIN", 7200)
+    monkeypatch.setattr(bot, "POST_SLEEP_MAX", 10_000)
+    before = (bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX)
+
+    assert bot.SOURCE_DEFAULT_CONFIG_VALUES["POST_SLEEP_MAX"] == 9000
+    with pytest.raises(bot.LocalConfigError, match="POST_SLEEP_MIN must be <= POST_SLEEP_MAX"):
+        bot.load_validated_local_config_overrides()
+    assert bot.run_self_test() == 1
+    assert (bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX) == before
 
 
 def test_documented_runtime_control_metadata_remains_valid(

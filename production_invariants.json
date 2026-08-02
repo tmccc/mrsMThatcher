@@ -3927,14 +3927,14 @@
       "id": "INV-CONFIG-001",
       "category": "configuration_process",
       "title": "Local configuration is allowlisted, atomic, and unambiguous",
-      "statement": "A present local configuration must be a strictly decoded UTF-8 JSON object with no duplicate object names or non-finite numbers, containing only allowlisted top-level keys and valid types/ranges; the complete proposed top-level snapshot is validated before any override is applied. Allowlisted path-bearing scalar keys and the path fields inside ai_first_reply_strategy and quote_image_semantic_veto may replace their defaults. Nested configuration objects are replaced as complete top-level values rather than deep-merged.",
+      "statement": "A present local configuration must be read once as a bounded stable regular non-symlink snapshot, then strictly decoded as a UTF-8 JSON object with no duplicate object names or non-finite numbers, containing only allowlisted top-level keys and valid types/ranges. Production bootstrap and self-test must coerce and validate the complete proposed top-level snapshot against one immutable source-default baseline before any override is applied. Allowlisted path-bearing scalar keys and the path fields inside ai_first_reply_strategy and quote_image_semantic_veto may replace their defaults. Nested configuration objects are replaced as complete top-level values rather than deep-merged.",
       "failure_if_violated": "A typo, duplicate name, partially valid safety configuration, or misunderstood whole-object/path override can be silently misread while operators believe the intended restriction or path binding is active.",
       "criticality": "critical",
       "implementation_status": "partial",
-      "status_rationale": "Configuration loading strictly decodes UTF-8, rejects duplicate names and non-finite constants or numeric overflow at every nesting depth, rejects unknown top-level keys, and validates a proposed shallow top-level replacement snapshot before applying it atomically. It deliberately allows GENERATED_IMAGE_DIR, GENERATED_IMAGE_ANALYSIS_FILE, ORIGINAL_EDITORIAL_ANALYSIS_FILE, GENERATED_IDENTITY_AUDIT_FILE, ai_first_reply_strategy.research_corpus_path, and quote_image_semantic_veto.manifest_path. Those path-bearing values are not yet uniformly constrained to the production root.",
+      "status_rationale": "Production bootstrap and self-test share one bounded nonblocking local-config reader which rejects symlinks, non-regular entries, disappearance, replacement and identity or byte changes across descriptor/path validation. Configuration loading strictly decodes UTF-8, rejects duplicate names and non-finite constants or numeric overflow at every nesting depth, rejects unknown top-level keys, and validates a proposed shallow top-level replacement snapshot against the immutable source defaults before applying it atomically. It deliberately allows GENERATED_IMAGE_DIR, GENERATED_IMAGE_ANALYSIS_FILE, ORIGINAL_EDITORIAL_ANALYSIS_FILE, GENERATED_IDENTITY_AUDIT_FILE, ai_first_reply_strategy.research_corpus_path, and quote_image_semantic_veto.manifest_path. Those path-bearing values are not yet uniformly constrained to the production root.",
       "verification": {
         "status": "partial",
-        "rationale": "Tests cover absent, malformed, unreadable, duplicate-name, non-finite, numeric-overflow, unknown, mixed-validity, prohibited base/API overrides, and complete example configurations. They do not yet prove containment of every allowlisted path-bearing value."
+        "rationale": "Tests cover absent, malformed, unreadable, broken-link, FIFO, disappearance, replacement, duplicate-name, non-finite, numeric-overflow, unknown, mixed-validity, prohibited base/API overrides, complete example configurations, immutable source-default validation and no self-test mutation. They do not yet prove containment of every allowlisted path-bearing value."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -3951,7 +3951,12 @@
           "tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_broken_symlink_and_fifo_without_opening",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_disappearance_between_inspection_and_open_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_path_replacement_during_read_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_descriptor_read_error_is_classified",
           "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_validates_changed_local_config_against_source_defaults",
           "tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls",
           "tests/test_deployment_assets.py::test_local_config_example_is_accepted_as_one_atomic_override"
         ],
@@ -3981,12 +3986,12 @@
       },
       "preconditions": [
         "The local override is optional, but if present it must be readable before bootstrap continues.",
-        "Supported defaults are validated together with proposed shallow top-level replacements before any global is changed.",
+        "The immutable source defaults are validated together with proposed shallow top-level replacements before any global is changed.",
         "Operators treat each nested ai_first_reply_strategy, historical_context_reply, or quote_image_semantic_veto value as a complete replacement object, not a deep-merge fragment."
       ],
       "failure_mode": {
         "mode": "mixed",
-        "explanation": "Malformed UTF-8/JSON, duplicate object names, non-finite values, unknown keys, and invalid types or ranges close bootstrap atomically. The remaining partial status concerns path containment, which is tracked explicitly rather than silently accepted."
+        "explanation": "Unsafe, changing or unreadable namespace entries, malformed UTF-8/JSON, duplicate object names, non-finite values, unknown keys, and invalid types or ranges close bootstrap atomically. The remaining partial status concerns path containment, which is tracked explicitly rather than silently accepted."
       },
       "full_suite_relevance": {
         "status": "required",
@@ -4027,6 +4032,31 @@
           "type": "test",
           "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema",
           "claim": "Self-test applies the same local-config allowlist, coercion and whole-snapshot validation as production without mutating globals."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_broken_symlink_and_fifo_without_opening",
+          "claim": "Present non-regular or symlink-like local-config namespace entries are rejected without a blocking open."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_disappearance_between_inspection_and_open_fails_closed",
+          "claim": "A pathname which disappears after initial inspection cannot be reclassified as clean optional absence."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_path_replacement_during_read_fails_closed",
+          "claim": "Descriptor and pathname identity must remain stable throughout the bounded local-config read."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_descriptor_read_error_is_classified",
+          "claim": "Low-level descriptor read and inspection failures retain the local-configuration error contract."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_validates_changed_local_config_against_source_defaults",
+          "claim": "Self-test revalidates current bytes against immutable startup defaults even after runtime globals hold previously applied values."
         },
         {
           "type": "report",

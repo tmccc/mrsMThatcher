@@ -485,6 +485,7 @@ if TEST_MODE and path_is_same_or_child(LOG_FILE, PRODUCTION_BASE_DIR):
     )
     sys.exit(2)
 LOCAL_CONFIG_FILE = BASE_DIR / "mrsMThatcher.local.json"
+LOCAL_CONFIG_MAX_BYTES = 64 * 1024
 CONTROL_FILE = BASE_DIR / "mrsMThatcher.control.json"
 LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
@@ -1587,14 +1588,135 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     return errors
 
 
-def load_validated_local_config_overrides() -> dict[str, object]:
+SOURCE_DEFAULT_CONFIG_VALUES = {
+    name: copy.deepcopy(globals()[name])
+    for name in LOCAL_CONFIG_ALLOWED_KEYS
+    if name in globals()
+}
+
+
+def _local_config_stat_identity(file_stat: os.stat_result) -> tuple[int, ...]:
+    """Return the file identity which must remain stable for one config read."""
+
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        file_stat.st_mode,
+        file_stat.st_nlink,
+        file_stat.st_uid,
+        file_stat.st_gid,
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+        file_stat.st_ctime_ns,
+    )
+
+
+def _read_stable_local_config_bytes() -> bytes | None:
+    """Read one optional regular local-config file without following links."""
+
+    config_path = os.path.abspath(os.fspath(LOCAL_CONFIG_FILE))
+    try:
+        before_path = os.lstat(config_path)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise LocalConfigError(
+            f"Failed to inspect local config file {LOCAL_CONFIG_FILE}: {exc}"
+        ) from exc
+    if not stat.S_ISREG(before_path.st_mode):
+        raise LocalConfigError(
+            f"Local config file {LOCAL_CONFIG_FILE} must be a regular file"
+        )
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    nonblock = getattr(os, "O_NONBLOCK", 0)
+    if not nofollow or not nonblock:
+        raise LocalConfigError(
+            "Local config requires O_NOFOLLOW and O_NONBLOCK support"
+        )
+    try:
+        descriptor = os.open(
+            config_path,
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | nofollow | nonblock,
+        )
+    except OSError as exc:
+        raise LocalConfigError(
+            f"Local config file {LOCAL_CONFIG_FILE} changed before it was opened: {exc}"
+        ) from exc
+    try:
+        try:
+            before_fd = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(before_fd.st_mode)
+                or _local_config_stat_identity(before_path)
+                != _local_config_stat_identity(before_fd)
+            ):
+                raise LocalConfigError(
+                    f"Local config file {LOCAL_CONFIG_FILE} changed while it was opened"
+                )
+            if before_fd.st_size > LOCAL_CONFIG_MAX_BYTES:
+                raise LocalConfigError(
+                    f"Local config file {LOCAL_CONFIG_FILE} exceeds "
+                    f"{LOCAL_CONFIG_MAX_BYTES} bytes"
+                )
+
+            chunks: list[bytes] = []
+            observed = 0
+            while observed <= LOCAL_CONFIG_MAX_BYTES:
+                chunk = os.read(
+                    descriptor,
+                    min(8192, LOCAL_CONFIG_MAX_BYTES + 1 - observed),
+                )
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                observed += len(chunk)
+            document = b"".join(chunks)
+            middle_fd = os.fstat(descriptor)
+            repeated_document = os.pread(descriptor, before_fd.st_size + 1, 0)
+            after_fd = os.fstat(descriptor)
+            try:
+                after_path = os.lstat(config_path)
+            except OSError as exc:
+                raise LocalConfigError(
+                    f"Local config file {LOCAL_CONFIG_FILE} disappeared while it was read"
+                ) from exc
+        finally:
+            os.close(descriptor)
+    except LocalConfigError:
+        raise
+    except OSError as exc:
+        raise LocalConfigError(
+            f"Local config file {LOCAL_CONFIG_FILE} could not be read as a stable snapshot: {exc}"
+        ) from exc
+
+    if len(document) != before_fd.st_size or len(document) > LOCAL_CONFIG_MAX_BYTES:
+        raise LocalConfigError(
+            f"Local config file {LOCAL_CONFIG_FILE} length changed while it was read"
+        )
+    if document != repeated_document:
+        raise LocalConfigError(
+            f"Local config file {LOCAL_CONFIG_FILE} bytes changed while it was read"
+        )
+    expected_identity = _local_config_stat_identity(before_fd)
+    if any(
+        _local_config_stat_identity(observed_stat) != expected_identity
+        for observed_stat in (middle_fd, after_fd, after_path)
+    ):
+        raise LocalConfigError(
+            f"Local config file {LOCAL_CONFIG_FILE} identity changed while it was read"
+        )
+    return document
+
+
+def load_validated_local_config_overrides() -> dict[str, object] | None:
     """Read and validate local overrides without mutating runtime globals."""
 
-    if not LOCAL_CONFIG_FILE.exists():
-        return {}
+    document = _read_stable_local_config_bytes()
+    if document is None:
+        return None
     try:
-        with open(LOCAL_CONFIG_FILE, "rb") as f:
-            data = load_strict_runtime_json(f, label="local config")
+        data = load_strict_runtime_json(document, label="local config")
     except Exception as exc:
         raise LocalConfigError(f"Failed to read local config file {LOCAL_CONFIG_FILE}: {exc}") from exc
 
@@ -1611,14 +1733,18 @@ def load_validated_local_config_overrides() -> dict[str, object]:
     coercion_errors: list[str] = []
 
     for key, value in data.items():
-        if key not in LOCAL_CONFIG_ALLOWED_KEYS or key not in globals():
+        if key not in SOURCE_DEFAULT_CONFIG_VALUES:
             raise LocalConfigError(
                 f"Unsupported local config key {key!r} in {LOCAL_CONFIG_FILE}; "
                 "refusing to ignore a possible safety-setting typo"
             )
 
         try:
-            coerced = _coerce_local_config_value(key, value, globals()[key])
+            coerced = _coerce_local_config_value(
+                key,
+                value,
+                SOURCE_DEFAULT_CONFIG_VALUES[key],
+            )
         except Exception as exc:
             log.error("Ignoring invalid local config override %s=%r: %s", key, value, exc)
             coercion_errors.append(f"{key}: {exc}")
@@ -1632,12 +1758,7 @@ def load_validated_local_config_overrides() -> dict[str, object]:
         )
 
     if proposed:
-        original_values = {
-            name: globals()[name]
-            for name in LOCAL_CONFIG_ALLOWED_KEYS
-            if name in globals()
-        }
-        candidate = dict(original_values)
+        candidate = copy.deepcopy(SOURCE_DEFAULT_CONFIG_VALUES)
         candidate.update(proposed)
         validation_errors = validate_runtime_config_values(candidate)
         if validation_errors:
@@ -1650,11 +1771,10 @@ def load_validated_local_config_overrides() -> dict[str, object]:
 
 def apply_local_config() -> None:
     """Apply optional local JSON config overrides without editing the bot script."""
-    if not LOCAL_CONFIG_FILE.exists():
+    proposed = load_validated_local_config_overrides()
+    if proposed is None:
         log.info("Local config file not present; using script defaults. path=%s", LOCAL_CONFIG_FILE)
         return
-
-    proposed = load_validated_local_config_overrides()
 
     if proposed:
         for key, value in proposed.items():
@@ -1666,7 +1786,7 @@ def apply_local_config() -> None:
 
 
 SOURCE_DEFAULT_CONFIG_ERRORS = validate_runtime_config_values(
-    {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
+    copy.deepcopy(SOURCE_DEFAULT_CONFIG_VALUES)
 )
 if SOURCE_DEFAULT_CONFIG_ERRORS:
     raise RuntimeError("Invalid source default config: " + "; ".join(SOURCE_DEFAULT_CONFIG_ERRORS))
@@ -21465,17 +21585,22 @@ def run_self_test() -> int:
     images = glob(IMAGE_GLOB)
     require("quote/image image glob has files", len(images) > 0, f"count={len(images)} glob={IMAGE_GLOB}")
 
-    _self_test_warn("local config file present", LOCAL_CONFIG_FILE.exists(), str(LOCAL_CONFIG_FILE))
-    if LOCAL_CONFIG_FILE.exists():
-        try:
-            overrides = load_validated_local_config_overrides()
+    try:
+        overrides = load_validated_local_config_overrides()
+        _self_test_warn(
+            "local config file present",
+            overrides is not None,
+            str(LOCAL_CONFIG_FILE),
+        )
+        if overrides is not None:
             require(
                 "local config validates",
                 True,
                 f"overrides={len(overrides)}",
             )
-        except Exception as exc:
-            require("local config validates", False, str(exc))
+    except Exception as exc:
+        _self_test_warn("local config file present", True, str(LOCAL_CONFIG_FILE))
+        require("local config validates", False, str(exc))
 
     _self_test_warn("runtime control file absent", not CONTROL_FILE.exists(), str(CONTROL_FILE))
     ctrl = load_control()

@@ -2,8 +2,8 @@
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, six
-rejected exact candidates, and the current fifteen primary replacements plus
+This document records the cumulative transaction-safety implementation, seven
+rejected exact candidates, and the current seventeen primary replacements plus
 four pre-freeze closure refinements contained in the enclosing post-cut-off
 candidate snapshot. It is candidate-side evidence, not an external release
 attestation or an independent review.
@@ -36,6 +36,10 @@ attestation or an independent review.
   `af701aaf08d787e62ae51a72bf36e02f6676d096`;
 - rejected `af701aa` candidate tree:
   `573151ab89f04cd268dd63014a31ec0da46f4358`;
+- rejected `bb6875f` candidate commit:
+  `bb6875fc4684ead6af1b7d2a7be61fe12d91ddf0`;
+- rejected `bb6875f` candidate tree:
+  `c5e507c69cd500b4a98c5c0b2cc7ef3c65782e83`;
 - enclosing post-cut-off candidate snapshot: status
   `implemented_post_cutoff_candidate`; its exact commit and tree are supplied
   externally and deliberately are not embedded in this self-referential
@@ -425,6 +429,22 @@ The candidate is rejected. The three corrections change the candidate snapshot,
 so all four lanes and the consecutive-clean-round counter are reset to zero.
 No result from `af701aa` is carried forward.
 
+## Rejected bb6875f exact-candidate review
+
+Candidate `bb6875fc4684ead6af1b7d2a7be61fe12d91ddf0`, tree
+`c5e507c69cd500b4a98c5c0b2cc7ef3c65782e83`, completed the first formal
+four-lane round. The root/claims lane was clean. The transaction lane was clean
+across 1,433 focused tests. The hostile-input lane passed 58 targeted tests and
+found one P2 defect: production and self-test did not share one bounded stable
+local-config namespace reader. The mutation/test-quality lane's six direct
+checks passed and found one P2 defect: self-test could validate changed config
+bytes against already-applied runtime values instead of immutable source
+defaults.
+
+The candidate is rejected. The two corrections change the candidate snapshot,
+so all four lanes and the consecutive-clean-round counter are reset to zero.
+No result from `bb6875f` is carried forward.
+
 ## Current post-cut-off candidate replacements
 
 The enclosing candidate snapshot retains the four replacements incorporated in
@@ -468,6 +488,16 @@ round:
   invalid activation input; and
 - the low-level transaction mutation test establishes the permanent retirement
   ledger required by the current protocol before exercising retirement.
+
+It adds two corrections from the rejected `bb6875f` round:
+
+- production bootstrap and self-test now use one bounded, nonblocking,
+  non-symlink local-config reader which revalidates descriptor, bytes and final
+  pathname identity, classifies low-level read failures consistently, and
+  distinguishes clean initial absence from a changed or unsafe namespace; and
+- coercion and whole-snapshot validation use the immutable source-default
+  configuration rather than already-applied runtime globals, so repeated
+  self-test inspection models a fresh production bootstrap without mutation.
 
 The pre-freeze review then added four closure refinements to the first schedule
 replacement rather than counting them as separate originating findings:
@@ -575,6 +605,25 @@ For the three `af701aa` corrections and their enclosing post-repair snapshot:
 
 These results apply to the current post-repair snapshot only. Earlier counts
 from the rejected candidate are not carried forward.
+
+For the two `bb6875f` corrections and the final pre-freeze read-error
+classification refinement:
+
+- the local-config bootstrap, self-test and deployment-asset modules passed 138
+  tests in 10.69 seconds;
+- the complete unit-helper module passed 683 tests in 35.39 seconds;
+- the production-invariant and defect-ledger modules passed 71 tests in 117.54
+  seconds;
+- a separate read-only pre-freeze review found no repeatable P1 or P2 issue
+  across nine direct checks and additional bounded-read probes;
+- the current production local configuration was inspected read-only and is a
+  compatible regular mode-0600 file;
+- the production-invariant registry and defect ledger validated;
+- the invariant Markdown projection is synchronised with its JSON registry;
+- changed-Python compilation passed; and
+- `git diff --check` passed.
+
+No clean lane from the rejected candidate is carried forward.
 
 Those three latest focused results are bound to these exact commands, each
 with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`:
