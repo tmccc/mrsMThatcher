@@ -2,8 +2,8 @@
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, eight
-rejected exact candidates, and the current eighteen primary replacements plus
+This document records the cumulative transaction-safety implementation, nine
+rejected exact candidates, and the current twenty primary replacements plus
 four pre-freeze closure refinements contained in the enclosing post-cut-off
 candidate snapshot. It is candidate-side evidence, not an external release
 attestation or an independent review.
@@ -44,6 +44,10 @@ attestation or an independent review.
   `59215e9dc82584219f1875d5ddffe90cb9646f89`;
 - rejected `59215e9` candidate tree:
   `92f520935248c8e649e0d7e98ebdd2e6ad7051f4`;
+- rejected `d2ee28e` candidate commit:
+  `d2ee28e3989457050e916a8bb79a50e118421798`;
+- rejected `d2ee28e` candidate tree:
+  `1a7ed2afb38192efe73f7e5ed7baeccd0e2b9c87`;
 - enclosing post-cut-off candidate snapshot: status
   `implemented_post_cutoff_candidate`; its exact commit and tree are supplied
   externally and deliberately are not embedded in this self-referential
@@ -466,6 +470,30 @@ The candidate is rejected. The added regressions change the candidate snapshot,
 so all four lanes and the consecutive-clean-round counter are reset to zero.
 No result from `59215e9` is carried forward.
 
+## Rejected d2ee28e exact-candidate review
+
+Candidate `d2ee28e3989457050e916a8bb79a50e118421798`, tree
+`1a7ed2afb38192efe73f7e5ed7baeccd0e2b9c87`, completed a clean first formal
+round across all four lanes. The unchanged tree's second formal round then
+found two issues:
+
+1. exact fractional runtime-control timestamp spellings could be altered by
+   binary floating-point conversion before integrality validation, allowing a
+   malformed pause value to be interpreted as an expired integer timestamp
+   (P1, hostile-input lane); and
+2. the production subprocess integration fixture omitted the now-mandatory
+   canonical private historical-context history and outbox authorities, so
+   five ordinary-lane integration scenarios failed before reaching their
+   assertions (P2, transaction lane).
+
+The root/claims and mutation/test-quality lanes were clean in Round 2. The
+hostile-input lane passed 167 focused tests before reporting its finding. The
+transaction lane passed its 1,571-test standard matrix, while its additional
+production-parity cross-section passed two and failed five scenarios. Because
+both repairs change the candidate snapshot, the clean first round and every
+second-round lane are discarded; the consecutive-clean-round counter is reset
+to zero. No result from `d2ee28e` is carried forward.
+
 ## Current post-cut-off candidate replacements
 
 The enclosing candidate snapshot retains the four replacements incorporated in
@@ -525,6 +553,15 @@ It adds one test-assurance correction from the rejected `59215e9` round:
 - tracked configuration regressions now reach late pathname replacement and
   disappearance, repeated-read same-inode byte mutation, and the exact byte-cap
   boundary, and those exact nodes are bound to `INV-CONFIG-001`.
+
+It adds two corrections from the rejected `d2ee28e` round:
+
+- runtime-control numeric timestamp lexemes retain exact decimal semantics
+  through integrality and range validation, while ordinary local-configuration
+  fractional values retain their established floating-point type; and
+- the subprocess integration fixture now creates canonical mode-0600 empty
+  historical-context history/outbox authorities, and its explicit regular
+  receipt fixture uses the same canonical private-file contract.
 
 The pre-freeze review then added four closure refinements to the first schedule
 replacement rather than counting them as separate originating findings:
@@ -667,7 +704,25 @@ For the `59215e9` test-assurance correction:
 
 No clean lane from the rejected candidate is carried forward.
 
-Those three latest focused results are bound to these exact commands, each
+For the two `d2ee28e` corrections:
+
+- the complete control/bootstrap module passed 143 tests in 10.50 seconds;
+- the five integration scenarios which exposed the incomplete fixture all
+  passed after correction;
+- the complete 181-test subprocess integration module passed with four workers
+  in 274.77 seconds;
+- the production-invariant and defect-ledger modules passed 71 tests in 57.06
+  seconds;
+- a final read-only pre-freeze review found no repeatable P1 or P2 issue;
+- both registries validated and their Markdown projections are synchronised;
+- changed-Python compilation passed; and
+- `git diff --check` passed.
+
+These are pre-freeze focused results for the replacement snapshot. Both clean
+four-lane rounds remain separate gates.
+No clean lane from `d2ee28e` is carried forward.
+
+The three earlier focused results are bound to these exact commands, each
 with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`:
 
 ```text
@@ -679,6 +734,14 @@ python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py tests/test_re
 The first command was run with
 `tests/test_transaction_mutation_authority.py` prepended for the current
 post-repair checkpoint, producing the recorded 825-test result.
+
+The `d2ee28e` replacement validation used these additional exact commands:
+
+```text
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q -p xdist.plugin -n 4 tests/test_integration_harness.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q -p xdist.plugin -n 4 tests/test_priority0_registry.py tests/test_defect_ledger.py
+```
 
 These focused totals overlap and must not be summed as a unique application
 test count. The replacement has not yet completed either exact-candidate

@@ -1101,6 +1101,66 @@ def test_runtime_control_rejects_duplicate_names_and_nonfinite_constants(
     assert bot.global_remote_writes_paused() is True
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"disable_all_until":1.0000000000000000000000000000000001}',
+        '{"disable_all_until":1e-9999}',
+        '{"disable_all_until":-1e-9999}',
+    ],
+)
+def test_runtime_control_rejects_exact_fractional_numeric_times(
+    tmp_path,
+    monkeypatch,
+    content,
+):
+    path = tmp_path / "control.json"
+    path.write_text(content, encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    loaded = bot.load_control()
+
+    assert loaded["disable_all"] is True
+    assert loaded["_control_fail_closed"] is True
+    assert bot.global_remote_writes_paused() is True
+    for lane in (
+        "disable_quote_posts",
+        "disable_meme_posts",
+        "disable_normal_replies",
+        "disable_quote_replies",
+        "disable_hot_post_replies",
+    ):
+        assert bot.lane_paused(lane) is True
+
+
+def test_runtime_control_accepts_exact_integral_float_time(tmp_path, monkeypatch):
+    path = tmp_path / "control.json"
+    path.write_text(
+        '{"disable_all_until":1.0000000000000000000000000000000000}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    assert bot.load_control() == {"disable_all_until": 1}
+    assert bot.global_remote_writes_paused() is False
+
+
+def test_local_config_fractional_values_remain_floats(tmp_path, monkeypatch):
+    path = tmp_path / "local.json"
+    path.write_text(
+        '{"ORIGINAL_EDITORIAL_SHADOW_WEIGHT":0.125}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+
+    loaded = bot.load_validated_local_config_overrides()
+
+    assert loaded == {"ORIGINAL_EDITORIAL_SHADOW_WEIGHT": 0.125}
+    assert type(loaded["ORIGINAL_EDITORIAL_SHADOW_WEIGHT"]) is float
+
+
 @pytest.mark.parametrize("payload", [[], {"disable_all": "perhaps"}, {"disable_all_until": "not-a-time"}])
 def test_control_invalid_without_prior_fails_closed(tmp_path, monkeypatch, payload):
     path = tmp_path / "control.json"

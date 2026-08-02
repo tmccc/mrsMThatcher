@@ -203,6 +203,23 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def write_private_json(path: Path, data: dict) -> None:
+    """Write a fixture for a production state file whose contract is mode 0600."""
+
+    path.write_text(
+        json.dumps(
+            data,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+
+
 def base_test_env() -> dict[str, str]:
     env = os.environ.copy()
     env["TZ"] = "Europe/London"
@@ -269,6 +286,23 @@ def prepare_base_dir(
     write_json(base_dir / "bot_state.json", state or {})
     write_json(base_dir / "lines_used.json", [])
     write_json(base_dir / "images_used.json", [])
+    write_private_json(
+        base_dir / "historical_context_reply_history.json",
+        {"schema_version": 1, "items": {}},
+    )
+    write_private_json(
+        base_dir / "historical_context_reply_outbox.json",
+        {
+            "schema_version": 1,
+            "retry_policy": {
+                "max_attempts": 5,
+                "base_backoff_seconds": 60,
+                "max_backoff_seconds": 3_600,
+            },
+            "retired_parent_post_id_floor": "0",
+            "obligations": {},
+        },
+    )
     if watch_ids is not None:
         (base_dir / "extra_quote_watch_post_ids.txt").write_text("\n".join(watch_ids) + "\n", encoding="utf-8")
     if control is not None:
@@ -4250,7 +4284,7 @@ def test_test_post_quote_replays_receipt_without_second_post(tmp_path: Path) -> 
     try:
         base_dir = prepare_base_dir(tmp_path)
         quote_hash = hashlib.sha256(collapse_quote_whitespace("A test quote.").encode("utf-8")).hexdigest()
-        write_json(
+        write_private_json(
             base_dir / "regular_post_receipt.json",
             {
                 "schema_version": 1,

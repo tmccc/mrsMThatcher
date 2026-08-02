@@ -80,6 +80,7 @@ if __name__ == "__main__":
 
 import html
 import copy
+from decimal import Decimal
 import errno
 import fcntl
 import hashlib
@@ -1321,8 +1322,17 @@ class LocalConfigError(RuntimeError):
     """An existing production local-config file is unsafe to apply."""
 
 
-def load_strict_runtime_json(handle_or_document, *, label: str) -> object:
-    """Load one UTF-8 control/config document without ambiguous JSON."""
+def load_strict_runtime_json(
+    handle_or_document,
+    *,
+    label: str,
+    parse_floats_as_decimal: bool = False,
+) -> object:
+    """Load one UTF-8 control/config document without ambiguous JSON.
+
+    ``parse_floats_as_decimal`` preserves numeric-token semantics for callers
+    which must validate mathematical integrality before any binary rounding.
+    """
 
     def reject_duplicate_names(pairs: list[tuple[str, object]]) -> dict:
         value: dict[str, object] = {}
@@ -1341,6 +1351,12 @@ def load_strict_runtime_json(handle_or_document, *, label: str) -> object:
             raise ValueError(f"{label} contains a non-finite JSON number")
         return parsed
 
+    def parse_finite_decimal(value: str) -> Decimal:
+        parsed = Decimal(value)
+        if not parsed.is_finite():
+            raise ValueError(f"{label} contains a non-finite JSON number")
+        return parsed
+
     if isinstance(handle_or_document, (bytes, str)):
         document = handle_or_document
     else:
@@ -1354,7 +1370,11 @@ def load_strict_runtime_json(handle_or_document, *, label: str) -> object:
         document,
         object_pairs_hook=reject_duplicate_names,
         parse_constant=reject_nonfinite_constant,
-        parse_float=parse_finite_float,
+        parse_float=(
+            parse_finite_decimal
+            if parse_floats_as_decimal
+            else parse_finite_float
+        ),
     )
 
 
@@ -2694,6 +2714,16 @@ def parse_control_time(value: object) -> int:
         raise ValueError("control timestamp must not be a boolean or null")
     if type(value) is int:
         epoch = value
+    elif type(value) is Decimal:
+        if not value.is_finite() or value != value.to_integral_value():
+            raise ValueError(
+                "control timestamp exact number must be finite and integral"
+            )
+        if value < 0 or value > MAX_REASONABLE_STATE_EPOCH:
+            raise ValueError(
+                f"control timestamp is outside the supported epoch range: {value}"
+            )
+        epoch = int(value)
     elif type(value) is float:
         if not math.isfinite(value) or not value.is_integer():
             raise ValueError("control timestamp float must be finite and integral")
@@ -2733,7 +2763,7 @@ def validate_control_document(data: object) -> dict:
             )
         key_text = key
         if key_text in CONTROL_TIME_KEYS:
-            parse_control_time(value)
+            validated[key_text] = parse_control_time(value)
         elif key_text in CONTROL_BOOLEAN_KEYS:
             if isinstance(value, bool):
                 continue
@@ -2886,7 +2916,11 @@ def load_control() -> dict:
         )
 
     try:
-        data = load_strict_runtime_json(document, label="runtime control")
+        data = load_strict_runtime_json(
+            document,
+            label="runtime control",
+            parse_floats_as_decimal=True,
+        )
         data = validate_control_document(data)
     except Exception as exc:
         return control_failure_result(str(exc), signature=("content", signature, type(exc).__name__, str(exc)))

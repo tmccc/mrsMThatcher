@@ -2011,7 +2011,7 @@
     },
     {
       "id": "DEF-0017",
-      "title": "Configuration and pause controls accepted duplicate names and non-finite JSON numbers",
+      "title": "Configuration and pause controls accepted ambiguous names and unsafe numeric semantics",
       "source_class": "established-related",
       "defect_class": "runtime-defect",
       "diagnosis_finding": "related-current-master-duplicate-json-keys",
@@ -2027,7 +2027,8 @@
         "local configuration",
         "strict UTF-8 JSON decoding",
         "nested duplicate-name rejection",
-        "non-finite number rejection"
+        "non-finite number rejection",
+        "exact runtime-control timestamp validation"
       ],
       "affected_files": [
         "mrsMThatcher2.py",
@@ -2040,11 +2041,11 @@
       ],
       "incident": {
         "occurred": "unknown",
-        "evidence": "Default json.load behavior at the exact 4e548b0a cutoff reproduces last-wins parsing for duplicate local-configuration and runtime-control names and accepts NaN, Infinity and -Infinity constants; ordinary float decoding can also turn finite-looking exponent tokens into infinities.",
-        "explanation": "No complete archive of production configuration or control documents establishes whether a duplicate name or non-finite number altered live behavior."
+        "evidence": "Default json.load behavior at the exact 4e548b0a cutoff reproduces last-wins parsing for duplicate local-configuration and runtime-control names and accepts NaN, Infinity and -Infinity constants; ordinary float decoding can also turn finite-looking exponent tokens into infinities or round mathematically fractional runtime-control timestamps to integral binary floats.",
+        "explanation": "No complete archive of production configuration or control documents establishes whether a duplicate name, non-finite number or exactly fractional timestamp altered live behavior."
       },
-      "summary": "Local configuration and pause-control JSON use standard decoding which accepts duplicate object names at any nesting depth with last-value-wins semantics, accepts the non-standard NaN and Infinity constants, and can decode overflowing exponent forms as non-finite floats. Transaction receipts and other transaction authorities are excluded from this record and are tracked separately by DEF-0043 and their lane-specific records.",
-      "impact": "A configuration or pause document can visually contain both safe and unsafe values for one setting, or carry a non-finite value outside the intended validation domain. Effective behavior can then depend on ordering or Python-specific number semantics rather than one unambiguous finite control instruction.",
+      "summary": "Local configuration and pause-control JSON use standard decoding which accepts duplicate object names at any nesting depth with last-value-wins semantics, accepts the non-standard NaN and Infinity constants, and can decode overflowing exponent forms as non-finite floats. Runtime-control timestamps are also validated only after binary-float conversion, which can round or underflow a mathematically fractional JSON number to an integral value. Transaction receipts and other transaction authorities are excluded from this record and are tracked separately by DEF-0043 and their lane-specific records.",
+      "impact": "A configuration or pause document can visually contain both safe and unsafe values for one setting, carry a non-finite value outside the intended validation domain, or express a fractional pause timestamp which binary-float conversion changes into an accepted integral epoch. Effective behavior can then depend on ordering or Python-specific number semantics rather than one unambiguous finite control instruction.",
       "introduced": {
         "first_bad_commit": "36edf0369aae7ffe3b6b4b63089d26de71f59537",
         "last_known_good_commit": "unknown",
@@ -2082,6 +2083,12 @@
           "event": "Review of rejected descendant candidate b5e62c0 reconfirmed that local configuration and runtime control still used permissive JSON decoding and expanded the bounded defect to nested duplicate names, explicit non-finite constants and exponent overflow to non-finite floats.",
           "commit": "unknown",
           "evidence": "Exact 4e548b0a source reproduction and rejected-b5 strict runtime-document review"
+        },
+        {
+          "date": "2026-08-02",
+          "event": "Review of rejected descendant candidate d2ee28e showed that runtime-control timestamps still lost exact decimal semantics before integrality validation.",
+          "commit": "unknown",
+          "evidence": "Exact 4e548b0a source reproduction and rejected-d2ee runtime-control review"
         }
       ],
       "first_review_scope": {
@@ -2102,7 +2109,7 @@
       "fix": {
         "state": "unfixed",
         "commit": "unknown",
-        "summary": "An uncommitted post-cutoff proposal uses one strict UTF-8 decoder only for local configuration and runtime control, rejecting duplicate object names at every depth, NaN/Infinity constants and floats which decode as non-finite before schema validation. It does not claim to replace unrelated state, history or transaction decoders. No fixing commit is inside this ledger boundary."
+        "summary": "An uncommitted post-cutoff proposal uses one strict UTF-8 decoder only for local configuration and runtime control, rejecting duplicate object names at every depth, NaN/Infinity constants and floats which decode as non-finite before schema validation. It additionally preserves exact decimal semantics for runtime-control timestamp validation while leaving ordinary local-configuration floats unchanged. It does not claim to replace unrelated state, history or transaction decoders. No fixing commit is inside this ledger boundary."
       },
       "deployment": {
         "state": "not-applicable",
@@ -2110,7 +2117,7 @@
         "observed_at": "2026-07-28T23:40:14+01:00",
         "evidence": "The permissive local-configuration and runtime-control decoding exists in the observed production commit be882e81 and remains present at the exact 4e548b0a ledger evidence cut-off; no repair deployment is applicable."
       },
-      "residual_risk": "Active for local configuration and pause controls until one committed decoder rejects duplicate names at every depth and every non-finite number form before any proposed configuration applies or pause document replaces the last valid authority. Transaction-document strict-JSON risk remains separately tracked under DEF-0043 and lane-specific records.",
+      "residual_risk": "Active for local configuration and pause controls until one committed decoder rejects duplicate names at every depth and every non-finite number form before any proposed configuration applies or pause document replaces the last valid authority, and validates pause timestamps without losing exact mathematical integrality to binary-float conversion. Transaction-document strict-JSON risk remains separately tracked under DEF-0043 and lane-specific records.",
       "evidence": [
         {
           "type": "report",
@@ -2131,6 +2138,11 @@
           "type": "test",
           "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_duplicate_names_and_nonfinite_constants",
           "claim": "The post-cutoff candidate regression requires the same strict number and duplicate-name boundary for runtime control, preserving fail-closed pause behavior."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_exact_fractional_numeric_times",
+          "claim": "The post-cutoff candidate regression requires exact mathematical integrality for numeric pause timestamps before fail-closed control authority can be replaced."
         }
       ],
       "unknowns": [
@@ -2149,6 +2161,10 @@
         {
           "field": "chronology[4].commit",
           "explanation": "The rejected b5e62c0 review is post-cutoff evidence and is named in the event rather than asserted as an ancestor of the exact 4e548b0a ledger evidence cutoff."
+        },
+        {
+          "field": "chronology[5].commit",
+          "explanation": "The rejected d2ee28e review is post-cutoff evidence and is named in the event rather than asserted as an ancestor of the exact 4e548b0a ledger evidence cutoff."
         }
       ],
       "relations": {
