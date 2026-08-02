@@ -3192,6 +3192,8 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 
 - `code` `production_invariants.json` — Primary recorded enforcement or assurance path for this invariant.
 - `test` `tests/test_priority0_registry.py::test_real_registry_is_valid_and_markdown_is_synchronised` — Focused automated evidence for the principal recorded boundary.
+- `test` `tests/test_priority0_registry.py::test_validator_rejects_unattested_historical_parameter_case` — Focused regression proving that a parameter-specific selector cannot be attributed to a historical commit without exact historical collection attestation.
+- `test` `tests/test_priority0_registry.py::test_validator_accepts_unparameterized_historical_function_selector` — Focused regression proving that an exact historical function-level selector remains admissible without inventing parameter-specific evidence.
 - `report` `defect_ledger.json#DEF-0014` — Evidence-cut-off defect or assurance record linked to this invariant.
 
 **Last verified commit.** `unknown` (`unknown`) — This self-describing registry cannot establish the commit externally frozen and validated by the release gate. The candidate attestation must supply that identity after freeze.
@@ -3255,6 +3257,8 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 **Verification tests.**
 
 - `tests/test_priority0_registry.py::test_real_registry_is_valid_and_markdown_is_synchronised`
+- `tests/test_priority0_registry.py::test_validator_rejects_unattested_historical_parameter_case`
+- `tests/test_priority0_registry.py::test_validator_accepts_unparameterized_historical_function_selector`
 - `tests/test_release_gate.py::test_candidate_tree_drift_during_validation_is_rejected`
 - `tests/test_release_gate.py::test_integration_lock_contention_fails_closed`
 - `tests/test_release_gate.py::test_deterministic_semantic_attestation_is_byte_identical`

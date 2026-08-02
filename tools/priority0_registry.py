@@ -524,6 +524,11 @@ def historical_test_selector_exists(
     if not isinstance(selector, str):
         return False, "historical test selector is not a string"
     parts = selector.split("::")
+    if len(parts) > 1 and "[" in parts[-1]:
+        return False, (
+            "historical parameter-specific pytest selector requires exact "
+            f"historical collection attestation (none available): {selector}"
+        )
     relative = parts[0]
     blob_key = (commit, relative)
     cached_blob = blob_cache.get(blob_key) if blob_cache is not None else None

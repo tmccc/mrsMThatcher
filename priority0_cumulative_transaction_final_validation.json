@@ -1,5 +1,6 @@
 {
   "adversarial_review_gate": {
+    "completed_clean_rounds": 0,
     "completed_exact_candidate_lanes": 0,
     "exact_candidate_commit": null,
     "exact_candidate_tree": null,
@@ -97,37 +98,97 @@
       ],
       "status": "rejected"
     },
+    "rejected_round_bec8355": {
+      "candidate_commit": "bec83553c29c42ccc37a2dc9b6e16516dc367efe",
+      "candidate_tree": "0db6a0e679493ab4f8e6316f66e0c6d954739e6d",
+      "round_1": {
+        "clean_lanes": [
+          "root_cross_cutting",
+          "control_configuration_and_cli",
+          "historical_context_outbox_lineage_and_reconciliation",
+          "transaction_crash_restart_retirement_and_aba"
+        ],
+        "finding_count": 0,
+        "status": "all_four_lanes_clean"
+      },
+      "round_2": {
+        "hostile_inputs": {
+          "passed": 22,
+          "status": "clean"
+        },
+        "mutation_and_test_quality": {
+          "finding_count": 4,
+          "findings": [
+            {
+              "description": "the nested duplicate-name fixture passed because schema validation rejected an incomplete nested object before the duplicate-name boundary was proved",
+              "severity": "P2"
+            },
+            {
+              "description": "activator duplicate-option coverage was incomplete relative to the report's all-critical-options claim",
+              "severity": "P2"
+            },
+            {
+              "description": "historical registry validation stripped parameter case IDs and could attest a different historical pytest case",
+              "severity": "P2"
+            },
+            {
+              "description": "candidate reports incorrectly described candidate-contained repairs as uncommitted and unfrozen",
+              "severity": "P2"
+            }
+          ],
+          "status": "findings"
+        },
+        "root_and_claims": {
+          "status": "clean"
+        },
+        "transaction_fault_matrix": {
+          "dynamic_probes": {
+            "fsync_error_probes": 32,
+            "fsync_error_positions_per_site": 2,
+            "fsync_sites": 16,
+            "hard_exit_positions_per_event": 2,
+            "hard_exit_retirement_probes": 26,
+            "retirement_events": 13,
+            "total": 58
+          },
+          "status": "clean"
+        }
+      },
+      "status": "rejected"
+    },
     "replacement_review_restarts_from_zero": true,
     "required_lanes": [
-      "transaction_crash_restart_retirement_and_aba",
-      "historical_context_outbox_lineage_and_reconciliation",
-      "activation_installation_pause_recovery_and_rollback",
-      "full_diff_claims_registry_bindings_and_omitted_boundaries"
+      "root_and_claims",
+      "transaction_fault_matrix",
+      "hostile_inputs",
+      "mutation_and_test_quality"
     ],
     "restart_all_lanes_after_any_candidate_change": true,
-    "round_b5_results_reset": {
+    "round_bec8355_results_reset": {
       "all_four_lanes_reset": true,
       "completed_exact_candidate_lanes_carried_forward": 0,
-      "reason": "the five findings changed the replacement worktree after round b5"
+      "clean_rounds_carried_forward": 0,
+      "reason": "the four round-2 P2 assurance findings changed the candidate snapshot"
     },
-    "status": "pending next replacement candidate freeze",
-    "unfrozen_repair_adversary": {
+    "status": "enclosing post-cutoff candidate snapshot pending two clean four-lane rounds",
+    "round_1_repair_adversary": {
       "activator_repair_review": "no further finding",
       "cli_followup_finding_count": 2,
       "cli_followup_findings": [
         "invalid real-script argv was not yet rejected before third-party/application imports and configuration, logging or filesystem side effects",
         "explicit run_cli argv could disagree with process sys.argv and therefore with import-time mode/bootstrap state"
       ],
-      "status": "findings remediated before replacement freeze"
+      "status": "findings incorporated in rejected round-A candidate"
     }
   },
   "candidate_identity": {
     "commit": null,
-    "identity_source": "external frozen-candidate attestation after commit",
+    "identity_source": "external attestation for the enclosing post-cutoff candidate snapshot",
+    "implementation_status": "implemented_post_cutoff_candidate",
     "stored_in_candidate_document": false,
     "tree": null
   },
-  "conclusion_scope": "patch-local evidence after rejected round-1, round-A and round-b5 candidates; five replacement repairs are implemented but uncommitted, with freeze, two clean four-lane review rounds and external qualification pending",
+  "conclusion_scope": "candidate-side evidence after rejected round-1, round-A, round-b5 and bec8355 candidates; the four current replacements are contained in the enclosing post-cutoff candidate snapshot, whose exact commit and tree are externally supplied rather than embedded; the clean-round counter is zero and two clean four-lane review rounds remain pending",
   "cumulative_remediation": {
     "confirmed_pending_receipt": {
       "exact_bytes_revalidated": true,
@@ -177,7 +238,7 @@
       "unrelated_exchange_states_may_require_operator_reconciliation": true
     }
   },
-  "document_kind": "priority0_cumulative_transaction_pre_freeze_validation",
+  "document_kind": "priority0_cumulative_transaction_candidate_validation",
   "focused_validation": {
     "activation_restart_safety_module_passed": 99,
     "changed_python_compilation_passed": true,
@@ -236,6 +297,14 @@
         "passed_with_only_listed_exclusions": true
       }
     },
+    "round_bec8355_four_finding_repair_validation": {
+      "combined_corrected_modules_passed": 286,
+      "defect_ledger_validation_passed": true,
+      "git_diff_check_passed": true,
+      "production_invariant_markdown_synchronised": true,
+      "production_invariant_registry_validation_passed": true,
+      "python_compilation_passed": true
+    },
     "round_1_repair_results_apply_to_rejected_round_a_candidate": true,
     "restart_bootstrap_pause_outcome_passed": 320
   },
@@ -246,11 +315,10 @@
   "pending": {
     "complete_isolated_application_suite": true,
     "deterministic_attestation_and_package": true,
-    "exact_candidate_four_lane_review": true,
     "exact_external_release_gate": true,
-    "final_application_freeze": true,
-    "final_assurance_freeze": true,
-    "separate_independent_review": true
+    "separate_independent_review": true,
+    "separate_release_assurance_qualification": true,
+    "two_consecutive_clean_four_lane_rounds": true
   },
   "replacement_repairs": {
     "activation_interrupted_install_sentinel": {
@@ -265,35 +333,59 @@
       "status": "incorporated_in_rejected_round_a_candidate",
       "validation_precedes_production_bootstrap": true
     },
-    "future_candidate_identity": "pending external recording after freeze",
+    "current_candidate_identity": "externally supplied for the enclosing post-cutoff candidate snapshot and not embedded in this document",
     "round_b5_five_finding_repair_batch": {
       "activator_exact_option_vocabulary": {
         "duplicate_critical_options_rejected": true,
         "option_abbreviations_rejected": true,
-        "status": "implemented_uncommitted"
+        "status": "incorporated_in_rejected_candidate_bec8355"
       },
       "historical_context_prebarrier_completed_history_reconciliation": {
         "multiple_risky_rows_remain_fail_closed": true,
         "remote_work_repeated": false,
         "sole_exact_source_bound_completed_outcome_reconciled_locally": true,
-        "status": "implemented_uncommitted"
+        "status": "incorporated_in_rejected_candidate_bec8355"
       },
       "immutable_preimport_test_mode_authority": {
         "authority_captured_before_application_imports": true,
         "direct_and_callable_entry_points_guard_before_bootstrap": true,
-        "status": "implemented_uncommitted"
+        "status": "incorporated_in_rejected_candidate_bec8355"
       },
       "runtime_control_content_bound_stable_snapshot": {
         "cache_is_not_authority": true,
         "every_poll_rereads_and_hashes_stable_bytes": true,
         "race_or_parse_failure_preserves_prior_cache_and_fails_closed": true,
-        "status": "implemented_uncommitted"
+        "status": "incorporated_in_rejected_candidate_bec8355"
       },
       "strict_runtime_json_config_and_control": {
         "duplicate_object_names_rejected_at_all_depths": true,
         "non_finite_and_overflowing_numbers_rejected": true,
         "strict_utf8_required": true,
-        "status": "implemented_uncommitted"
+        "status": "incorporated_in_rejected_candidate_bec8355"
+      }
+    },
+    "round_bec8355_four_finding_repair_batch": {
+      "activator_duplicate_option_claim_coverage": {
+        "confirmation_flags_covered": true,
+        "mixed_alias_destination_covered": true,
+        "status": "implemented_post_cutoff_candidate",
+        "value_option_separate_and_equals_forms_covered": true
+      },
+      "candidate_state_reporting": {
+        "cutoff_ledger_status_distinguished_from_current_implementation_status": true,
+        "exact_identity_externally_supplied_and_not_embedded": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "historical_parameter_specific_selector_assurance": {
+        "case_ids_are_not_stripped": true,
+        "parameter_specific_historical_selectors_require_exact_collection_attestation": true,
+        "status": "implemented_post_cutoff_candidate",
+        "unparameterized_historical_function_selectors_remain_supported": true
+      },
+      "nested_duplicate_fixture_quality": {
+        "complete_schema_valid_nested_object_used": true,
+        "strict_loader_boundary_asserted_directly": true,
+        "status": "implemented_post_cutoff_candidate"
       }
     },
     "round_a_consolidation": {
@@ -313,7 +405,7 @@
       "media_fixture_retirement": "exact_authority_instead_of_raw_unlink",
       "qualified_cooperative_writer_monotonicity_wording": "implemented_non_tamper_evident",
       "registry_known_pin_validation_reconstructs_exact_commit_tree_and_historical_selectors": true,
-      "strengthened_invariant_last_verified_pins": "unknown_pending_external_frozen_candidate",
+      "strengthened_invariant_last_verified_pins": "unknown_pending_external_candidate_identity",
       "status": "incorporated_in_rejected_round_b5_candidate"
     }
   },

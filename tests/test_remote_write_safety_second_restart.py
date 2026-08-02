@@ -2094,28 +2094,105 @@ def test_activation_cli_accepts_complete_documented_invocation() -> None:
     assert args.confirm_supervisor_stopped is True
 
 
-@pytest.mark.parametrize(
-    ("duplicate_option", "duplicate_value"),
-    [
-        ("--project-root", "/different/project"),
-        ("--expected-project-root", "/different/expected-project"),
-    ],
-)
 def test_activation_cli_rejects_duplicate_project_identity_options(
-    duplicate_option: str,
-    duplicate_value: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A later identity option cannot silently replace operator intent."""
+    """The registry-bound project-identity regression remains a stable node."""
 
     arguments = _valid_activation_cli_arguments()
-    arguments.extend((duplicate_option, duplicate_value))
+    arguments.extend(("--project-root", "/different/project"))
 
     with pytest.raises(SystemExit) as exc_info:
         activate.build_parser().parse_args(arguments)
 
     assert exc_info.value.code == 2
     assert "may not be repeated" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("duplicate_option", "duplicate_value"),
+    [
+        ("--project-root", "/different/project"),
+        ("--expected-project-root", "/different/expected-project"),
+        ("--expected-project-device", "303"),
+        ("--expected-project-inode", "404"),
+        (
+            "--clean-state-attestation",
+            "/operator/different-clean-state-attestation.json",
+        ),
+        ("--clean-state-attestation-sha256", "b" * 64),
+    ],
+)
+@pytest.mark.parametrize("argument_style", ["separate", "equals"])
+def test_activation_cli_rejects_duplicate_value_options(
+    duplicate_option: str,
+    duplicate_value: str,
+    argument_style: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No later value option may silently replace operator intent."""
+
+    arguments = _valid_activation_cli_arguments()
+    if argument_style == "equals":
+        arguments.append(f"{duplicate_option}={duplicate_value}")
+    else:
+        arguments.extend((duplicate_option, duplicate_value))
+
+    with pytest.raises(SystemExit) as exc_info:
+        activate.build_parser().parse_args(arguments)
+
+    assert exc_info.value.code == 2
+    assert "may not be repeated" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "duplicate_option",
+    [
+        "--confirm-clean-offline-activation",
+        "--confirm-supervisor-stopped",
+    ],
+)
+def test_activation_cli_rejects_duplicate_confirmation_flags(
+    duplicate_option: str,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Confirmation flags are single operator attestations, not counters."""
+
+    arguments = _valid_activation_cli_arguments()
+    arguments.append(duplicate_option)
+
+    with pytest.raises(SystemExit) as exc_info:
+        activate.build_parser().parse_args(arguments)
+
+    assert exc_info.value.code == 2
+    assert "may not be repeated" in capsys.readouterr().err
+
+
+def test_exact_activation_parser_rejects_mixed_alias_duplication(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Two spellings for one synthetic destination remain one option."""
+
+    parser = activate._ExactActivationArgumentParser(allow_abbrev=False)
+    parser.add_argument(
+        "--synthetic-primary",
+        "--synthetic-alias",
+        dest="synthetic_value",
+        required=True,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(
+            [
+                "--synthetic-primary",
+                "first",
+                "--synthetic-alias",
+                "second",
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "including through an alias" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

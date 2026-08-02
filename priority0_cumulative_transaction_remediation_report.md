@@ -1,11 +1,11 @@
-# Priority-0 cumulative transaction remediation — round-b5 rejection and replacement record
+# Priority-0 cumulative transaction remediation — bec8355 rejection and replacement record
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, three
-rejected frozen candidates, and the five current uncommitted replacement
-repairs before a new exact candidate is frozen. It is candidate-side evidence,
-not an external release attestation or an independent review.
+This document records the cumulative transaction-safety implementation, four
+rejected exact candidates, and the four current replacements contained in the
+enclosing post-cut-off candidate snapshot. It is candidate-side evidence, not
+an external release attestation or an independent review.
 
 - release and defect-ledger evidence-cut-off base:
   `4e548b0a5723a1f0c75e9646953b3f92c7db89ad`;
@@ -23,16 +23,24 @@ not an external release attestation or an independent review.
   `b5e62c0458732c56e4851f010bfa27efb9514567`;
 - rejected round-b5 candidate tree:
   `50a14a3c4e8ac423b1b8ecaefd3a3950ef623d84`;
-- next replacement candidate commit and tree: pending freeze and deliberately not
-  embedded in this self-referential document.
+- rejected bec8355 candidate commit:
+  `bec83553c29c42ccc37a2dc9b6e16516dc367efe`;
+- rejected bec8355 candidate tree:
+  `0db6a0e679493ab4f8e6316f66e0c6d954739e6d`;
+- enclosing post-cut-off candidate snapshot: status
+  `implemented_post_cutoff_candidate`; its exact commit and tree are supplied
+  externally and deliberately are not embedded in this self-referential
+  document.
 
 The ledger base fixes the evidence cut-off against which defect status is
 interpreted. The implementation parent is the immediate committed tree on
-which this cumulative work was built. The ledger therefore continues to mark
-post-cut-off repairs as uncommitted and unfixed. Each rejected candidate
-identity is historical review evidence only. None of these identities is a
-claim that the pending replacement passed the complete suite, the external
-gate, independent review, deployment or loaded-process verification.
+which this cumulative work was built. The ledger may therefore continue to
+mark a repair unfixed at that historical cut-off. That ledger status is
+distinct from the repair's implementation in the enclosing post-cut-off
+candidate snapshot. Each rejected candidate identity is historical review
+evidence only. None of these identities claims that the enclosing replacement
+passed the complete suite, the external gate, independent review, deployment
+or loaded-process verification.
 
 ## Cumulative remediation
 
@@ -251,12 +259,14 @@ Focused consolidation results are deliberately non-additive:
 - the global `git diff --check` passed.
 
 These focused results are historical evidence for the consolidation which was
-incorporated into the rejected round-b5 tree. They do not qualify the current
-uncommitted replacement work. The complete application suite and external
+incorporated into the rejected round-b5 tree. They do not qualify the enclosing
+post-cut-off candidate snapshot. The complete application suite and external
 release gate remain deliberately deferred until an unchanged candidate
 survives the adversarial review rounds below.
 
-No future replacement commit or tree is anticipated in this report.
+No exact identity for the enclosing replacement is anticipated in this report;
+it is supplied externally so that this candidate-side document does not refer
+to its own commit or tree.
 
 ## Rejected round-b5 exact-candidate review
 
@@ -286,10 +296,10 @@ that exact tree. Those results, together with the results from the two lanes
 which found defects, were all reset when the worktree changed. Zero completed
 lane result is carried into the next candidate.
 
-## Current uncommitted five-finding repair batch
+## Five-finding repair batch incorporated in rejected bec8355
 
-The following repairs are implemented in the worktree but remain uncommitted
-and have no frozen candidate identity:
+The following repairs were incorporated in rejected candidate
+`bec83553c29c42ccc37a2dc9b6e16516dc367efe`:
 
 - pre-barrier historical-context reconciliation now performs only the existing
   local recovery for one exact source-bound completed outcome; multiple risky
@@ -306,7 +316,7 @@ and have no frozen candidate identity:
 - the activator now disables argument abbreviation and rejects repeated
   option destinations, including duplicates expressed through aliases.
 
-The observed replacement-batch validation is:
+The observed repair-batch validation was:
 
 - `python3 -m pytest -q -n 3
   tests/test_fail_safe_bootstrap_and_control.py
@@ -321,27 +331,82 @@ The observed replacement-batch validation is:
 - Ruff: passed with only the explicitly excluded pre-existing `E402` and
   `F401` classes.
 
-The two pytest totals are non-additive focused worktree results. They do not
-assign a commit or tree identity, carry forward any adversarial lane result or
-qualify the still-unfrozen replacement candidate.
+The two pytest totals are non-additive focused results. They do not carry
+forward any adversarial lane result or qualify the enclosing replacement
+snapshot.
+
+## Rejected bec8355 exact-candidate review
+
+Candidate `bec83553c29c42ccc37a2dc9b6e16516dc367efe`, tree
+`0db6a0e679493ab4f8e6316f66e0c6d954739e6d`, completed two adversarial rounds.
+Round 1 was clean in all four lanes: root cross-cutting review,
+control/configuration/CLI, historical-context outbox lineage and
+reconciliation, and transaction crash/restart/retirement/ABA.
+
+In Round 2:
+
+- the root/claims lane was clean;
+- the transaction fault matrix was clean across 58 dynamic probes: 13
+  retirement events exercised at the before/after hard-exit positions, for 26
+  probes, plus 16 `fsync` sites exercised with before/after errors, for 32
+  probes;
+- the hostile-input lane was clean across 22 tests; and
+- the mutation/test-quality lane found four P2 assurance defects.
+
+The four P2 defects were:
+
+1. the nested duplicate-name fixture passed for the wrong reason: its nested
+   object was already schema-invalid, so the test did not prove that strict
+   decoding rejected the duplicate name before schema validation;
+2. activator duplicate-option coverage was incomplete relative to the report's
+   claim that all critical destinations and alias forms were covered;
+3. historical registry validation stripped parameter case IDs, so a selector
+   could be accepted on the strength of a different historical pytest case;
+4. the candidate reports incorrectly described repairs already contained in
+   the exact candidate as uncommitted and unfrozen.
+
+The candidate is rejected. Because the four repairs change the candidate
+snapshot, the consecutive-clean-round counter is reset to zero; no Round-1 or
+Round-2 clean lane is carried forward.
+
+## Current post-cut-off candidate replacements
+
+The enclosing candidate snapshot contains these four replacements, each with
+status `implemented_post_cutoff_candidate`:
+
+- the nested-duplicate regression now uses a complete, otherwise schema-valid
+  nested object, directly asserts the strict-loader duplicate-name boundary,
+  and verifies atomic local-configuration failure;
+- activator coverage now exercises every value option in separate-token and
+  equals forms, both confirmation flags, and mixed aliases sharing one
+  destination, while retaining a stable project-identity regression node;
+- historical parameter-specific selectors no longer lose their case IDs. In
+  the absence of exact historical collection attestation they fail closed,
+  while an unparameterized historical function selector remains supported;
+- this report and its JSON companion distinguish historical defect-ledger
+  status at the evidence cut-off from implementation status in the enclosing
+  post-cut-off candidate snapshot.
+
+The enclosing snapshot's exact commit and tree are supplied externally and are
+not embedded here. This avoids a self-reference while still making the current
+implementation state explicit.
 
 ## Replacement exact-candidate adversarial review gate
 
-The next replacement application candidate has not yet been frozen. Four
-concurrent read-only review lanes must restart from zero and inspect its exact
-committed tree after all report, registry and test changes are present:
+The current clean-round counter is zero. The same externally identified,
+unchanged candidate snapshot must complete two consecutive clean rounds across
+four concurrent read-only lanes:
 
-1. public-create transaction phases, crash/restart, exact retirement and ABA;
-2. historical-context outbox, source lineage and reconciliation;
-3. activation, installation, pause, recovery and rollback;
-4. full-diff claims, registry/ledger bindings and omitted failure boundaries.
+1. root and claims;
+2. transaction fault matrix;
+3. hostile inputs;
+4. mutation and test quality.
 
-If any lane finds a defect and the candidate changes, every lane must restart
-against the new exact commit. No clean or no-escape result from any rejected
+If any lane finds a defect and the candidate changes, every lane and the
+clean-round counter restart from zero. No clean result from a rejected
 candidate qualifies the replacement. Two consecutive clean four-lane rounds
-on the same exact unchanged tree are required before the expensive external
-gate and packaging work, and no earlier partial or pre-report audit is called
-final-candidate approval here.
+are required before the expensive external gate and packaging work, and no
+earlier partial audit is called final-candidate approval here.
 
 ## Focused validation checkpoint
 
@@ -374,20 +439,28 @@ These suites overlap and their counts must not be summed as a unique total.
 The complete isolated application suite has deliberately not run yet. No
 external assurance run or packaging run has occurred for the replacement.
 
+For the four Round-2 assurance corrections in the enclosing snapshot:
+
+- the three directly affected focused modules passed together: 286 passed;
+- the production-invariant registry and defect ledger validated;
+- the invariant Markdown projection is synchronised with its JSON registry;
+- changed-Python compilation passed; and
+- `git diff --check` passed.
+
 ## Outstanding qualification work
 
-- freeze and commit the replacement application candidate;
-- complete all four adversarial review lanes against that exact commit, and
-  repeat all four after any change until all report no finding, without
-  carrying forward a clean result from the rejected candidate;
-- update and freeze the separately owned release-assurance policy and runner;
+- complete two consecutive clean four-lane rounds against the externally
+  identified enclosing candidate snapshot, restarting every lane and the
+  clean-round counter after any candidate change;
+- qualify the separately owned release-assurance policy and runner;
 - run the complete isolated suite once through the exact external gate;
 - produce deterministic attestations and a portable package;
 - obtain a separate independent review before any activation decision.
 
 ## Isolation record
 
-This remediation, the rejected review rounds and the current uncommitted
-five-finding repair batch performed zero production-file or live-state
-mutation, service action, X action, provider action, merge, push, deployment,
-external-assurance execution or packaging.
+This remediation, the rejected review rounds, the candidate-contained
+five-finding repair batch, and the current four replacement repairs performed
+zero production-file or live-state mutation, service action, X action,
+provider action, merge, push, deployment, external-assurance execution or
+packaging.

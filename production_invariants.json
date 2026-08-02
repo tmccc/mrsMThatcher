@@ -5350,6 +5350,8 @@
         ],
         "tests": [
           "tests/test_priority0_registry.py::test_real_registry_is_valid_and_markdown_is_synchronised",
+          "tests/test_priority0_registry.py::test_validator_rejects_unattested_historical_parameter_case",
+          "tests/test_priority0_registry.py::test_validator_accepts_unparameterized_historical_function_selector",
           "tests/test_release_gate.py::test_candidate_tree_drift_during_validation_is_rejected",
           "tests/test_release_gate.py::test_integration_lock_contention_fails_closed",
           "tests/test_release_gate.py::test_deterministic_semantic_attestation_is_byte_identical",
@@ -5425,6 +5427,16 @@
           "type": "test",
           "reference": "tests/test_priority0_registry.py::test_real_registry_is_valid_and_markdown_is_synchronised",
           "claim": "Focused automated evidence for the principal recorded boundary."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_priority0_registry.py::test_validator_rejects_unattested_historical_parameter_case",
+          "claim": "Focused regression proving that a parameter-specific selector cannot be attributed to a historical commit without exact historical collection attestation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_priority0_registry.py::test_validator_accepts_unparameterized_historical_function_selector",
+          "claim": "Focused regression proving that an exact historical function-level selector remains admissible without inventing parameter-specific evidence."
         },
         {
           "type": "report",

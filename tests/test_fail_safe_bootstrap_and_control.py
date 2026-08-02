@@ -505,7 +505,6 @@ def test_existing_invalid_local_config_fails_closed(tmp_path, monkeypatch, conte
     "content",
     [
         '{"POST_SLEEP_MIN":8000,"POST_SLEEP_MIN":9000}',
-        '{"historical_context_reply":{"enabled":true,"enabled":false}}',
         '{"POST_SLEEP_MIN":NaN}',
         '{"POST_SLEEP_MIN":Infinity}',
         '{"POST_SLEEP_MIN":-Infinity}',
@@ -527,6 +526,39 @@ def test_local_config_rejects_duplicate_names_and_nonfinite_constants(
         bot.apply_local_config()
 
     assert bot.POST_SLEEP_MIN == before
+
+
+def test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation(
+    tmp_path,
+    monkeypatch,
+):
+    content = (
+        '{"historical_context_reply":{'
+        '"enabled":true,'
+        '"maximum_length":4000,'
+        '"include_meaning":true,'
+        '"enabled":false,'
+        '"include_source":true,'
+        '"include_verification":true'
+        '}}'
+    )
+    path = tmp_path / "local.json"
+    path.write_text(content, encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    before_identity = bot.historical_context_reply
+    before_value = dict(before_identity)
+
+    with pytest.raises(ValueError, match="contains a duplicate object name"):
+        bot.load_strict_runtime_json(content, label="local config")
+
+    with pytest.raises(
+        bot.LocalConfigError,
+        match="contains a duplicate object name",
+    ):
+        bot.apply_local_config()
+
+    assert bot.historical_context_reply is before_identity
+    assert bot.historical_context_reply == before_value
 
 
 def test_unreadable_local_config_fails_closed(tmp_path, monkeypatch):
