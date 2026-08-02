@@ -227,6 +227,52 @@
       },
       "status": "rejected"
     },
+    "rejected_round_af701aa": {
+      "candidate_commit": "af701aaf08d787e62ae51a72bf36e02f6676d096",
+      "candidate_tree": "573151ab89f04cd268dd63014a31ec0da46f4358",
+      "finding_count": 3,
+      "findings": [
+        {
+          "description": "self-test did not apply the production local-config allowlist, coercion and whole-snapshot validation",
+          "lane": "hostile_inputs",
+          "severity": "P2"
+        },
+        {
+          "description": "bounded deeply nested activation JSON escaped both activation parsers as an unclassified recursion error",
+          "lane": "hostile_inputs",
+          "severity": "P2"
+        },
+        {
+          "description": "one low-level mutation-authority test fixture omitted the now-mandatory permanent retirement ledger and made the directly affected transaction set fail",
+          "lane": "transaction_fault_matrix",
+          "severity": "P2"
+        }
+      ],
+      "review_results": {
+        "hostile_inputs": {
+          "focused_passed": 54,
+          "finding_count": 2,
+          "status": "findings"
+        },
+        "mutation_and_test_quality": {
+          "finding_count": 0,
+          "status": "clean"
+        },
+        "root_and_claims": {
+          "finding_count": 0,
+          "status": "clean"
+        },
+        "transaction_fault_matrix": {
+          "cross_lane_passed": 76,
+          "focused_failed": 1,
+          "focused_passed": 1428,
+          "finding_count": 1,
+          "new_schedule_and_lifecycle_passed": 20,
+          "status": "findings"
+        }
+      },
+      "status": "rejected"
+    },
     "replacement_review_restarts_from_zero": true,
     "required_lanes": [
       "root_and_claims",
@@ -247,6 +293,12 @@
       "clean_rounds_carried_forward": 0,
       "reason": "the eight round-1 P2 findings require a new candidate snapshot"
     },
+    "round_af701aa_results_reset": {
+      "all_four_lanes_reset": true,
+      "completed_exact_candidate_lanes_carried_forward": 0,
+      "clean_rounds_carried_forward": 0,
+      "reason": "the three formal round-1 P2 findings require a new candidate snapshot"
+    },
     "status": "enclosing post-cutoff candidate snapshot pending two clean four-lane rounds",
     "round_1_repair_adversary": {
       "activator_repair_review": "no further finding",
@@ -265,7 +317,7 @@
     "stored_in_candidate_document": false,
     "tree": null
   },
-  "conclusion_scope": "candidate-side evidence after rejected round-1, round-A, round-b5, bec8355 and baa0602 candidates; the current replacement batch is contained in the enclosing post-cutoff candidate snapshot, whose exact commit and tree are externally supplied rather than embedded; the clean-round counter is zero and two clean four-lane review rounds remain pending",
+  "conclusion_scope": "candidate-side evidence after rejected round-1, round-A, round-b5, bec8355, baa0602 and af701aa candidates; the current replacement batch is contained in the enclosing post-cutoff candidate snapshot, whose exact commit and tree are externally supplied rather than embedded; the clean-round counter is zero and two clean four-lane review rounds remain pending",
   "cumulative_remediation": {
     "confirmed_pending_receipt": {
       "exact_bytes_revalidated": true,
@@ -451,6 +503,74 @@
         "passed": 808
       }
     },
+    "round_af701aa_three_finding_repair_validation": {
+      "affected_control_activation_registry_modules": {
+        "command_argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_fail_safe_bootstrap_and_control.py",
+          "tests/test_remote_write_safety_second_restart.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_defect_ledger.py"
+        ],
+        "environment": {
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"
+        },
+        "duration_seconds": 150.68,
+        "failed": 0,
+        "passed": 336,
+        "status": "passed"
+      },
+      "changed_python_compilation_passed": true,
+      "counts_are_non_additive": true,
+      "defect_ledger_validation_passed": true,
+      "git_diff_check_passed": true,
+      "media_and_remote_outcome_modules": {
+        "command_argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_media_upload_transaction_integration.py",
+          "tests/test_x_write_outcome_conservatism.py"
+        ],
+        "duration_seconds": 34.39,
+        "environment": {
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"
+        },
+        "failed": 0,
+        "passed": 108,
+        "status": "passed"
+      },
+      "pre_freeze_read_only_review": {
+        "finding_count": 0,
+        "status": "clean"
+      },
+      "production_invariant_markdown_synchronised": true,
+      "production_invariant_registry_validation_passed": true,
+      "transaction_and_mutation_authority_modules": {
+        "command_argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_transaction_mutation_authority.py",
+          "tests/test_unit_helpers.py",
+          "tests/test_confirmed_source_lineage.py",
+          "tests/test_source_receipt_retirement_integration.py",
+          "tests/test_pending_receipt_directory_fsync.py"
+        ],
+        "duration_seconds": 60.7,
+        "environment": {
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"
+        },
+        "failed": 0,
+        "passed": 825,
+        "status": "passed"
+      }
+    },
     "round_1_repair_results_apply_to_rejected_round_a_candidate": true,
     "restart_bootstrap_pause_outcome_passed": 320
   },
@@ -575,6 +695,22 @@
       "legacy_shaped_records_cannot_enter_live_persistence_or_transport": true,
       "live_transport_requires_exact_sending_to_attempting_promotion": true,
       "status": "implemented_post_cutoff_candidate"
+    },
+    "round_af701aa_three_finding_repair_batch": {
+      "bounded_activation_json_structure": {
+        "both_activation_parsers_bound_structure_depth": true,
+        "deep_documents_return_protocol_specific_refusal": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "self_test_local_config_parity": {
+        "production_allowlist_coercion_and_snapshot_validator_reused": true,
+        "self_test_has_no_configuration_mutation": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "transaction_test_fixture_contract": {
+        "low_level_retirement_test_establishes_required_permanent_ledger": true,
+        "status": "implemented_post_cutoff_candidate"
+      }
     },
     "round_a_consolidation": {
       "activation_fixture_count": 6,

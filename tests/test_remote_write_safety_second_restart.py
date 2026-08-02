@@ -1747,8 +1747,30 @@ def test_runtime_fails_closed_for_unsafe_activation_audit(
             b'  "clean_state_attestation_size": 1e999,\n',
             "non-finite number",
         ),
+        (
+            b'  "clean_state_attestation_size": '
+            + (b"[" * 65)
+            + b"1"
+            + (b"]" * 65)
+            + b",\n",
+            "nesting exceeds",
+        ),
+        (
+            b'  "clean_state_attestation_size": '
+            + (b"[" * 1_200)
+            + b"1"
+            + (b"]" * 1_200)
+            + b",\n",
+            "nesting exceeds",
+        ),
     ),
-    ids=("duplicate", "nonfinite-constant", "finite-spelling-overflow"),
+    ids=(
+        "duplicate",
+        "nonfinite-constant",
+        "finite-spelling-overflow",
+        "bounded-structural-depth",
+        "decoder-recursion-depth",
+    ),
 )
 def test_runtime_activation_audit_rejects_strict_json_hazards(
     tmp_path: Path,
@@ -2035,8 +2057,30 @@ def test_external_clean_state_attestation_requires_integer_schema_version(
         ),
         (b'  "schema_version": NaN,\n', "invalid constant"),
         (b'  "schema_version": 1e999,\n', "non-finite number"),
+        (
+            b'  "schema_version": '
+            + (b"[" * 65)
+            + b"1"
+            + (b"]" * 65)
+            + b",\n",
+            "nesting exceeds",
+        ),
+        (
+            b'  "schema_version": '
+            + (b"[" * 1_200)
+            + b"1"
+            + (b"]" * 1_200)
+            + b",\n",
+            "nesting exceeds",
+        ),
     ),
-    ids=("duplicate", "nonfinite-constant", "finite-spelling-overflow"),
+    ids=(
+        "duplicate",
+        "nonfinite-constant",
+        "finite-spelling-overflow",
+        "bounded-structural-depth",
+        "decoder-recursion-depth",
+    ),
 )
 def test_external_clean_state_attestation_rejects_strict_json_hazards(
     tmp_path: Path,

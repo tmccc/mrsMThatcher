@@ -2223,6 +2223,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed` — Focused automated evidence for the principal recorded boundary.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants` — The candidate strict decoder rejects duplicate names at every nesting depth, non-finite constants and finite-spelling overflow before any configuration mutation.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation` — A complete otherwise schema-valid nested object is rejected specifically at the strict duplicate-name boundary before schema validation.
+- `test` `tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema` — Self-test applies the same local-config allowlist, coercion and whole-snapshot validation as production without mutating globals.
 - `report` `defect_ledger.json#DEF-0006` — Evidence-cut-off defect or assurance record linked to this invariant.
 - `report` `defect_ledger.json#DEF-0017` — The evidence-cut-off record tracks duplicate-name and non-finite-number acceptance in local configuration before the candidate strict decoder.
 - `operational` `/disks/disk1/etc/mrsMThatcher/mrsMThatcher.local.json (read-only inspection 2026-07-29)` — The current effective path-bearing override inventory resolves the generated pool/analysis, editorial analysis, generated identity audit, reply research corpus, and semantic-veto manifest beneath the production root.
@@ -2250,6 +2251,7 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation`
+- `tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema`
 - `tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls`
 - `tests/test_deployment_assets.py::test_local_config_example_is_accepted_as_one_atomic_override`
 

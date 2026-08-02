@@ -1587,12 +1587,11 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     return errors
 
 
-def apply_local_config() -> None:
-    """Apply optional local JSON config overrides without editing the bot script."""
-    if not LOCAL_CONFIG_FILE.exists():
-        log.info("Local config file not present; using script defaults. path=%s", LOCAL_CONFIG_FILE)
-        return
+def load_validated_local_config_overrides() -> dict[str, object]:
+    """Read and validate local overrides without mutating runtime globals."""
 
+    if not LOCAL_CONFIG_FILE.exists():
+        return {}
     try:
         with open(LOCAL_CONFIG_FILE, "rb") as f:
             data = load_strict_runtime_json(f, label="local config")
@@ -1646,6 +1645,18 @@ def apply_local_config() -> None:
                 f"Invalid local config {LOCAL_CONFIG_FILE}: " + "; ".join(validation_errors)
             )
 
+    return proposed
+
+
+def apply_local_config() -> None:
+    """Apply optional local JSON config overrides without editing the bot script."""
+    if not LOCAL_CONFIG_FILE.exists():
+        log.info("Local config file not present; using script defaults. path=%s", LOCAL_CONFIG_FILE)
+        return
+
+    proposed = load_validated_local_config_overrides()
+
+    if proposed:
         for key, value in proposed.items():
             globals()[key] = value
         log.info("Applied %d local config override(s) from %s", len(proposed), LOCAL_CONFIG_FILE)
@@ -21457,11 +21468,14 @@ def run_self_test() -> int:
     _self_test_warn("local config file present", LOCAL_CONFIG_FILE.exists(), str(LOCAL_CONFIG_FILE))
     if LOCAL_CONFIG_FILE.exists():
         try:
-            with open(LOCAL_CONFIG_FILE, "rb") as f:
-                cfg = load_strict_runtime_json(f, label="local config")
-            require("local config is JSON object", isinstance(cfg, dict), str(type(cfg).__name__))
+            overrides = load_validated_local_config_overrides()
+            require(
+                "local config validates",
+                True,
+                f"overrides={len(overrides)}",
+            )
         except Exception as exc:
-            require("local config parses", False, str(exc))
+            require("local config validates", False, str(exc))
 
     _self_test_warn("runtime control file absent", not CONTROL_FILE.exists(), str(CONTROL_FILE))
     ctrl = load_control()

@@ -3951,6 +3951,7 @@
           "tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema",
           "tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls",
           "tests/test_deployment_assets.py::test_local_config_example_is_accepted_as_one_atomic_override"
         ],
@@ -4021,6 +4022,11 @@
           "type": "test",
           "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation",
           "claim": "A complete otherwise schema-valid nested object is rejected specifically at the strict duplicate-name boundary before schema validation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema",
+          "claim": "Self-test applies the same local-config allowlist, coercion and whole-snapshot validation as production without mutating globals."
         },
         {
           "type": "report",

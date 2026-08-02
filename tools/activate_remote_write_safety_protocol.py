@@ -159,6 +159,7 @@ CLEAN_STATE_ATTESTATION_DOCUMENT_KIND = (
 )
 CLEAN_STATE_ATTESTATION_MODE = 0o400
 MAX_CLEAN_STATE_ATTESTATION_BYTES = 16 * 1024
+MAX_CONTROL_JSON_STRUCTURE_DEPTH = 64
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -306,6 +307,22 @@ def _parse_finite_json_float(value: str) -> float:
             f"clean-state attestation contains non-finite number: {value}"
         )
     return parsed
+
+
+def _require_bounded_json_structure(value: object) -> None:
+    """Reject deeply nested external evidence before canonical re-encoding."""
+
+    pending: list[tuple[object, int]] = [(value, 1)]
+    while pending:
+        current, depth = pending.pop()
+        if depth > MAX_CONTROL_JSON_STRUCTURE_DEPTH:
+            raise ProtocolActivationRefused(
+                "clean-state attestation JSON nesting exceeds the limit"
+            )
+        if isinstance(current, dict):
+            pending.extend((item, depth + 1) for item in current.values())
+        elif isinstance(current, list):
+            pending.extend((item, depth + 1) for item in current)
 
 
 def _normalise_sha256(value: str, *, label: str) -> str:
@@ -512,11 +529,26 @@ def _load_clean_state_attestation(
             )
         except ProtocolActivationRefused:
             raise
+        except RecursionError as exc:
+            raise ProtocolActivationRefused(
+                "clean-state attestation JSON nesting exceeds the limit"
+            ) from exc
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ProtocolActivationRefused(
                 "external clean-state attestation is not strict UTF-8 JSON"
             ) from exc
-        if not isinstance(value, dict) or _canonical_json_bytes(value) != data:
+        if not isinstance(value, dict):
+            raise ProtocolActivationRefused(
+                "external clean-state attestation must be a JSON object"
+            )
+        _require_bounded_json_structure(value)
+        try:
+            canonical = _canonical_json_bytes(value)
+        except RecursionError as exc:
+            raise ProtocolActivationRefused(
+                "clean-state attestation JSON nesting exceeds the limit"
+            ) from exc
+        if canonical != data:
             raise ProtocolActivationRefused(
                 "external clean-state attestation is not canonical JSON"
             )

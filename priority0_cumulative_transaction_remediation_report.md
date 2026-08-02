@@ -2,8 +2,8 @@
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, five
-rejected exact candidates, and the current twelve primary replacements plus
+This document records the cumulative transaction-safety implementation, six
+rejected exact candidates, and the current fifteen primary replacements plus
 four pre-freeze closure refinements contained in the enclosing post-cut-off
 candidate snapshot. It is candidate-side evidence, not an external release
 attestation or an independent review.
@@ -32,6 +32,10 @@ attestation or an independent review.
   `baa0602bc832848c81a26548b7d0e0bf18ce1b3f`;
 - rejected `baa0602` candidate tree:
   `6e050d2a55581504cdbe69cb95c607dda4b3e322`;
+- rejected `af701aa` candidate commit:
+  `af701aaf08d787e62ae51a72bf36e02f6676d096`;
+- rejected `af701aa` candidate tree:
+  `573151ab89f04cd268dd63014a31ec0da46f4358`;
 - enclosing post-cut-off candidate snapshot: status
   `implemented_post_cutoff_candidate`; its exact commit and tree are supplied
   externally and deliberately are not embedded in this self-referential
@@ -404,6 +408,23 @@ results apply only to the rejected tree. Because the repair batch changes the
 candidate snapshot, all four lanes and the consecutive-clean-round counter are
 again reset to zero.
 
+## Rejected af701aa exact-candidate review
+
+Candidate `af701aaf08d787e62ae51a72bf36e02f6676d096`, tree
+`573151ab89f04cd268dd63014a31ec0da46f4358`, completed the first formal
+four-lane round. The root/claims lane and mutation/test-quality lane were clean.
+The hostile-input lane passed 54 focused tests and found two P2 defects: self-test
+did not exercise the complete production local-configuration contract, and
+bounded deeply nested activation JSON escaped both activation parsers without a
+protocol-specific refusal. The transaction lane passed 1,428 focused tests with
+one failure, plus 76 cross-lane tests and 20 new schedule/lifecycle tests; its
+sole P2 finding was a stale low-level mutation test fixture which omitted the
+now-mandatory permanent retirement ledger.
+
+The candidate is rejected. The three corrections change the candidate snapshot,
+so all four lanes and the consecutive-clean-round counter are reset to zero.
+No result from `af701aa` is carried forward.
+
 ## Current post-cut-off candidate replacements
 
 The enclosing candidate snapshot retains the four replacements incorporated in
@@ -436,6 +457,17 @@ has status `implemented_post_cutoff_candidate`:
   regression; and
 - invariant explanations describe the enclosing post-cutoff snapshot without
   falsely calling an already frozen reviewed predecessor unfrozen.
+
+The replacement snapshot adds three corrections from the rejected `af701aa`
+round:
+
+- self-test now reuses the production local-configuration allowlist, coercion
+  and whole-snapshot validator through a pure non-mutating helper;
+- both activation parsers impose a deterministic structure-depth bound and
+  convert excessive nesting into the same protocol-specific refusal as other
+  invalid activation input; and
+- the low-level transaction mutation test establishes the permanent retirement
+  ledger required by the current protocol before exercising retirement.
 
 The pre-freeze review then added four closure refinements to the first schedule
 replacement rather than counting them as separate originating findings:
@@ -526,6 +558,24 @@ refinements found by the pre-freeze read-only review:
 - changed-Python compilation passed; and
 - `git diff --check` passed.
 
+For the three `af701aa` corrections and their enclosing post-repair snapshot:
+
+- the complete directly affected transaction, schedule, receipt and mutation
+  authority modules passed 825 tests in 60.70 seconds;
+- the directly affected media and remote-outcome modules passed 108 tests in
+  34.39 seconds;
+- the directly affected control, activation, invariant-registry and
+  defect-ledger modules passed 336 tests in 150.68 seconds;
+- a separate read-only pre-freeze diff review found no repeatable P1 or P2
+  issue;
+- the production-invariant registry and defect ledger validated;
+- the invariant Markdown projection is synchronised with its JSON registry;
+- changed-Python compilation passed; and
+- `git diff --check` passed.
+
+These results apply to the current post-repair snapshot only. Earlier counts
+from the rejected candidate are not carried forward.
+
 Those three latest focused results are bound to these exact commands, each
 with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`:
 
@@ -534,6 +584,10 @@ python3 -m pytest -q tests/test_unit_helpers.py tests/test_confirmed_source_line
 python3 -m pytest -q tests/test_media_upload_transaction_integration.py tests/test_x_write_outcome_conservatism.py
 python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py tests/test_remote_write_safety_second_restart.py tests/test_priority0_registry.py tests/test_defect_ledger.py
 ```
+
+The first command was run with
+`tests/test_transaction_mutation_authority.py` prepended for the current
+post-repair checkpoint, producing the recorded 825-test result.
 
 These focused totals overlap and must not be summed as a unique application
 test count. The replacement has not yet completed either exact-candidate

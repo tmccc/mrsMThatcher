@@ -182,6 +182,10 @@ def test_explicit_test_verifier_authorises_low_level_mutation(tmp_path) -> None:
     receipt = tmp_path / "receipt.json"
     receipt.write_bytes(b"receipt")
     receipt.chmod(0o600)
+    receipt_retirement.initialise_retirement_ledger(
+        receipt,
+        mutation_authority=_test_authority(),
+    )
 
     result = receipt_retirement.retire_exact_receipt(
         receipt,

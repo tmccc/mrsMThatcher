@@ -74,6 +74,7 @@ _ACTIVATION_STAGING_PREFIX = f"{ACTIVATION_BASENAME}.pending."
 _AUDIT_STAGING_PREFIX = f"{ACTIVATION_AUDIT_BASENAME}.pending."
 _RENAME_NOREPLACE = 1
 _MAX_AUDIT_BYTES = 16 * 1024
+_MAX_JSON_STRUCTURE_DEPTH = 64
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -159,6 +160,22 @@ def _parse_finite_json_float(value: str) -> float:
             f"protocol activation audit contains non-finite number: {value}"
         )
     return parsed
+
+
+def _require_bounded_json_structure(value: object) -> None:
+    """Reject deeply nested control input before canonical re-encoding."""
+
+    pending: list[tuple[object, int]] = [(value, 1)]
+    while pending:
+        current, depth = pending.pop()
+        if depth > _MAX_JSON_STRUCTURE_DEPTH:
+            raise ProtocolActivationError(
+                "protocol activation audit JSON nesting exceeds the limit"
+            )
+        if isinstance(current, dict):
+            pending.extend((item, depth + 1) for item in current.values())
+        elif isinstance(current, list):
+            pending.extend((item, depth + 1) for item in current)
 
 
 def _read_exact(descriptor: int, maximum: int) -> bytes:
@@ -316,13 +333,24 @@ def _parse_activation_audit_version(
         )
     except ProtocolActivationError:
         raise
+    except RecursionError as exc:
+        raise ProtocolActivationError(
+            "protocol activation audit JSON nesting exceeds the limit"
+        ) from exc
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ProtocolActivationError(
             "protocol activation audit is not strict UTF-8 JSON"
         ) from exc
     if not isinstance(value, dict):
         raise ProtocolActivationError("protocol activation audit must be an object")
-    if _canonical_json_bytes(value) != data:
+    _require_bounded_json_structure(value)
+    try:
+        canonical = _canonical_json_bytes(value)
+    except RecursionError as exc:
+        raise ProtocolActivationError(
+            "protocol activation audit JSON nesting exceeds the limit"
+        ) from exc
+    if canonical != data:
         raise ProtocolActivationError(
             "protocol activation audit is not canonical JSON"
         )

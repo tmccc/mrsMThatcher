@@ -1021,6 +1021,22 @@ def test_self_test_rejects_runtime_control_symlink_like_production_loader(
     ]
 
 
+def test_self_test_rejects_local_config_unknown_to_production_schema(
+    tmp_path,
+    monkeypatch,
+):
+    control_path = tmp_path / "control.json"
+    control_path.write_text('{"disable_all":false}', encoding="utf-8")
+    prepare_self_test_control_case(tmp_path, monkeypatch, control_path)
+    local_path = tmp_path / "local.json"
+    local_path.write_text('{"POST_SLEEP_MNI":9000}', encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", local_path)
+
+    with pytest.raises(bot.LocalConfigError, match="Unsupported local config key"):
+        bot.load_validated_local_config_overrides()
+    assert bot.run_self_test() == 1
+
+
 def test_documented_runtime_control_metadata_remains_valid(
     tmp_path,
     monkeypatch,
