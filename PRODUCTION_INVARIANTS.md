@@ -2226,7 +2226,11 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema` — Self-test applies the same local-config allowlist, coercion and whole-snapshot validation as production without mutating globals.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_broken_symlink_and_fifo_without_opening` — Present non-regular or symlink-like local-config namespace entries are rejected without a blocking open.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_disappearance_between_inspection_and_open_fails_closed` — A pathname which disappears after initial inspection cannot be reclassified as clean optional absence.
-- `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_path_replacement_during_read_fails_closed` — Descriptor and pathname identity must remain stable throughout the bounded local-config read.
+- `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_path_replacement_during_read_fails_closed` — Initial descriptor and pathname identity must match before local-config bytes are accepted.
+- `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_replacement_fails_closed` — A pathname replacement after initial descriptor validation is rejected by final pathname revalidation.
+- `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_disappearance_fails_closed` — A pathname disappearance after initial descriptor validation remains an invalid changed snapshot rather than clean absence.
+- `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_same_inode_same_size_rewrite_fails_closed` — A same-inode same-size byte rewrite between the first and repeated reads is rejected.
+- `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_size_boundary_is_bounded` — The exact byte cap is accepted while one additional byte is rejected before decoding.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_descriptor_read_error_is_classified` — Low-level descriptor read and inspection failures retain the local-configuration error contract.
 - `test` `tests/test_fail_safe_bootstrap_and_control.py::test_self_test_validates_changed_local_config_against_source_defaults` — Self-test revalidates current bytes against immutable startup defaults even after runtime globals hold previously applied values.
 - `report` `defect_ledger.json#DEF-0006` — Evidence-cut-off defect or assurance record linked to this invariant.
@@ -2259,6 +2263,10 @@ Missing means the invariant is explicitly unsupported, not silently assumed. Par
 - `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_broken_symlink_and_fifo_without_opening`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_disappearance_between_inspection_and_open_fails_closed`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_path_replacement_during_read_fails_closed`
+- `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_replacement_fails_closed`
+- `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_disappearance_fails_closed`
+- `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_same_inode_same_size_rewrite_fails_closed`
+- `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_size_boundary_is_bounded`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_local_config_descriptor_read_error_is_classified`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema`
 - `tests/test_fail_safe_bootstrap_and_control.py::test_self_test_validates_changed_local_config_against_source_defaults`

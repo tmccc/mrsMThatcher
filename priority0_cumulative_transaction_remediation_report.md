@@ -2,8 +2,8 @@
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, seven
-rejected exact candidates, and the current seventeen primary replacements plus
+This document records the cumulative transaction-safety implementation, eight
+rejected exact candidates, and the current eighteen primary replacements plus
 four pre-freeze closure refinements contained in the enclosing post-cut-off
 candidate snapshot. It is candidate-side evidence, not an external release
 attestation or an independent review.
@@ -40,6 +40,10 @@ attestation or an independent review.
   `bb6875fc4684ead6af1b7d2a7be61fe12d91ddf0`;
 - rejected `bb6875f` candidate tree:
   `c5e507c69cd500b4a98c5c0b2cc7ef3c65782e83`;
+- rejected `59215e9` candidate commit:
+  `59215e9dc82584219f1875d5ddffe90cb9646f89`;
+- rejected `59215e9` candidate tree:
+  `92f520935248c8e649e0d7e98ebdd2e6ad7051f4`;
 - enclosing post-cut-off candidate snapshot: status
   `implemented_post_cutoff_candidate`; its exact commit and tree are supplied
   externally and deliberately are not embedded in this self-referential
@@ -445,6 +449,23 @@ The candidate is rejected. The two corrections change the candidate snapshot,
 so all four lanes and the consecutive-clean-round counter are reset to zero.
 No result from `bb6875f` is carried forward.
 
+## Rejected 59215e9 exact-candidate review
+
+Candidate `59215e9dc82584219f1875d5ddffe90cb9646f89`, tree
+`92f520935248c8e649e0d7e98ebdd2e6ad7051f4`, completed the first formal
+four-lane round. The root/claims lane was clean. The transaction lane was clean
+across 1,567 distinct focused tests. The hostile-input lane was clean across
+173 focused tests. The mutation/test-quality lane found one P2 assurance gap:
+the tracked pathname-replacement test stopped at initial descriptor binding and
+did not reach the later pathname, repeated-byte and exact-size checks cited by
+the configuration invariant. Separate read-only probes showed the implementation
+behaved correctly, so this finding concerns durable test evidence rather than a
+demonstrated runtime escape.
+
+The candidate is rejected. The added regressions change the candidate snapshot,
+so all four lanes and the consecutive-clean-round counter are reset to zero.
+No result from `59215e9` is carried forward.
+
 ## Current post-cut-off candidate replacements
 
 The enclosing candidate snapshot retains the four replacements incorporated in
@@ -498,6 +519,12 @@ It adds two corrections from the rejected `bb6875f` round:
 - coercion and whole-snapshot validation use the immutable source-default
   configuration rather than already-applied runtime globals, so repeated
   self-test inspection models a fresh production bootstrap without mutation.
+
+It adds one test-assurance correction from the rejected `59215e9` round:
+
+- tracked configuration regressions now reach late pathname replacement and
+  disappearance, repeated-read same-inode byte mutation, and the exact byte-cap
+  boundary, and those exact nodes are bound to `INV-CONFIG-001`.
 
 The pre-freeze review then added four closure refinements to the first schedule
 replacement rather than counting them as separate originating findings:
@@ -620,6 +647,21 @@ classification refinement:
   compatible regular mode-0600 file;
 - the production-invariant registry and defect ledger validated;
 - the invariant Markdown projection is synchronised with its JSON registry;
+- changed-Python compilation passed; and
+- `git diff --check` passed.
+
+No clean lane from the rejected candidate is carried forward.
+
+For the `59215e9` test-assurance correction:
+
+- the complete configuration/bootstrap module passed 138 tests in 11.18
+  seconds;
+- all four new boundary regressions reached the intended late or size-bound
+  branch;
+- the production-invariant and defect-ledger modules passed 71 tests in 117.37
+  seconds;
+- a separate read-only pre-freeze review found no repeatable P1 or P2 issue;
+- both registries validated and their Markdown projections are synchronised;
 - changed-Python compilation passed; and
 - `git diff --check` passed.
 

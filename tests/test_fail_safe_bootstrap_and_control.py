@@ -683,6 +683,75 @@ def test_local_config_path_replacement_during_read_fails_closed(
         bot.apply_local_config()
 
 
+def test_local_config_late_path_replacement_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    path.write_text("{}", encoding="utf-8")
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    original_pread = os.pread
+
+    def replace_before_repeated_read(*args, **kwargs):
+        os.replace(replacement, path)
+        return original_pread(*args, **kwargs)
+
+    monkeypatch.setattr(os, "pread", replace_before_repeated_read)
+    with pytest.raises(bot.LocalConfigError, match="identity changed while it was read"):
+        bot.apply_local_config()
+
+
+def test_local_config_late_path_disappearance_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    original_pread = os.pread
+
+    def disappear_before_repeated_read(*args, **kwargs):
+        path.unlink()
+        return original_pread(*args, **kwargs)
+
+    monkeypatch.setattr(os, "pread", disappear_before_repeated_read)
+    with pytest.raises(bot.LocalConfigError, match="disappeared while it was read"):
+        bot.apply_local_config()
+
+
+def test_local_config_same_inode_same_size_rewrite_fails_closed(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "local.json"
+    path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    original_pread = os.pread
+
+    def rewrite_before_repeated_read(*args, **kwargs):
+        with open(path, "r+b", buffering=0) as mutable:
+            mutable.write(b"[]")
+            os.fsync(mutable.fileno())
+        return original_pread(*args, **kwargs)
+
+    monkeypatch.setattr(os, "pread", rewrite_before_repeated_read)
+    with pytest.raises(bot.LocalConfigError, match="bytes changed while it was read"):
+        bot.apply_local_config()
+
+
+def test_local_config_size_boundary_is_bounded(tmp_path, monkeypatch):
+    path = tmp_path / "local.json"
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    path.write_bytes(b" " * (bot.LOCAL_CONFIG_MAX_BYTES - 2) + b"{}")
+    assert bot.load_validated_local_config_overrides() == {}
+
+    path.write_bytes(b" " * (bot.LOCAL_CONFIG_MAX_BYTES - 1) + b"{}")
+    with pytest.raises(bot.LocalConfigError, match="exceeds"):
+        bot.apply_local_config()
+
+
 def test_local_config_descriptor_read_error_is_classified(
     tmp_path,
     monkeypatch,

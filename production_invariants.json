@@ -3954,6 +3954,10 @@
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_broken_symlink_and_fifo_without_opening",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_disappearance_between_inspection_and_open_fails_closed",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_path_replacement_during_read_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_replacement_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_disappearance_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_same_inode_same_size_rewrite_fails_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_size_boundary_is_bounded",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_descriptor_read_error_is_classified",
           "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_local_config_unknown_to_production_schema",
           "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_validates_changed_local_config_against_source_defaults",
@@ -4046,7 +4050,27 @@
         {
           "type": "test",
           "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_path_replacement_during_read_fails_closed",
-          "claim": "Descriptor and pathname identity must remain stable throughout the bounded local-config read."
+          "claim": "Initial descriptor and pathname identity must match before local-config bytes are accepted."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_replacement_fails_closed",
+          "claim": "A pathname replacement after initial descriptor validation is rejected by final pathname revalidation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_late_path_disappearance_fails_closed",
+          "claim": "A pathname disappearance after initial descriptor validation remains an invalid changed snapshot rather than clean absence."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_same_inode_same_size_rewrite_fails_closed",
+          "claim": "A same-inode same-size byte rewrite between the first and repeated reads is rejected."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_size_boundary_is_bounded",
+          "claim": "The exact byte cap is accepted while one additional byte is rejected before decoding."
         },
         {
           "type": "test",
