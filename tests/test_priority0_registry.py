@@ -1190,6 +1190,46 @@ def test_validator_rejects_unattested_historical_parameter_case(
     )
 
 
+def test_validator_rejects_unattested_historical_parameter_evidence_reference(
+    tmp_path: Path,
+) -> None:
+    registry, schema = _minimal_registry(tmp_path)
+    test_file = tmp_path / "tests" / "test_sample.py"
+    test_file.write_text(
+        "import pytest\n\n"
+        "@pytest.mark.parametrize('value', [1], ids=['old'])\n"
+        "def test_contract(value):\n"
+        "    assert value\n",
+        encoding="utf-8",
+    )
+    commit, tree = _commit_minimal_registry_fixture(tmp_path)
+    test_file.write_text(
+        "import pytest\n\n"
+        "@pytest.mark.parametrize('value', [1], ids=['new'])\n"
+        "def test_contract(value):\n"
+        "    assert value\n",
+        encoding="utf-8",
+    )
+    selector = "tests/test_sample.py::test_contract[new]"
+    invariant = registry["invariants"][0]
+    invariant["evidence_references"][0]["reference"] = selector
+    _bind_last_verified(invariant, commit, tree)
+
+    report = registry_tool.validate_registry(
+        registry,
+        schema,
+        repository_root=tmp_path,
+    )
+
+    assert not report.ok
+    assert (
+        f"INV-DEMO-001: last verified commit {commit}: historical "
+        "parameter-specific pytest selector requires exact historical "
+        f"collection attestation (none available): {selector}"
+        in report.errors
+    )
+
+
 def test_validator_accepts_unparameterized_historical_function_selector(
     tmp_path: Path,
 ) -> None:

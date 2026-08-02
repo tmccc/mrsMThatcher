@@ -240,6 +240,54 @@ def reset_control_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot, "_CONTROL_CACHE", {"signature": None, "data": {}, "has_valid": False, "failure_signature": None})
 
 
+def prepare_self_test_control_case(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    control_path: Path,
+) -> list[dict]:
+    """Make every self-test check except runtime control deterministically pass."""
+
+    lines_path = tmp_path / "mrsMThatcher.txt"
+    lines_path.write_text("A test quotation.\n", encoding="utf-8")
+    image_path = tmp_path / "quote-image.png"
+    image_path.write_bytes(b"not-decoded-by-self-test")
+
+    monkeypatch.setattr(bot, "require_production_bootstrap", lambda: None)
+    monkeypatch.setattr(bot, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(bot, "LINES_FILE", lines_path)
+    monkeypatch.setattr(bot, "IMAGE_GLOB", os.fspath(tmp_path / "*.png"))
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", tmp_path / "missing-local.json")
+    monkeypatch.setattr(bot, "CONTROL_FILE", control_path)
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "missing-state.json")
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "missing-watch.json")
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", False)
+    monkeypatch.setattr(bot, "CONSUMER_KEY", "configured")
+    monkeypatch.setattr(bot, "CONSUMER_SECRET", "configured")
+    monkeypatch.setattr(bot, "ACCESS_TOKEN", "configured")
+    monkeypatch.setattr(bot, "ACCESS_SECRET", "configured")
+    monkeypatch.setattr(bot, "MY_USER_ID", "configured")
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 1)
+    monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 1)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 1)
+    monkeypatch.setattr(bot, "REPLY_CHECK_EVERY_SECONDS", 1)
+    monkeypatch.setattr(bot, "QUOTE_CHECK_EVERY_SECONDS", 1)
+    monkeypatch.setattr(bot, "validate_runtime_config_values", lambda _values: [])
+    monkeypatch.setattr(bot, "_self_test_warn", lambda *_args, **_kwargs: None)
+    reset_control_cache(monkeypatch)
+
+    calls: list[dict] = []
+    production_load_control = bot.load_control
+
+    def tracked_load_control() -> dict:
+        loaded = production_load_control()
+        calls.append(loaded)
+        return loaded
+
+    monkeypatch.setattr(bot, "load_control", tracked_load_control)
+    return calls
+
+
 @pytest.mark.parametrize("mode", tuple(CLI_MODE_TO_ENTRY_POINT))
 def test_cli_parser_accepts_only_one_documented_mode(mode: str | None) -> None:
     arguments = [] if mode is None else [mode]
@@ -941,6 +989,36 @@ def test_unknown_runtime_control_keys_fail_closed(
 
     assert bot.load_control()["disable_all"] is True
     assert bot.global_remote_writes_paused() is True
+
+
+def test_self_test_rejects_runtime_control_unknown_to_production_schema(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text('{"disable_alll":true}', encoding="utf-8")
+    control_loads = prepare_self_test_control_case(tmp_path, monkeypatch, path)
+
+    assert bot.run_self_test() == 1
+    assert control_loads == [
+        {"disable_all": True, "_control_fail_closed": True}
+    ]
+
+
+def test_self_test_rejects_runtime_control_symlink_like_production_loader(
+    tmp_path,
+    monkeypatch,
+):
+    target = tmp_path / "control-target.json"
+    target.write_text('{"disable_all":false}', encoding="utf-8")
+    path = tmp_path / "control.json"
+    path.symlink_to(target)
+    control_loads = prepare_self_test_control_case(tmp_path, monkeypatch, path)
+
+    assert bot.run_self_test() == 1
+    assert control_loads == [
+        {"disable_all": True, "_control_fail_closed": True}
+    ]
 
 
 def test_documented_runtime_control_metadata_remains_valid(

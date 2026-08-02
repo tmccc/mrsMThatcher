@@ -191,7 +191,11 @@ def _main_attempt(lane: str, *, attempt_id_seed: str) -> dict:
                 "meme_scheduling_enabled": True,
                 "meme_trigger_after_hour": 12,
                 "meme_schedule_version": 2,
-                "meme_schedule_before": bot.bound_meme_schedule_state({}),
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bot.bound_meme_schedule_state(
+                    {},
+                    schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
                 "quote_history_after": [quote_hash],
                 "image_history_after": ["reviewed.jpg"],
             },
@@ -210,6 +214,7 @@ def _main_attempt(lane: str, *, attempt_id_seed: str) -> dict:
                 "fallback_hour": 16,
                 "fallback_minute": 0,
                 "image_summary": "A reviewed poster.",
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
             },
             attempt_epoch=1_800_000_000,
         )

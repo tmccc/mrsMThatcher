@@ -19,6 +19,7 @@ import ctypes
 import errno
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
@@ -147,6 +148,17 @@ def _reject_json_constant(value: str) -> None:
     raise ProtocolActivationError(
         f"protocol activation audit contains invalid constant: {value}"
     )
+
+
+def _parse_finite_json_float(value: str) -> float:
+    """Return one finite JSON float or reject representation overflow."""
+
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ProtocolActivationError(
+            f"protocol activation audit contains non-finite number: {value}"
+        )
+    return parsed
 
 
 def _read_exact(descriptor: int, maximum: int) -> bytes:
@@ -300,6 +312,7 @@ def _parse_activation_audit_version(
             decoded,
             object_pairs_hook=_strict_json_object,
             parse_constant=_reject_json_constant,
+            parse_float=_parse_finite_json_float,
         )
     except ProtocolActivationError:
         raise

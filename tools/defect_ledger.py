@@ -361,6 +361,14 @@ def test_node_exists(
         return False, path_error or "invalid test path"
     if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         return False, f"test commit is not a full Git commit: {commit!r}"
+    node_parts = nodeid.split("::")
+    if "[" in node_parts[-1]:
+        selector = f"{path_text}::{nodeid}"
+        return False, (
+            "historical parameter-specific pytest selector requires exact "
+            "historical collection attestation (none available): "
+            f"{selector}"
+        )
     source = _git(repository_root, "show", f"{commit}:{path_text}")
     if source.returncode != 0:
         return (
@@ -380,7 +388,7 @@ def test_node_exists(
             f"{path_text}: {exc}",
         )
     nodes: Iterable[ast.AST] = tree.body
-    for raw_name in nodeid.split("::"):
+    for raw_name in node_parts:
         name = raw_name.split("[", 1)[0]
         node = _named_ast_child(nodes, name)
         if node is None:

@@ -156,6 +156,77 @@
       },
       "status": "rejected"
     },
+    "rejected_round_baa0602": {
+      "candidate_commit": "baa0602bc832848c81a26548b7d0e0bf18ce1b3f",
+      "candidate_tree": "6e050d2a55581504cdbe69cb95c607dda4b3e322",
+      "finding_count": 8,
+      "findings": [
+        {
+          "description": "confirmed regular and meme schedule recovery depended on the ambient process timezone instead of a durable explicit schedule timezone",
+          "lane": "transaction_fault_matrix",
+          "severity": "P2"
+        },
+        {
+          "description": "self-test used a weaker runtime-control reader than production and could report success for control input which production rejects",
+          "lane": "hostile_inputs",
+          "severity": "P2"
+        },
+        {
+          "description": "finite-spelling numeric overflow in activation evidence escaped as an unclassified numeric error instead of an inactive/refused protocol result",
+          "lane": "hostile_inputs",
+          "severity": "P2"
+        },
+        {
+          "description": "historical defect-ledger test selectors discarded parameter case identifiers",
+          "lane": "mutation_and_test_quality",
+          "severity": "P2"
+        },
+        {
+          "description": "historical parameter-specific test evidence references were not held to the same exact-selector rule as enforcement tests",
+          "lane": "mutation_and_test_quality",
+          "severity": "P2"
+        },
+        {
+          "description": "the invariant registry omitted comprehensive stopped-activator duplicate-option regressions from the critical receipt and process invariants",
+          "lane": "mutation_and_test_quality",
+          "severity": "P2"
+        },
+        {
+          "description": "the configuration invariant did not bind the direct nested duplicate-name regression which proves strict decoding precedes schema validation",
+          "lane": "mutation_and_test_quality",
+          "severity": "P2"
+        },
+        {
+          "description": "two invariant explanations still described the exact reviewed candidate as unfrozen",
+          "lane": "root_and_claims",
+          "severity": "P2"
+        }
+      ],
+      "review_results": {
+        "hostile_inputs": {
+          "focused_passed": 71,
+          "finding_count": 2,
+          "status": "findings"
+        },
+        "mutation_and_test_quality": {
+          "direct_nodes_passed": 19,
+          "focused_passed": 286,
+          "finding_count": 4,
+          "status": "findings"
+        },
+        "root_and_claims": {
+          "finding_count": 1,
+          "status": "findings"
+        },
+        "transaction_fault_matrix": {
+          "focused_batches_passed": [369, 243, 10],
+          "counts_are_non_additive": true,
+          "finding_count": 1,
+          "status": "findings"
+        }
+      },
+      "status": "rejected"
+    },
     "replacement_review_restarts_from_zero": true,
     "required_lanes": [
       "root_and_claims",
@@ -169,6 +240,12 @@
       "completed_exact_candidate_lanes_carried_forward": 0,
       "clean_rounds_carried_forward": 0,
       "reason": "the four round-2 P2 assurance findings changed the candidate snapshot"
+    },
+    "round_baa0602_results_reset": {
+      "all_four_lanes_reset": true,
+      "completed_exact_candidate_lanes_carried_forward": 0,
+      "clean_rounds_carried_forward": 0,
+      "reason": "the eight round-1 P2 findings require a new candidate snapshot"
     },
     "status": "enclosing post-cutoff candidate snapshot pending two clean four-lane rounds",
     "round_1_repair_adversary": {
@@ -188,7 +265,7 @@
     "stored_in_candidate_document": false,
     "tree": null
   },
-  "conclusion_scope": "candidate-side evidence after rejected round-1, round-A, round-b5 and bec8355 candidates; the four current replacements are contained in the enclosing post-cutoff candidate snapshot, whose exact commit and tree are externally supplied rather than embedded; the clean-round counter is zero and two clean four-lane review rounds remain pending",
+  "conclusion_scope": "candidate-side evidence after rejected round-1, round-A, round-b5, bec8355 and baa0602 candidates; the current replacement batch is contained in the enclosing post-cutoff candidate snapshot, whose exact commit and tree are externally supplied rather than embedded; the clean-round counter is zero and two clean four-lane review rounds remain pending",
   "cumulative_remediation": {
     "confirmed_pending_receipt": {
       "exact_bytes_revalidated": true,
@@ -215,6 +292,18 @@
       "post_consumption_pause_is_prospective": true,
       "pre_consumption_pause_prevents_transport": true,
       "quiescence_requires_no_durable_transaction_in_flight": true
+    },
+    "schedule_calendar_binding": {
+      "ambient_timezone_independent": true,
+      "current_attempt_schema": 5,
+      "current_writer_refuses_legacy_downgrade": true,
+      "legacy_reader_calendar": "Europe/London",
+      "legacy_attempts_remain_readable_blockers": true,
+      "live_presend_persistence_and_transport_require_current_schema": true,
+      "live_writer_requires_sending_and_transport_performs_exact_promotion": true,
+      "meme_producers_guards_and_state_validation_share_policy": true,
+      "prefreeze_closure_refinement_count": 4,
+      "schedule_timezone": "Europe/London"
     },
     "permanent_retirement_ledger": {
       "activation_schema": 3,
@@ -305,6 +394,63 @@
       "production_invariant_registry_validation_passed": true,
       "python_compilation_passed": true
     },
+    "round_baa0602_and_prefreeze_repair_validation": {
+      "assurance_and_control_modules": {
+        "command_argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_fail_safe_bootstrap_and_control.py",
+          "tests/test_remote_write_safety_second_restart.py",
+          "tests/test_priority0_registry.py",
+          "tests/test_defect_ledger.py"
+        ],
+        "duration_seconds": 172.28,
+        "environment": {
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"
+        },
+        "passed": 331
+      },
+      "changed_python_compilation_passed": true,
+      "counts_are_non_additive": true,
+      "defect_ledger_validation_passed": true,
+      "git_diff_check_passed": true,
+      "production_invariant_markdown_synchronised": true,
+      "production_invariant_registry_validation_passed": true,
+      "remote_outcome_and_media_modules": {
+        "command_argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_media_upload_transaction_integration.py",
+          "tests/test_x_write_outcome_conservatism.py"
+        ],
+        "duration_seconds": 23.14,
+        "environment": {
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"
+        },
+        "passed": 108
+      },
+      "transaction_and_schedule_modules": {
+        "command_argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_unit_helpers.py",
+          "tests/test_confirmed_source_lineage.py",
+          "tests/test_source_receipt_retirement_integration.py",
+          "tests/test_pending_receipt_directory_fsync.py"
+        ],
+        "duration_seconds": 63.74,
+        "environment": {
+          "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"
+        },
+        "passed": 808
+      }
+    },
     "round_1_repair_results_apply_to_rejected_round_a_candidate": true,
     "restart_bootstrap_pause_outcome_passed": 320
   },
@@ -387,6 +533,48 @@
         "strict_loader_boundary_asserted_directly": true,
         "status": "implemented_post_cutoff_candidate"
       }
+    },
+    "round_baa0602_eight_finding_repair_batch": {
+      "activation_numeric_overflow_classification": {
+        "finite_spelling_overflow_rejected_by_strict_protocol_parser": true,
+        "runtime_and_offline_callers_fail_closed": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "activation_related_invariant_test_mapping": {
+        "complete_duplicate_flag_alias_and_value_regressions_bound": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "candidate_wording_consistency": {
+        "enclosing_snapshot_distinguished_from_rejected_frozen_predecessor": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "configuration_invariant_test_mapping": {
+        "direct_nested_duplicate_regression_bound": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "defect_ledger_historical_selector_identity": {
+        "exact_parameter_case_ids_retained": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "invariant_historical_evidence_selector_identity": {
+        "historical_test_evidence_uses_exact_parameter_case_rule": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "runtime_self_test_control_parity": {
+        "production_stable_schema_validating_loader_used": true,
+        "status": "implemented_post_cutoff_candidate"
+      },
+      "schedule_timezone_binding": {
+        "current_attempts_bind_europe_london_calendar": true,
+        "status": "implemented_post_cutoff_candidate"
+      }
+    },
+    "prefreeze_four_refinement_batch": {
+      "canonical_builder_refuses_unbound_generation": true,
+      "legacy_reader_uses_historical_production_calendar": true,
+      "legacy_shaped_records_cannot_enter_live_persistence_or_transport": true,
+      "live_transport_requires_exact_sending_to_attempting_promotion": true,
+      "status": "implemented_post_cutoff_candidate"
     },
     "round_a_consolidation": {
       "activation_fixture_count": 6,

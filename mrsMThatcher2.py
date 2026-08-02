@@ -105,6 +105,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from time import sleep
 from urllib.parse import unquote, urlsplit, urlunsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 from requests_oauthlib import OAuth1
@@ -231,6 +232,12 @@ MEME_FALLBACK_HOUR = 16
 MEME_FALLBACK_MINUTE = 0
 MEME_POST_TEXT = ""
 MEME_SCHEDULE_VERSION = 2
+
+# Calendar decisions for durable main-post recovery are part of the
+# transaction protocol, not an ambient process setting.  Current attempt
+# receipts bind this exact IANA identifier so a restarted process derives the
+# same local date/hour and DST offset even when its inherited ``TZ`` differs.
+MAIN_POST_SCHEDULE_TIMEZONE = "Europe/London"
 
 RESET_MEME_CYCLE_WHEN_ALL_POSTED = False
 MEME_MIN_SECONDS_AFTER_QUOTE_POST = 1800
@@ -3806,7 +3813,10 @@ def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
         if next_epoch <= anchor_epoch:
             log.error("State candidate %s has quote-anchored meme target not after anchor; ignoring", path)
             return False
-        expected_date = safe_epoch_date_str(anchor_epoch)
+        expected_date = safe_bound_schedule_date_str(
+            anchor_epoch,
+            MAIN_POST_SCHEDULE_TIMEZONE,
+        )
         if not expected_date or schedule_date != expected_date:
             log.error(
                 "State candidate %s has quote-anchored meme schedule_date=%r expected=%r; ignoring",
@@ -3820,7 +3830,10 @@ def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
     if anchor_epoch:
         log.error("State candidate %s has non-quote meme schedule with stale quote anchor; ignoring", path)
         return False
-    expected_date = safe_epoch_date_str(next_epoch)
+    expected_date = safe_bound_schedule_date_str(
+        next_epoch,
+        MAIN_POST_SCHEDULE_TIMEZONE,
+    )
     if not expected_date or schedule_date != expected_date:
         log.error(
             "State candidate %s has meme schedule_date=%r expected=%r for mode=%s; ignoring",
@@ -7786,7 +7799,7 @@ def expected_lane_transport_source_receipt_bytes(
         raise TransportJournalError("current lane receipt bytes are invalid")
     if lane in {"quote_image", "daily_meme"}:
         if (
-            main_post_attempt_is_semantically_valid(receipt)
+            current_main_post_attempt_is_semantically_valid(receipt)
             and receipt.get("lifecycle_state") == "attempting"
         ):
             return current_receipt_bytes
@@ -8054,6 +8067,9 @@ def block_if_ambiguous_remote_post(
             status == "sending"
             and prepared_main_post_attempt is not None
             and receipt == prepared_main_post_attempt
+            and current_main_post_attempt_is_semantically_valid(
+                prepared_main_post_attempt
+            )
             and prepared_main_post_attempt.get("lifecycle_state")
             == (
                 "attempting"
@@ -8884,7 +8900,7 @@ def create_post(
             else "sending"
         )
         if (
-            not main_post_attempt_is_semantically_valid(
+            not current_main_post_attempt_is_semantically_valid(
                 prepared_main_post_attempt
             )
             or prepared_main_post_attempt.get("lifecycle_state")
@@ -10003,6 +10019,42 @@ def safe_epoch_date_str(epoch: int) -> str | None:
         return None
 
 
+def main_post_schedule_zone(timezone_name: object) -> ZoneInfo:
+    """Return the sole calendar zone accepted by current main-post receipts."""
+
+    if (
+        type(timezone_name) is not str
+        or timezone_name != MAIN_POST_SCHEDULE_TIMEZONE
+    ):
+        raise ValueError("unsupported main-post schedule timezone")
+    try:
+        return ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError as exc:
+        raise RuntimeError(
+            "the bound main-post schedule timezone is unavailable"
+        ) from exc
+
+
+def bound_schedule_datetime(epoch: int, timezone_name: object) -> datetime:
+    """Interpret one durable epoch in its exact receipt-bound calendar zone."""
+
+    if type(epoch) is not int:
+        raise TypeError("bound schedule epoch must be an integer")
+    return datetime.fromtimestamp(epoch, tz=main_post_schedule_zone(timezone_name))
+
+
+def safe_bound_schedule_date_str(
+    epoch: int,
+    timezone_name: object,
+) -> str | None:
+    """Return a bound calendar date, or ``None`` for invalid receipt input."""
+
+    try:
+        return bound_schedule_datetime(epoch, timezone_name).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, RuntimeError, OverflowError, OSError):
+        return None
+
+
 def valid_receipt_basename(value: object) -> bool:
     """Return whether valid receipt basename."""
     if type(value) is not str:
@@ -10048,13 +10100,17 @@ BOUND_MEME_SCHEDULE_STATE_KEYS = {
     "meme_anchor_quote_post_epoch",
 }
 
-# Schema-v4 recovery delays are data, not current configuration.  These
+# Schema-v4/v5 recovery delays are data, not current configuration.  These
 # immutable format bounds keep old receipts readable across configuration
 # changes while rejecting corrupt plans that could suppress a lane for years.
 MAIN_POST_ATTEMPT_MAX_BOUND_DELAY_SECONDS = 31 * 24 * 60 * 60
 
 
-def bound_meme_schedule_state(state: dict) -> dict:
+def bound_meme_schedule_state(
+    state: dict,
+    *,
+    schedule_timezone: str | None = None,
+) -> dict:
     """Capture the exact meme-schedule inputs bound before a regular X write."""
     next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
     next_mode = str(state.get("next_meme_schedule_mode", "") or "")
@@ -10065,7 +10121,15 @@ def bound_meme_schedule_state(state: dict) -> dict:
         # effective fallback interpretation explicitly rather than leaving
         # reconciliation dependent on later defaults.
         next_mode = next_mode or "fallback"
-        next_date = next_date or safe_epoch_date_str(next_epoch)
+        derived_date = safe_bound_schedule_date_str(
+            next_epoch,
+            MAIN_POST_SCHEDULE_TIMEZONE
+            if schedule_timezone is None
+            else schedule_timezone,
+        )
+        if not next_date and derived_date is None:
+            raise ValueError("meme schedule epoch has no valid calendar date")
+        next_date = next_date or str(derived_date)
         schedule_version = schedule_version or MEME_SCHEDULE_VERSION
     return {
         "last_meme_post_epoch": int(state.get("last_meme_post_epoch", 0) or 0),
@@ -10079,7 +10143,11 @@ def bound_meme_schedule_state(state: dict) -> dict:
     }
 
 
-def bound_meme_schedule_state_is_valid(value: object) -> bool:
+def bound_meme_schedule_state_is_valid(
+    value: object,
+    *,
+    schedule_timezone: str | None = None,
+) -> bool:
     """Return whether a pre-send meme-schedule snapshot is self-consistent."""
     if not isinstance(value, dict) or set(value) != BOUND_MEME_SCHEDULE_STATE_KEYS:
         return False
@@ -10105,6 +10173,14 @@ def bound_meme_schedule_state_is_valid(value: object) -> bool:
     schedule_date = value["next_meme_schedule_date"]
     if type(mode) is not str or type(schedule_date) is not str:
         return False
+    effective_timezone = (
+        MAIN_POST_SCHEDULE_TIMEZONE
+        if schedule_timezone is None
+        else schedule_timezone
+    )
+
+    def date_for_epoch(epoch: int) -> str | None:
+        return safe_bound_schedule_date_str(epoch, effective_timezone)
     if next_epoch:
         if (
             int(value["meme_schedule_version"]) < 1
@@ -10116,12 +10192,12 @@ def bound_meme_schedule_state_is_valid(value: object) -> bool:
             if (
                 anchor_epoch <= 0
                 or next_epoch <= anchor_epoch
-                or schedule_date != safe_epoch_date_str(anchor_epoch)
+                or schedule_date != date_for_epoch(anchor_epoch)
             ):
                 return False
         elif (
             anchor_epoch
-            or schedule_date != safe_epoch_date_str(next_epoch)
+            or schedule_date != date_for_epoch(next_epoch)
         ):
             return False
     elif mode or schedule_date or anchor_epoch:
@@ -10137,8 +10213,8 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
     if type(lane) is not str:
         return False
     supported_schemas = {
-        "quote_image": {3, 4},
-        "daily_meme": {2, 3, 4},
+        "quote_image": {3, 4, 5},
+        "daily_meme": {2, 3, 4, 5},
     }.get(lane)
     schema_version = data.get("schema_version")
     if (
@@ -10217,13 +10293,15 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             "quote_history_after",
             "image_history_after",
         }
-        if schema_version == 4:
+        if schema_version in {4, 5}:
             expected_recovery_keys |= {
                 "meme_scheduling_enabled",
                 "meme_trigger_after_hour",
                 "meme_schedule_version",
                 "meme_schedule_before",
             }
+        if schema_version == 5:
+            expected_recovery_keys.add("schedule_timezone")
         if set(recovery_plan) != expected_recovery_keys:
             return False
         quote_delay = recovery_plan.get("quote_delay_seconds")
@@ -10264,7 +10342,7 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             )
         ):
             return False
-        if schema_version == 4 and (
+        if schema_version in {4, 5} and (
             type(recovery_plan.get("meme_scheduling_enabled")) is not bool
             or type(recovery_plan.get("meme_trigger_after_hour")) is not int
             or not 0 <= int(recovery_plan["meme_trigger_after_hour"]) <= 23
@@ -10273,7 +10351,25 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             <= int(recovery_plan["meme_schedule_version"])
             <= MEME_SCHEDULE_VERSION
             or not bound_meme_schedule_state_is_valid(
-                recovery_plan.get("meme_schedule_before")
+                recovery_plan.get("meme_schedule_before"),
+                schedule_timezone=(
+                    recovery_plan.get("schedule_timezone")
+                    if schema_version == 5
+                    else None
+                ),
+            )
+            or (
+                schema_version == 5
+                and (
+                    type(recovery_plan.get("schedule_timezone")) is not str
+                    or recovery_plan["schedule_timezone"]
+                    != MAIN_POST_SCHEDULE_TIMEZONE
+                    or safe_bound_schedule_date_str(
+                        attempt_epoch,
+                        recovery_plan.get("schedule_timezone"),
+                    )
+                    is None
+                )
             )
             or (
                 recovery_plan["meme_scheduling_enabled"]
@@ -10287,21 +10383,23 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
             return False
     else:
         expected_meme_keys = {"next_schedule_mode"}
-        if schema_version in {3, 4}:
+        if schema_version in {3, 4, 5}:
             expected_meme_keys |= {
                 "meme_schedule_version",
                 "fallback_hour",
                 "fallback_minute",
             }
-        if schema_version == 4:
+        if schema_version in {4, 5}:
             expected_meme_keys.add("image_summary")
+        if schema_version == 5:
+            expected_meme_keys.add("schedule_timezone")
         if (
             set(selected) != {"meme_basename"}
             or not valid_receipt_basename(selected.get("meme_basename"))
             or set(recovery_plan) != expected_meme_keys
             or recovery_plan.get("next_schedule_mode") != "fallback"
             or (
-                schema_version in {3, 4}
+                schema_version in {3, 4, 5}
                 and (
                     type(recovery_plan.get("meme_schedule_version")) is not int
                     or not 1
@@ -10312,10 +10410,23 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
                     or type(recovery_plan.get("fallback_minute")) is not int
                     or not 0 <= int(recovery_plan["fallback_minute"]) <= 59
                     or (
-                        schema_version == 4
+                        schema_version in {4, 5}
                         and (
                             not isinstance(recovery_plan.get("image_summary"), str)
                             or len(recovery_plan["image_summary"]) > 16_000
+                        )
+                    )
+                    or (
+                        schema_version == 5
+                        and (
+                            type(recovery_plan.get("schedule_timezone")) is not str
+                            or recovery_plan["schedule_timezone"]
+                            != MAIN_POST_SCHEDULE_TIMEZONE
+                            or safe_bound_schedule_date_str(
+                                attempt_epoch,
+                                recovery_plan.get("schedule_timezone"),
+                            )
+                            is None
                         )
                     )
                 )
@@ -10334,11 +10445,21 @@ def main_post_attempt_is_semantically_valid(data: object) -> bool:
 def main_post_attempt_binds_payload(attempt: dict, payload: dict) -> bool:
     """Return whether an attempt authorises exactly one remote payload."""
     return bool(
-        main_post_attempt_is_semantically_valid(attempt)
+        current_main_post_attempt_is_semantically_valid(attempt)
         and main_post_attempt_payload(attempt) == payload
         and type(attempt.get("payload_sha256")) is str
         and canonical_remote_post_payload_sha256(payload)
         == attempt["payload_sha256"]
+    )
+
+
+def current_main_post_attempt_is_semantically_valid(data: object) -> bool:
+    """Return whether an attempt belongs to the current writable generation."""
+
+    return bool(
+        main_post_attempt_is_semantically_valid(data)
+        and isinstance(data, dict)
+        and data.get("schema_version") == 5
     )
 
 
@@ -10361,28 +10482,15 @@ def build_main_post_attempt(
     payload["media"] = {"media_ids": [str(value) for value in media_ids]}
     if made_with_ai:
         payload["made_with_ai"] = True
-    legacy_plan = (
-        lane == "quote_image"
-        and set(recovery_plan) == {
-            "quote_delay_seconds",
-            "meme_delay_seconds",
-            "quote_history_after",
-            "image_history_after",
-        }
-    ) or (
-        lane == "daily_meme"
-        and recovery_plan == {"next_schedule_mode": "fallback"}
-    )
+    if (
+        type(recovery_plan.get("schedule_timezone")) is not str
+        or recovery_plan["schedule_timezone"] != MAIN_POST_SCHEDULE_TIMEZONE
+    ):
+        raise ValueError(
+            "new main-post attempts must bind the production schedule timezone"
+        )
     attempt = {
-        "schema_version": (
-            (3 if legacy_plan else 4)
-            if lane == "quote_image"
-            else (
-                2
-                if legacy_plan
-                else (4 if "image_summary" in recovery_plan else 3)
-            )
-        ),
+        "schema_version": 5,
         "lifecycle_state": "sending",
         "lane": lane,
         "attempt_id": hashlib.sha256(os.urandom(32)).hexdigest(),
@@ -10397,7 +10505,7 @@ def build_main_post_attempt(
         "selected_identity": copy.deepcopy(selected_identity),
         "recovery_plan": copy.deepcopy(recovery_plan),
     }
-    if not main_post_attempt_is_semantically_valid(attempt):
+    if not current_main_post_attempt_is_semantically_valid(attempt):
         raise RuntimeError("Internal error: generated main-post attempt is invalid")
     return attempt
 
@@ -10414,8 +10522,14 @@ def main_post_attempt_path(attempt: dict) -> Path:
 
 def write_main_post_attempt(attempt: dict) -> None:
     """Durably record a main-post transaction before its X create request."""
-    if not main_post_attempt_is_semantically_valid(attempt):
-        raise RuntimeError("Internal error: generated main-post attempt failed validation")
+    if (
+        not current_main_post_attempt_is_semantically_valid(attempt)
+        or attempt.get("lifecycle_state") != "sending"
+    ):
+        raise RuntimeError(
+            "Only a current-schema sending main-post attempt may enter the "
+            "live write path"
+        )
     if remote_receipt_retirement_is_blocking():
         raise UnresolvedRegularPostReceipt(
             "Refusing a main-post attempt while source-receipt retirement is incomplete"
@@ -10451,14 +10565,17 @@ def prepare_main_tweet_transport(
 ) -> tuple[dict, SourceReceiptBinding, TransportAuthority]:
     """Publish a prepared tweet owner before retiring confirmed media state."""
 
-    attempting = (
-        mark_main_post_attempt_attempting(attempt)
-        if attempt.get("lifecycle_state") == "sending"
-        else dict(attempt)
-    )
+    if (
+        not current_main_post_attempt_is_semantically_valid(attempt)
+        or attempt.get("lifecycle_state") != "sending"
+    ):
+        raise TransportJournalError(
+            "only a current-schema sending main-post attempt may prepare transport"
+        )
+    attempting = mark_main_post_attempt_attempting(attempt)
     if (
         attempting.get("lifecycle_state") != "attempting"
-        or not main_post_attempt_is_semantically_valid(attempting)
+        or not current_main_post_attempt_is_semantically_valid(attempting)
     ):
         raise TransportJournalError("main post attempt is not transport-ready")
     path = main_post_attempt_path(attempting)
@@ -10515,9 +10632,13 @@ def handoff_confirmed_media_upload_to_main_attempt(
 
 def mark_main_post_attempt_attempting(attempt: dict) -> dict:
     """Atomically consume one sending authorisation before remote transmission."""
-    if attempt.get("lifecycle_state") != "sending":
+    if (
+        not current_main_post_attempt_is_semantically_valid(attempt)
+        or attempt.get("lifecycle_state") != "sending"
+    ):
         raise AmbiguousRemotePostOutcome(
-            "A main-post attempt can only transmit once from sending state",
+            "Only a current-schema main-post attempt may transmit once from "
+            "sending state",
             service="x",
         )
     path = main_post_attempt_path(attempt)
@@ -10532,7 +10653,7 @@ def mark_main_post_attempt_attempting(attempt: dict) -> dict:
             service="x",
         )
     attempting = {**attempt, "lifecycle_state": "attempting"}
-    if not main_post_attempt_is_semantically_valid(attempting):
+    if not current_main_post_attempt_is_semantically_valid(attempting):
         raise RuntimeError("Attempting main-post receipt failed validation")
     replace_exact_source_receipt_document(
         path,
@@ -10562,11 +10683,19 @@ def remove_main_post_attempt(
         "confirmed_state_fallback",
     }:
         raise ValueError("A main-post sending receipt requires an explicit disposition")
+    if not current_main_post_attempt_is_semantically_valid(attempt):
+        raise AmbiguousRemotePostOutcome(
+            "Refusing to mutate a legacy or invalid main-post attempt",
+            service="x",
+        )
     path = main_post_attempt_path(attempt)
     try:
         with open(path, "r", encoding="utf-8") as handle:
             current = json.load(handle)
-        if current != attempt or not main_post_attempt_is_semantically_valid(current):
+        if (
+            current != attempt
+            or not current_main_post_attempt_is_semantically_valid(current)
+        ):
             raise AmbiguousRemotePostOutcome(
                 "Refusing to remove a changed main-post sending receipt",
                 service="x",
@@ -10654,10 +10783,10 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
     if (
         not main_post_attempt_is_semantically_valid(attempt)
         or attempt.get("lifecycle_state") != "attempting"
-        or attempt.get("schema_version")
-        not in (
-            {4} if attempt.get("lane") == "quote_image" else {3, 4}
-        )
+        # Older attempts remain readable as conservative restart barriers,
+        # but their bytes did not bind a calendar zone.  They therefore cannot
+        # authorise post-confirmation schedule materialisation.
+        or attempt.get("schema_version") != 5
         or confirmation_epoch < int(attempt["attempt_epoch"])
     ):
         return False
@@ -10668,7 +10797,6 @@ def confirmed_pending_schedule_receipt_is_semantically_valid(
         return False
     if (
         lane == "daily_meme"
-        and attempt.get("schema_version") == 4
         and data["image_summary"] != attempt["recovery_plan"]["image_summary"]
     ):
         return False
@@ -10879,6 +11007,7 @@ def materialize_bound_regular_schedule_receipt(
     selected = attempt["selected_identity"]
     plan = attempt["recovery_plan"]
     quote_post_epoch = int(pending["confirmation_epoch"])
+    schedule_timezone = str(plan["schedule_timezone"])
     next_quote_post_epoch = quote_post_epoch + int(plan["quote_delay_seconds"])
     snapshot = copy.deepcopy(plan["meme_schedule_before"])
     next_meme_post_epoch = int(snapshot["next_meme_post_epoch"])
@@ -10889,12 +11018,19 @@ def materialize_bound_regular_schedule_receipt(
     meme_schedule_changed_by_quote = False
 
     if bool(plan["meme_scheduling_enabled"]):
-        quote_dt = datetime.fromtimestamp(quote_post_epoch)
+        quote_dt = bound_schedule_datetime(
+            quote_post_epoch,
+            schedule_timezone,
+        )
         quote_date = quote_dt.strftime("%Y-%m-%d")
         last_meme_epoch = int(snapshot["last_meme_post_epoch"])
         meme_already_posted = bool(
             last_meme_epoch
-            and safe_epoch_date_str(last_meme_epoch) == quote_date
+            and safe_bound_schedule_date_str(
+                last_meme_epoch,
+                schedule_timezone,
+            )
+            == quote_date
         )
         already_anchored = bool(
             next_meme_post_epoch
@@ -10969,7 +11105,11 @@ def materialize_bound_meme_schedule_receipt(
     selected = attempt["selected_identity"]
     plan = attempt["recovery_plan"]
     meme_post_epoch = int(pending["confirmation_epoch"])
-    confirmation_dt = datetime.fromtimestamp(meme_post_epoch)
+    schedule_timezone = str(plan["schedule_timezone"])
+    confirmation_dt = bound_schedule_datetime(
+        meme_post_epoch,
+        schedule_timezone,
+    )
     next_dt = (confirmation_dt + timedelta(days=1)).replace(
         hour=int(plan["fallback_hour"]),
         minute=int(plan["fallback_minute"]),
@@ -10983,6 +11123,7 @@ def materialize_bound_meme_schedule_receipt(
         "meme_basename": str(selected["meme_basename"]),
         "meme_post_epoch": meme_post_epoch,
         "next_meme_post_epoch": next_meme_post_epoch,
+        "next_meme_schedule_date": next_dt.strftime("%Y-%m-%d"),
         "meme_schedule_version": int(plan["meme_schedule_version"]),
         "next_meme_schedule_mode": str(plan["next_schedule_mode"]),
         "text": str(attempt["text"]),
@@ -11080,7 +11221,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
         if (
             status == "sending"
             and isinstance(attempt, dict)
-            and attempt.get("schema_version") == 4
+            and attempt.get("schema_version") in {4, 5}
         ):
             raise UnresolvedRegularPostReceipt(
                 "Current-schema regular attempts must be promoted through the "
@@ -11125,6 +11266,19 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
     text = data.get("text")
     quote_post_epoch = receipt_int(data.get("quote_post_epoch"))
     next_quote_post_epoch = receipt_int(data.get("next_quote_post_epoch"))
+    lineage_attempt = data.get("source_attempt")
+    bound_timezone = MAIN_POST_SCHEDULE_TIMEZONE
+    if (
+        isinstance(lineage_attempt, dict)
+        and lineage_attempt.get("schema_version") == 5
+        and isinstance(lineage_attempt.get("recovery_plan"), dict)
+    ):
+        bound_timezone = lineage_attempt["recovery_plan"].get(
+            "schedule_timezone"
+        )
+
+    def schedule_date_for_epoch(epoch: int) -> str | None:
+        return safe_bound_schedule_date_str(epoch, bound_timezone)
 
     if not valid_string_post_id(post_id):
         return False
@@ -11207,12 +11361,12 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
                     return False
                 if next_meme_epoch <= quote_post_epoch:
                     return False
-                if schedule_date != safe_epoch_date_str(quote_post_epoch):
+                if schedule_date != schedule_date_for_epoch(quote_post_epoch):
                     return False
             else:
                 if anchor_int <= 0:
                     return False
-                if schedule_date != safe_epoch_date_str(anchor_int):
+                if schedule_date != schedule_date_for_epoch(anchor_int):
                     return False
                 if next_meme_epoch <= anchor_int:
                     return False
@@ -11221,7 +11375,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
                 return False
             if anchor_int:
                 return False
-            if schedule_date != safe_epoch_date_str(next_meme_epoch):
+            if schedule_date != schedule_date_for_epoch(next_meme_epoch):
                 return False
     elif data.get("meme_schedule_changed_by_quote") not in (None, False):
         return False
@@ -11238,7 +11392,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
             or type(data.get("source_line_number")) is not int
             or type(data.get("image_no")) is not int
             or not isinstance(source_attempt, dict)
-            or source_attempt.get("schema_version") != 4
+            or source_attempt.get("schema_version") != 5
             or source_attempt.get("lifecycle_state") != "attempting"
             or source_attempt.get("lane") != "quote_image"
             or not main_post_attempt_is_semantically_valid(source_attempt)
@@ -11371,7 +11525,7 @@ def write_meme_post_receipt(receipt: dict) -> None:
         if (
             status == "sending"
             and isinstance(attempt, dict)
-            and attempt.get("schema_version") in {3, 4}
+            and attempt.get("schema_version") in {3, 4, 5}
         ):
             raise UnresolvedMemePostReceipt(
                 "Current-schema meme attempts must be promoted through the "
@@ -11450,7 +11604,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
             present_lineage_fields != lineage_fields
             or schema_version != 2
             or not isinstance(source_attempt, dict)
-            or source_attempt.get("schema_version") not in {3, 4}
+            or source_attempt.get("schema_version") != 5
             or source_attempt.get("lifecycle_state") != "attempting"
             or source_attempt.get("lane") != "daily_meme"
             or not main_post_attempt_is_semantically_valid(source_attempt)
@@ -11595,7 +11749,20 @@ def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
         state["next_meme_schedule_mode"] = str(
             receipt.get("next_meme_schedule_mode") or "fallback"
         )
-        state["next_meme_schedule_date"] = epoch_date_str(next_meme_post_epoch)
+        source_attempt = receipt.get("source_attempt")
+        if (
+            isinstance(source_attempt, dict)
+            and source_attempt.get("schema_version") == 5
+        ):
+            # Current receipts carry the date derived under their bound zone;
+            # never reinterpret the epoch through this process's ambient TZ.
+            state["next_meme_schedule_date"] = str(
+                receipt["next_meme_schedule_date"]
+            )
+        else:
+            state["next_meme_schedule_date"] = meme_schedule_date_str(
+                next_meme_post_epoch
+            )
         state["meme_anchor_quote_post_epoch"] = 0
     elif meme_post_epoch <= last_meme_epoch:
         log.warning(
@@ -11769,7 +11936,10 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
                 receipt.get("meme_schedule_version") or MEME_SCHEDULE_VERSION
             )
             state["next_meme_schedule_mode"] = str(receipt.get("next_meme_schedule_mode") or state.get("next_meme_schedule_mode") or "")
-            state["next_meme_schedule_date"] = str(receipt.get("next_meme_schedule_date") or epoch_date_str(int(receipt["next_meme_post_epoch"])))
+            state["next_meme_schedule_date"] = str(
+                receipt.get("next_meme_schedule_date")
+                or meme_schedule_date_str(int(receipt["next_meme_post_epoch"]))
+            )
             state["meme_anchor_quote_post_epoch"] = int(receipt.get("meme_anchor_quote_post_epoch") or 0)
         else:
             maybe_schedule_meme_after_quote_post(state, quote_post_epoch, save=False)
@@ -11909,6 +12079,17 @@ def confirmed_meme_emergency_representation_is_complete(
     except Exception:
         return False
     expected_next_epoch = int(expected["next_meme_post_epoch"])
+    schedule_timezone = main_post_attempt.get("recovery_plan", {}).get(
+        "schedule_timezone"
+    )
+    expected_post_date = safe_bound_schedule_date_str(
+        int(post_epoch or 0),
+        schedule_timezone,
+    )
+    expected_next_date = safe_bound_schedule_date_str(
+        expected_next_epoch,
+        schedule_timezone,
+    )
     cached = state.get("tweet_cache", {}).get(str(post_id))
     return bool(
         valid_post_id(post_id)
@@ -11921,12 +12102,13 @@ def confirmed_meme_emergency_representation_is_complete(
         == expected_next_epoch
         and int(state.get("meme_schedule_version", 0) or 0)
         == int(expected["meme_schedule_version"])
-        and safe_epoch_date_str(expected_next_epoch)
-        > safe_epoch_date_str(int(post_epoch))
+        and expected_post_date is not None
+        and expected_next_date is not None
+        and expected_next_date > expected_post_date
         and str(state.get("next_meme_schedule_mode") or "")
         == str(expected["next_meme_schedule_mode"])
         and str(state.get("next_meme_schedule_date") or "")
-        == safe_epoch_date_str(expected_next_epoch)
+        == expected_next_date
         and int(state.get("meme_anchor_quote_post_epoch", 0) or 0) == 0
         and isinstance(cached, dict)
         and str(cached.get("text") or "") == str(main_post_attempt["text"])
@@ -16220,7 +16402,11 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 "meme_scheduling_enabled": bool(ENABLE_DAILY_MEME_POSTS),
                 "meme_trigger_after_hour": int(MEME_TRIGGER_AFTER_HOUR),
                 "meme_schedule_version": int(MEME_SCHEDULE_VERSION),
-                "meme_schedule_before": bound_meme_schedule_state(state),
+                "schedule_timezone": MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bound_meme_schedule_state(
+                    state,
+                    schedule_timezone=MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
                 "quote_history_after": sorted(set(lines_used) | {quote_hash}),
                 "image_history_after": sorted(
                     set(images_used) | {image_basename}
@@ -16735,12 +16921,26 @@ def epoch_date_str(epoch: int | None = None) -> str:
     return datetime.fromtimestamp(int(epoch)).strftime("%Y-%m-%d")
 
 
+def meme_schedule_datetime(epoch: int) -> datetime:
+    """Interpret a meme schedule epoch in the production calendar zone."""
+
+    return bound_schedule_datetime(int(epoch), MAIN_POST_SCHEDULE_TIMEZONE)
+
+
+def meme_schedule_date_str(epoch: int | None = None) -> str:
+    """Return a meme schedule date independent of the process's ambient TZ."""
+
+    if epoch is None:
+        epoch = now_epoch()
+    return meme_schedule_datetime(int(epoch)).strftime("%Y-%m-%d")
+
+
 def meme_posted_on_date(state: dict, date_text: str) -> bool:
     """Return the meme posted on date."""
     last_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
     if not last_epoch:
         return False
-    return epoch_date_str(last_epoch) == date_text
+    return meme_schedule_date_str(last_epoch) == date_text
 
 
 def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
@@ -16748,7 +16948,7 @@ def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
     if from_epoch is None:
         from_epoch = now_epoch()
 
-    now_dt = datetime.fromtimestamp(from_epoch)
+    now_dt = meme_schedule_datetime(int(from_epoch))
     target = now_dt.replace(
         hour=MEME_FALLBACK_HOUR,
         minute=MEME_FALLBACK_MINUTE,
@@ -16771,7 +16971,7 @@ def next_meme_schedule_fields(state: dict, from_epoch: int | None = None, mode: 
         "next_meme_post_epoch": next_epoch,
         "meme_schedule_version": MEME_SCHEDULE_VERSION,
         "next_meme_schedule_mode": mode,
-        "next_meme_schedule_date": epoch_date_str(next_epoch),
+        "next_meme_schedule_date": meme_schedule_date_str(next_epoch),
         "meme_anchor_quote_post_epoch": 0,
     }
 
@@ -16784,7 +16984,7 @@ def meme_delay_schedule_fields(epoch: int, mode: str) -> dict:
         "next_meme_post_epoch": int(epoch),
         "meme_schedule_version": MEME_SCHEDULE_VERSION,
         "next_meme_schedule_mode": mode,
-        "next_meme_schedule_date": epoch_date_str(int(epoch)),
+        "next_meme_schedule_date": meme_schedule_date_str(int(epoch)),
         "meme_anchor_quote_post_epoch": 0,
     }
 
@@ -16863,7 +17063,7 @@ def meme_schedule_fields_after_quote_post(state: dict, quote_post_epoch: int | N
     if quote_post_epoch is None:
         quote_post_epoch = now_epoch()
 
-    quote_dt = datetime.fromtimestamp(int(quote_post_epoch))
+    quote_dt = meme_schedule_datetime(int(quote_post_epoch))
     quote_date = quote_dt.strftime("%Y-%m-%d")
 
     if quote_dt.hour < MEME_TRIGGER_AFTER_HOUR:
@@ -16980,7 +17180,7 @@ def post_next_meme(state: dict) -> None:
         log.warning("Reconciled meme post receipt; not creating a second meme post in the same call")
         return
     current_meme_epoch = now_epoch()
-    if meme_posted_on_date(state, epoch_date_str(current_meme_epoch)):
+    if meme_posted_on_date(state, meme_schedule_date_str(current_meme_epoch)):
         log.warning(
             "Daily meme already confirmed on the current local date; "
             "scheduling the next fallback without another X request"
@@ -17041,6 +17241,7 @@ def post_next_meme(state: dict) -> None:
             "fallback_hour": MEME_FALLBACK_HOUR,
             "fallback_minute": MEME_FALLBACK_MINUTE,
             "image_summary": image_summary,
+            "schedule_timezone": MAIN_POST_SCHEDULE_TIMEZONE,
         },
         attempt_epoch=current_meme_epoch,
     )
@@ -17152,8 +17353,8 @@ def post_next_meme(state: dict) -> None:
             "next_meme_schedule_mode": str(
                 receipt["next_meme_schedule_mode"]
             ),
-            "next_meme_schedule_date": safe_epoch_date_str(
-                int(receipt["next_meme_post_epoch"])
+            "next_meme_schedule_date": str(
+                receipt["next_meme_schedule_date"]
             ),
             "meme_anchor_quote_post_epoch": 0,
         }
@@ -17213,8 +17414,8 @@ def post_next_meme(state: dict) -> None:
                     "next_meme_schedule_mode": str(
                         fallback_receipt["next_meme_schedule_mode"]
                     ),
-                    "next_meme_schedule_date": safe_epoch_date_str(
-                        int(fallback_receipt["next_meme_post_epoch"])
+                    "next_meme_schedule_date": str(
+                        fallback_receipt["next_meme_schedule_date"]
                     ),
                     "meme_anchor_quote_post_epoch": 0,
                 }
@@ -21263,13 +21464,12 @@ def run_self_test() -> int:
             require("local config parses", False, str(exc))
 
     _self_test_warn("runtime control file absent", not CONTROL_FILE.exists(), str(CONTROL_FILE))
-    if CONTROL_FILE.exists():
-        try:
-            with open(CONTROL_FILE, "rb") as f:
-                ctrl = load_strict_runtime_json(f, label="runtime control")
-            require("runtime control is JSON object", isinstance(ctrl, dict), str(type(ctrl).__name__))
-        except Exception as exc:
-            require("runtime control parses", False, str(exc))
+    ctrl = load_control()
+    require(
+        "runtime control validates",
+        not bool(ctrl.get("_control_fail_closed", False)),
+        str(CONTROL_FILE),
+    )
 
     if STATE_FILE.exists():
         try:

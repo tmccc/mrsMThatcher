@@ -1813,7 +1813,14 @@ def test_prepared_receipt_authority_requires_the_exact_durable_file() -> None:
         media_ids=["123"],
         made_with_ai=False,
         selected_identity={"meme_basename": "unit.png"},
-        recovery_plan={"next_schedule_mode": "fallback"},
+        recovery_plan={
+            "next_schedule_mode": "fallback",
+            "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+            "fallback_hour": int(bot.MEME_FALLBACK_HOUR),
+            "fallback_minute": int(bot.MEME_FALLBACK_MINUTE),
+            "image_summary": "Unit meme image.",
+            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+        },
         attempt_epoch=1_800_000_000,
     )
     with pytest.raises(

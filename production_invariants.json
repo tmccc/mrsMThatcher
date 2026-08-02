@@ -898,7 +898,7 @@
       "id": "INV-TXN-REG-001",
       "category": "transaction",
       "title": "Regular-post at-most-once transaction and exact replay",
-      "statement": "Before a regular-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected quote/image identity, post-cycle histories and recovery delays. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation. The restart-persistent successor-first protocol must itself be durably activated before any remote lane may open. A newly recorded ambiguity must create, synchronise and revalidate ambiguous_post_outcome.restart_barrier.json before linking the legacy marker name. An installation without the exact activation sentinel must fail closed across every process restart; a legacy-only marker must never be migrated by the running daemon and must be reconciled while stopped before clean offline activation. A process-local latch alone does not satisfy restart safety: either the inactive protocol, a successor or unresolved receipt must remain durably discoverable after marker disappearance, abrupt process death and every later restart, and either marker namespace entry, an unresolved receipt, protocol inactivity, or either process-local barrier must block every remote-write lane. A confirmed attempt must promote atomically to the established receipt, block unrelated remote writes while local schedule work remains pending, preserve the exact authoritative histories and future schedules, reconcile idempotently, and never cause a second remote post. Within the supported lock-authorised cooperative-writer and crash-recovery model, terminal retirement must commit the next exact persistent-ledger generation in a monotonic sequence/hash chain, bound to its predecessor and the retired receipt, before the final guard is removed. Strict persistent retirement ledgers are mandatory for all four fixed source-receipt basenames; a missing, malformed or exchanging ledger blocks every remote-write lane and installation establishment. Only a current schema-3 activation plus instance-lock-bound mutation authority may recover one exact predecessor/successor ledger exchange before establishment; an invalid activation never authorises recovery. The daemon must never retire the restart barrier; only the offline, instance-lock-bound reconciliation protocol may durably archive the exact barriers and reconciliation receipt and retire the successor as its final synchronised namespace transition. Clean protocol activation is a separate stopped, instance-lock-bound operation which refuses every active marker and unresolved receipt. This local sequence/hash chain is not an externally anchored tamper-evident record: arbitrary out-of-protocol rollback or replacement is not detected and is outside this guarantee.",
+      "statement": "Before a regular-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected quote/image identity, post-cycle histories, recovery delays and schedule timezone. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation. The restart-persistent successor-first protocol must itself be durably activated before any remote lane may open. A newly recorded ambiguity must create, synchronise and revalidate ambiguous_post_outcome.restart_barrier.json before linking the legacy marker name. An installation without the exact activation sentinel must fail closed across every process restart; a legacy-only marker must never be migrated by the running daemon and must be reconciled while stopped before clean offline activation. A process-local latch alone does not satisfy restart safety: either the inactive protocol, a successor or unresolved receipt must remain durably discoverable after marker disappearance, abrupt process death and every later restart, and either marker namespace entry, an unresolved receipt, protocol inactivity, or either process-local barrier must block every remote-write lane. A confirmed attempt must promote atomically to the established receipt, block unrelated remote writes while local schedule work remains pending, preserve the exact authoritative histories and timezone-bound future schedules, reconcile idempotently, and never cause a second remote post. Within the supported lock-authorised cooperative-writer and crash-recovery model, terminal retirement must commit the next exact persistent-ledger generation in a monotonic sequence/hash chain, bound to its predecessor and the retired receipt, before the final guard is removed. Strict persistent retirement ledgers are mandatory for all four fixed source-receipt basenames; a missing, malformed or exchanging ledger blocks every remote-write lane and installation establishment. Only a current schema-3 activation plus instance-lock-bound mutation authority may recover one exact predecessor/successor ledger exchange before establishment; an invalid activation never authorises recovery. The daemon must never retire the restart barrier; only the offline, instance-lock-bound reconciliation protocol may durably archive the exact barriers and reconciliation receipt and retire the successor as its final synchronised namespace transition. Clean protocol activation is a separate stopped, instance-lock-bound operation which refuses every active marker and unresolved receipt. This local sequence/hash chain is not an externally anchored tamper-evident record: arbitrary out-of-protocol rollback or replacement is not detected and is outside this guarantee.",
       "failure_if_violated": "A hard process death after X accepts a post but before the first confirmed receipt can duplicate the post, or a later recovery can reconstruct different local cycle state from the state that followed the confirmed post.",
       "criticality": "critical",
       "implementation_status": "partial",
@@ -979,6 +979,14 @@
           "tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death",
           "tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change",
           "tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values",
+          "tests/test_unit_helpers.py::test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst",
+          "tests/test_unit_helpers.py::test_meme_schedule_producers_and_guards_ignore_ambient_timezone",
+          "tests/test_unit_helpers.py::test_confirmed_pending_schedule_requires_timezone_bound_schema_v5",
+          "tests/test_unit_helpers.py::test_current_main_attempt_rejects_unbound_schedule_timezone",
+          "tests/test_unit_helpers.py::test_main_attempt_builder_refuses_unbound_current_plan",
+          "tests/test_unit_helpers.py::test_legacy_schema4_schedule_validation_ignores_ambient_timezone",
+          "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+          "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
           "tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt",
           "tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version",
           "tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target",
@@ -1067,6 +1075,14 @@
           "tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death",
                 "tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change",
                 "tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values",
+                "tests/test_unit_helpers.py::test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst",
+                "tests/test_unit_helpers.py::test_meme_schedule_producers_and_guards_ignore_ambient_timezone",
+                "tests/test_unit_helpers.py::test_confirmed_pending_schedule_requires_timezone_bound_schema_v5",
+                "tests/test_unit_helpers.py::test_current_main_attempt_rejects_unbound_schedule_timezone",
+                "tests/test_unit_helpers.py::test_main_attempt_builder_refuses_unbound_current_plan",
+                "tests/test_unit_helpers.py::test_legacy_schema4_schedule_validation_ignores_ambient_timezone",
+                "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+                "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
                 "tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt",
                 "tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version",
                 "tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target",
@@ -1200,6 +1216,46 @@
           "reference": "mrsMThatcher2.py",
           "claim": "Primary recorded enforcement or assurance path for this invariant."
         },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst",
+          "claim": "Identical current receipt bytes materialise the same regular and meme schedules across ambient timezone changes on both sides of the London daylight-saving transitions."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_meme_schedule_producers_and_guards_ignore_ambient_timezone",
+          "claim": "Meme schedule production, state reload validation and same-day guards use one explicit production calendar across ambient timezone changes."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_confirmed_pending_schedule_requires_timezone_bound_schema_v5",
+          "claim": "Only the current timezone-bound attempt schema can authorise confirmed pending-schedule materialisation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_current_main_attempt_rejects_unbound_schedule_timezone",
+          "claim": "A current attempt fails closed when its bound schedule timezone is absent or unsupported."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_main_attempt_builder_refuses_unbound_current_plan",
+          "claim": "The canonical current-attempt builder cannot silently downgrade a current plan to a legacy unbound generation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_legacy_schema4_schedule_validation_ignores_ambient_timezone",
+          "claim": "Reader-only schema-4 compatibility uses the documented historical production calendar across ambient timezone changes."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+          "claim": "Legacy attempt generations remain readable as fail-closed barriers but cannot enter the live persistence or transport path."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
+          "claim": "A caller-supplied attempting record cannot bypass durable sending publication and the exact single-use promotion."
+        },
       {
         "type": "test",
         "reference": "tests/test_unit_helpers.py::test_main_post_hard_death_boundaries_never_recreate_remote_post",
@@ -1260,7 +1316,7 @@
       "id": "INV-TXN-MEME-001",
       "category": "transaction",
       "title": "Meme-post at-most-once transaction",
-      "statement": "Before a meme-post X create request can be transmitted, one durable single-use attempt must bind the exact payload and selected meme identity. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation. The restart-persistent successor-first protocol must itself be durably activated before any remote lane may open. A newly recorded ambiguity must create, synchronise and revalidate ambiguous_post_outcome.restart_barrier.json before linking the legacy marker name. An installation without the exact activation sentinel must fail closed across every process restart; a legacy-only marker must never be migrated by the running daemon and must be reconciled while stopped before clean offline activation. A process-local latch alone does not satisfy restart safety: either the inactive protocol, a successor or unresolved receipt must remain durably discoverable after marker disappearance, abrupt process death and every later restart, and either marker namespace entry, an unresolved receipt, protocol inactivity, or either process-local barrier must block every remote-write lane. A confirmed attempt must promote atomically to the established self-validating receipt, block unrelated remote writes while local schedule work remains pending, reconcile post history and future schedule idempotently, and never be remotely reposted. Within the supported lock-authorised cooperative-writer and crash-recovery model, terminal retirement must commit the next exact persistent-ledger generation in a monotonic sequence/hash chain, bound to its predecessor and the retired receipt, before the final guard is removed. Strict persistent retirement ledgers are mandatory for all four fixed source-receipt basenames; a missing, malformed or exchanging ledger blocks every remote-write lane and installation establishment. Only a current schema-3 activation plus instance-lock-bound mutation authority may recover one exact predecessor/successor ledger exchange before establishment; an invalid activation never authorises recovery. The daemon must never retire the restart barrier; only the offline, instance-lock-bound reconciliation protocol may durably archive the exact barriers and reconciliation receipt and retire the successor as its final synchronised namespace transition. Clean protocol activation is a separate stopped, instance-lock-bound operation which refuses every active marker and unresolved receipt. This local sequence/hash chain is not an externally anchored tamper-evident record: arbitrary out-of-protocol rollback or replacement is not detected and is outside this guarantee.",
+      "statement": "Before a meme-post X create request can be transmitted, one durable single-use attempt must bind the exact payload, selected meme identity and schedule timezone. An uncertain attempt must survive restart as a global manual-reconciliation barrier whose ordinary-file identity and exact bytes remain stable across explicit file and parent-directory synchronisation. The restart-persistent successor-first protocol must itself be durably activated before any remote lane may open. A newly recorded ambiguity must create, synchronise and revalidate ambiguous_post_outcome.restart_barrier.json before linking the legacy marker name. An installation without the exact activation sentinel must fail closed across every process restart; a legacy-only marker must never be migrated by the running daemon and must be reconciled while stopped before clean offline activation. A process-local latch alone does not satisfy restart safety: either the inactive protocol, a successor or unresolved receipt must remain durably discoverable after marker disappearance, abrupt process death and every later restart, and either marker namespace entry, an unresolved receipt, protocol inactivity, or either process-local barrier must block every remote-write lane. A confirmed attempt must promote atomically to the established self-validating receipt, block unrelated remote writes while local schedule work remains pending, reconcile post history and its timezone-bound future schedule idempotently, and never be remotely reposted. Within the supported lock-authorised cooperative-writer and crash-recovery model, terminal retirement must commit the next exact persistent-ledger generation in a monotonic sequence/hash chain, bound to its predecessor and the retired receipt, before the final guard is removed. Strict persistent retirement ledgers are mandatory for all four fixed source-receipt basenames; a missing, malformed or exchanging ledger blocks every remote-write lane and installation establishment. Only a current schema-3 activation plus instance-lock-bound mutation authority may recover one exact predecessor/successor ledger exchange before establishment; an invalid activation never authorises recovery. The daemon must never retire the restart barrier; only the offline, instance-lock-bound reconciliation protocol may durably archive the exact barriers and reconciliation receipt and retire the successor as its final synchronised namespace transition. Clean protocol activation is a separate stopped, instance-lock-bound operation which refuses every active marker and unresolved receipt. This local sequence/hash chain is not an externally anchored tamper-evident record: arbitrary out-of-protocol rollback or replacement is not detected and is outside this guarantee.",
       "failure_if_violated": "A hard process death after X accepts a meme but before the first confirmed receipt can duplicate it, lose its future schedule, or corrupt ordering between meme and regular main posts.",
       "criticality": "critical",
       "implementation_status": "partial",
@@ -1339,6 +1395,14 @@
           "tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death",
           "tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change",
           "tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values",
+          "tests/test_unit_helpers.py::test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst",
+          "tests/test_unit_helpers.py::test_meme_schedule_producers_and_guards_ignore_ambient_timezone",
+          "tests/test_unit_helpers.py::test_confirmed_pending_schedule_requires_timezone_bound_schema_v5",
+          "tests/test_unit_helpers.py::test_current_main_attempt_rejects_unbound_schedule_timezone",
+          "tests/test_unit_helpers.py::test_main_attempt_builder_refuses_unbound_current_plan",
+          "tests/test_unit_helpers.py::test_legacy_schema4_schedule_validation_ignores_ambient_timezone",
+          "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+          "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
           "tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt",
           "tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version",
           "tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target",
@@ -1410,6 +1474,14 @@
           "tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death",
                 "tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change",
                 "tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values",
+                "tests/test_unit_helpers.py::test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst",
+                "tests/test_unit_helpers.py::test_meme_schedule_producers_and_guards_ignore_ambient_timezone",
+                "tests/test_unit_helpers.py::test_confirmed_pending_schedule_requires_timezone_bound_schema_v5",
+                "tests/test_unit_helpers.py::test_current_main_attempt_rejects_unbound_schedule_timezone",
+                "tests/test_unit_helpers.py::test_main_attempt_builder_refuses_unbound_current_plan",
+                "tests/test_unit_helpers.py::test_legacy_schema4_schedule_validation_ignores_ambient_timezone",
+                "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+                "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
                 "tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt",
                 "tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version",
                 "tests/test_unit_helpers.py::test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target",
@@ -1544,6 +1616,46 @@
           "type": "code",
           "reference": "mrsMThatcher2.py",
           "claim": "Primary recorded enforcement or assurance path for this invariant."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst",
+          "claim": "Identical current receipt bytes materialise the same regular and meme schedules across ambient timezone changes on both sides of the London daylight-saving transitions."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_meme_schedule_producers_and_guards_ignore_ambient_timezone",
+          "claim": "Meme schedule production, state reload validation and same-day guards use one explicit production calendar across ambient timezone changes."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_confirmed_pending_schedule_requires_timezone_bound_schema_v5",
+          "claim": "Only the current timezone-bound attempt schema can authorise confirmed pending-schedule materialisation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_current_main_attempt_rejects_unbound_schedule_timezone",
+          "claim": "A current attempt fails closed when its bound schedule timezone is absent or unsupported."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_main_attempt_builder_refuses_unbound_current_plan",
+          "claim": "The canonical current-attempt builder cannot silently downgrade a current plan to a legacy unbound generation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_legacy_schema4_schedule_validation_ignores_ambient_timezone",
+          "claim": "Reader-only schema-4 compatibility uses the documented historical production calendar across ambient timezone changes."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+          "claim": "Legacy attempt generations remain readable as fail-closed barriers but cannot enter the live persistence or transport path."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
+          "claim": "A caller-supplied attempting record cannot bypass durable sending publication and the exact single-use promotion."
         },
       {
         "type": "test",
@@ -2990,6 +3102,12 @@
           "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
           "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
           "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_value_options",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_confirmation_flags",
+          "tests/test_remote_write_safety_second_restart.py::test_exact_activation_parser_rejects_mixed_alias_duplication",
+          "tests/test_remote_write_safety_second_restart.py::test_runtime_activation_audit_rejects_strict_json_hazards",
+          "tests/test_remote_write_safety_second_restart.py::test_runtime_caller_treats_overflowing_activation_audit_as_inactive",
+          "tests/test_remote_write_safety_second_restart.py::test_external_clean_state_attestation_rejects_strict_json_hazards",
           "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
           "tests/test_exact_receipt_retirement.py::test_required_permanent_ledger_missing_torn_and_unsafe_states_block",
           "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_around_permanent_ledger_and_final_cleanup_resumes",
@@ -3013,6 +3131,8 @@
           "tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death",
           "tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change",
           "tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values",
+          "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+          "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
           "tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt",
           "tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version",
           "tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback",
@@ -3147,6 +3267,12 @@
               "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
               "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
               "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_value_options",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_confirmation_flags",
+              "tests/test_remote_write_safety_second_restart.py::test_exact_activation_parser_rejects_mixed_alias_duplication",
+              "tests/test_remote_write_safety_second_restart.py::test_runtime_activation_audit_rejects_strict_json_hazards",
+              "tests/test_remote_write_safety_second_restart.py::test_runtime_caller_treats_overflowing_activation_audit_as_inactive",
+              "tests/test_remote_write_safety_second_restart.py::test_external_clean_state_attestation_rejects_strict_json_hazards",
               "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
               "tests/test_exact_receipt_retirement.py::test_required_permanent_ledger_missing_torn_and_unsafe_states_block",
               "tests/test_exact_receipt_retirement.py::test_literal_hard_exit_around_permanent_ledger_and_final_cleanup_resumes",
@@ -3170,6 +3296,8 @@
               "tests/test_unit_helpers.py::test_pending_to_full_receipt_atomic_replace_survives_hard_death",
               "tests/test_unit_helpers.py::test_pending_schedule_plan_survives_current_configuration_change",
               "tests/test_unit_helpers.py::test_current_attempt_schema_rejects_absurd_bound_schedule_values",
+              "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+              "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
               "tests/test_unit_helpers.py::test_current_attempt_cannot_bypass_confirmed_pending_schedule_receipt",
               "tests/test_unit_helpers.py::test_current_full_receipt_rejects_future_schedule_version",
               "tests/test_unit_helpers.py::test_confirmation_requires_consumed_attempt_and_clamps_clock_rollback",
@@ -3407,6 +3535,16 @@
         },
         {
           "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport",
+          "claim": "A legacy main-attempt receipt remains a readable fail-closed barrier but cannot enter the current live persistence or transport path."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_unit_helpers.py::test_attempting_main_attempt_cannot_bypass_single_use_promotion",
+          "claim": "Current persistence requires sending state and transport performs the exact single-use sending-to-attempting transition."
+        },
+        {
+          "type": "test",
           "reference": "tests/test_remote_write_safety_marker_reconciliation.py",
           "claim": "The only supported marker-removal path is offline, exact-hash bound, symlink rejecting and mutually exclusive with the running daemon."
         },
@@ -3464,6 +3602,36 @@
           "type": "test",
           "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
           "claim": "Conflicting repeated project-identity destinations and aliases are rejected before activation work."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_value_options",
+          "claim": "Every value-bearing activation option is rejected when repeated in either supported spelling."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_confirmation_flags",
+          "claim": "Repeated confirmation flags are rejected before activation inspection or mutation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_exact_activation_parser_rejects_mixed_alias_duplication",
+          "claim": "Mixed aliases which address one activation destination are rejected as duplicates."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_runtime_activation_audit_rejects_strict_json_hazards",
+          "claim": "Runtime activation evidence rejects duplicate names, explicit non-finite constants and finite-spelling numeric overflow through one protocol-specific boundary."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_runtime_caller_treats_overflowing_activation_audit_as_inactive",
+          "claim": "The production caller classifies overflowing activation evidence as inactive rather than leaking an unrelated numeric exception."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_external_clean_state_attestation_rejects_strict_json_hazards",
+          "claim": "Stopped activation evidence uses the same strict duplicate and finite-number policy before inspection or mutation."
         },
         {
           "type": "test",
@@ -3782,6 +3950,7 @@
         "tests": [
           "tests/test_fail_safe_bootstrap_and_control.py::test_existing_invalid_local_config_fails_closed",
           "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_rejects_duplicate_names_and_nonfinite_constants",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation",
           "tests/test_integration_harness.py::test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or_urls",
           "tests/test_deployment_assets.py::test_local_config_example_is_accepted_as_one_atomic_override"
         ],
@@ -3849,6 +4018,11 @@
           "claim": "The candidate strict decoder rejects duplicate names at every nesting depth, non-finite constants and finite-spelling overflow before any configuration mutation."
         },
         {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_local_config_strict_loader_rejects_nested_duplicate_before_schema_validation",
+          "claim": "A complete otherwise schema-valid nested object is rejected specifically at the strict duplicate-name boundary before schema validation."
+        },
+        {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0006",
           "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
@@ -3906,6 +4080,8 @@
         ],
         "tests": [
           "tests/test_fail_safe_bootstrap_and_control.py::test_unknown_runtime_control_keys_fail_closed",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_runtime_control_unknown_to_production_schema",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_runtime_control_symlink_like_production_loader",
           "tests/test_fail_safe_bootstrap_and_control.py::test_control_malformed_preserves_prior_pause_and_repair_recovers",
           "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_duplicate_names_and_nonfinite_constants",
           "tests/test_fail_safe_bootstrap_and_control.py::test_same_inode_control_change_cannot_reuse_cached_unpaused_value",
@@ -3985,6 +4161,16 @@
           "claim": "Focused automated evidence for the principal recorded boundary."
         },
         {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_runtime_control_unknown_to_production_schema",
+          "claim": "Self-test applies the same schema-validating runtime-control authority as production and reports an unknown key as a failure."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_self_test_rejects_runtime_control_symlink_like_production_loader",
+          "claim": "Self-test applies the production stable-reader policy to a non-authoritative control pathname rather than accepting weaker diagnostic-only input."
+        },
+        {
           "type": "report",
           "reference": "defect_ledger.json#DEF-0007",
           "claim": "Evidence-cut-off defect or assurance record linked to this invariant."
@@ -4018,7 +4204,7 @@
       "last_verified_commit": {
         "status": "unknown",
         "value": null,
-        "explanation": "The strengthened post-authority-consumption pause linearisation contract and its enforcement tests exist only in the current unfrozen candidate. This registry cannot self-attest that candidate's final commit; an external frozen-candidate gate must supply and verify the exact identity."
+        "explanation": "The strengthened post-authority-consumption pause linearisation contract and its enforcement tests exist in the enclosing post-cutoff candidate snapshot. This registry cannot self-attest that candidate's final commit; an external frozen-candidate gate must supply and verify the exact identity."
       },
       "last_verified_tree": {
         "status": "unknown",
@@ -4332,7 +4518,7 @@
       "last_verified_commit": {
         "status": "unknown",
         "value": null,
-        "explanation": "The strengthened top-of-file argv and bootstrap contract and its enforcement tests exist only in the current unfrozen candidate. This registry cannot self-attest that candidate's final commit; an external frozen-candidate gate must supply and verify the exact identity."
+        "explanation": "The strengthened top-of-file argv and bootstrap contract and its enforcement tests exist in the enclosing post-cutoff candidate snapshot. This registry cannot self-attest that candidate's final commit; an external frozen-candidate gate must supply and verify the exact identity."
       },
       "last_verified_tree": {
         "status": "unknown",
@@ -4402,6 +4588,12 @@
           "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
           "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
           "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_value_options",
+          "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_confirmation_flags",
+          "tests/test_remote_write_safety_second_restart.py::test_exact_activation_parser_rejects_mixed_alias_duplication",
+          "tests/test_remote_write_safety_second_restart.py::test_runtime_activation_audit_rejects_strict_json_hazards",
+          "tests/test_remote_write_safety_second_restart.py::test_runtime_caller_treats_overflowing_activation_audit_as_inactive",
+          "tests/test_remote_write_safety_second_restart.py::test_external_clean_state_attestation_rejects_strict_json_hazards",
           "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
           "tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir",
       "tests/test_pending_receipt_directory_fsync.py::test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement",
@@ -4452,6 +4644,12 @@
               "tests/test_remote_write_safety_second_restart.py::test_activation_refuses_interrupted_initialisation_before_any_mutation",
               "tests/test_remote_write_safety_second_restart.py::test_activation_cli_accepts_complete_documented_invocation",
               "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_value_options",
+              "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_confirmation_flags",
+              "tests/test_remote_write_safety_second_restart.py::test_exact_activation_parser_rejects_mixed_alias_duplication",
+              "tests/test_remote_write_safety_second_restart.py::test_runtime_activation_audit_rejects_strict_json_hazards",
+              "tests/test_remote_write_safety_second_restart.py::test_runtime_caller_treats_overflowing_activation_audit_as_inactive",
+              "tests/test_remote_write_safety_second_restart.py::test_external_clean_state_attestation_rejects_strict_json_hazards",
               "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_abbreviated_options",
               "tests/test_integration_harness.py::test_instance_lock_refuses_second_process_on_same_state_dir",
           "tests/test_pending_receipt_directory_fsync.py::test_unlocked_matching_descriptor_cannot_self_authorise_acknowledgement",
@@ -4600,6 +4798,36 @@
           "type": "test",
           "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_project_identity_options",
           "claim": "Repeated option destinations, including aliases, are rejected before activation inspection or mutation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_value_options",
+          "claim": "Every value-bearing activation option is rejected when repeated in either supported spelling."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_activation_cli_rejects_duplicate_confirmation_flags",
+          "claim": "Repeated confirmation flags are rejected before activation inspection or mutation."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_exact_activation_parser_rejects_mixed_alias_duplication",
+          "claim": "Mixed aliases which address one activation destination are rejected as duplicates."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_runtime_activation_audit_rejects_strict_json_hazards",
+          "claim": "Runtime activation evidence rejects duplicate names, explicit non-finite constants and finite-spelling numeric overflow through one protocol-specific boundary."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_runtime_caller_treats_overflowing_activation_audit_as_inactive",
+          "claim": "The production caller classifies overflowing activation evidence as inactive rather than leaking an unrelated numeric exception."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_remote_write_safety_second_restart.py::test_external_clean_state_attestation_rejects_strict_json_hazards",
+          "claim": "Stopped activation evidence uses the same strict duplicate and finite-number policy before inspection or mutation."
         },
         {
           "type": "test",

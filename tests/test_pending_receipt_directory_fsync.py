@@ -248,7 +248,11 @@ def _new_main_attempt(lane: str) -> dict:
                 "meme_scheduling_enabled": False,
                 "meme_trigger_after_hour": int(bot.MEME_TRIGGER_AFTER_HOUR),
                 "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
-                "meme_schedule_before": bot.bound_meme_schedule_state({}),
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bot.bound_meme_schedule_state(
+                    {},
+                    schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
                 "quote_history_after": [quote_hash],
                 "image_history_after": ["t01.jpg"],
             },
@@ -265,6 +269,8 @@ def _new_main_attempt(lane: str) -> dict:
             "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
             "fallback_hour": int(bot.MEME_FALLBACK_HOUR),
             "fallback_minute": int(bot.MEME_FALLBACK_MINUTE),
+            "image_summary": "Unit meme",
+            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
         },
         attempt_epoch=CONFIRMATION_EPOCH,
     )

@@ -10,9 +10,11 @@ import signal
 import subprocess
 import sys
 import tempfile
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -3715,6 +3717,14 @@ def test_main_attempt_atomic_exchange_interruption_leaves_old_or_new_valid_json(
             recovery_plan={
                 "quote_delay_seconds": bot.POST_SLEEP_MIN,
                 "meme_delay_seconds": None,
+                "meme_scheduling_enabled": False,
+                "meme_trigger_after_hour": int(bot.MEME_TRIGGER_AFTER_HOUR),
+                "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bot.bound_meme_schedule_state(
+                    {},
+                    schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
                 "quote_history_after": [quote_hash],
                 "image_history_after": ["t01.jpg"],
             },
@@ -3728,7 +3738,14 @@ def test_main_attempt_atomic_exchange_interruption_leaves_old_or_new_valid_json(
             media_ids=["media-1"],
             made_with_ai=False,
             selected_identity={"meme_basename": "001_meme.png"},
-            recovery_plan={"next_schedule_mode": "fallback"},
+            recovery_plan={
+                "next_schedule_mode": "fallback",
+                "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+                "fallback_hour": int(bot.MEME_FALLBACK_HOUR),
+                "fallback_minute": int(bot.MEME_FALLBACK_MINUTE),
+                "image_summary": "Unit meme image.",
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+            },
         )
         receipt_path = bot.MEME_POST_RECEIPT_FILE
         loader = bot.load_meme_post_receipt
@@ -3819,7 +3836,11 @@ def schema_current_main_attempt(lane: str) -> dict:
                 "meme_scheduling_enabled": True,
                 "meme_trigger_after_hour": 12,
                 "meme_schedule_version": 2,
-                "meme_schedule_before": bot.bound_meme_schedule_state({}),
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bot.bound_meme_schedule_state(
+                    {},
+                    schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
                 "quote_history_after": [quote_hash],
                 "image_history_after": ["t01.jpg"],
             },
@@ -3836,6 +3857,8 @@ def schema_current_main_attempt(lane: str) -> dict:
             "meme_schedule_version": 2,
             "fallback_hour": 16,
             "fallback_minute": 0,
+            "image_summary": "",
+            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
         },
         attempt_epoch=1_800_000_000,
     )
@@ -3925,10 +3948,11 @@ def test_current_meme_attempt_binds_image_summary_for_restart_recovery() -> None
             "fallback_hour": 16,
             "fallback_minute": 0,
             "image_summary": summary,
+            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
         },
         attempt_epoch=1_800_000_000,
     )
-    assert attempt["schema_version"] == 4
+    assert attempt["schema_version"] == 5
     attempting = {**attempt, "lifecycle_state": "attempting"}
     with pytest.raises(RuntimeError):
         bot.build_confirmed_pending_schedule_receipt(
@@ -4091,6 +4115,295 @@ def test_pending_schedule_plan_survives_current_configuration_change(
     assert state["meme_schedule_version"] == expected_schedule_version
 
 
+@pytest.mark.parametrize(
+    ("lane", "confirmation_local"),
+    [
+        (
+            "quote_image",
+            datetime(
+                2026,
+                3,
+                29,
+                12,
+                30,
+                tzinfo=ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+            ),
+        ),
+        (
+            "quote_image",
+            datetime(
+                2026,
+                10,
+                25,
+                12,
+                30,
+                tzinfo=ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+            ),
+        ),
+        (
+            "daily_meme",
+            datetime(
+                2026,
+                3,
+                28,
+                23,
+                30,
+                tzinfo=ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+            ),
+        ),
+        (
+            "daily_meme",
+            datetime(
+                2026,
+                10,
+                24,
+                23,
+                30,
+                tzinfo=ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+            ),
+        ),
+    ],
+)
+def test_current_pending_schedule_replay_ignores_ambient_timezone_across_dst(
+    lane: str,
+    confirmation_local: datetime,
+) -> None:
+    """Identical pending bytes have one Europe/London calendar result."""
+
+    if not hasattr(time, "tzset"):
+        pytest.skip("ambient timezone switching requires time.tzset")
+    confirmation_epoch = int(confirmation_local.timestamp())
+    attempt = schema_current_main_attempt(lane)
+    attempt["attempt_epoch"] = confirmation_epoch - 60
+    attempt["lifecycle_state"] = "attempting"
+    assert attempt["schema_version"] == 5
+    assert bot.main_post_attempt_is_semantically_valid(attempt)
+    pending = bot.build_confirmed_pending_schedule_receipt(
+        attempt,
+        post_id="950001" if lane == "quote_image" else "970001",
+        confirmation_epoch=confirmation_epoch,
+        image_summary=str(attempt["recovery_plan"].get("image_summary") or ""),
+    )
+    pending_bytes = bot.canonical_atomic_json_bytes(pending)
+    original_timezone = os.environ.get("TZ")
+    outputs: list[dict] = []
+    applied_schedules: list[tuple[object, ...]] = []
+    try:
+        for ambient_timezone in ("UTC", "Pacific/Honolulu", "Asia/Tokyo"):
+            os.environ["TZ"] = ambient_timezone
+            time.tzset()
+            assert bot.canonical_atomic_json_bytes(pending) == pending_bytes
+            if lane == "quote_image":
+                receipt = bot.materialize_bound_regular_schedule_receipt(
+                    copy.deepcopy(pending)
+                )
+                assert bot.regular_post_receipt_is_semantically_valid(receipt)
+                state: dict = {}
+                bot.apply_regular_post_receipt(receipt, set(), set(), state)
+            else:
+                receipt = bot.materialize_bound_meme_schedule_receipt(
+                    copy.deepcopy(pending)
+                )
+                assert bot.meme_post_receipt_is_semantically_valid(receipt)
+                state = {}
+                bot.apply_meme_post_receipt(receipt, state)
+            reloaded_state = json.loads(bot.canonical_atomic_json_bytes(state))
+            assert bot.validate_meme_schedule_state(
+                reloaded_state,
+                path=Path("reloaded-timezone-bound-state.json"),
+            )
+            outputs.append(receipt)
+            applied_schedules.append(
+                (
+                    state.get("next_meme_post_epoch"),
+                    state.get("meme_schedule_version"),
+                    state.get("next_meme_schedule_mode"),
+                    state.get("next_meme_schedule_date"),
+                    state.get("meme_anchor_quote_post_epoch"),
+                )
+            )
+    finally:
+        if original_timezone is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original_timezone
+        time.tzset()
+
+    assert outputs[1:] == [outputs[0], outputs[0]]
+    assert applied_schedules[1:] == [applied_schedules[0], applied_schedules[0]]
+    if lane == "quote_image":
+        assert outputs[0]["meme_schedule_changed_by_quote"] is True
+        assert outputs[0]["next_meme_post_epoch"] == confirmation_epoch + 3600
+        assert outputs[0]["next_meme_schedule_date"] == (
+            confirmation_local.strftime("%Y-%m-%d")
+        )
+    else:
+        expected_next = (confirmation_local + timedelta(days=1)).replace(
+            hour=16,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        assert outputs[0]["next_meme_post_epoch"] == int(
+            expected_next.timestamp()
+        )
+        assert outputs[0]["next_meme_schedule_date"] == expected_next.strftime(
+            "%Y-%m-%d"
+        )
+
+
+def test_meme_schedule_producers_and_guards_ignore_ambient_timezone() -> None:
+    """Current meme calendar state has one production-zone interpretation."""
+
+    if not hasattr(time, "tzset"):
+        pytest.skip("ambient timezone switching requires time.tzset")
+    quote_local = datetime(
+        2026,
+        3,
+        29,
+        16,
+        30,
+        tzinfo=ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+    )
+    quote_epoch = int(quote_local.timestamp())
+    original_timezone = os.environ.get("TZ")
+    outputs: list[tuple[dict, dict, bool]] = []
+    try:
+        for ambient_timezone in ("UTC", "Pacific/Honolulu", "Asia/Tokyo"):
+            os.environ["TZ"] = ambient_timezone
+            time.tzset()
+            fallback = bot.next_meme_schedule_fields({}, quote_epoch)
+            after_quote = bot.meme_schedule_fields_after_quote_post(
+                {},
+                quote_epoch,
+                delay=3600,
+            )
+            reloaded = json.loads(bot.canonical_atomic_json_bytes(after_quote))
+            assert bot.validate_meme_schedule_state(
+                reloaded,
+                path=Path("reloaded-produced-meme-state.json"),
+            )
+            posted_on_bound_date = bot.meme_posted_on_date(
+                {"last_meme_post_epoch": quote_epoch},
+                quote_local.strftime("%Y-%m-%d"),
+            )
+            outputs.append((fallback, after_quote, posted_on_bound_date))
+    finally:
+        if original_timezone is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original_timezone
+        time.tzset()
+
+    assert outputs[1:] == [outputs[0], outputs[0]]
+    assert outputs[0][2] is True
+    assert outputs[0][1]["next_meme_schedule_date"] == "2026-03-29"
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+def test_confirmed_pending_schedule_requires_timezone_bound_schema_v5(
+    lane: str,
+) -> None:
+    legacy = schema_current_main_attempt(lane)
+    legacy["schema_version"] = 4
+    legacy["lifecycle_state"] = "attempting"
+    legacy["recovery_plan"].pop("schedule_timezone")
+    assert bot.main_post_attempt_is_semantically_valid(legacy)
+    pending = {
+        "schema_version": 1,
+        "receipt_type": "confirmed_pending_schedule",
+        "post_id": "950001" if lane == "quote_image" else "970001",
+        "confirmation_epoch": int(legacy["attempt_epoch"]) + 1,
+        "source_attempt": legacy,
+        "image_summary": str(legacy["recovery_plan"].get("image_summary") or ""),
+    }
+    assert not bot.confirmed_pending_schedule_receipt_is_semantically_valid(
+        pending,
+        expected_lane=lane,
+    )
+    with pytest.raises(RuntimeError, match="pending-schedule receipt is invalid"):
+        bot.build_confirmed_pending_schedule_receipt(
+            legacy,
+            post_id=pending["post_id"],
+            confirmation_epoch=pending["confirmation_epoch"],
+            image_summary=pending["image_summary"],
+        )
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+@pytest.mark.parametrize("timezone_value", [None, "UTC", 0])
+def test_current_main_attempt_rejects_unbound_schedule_timezone(
+    lane: str,
+    timezone_value: object,
+) -> None:
+    attempt = schema_current_main_attempt(lane)
+    if timezone_value is None:
+        attempt["recovery_plan"].pop("schedule_timezone")
+    else:
+        attempt["recovery_plan"]["schedule_timezone"] = timezone_value
+    assert bot.main_post_attempt_is_semantically_valid(attempt) is False
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+def test_main_attempt_builder_refuses_unbound_current_plan(lane: str) -> None:
+    """The builder cannot silently downgrade a current plan to a legacy schema."""
+
+    current = schema_current_main_attempt(lane)
+    recovery_plan = copy.deepcopy(current["recovery_plan"])
+    recovery_plan.pop("schedule_timezone")
+    with pytest.raises(ValueError, match="bind the production schedule timezone"):
+        bot.build_main_post_attempt(
+            lane=lane,
+            text=str(current["text"]),
+            media_ids=list(current["media_ids"]),
+            made_with_ai=bool(current["made_with_ai"]),
+            selected_identity=copy.deepcopy(current["selected_identity"]),
+            recovery_plan=recovery_plan,
+            attempt_epoch=int(current["attempt_epoch"]),
+        )
+
+
+def test_legacy_schema4_schedule_validation_ignores_ambient_timezone() -> None:
+    """Reader compatibility uses the historical production calendar."""
+
+    if not hasattr(time, "tzset"):
+        pytest.skip("ambient timezone switching requires time.tzset")
+    next_local = datetime(
+        2026,
+        3,
+        29,
+        0,
+        30,
+        tzinfo=ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+    )
+    next_epoch = int(next_local.timestamp())
+    legacy = schema_current_main_attempt("quote_image")
+    legacy["schema_version"] = 4
+    legacy["recovery_plan"].pop("schedule_timezone")
+    legacy["recovery_plan"]["meme_schedule_before"] = {
+        "last_meme_post_epoch": 0,
+        "next_meme_post_epoch": next_epoch,
+        "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+        "next_meme_schedule_mode": "fallback",
+        "next_meme_schedule_date": "2026-03-29",
+        "meme_anchor_quote_post_epoch": 0,
+    }
+    legacy_bytes = bot.canonical_atomic_json_bytes(legacy)
+    original_timezone = os.environ.get("TZ")
+    try:
+        for ambient_timezone in ("Europe/London", "Pacific/Honolulu", "Asia/Tokyo"):
+            os.environ["TZ"] = ambient_timezone
+            time.tzset()
+            assert bot.canonical_atomic_json_bytes(legacy) == legacy_bytes
+            assert bot.main_post_attempt_is_semantically_valid(legacy)
+    finally:
+        if original_timezone is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original_timezone
+        time.tzset()
+
+
 def test_current_attempt_schema_rejects_absurd_bound_schedule_values() -> None:
     regular = schema_current_main_attempt("quote_image")
     regular["recovery_plan"]["quote_delay_seconds"] = (
@@ -4149,40 +4462,90 @@ def test_main_attempt_keeps_supported_legacy_integer_schemas(
 ) -> None:
     if lane == "quote_image":
         quote_hash = bot.quote_text_hash("Good quote.")
-        attempt = bot.build_main_post_attempt(
-            lane=lane,
-            text="Good quote.",
-            media_ids=["media-1"],
-            made_with_ai=False,
-            selected_identity={
-                "quote_hash": quote_hash,
-                "line_no": 0,
-                "source_line_number": 1,
-                "image_basename": "t01.jpg",
-                "image_no": 0,
-            },
-            recovery_plan={
-                "quote_delay_seconds": 7200,
-                "meme_delay_seconds": None,
-                "quote_history_after": [quote_hash],
-                "image_history_after": ["t01.jpg"],
-            },
-            attempt_epoch=1_800_000_000,
-        )
+        attempt = schema_current_main_attempt(lane)
+        attempt["schema_version"] = expected_schema
+        attempt["recovery_plan"] = {
+            "quote_delay_seconds": 7200,
+            "meme_delay_seconds": None,
+            "quote_history_after": [quote_hash],
+            "image_history_after": ["t01.jpg"],
+        }
     else:
-        attempt = bot.build_main_post_attempt(
-            lane=lane,
-            text=bot.MEME_POST_TEXT,
-            media_ids=["media-1"],
-            made_with_ai=False,
-            selected_identity={"meme_basename": "001_meme.png"},
-            recovery_plan={"next_schedule_mode": "fallback"},
-            attempt_epoch=1_800_000_000,
-        )
+        attempt = schema_current_main_attempt(lane)
+        attempt["schema_version"] = expected_schema
+        attempt["recovery_plan"] = {"next_schedule_mode": "fallback"}
 
     assert type(attempt["schema_version"]) is int
     assert attempt["schema_version"] == expected_schema
     assert bot.main_post_attempt_is_semantically_valid(attempt) is True
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+def test_legacy_main_attempt_is_reader_only_and_cannot_enter_live_transport(
+    lane: str,
+) -> None:
+    legacy = schema_current_main_attempt(lane)
+    legacy["schema_version"] = 4
+    legacy["recovery_plan"].pop("schedule_timezone")
+    path = (
+        bot.REGULAR_POST_RECEIPT_FILE
+        if lane == "quote_image"
+        else bot.MEME_POST_RECEIPT_FILE
+    )
+    loader = (
+        bot.load_regular_post_receipt
+        if lane == "quote_image"
+        else bot.load_meme_post_receipt
+    )
+
+    assert bot.main_post_attempt_is_semantically_valid(legacy)
+    assert not bot.current_main_post_attempt_is_semantically_valid(legacy)
+    with pytest.raises(RuntimeError, match="current-schema"):
+        bot.write_main_post_attempt(legacy)
+    assert not path.exists()
+
+    path.write_bytes(bot.canonical_atomic_json_bytes(legacy))
+    path.chmod(0o600)
+    before = path.read_bytes()
+    assert loader() == ("sending", legacy)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="current-schema"):
+        bot.mark_main_post_attempt_attempting(legacy)
+    with pytest.raises(bot.TransportJournalError, match="current-schema"):
+        bot.prepare_main_tweet_transport(legacy)
+    assert path.read_bytes() == before
+    assert loader() == ("sending", legacy)
+
+
+@pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
+def test_attempting_main_attempt_cannot_bypass_single_use_promotion(
+    lane: str,
+) -> None:
+    attempting = schema_current_main_attempt(lane)
+    attempting["lifecycle_state"] = "attempting"
+    path = (
+        bot.REGULAR_POST_RECEIPT_FILE
+        if lane == "quote_image"
+        else bot.MEME_POST_RECEIPT_FILE
+    )
+
+    assert bot.current_main_post_attempt_is_semantically_valid(attempting)
+    with pytest.raises(RuntimeError, match="sending main-post attempt"):
+        bot.write_main_post_attempt(attempting)
+    assert not path.exists()
+
+    path.write_bytes(bot.canonical_atomic_json_bytes(attempting))
+    path.chmod(0o600)
+    before = path.read_bytes()
+    with pytest.raises(
+        bot.TransportJournalError,
+        match="sending main-post attempt",
+    ):
+        bot.prepare_main_tweet_transport(attempting)
+    assert path.read_bytes() == before
+    assert not any(
+        os.path.lexists(journal_path)
+        for journal_path in bot.remote_write_transport_journal_paths()
+    )
 
 
 @pytest.mark.parametrize("lane", ["quote_image", "daily_meme"])
@@ -4241,19 +4604,37 @@ def test_current_full_receipt_rejects_future_schedule_version(
 
 
 def test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target() -> None:
-    anchor_epoch = int(datetime(2026, 7, 6, 23, 50, 0).timestamp())
+    anchor_epoch = int(
+        datetime(
+            2026,
+            7,
+            6,
+            23,
+            50,
+            0,
+            tzinfo=ZoneInfo(bot.MAIN_POST_SCHEDULE_TIMEZONE),
+        ).timestamp()
+    )
     target_epoch = anchor_epoch + 3600
-    assert bot.safe_epoch_date_str(target_epoch) != bot.safe_epoch_date_str(
-        anchor_epoch
+    assert bot.safe_bound_schedule_date_str(
+        target_epoch,
+        bot.MAIN_POST_SCHEDULE_TIMEZONE,
+    ) != bot.safe_bound_schedule_date_str(
+        anchor_epoch,
+        bot.MAIN_POST_SCHEDULE_TIMEZONE,
     )
     snapshot = bot.bound_meme_schedule_state(
         {
             "next_meme_post_epoch": target_epoch,
             "meme_schedule_version": 2,
             "next_meme_schedule_mode": "after_first_quote_after_midday",
-            "next_meme_schedule_date": bot.safe_epoch_date_str(anchor_epoch),
+            "next_meme_schedule_date": bot.safe_bound_schedule_date_str(
+                anchor_epoch,
+                bot.MAIN_POST_SCHEDULE_TIMEZONE,
+            ),
             "meme_anchor_quote_post_epoch": anchor_epoch,
-        }
+        },
+        schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
     )
 
     assert bot.bound_meme_schedule_state_is_valid(snapshot) is True
@@ -4276,6 +4657,7 @@ def test_bound_quote_anchored_meme_schedule_accepts_cross_midnight_target() -> N
             "meme_scheduling_enabled": True,
             "meme_trigger_after_hour": 12,
             "meme_schedule_version": 2,
+            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
             "meme_schedule_before": snapshot,
             "quote_history_after": [quote_hash],
             "image_history_after": ["t01.jpg"],
@@ -7092,6 +7474,14 @@ def test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action(
             recovery_plan={
                 "quote_delay_seconds": bot.POST_SLEEP_MIN,
                 "meme_delay_seconds": None,
+                "meme_scheduling_enabled": False,
+                "meme_trigger_after_hour": int(bot.MEME_TRIGGER_AFTER_HOUR),
+                "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bot.bound_meme_schedule_state(
+                    {},
+                    schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
                 "quote_history_after": [
                     bot.quote_text_hash("Good quote."),
                 ],
@@ -7106,7 +7496,14 @@ def test_fresh_startup_with_uncertain_main_attempt_idles_without_remote_action(
             media_ids=["media-1"],
             made_with_ai=False,
             selected_identity={"meme_basename": "001_meme.png"},
-            recovery_plan={"next_schedule_mode": "fallback"},
+            recovery_plan={
+                "next_schedule_mode": "fallback",
+                "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+                "fallback_hour": int(bot.MEME_FALLBACK_HOUR),
+                "fallback_minute": int(bot.MEME_FALLBACK_MINUTE),
+                "image_summary": "Unit meme image.",
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+            },
         )
         receipt_path = bot.MEME_POST_RECEIPT_FILE
     attempting = {**attempt, "lifecycle_state": "attempting"}
@@ -8069,6 +8466,7 @@ def test_meme_hard_death_after_remote_acceptance_leaves_restart_barrier(
         "image_summary": (
             "Anti-socialist meme image. Original filename: 001_meme.png."
         ),
+        "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
     }
     assert bot.ambiguous_remote_post_is_blocking() is True
 
@@ -9374,6 +9772,7 @@ def test_current_main_attempt_requires_exact_string_identifiers() -> None:
             "fallback_hour": 13,
             "fallback_minute": 0,
             "image_summary": "A meme image.",
+            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
         },
         attempt_epoch=1_800_000_000,
     )

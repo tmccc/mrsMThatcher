@@ -1,11 +1,12 @@
-# Priority-0 cumulative transaction remediation — bec8355 rejection and replacement record
+# Priority-0 cumulative transaction remediation — rejected-candidate and replacement record
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, four
-rejected exact candidates, and the four current replacements contained in the
-enclosing post-cut-off candidate snapshot. It is candidate-side evidence, not
-an external release attestation or an independent review.
+This document records the cumulative transaction-safety implementation, five
+rejected exact candidates, and the current twelve primary replacements plus
+four pre-freeze closure refinements contained in the enclosing post-cut-off
+candidate snapshot. It is candidate-side evidence, not an external release
+attestation or an independent review.
 
 - release and defect-ledger evidence-cut-off base:
   `4e548b0a5723a1f0c75e9646953b3f92c7db89ad`;
@@ -23,10 +24,14 @@ an external release attestation or an independent review.
   `b5e62c0458732c56e4851f010bfa27efb9514567`;
 - rejected round-b5 candidate tree:
   `50a14a3c4e8ac423b1b8ecaefd3a3950ef623d84`;
-- rejected bec8355 candidate commit:
+- rejected `bec8355` candidate commit:
   `bec83553c29c42ccc37a2dc9b6e16516dc367efe`;
-- rejected bec8355 candidate tree:
+- rejected `bec8355` candidate tree:
   `0db6a0e679493ab4f8e6316f66e0c6d954739e6d`;
+- rejected `baa0602` candidate commit:
+  `baa0602bc832848c81a26548b7d0e0bf18ce1b3f`;
+- rejected `baa0602` candidate tree:
+  `6e050d2a55581504cdbe69cb95c607dda4b3e322`;
 - enclosing post-cut-off candidate snapshot: status
   `implemented_post_cutoff_candidate`; its exact commit and tree are supplied
   externally and deliberately are not embedded in this self-referential
@@ -369,23 +374,83 @@ The candidate is rejected. Because the four repairs change the candidate
 snapshot, the consecutive-clean-round counter is reset to zero; no Round-1 or
 Round-2 clean lane is carried forward.
 
+## Rejected baa0602 exact-candidate review
+
+The four replacements above were frozen as candidate
+`baa0602bc832848c81a26548b7d0e0bf18ce1b3f`, tree
+`6e050d2a55581504cdbe69cb95c607dda4b3e322`, and reviewed concurrently in all
+four lanes. The review found eight P2 correctness or assurance defects:
+
+1. confirmed regular and meme schedule recovery depended on the ambient
+   process timezone instead of a durable explicit schedule timezone;
+2. self-test used a weaker runtime-control reader than production and could
+   report success for control input which production rejects;
+3. finite-spelling numeric overflow in activation evidence escaped as an
+   unclassified numeric error instead of an inactive/refused protocol result;
+4. historical defect-ledger selectors discarded parameter case identifiers;
+5. historical parameter-specific test evidence references were not held to
+   the same exact-selector rule as enforcement tests;
+6. the two critical activation-related invariants omitted the comprehensive
+   duplicate-option regressions;
+7. the configuration invariant did not bind the direct nested duplicate-name
+   regression; and
+8. two invariant explanations still described the frozen candidate as
+   unfrozen.
+
+The transaction lane's non-additive focused batches passed 369, 243 and 10
+tests. The hostile-input lane passed 71 tests, and the mutation/test-quality
+lane passed the 286-test focused set plus 19 directly selected nodes. Those
+results apply only to the rejected tree. Because the repair batch changes the
+candidate snapshot, all four lanes and the consecutive-clean-round counter are
+again reset to zero.
+
 ## Current post-cut-off candidate replacements
 
-The enclosing candidate snapshot contains these four replacements, each with
-status `implemented_post_cutoff_candidate`:
+The enclosing candidate snapshot retains the four replacements incorporated in
+the rejected `baa0602` tree and adds eight further primary replacements. Each
+has status `implemented_post_cutoff_candidate`:
 
-- the nested-duplicate regression now uses a complete, otherwise schema-valid
-  nested object, directly asserts the strict-loader duplicate-name boundary,
-  and verifies atomic local-configuration failure;
-- activator coverage now exercises every value option in separate-token and
-  equals forms, both confirmation flags, and mixed aliases sharing one
-  destination, while retaining a stable project-identity regression node;
-- historical parameter-specific selectors no longer lose their case IDs. In
-  the absence of exact historical collection attestation they fail closed,
-  while an unparameterized historical function selector remains supported;
-- this report and its JSON companion distinguish historical defect-ledger
-  status at the evidence cut-off from implementation status in the enclosing
-  post-cut-off candidate snapshot.
+- the nested-duplicate regression uses a complete, otherwise schema-valid
+  nested object and directly proves strict duplicate-name rejection before
+  schema validation;
+- activator coverage exercises every value option, both confirmation flags and
+  mixed aliases which address one destination;
+- historical parameter-specific selectors retain their case identifiers and
+  fail closed without exact historical collection evidence; and
+- the cumulative report distinguishes evidence-cutoff status from the
+  externally identified candidate snapshot;
+
+- current schedule attempts bind their calendar interpretation explicitly,
+  rather than inheriting the timezone of a later process;
+- self-test uses the same stable, schema-validating runtime-control authority
+  as production;
+- activation evidence rejects finite-spelling numeric overflow through its
+  protocol-specific fail-closed result;
+- historical parameter-specific defect-ledger selectors require exact
+  collection evidence and retain their case identifiers;
+- the same rule applies to historical parameter-specific test evidence in the
+  invariant registry;
+- the critical activation-related invariants bind the complete duplicate value,
+  flag and mixed-alias regression set;
+- the configuration invariant binds the direct nested duplicate-name
+  regression; and
+- invariant explanations describe the enclosing post-cutoff snapshot without
+  falsely calling an already frozen reviewed predecessor unfrozen.
+
+The pre-freeze review then added four closure refinements to the first schedule
+replacement rather than counting them as separate originating findings:
+
+- the canonical current-attempt builder refuses to emit an unbound legacy
+  generation;
+- legacy schedule records are interpreted in the documented historical
+  production calendar, so their validity does not vary with ambient process
+  timezone; and
+- valid legacy-shaped input cannot be durably introduced through the current
+  writer or advanced through the current transport path, while loaders retain
+  old generations as fail-closed compatibility records; and
+- the live writer accepts only a current `sending` record, and transport
+  preparation always performs the exact single-use `sending` to `attempting`
+  transition rather than accepting a caller-supplied pre-promoted record.
 
 The enclosing snapshot's exact commit and tree are supplied externally and are
 not embedded here. This avoids a self-reference while still making the current
@@ -447,6 +512,33 @@ For the four Round-2 assurance corrections in the enclosing snapshot:
 - changed-Python compilation passed; and
 - `git diff --check` passed.
 
+For the eight `baa0602` Round-1 corrections and the four calendar/write-boundary
+refinements found by the pre-freeze read-only review:
+
+- the complete directly affected transaction, schedule and receipt modules
+  passed 808 tests in 63.74 seconds;
+- the directly affected remote-outcome and media modules passed 108 tests in
+  23.14 seconds;
+- the directly affected control, activation, invariant-registry and
+  defect-ledger modules passed 331 tests in 172.28 seconds;
+- the production-invariant registry and defect ledger validated;
+- the invariant Markdown projection is synchronised with its JSON registry;
+- changed-Python compilation passed; and
+- `git diff --check` passed.
+
+Those three latest focused results are bound to these exact commands, each
+with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`:
+
+```text
+python3 -m pytest -q tests/test_unit_helpers.py tests/test_confirmed_source_lineage.py tests/test_source_receipt_retirement_integration.py tests/test_pending_receipt_directory_fsync.py
+python3 -m pytest -q tests/test_media_upload_transaction_integration.py tests/test_x_write_outcome_conservatism.py
+python3 -m pytest -q tests/test_fail_safe_bootstrap_and_control.py tests/test_remote_write_safety_second_restart.py tests/test_priority0_registry.py tests/test_defect_ledger.py
+```
+
+These focused totals overlap and must not be summed as a unique application
+test count. The replacement has not yet completed either exact-candidate
+four-lane round.
+
 ## Outstanding qualification work
 
 - complete two consecutive clean four-lane rounds against the externally
@@ -459,8 +551,7 @@ For the four Round-2 assurance corrections in the enclosing snapshot:
 
 ## Isolation record
 
-This remediation, the rejected review rounds, the candidate-contained
-five-finding repair batch, and the current four replacement repairs performed
-zero production-file or live-state mutation, service action, X action,
-provider action, merge, push, deployment, external-assurance execution or
-packaging.
+This remediation, the rejected review rounds and the current replacement
+batches performed zero production-file or live-state mutation, service action,
+X action, provider action, merge, push, deployment, external-assurance
+execution or packaging.

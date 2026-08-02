@@ -1732,6 +1732,74 @@ def test_runtime_fails_closed_for_unsafe_activation_audit(
 
 
 @pytest.mark.parametrize(
+    ("replacement", "error_match"),
+    (
+        (
+            b'  "clean_state_attestation_size": 1,\n'
+            b'  "clean_state_attestation_size": 1,\n',
+            "duplicate key",
+        ),
+        (
+            b'  "clean_state_attestation_size": NaN,\n',
+            "invalid constant",
+        ),
+        (
+            b'  "clean_state_attestation_size": 1e999,\n',
+            "non-finite number",
+        ),
+    ),
+    ids=("duplicate", "nonfinite-constant", "finite-spelling-overflow"),
+)
+def test_runtime_activation_audit_rejects_strict_json_hazards(
+    tmp_path: Path,
+    replacement: bytes,
+    error_match: str,
+) -> None:
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    create_test_protocol_activation(activation)
+    audit_path = tmp_path / protocol.ACTIVATION_AUDIT_BASENAME
+    original = audit_path.read_bytes()
+    needle = b'  "clean_state_attestation_size": 1,\n'
+    assert original.count(needle) == 1
+    malformed = original.replace(needle, replacement, 1)
+    audit_path.chmod(0o600)
+    audit_path.write_bytes(malformed)
+    audit_path.chmod(protocol.ACTIVATION_AUDIT_MODE)
+
+    with pytest.raises(protocol.ProtocolActivationError, match=error_match):
+        protocol.inspect_protocol_activation(activation)
+
+
+def test_runtime_caller_treats_overflowing_activation_audit_as_inactive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    activation = tmp_path / protocol.ACTIVATION_BASENAME
+    create_test_protocol_activation(activation)
+    audit_path = tmp_path / protocol.ACTIVATION_AUDIT_BASENAME
+    original = audit_path.read_bytes()
+    needle = b'  "clean_state_attestation_size": 1,\n'
+    assert original.count(needle) == 1
+    malformed = original.replace(
+        needle,
+        b'  "clean_state_attestation_size": 1e999,\n',
+        1,
+    )
+    audit_path.chmod(0o600)
+    audit_path.write_bytes(malformed)
+    audit_path.chmod(protocol.ACTIVATION_AUDIT_MODE)
+    monkeypatch.setattr(
+        bot,
+        "REMOTE_WRITE_SAFETY_PROTOCOL_ACTIVATION_FILE",
+        activation,
+    )
+
+    assert bot.remote_write_safety_protocol_is_active() is False
+
+
+@pytest.mark.parametrize(
     ("field", "invalid_value"),
     (
         ("schema_version", 2.0),
@@ -1952,6 +2020,51 @@ def test_external_clean_state_attestation_requires_integer_schema_version(
         activate._load_clean_state_attestation(
             attestation,
             expected_sha256=hashlib.sha256(data).hexdigest(),
+            project=state_directory,
+            project_identity=identity,
+            activator_cli_sha256=activator_sha256,
+        )
+
+
+@pytest.mark.parametrize(
+    ("replacement", "error_match"),
+    (
+        (
+            b'  "schema_version": 2,\n  "schema_version": 2,\n',
+            "duplicate key",
+        ),
+        (b'  "schema_version": NaN,\n', "invalid constant"),
+        (b'  "schema_version": 1e999,\n', "non-finite number"),
+    ),
+    ids=("duplicate", "nonfinite-constant", "finite-spelling-overflow"),
+)
+def test_external_clean_state_attestation_rejects_strict_json_hazards(
+    tmp_path: Path,
+    replacement: bytes,
+    error_match: str,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir()
+    identity = state_directory.stat()
+    activator_sha256 = "a" * 64
+    attestation = tmp_path / "strict-json-attestation.json"
+    original = activate.build_clean_state_attestation_bytes(
+        project_root=state_directory,
+        project_device=int(identity.st_dev),
+        project_inode=int(identity.st_ino),
+        activator_cli_sha256=activator_sha256,
+        reconciliation_reference="strict-json-review",
+    )
+    needle = b'  "schema_version": 2,\n'
+    assert original.count(needle) == 1
+    malformed = original.replace(needle, replacement, 1)
+    attestation.write_bytes(malformed)
+    attestation.chmod(activate.CLEAN_STATE_ATTESTATION_MODE)
+
+    with pytest.raises(activate.ProtocolActivationRefused, match=error_match):
+        activate._load_clean_state_attestation(
+            attestation,
+            expected_sha256=hashlib.sha256(malformed).hexdigest(),
             project=state_directory,
             project_identity=identity,
             activator_cli_sha256=activator_sha256,

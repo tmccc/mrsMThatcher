@@ -1496,6 +1496,13 @@ def validate_registry(
                         for selector in validation.get("selectors", [])
                         if isinstance(selector, str)
                     )
+                historical_selectors.update(
+                    evidence.get("reference")
+                    for evidence in invariant.get("evidence_references", [])
+                    if isinstance(evidence, Mapping)
+                    and evidence.get("type") == "test"
+                    and isinstance(evidence.get("reference"), str)
+                )
                 for selector in sorted(historical_selectors):
                     exists, reason = historical_test_selector_exists(
                         repository_root,

@@ -48,6 +48,55 @@ def _validate(
     )
 
 
+def _fixture_git(repository_root: Path, *arguments: str) -> str:
+    """Run one bounded Git command for a synthetic history fixture."""
+
+    result = ledger_tool._git(repository_root, *arguments)
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+def _commit_parameterized_test_fixture(tmp_path: Path) -> tuple[str, Path]:
+    """Commit an old parameter case and return its commit and live test path."""
+
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    test_file = tests / "test_sample.py"
+    test_file.write_text(
+        "import pytest\n\n"
+        "@pytest.mark.parametrize('value', [1], ids=['old'])\n"
+        "def test_contract(value):\n"
+        "    assert value\n",
+        encoding="utf-8",
+    )
+    _fixture_git(tmp_path, "init", "--quiet")
+    _fixture_git(tmp_path, "add", "--", "tests/test_sample.py")
+    _fixture_git(
+        tmp_path,
+        "-c",
+        "user.name=Defect ledger fixture",
+        "-c",
+        "user.email=defect-ledger-fixture@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "Create historical defect-ledger test fixture",
+    )
+    return _fixture_git(tmp_path, "rev-parse", "HEAD"), test_file
+
+
+def _replace_fixture_with_new_parameter_case(test_file: Path) -> None:
+    """Replace the live fixture with a differently identified current case."""
+
+    test_file.write_text(
+        "import pytest\n\n"
+        "@pytest.mark.parametrize('value', [1], ids=['new'])\n"
+        "def test_contract(value):\n"
+        "    assert value\n",
+        encoding="utf-8",
+    )
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -507,6 +556,45 @@ def test_test_nodes_are_resolved_at_the_recorded_commit() -> None:
         "does not exist at recorded commit" in error
         for error in report.errors
     )
+
+
+def test_commit_bound_test_rejects_unattested_historical_parameter_case(
+    tmp_path: Path,
+) -> None:
+    commit, test_file = _commit_parameterized_test_fixture(tmp_path)
+    _replace_fixture_with_new_parameter_case(test_file)
+    selector = "tests/test_sample.py::test_contract[new]"
+
+    exists, reason = ledger_tool.test_node_exists(
+        tmp_path,
+        "tests/test_sample.py",
+        "test_contract[new]",
+        commit,
+    )
+
+    assert not exists
+    assert reason == (
+        "historical parameter-specific pytest selector requires exact "
+        "historical collection attestation (none available): "
+        f"{selector}"
+    )
+
+
+def test_commit_bound_test_accepts_unparameterized_historical_function(
+    tmp_path: Path,
+) -> None:
+    commit, test_file = _commit_parameterized_test_fixture(tmp_path)
+    _replace_fixture_with_new_parameter_case(test_file)
+
+    exists, reason = ledger_tool.test_node_exists(
+        tmp_path,
+        "tests/test_sample.py",
+        "test_contract",
+        commit,
+    )
+
+    assert exists
+    assert reason == ""
 
 
 def test_renderer_is_deterministic_and_markdown_drift_is_detected(

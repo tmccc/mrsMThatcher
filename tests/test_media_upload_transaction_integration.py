@@ -214,6 +214,14 @@ def _main_attempt(bot: Any, lane: str, image: Path) -> dict[str, Any]:
             recovery_plan={
                 "quote_delay_seconds": 3600,
                 "meme_delay_seconds": None,
+                "meme_scheduling_enabled": False,
+                "meme_trigger_after_hour": int(bot.MEME_TRIGGER_AFTER_HOUR),
+                "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+                "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                "meme_schedule_before": bot.bound_meme_schedule_state(
+                    {},
+                    schedule_timezone=bot.MAIN_POST_SCHEDULE_TIMEZONE,
+                ),
                 "quote_history_after": [quote_hash],
                 "image_history_after": [image.name],
             },
@@ -225,7 +233,14 @@ def _main_attempt(bot: Any, lane: str, image: Path) -> dict[str, Any]:
         media_ids=["780001"],
         made_with_ai=False,
         selected_identity={"meme_basename": image.name},
-        recovery_plan={"next_schedule_mode": "fallback"},
+        recovery_plan={
+            "next_schedule_mode": "fallback",
+            "meme_schedule_version": int(bot.MEME_SCHEDULE_VERSION),
+            "fallback_hour": int(bot.MEME_FALLBACK_HOUR),
+            "fallback_minute": int(bot.MEME_FALLBACK_MINUTE),
+            "image_summary": "Offline synthetic meme image.",
+            "schedule_timezone": bot.MAIN_POST_SCHEDULE_TIMEZONE,
+        },
         attempt_epoch=1_800_000_000,
     )
 
