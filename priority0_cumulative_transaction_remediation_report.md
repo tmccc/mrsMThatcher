@@ -2,8 +2,8 @@
 
 ## Identity and conclusion boundary
 
-This document records the cumulative transaction-safety implementation, nine
-rejected exact candidates, and the current twenty primary replacements plus
+This document records the cumulative transaction-safety implementation, ten
+rejected exact candidates, and the current twenty-one primary replacements plus
 four pre-freeze closure refinements contained in the enclosing post-cut-off
 candidate snapshot. It is candidate-side evidence, not an external release
 attestation or an independent review.
@@ -48,6 +48,10 @@ attestation or an independent review.
   `d2ee28e3989457050e916a8bb79a50e118421798`;
 - rejected `d2ee28e` candidate tree:
   `1a7ed2afb38192efe73f7e5ed7baeccd0e2b9c87`;
+- rejected `16051f2` candidate commit:
+  `16051f2c9660ec79d5e0feaf123a65b191b74794`;
+- rejected `16051f2` candidate tree:
+  `914e36e7a5d2ea219e674f6be012ad1e00229f46`;
 - enclosing post-cut-off candidate snapshot: status
   `implemented_post_cutoff_candidate`; its exact commit and tree are supplied
   externally and deliberately are not embedded in this self-referential
@@ -494,6 +498,21 @@ both repairs change the candidate snapshot, the clean first round and every
 second-round lane are discarded; the consecutive-clean-round counter is reset
 to zero. No result from `d2ee28e` is carried forward.
 
+## Rejected 16051f2 exact-candidate review
+
+Candidate `16051f2c9660ec79d5e0feaf123a65b191b74794`, tree
+`914e36e7a5d2ea219e674f6be012ad1e00229f46`, was rejected during formal Round
+1. The root/claims lane found that the exact-number correction also normalised
+accepted date-string control values to integer epochs. That representation
+change was outside the numeric defect being repaired and was not required for
+runtime safety (P2).
+
+The transaction lane completed its 1,576-test focused matrix cleanly before the
+cancellation signal was observed; the hostile-input and mutation/test-quality
+lanes were stopped. No lane result is carried forward. The candidate change
+resets every lane and the consecutive-clean-round counter to zero. No result
+from `16051f2` qualifies the replacement.
+
 ## Current post-cut-off candidate replacements
 
 The enclosing candidate snapshot retains the four replacements incorporated in
@@ -562,6 +581,12 @@ It adds two corrections from the rejected `d2ee28e` round:
 - the subprocess integration fixture now creates canonical mode-0600 empty
   historical-context history/outbox authorities, and its explicit regular
   receipt fixture uses the same canonical private-file contract.
+
+It adds one scope-preservation correction from the rejected `16051f2` round:
+
+- exact decimal validation and integer normalisation apply only to numeric
+  runtime-control timestamp tokens; accepted date-string control values retain
+  their established returned representation.
 
 The pre-freeze review then added four closure refinements to the first schedule
 replacement rather than counting them as separate originating findings:
@@ -721,6 +746,20 @@ For the two `d2ee28e` corrections:
 These are pre-freeze focused results for the replacement snapshot. Both clean
 four-lane rounds remain separate gates.
 No clean lane from `d2ee28e` is carried forward.
+
+For the `16051f2` scope-preservation correction:
+
+- the complete control/bootstrap module passed 144 tests in 11.90 seconds;
+- the production-invariant and defect-ledger modules passed 71 tests in 58.67
+  seconds;
+- both registries validated and their Markdown projections are synchronised;
+- a separate read-only pre-freeze review found no repeatable P1 or P2 issue;
+- changed-Python compilation passed; and
+- `git diff --check` passed.
+
+These are pre-freeze focused results for the new replacement snapshot. No clean
+lane from `16051f2` is carried forward, and both clean four-lane rounds remain
+pending.
 
 The three earlier focused results are bound to these exact commands, each
 with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`:

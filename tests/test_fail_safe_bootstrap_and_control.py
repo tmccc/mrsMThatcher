@@ -1147,6 +1147,19 @@ def test_runtime_control_accepts_exact_integral_float_time(tmp_path, monkeypatch
     assert bot.global_remote_writes_paused() is False
 
 
+def test_runtime_control_preserves_date_string_representation(tmp_path, monkeypatch):
+    path = tmp_path / "control.json"
+    timestamp = "2030-01-02T03:04:05"
+    path.write_text(
+        json.dumps({"disable_all_until": timestamp}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+
+    assert bot.load_control() == {"disable_all_until": timestamp}
+
+
 def test_local_config_fractional_values_remain_floats(tmp_path, monkeypatch):
     path = tmp_path / "local.json"
     path.write_text(

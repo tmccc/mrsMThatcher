@@ -4143,10 +4143,10 @@
       "failure_if_violated": "A malformed control file, duplicate or unknown pause-like key can open an unintended write path; treating a post-consumption pause as a retroactive cancellation can strand or repeat a committed remote attempt; and treating pause acknowledgement alone as quiescence can overlook an in-flight durable transaction.",
       "criticality": "critical",
       "implementation_status": "implemented",
-      "status_rationale": "Every control poll reads a bounded regular non-symlink file without blocking, binds the opened descriptor to pre-read and final pathname identities, requires two identical exact-length byte reads with stable metadata, hashes the bytes, strictly decodes UTF-8, and rejects duplicate names, non-finite constants, numeric overflow and mathematically fractional timestamp spellings before binary-float rounding can alter their value. Accepted timestamp values are normalised to bounded integer epochs. Any race, unsafe type, read or validation failure retains an isolated copy of the last valid controls and forces the global pause; clean initial absence alone clears optional controls. Write helpers sample global control before consuming tweet or media authority. Successful authority consumption commits exactly one transaction, and a later pause governs subsequent work while the committed attempt retains its durable barrier through confirmation or ambiguity handling.",
+      "status_rationale": "Every control poll reads a bounded regular non-symlink file without blocking, binds the opened descriptor to pre-read and final pathname identities, requires two identical exact-length byte reads with stable metadata, hashes the bytes, strictly decodes UTF-8, and rejects duplicate names, non-finite constants, numeric overflow and mathematically fractional timestamp spellings before binary-float rounding can alter their value. Accepted numeric timestamp tokens are normalised to bounded integer epochs, while established date-string representation is preserved. Any race, unsafe type, read or validation failure retains an isolated copy of the last valid controls and forces the global pause; clean initial absence alone clears optional controls. Write helpers sample global control before consuming tweet or media authority. Successful authority consumption commits exactly one transaction, and a later pause governs subsequent work while the committed attempt retains its durable barrier through confirmation or ambiguity handling.",
       "verification": {
         "status": "verified",
-        "rationale": "Tests cover unknown and duplicate keys; malformed UTF-8/JSON; non-finite constants, overflow and exact fractional timestamp lexemes; integral decimal timestamp normalisation; same-inode, same-size restored-mtime rewrites; descriptor/path replacement and ABA; symlink, directory and FIFO entries; partial reads; changing repeat reads; clean absence versus mid-read disappearance; private cached-copy preservation; repair; expiry; pre-consumption aborts; and tweet/media pause changes immediately after real authority consumption. They prove one committed request completes under its durable in-flight barrier while the new pause remains prospective. Exact candidate identity remains externally attested rather than self-referentially embedded."
+        "rationale": "Tests cover unknown and duplicate keys; malformed UTF-8/JSON; non-finite constants, overflow and exact fractional timestamp lexemes; integral decimal timestamp normalisation without changing established date-string representation; same-inode, same-size restored-mtime rewrites; descriptor/path replacement and ABA; symlink, directory and FIFO entries; partial reads; changing repeat reads; clean absence versus mid-read disappearance; private cached-copy preservation; repair; expiry; pre-consumption aborts; and tweet/media pause changes immediately after real authority consumption. They prove one committed request completes under its durable in-flight barrier while the new pause remains prospective. Exact candidate identity remains externally attested rather than self-referentially embedded."
       },
       "affected_paths": [
         "mrsMThatcher2.py",
@@ -4168,6 +4168,7 @@
           "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_duplicate_names_and_nonfinite_constants",
           "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_rejects_exact_fractional_numeric_times",
           "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_accepts_exact_integral_float_time",
+          "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_preserves_date_string_representation",
           "tests/test_fail_safe_bootstrap_and_control.py::test_same_inode_control_change_cannot_reuse_cached_unpaused_value",
           "tests/test_fail_safe_bootstrap_and_control.py::test_control_rejects_nonregular_or_symlink_namespace_entries",
           "tests/test_fail_safe_bootstrap_and_control.py::test_control_path_replacement_during_read_fails_closed",
@@ -4283,6 +4284,11 @@
           "type": "test",
           "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_accepts_exact_integral_float_time",
           "claim": "A mathematically integral decimal spelling is accepted and normalised to the same integer epoch representation as an integer JSON value."
+        },
+        {
+          "type": "test",
+          "reference": "tests/test_fail_safe_bootstrap_and_control.py::test_runtime_control_preserves_date_string_representation",
+          "claim": "The exact numeric validation path does not change the established returned representation of an accepted date-string control timestamp."
         },
         {
           "type": "test",

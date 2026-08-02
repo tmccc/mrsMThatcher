@@ -2763,7 +2763,9 @@ def validate_control_document(data: object) -> dict:
             )
         key_text = key
         if key_text in CONTROL_TIME_KEYS:
-            validated[key_text] = parse_control_time(value)
+            parsed_epoch = parse_control_time(value)
+            if type(value) is Decimal:
+                validated[key_text] = parsed_epoch
         elif key_text in CONTROL_BOOLEAN_KEYS:
             if isinstance(value, bool):
                 continue
