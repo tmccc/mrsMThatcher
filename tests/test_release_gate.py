@@ -3236,7 +3236,7 @@ def test_current_v3_audit_is_historical_not_a_valid_current_companion() -> None:
         "a9161f1a6da83d8327b51d7ef211fa88e5b28ed160b1093050733f120ddf579d"
     )
     assert audit["current_manifest_sha256"] == (
-        "fa10a7d8bc4df00385c2a1acb29c1bfda46ecf0de8764c92107f49b8b46ae514"
+        "50fd87e23fb32bb26149f611459c42326a203430af9ff09d4aa8bd357eb1efd8"
     )
     assert audit["current_companion"] is False
 
