@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-"""Archive a reconciled remote-write safety marker while the bot is offline.
+"""Reconcile reviewed remote-write barriers while the bot is offline.
 
-This command does not decide whether an ambiguous X outcome has been
-reconciled.  An operator must establish that separately and supply the expected
-marker SHA-256.  The command then proves that the bot's process-lifetime lock is
-available, creates and synchronises a private hard-linked archive of the exact
-active-barrier inode, commits a read-only audit receipt, and only then removes
-and synchronises the active names.  A paired restart barrier is retired last.
-A hard process loss before the archive and receipt are durable therefore
-leaves at least one active fail-closed name present.
+This command does not decide whether an ambiguous X outcome has been reconciled.
+An operator must establish that separately and supply exact reviewed identities.
+The default operation archives the active ambiguity marker.  The narrower
+``--reconcile-unattached-media-upload`` operation accepts only the exact
+media-only, pre-tweet incident: it proves that no local tweet-create authority
+exists, archives one externally bound sending receipt/fence pair, and retires
+that pair while deliberately preserving the ambiguity marker.  The default
+marker operation must then be run separately.
+
+Both operations prove that the bot's process-lifetime lock is available and
+make private read-only hard-linked archives and audit receipts durable before
+removing an active name.  The last active barrier in each operation is retired
+last.  A hard process loss before archival is complete therefore leaves a
+fail-closed active marker, receipt or fence present.
 
 The live daemon owns an exclusive lock on the state-directory inode, a
 supplementary directory-identity-bound Linux abstract socket, and BSD plus
@@ -39,11 +45,39 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from remote_media_upload_receipt import (  # noqa: E402
+    DOCUMENT_KIND as MEDIA_RECEIPT_DOCUMENT_KIND,
+    FENCE_DOCUMENT_KIND as MEDIA_FENCE_DOCUMENT_KIND,
+    RECEIPT_MAX_BYTES as MAX_MEDIA_RECEIPT_BYTES,
+    RECEIPT_MODE as MEDIA_RECEIPT_MODE,
+    MediaUploadReceiptError,
+    _required_fence_snapshot,
+    fence_path_for_receipt,
+    inspect_media_upload_receipt,
+)
+
 
 LOCK_BASENAME = "mrsMThatcher.lock"
 MARKER_BASENAME = "ambiguous_post_outcome.json"
 RESTART_BARRIER_BASENAME = "ambiguous_post_outcome.restart_barrier.json"
 DEFAULT_ARCHIVE_BASENAME = "remote_write_safety_marker_archive"
+MEDIA_RECEIPT_BASENAME = "remote_media_upload_receipt.json"
+MEDIA_FENCE_BASENAME = "remote_media_upload_receipt.json.fence.json"
+TWEET_AUTHORITY_BASENAMES = (
+    "regular_post_receipt.json",
+    "meme_post_receipt.json",
+    "confirmed_reply_receipt.json",
+    "historical_context_reply_receipt.json",
+    "remote_write_transport_journal.json",
+    "remote_write_transport_fence.json",
+)
+TWEET_AUTHORITY_PREFIXES = (
+    ".remote_write_transport_journal.json.transition.",
+    ".remote_write_transport_journal.json.retirement-guard.",
+)
 MAX_MARKER_BYTES = 64 * 1024
 MAX_LOCK_RECORD_BYTES = 128
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -71,6 +105,10 @@ class MarkerIdentityError(MarkerReconciliationError):
 
 class ArchiveCommitError(MarkerReconciliationError):
     """The marker could not be durably committed to its archive."""
+
+
+class UnattachedMediaReconciliationError(MarkerReconciliationError):
+    """The media incident is not the exact offline-abandonment case."""
 
 
 @dataclass(frozen=True)
@@ -106,6 +144,51 @@ class MarkerArchiveResult:
 
         value = asdict(self)
         value["active_barrier_names"] = list(self.active_barrier_names)
+        return value
+
+
+@dataclass(frozen=True)
+class UnattachedMediaArchiveResult:
+    """Describe one exact, evidence-preserving media abandonment."""
+
+    schema_version: int
+    operation: str
+    project_root: str
+    marker_sha256: str
+    marker_names_preserved: tuple[str, ...]
+    media_transaction_id: str
+    lane: str
+    image_basename: str
+    image_sha256: str
+    receipt_archive_path: str
+    receipt_sha256: str
+    receipt_size: int
+    receipt_device: int
+    receipt_inode: int
+    fence_archive_path: str
+    fence_sha256: str
+    fence_size: int
+    fence_device: int
+    fence_inode: int
+    audit_receipt_path: str
+    reconciliation_reference: str
+    archived_at_epoch: int
+    accepted_media_disposition: str
+    no_tweet_create_authority_present: bool
+    operator_confirmed_no_tweet_create_attempted: bool
+    operator_confirmed_unattached_media_abandoned: bool
+    remote_media_id_absent: bool
+    bot_instance_lock_acquired: bool
+    media_archives_and_audit_durable_before_active_removal: bool
+    media_receipt_retired_before_fence: bool
+    active_marker_preserved_after_media_reconciliation: bool
+    successful_return_requires_active_media_pair_absent: bool
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a deterministic JSON-compatible representation."""
+
+        value = asdict(self)
+        value["marker_names_preserved"] = list(self.marker_names_preserved)
         return value
 
 
@@ -206,6 +289,198 @@ def _normalise_sha256(value: str) -> str:
     if not SHA256_RE.fullmatch(candidate):
         raise MarkerIdentityError("expected marker SHA-256 must be 64 lowercase hex digits")
     return candidate
+
+
+def _normalise_transaction_id(value: str) -> str:
+    """Validate one exact media transaction identifier."""
+
+    candidate = str(value).strip().lower()
+    if not SHA256_RE.fullmatch(candidate):
+        raise UnattachedMediaReconciliationError(
+            "expected media transaction ID must be 64 lowercase hex digits"
+        )
+    return candidate
+
+
+def _normalise_identity_integer(
+    value: int,
+    *,
+    label: str,
+    allow_zero: bool,
+) -> int:
+    """Validate one externally recorded filesystem identity integer."""
+
+    minimum = 0 if allow_zero else 1
+    if type(value) is not int or value < minimum or value > (2**64 - 1):
+        raise UnattachedMediaReconciliationError(
+            f"expected {label} is outside the supported filesystem identity range"
+        )
+    return value
+
+
+def _normalise_reference(value: str) -> str:
+    """Validate one bounded, single-line operator evidence reference."""
+
+    reference = str(value).strip()
+    if not reference or len(reference) > 500 or any(
+        character in reference for character in "\r\n\x00"
+    ):
+        raise MarkerReconciliationError(
+            "reconciliation reference must be one non-empty line of at most 500 characters"
+        )
+    return reference
+
+
+@dataclass
+class _OfflineInstanceLocks:
+    """Own every supported stopped-daemon exclusion boundary."""
+
+    project: Path
+    project_fd: int
+    project_identity: os.stat_result
+    instance_socket: socket.socket
+    socket_name: bytes
+    lock_fd: int
+    lock_identity: os.stat_result
+
+    def revalidate(self) -> None:
+        """Re-prove all path and lock identities immediately before mutation."""
+
+        _revalidate_locked_instance_lock(
+            self.project_fd,
+            self.lock_fd,
+            self.lock_identity,
+            self.instance_socket,
+            self.socket_name,
+        )
+        _require_project_path_identity(
+            self.project,
+            self.project_fd,
+            self.project_identity,
+        )
+
+    def close(self) -> None:
+        """Release the lock file, singleton, and directory lock."""
+
+        for descriptor in (self.lock_fd, self.project_fd):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        try:
+            self.instance_socket.close()
+        except OSError:
+            pass
+
+
+def _acquire_offline_instance_locks(project_root: Path) -> _OfflineInstanceLocks:
+    """Acquire the exact complete lock set used by the live daemon."""
+
+    try:
+        project, project_fd = _open_project_directory_without_symlinks(
+            Path(project_root)
+        )
+    except OSError as exc:
+        raise UnsafeReconciliationPathError(
+            "project-root component could not be opened without following links"
+        ) from exc
+    instance_socket: socket.socket | None = None
+    lock_fd: int | None = None
+    try:
+        try:
+            fcntl.flock(project_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise BotStillRunningError(
+                "bot state-directory lock is held; stop the service and wait "
+                "for the process to exit"
+            ) from exc
+        project_identity = os.fstat(project_fd)
+        _require_project_path_identity(project, project_fd, project_identity)
+        if not _descriptor_owns_exclusive_flock(
+            project_fd,
+            expected_device=int(project_identity.st_dev),
+            expected_inode=int(project_identity.st_ino),
+        ):
+            raise BotStillRunningError(
+                "state-directory flock acquisition could not be proved"
+            )
+
+        instance_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        socket_name = instance_lock_abstract_socket_name_for_identity(
+            int(project_identity.st_dev),
+            int(project_identity.st_ino),
+        )
+        try:
+            instance_socket.bind(socket_name)
+        except OSError as exc:
+            if exc.errno == errno.EADDRINUSE:
+                raise BotStillRunningError(
+                    "bot process singleton is active; stop the service and "
+                    "wait for the process to exit"
+                ) from exc
+            raise
+
+        lock_fd, lock_identity = _open_verified_regular(
+            project_fd,
+            LOCK_BASENAME,
+            label="bot instance lock",
+            flags=os.O_RDWR,
+            require_single_link=True,
+        )
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise BotStillRunningError(
+                "bot instance lock is held; stop the service and wait for the process to exit"
+            ) from exc
+        if not _descriptor_owns_exclusive_flock(
+            lock_fd,
+            expected_device=int(lock_identity.st_dev),
+            expected_inode=int(lock_identity.st_ino),
+        ):
+            raise BotStillRunningError(
+                "file-instance flock acquisition could not be proved"
+            )
+        try:
+            fcntl.fcntl(
+                lock_fd,
+                fcntl.F_OFD_SETLK,
+                _ofd_lock_record(fcntl.F_WRLCK),
+            )
+        except OSError as exc:
+            if exc.errno in {errno.EACCES, errno.EAGAIN}:
+                raise BotStillRunningError(
+                    "bot OFD instance lock is held; stop the service and wait "
+                    "for the process to exit"
+                ) from exc
+            raise
+        locks = _OfflineInstanceLocks(
+            project=project,
+            project_fd=project_fd,
+            project_identity=project_identity,
+            instance_socket=instance_socket,
+            socket_name=socket_name,
+            lock_fd=lock_fd,
+            lock_identity=lock_identity,
+        )
+        locks.revalidate()
+        return locks
+    except BaseException:
+        if lock_fd is not None:
+            try:
+                os.close(lock_fd)
+            except OSError:
+                pass
+        if instance_socket is not None:
+            try:
+                instance_socket.close()
+            except OSError:
+                pass
+        try:
+            os.close(project_fd)
+        except OSError:
+            pass
+        raise
 
 
 def _validate_basename(value: str, *, label: str) -> str:
@@ -930,6 +1205,648 @@ def _require_bound_readonly_receipt(
         )
 
 
+def reconcile_unattached_media_upload_offline(
+    *,
+    project_root: Path,
+    expected_marker_sha256: str,
+    expected_media_receipt_sha256: str,
+    expected_media_fence_sha256: str,
+    expected_media_transaction_id: str,
+    expected_media_receipt_device: int,
+    expected_media_receipt_inode: int,
+    expected_media_receipt_ctime_ns: int,
+    expected_media_fence_device: int,
+    expected_media_fence_inode: int,
+    expected_media_fence_ctime_ns: int,
+    reconciliation_reference: str,
+    confirm_no_tweet_create_attempted: bool,
+    confirm_unattached_media_abandoned: bool,
+    archive_basename: str = DEFAULT_ARCHIVE_BASENAME,
+    now: Callable[[], int] | None = None,
+) -> UnattachedMediaArchiveResult:
+    """Archive and retire one exact ambiguous but unattached media upload.
+
+    The operator supplies the external fact that no ``POST /2/tweets`` request
+    was attempted and accepts that an upload which may have succeeded is
+    abandoned.  The tool independently requires the corresponding local fact:
+    no source receipt or tweet journal/fence exists.  It never removes the
+    ambiguity marker; that remains the restart barrier until the existing
+    marker reconciler archives it in a separate stopped operation.
+    """
+
+    if confirm_no_tweet_create_attempted is not True:
+        raise UnattachedMediaReconciliationError(
+            "offline media reconciliation requires confirmation that no tweet-create request was attempted"
+        )
+    if confirm_unattached_media_abandoned is not True:
+        raise UnattachedMediaReconciliationError(
+            "offline media reconciliation requires abandonment of any accepted unattached media"
+        )
+    marker_hash = _normalise_sha256(expected_marker_sha256)
+    receipt_hash = _normalise_sha256(expected_media_receipt_sha256)
+    fence_hash = _normalise_sha256(expected_media_fence_sha256)
+    transaction_id = _normalise_transaction_id(expected_media_transaction_id)
+    receipt_device = _normalise_identity_integer(
+        expected_media_receipt_device,
+        label="media receipt device",
+        allow_zero=True,
+    )
+    receipt_inode = _normalise_identity_integer(
+        expected_media_receipt_inode,
+        label="media receipt inode",
+        allow_zero=False,
+    )
+    receipt_ctime_ns = _normalise_identity_integer(
+        expected_media_receipt_ctime_ns,
+        label="media receipt ctime_ns",
+        allow_zero=True,
+    )
+    fence_device = _normalise_identity_integer(
+        expected_media_fence_device,
+        label="media fence device",
+        allow_zero=True,
+    )
+    fence_inode = _normalise_identity_integer(
+        expected_media_fence_inode,
+        label="media fence inode",
+        allow_zero=False,
+    )
+    fence_ctime_ns = _normalise_identity_integer(
+        expected_media_fence_ctime_ns,
+        label="media fence ctime_ns",
+        allow_zero=True,
+    )
+    reference = _normalise_reference(reconciliation_reference)
+    archive_basename = _validate_basename(
+        archive_basename,
+        label="archive directory name",
+    )
+
+    locks = _acquire_offline_instance_locks(Path(project_root))
+    active_barriers: _ActiveBarrierSet | None = None
+    receipt_fd: int | None = None
+    fence_fd: int | None = None
+    archive_fd: int | None = None
+    audit_temporary: str | None = None
+    audit_verification_fd: int | None = None
+    audit_identity: os.stat_result | None = None
+    audit_published = False
+    receipt_archive_created = False
+    fence_archive_created = False
+    receipt_active_removed = False
+    fence_active_removed = False
+    receipt_original_mode: int | None = None
+    fence_original_mode: int | None = None
+    receipt_archive_name = (
+        f"unattached_media_upload.{transaction_id}.{receipt_hash}.receipt.json"
+    )
+    fence_archive_name = (
+        f"unattached_media_upload.{transaction_id}.{fence_hash}.fence.json"
+    )
+    audit_name = f"unattached_media_upload.{transaction_id}.reconciliation.json"
+    try:
+        active_barriers = _open_active_barrier_set(locks.project_fd)
+        if active_barriers.names != (
+            MARKER_BASENAME,
+            RESTART_BARRIER_BASENAME,
+        ):
+            raise UnattachedMediaReconciliationError(
+                "unattached-media reconciliation requires the exact paired ambiguity marker"
+            )
+        marker_bytes = _read_all(
+            active_barriers.descriptor,
+            maximum=MAX_MARKER_BYTES,
+        )
+        if hashlib.sha256(marker_bytes).hexdigest() != marker_hash:
+            raise MarkerIdentityError(
+                "remote-write safety marker SHA-256 differs from the reviewed value"
+            )
+        try:
+            marker_value = json.loads(marker_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise MarkerIdentityError(
+                "remote-write safety marker is not valid UTF-8 JSON"
+            ) from exc
+        if (
+            not isinstance(marker_value, dict)
+            or set(marker_value)
+            != {
+                "made_with_ai",
+                "media_ids",
+                "outcome",
+                "recorded_at_epoch",
+                "reply_to_id",
+                "schema_version",
+                "text_sha256",
+            }
+            or type(marker_value.get("schema_version")) is not int
+            or marker_value.get("schema_version") != 1
+            or marker_value.get("outcome") != "ambiguous_remote_post"
+            or marker_value.get("media_ids") != []
+            or marker_value.get("text_sha256")
+            != hashlib.sha256(b"").hexdigest()
+            or marker_value.get("reply_to_id") != ""
+            or marker_value.get("made_with_ai") is not False
+            or type(marker_value.get("recorded_at_epoch")) is not int
+        ):
+            raise UnattachedMediaReconciliationError(
+                "ambiguity marker is not the exact media-only pre-tweet incident"
+            )
+
+        receipt_path = locks.project / MEDIA_RECEIPT_BASENAME
+        fence_path = fence_path_for_receipt(receipt_path)
+        if fence_path.name != MEDIA_FENCE_BASENAME:
+            raise UnattachedMediaReconciliationError(
+                "media fence policy does not name the fixed production companion"
+            )
+        try:
+            receipt = inspect_media_upload_receipt(receipt_path)
+            fence = _required_fence_snapshot(fence_path)
+        except MediaUploadReceiptError as exc:
+            raise UnattachedMediaReconciliationError(
+                "media receipt/fence pair is not strict canonical sending state"
+            ) from exc
+        if receipt is None:
+            raise UnattachedMediaReconciliationError(
+                "media receipt is absent"
+            )
+        expected_fence_document = dict(receipt.document)
+        expected_fence_document["document_kind"] = MEDIA_FENCE_DOCUMENT_KIND
+        if (
+            receipt.sha256 != receipt_hash
+            or fence.sha256 != fence_hash
+            or receipt.device != receipt_device
+            or receipt.inode != receipt_inode
+            or receipt.ctime_ns != receipt_ctime_ns
+            or fence.device != fence_device
+            or fence.inode != fence_inode
+            or fence.ctime_ns != fence_ctime_ns
+            or receipt.document.get("document_kind")
+            != MEDIA_RECEIPT_DOCUMENT_KIND
+            or receipt.document.get("transaction_id") != transaction_id
+            or fence.document.get("transaction_id") != transaction_id
+            or receipt.document.get("lifecycle_state") != "sending"
+            or fence.document.get("lifecycle_state") != "sending"
+            or receipt.document.get("remote_media_id") is not None
+            or fence.document.get("remote_media_id") is not None
+            or fence.document != expected_fence_document
+        ):
+            raise UnattachedMediaReconciliationError(
+                "media pair differs from the reviewed exact sending transaction"
+            )
+
+        direct_names = os.listdir(locks.project_fd)
+        present_tweet_authority = sorted(
+            name
+            for name in direct_names
+            if name in TWEET_AUTHORITY_BASENAMES
+            or any(name.startswith(prefix) for prefix in TWEET_AUTHORITY_PREFIXES)
+        )
+        if present_tweet_authority:
+            raise UnattachedMediaReconciliationError(
+                "tweet-create authority exists; media is not proved unattached: "
+                + ", ".join(present_tweet_authority)
+            )
+
+        receipt_fd, receipt_stat = _open_verified_regular(
+            locks.project_fd,
+            MEDIA_RECEIPT_BASENAME,
+            label="active media receipt",
+            flags=os.O_RDWR,
+            require_single_link=True,
+        )
+        fence_fd, fence_stat = _open_verified_regular(
+            locks.project_fd,
+            MEDIA_FENCE_BASENAME,
+            label="active media fence",
+            flags=os.O_RDWR,
+            require_single_link=True,
+        )
+        receipt_original_mode = stat.S_IMODE(receipt_stat.st_mode)
+        fence_original_mode = stat.S_IMODE(fence_stat.st_mode)
+        if (
+            receipt_original_mode != MEDIA_RECEIPT_MODE
+            or fence_original_mode != MEDIA_RECEIPT_MODE
+            or receipt_stat.st_uid != os.geteuid()
+            or fence_stat.st_uid != os.geteuid()
+            or (receipt_stat.st_dev, receipt_stat.st_ino)
+            != (receipt.device, receipt.inode)
+            or (fence_stat.st_dev, fence_stat.st_ino)
+            != (fence.device, fence.inode)
+            or _read_all(receipt_fd, maximum=MAX_MEDIA_RECEIPT_BYTES)
+            != receipt.data
+            or _read_all(fence_fd, maximum=MAX_MEDIA_RECEIPT_BYTES)
+            != fence.data
+        ):
+            raise UnattachedMediaReconciliationError(
+                "opened media pair differs from the reviewed path generations"
+            )
+
+        archive_fd, archive_stat = _open_or_create_archive_directory(
+            locks.project_fd,
+            archive_basename,
+        )
+        _require_archive_path_identity(
+            locks.project_fd,
+            archive_basename,
+            archive_fd,
+            archive_stat,
+        )
+        if archive_stat.st_dev != receipt_stat.st_dev:
+            raise UnsafeReconciliationPathError(
+                "media archive is on another filesystem; same-inode archival is unavailable"
+            )
+        for name in (receipt_archive_name, fence_archive_name, audit_name):
+            if not _entry_absent(archive_fd, name):
+                raise ArchiveCommitError(
+                    f"reviewed unattached-media archive entry already exists: {name}"
+                )
+
+        result = UnattachedMediaArchiveResult(
+            schema_version=1,
+            operation="offline_unattached_media_upload_archive",
+            project_root=str(locks.project),
+            marker_sha256=marker_hash,
+            marker_names_preserved=active_barriers.names,
+            media_transaction_id=transaction_id,
+            lane=str(receipt.document["lane"]),
+            image_basename=str(receipt.document["image"]["basename"]),
+            image_sha256=str(receipt.document["image"]["sha256"]),
+            receipt_archive_path=(
+                f"{archive_basename}/{receipt_archive_name}"
+            ),
+            receipt_sha256=receipt_hash,
+            receipt_size=len(receipt.data),
+            receipt_device=int(receipt_stat.st_dev),
+            receipt_inode=int(receipt_stat.st_ino),
+            fence_archive_path=f"{archive_basename}/{fence_archive_name}",
+            fence_sha256=fence_hash,
+            fence_size=len(fence.data),
+            fence_device=int(fence_stat.st_dev),
+            fence_inode=int(fence_stat.st_ino),
+            audit_receipt_path=f"{archive_basename}/{audit_name}",
+            reconciliation_reference=reference,
+            archived_at_epoch=int((now or time.time)()),
+            accepted_media_disposition="unattached_and_abandoned",
+            no_tweet_create_authority_present=True,
+            operator_confirmed_no_tweet_create_attempted=True,
+            operator_confirmed_unattached_media_abandoned=True,
+            remote_media_id_absent=True,
+            bot_instance_lock_acquired=True,
+            media_archives_and_audit_durable_before_active_removal=True,
+            media_receipt_retired_before_fence=True,
+            active_marker_preserved_after_media_reconciliation=True,
+            successful_return_requires_active_media_pair_absent=True,
+        )
+        (
+            audit_temporary,
+            audit_verification_fd,
+            audit_identity,
+        ) = _write_receipt_temp(archive_fd, audit_name, result.to_dict())
+        audit_content = _canonical_json_bytes(result.to_dict())
+
+        locks.revalidate()
+        _require_active_barrier_identity(
+            locks.project_fd,
+            expected_names=active_barriers.names,
+            expected_identity=active_barriers.identity,
+            opened_descriptor=active_barriers.descriptor,
+            expected_total_links=len(active_barriers.names),
+        )
+        _link_noreplace(
+            MEDIA_RECEIPT_BASENAME,
+            receipt_archive_name,
+            source_directory_fd=locks.project_fd,
+            destination_directory_fd=archive_fd,
+            label="reviewed unattached media receipt archive",
+        )
+        receipt_archive_created = True
+        _link_noreplace(
+            MEDIA_FENCE_BASENAME,
+            fence_archive_name,
+            source_directory_fd=locks.project_fd,
+            destination_directory_fd=archive_fd,
+            label="reviewed unattached media fence archive",
+        )
+        fence_archive_created = True
+        for descriptor in (receipt_fd, fence_fd):
+            os.fchmod(descriptor, 0o400)
+            os.fsync(descriptor)
+        _fsync_directory(archive_fd)
+
+        archived_receipt = _require_regular_entry(
+            archive_fd,
+            receipt_archive_name,
+            label="archived unattached media receipt",
+        )
+        archived_fence = _require_regular_entry(
+            archive_fd,
+            fence_archive_name,
+            label="archived unattached media fence",
+        )
+        if (
+            not _same_inode(receipt_stat, archived_receipt)
+            or not _same_inode(fence_stat, archived_fence)
+            or archived_receipt.st_nlink != 2
+            or archived_fence.st_nlink != 2
+            or stat.S_IMODE(archived_receipt.st_mode) != 0o400
+            or stat.S_IMODE(archived_fence.st_mode) != 0o400
+            or _read_all(receipt_fd, maximum=MAX_MEDIA_RECEIPT_BYTES)
+            != receipt.data
+            or _read_all(fence_fd, maximum=MAX_MEDIA_RECEIPT_BYTES)
+            != fence.data
+        ):
+            raise ArchiveCommitError(
+                "media archive links did not preserve exact reviewed generations"
+            )
+
+        _require_bound_readonly_receipt(
+            archive_fd,
+            audit_temporary,
+            audit_verification_fd,
+            audit_identity,
+            audit_content,
+        )
+        _rename_noreplace(
+            audit_temporary,
+            audit_name,
+            source_directory_fd=archive_fd,
+            destination_directory_fd=archive_fd,
+            label="unattached media reconciliation audit",
+        )
+        audit_temporary = None
+        audit_published = True
+        _fsync_directory(archive_fd)
+
+        locks.revalidate()
+        _require_archive_path_identity(
+            locks.project_fd,
+            archive_basename,
+            archive_fd,
+            archive_stat,
+        )
+        _require_bound_readonly_receipt(
+            archive_fd,
+            audit_name,
+            audit_verification_fd,
+            audit_identity,
+            audit_content,
+        )
+        _require_active_barrier_identity(
+            locks.project_fd,
+            expected_names=active_barriers.names,
+            expected_identity=active_barriers.identity,
+            opened_descriptor=active_barriers.descriptor,
+            expected_total_links=len(active_barriers.names),
+        )
+
+        os.unlink(MEDIA_RECEIPT_BASENAME, dir_fd=locks.project_fd)
+        receipt_active_removed = True
+        _fsync_directory(locks.project_fd)
+        if not _entry_absent(locks.project_fd, MEDIA_RECEIPT_BASENAME):
+            raise ArchiveCommitError(
+                "active media receipt survived reviewed retirement"
+            )
+        archived_receipt = _require_regular_entry(
+            archive_fd,
+            receipt_archive_name,
+            label="archived unattached media receipt",
+        )
+        if (
+            not _same_inode(receipt_stat, archived_receipt)
+            or archived_receipt.st_nlink != 1
+        ):
+            raise ArchiveCommitError(
+                "media receipt retirement did not preserve its sole archive"
+            )
+
+        locks.revalidate()
+        _require_active_barrier_identity(
+            locks.project_fd,
+            expected_names=active_barriers.names,
+            expected_identity=active_barriers.identity,
+            opened_descriptor=active_barriers.descriptor,
+            expected_total_links=len(active_barriers.names),
+        )
+        surviving_fence = _require_regular_entry(
+            locks.project_fd,
+            MEDIA_FENCE_BASENAME,
+            label="surviving active media fence",
+        )
+        if (
+            not _same_inode(fence_stat, surviving_fence)
+            or surviving_fence.st_nlink != 2
+            or _read_all(fence_fd, maximum=MAX_MEDIA_RECEIPT_BYTES)
+            != fence.data
+        ):
+            raise ArchiveCommitError(
+                "media fence changed before final active retirement"
+            )
+        os.unlink(MEDIA_FENCE_BASENAME, dir_fd=locks.project_fd)
+        fence_active_removed = True
+        _fsync_directory(locks.project_fd)
+
+        archived_fence = _require_regular_entry(
+            archive_fd,
+            fence_archive_name,
+            label="archived unattached media fence",
+        )
+        if (
+            not _entry_absent(locks.project_fd, MEDIA_RECEIPT_BASENAME)
+            or not _entry_absent(locks.project_fd, MEDIA_FENCE_BASENAME)
+            or not _same_inode(fence_stat, archived_fence)
+            or archived_fence.st_nlink != 1
+            or stat.S_IMODE(archived_fence.st_mode) != 0o400
+            or hashlib.sha256(
+                _read_all(fence_fd, maximum=MAX_MEDIA_RECEIPT_BYTES)
+            ).hexdigest()
+            != fence_hash
+        ):
+            raise ArchiveCommitError(
+                "final media retirement did not leave exact immutable archives"
+            )
+        _require_bound_readonly_receipt(
+            archive_fd,
+            audit_name,
+            audit_verification_fd,
+            audit_identity,
+            audit_content,
+        )
+        _require_active_barrier_identity(
+            locks.project_fd,
+            expected_names=active_barriers.names,
+            expected_identity=active_barriers.identity,
+            opened_descriptor=active_barriers.descriptor,
+            expected_total_links=len(active_barriers.names),
+        )
+        locks.revalidate()
+        return result
+    except BaseException as exc:
+        rollback_error: BaseException | None = None
+        try:
+            if archive_fd is not None:
+                if not receipt_archive_created and receipt_fd is not None:
+                    try:
+                        candidate = _require_regular_entry(
+                            archive_fd,
+                            receipt_archive_name,
+                            label="candidate rollback media receipt archive",
+                        )
+                    except UnsafeReconciliationPathError:
+                        pass
+                    else:
+                        receipt_archive_created = _same_inode(
+                            candidate,
+                            os.fstat(receipt_fd),
+                        )
+                if not fence_archive_created and fence_fd is not None:
+                    try:
+                        candidate = _require_regular_entry(
+                            archive_fd,
+                            fence_archive_name,
+                            label="candidate rollback media fence archive",
+                        )
+                    except UnsafeReconciliationPathError:
+                        pass
+                    else:
+                        fence_archive_created = _same_inode(
+                            candidate,
+                            os.fstat(fence_fd),
+                        )
+                if not audit_published and audit_identity is not None:
+                    try:
+                        candidate = _require_regular_entry(
+                            archive_fd,
+                            audit_name,
+                            label="candidate rollback unattached-media audit",
+                        )
+                    except UnsafeReconciliationPathError:
+                        pass
+                    else:
+                        audit_published = _same_inode(
+                            candidate,
+                            audit_identity,
+                        )
+            if receipt_archive_created and archive_fd is not None:
+                archived = _require_regular_entry(
+                    archive_fd,
+                    receipt_archive_name,
+                    label="rollback media receipt archive",
+                )
+                if _entry_absent(locks.project_fd, MEDIA_RECEIPT_BASENAME):
+                    _link_noreplace(
+                        receipt_archive_name,
+                        MEDIA_RECEIPT_BASENAME,
+                        source_directory_fd=archive_fd,
+                        destination_directory_fd=locks.project_fd,
+                        label="restored active media receipt",
+                    )
+                    receipt_active_removed = False
+                if receipt_fd is not None and receipt_original_mode is not None:
+                    os.fchmod(receipt_fd, receipt_original_mode)
+                    os.fsync(receipt_fd)
+                current = _require_regular_entry(
+                    locks.project_fd,
+                    MEDIA_RECEIPT_BASENAME,
+                    label="restored active media receipt",
+                )
+                if not _same_inode(archived, current):
+                    raise ArchiveCommitError(
+                        "rollback restored the wrong media receipt generation"
+                    )
+            if fence_archive_created and archive_fd is not None:
+                archived = _require_regular_entry(
+                    archive_fd,
+                    fence_archive_name,
+                    label="rollback media fence archive",
+                )
+                if _entry_absent(locks.project_fd, MEDIA_FENCE_BASENAME):
+                    _link_noreplace(
+                        fence_archive_name,
+                        MEDIA_FENCE_BASENAME,
+                        source_directory_fd=archive_fd,
+                        destination_directory_fd=locks.project_fd,
+                        label="restored active media fence",
+                    )
+                    fence_active_removed = False
+                if fence_fd is not None and fence_original_mode is not None:
+                    os.fchmod(fence_fd, fence_original_mode)
+                    os.fsync(fence_fd)
+                current = _require_regular_entry(
+                    locks.project_fd,
+                    MEDIA_FENCE_BASENAME,
+                    label="restored active media fence",
+                )
+                if not _same_inode(archived, current):
+                    raise ArchiveCommitError(
+                        "rollback restored the wrong media fence generation"
+                    )
+            if archive_fd is not None:
+                if audit_published and audit_identity is not None:
+                    current_audit = _require_regular_entry(
+                        archive_fd,
+                        audit_name,
+                        label="rollback unattached-media audit",
+                    )
+                    if _same_inode(audit_identity, current_audit):
+                        os.unlink(audit_name, dir_fd=archive_fd)
+                        audit_published = False
+                if fence_archive_created:
+                    os.unlink(fence_archive_name, dir_fd=archive_fd)
+                    fence_archive_created = False
+                if receipt_archive_created:
+                    os.unlink(receipt_archive_name, dir_fd=archive_fd)
+                    receipt_archive_created = False
+                _fsync_directory(archive_fd)
+            _fsync_directory(locks.project_fd)
+        except BaseException as rollback_exc:
+            rollback_error = rollback_exc
+        if rollback_error is not None:
+            raise ArchiveCommitError(
+                "unattached-media reconciliation failed and rollback was incomplete; preserve the active marker and inspect the archive"
+            ) from rollback_error
+        if not isinstance(exc, Exception):
+            raise
+        if isinstance(exc, MarkerReconciliationError):
+            raise
+        raise ArchiveCommitError(
+            "offline unattached-media reconciliation failed"
+        ) from exc
+    finally:
+        if (
+            audit_temporary is not None
+            and audit_identity is not None
+            and archive_fd is not None
+        ):
+            try:
+                current = _entry_stat(archive_fd, audit_temporary)
+            except OSError:
+                pass
+            else:
+                if _same_inode(current, audit_identity):
+                    try:
+                        os.unlink(audit_temporary, dir_fd=archive_fd)
+                    except OSError:
+                        pass
+        for descriptor in (
+            audit_verification_fd,
+            archive_fd,
+            fence_fd,
+            receipt_fd,
+            (
+                active_barriers.descriptor
+                if active_barriers is not None
+                else None
+            ),
+        ):
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+        locks.close()
+
+
 def reconcile_marker_offline(
     *,
     project_root: Path,
@@ -1517,6 +2434,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="SHA-256 independently recorded during manual reconciliation.",
     )
     parser.add_argument(
+        "--reconcile-unattached-media-upload",
+        action="store_true",
+        help=(
+            "Archive and retire one exact sending media pair while preserving "
+            "the active ambiguity marker."
+        ),
+    )
+    parser.add_argument("--expected-media-receipt-sha256")
+    parser.add_argument("--expected-media-fence-sha256")
+    parser.add_argument("--expected-media-transaction-id")
+    parser.add_argument("--expected-media-receipt-device", type=int)
+    parser.add_argument("--expected-media-receipt-inode", type=int)
+    parser.add_argument("--expected-media-receipt-ctime-ns", type=int)
+    parser.add_argument("--expected-media-fence-device", type=int)
+    parser.add_argument("--expected-media-fence-inode", type=int)
+    parser.add_argument("--expected-media-fence-ctime-ns", type=int)
+    parser.add_argument(
+        "--confirm-no-tweet-create-attempted",
+        action="store_true",
+        help="Attest that external evidence proves POST /2/tweets was not attempted.",
+    )
+    parser.add_argument(
+        "--confirm-unattached-media-abandoned",
+        action="store_true",
+        help="Accept abandonment of any media object which the upload may have created.",
+    )
+    parser.add_argument(
         "--reconciliation-reference",
         required=True,
         help="One-line operator/audit reference; this tool does not verify its substance.",
@@ -1538,6 +2482,86 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the offline marker archival command."""
 
     args = build_parser().parse_args(argv)
+    media_values = {
+        "--expected-media-receipt-sha256": args.expected_media_receipt_sha256,
+        "--expected-media-fence-sha256": args.expected_media_fence_sha256,
+        "--expected-media-transaction-id": args.expected_media_transaction_id,
+        "--expected-media-receipt-device": args.expected_media_receipt_device,
+        "--expected-media-receipt-inode": args.expected_media_receipt_inode,
+        "--expected-media-receipt-ctime-ns": args.expected_media_receipt_ctime_ns,
+        "--expected-media-fence-device": args.expected_media_fence_device,
+        "--expected-media-fence-inode": args.expected_media_fence_inode,
+        "--expected-media-fence-ctime-ns": args.expected_media_fence_ctime_ns,
+    }
+    if args.reconcile_unattached_media_upload:
+        missing = [name for name, value in media_values.items() if value is None]
+        if missing:
+            print(
+                "refusing unattached-media reconciliation without: "
+                + ", ".join(missing),
+                file=sys.stderr,
+            )
+            return 2
+        if not args.confirm_no_tweet_create_attempted:
+            print(
+                "refusing unattached-media reconciliation without "
+                "--confirm-no-tweet-create-attempted",
+                file=sys.stderr,
+            )
+            return 2
+        if not args.confirm_unattached_media_abandoned:
+            print(
+                "refusing unattached-media reconciliation without "
+                "--confirm-unattached-media-abandoned",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            media_result = reconcile_unattached_media_upload_offline(
+                project_root=args.project_root,
+                expected_marker_sha256=args.expected_marker_sha256,
+                expected_media_receipt_sha256=(
+                    args.expected_media_receipt_sha256
+                ),
+                expected_media_fence_sha256=args.expected_media_fence_sha256,
+                expected_media_transaction_id=(
+                    args.expected_media_transaction_id
+                ),
+                expected_media_receipt_device=(
+                    args.expected_media_receipt_device
+                ),
+                expected_media_receipt_inode=args.expected_media_receipt_inode,
+                expected_media_receipt_ctime_ns=(
+                    args.expected_media_receipt_ctime_ns
+                ),
+                expected_media_fence_device=args.expected_media_fence_device,
+                expected_media_fence_inode=args.expected_media_fence_inode,
+                expected_media_fence_ctime_ns=(
+                    args.expected_media_fence_ctime_ns
+                ),
+                reconciliation_reference=args.reconciliation_reference,
+                confirm_no_tweet_create_attempted=True,
+                confirm_unattached_media_abandoned=True,
+                archive_basename=args.archive_directory_name,
+            )
+        except MarkerReconciliationError as exc:
+            print(
+                f"unattached-media reconciliation refused: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        sys.stdout.buffer.write(_canonical_json_bytes(media_result.to_dict()))
+        return 0
+    if any(value is not None for value in media_values.values()) or (
+        args.confirm_no_tweet_create_attempted
+        or args.confirm_unattached_media_abandoned
+    ):
+        print(
+            "refusing media-specific options without "
+            "--reconcile-unattached-media-upload",
+            file=sys.stderr,
+        )
+        return 2
     if not args.confirm_offline_reconciliation_complete:
         print(
             "refusing marker archival without --confirm-offline-reconciliation-complete",

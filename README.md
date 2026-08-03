@@ -496,6 +496,20 @@ transport and is never an automatic fallback. Raw X, media and provider
 transports receive no unbound authority and cannot bypass an unresolved
 transaction object.
 
+One narrower stopped recovery exists for an ambiguous media upload before any
+tweet-create attempt. `tools/reconcile_remote_write_safety_marker.py
+--reconcile-unattached-media-upload` requires the exact reviewed marker hash,
+media transaction ID, receipt and fence hashes, and each file's device, inode
+and ctime. It accepts only a paired media-only ambiguity marker, canonical
+`sending` receipt/fence documents with no remote media ID, and complete absence
+of every source receipt and tweet journal/fence name. The operator must
+separately attest both that no `POST /2/tweets` request was attempted and that
+any possibly accepted but unattached media object is abandoned. The operation
+archives the exact receipt/fence inodes and a read-only audit before retiring
+the active media pair; it does not remove either ambiguity-marker name. Review
+that audit and then invoke the normal marker-reconciliation mode as a separate
+offline operation. Any other incident shape remains unsupported and blocked.
+
 Destructive journal, media and source-retirement helpers do not trust their
 caller. Each call requires a narrow `TransactionMutationAuthority` issued from
 the exact live instance-lock verifier, and every use re-runs that verifier

@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+import remote_media_upload_receipt as media_receipt
 from tools import reconcile_remote_write_safety_marker as reconcile
 
 
@@ -34,6 +35,383 @@ def installation(tmp_path: Path) -> Path:
     )
     (project / reconcile.MARKER_BASENAME).write_bytes(MARKER_BYTES)
     return project
+
+
+def media_incident_installation(
+    tmp_path: Path,
+) -> tuple[Path, bytes, media_receipt.MediaReceiptSnapshot, media_receipt.MediaReceiptSnapshot]:
+    """Create the exact stopped, ambiguous pre-tweet media incident."""
+
+    project = installation(tmp_path)
+    marker_value = {
+        "made_with_ai": False,
+        "media_ids": [],
+        "outcome": "ambiguous_remote_post",
+        "recorded_at_epoch": 1_800_000_000,
+        "reply_to_id": "",
+        "schema_version": 1,
+        "text_sha256": hashlib.sha256(b"").hexdigest(),
+    }
+    marker_bytes = reconcile._canonical_json_bytes(marker_value)
+    marker = project / reconcile.MARKER_BASENAME
+    marker.write_bytes(marker_bytes)
+    os.link(marker, project / reconcile.RESTART_BARRIER_BASENAME)
+    image = project / "reviewed-image.jpg"
+    image.write_bytes(b"reviewed-image-bytes")
+    image.chmod(0o600)
+    receipt_path = project / reconcile.MEDIA_RECEIPT_BASENAME
+    media_receipt.begin_media_upload(
+        receipt_path=receipt_path,
+        image_path=image,
+        lane="quote_image",
+        mime_type="image/jpeg",
+        payload_metadata={
+            "form": {
+                "media_category": "tweet_image",
+                "media_type": "image/jpeg",
+            },
+            "request_method": "POST",
+            "request_path": "/2/media/upload",
+        },
+    )
+    receipt = media_receipt.inspect_media_upload_receipt(receipt_path)
+    assert receipt is not None
+    fence = media_receipt._required_fence_snapshot(
+        project / reconcile.MEDIA_FENCE_BASENAME
+    )
+    return project, marker_bytes, receipt, fence
+
+
+def run_media_reconciliation(
+    project: Path,
+    marker_bytes: bytes,
+    receipt: media_receipt.MediaReceiptSnapshot,
+    fence: media_receipt.MediaReceiptSnapshot,
+    **overrides: object,
+) -> reconcile.UnattachedMediaArchiveResult:
+    """Run exact unattached-media reconciliation for one fixture."""
+
+    values: dict[str, object] = {
+        "project_root": project,
+        "expected_marker_sha256": hashlib.sha256(marker_bytes).hexdigest(),
+        "expected_media_receipt_sha256": receipt.sha256,
+        "expected_media_fence_sha256": fence.sha256,
+        "expected_media_transaction_id": receipt.document["transaction_id"],
+        "expected_media_receipt_device": receipt.device,
+        "expected_media_receipt_inode": receipt.inode,
+        "expected_media_receipt_ctime_ns": receipt.ctime_ns,
+        "expected_media_fence_device": fence.device,
+        "expected_media_fence_inode": fence.inode,
+        "expected_media_fence_ctime_ns": fence.ctime_ns,
+        "reconciliation_reference": "x-log-503-no-tweet-create",
+        "confirm_no_tweet_create_attempted": True,
+        "confirm_unattached_media_abandoned": True,
+        "now": lambda: 1_800_000_100,
+    }
+    values.update(overrides)
+    return reconcile.reconcile_unattached_media_upload_offline(**values)
+
+
+def media_cli_command(
+    project: Path,
+    marker_bytes: bytes,
+    receipt: media_receipt.MediaReceiptSnapshot,
+    fence: media_receipt.MediaReceiptSnapshot,
+) -> list[str]:
+    """Build the complete reviewed-identity CLI invocation."""
+
+    return [
+        sys.executable,
+        "tools/reconcile_remote_write_safety_marker.py",
+        "--project-root",
+        str(project),
+        "--expected-marker-sha256",
+        hashlib.sha256(marker_bytes).hexdigest(),
+        "--reconcile-unattached-media-upload",
+        "--expected-media-receipt-sha256",
+        receipt.sha256,
+        "--expected-media-fence-sha256",
+        fence.sha256,
+        "--expected-media-transaction-id",
+        str(receipt.document["transaction_id"]),
+        "--expected-media-receipt-device",
+        str(receipt.device),
+        "--expected-media-receipt-inode",
+        str(receipt.inode),
+        "--expected-media-receipt-ctime-ns",
+        str(receipt.ctime_ns),
+        "--expected-media-fence-device",
+        str(fence.device),
+        "--expected-media-fence-inode",
+        str(fence.inode),
+        "--expected-media-fence-ctime-ns",
+        str(fence.ctime_ns),
+        "--reconciliation-reference",
+        "operator-reviewed-x-503-without-tweet-create",
+    ]
+
+
+def test_unattached_media_reconciliation_archives_pair_before_marker(
+    tmp_path: Path,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    receipt_inode = (project / reconcile.MEDIA_RECEIPT_BASENAME).stat().st_ino
+    fence_inode = (project / reconcile.MEDIA_FENCE_BASENAME).stat().st_ino
+
+    result = run_media_reconciliation(
+        project,
+        marker_bytes,
+        receipt,
+        fence,
+    )
+
+    assert result.accepted_media_disposition == "unattached_and_abandoned"
+    assert result.no_tweet_create_authority_present is True
+    assert result.remote_media_id_absent is True
+    assert not (project / reconcile.MEDIA_RECEIPT_BASENAME).exists()
+    assert not (project / reconcile.MEDIA_FENCE_BASENAME).exists()
+    marker = project / reconcile.MARKER_BASENAME
+    successor = project / reconcile.RESTART_BARRIER_BASENAME
+    assert marker.read_bytes() == marker_bytes
+    assert marker.stat().st_ino == successor.stat().st_ino
+
+    archived_receipt = project / result.receipt_archive_path
+    archived_fence = project / result.fence_archive_path
+    audit = project / result.audit_receipt_path
+    assert archived_receipt.read_bytes() == receipt.data
+    assert archived_fence.read_bytes() == fence.data
+    assert archived_receipt.stat().st_ino == receipt_inode
+    assert archived_fence.stat().st_ino == fence_inode
+    assert archived_receipt.stat().st_mode & 0o777 == 0o400
+    assert archived_fence.stat().st_mode & 0o777 == 0o400
+    assert audit.stat().st_mode & 0o777 == 0o400
+    assert json.loads(audit.read_text(encoding="utf-8")) == result.to_dict()
+
+    marker_result = reconcile.reconcile_marker_offline(
+        project_root=project,
+        expected_marker_sha256=hashlib.sha256(marker_bytes).hexdigest(),
+        reconciliation_reference="media-archive-audit-reviewed",
+        now=lambda: 1_800_000_101,
+    )
+    assert marker_result.successful_return_requires_all_active_barriers_absent
+    assert not marker.exists()
+    assert not successor.exists()
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"confirm_no_tweet_create_attempted": False},
+        {"confirm_unattached_media_abandoned": False},
+        {"expected_media_receipt_sha256": "0" * 64},
+        {"expected_media_fence_sha256": "0" * 64},
+        {"expected_media_transaction_id": "0" * 64},
+        {"expected_media_receipt_inode": 1},
+        {"expected_media_fence_ctime_ns": 1},
+    ],
+)
+def test_unattached_media_reconciliation_refuses_unreviewed_identity(
+    tmp_path: Path,
+    override: dict[str, object],
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+
+    with pytest.raises(reconcile.UnattachedMediaReconciliationError):
+        run_media_reconciliation(
+            project,
+            marker_bytes,
+            receipt,
+            fence,
+            **override,
+        )
+
+    assert (project / reconcile.MEDIA_RECEIPT_BASENAME).read_bytes() == receipt.data
+    assert (project / reconcile.MEDIA_FENCE_BASENAME).read_bytes() == fence.data
+    assert (project / reconcile.MARKER_BASENAME).read_bytes() == marker_bytes
+
+
+@pytest.mark.parametrize("authority_name", reconcile.TWEET_AUTHORITY_BASENAMES)
+def test_unattached_media_reconciliation_refuses_any_tweet_authority(
+    tmp_path: Path,
+    authority_name: str,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    (project / authority_name).write_bytes(b"authority-must-block")
+
+    with pytest.raises(
+        reconcile.UnattachedMediaReconciliationError,
+        match="tweet-create authority exists",
+    ):
+        run_media_reconciliation(project, marker_bytes, receipt, fence)
+
+    assert (project / reconcile.MEDIA_RECEIPT_BASENAME).exists()
+    assert (project / reconcile.MEDIA_FENCE_BASENAME).exists()
+
+
+def test_unattached_media_reconciliation_refuses_live_daemon_lock(
+    tmp_path: Path,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    descriptor = os.open(project / reconcile.LOCK_BASENAME, os.O_RDWR)
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        with pytest.raises(reconcile.BotStillRunningError):
+            run_media_reconciliation(project, marker_bytes, receipt, fence)
+    finally:
+        os.close(descriptor)
+
+    assert (project / reconcile.MEDIA_RECEIPT_BASENAME).exists()
+    assert (project / reconcile.MEDIA_FENCE_BASENAME).exists()
+
+
+def test_unattached_media_reconciliation_refuses_non_media_only_marker(
+    tmp_path: Path,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    marker = project / reconcile.MARKER_BASENAME
+    successor = project / reconcile.RESTART_BARRIER_BASENAME
+    successor.unlink()
+    value = json.loads(marker_bytes)
+    value["reply_to_id"] = "123"
+    changed = reconcile._canonical_json_bytes(value)
+    marker.write_bytes(changed)
+    os.link(marker, successor)
+
+    with pytest.raises(
+        reconcile.UnattachedMediaReconciliationError,
+        match="media-only pre-tweet incident",
+    ):
+        run_media_reconciliation(
+            project,
+            changed,
+            receipt,
+            fence,
+        )
+
+
+def test_unattached_media_reconciliation_refuses_symlinked_receipt(
+    tmp_path: Path,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    receipt_path = project / reconcile.MEDIA_RECEIPT_BASENAME
+    displaced = project / "displaced-media-receipt.json"
+    receipt_path.rename(displaced)
+    receipt_path.symlink_to(displaced.name)
+
+    with pytest.raises(
+        reconcile.UnattachedMediaReconciliationError,
+        match="not strict canonical sending state",
+    ):
+        run_media_reconciliation(project, marker_bytes, receipt, fence)
+
+    assert (project / reconcile.MARKER_BASENAME).read_bytes() == marker_bytes
+
+
+def test_unattached_media_hard_exit_keeps_ambiguity_marker(
+    tmp_path: Path,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    child_code = textwrap.dedent(
+        f"""
+        import os
+        from pathlib import Path
+        from tools import reconcile_remote_write_safety_marker as reconcile
+
+        original = reconcile._fsync_directory
+        calls = 0
+        def exit_after_first_archive_sync(descriptor):
+            global calls
+            original(descriptor)
+            calls += 1
+            if calls == 2:
+                os._exit(77)
+        reconcile._fsync_directory = exit_after_first_archive_sync
+        reconcile.reconcile_unattached_media_upload_offline(
+            project_root=Path({str(project)!r}),
+            expected_marker_sha256={hashlib.sha256(marker_bytes).hexdigest()!r},
+            expected_media_receipt_sha256={receipt.sha256!r},
+            expected_media_fence_sha256={fence.sha256!r},
+            expected_media_transaction_id={receipt.document['transaction_id']!r},
+            expected_media_receipt_device={receipt.device},
+            expected_media_receipt_inode={receipt.inode},
+            expected_media_receipt_ctime_ns={receipt.ctime_ns},
+            expected_media_fence_device={fence.device},
+            expected_media_fence_inode={fence.inode},
+            expected_media_fence_ctime_ns={fence.ctime_ns},
+            reconciliation_reference='hard-exit-test',
+            confirm_no_tweet_create_attempted=True,
+            confirm_unattached_media_abandoned=True,
+        )
+        """
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-c", child_code],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 77
+    marker = project / reconcile.MARKER_BASENAME
+    successor = project / reconcile.RESTART_BARRIER_BASENAME
+    assert marker.read_bytes() == marker_bytes
+    assert successor.read_bytes() == marker_bytes
+    assert marker.stat().st_ino == successor.stat().st_ino
+
+
+def test_unattached_media_interrupt_after_receipt_unlink_rolls_back_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    original_unlink = reconcile.os.unlink
+
+    def unlink_then_interrupt(path: object, *args: object, **kwargs: object) -> None:
+        original_unlink(path, *args, **kwargs)
+        if path == reconcile.MEDIA_RECEIPT_BASENAME:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(reconcile.os, "unlink", unlink_then_interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        run_media_reconciliation(project, marker_bytes, receipt, fence)
+
+    receipt_path = project / reconcile.MEDIA_RECEIPT_BASENAME
+    fence_path = project / reconcile.MEDIA_FENCE_BASENAME
+    assert receipt_path.read_bytes() == receipt.data
+    assert fence_path.read_bytes() == fence.data
+    assert receipt_path.stat().st_mode & 0o777 == 0o600
+    assert fence_path.stat().st_mode & 0o777 == 0o600
+    archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    assert not list(archive.glob("unattached_media_upload.*"))
+    assert (project / reconcile.MARKER_BASENAME).read_bytes() == marker_bytes
+
+
+def test_unattached_media_interrupt_after_archive_link_rolls_back_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    original_link = reconcile._link_noreplace
+    interrupted = False
+
+    def link_then_interrupt(*args: object, **kwargs: object) -> None:
+        nonlocal interrupted
+        original_link(*args, **kwargs)
+        if not interrupted:
+            interrupted = True
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(reconcile, "_link_noreplace", link_then_interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        run_media_reconciliation(project, marker_bytes, receipt, fence)
+
+    assert (project / reconcile.MEDIA_RECEIPT_BASENAME).read_bytes() == receipt.data
+    assert (project / reconcile.MEDIA_FENCE_BASENAME).read_bytes() == fence.data
+    archive = project / reconcile.DEFAULT_ARCHIVE_BASENAME
+    assert not list(archive.glob("unattached_media_upload.*"))
+    assert (project / reconcile.MARKER_BASENAME).read_bytes() == marker_bytes
 
 
 def run_reconciliation(project: Path) -> reconcile.MarkerArchiveResult:
@@ -1584,3 +1962,66 @@ def test_cli_archives_marker_and_emits_non_secret_receipt(tmp_path: Path) -> Non
     receipt = project / str(emitted["receipt_path"])
     assert json.loads(receipt.read_text(encoding="utf-8")) == emitted
     assert MARKER_BYTES.decode("utf-8").strip() not in completed.stdout
+
+
+def test_cli_media_mode_requires_both_operator_confirmations(
+    tmp_path: Path,
+) -> None:
+    """The media disposition cannot be inferred from reviewed identities."""
+
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    command = media_cli_command(project, marker_bytes, receipt, fence)
+    completed = subprocess.run(
+        command,
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "--confirm-no-tweet-create-attempted" in completed.stderr
+    assert (project / reconcile.MEDIA_RECEIPT_BASENAME).read_bytes() == receipt.data
+    assert (project / reconcile.MEDIA_FENCE_BASENAME).read_bytes() == fence.data
+    assert (project / reconcile.MARKER_BASENAME).read_bytes() == marker_bytes
+
+    completed = subprocess.run(
+        [*command, "--confirm-no-tweet-create-attempted"],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "--confirm-unattached-media-abandoned" in completed.stderr
+    assert (project / reconcile.MEDIA_RECEIPT_BASENAME).read_bytes() == receipt.data
+    assert (project / reconcile.MEDIA_FENCE_BASENAME).read_bytes() == fence.data
+
+
+def test_cli_media_mode_archives_pair_and_preserves_marker(tmp_path: Path) -> None:
+    """The supported media CLI emits its durable audit without clearing safety."""
+
+    project, marker_bytes, receipt, fence = media_incident_installation(tmp_path)
+    completed = subprocess.run(
+        [
+            *media_cli_command(project, marker_bytes, receipt, fence),
+            "--confirm-no-tweet-create-attempted",
+            "--confirm-unattached-media-abandoned",
+        ],
+        cwd=Path(__file__).resolve().parents[1],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    emitted = json.loads(completed.stdout)
+    audit = project / str(emitted["audit_receipt_path"])
+    assert json.loads(audit.read_text(encoding="utf-8")) == emitted
+    assert not (project / reconcile.MEDIA_RECEIPT_BASENAME).exists()
+    assert not (project / reconcile.MEDIA_FENCE_BASENAME).exists()
+    marker = project / reconcile.MARKER_BASENAME
+    successor = project / reconcile.RESTART_BARRIER_BASENAME
+    assert marker.read_bytes() == marker_bytes
+    assert marker.stat().st_ino == successor.stat().st_ino
