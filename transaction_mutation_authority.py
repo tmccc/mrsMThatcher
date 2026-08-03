@@ -38,6 +38,7 @@ class TransactionMutationAuthority:
         *,
         verifier: Callable[[str], None],
     ) -> None:
+        """Bind the private secret and verifier, rejecting direct construction."""
         if secret is not _CONSTRUCTION_SECRET:
             raise TransactionMutationAuthorityError(
                 "transaction mutation authority cannot be constructed directly"

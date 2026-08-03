@@ -114,6 +114,7 @@ class FileIdentity:
 
     @classmethod
     def from_stat(cls, value: os.stat_result) -> "FileIdentity":
+        """Capture the stable identity fields from one filesystem stat."""
         return cls(
             device=int(value.st_dev),
             inode=int(value.st_ino),
@@ -126,6 +127,7 @@ class FileIdentity:
         )
 
     def to_document(self) -> dict[str, int]:
+        """Return the identity as a deterministic JSON-compatible mapping."""
         return {
             "ctime_ns": self.ctime_ns,
             "device": self.device,
@@ -140,6 +142,8 @@ class FileIdentity:
 
 @dataclass(frozen=True)
 class StableEntry:
+    """Bytes and filesystem identity observed during one stable read."""
+
     data: bytes
     identity: FileIdentity
 
@@ -156,6 +160,8 @@ class RetirementExpectation:
 
 @dataclass(frozen=True)
 class RetirementPaths:
+    """All namespace paths participating in one exact retirement."""
+
     guard: Path
     commit: Path
     cleanup: Path
