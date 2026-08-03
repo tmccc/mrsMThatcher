@@ -679,6 +679,76 @@ def test_nonfactual_modes_require_fresh_reviewer_approval(
     assert [call["stage"] for call in transport.calls] == expected_stages
 
 
+def test_philosophical_yes_no_challenge_uses_principle_mode_with_direct_opening(
+    repository: FakeRepository,
+) -> None:
+    contribution = (
+        "But what drives ambition & effort? It’s the envy of what others have "
+        "& the envy to have it too, isn’t it?"
+    )
+    reply = (
+        "No. Wanting to emulate another person’s success is aspiration; "
+        "envy is resenting them for possessing it."
+    )
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply=reply,
+                claims=[],
+            ),
+            "claim_auditor": claim_auditor(),
+            "reviewer": reviewer(
+                direct_question=False,
+                answers_first=False,
+            ),
+        },
+        context=reply_context(contribution),
+    )
+
+    assert isinstance(result.reply, AIReply)
+    assert str(result.reply) == reply
+    assert result.reply.draft_record["mode"] == "opinion_or_principle"
+    assert result.reply.draft_record["direct_factual_question_present"] is False
+    assert str(result.reply).startswith("No.")
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "claim_auditor",
+        "reviewer",
+    ]
+
+    proposer_call = transport.calls[0]
+    proposer_payload = json.loads(proposer_call["user_prompt"])
+    assert (
+        proposer_payload["context_sections"]["incoming_contribution_to_answer"]
+        == contribution
+    )
+    assert (
+        "Questions about motives, values, political principles or moral concepts normally use "
+        "opinion_or_principle"
+        in proposer_call["system_prompt"]
+    )
+    assert (
+        "begin the proposed reply with that clear answer in the first sentence"
+        in proposer_call["system_prompt"]
+    )
+
+    reviewer_call = transport.calls[-1]
+    reviewer_payload = json.loads(reviewer_call["user_prompt"])
+    assert reviewer_payload["mode"] == "opinion_or_principle"
+    assert reviewer_payload["proposer_direct_factual_question_present"] is False
+    assert (
+        "Do not require direct_factual_question_present merely because such a principle "
+        "question is interrogative"
+        in reviewer_call["system_prompt"]
+    )
+    assert (
+        "require the proposed reply to begin with that clear answer in the first sentence"
+        in reviewer_call["system_prompt"]
+    )
+
+
 def test_direct_factual_answer_requires_claim_evidence_and_independent_review(
     repository: FakeRepository,
 ) -> None:

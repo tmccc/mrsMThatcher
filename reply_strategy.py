@@ -28,9 +28,9 @@ from reply_evidence import EvidencePassage, EvidenceRepository, value_hash
 
 STRATEGY_VERSION = "ai-first-reply-v3"
 DRAFT_SCHEMA_VERSION = 9
-PROPOSER_PROMPT_VERSION = "ai-first-proposer-v13"
+PROPOSER_PROMPT_VERSION = "ai-first-proposer-v14"
 EVIDENCE_PROMPT_VERSION = "claim-evidence-entailment-v6"
-REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v11"
+REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v12"
 CLAIM_AUDITOR_PROMPT_VERSION = "claim-inventory-auditor-v5"
 LEGACY_DRAFT_AUDIT_SCHEMA_VERSION = 1
 
@@ -1310,6 +1310,11 @@ def _proposer_prompts(
         "unverifiable outcomes. Express that judgement as an explicit recommendation or standard, such as what "
         "should or ought to be valued, judged or prioritised. Do not turn it into a claim about what history proves, "
         "what a policy inevitably causes, what people generally do, or what results will follow. "
+        "Questions about motives, values, political principles or moral concepts normally use "
+        "opinion_or_principle, even when phrased as a question, unless they ask for an empirically verifiable fact. "
+        "Do not mark such a question as direct_factual_question_present merely because its wording invites yes or "
+        "no. When that wording invites a yes, no or qualified direct answer, begin the proposed reply with that "
+        "clear answer in the first sentence before explaining the principle or distinction. "
         "A normative wrapper does not hide a factual premise: 'a nation's history of defending freedom' asserts "
         "that the nation defended freedom, and 'the programme its conference endorsed' asserts an endorsement. "
         "A claim-free draft must omit such historical noun phrases and action-bearing relative clauses; otherwise "
@@ -1479,7 +1484,12 @@ def _reviewer_prompts(
         "direct_answer_text only when that sentence is the complete answer; otherwise leave direct_answer_text empty "
         "and mark direct_answer_complete=false. Mark it complete only if it actually supplies the requested identity, "
         "direction, date, quantity or other requested fact. A question about who said or wrote words requires the "
-        "author's identity, even when phrased as yes/no. revision_instructions must be non-empty for revise and empty for "
+        "author's identity, even when phrased as yes/no. Questions about motives, values, political principles or "
+        "moral concepts normally use opinion_or_principle unless they ask for an empirically verifiable fact. Do not "
+        "require direct_factual_question_present merely because such a principle question is interrogative. When its "
+        "wording invites a yes, no or qualified direct answer, require the proposed reply to begin with that clear "
+        "answer in the first sentence and request revision if it evades the question. "
+        "revision_instructions must be non-empty for revise and empty for "
         "approve. Use revise for a correctable draft when a safe, relevant reply remains plausible. Use reject only "
         "when the contribution should not be answered or the defect cannot be safely corrected in one revision. "
         "A reject is terminal; revision_instructions on a reject are optional and will not be acted upon. "
