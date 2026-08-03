@@ -419,6 +419,17 @@ Stateful digest runs use a separate nonblocking resume lock. The schedule-model
 runway is a maximum-throughput minimum: it assumes generated selection whenever
 spacing permits.
 
+Each digest invocation also takes a read-only, no-follow snapshot of the active
+remote-write protocol: activation pair, ambiguity markers, source-receipt
+retirement ledgers, transport journal/fence, media-upload receipt/fence,
+operator control generation, and reconciliation archive. X transport failures
+are attributed to the exact preceding request endpoint, so `/2/media/upload`
+is not reported as a mention or tweet-create failure. Historical ambiguous-write
+cascades are grouped into one incident and are marked resolved only when a
+later mode-0400 reconciliation audit is hash-bound to its archived evidence and
+the current barrier namespace is clear. The digest never reconciles, retires,
+or writes any of this protocol state.
+
 An X POST transport timeout is not proof of failure: X may have accepted the
 write. A new ambiguous outcome first creates and synchronises
 `ambiguous_post_outcome.restart_barrier.json`, then adds the same-inode

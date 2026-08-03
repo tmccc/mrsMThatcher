@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 
 import mrs_log_digest as digest
+import remote_write_safety_protocol as remote_protocol
+from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.test_generated_image_pool_health_digest import pool
 from tests.test_generated_image_pool_runway_digest import log_line, post
 
@@ -42,6 +44,164 @@ def project_with_log(tmp_path: Path) -> tuple[Path, Path]:
 
 def main_args(project: Path, log: Path, *extra: str) -> list[str]:
     return ["--project-dir", str(project), "--state-file", ".resume.json", "--since", "2026-07-10 00:00:00", *extra, str(log)]
+
+
+def publish_readonly_json(path: Path, value: dict) -> bytes:
+    """Publish one deterministic mode-0400 JSON fixture."""
+
+    data = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    path.write_bytes(data)
+    path.chmod(0o400)
+    return data
+
+
+def test_runtime_control_snapshot_is_strict_and_fail_closed(tmp_path):
+    path = tmp_path / "mrsMThatcher.control.json"
+    path.write_text('{"disable_all":true,"generation":3}', encoding="utf-8")
+
+    valid = digest.runtime_control_snapshot(tmp_path)
+
+    assert valid["valid"] is True
+    assert valid["generation"] == 3
+    assert valid["active_keys"] == ["disable_all"]
+    assert valid["global_pause_active"] is True
+
+    path.write_text(
+        '{"disable_all_until":1.0000000000000000000000000000000001}',
+        encoding="utf-8",
+    )
+    fractional = digest.runtime_control_snapshot(tmp_path)
+    assert fractional["valid"] is False
+    assert fractional["global_pause_active"] is True
+    assert fractional["active_keys"] == ["fail_closed_invalid_control"]
+
+    path.write_text(
+        '{"disable_all":true,"disable_all":false}',
+        encoding="utf-8",
+    )
+    duplicate = digest.runtime_control_snapshot(tmp_path)
+    assert duplicate["valid"] is False
+    assert duplicate["global_pause_active"] is True
+
+
+def test_remote_write_snapshot_reports_protocol_pause_and_active_marker(tmp_path):
+    create_test_protocol_activation(tmp_path / remote_protocol.ACTIVATION_BASENAME)
+    (tmp_path / "mrsMThatcher.control.json").write_text(
+        '{"disable_all":true,"generation":3}',
+        encoding="utf-8",
+    )
+
+    paused = digest.remote_write_safety_snapshot(tmp_path)
+
+    assert paused["status"] == "operator_paused"
+    assert paused["blocking"] is False
+    assert paused["ready_for_remote_writes"] is False
+    assert paused["protocol"]["valid"] is True
+    assert len(paused["retirement_ledgers"]) == 4
+    assert all(
+        item["valid"] is True and item["blocking"] is False
+        for item in paused["retirement_ledgers"]
+    )
+    assert paused["transport"]["classification"] == "clear"
+    assert paused["media"]["classification"] == "clear"
+
+    marker = tmp_path / digest.REMOTE_WRITE_MARKER_BASENAMES[0]
+    marker.write_text('{"fixture":true}', encoding="utf-8")
+    blocked = digest.remote_write_safety_snapshot(tmp_path)
+
+    assert blocked["status"] == "blocked"
+    assert blocked["blocking"] is True
+    assert blocked["ready_for_remote_writes"] is False
+    assert blocked["active_marker_names"] == [marker.name]
+    assert blocked["reconciliation_proven"] is False
+
+
+def test_reconciliation_archive_requires_readonly_hash_bound_evidence(tmp_path):
+    archive = tmp_path / digest.REMOTE_WRITE_ARCHIVE_BASENAME
+    archive.mkdir()
+    marker_hash = "2" * 64
+    marker_path = archive / f"ambiguous_post_outcome.{marker_hash}.json"
+    marker_data = b'{"incident":"fixture"}'
+    marker_path.write_bytes(marker_data)
+    marker_path.chmod(0o400)
+    marker_hash = digest.hashlib.sha256(marker_data).hexdigest()
+    renamed_marker_path = archive / f"ambiguous_post_outcome.{marker_hash}.json"
+    marker_path.rename(renamed_marker_path)
+
+    transaction_id = "4" * 64
+    receipt_data = b'{"receipt":"fixture"}'
+    fence_data = b'{"fence":"fixture"}'
+    receipt_hash = digest.hashlib.sha256(receipt_data).hexdigest()
+    fence_hash = digest.hashlib.sha256(fence_data).hexdigest()
+    receipt_path = archive / (
+        f"unattached_media_upload.{transaction_id}.{receipt_hash}.receipt.json"
+    )
+    fence_path = archive / (
+        f"unattached_media_upload.{transaction_id}.{fence_hash}.fence.json"
+    )
+    receipt_path.write_bytes(receipt_data)
+    fence_path.write_bytes(fence_data)
+    receipt_path.chmod(0o400)
+    fence_path.chmod(0o400)
+
+    media_audit_path = archive / (
+        f"unattached_media_upload.{transaction_id}.reconciliation.json"
+    )
+    publish_readonly_json(
+        media_audit_path,
+        {
+            "schema_version": 1,
+            "operation": "offline_unattached_media_upload_archive",
+            "archived_at_epoch": 2_000_000_000,
+            "accepted_media_disposition": "unattached_and_abandoned",
+            "media_transaction_id": transaction_id,
+            "image_basename": "t64.jpg",
+            "marker_sha256": marker_hash,
+            "receipt_archive_path": str(receipt_path.relative_to(tmp_path)),
+            "receipt_sha256": receipt_hash,
+            "fence_archive_path": str(fence_path.relative_to(tmp_path)),
+            "fence_sha256": fence_hash,
+            "no_tweet_create_authority_present": True,
+            "operator_confirmed_no_tweet_create_attempted": True,
+            "operator_confirmed_unattached_media_abandoned": True,
+            "remote_media_id_absent": True,
+            "media_archives_and_audit_durable_before_active_removal": True,
+            "media_receipt_retired_before_fence": True,
+            "active_marker_preserved_after_media_reconciliation": True,
+            "successful_return_requires_active_media_pair_absent": True,
+        },
+    )
+    marker_audit_path = archive / (
+        f"ambiguous_post_outcome.{marker_hash}.json.reconciliation.json"
+    )
+    publish_readonly_json(
+        marker_audit_path,
+        {
+            "schema_version": 3,
+            "operation": "offline_remote_write_safety_marker_archive",
+            "archived_at_epoch": 2_000_000_001,
+            "archive_path": str(renamed_marker_path.relative_to(tmp_path)),
+            "marker_sha256": marker_hash,
+            "reconciliation_reference": str(media_audit_path.relative_to(tmp_path)),
+            "archive_and_receipt_durable_before_source_removal": True,
+            "restart_barrier_retired_last": True,
+            "successful_return_requires_source_absent": True,
+            "successful_return_requires_all_active_barriers_absent": True,
+        },
+    )
+
+    valid = digest.reconciliation_archive_snapshot(tmp_path)
+
+    assert valid["valid"] is True
+    assert valid["valid_marker_reconciliation_count"] == 1
+    assert valid["valid_media_reconciliation_count"] == 1
+    assert valid["latest_media_reconciliation"]["image_basename"] == "t64.jpg"
+
+    receipt_path.chmod(0o600)
+    invalid = digest.reconciliation_archive_snapshot(tmp_path)
+    assert invalid["valid"] is False
+    assert invalid["valid_media_reconciliation_count"] == 0
+    assert "mode-0400" in " ".join(invalid["invalid_audits"])
 
 
 @pytest.mark.parametrize("target", ["pool", "rates", "markdown", "stdout", "interrupt"])

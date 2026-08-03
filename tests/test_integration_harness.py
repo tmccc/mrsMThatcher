@@ -5319,7 +5319,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "API cooldown occurred" in ops_digest.stdout
     assert "API cooldowns entered" in ops_digest.stdout
     assert "API health" in ops_digest.stdout
-    assert "mentions/hot-post" in ops_digest.stdout
+    assert "unknown" in ops_digest.stdout
+    assert "mentions/hot-post" not in ops_digest.stdout
     assert "not quota exhaustion" in ops_digest.stdout
     assert "Used-history migrations" in ops_digest.stdout
     assert "Used-history normalizations" in ops_digest.stdout
@@ -5353,9 +5354,10 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     )
     classified_digest = run_digest(classified_base)
     assert classified_digest.returncode == 0, classified_digest.stderr
-    assert "current health: 1 unresolved operational incident" in (
+    assert "current health: no unresolved operational incidents" in (
         classified_digest.stdout
     )
+    assert "1 historical/resolved incident in window" in classified_digest.stdout
     assert "1 handled API restriction incident" in classified_digest.stdout
     assert "self-test failures: 2 check(s)" in classified_digest.stdout
     assert "Handled API restrictions" in classified_digest.stdout

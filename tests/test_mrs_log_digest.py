@@ -47,6 +47,234 @@ def loaded_gate(offset: int) -> digest.Record:
     )
 
 
+def reconciled_remote_write_safety(*, archive_offset: int = 120) -> dict:
+    """Return a current clear snapshot with evidence tied to t64.jpg."""
+
+    archive_epoch = int((BASE + timedelta(seconds=archive_offset)).timestamp())
+    return {
+        "configured": True,
+        "available": True,
+        "status": "operator_paused",
+        "blocking": False,
+        "ready_for_remote_writes": False,
+        "protocol": {"valid": True},
+        "control": {
+            "valid": True,
+            "generation": 3,
+            "active_keys": ["disable_all"],
+            "global_pause_active": True,
+        },
+        "reconciliation_proven": True,
+        "media_reconciliation_proven": True,
+        "reconciliation_archive": {
+            "valid": True,
+            "valid_marker_reconciliation_count": 1,
+            "valid_media_reconciliation_count": 1,
+            "latest_marker_reconciliation": {
+                "archived_at_epoch": archive_epoch,
+                "audit_path": "archive/marker.reconciliation.json",
+            },
+            "latest_media_reconciliation": {
+                "archived_at_epoch": archive_epoch - 1,
+                "audit_path": "archive/media.reconciliation.json",
+                "image_basename": "t64.jpg",
+            },
+        },
+        "transport": {"classification": "clear", "blocking": False},
+        "media": {"classification": "clear", "blocking": False},
+        "retirement_ledgers": [
+            {"valid": True, "blocking": False} for _ in range(4)
+        ],
+        "active_entries": [],
+    }
+
+
+def ambiguous_media_records() -> list[digest.Record]:
+    """Represent the production receipt-bound media 503 cascade."""
+
+    return [
+        record(
+            0,
+            "INFO",
+            "upload_media_v2",
+            "Uploading receipt-bound media via X API v2: t64.jpg",
+        ),
+        record(
+            1,
+            "DEBUG",
+            "x_request",
+            "X request: POST https://api.x.com/2/media/upload",
+        ),
+        record(
+            2,
+            "ERROR",
+            "x_request",
+            'X API error 503: {"detail":"Service Unavailable","status":503}',
+        ),
+        record(
+            3,
+            "CRITICAL",
+            "upload_media",
+            "X media upload outcome is ambiguous; blocking every subsequent "
+            "remote write pending manual reconciliation. image=t64.jpg",
+        ),
+        record(
+            4,
+            "CRITICAL",
+            "record_ambiguous_remote_post",
+            "AMBIGUOUS REMOTE X POST OUTCOME: X may have accepted the write, "
+            "but a usable confirmation was not received. Automatic posting is "
+            "blocked pending manual reconciliation: /srv/ambiguous_post_outcome.json",
+        ),
+        record(
+            5,
+            "ERROR",
+            "main",
+            traceback(
+                "Quote/image remote outcome is ambiguous; the remote-write "
+                "safety barrier is active and no retry will be scheduled",
+                "AmbiguousRemotePostOutcome: X write outcome is not proved by "
+                "HTTP status alone; received HTTP 503",
+            ),
+        ),
+        record(
+            6,
+            "CRITICAL",
+            "maintain_global_remote_write_barrier_tick",
+            "All remote posting and reply lanes are paused by the durable "
+            "remote-write safety barrier; manual reconciliation is required "
+            "before a controlled restart",
+        ),
+    ]
+
+
+def test_media_503_uses_exact_endpoint_and_one_durably_resolved_incident():
+    safety = reconciled_remote_write_safety()
+    report = digest.analyse(
+        ambiguous_media_records(),
+        current_remote_write_safety=safety,
+    )
+    report["remote_write_safety"] = safety
+    rendered = digest.render_markdown(report)
+
+    assert report["api_health"]["media_upload_request_count"] == 1
+    assert report["api_health"]["tweet_create_request_count"] == 0
+    assert report["api_health"]["posting_attempt_count"] == 0
+    assert report["api_health"]["errors"][0]["endpoint"] == "media/upload"
+    assert report["api_health"]["errors"][0]["request_method"] == "POST"
+    health = report["error_health"]
+    assert health["raw_serious_error_record_count"] == 5
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "remote_write_ambiguity_barrier"
+    assert incident["record_count"] == 5
+    assert report["media_upload"]["handled_fallbacks"] == []
+    assert len(report["media_upload"]["reconciled_incidents"]) == 1
+    assert report["media_upload"]["unrecovered_failures"] == []
+    assert report["media_upload"]["incidents"][0]["post_result"] == (
+        "no tweet-create request observed"
+    )
+    assert [item["phase"] for item in report["remote_write_transactions"]] == [
+        "request_started",
+        "ambiguous",
+    ]
+    assert "## Remote-write safety" in rendered
+    assert "media/upload" in rendered
+    assert "reconciled_ambiguities = 1" in rendered
+
+
+def test_stale_reconciliation_evidence_cannot_resolve_new_ambiguity():
+    safety = reconciled_remote_write_safety(archive_offset=-60)
+    report = digest.analyse(
+        ambiguous_media_records(),
+        current_remote_write_safety=safety,
+    )
+
+    assert report["error_health"]["current_independent_incident_count"] == 1
+    assert report["error_health"]["historical_resolved_incident_count"] == 0
+    assert report["media_upload"]["reconciled_incidents"] == []
+    assert report["media_upload"]["incidents"][0]["status"] == "blocked"
+
+
+def test_x_request_endpoint_classification_is_path_and_method_specific():
+    assert digest.parse_x_request_start(
+        "X request: POST https://api.x.com/2/media/upload?command=INIT"
+    )["endpoint"] == "media/upload"
+    assert digest.parse_x_request_start(
+        "X request: POST https://api.x.com/2/tweets"
+    )["endpoint"] == "tweet/create"
+    assert digest.parse_x_request_start(
+        "X bearer request: GET https://api.x.com/2/users/123/mentions"
+    )["endpoint"] == "mentions"
+    assert digest.parse_x_request_start("unrelated") is None
+
+
+def test_current_remote_write_transaction_lifecycle_shapes_are_parsed():
+    transaction_id = "a" * 64
+    cases = [
+        (
+            "Creating X post with durable transport journal. lane=quote_image "
+            f"transaction_id={transaction_id} reply_to_id=none media_count=1 "
+            "made_with_ai=false",
+            ("tweet_transport", "request_started"),
+        ),
+        (
+            "Wrote main-post sending receipt lane=quote_image attempt_id=attempt-1 "
+            "path=/srv/regular_post_receipt.json",
+            ("main_post_receipt", "sending_published"),
+        ),
+        (
+            "Promoted main-post receipt to attempting lane=quote_image "
+            "attempt_id=attempt-1 path=/srv/regular_post_receipt.json",
+            ("main_post_receipt", "attempting"),
+        ),
+        (
+            "Handed confirmed media upload to durable main-post attempt "
+            "lane=quote_image attempt_id=attempt-1 media_id=999",
+            ("media_upload", "confirmed_handoff"),
+        ),
+        (
+            "Promoted main-post attempt to confirmed pending-schedule receipt "
+            "lane=quote_image attempt_id=attempt-1 post_id=123 "
+            "path=/srv/regular_post_receipt.json",
+            ("main_post_receipt", "confirmed_pending_schedule"),
+        ),
+        (
+            "Removed main-post sending receipt disposition=definite_non_success "
+            "lane=quote_image attempt_id=attempt-1 "
+            "path=/srv/regular_post_receipt.json",
+            ("main_post_receipt", "sending_retired"),
+        ),
+        (
+            "Finalised confirmed pending-schedule receipt lane=quote_image "
+            "post_id=123 path=/srv/regular_post_receipt.json",
+            ("main_post_receipt", "schedule_finalised"),
+        ),
+        (
+            "Resumed interrupted exact source-receipt retirement "
+            "path=/srv/regular_post_receipt.json phase=exchange",
+            ("source_receipt_retirement", "exchange"),
+        ),
+        (
+            "Resumed interrupted confirmed-media fence retirement "
+            f"lane=quote_image media_transaction_id={transaction_id} media_id=999",
+            ("media_retirement", "resumed"),
+        ),
+        (
+            "Recovered crash-left permanent retirement-ledger exchanges count=1",
+            ("retirement_ledger", "exchange_recovered"),
+        ),
+    ]
+
+    for offset, (message, expected) in enumerate(cases):
+        parsed = digest.parse_remote_write_transaction_event(
+            record(offset, "INFO", "fixture", message)
+        )
+        assert parsed is not None
+        assert (parsed["kind"], parsed["phase"]) == expected
+
+
 def test_one_root_incident_groups_several_tracebacks_and_resolves():
     root = (
         "RuntimeError: historical-context source-role audit policy is incompatible"

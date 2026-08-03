@@ -18,9 +18,11 @@ files. It stores its resume timestamp in .mrs_log_digest_state.json.
 
 No third-party dependencies.
 
-Enhanced v9: keeps the v8 retention and configured-manifest checks, groups
-operational cascades by root incident, distinguishes current from recovered
-health, and clarifies semantic-veto and generated-image coverage.
+Enhanced v10: keeps the v9 retention and configured-manifest checks, adds a
+strict read-only snapshot of the active remote-write protocol, correlates X
+errors with their exact request endpoints, understands the receipt/media/
+transport lifecycle, and resolves historical ambiguity incidents only from
+durable reconciliation evidence.
 """
 from __future__ import annotations
 
@@ -32,6 +34,7 @@ import json
 import math
 import os
 import re
+import stat
 import statistics
 import sys
 import tempfile
@@ -42,6 +45,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 LOG_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
@@ -60,6 +64,48 @@ USD_DISPLAY_QUANTUM = Decimal("0.00000001")
 SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID = (
     "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
 )
+REMOTE_WRITE_MARKER_BASENAMES = (
+    "ambiguous_post_outcome.json",
+    "ambiguous_post_outcome.restart_barrier.json",
+)
+REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES = (
+    "regular_post_receipt.json",
+    "meme_post_receipt.json",
+    "confirmed_reply_receipt.json",
+    "historical_context_reply_receipt.json",
+)
+REMOTE_MEDIA_RECEIPT_BASENAME = "remote_media_upload_receipt.json"
+REMOTE_MEDIA_FENCE_BASENAME = "remote_media_upload_receipt.json.fence.json"
+REMOTE_TRANSPORT_JOURNAL_BASENAME = "remote_write_transport_journal.json"
+REMOTE_TRANSPORT_FENCE_BASENAME = "remote_write_transport_fence.json"
+REMOTE_WRITE_ARCHIVE_BASENAME = "remote_write_safety_marker_archive"
+REMOTE_WRITE_SNAPSHOT_MAX_BYTES = 256 * 1024
+REMOTE_WRITE_CONTROL_BOOLEAN_KEYS = frozenset(
+    {
+        "disable_all",
+        "pause_all",
+        "disable_replies",
+        "pause_replies",
+        "disable_normal_replies",
+        "pause_normal_replies",
+        "disable_quote_replies",
+        "pause_quote_replies",
+        "disable_hot_post_replies",
+        "pause_hot_post_replies",
+        "disable_quote_posts",
+        "pause_quote_posts",
+        "disable_meme_posts",
+        "pause_meme_posts",
+    }
+)
+REMOTE_WRITE_CONTROL_TIME_KEYS = frozenset(
+    f"{key}_until" for key in REMOTE_WRITE_CONTROL_BOOLEAN_KEYS
+)
+REMOTE_WRITE_CONTROL_ALLOWED_KEYS = (
+    REMOTE_WRITE_CONTROL_BOOLEAN_KEYS
+    | REMOTE_WRITE_CONTROL_TIME_KEYS
+    | {"generation"}
+)
 
 
 def file_sha256(path: Path) -> str:
@@ -69,6 +115,728 @@ def file_sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _stable_file_identity(metadata: os.stat_result) -> Tuple[int, ...]:
+    """Return fields that bind one read-only filesystem observation."""
+
+    return (
+        int(metadata.st_dev),
+        int(metadata.st_ino),
+        int(metadata.st_mode),
+        int(metadata.st_size),
+        int(metadata.st_mtime_ns),
+        int(metadata.st_ctime_ns),
+    )
+
+
+def read_stable_regular_bytes(path: Path, *, maximum: int) -> bytes:
+    """Read one bounded regular file twice-bound to its no-follow pathname."""
+
+    path = Path(path)
+    before_path = os.lstat(path)
+    if not stat.S_ISREG(before_path.st_mode):
+        raise ValueError(f"not a regular file: {path.name}")
+    if before_path.st_size > maximum:
+        raise ValueError(f"file exceeds {maximum} bytes: {path.name}")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow:
+        raise RuntimeError("O_NOFOLLOW is unavailable")
+    descriptor = os.open(
+        path,
+        os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0),
+    )
+    try:
+        before_fd = os.fstat(descriptor)
+        if _stable_file_identity(before_fd) != _stable_file_identity(before_path):
+            raise RuntimeError(f"path changed before open: {path.name}")
+        chunks: List[bytes] = []
+        observed = 0
+        while observed <= maximum:
+            chunk = os.read(descriptor, min(8192, maximum + 1 - observed))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            observed += len(chunk)
+        data = b"".join(chunks)
+        after_fd = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    after_path = os.lstat(path)
+    if (
+        len(data) > maximum
+        or len(data) != before_fd.st_size
+        or _stable_file_identity(before_fd) != _stable_file_identity(after_fd)
+        or _stable_file_identity(after_fd) != _stable_file_identity(after_path)
+    ):
+        raise RuntimeError(f"file changed while read: {path.name}")
+    return data
+
+
+def _strict_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
+    """Parse one duplicate-free, finite JSON object."""
+
+    def reject_constant(value: str) -> None:
+        raise ValueError(f"{label} contains non-finite number {value}")
+
+    def pairs(items: List[Tuple[str, Any]]) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError(f"{label} contains duplicate key {key!r}")
+            result[key] = value
+        return result
+
+    value = json.loads(
+        data.decode("utf-8"),
+        object_pairs_hook=pairs,
+        parse_float=Decimal,
+        parse_constant=reject_constant,
+    )
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} root is not an object")
+    return value
+
+
+def _control_boolean(value: Any) -> bool:
+    """Return one already-validated runtime-control boolean."""
+
+    if isinstance(value, bool):
+        return value
+    return isinstance(value, str) and value.strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _control_epoch(value: Any) -> int:
+    """Parse the documented runtime-control epoch/date representations."""
+
+    if isinstance(value, bool) or value is None:
+        raise ValueError("control time must not be boolean or null")
+    if type(value) is int:
+        epoch = value
+    elif type(value) is Decimal:
+        if not value.is_finite() or value != value.to_integral_value():
+            raise ValueError("control time exact number must be finite and integral")
+        epoch = int(value)
+    elif type(value) is float and math.isfinite(value) and value.is_integer():
+        epoch = int(value)
+    elif type(value) is str and value.strip() and not value.strip().isdigit():
+        text = value.strip()
+        parsed: Optional[datetime] = None
+        for fmt in (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M",
+        ):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                break
+            except ValueError:
+                pass
+        if parsed is None:
+            parsed = datetime.fromisoformat(text)
+        epoch = int(parsed.timestamp())
+    else:
+        raise ValueError("control time has an unsupported representation")
+    if epoch < 0 or epoch > 4_102_444_800:
+        raise ValueError("control time is outside the supported range")
+    return epoch
+
+
+def runtime_control_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Return a strict, read-only view of current operator pause controls."""
+
+    path = Path(project_dir) / "mrsMThatcher.control.json"
+    try:
+        data = read_stable_regular_bytes(
+            path,
+            maximum=64 * 1024,
+        )
+    except FileNotFoundError:
+        return {
+            "present": False,
+            "valid": True,
+            "generation": None,
+            "active_keys": [],
+            "global_pause_active": False,
+        }
+    except Exception as exc:
+        return {
+            "present": True,
+            "valid": False,
+            "generation": None,
+            "active_keys": ["fail_closed_invalid_control"],
+            "global_pause_active": True,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+    try:
+        value = _strict_json_object(data, label="runtime control")
+        unsupported = sorted(set(value) - REMOTE_WRITE_CONTROL_ALLOWED_KEYS)
+        if unsupported:
+            raise ValueError(
+                "unsupported control key(s): " + ", ".join(unsupported)
+            )
+        generation = value.get("generation")
+        if generation is not None and (
+            type(generation) is not int or generation < 0
+        ):
+            raise ValueError("generation must be a non-negative integer")
+        now_epoch = int(datetime.now().timestamp())
+        active: List[str] = []
+        for key in sorted(REMOTE_WRITE_CONTROL_BOOLEAN_KEYS):
+            if key not in value:
+                continue
+            raw = value[key]
+            if not isinstance(raw, bool) and not (
+                isinstance(raw, str)
+                and raw.strip().lower()
+                in {"1", "true", "yes", "on", "0", "false", "no", "off"}
+            ):
+                raise ValueError(f"{key} must be a boolean")
+            if _control_boolean(raw):
+                active.append(key)
+        for key in sorted(REMOTE_WRITE_CONTROL_TIME_KEYS):
+            if key in value and _control_epoch(value[key]) > now_epoch:
+                active.append(key)
+        return {
+            "present": True,
+            "valid": True,
+            "generation": generation,
+            "active_keys": active,
+            "global_pause_active": bool(
+                {"disable_all", "pause_all"} & set(active)
+                or {
+                    "disable_all_until",
+                    "pause_all_until",
+                }
+                & set(active)
+            ),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+    except Exception as exc:
+        return {
+            "present": True,
+            "valid": False,
+            "generation": None,
+            "active_keys": ["fail_closed_invalid_control"],
+            "global_pause_active": True,
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+
+
+def _safe_relative_project_path(project_dir: Path, value: Any) -> Optional[Path]:
+    """Resolve one lexical direct-project relative path without escaping."""
+
+    if not isinstance(value, str) or not value:
+        return None
+    relative = Path(value)
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    return Path(project_dir) / relative
+
+
+def _read_readonly_archive_bytes(project_dir: Path, value: Any) -> bytes:
+    """Read one direct project-relative, mode-0400 archive file."""
+
+    path = _safe_relative_project_path(project_dir, value)
+    if path is None:
+        raise ValueError("archive path is not a safe project-relative path")
+    if path.parent != Path(project_dir) / REMOTE_WRITE_ARCHIVE_BASENAME:
+        raise ValueError("archive path is not a direct reconciliation-archive child")
+    metadata = os.lstat(path)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or stat.S_IMODE(metadata.st_mode) != 0o400
+    ):
+        raise ValueError("archive is not a mode-0400 regular file")
+    return read_stable_regular_bytes(
+        path,
+        maximum=REMOTE_WRITE_SNAPSHOT_MAX_BYTES,
+    )
+
+
+def reconciliation_archive_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Validate durable marker/media audit receipts without changing them."""
+
+    project_dir = Path(project_dir)
+    archive = project_dir / REMOTE_WRITE_ARCHIVE_BASENAME
+    try:
+        metadata = os.lstat(archive)
+    except FileNotFoundError:
+        return {
+            "present": False,
+            "valid_marker_reconciliation_count": 0,
+            "valid_media_reconciliation_count": 0,
+            "marker_reconciliations": [],
+            "media_reconciliations": [],
+        }
+    if not stat.S_ISDIR(metadata.st_mode):
+        return {
+            "present": True,
+            "valid": False,
+            "reason": "archive path is not a directory",
+            "valid_marker_reconciliation_count": 0,
+            "valid_media_reconciliation_count": 0,
+            "marker_reconciliations": [],
+            "media_reconciliations": [],
+        }
+    valid_marker: List[Dict[str, Any]] = []
+    valid_media: List[Dict[str, Any]] = []
+    invalid_audits: List[str] = []
+    try:
+        candidates = sorted(archive.glob("*.reconciliation.json"))
+    except OSError as exc:
+        return {
+            "present": True,
+            "valid": False,
+            "reason": f"archive listing failed: {type(exc).__name__}",
+            "valid_marker_reconciliation_count": 0,
+            "valid_media_reconciliation_count": 0,
+            "marker_reconciliations": [],
+            "media_reconciliations": [],
+        }
+    for path in candidates:
+        try:
+            audit_metadata = os.lstat(path)
+            if (
+                not stat.S_ISREG(audit_metadata.st_mode)
+                or stat.S_IMODE(audit_metadata.st_mode) != 0o400
+            ):
+                raise ValueError("audit is not a read-only regular file")
+            data = read_stable_regular_bytes(
+                path,
+                maximum=REMOTE_WRITE_SNAPSHOT_MAX_BYTES,
+            )
+            value = _strict_json_object(data, label=path.name)
+            operation = value.get("operation")
+            if operation == "offline_remote_write_safety_marker_archive":
+                expected_hash = value.get("marker_sha256")
+                archived_at_epoch = value.get("archived_at_epoch")
+                reconciliation_reference = value.get("reconciliation_reference")
+                if (
+                    value.get("schema_version") != 3
+                    or type(archived_at_epoch) is not int
+                    or archived_at_epoch < 0
+                    or not isinstance(reconciliation_reference, str)
+                    or not reconciliation_reference.strip()
+                    or len(reconciliation_reference) > 512
+                    or not isinstance(expected_hash, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", expected_hash) is None
+                    or value.get("archive_and_receipt_durable_before_source_removal")
+                    is not True
+                    or value.get("restart_barrier_retired_last") is not True
+                    or value.get("successful_return_requires_source_absent") is not True
+                    or value.get(
+                        "successful_return_requires_all_active_barriers_absent"
+                    )
+                    is not True
+                    or hashlib.sha256(
+                        _read_readonly_archive_bytes(
+                            project_dir,
+                            value.get("archive_path"),
+                        )
+                    ).hexdigest()
+                    != expected_hash
+                ):
+                    raise ValueError("marker audit/archive binding is invalid")
+                valid_marker.append(
+                    {
+                        "audit_path": str(path.relative_to(project_dir)),
+                        "audit_sha256": hashlib.sha256(data).hexdigest(),
+                        "archived_at_epoch": archived_at_epoch,
+                        "marker_sha256": expected_hash,
+                        "reconciliation_reference": reconciliation_reference,
+                    }
+                )
+            elif operation == "offline_unattached_media_upload_archive":
+                receipt_hash = value.get("receipt_sha256")
+                fence_hash = value.get("fence_sha256")
+                marker_hash = value.get("marker_sha256")
+                transaction_id = value.get("media_transaction_id")
+                archived_at_epoch = value.get("archived_at_epoch")
+                image_basename = value.get("image_basename")
+                if (
+                    value.get("schema_version") != 1
+                    or type(archived_at_epoch) is not int
+                    or archived_at_epoch < 0
+                    or not isinstance(transaction_id, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", transaction_id) is None
+                    or not isinstance(receipt_hash, str)
+                    or not isinstance(fence_hash, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", receipt_hash) is None
+                    or re.fullmatch(r"[0-9a-f]{64}", fence_hash) is None
+                    or not isinstance(marker_hash, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", marker_hash) is None
+                    or not isinstance(image_basename, str)
+                    or not image_basename
+                    or Path(image_basename).name != image_basename
+                    or value.get("accepted_media_disposition")
+                    != "unattached_and_abandoned"
+                    or value.get("no_tweet_create_authority_present") is not True
+                    or value.get("operator_confirmed_no_tweet_create_attempted")
+                    is not True
+                    or value.get("operator_confirmed_unattached_media_abandoned")
+                    is not True
+                    or value.get("remote_media_id_absent") is not True
+                    or value.get(
+                        "media_archives_and_audit_durable_before_active_removal"
+                    )
+                    is not True
+                    or value.get("media_receipt_retired_before_fence") is not True
+                    or value.get("active_marker_preserved_after_media_reconciliation")
+                    is not True
+                    or value.get("successful_return_requires_active_media_pair_absent")
+                    is not True
+                    or hashlib.sha256(
+                        _read_readonly_archive_bytes(
+                            project_dir,
+                            value.get("receipt_archive_path"),
+                        )
+                    ).hexdigest()
+                    != receipt_hash
+                    or hashlib.sha256(
+                        _read_readonly_archive_bytes(
+                            project_dir,
+                            value.get("fence_archive_path"),
+                        )
+                    ).hexdigest()
+                    != fence_hash
+                ):
+                    raise ValueError("media audit/archive binding is invalid")
+                valid_media.append(
+                    {
+                        "audit_path": str(path.relative_to(project_dir)),
+                        "audit_sha256": hashlib.sha256(data).hexdigest(),
+                        "archived_at_epoch": archived_at_epoch,
+                        "transaction_id": transaction_id,
+                        "marker_sha256": marker_hash,
+                        "image_basename": image_basename,
+                        "accepted_media_disposition": value.get(
+                            "accepted_media_disposition"
+                        ),
+                    }
+                )
+            else:
+                continue
+        except Exception as exc:
+            invalid_audits.append(f"{path.name}: {type(exc).__name__}: {exc}")
+    newest = lambda rows: max(
+        rows,
+        key=lambda item: (
+            int(item.get("archived_at_epoch") or -1),
+            str(item.get("audit_path") or ""),
+        ),
+        default=None,
+    )
+    return {
+        "present": True,
+        "valid": not invalid_audits,
+        "valid_marker_reconciliation_count": len(valid_marker),
+        "valid_media_reconciliation_count": len(valid_media),
+        "marker_reconciliations": sorted(
+            valid_marker,
+            key=lambda item: (
+                int(item.get("archived_at_epoch") or -1),
+                str(item.get("audit_path") or ""),
+            ),
+        ),
+        "media_reconciliations": sorted(
+            valid_media,
+            key=lambda item: (
+                int(item.get("archived_at_epoch") or -1),
+                str(item.get("audit_path") or ""),
+            ),
+        ),
+        "latest_marker_reconciliation": newest(valid_marker),
+        "latest_media_reconciliation": newest(valid_media),
+        "invalid_audits": invalid_audits,
+    }
+
+
+def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Inspect every current v2 remote-write barrier without mutating state."""
+
+    project_dir = Path(project_dir)
+    control = runtime_control_snapshot(project_dir)
+    archive = reconciliation_archive_snapshot(project_dir)
+    configured_names = [
+        ".mrs_remote_write_safety_protocol_v2",
+        ".mrs_remote_write_safety_protocol_v2.activation_audit.json",
+        *REMOTE_WRITE_MARKER_BASENAMES,
+        *REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES,
+        REMOTE_MEDIA_RECEIPT_BASENAME,
+        REMOTE_MEDIA_FENCE_BASENAME,
+        REMOTE_TRANSPORT_JOURNAL_BASENAME,
+        REMOTE_TRANSPORT_FENCE_BASENAME,
+        *(f".{name}.retirement.ledger.json" for name in REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES),
+    ]
+    configured = control.get("present") is True or archive.get("present") is True
+    for name in configured_names:
+        try:
+            os.lstat(project_dir / name)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            configured = True
+            break
+        else:
+            configured = True
+            break
+    if not configured:
+        return {
+            "configured": False,
+            "available": False,
+            "status": "not_configured",
+            "blocking": False,
+            "control": control,
+            "reconciliation_archive": archive,
+        }
+
+    active_entries: List[Dict[str, Any]] = []
+
+    def observe_name(name: str, kind: str) -> None:
+        path = project_dir / name
+        try:
+            metadata = os.lstat(path)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            active_entries.append(
+                {
+                    "name": name,
+                    "kind": kind,
+                    "safe_regular": False,
+                    "reason": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            return
+        active_entries.append(
+            {
+                "name": name,
+                "kind": kind,
+                "safe_regular": stat.S_ISREG(metadata.st_mode),
+                "mode": oct(stat.S_IMODE(metadata.st_mode)),
+                "size": int(metadata.st_size),
+            }
+        )
+
+    for name in REMOTE_WRITE_MARKER_BASENAMES:
+        observe_name(name, "ambiguity_marker")
+    for name in REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES:
+        observe_name(name, "source_receipt")
+
+    protocol: Dict[str, Any]
+    try:
+        from remote_write_safety_protocol import (
+            ACTIVATION_BASENAME,
+            inspect_protocol_activation,
+        )
+
+        activation = inspect_protocol_activation(project_dir / ACTIVATION_BASENAME)
+        protocol = {
+            "valid": True,
+            "status": "active_v2",
+            "activation_kind": activation.activation_kind,
+            "sha256": activation.sha256,
+            "audit_sha256": activation.audit_sha256,
+        }
+    except Exception as exc:
+        protocol = {
+            "valid": False,
+            "status": "invalid_or_missing",
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+
+    ledger_rows: List[Dict[str, Any]] = []
+    retirement_auxiliaries: List[str] = []
+    try:
+        from exact_receipt_retirement import (
+            inspect_retirement_ledger,
+            retirement_auxiliary_paths,
+        )
+
+        for name in REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES:
+            source = project_dir / name
+            inspection = inspect_retirement_ledger(source)
+            ledger_rows.append(
+                {
+                    "source": name,
+                    "valid": inspection.valid,
+                    "blocking": inspection.blocking,
+                    "state": inspection.state,
+                    "sequence": inspection.sequence,
+                    "record_sha256": inspection.record_sha256,
+                    "detail": inspection.detail,
+                }
+            )
+            for path in retirement_auxiliary_paths(source):
+                try:
+                    os.lstat(path)
+                except FileNotFoundError:
+                    continue
+                retirement_auxiliaries.append(path.name)
+    except Exception as exc:
+        ledger_rows.append(
+            {
+                "source": "inspection",
+                "valid": False,
+                "blocking": True,
+                "state": "unavailable",
+                "sequence": -1,
+                "record_sha256": "",
+                "detail": f"{type(exc).__name__}: {exc}",
+            }
+        )
+    for name in retirement_auxiliaries:
+        observe_name(name, "receipt_retirement_auxiliary")
+
+    try:
+        from remote_write_transport_journal import inspect_transport_state
+
+        transport_state = inspect_transport_state(
+            project_dir / REMOTE_TRANSPORT_JOURNAL_BASENAME
+        )
+        transport = {
+            "classification": transport_state.classification,
+            "blocking": transport_state.blocking,
+            "staging_names": list(transport_state.staging_names),
+            "retirement_guard_names": list(
+                transport_state.retirement_guard_names
+            ),
+            "errors": list(transport_state.errors),
+        }
+    except Exception as exc:
+        transport = {
+            "classification": "inspection_unavailable",
+            "blocking": True,
+            "staging_names": [],
+            "retirement_guard_names": [],
+            "errors": [f"{type(exc).__name__}: {exc}"],
+        }
+
+    media: Dict[str, Any]
+    try:
+        from remote_media_upload_receipt import (
+            inspect_media_upload_receipt,
+            media_upload_receipt_is_blocking,
+        )
+
+        media_path = project_dir / REMOTE_MEDIA_RECEIPT_BASENAME
+        media_receipt = inspect_media_upload_receipt(media_path)
+        media_blocking = media_upload_receipt_is_blocking(media_path)
+        media = {
+            "classification": (
+                str(media_receipt.document.get("lifecycle_state") or "present")
+                if media_receipt is not None
+                else "blocking_companion_or_transition"
+                if media_blocking
+                else "clear"
+            ),
+            "blocking": media_blocking,
+            "transaction_id": (
+                media_receipt.document.get("transaction_id")
+                if media_receipt is not None
+                else None
+            ),
+            "lane": (
+                media_receipt.document.get("lane")
+                if media_receipt is not None
+                else None
+            ),
+            "remote_media_id_present": bool(
+                media_receipt is not None
+                and media_receipt.document.get("remote_media_id")
+            ),
+        }
+    except Exception as exc:
+        media = {
+            "classification": "invalid",
+            "blocking": True,
+            "transaction_id": None,
+            "lane": None,
+            "remote_media_id_present": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
+
+    ledger_blocking = any(
+        row.get("valid") is not True or row.get("blocking") is True
+        for row in ledger_rows
+    )
+    blocking = bool(
+        active_entries
+        or protocol.get("valid") is not True
+        or ledger_blocking
+        or transport.get("blocking") is True
+        or media.get("blocking") is True
+    )
+    global_pause = control.get("global_pause_active") is True
+    control_invalid = control.get("valid") is not True
+    status = (
+        "blocked"
+        if blocking
+        else "paused_fail_closed_control"
+        if control_invalid
+        else "operator_paused"
+        if global_pause
+        else "ready"
+    )
+    active_marker_names = [
+        item["name"]
+        for item in active_entries
+        if item.get("kind") == "ambiguity_marker"
+    ]
+    marker_reconciliation = archive.get("latest_marker_reconciliation") or {}
+    media_reconciliation = archive.get("latest_media_reconciliation") or {}
+    archive_valid = archive.get("valid") is True
+    media_reconciliation_proven = bool(
+        archive_valid
+        and media.get("blocking") is False
+        and media_reconciliation
+        and (
+            not marker_reconciliation
+            or media_reconciliation.get("marker_sha256")
+            == marker_reconciliation.get("marker_sha256")
+        )
+    )
+    reconciliation_reference = marker_reconciliation.get(
+        "reconciliation_reference"
+    )
+    media_reference_matches = bool(
+        not isinstance(reconciliation_reference, str)
+        or not reconciliation_reference.startswith(
+            REMOTE_WRITE_ARCHIVE_BASENAME + "/unattached_media_upload."
+        )
+        or reconciliation_reference == media_reconciliation.get("audit_path")
+    )
+    return {
+        "configured": True,
+        "available": True,
+        "observed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "status": status,
+        "blocking": blocking,
+        "ready_for_remote_writes": not blocking and not global_pause and not control_invalid,
+        "active_entries": active_entries,
+        "active_marker_names": active_marker_names,
+        "protocol": protocol,
+        "retirement_ledgers": ledger_rows,
+        "transport": transport,
+        "media": media,
+        "control": control,
+        "reconciliation_archive": archive,
+        "reconciliation_proven": bool(
+            archive_valid
+            and not active_marker_names
+            and marker_reconciliation
+            and media_reference_matches
+        ),
+        "media_reconciliation_proven": media_reconciliation_proven,
+    }
 
 
 def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str, Any]:
@@ -2011,6 +2779,196 @@ def is_deleted_or_inaccessible_tweet_403(message: str) -> bool:
     )
 
 
+def classify_x_request_endpoint(method: str, url: str) -> str:
+    """Map one logged X request to its exact operational endpoint class."""
+
+    method = str(method or "").upper()
+    try:
+        path = urlsplit(str(url or "")).path
+    except ValueError:
+        path = ""
+    if path == "/2/media/upload":
+        return "media/upload"
+    if path == "/2/tweets" and method == "POST":
+        return "tweet/create"
+    if re.fullmatch(r"/2/users/[^/]+/mentions", path):
+        return "mentions"
+    if path == "/2/tweets/search/recent":
+        return "recent/search"
+    if re.fullmatch(r"/2/tweets/[^/]+/quote_tweets", path):
+        return "quote_tweets"
+    if re.fullmatch(r"/2/tweets/[^/]+", path):
+        return "tweet/lookup"
+    if path:
+        return path.lstrip("/") or "root"
+    return "unknown"
+
+
+def parse_x_request_start(message: str) -> Optional[Dict[str, str]]:
+    """Parse the request identity logged immediately before X transport."""
+
+    match = re.fullmatch(r"X(?: bearer)? request: ([A-Z]+) (\S+)", str(message))
+    if not match:
+        return None
+    method, url = match.groups()
+    return {
+        "method": method,
+        "url": url,
+        "endpoint": classify_x_request_endpoint(method, url),
+    }
+
+
+def parse_remote_write_transaction_event(record: Record) -> Optional[Dict[str, Any]]:
+    """Parse current receipt/media/transport lifecycle logs into one vocabulary."""
+
+    message = str(record.msg or "")
+    base: Dict[str, Any] = {
+        "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
+        "level": record.level,
+        "where": f"{record.src}:{record.line}",
+        "message": short(message, 500),
+    }
+    match = re.search(r"Uploading receipt-bound media via X API v2: (.+)$", message)
+    if match:
+        return {
+            **base,
+            "kind": "media_upload",
+            "phase": "request_started",
+            "image": Path(match.group(1).strip()).name,
+        }
+    match = re.search(
+        r"X media upload outcome is ambiguous; .* image=([^\s]+)",
+        message,
+    )
+    if match:
+        return {
+            **base,
+            "kind": "media_upload",
+            "phase": "ambiguous",
+            "image": Path(match.group(1)).name,
+        }
+    match = re.search(
+        r"Creating X post with durable transport journal\. lane=([^\s]+) "
+        r"transaction_id=([0-9a-f]{64}) reply_to_id=([^\s]*) "
+        r"media_count=(\d+) made_with_ai=(\S+)",
+        message,
+    )
+    if match:
+        return {
+            **base,
+            "kind": "tweet_transport",
+            "phase": "request_started",
+            "lane": match.group(1),
+            "transaction_id": match.group(2),
+            "reply_to_id": match.group(3),
+            "media_count": int(match.group(4)),
+            "made_with_ai": match.group(5),
+        }
+    patterns = (
+        (
+            r"Wrote main-post sending receipt lane=([^\s]+) attempt_id=([^\s]+) path=(.+)$",
+            "main_post_receipt",
+            "sending_published",
+        ),
+        (
+            r"Promoted main-post receipt to attempting lane=([^\s]+) attempt_id=([^\s]+) path=(.+)$",
+            "main_post_receipt",
+            "attempting",
+        ),
+        (
+            r"Handed confirmed media upload to durable main-post attempt lane=([^\s]+) attempt_id=([^\s]+) media_id=([^\s]+)$",
+            "media_upload",
+            "confirmed_handoff",
+        ),
+        (
+            r"Promoted main-post attempt to confirmed pending-schedule receipt lane=([^\s]+) attempt_id=([^\s]+) post_id=([^\s]+) path=(.+)$",
+            "main_post_receipt",
+            "confirmed_pending_schedule",
+        ),
+    )
+    for expression, kind, phase in patterns:
+        match = re.search(expression, message)
+        if not match:
+            continue
+        result = {
+            **base,
+            "kind": kind,
+            "phase": phase,
+            "lane": match.group(1),
+            "attempt_id": match.group(2),
+        }
+        if phase == "confirmed_handoff":
+            result["media_id"] = match.group(3)
+        elif phase == "confirmed_pending_schedule":
+            result["post_id"] = match.group(3)
+            result["path"] = match.group(4)
+        else:
+            result["path"] = match.group(3)
+        return result
+    match = re.search(
+        r"Removed main-post sending receipt disposition=([^\s]+) "
+        r"lane=([^\s]+) attempt_id=([^\s]+) path=(.+)$",
+        message,
+    )
+    if match:
+        return {
+            **base,
+            "kind": "main_post_receipt",
+            "phase": "sending_retired",
+            "disposition": match.group(1),
+            "lane": match.group(2),
+            "attempt_id": match.group(3),
+            "path": match.group(4),
+        }
+    match = re.search(
+        r"Finalised (?:confirmed )?pending-schedule receipt "
+        r"lane=([^\s]+) post_id=([^\s]+) path=(.+)$",
+        message,
+    )
+    if match:
+        return {
+            **base,
+            "kind": "main_post_receipt",
+            "phase": "schedule_finalised",
+            "lane": match.group(1),
+            "post_id": match.group(2),
+            "path": match.group(3),
+        }
+    match = re.search(
+        r"Resumed interrupted exact source-receipt retirement path=([^\s]+) "
+        r"phase=([^\s]+)",
+        message,
+    )
+    if match:
+        return {
+            **base,
+            "kind": "source_receipt_retirement",
+            "phase": match.group(2),
+            "path": match.group(1),
+        }
+    match = re.search(
+        r"Resumed interrupted confirmed-media fence retirement lane=([^\s]+) "
+        r"media_transaction_id=([^\s]+) media_id=([^;\s]+)",
+        message,
+    )
+    if match:
+        return {
+            **base,
+            "kind": "media_retirement",
+            "phase": "resumed",
+            "lane": match.group(1),
+            "transaction_id": match.group(2),
+            "media_id": match.group(3),
+        }
+    if "Recovered crash-left permanent retirement-ledger exchanges" in message:
+        return {
+            **base,
+            "kind": "retirement_ledger",
+            "phase": "exchange_recovered",
+        }
+    return None
+
+
 def plural_count(count: Any, singular: str, plural: Optional[str] = None) -> str:
     """Format an integer with a correctly pluralised noun phrase."""
     try:
@@ -2048,6 +3006,51 @@ def classify_operational_error(message: str) -> str:
     exception_line = _incident_exception_line(text).lower()
     if is_deleted_or_inaccessible_tweet_403(text):
         return "deleted_or_inaccessible_tweet"
+    if any(
+        marker in lowered
+        for marker in (
+            "ambiguous remote x post outcome",
+            "ambiguousremotepostoutcome",
+            "media upload outcome is ambiguous",
+            "remote outcome is ambiguous",
+            "durable remote-write safety barrier",
+            "unresolved transaction receipt, marker, or process latch",
+        )
+    ):
+        return "remote_write_ambiguity_barrier"
+    if any(
+        marker in lowered
+        for marker in (
+            "remote-write protocol is not activated",
+            "protocol activation sentinel",
+            "restart-persistent remote-write protocol",
+        )
+    ):
+        return "remote_write_protocol_barrier"
+    if any(
+        marker in lowered
+        for marker in (
+            "remote-write receipt cannot be inspected",
+            "transport journal",
+            "transport fence",
+            "source-receipt retirement",
+            "confirmed-media retirement",
+            "pending-schedule receipt",
+            "sending receipt as a global manual-reconciliation barrier",
+            "locally confirmed remote transaction could not be reconciled",
+        )
+    ):
+        return "remote_write_transaction_barrier"
+    if any(
+        marker in lowered
+        for marker in (
+            "another mrsmthatcher instance owns",
+            "instance lock cannot be opened safely",
+        )
+    ):
+        return "instance_lock_conflict"
+    if re.search(r"\bx(?: bearer)? api error 5\d\d\b", lowered):
+        return "x_api_transient_failure"
     if "source-role audit policy is incompatible" in lowered:
         return "historical_context_source_role_incompatibility"
     if "bot crashed with unhandled exception" in lowered:
@@ -2087,6 +3090,7 @@ def summarise_operational_error_health(
     events: List[Dict[str, Any]],
     receipt_events: List[Dict[str, Any]],
     lifecycle: Iterable[Dict[str, Any]] = (),
+    current_remote_write_safety: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Group traceback cascades and distinguish recovered from current incidents."""
     serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
@@ -2097,10 +3101,31 @@ def summarise_operational_error_health(
         "legacy_regular_receipt_barrier",
         "conversational_reply_receipt_barrier",
         "process_crash",
+        "remote_write_ambiguity_barrier",
+        "remote_write_protocol_barrier",
+        "remote_write_transaction_barrier",
+        "instance_lock_conflict",
+        "x_api_transient_failure",
     }
+    ambiguity_times = [
+        _event_time(item)
+        for item in serious
+        if classify_operational_error(
+            str(item.get("_raw_message") or item.get("message") or "")
+        )
+        == "remote_write_ambiguity_barrier"
+    ]
+    ambiguity_times = [item for item in ambiguity_times if item is not None]
     for item in serious:
         raw = str(item.get("_raw_message") or item.get("message") or "")
         category = classify_operational_error(raw)
+        item_time = _event_time(item)
+        if (
+            category == "x_api_transient_failure"
+            and item_time is not None
+            and any(seconds_between(item_time, other) <= 10 for other in ambiguity_times)
+        ):
+            category = "remote_write_ambiguity_barrier"
         root = (_incident_exception_line(raw) or raw.splitlines()[0]) if raw else category
         signature = (
             category
@@ -2179,6 +3204,70 @@ def summarise_operational_error_health(
                 for ts in successful_restart_times
                 if ts > last_time
             )
+        elif category == "instance_lock_conflict":
+            candidates.extend(
+                (ts, "later successful single-instance bot startup observed")
+                for ts in successful_restart_times
+                if ts > last_time
+            )
+        elif category == "x_api_transient_failure":
+            return (
+                True,
+                "point-in-time upstream transport failure; current local safety is assessed separately",
+                last_time,
+            )
+        elif category in {
+            "remote_write_ambiguity_barrier",
+            "remote_write_protocol_barrier",
+            "remote_write_transaction_barrier",
+        }:
+            safety = current_remote_write_safety or {}
+            if safety.get("configured") is True and safety.get("available") is True:
+                protocol_valid = (
+                    (safety.get("protocol") or {}).get("valid") is True
+                )
+                current_clear = safety.get("blocking") is False
+                if category == "remote_write_ambiguity_barrier":
+                    proved = safety.get("reconciliation_proven") is True
+                    archive = safety.get("reconciliation_archive") or {}
+                    marker_audits = archive.get("marker_reconciliations") or []
+                    if not marker_audits:
+                        latest = archive.get("latest_marker_reconciliation")
+                        marker_audits = [latest] if latest else []
+                    following_audits = [
+                        item
+                        for item in marker_audits
+                        if type(item.get("archived_at_epoch")) is int
+                        and item["archived_at_epoch"]
+                        >= int(last_time.timestamp())
+                    ]
+                    if (
+                        current_clear
+                        and protocol_valid
+                        and proved
+                        and following_audits
+                    ):
+                        resolution_audit = min(
+                            following_audits,
+                            key=lambda item: (
+                                item["archived_at_epoch"],
+                                str(item.get("audit_path") or ""),
+                            ),
+                        )
+                        resolved_at = datetime.fromtimestamp(
+                            resolution_audit["archived_at_epoch"]
+                        )
+                        return (
+                            True,
+                            "durable offline reconciliation audit is valid and the current barrier namespace is clear",
+                            resolved_at,
+                        )
+                elif current_clear and protocol_valid:
+                    return (
+                        True,
+                        "current protocol snapshot is valid with no active transaction barrier",
+                        datetime.now(),
+                    )
         for kind in recovery_kinds:
             candidates.extend(
                 (ts, f"later {kind.replace('_', ' ')} observed")
@@ -3686,6 +4775,7 @@ def analyse(
     initial_active_xai_call_attempt: Optional[Dict[str, Any]] = None,
     initial_pending_mention: Optional[Dict[str, Any]] = None,
     initial_pending_qt: Optional[Dict[str, Any]] = None,
+    current_remote_write_safety: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Aggregate parsed production records into digest metrics."""
     stats = Counter()
@@ -3701,6 +4791,9 @@ def analyse(
     asset_health: List[Dict[str, Any]] = []
     reply_media_context: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
+    remote_write_transactions: List[Dict[str, Any]] = []
+    x_requests: List[Dict[str, Any]] = []
+    latest_x_request_by_source: Dict[str, Dict[str, Any]] = {}
     xai_usage_events: List[Dict[str, Any]] = []
     restored_xai_call_attempt = normalise_active_xai_call_attempt(
         initial_active_xai_call_attempt
@@ -3827,6 +4920,31 @@ def analyse(
         msg = r.msg
         production_record = not is_selftest_log_path(r.path)
 
+        request_start = (
+            parse_x_request_start(msg)
+            if production_record and r.src in {"x_request", "x_bearer_request"}
+            else None
+        )
+        if request_start is not None:
+            request_event: Dict[str, Any] = {
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "source": r.src,
+                **request_start,
+            }
+            x_requests.append(request_event)
+            latest_x_request_by_source[r.src] = request_event
+            stats[f"x_request_endpoint_{request_start['endpoint'].replace('/', '_')}"] += 1
+
+        transaction_event = (
+            parse_remote_write_transaction_event(r) if production_record else None
+        )
+        if transaction_event is not None:
+            remote_write_transactions.append(transaction_event)
+            stats[
+                "remote_write_transaction_"
+                + str(transaction_event.get("phase") or "observed")
+            ] += 1
+
         # Lifecycle/config/state
         if production_record and (
             msg == "Bot starting"
@@ -3876,6 +4994,23 @@ def analyse(
             or "Reconciled confirmed reply receipt before checking" in msg
             or "Reconciled regular quote/image receipt; not creating a second regular post" in msg
             or "Reconciled meme post receipt; not creating a second meme post" in msg
+            or "Wrote main-post sending receipt" in msg
+            or "Handed confirmed media upload to durable main-post attempt" in msg
+            or "Promoted main-post receipt to attempting" in msg
+            or "Removed main-post sending receipt" in msg
+            or "Promoted main-post attempt to confirmed pending-schedule receipt" in msg
+            or "Re-established confirmed pending-schedule receipt durability" in msg
+            or "Finalised confirmed pending-schedule receipt" in msg
+            or "Wrote confirmed regular pending-schedule receipt" in msg
+            or "Finalised regular-post pending schedule" in msg
+            or "Promoted regular-post sending receipt to confirmed" in msg
+            or "Wrote confirmed meme pending-schedule receipt" in msg
+            or "Finalised meme-post pending schedule" in msg
+            or "Promoted meme-post sending receipt to confirmed" in msg
+            or "Removed conversational reply sending receipt disposition=" in msg
+            or "Resumed interrupted exact source-receipt retirement" in msg
+            or "Resumed interrupted confirmed-media fence retirement" in msg
+            or "Recovered crash-left permanent retirement-ledger exchanges" in msg
         )
         is_confirmed_post_recovery = (
             "Confirmed regular quote/image post_id=" in msg
@@ -4590,7 +5725,21 @@ def analyse(
         if x_error_match:
             stats["x_api_errors"] += 1
             service = "X bearer" if "X bearer API error" in msg else "X OAuth"
-            endpoint = "quote_tweets" if service == "X bearer" else "mentions/hot-post"
+            request_context = latest_x_request_by_source.get(r.src)
+            if request_context is not None:
+                try:
+                    request_time = parse_dt(str(request_context.get("time") or ""))
+                except ValueError:
+                    request_time = None
+                if request_time is None or seconds_between(request_time, r.ts) > 300:
+                    request_context = None
+            endpoint = (
+                str(request_context.get("endpoint") or "unknown")
+                if request_context is not None
+                else "quote_tweets"
+                if service == "X bearer"
+                else "unknown_oauth"
+            )
             status_code = x_error_match.group(1)
             if status_code == "403" and is_handled_reply_restriction:
                 endpoint = "post/reply"
@@ -4612,7 +5761,16 @@ def analyse(
                 "target_id": target_id,
                 "lane": lane,
                 "message": short(msg, 240),
+                "request_method": (
+                    request_context.get("method") if request_context else ""
+                ),
+                "request_url": (
+                    request_context.get("url") if request_context else ""
+                ),
             }
+            if request_context is not None:
+                request_context["status"] = status_code
+                request_context["failed"] = True
             if status_code == "403" and is_deleted_or_inaccessible_tweet_403(msg):
                 api_error["restriction_kind"] = "deleted_or_inaccessible_tweet"
                 endpoint = "post/reply"
@@ -5178,6 +6336,73 @@ def analyse(
         if item.get("time")
     ]
     media_upload_incidents, media_suppressed_fingerprints = correlate_media_upload_incidents(records, max_text)
+    for event in remote_write_transactions:
+        if event.get("kind") != "media_upload" or event.get("phase") != "ambiguous":
+            continue
+        incident_time = parse_dt(str(event.get("time") or ""))
+        later_tweet_create = any(
+            request.get("endpoint") == "tweet/create"
+            and (
+                incident_time is None
+                or (
+                    (parse_dt(str(request.get("time") or "")) or incident_time)
+                    >= incident_time
+                )
+            )
+            for request in x_requests
+        )
+        reconciliation_archive = (
+            (current_remote_write_safety or {}).get("reconciliation_archive")
+            or {}
+        )
+        media_reconciliations = (
+            reconciliation_archive.get("media_reconciliations") or []
+        )
+        if not media_reconciliations:
+            latest_media_reconciliation = reconciliation_archive.get(
+                "latest_media_reconciliation"
+            )
+            media_reconciliations = (
+                [latest_media_reconciliation]
+                if latest_media_reconciliation
+                else []
+            )
+        matching_media_reconciliations = [
+            item
+            for item in media_reconciliations
+            if type(item.get("archived_at_epoch")) is int
+            and incident_time is not None
+            and item["archived_at_epoch"] >= int(incident_time.timestamp())
+            and item.get("image_basename") == event.get("image")
+        ]
+        reconciled = bool(
+            (current_remote_write_safety or {}).get(
+                "media_reconciliation_proven"
+            )
+            and (current_remote_write_safety or {}).get("blocking") is False
+            and matching_media_reconciliations
+        )
+        media_upload_incidents.append(
+            {
+                "time": event.get("time"),
+                "status": "reconciled" if reconciled else "blocked",
+                "media": event.get("image") or "",
+                "v2_failure": event.get("message") or "",
+                "fallback": "legacy fallback prohibited by receipt-bound v2 protocol",
+                "v1_result": "not applicable",
+                "post_result": (
+                    "tweet-create request observed"
+                    if later_tweet_create
+                    else "no tweet-create request observed"
+                ),
+                "summary": (
+                    "ambiguous receipt-bound media upload was durably reconciled offline"
+                    if reconciled
+                    else "ambiguous receipt-bound media upload remains blocked"
+                ),
+                "protocol": "receipt_bound_v2",
+            }
+        )
     remaining_errors: List[Dict[str, Any]] = []
     for item in errors:
         message = str(item.get("message", ""))
@@ -5307,6 +6532,7 @@ def analyse(
         events,
         receipt_events,
         lifecycle,
+        current_remote_write_safety=current_remote_write_safety,
     )
 
     # Build a short automatic headline around current health, not raw traceback volume.
@@ -5352,6 +6578,17 @@ def analyse(
             )
             + " in window"
         )
+    safety = current_remote_write_safety or {}
+    if safety.get("configured") is True and safety.get("available") is True:
+        safety_status = str(safety.get("status") or "unavailable")
+        if safety.get("blocking") is True:
+            headline.append("remote-write safety: BLOCKED")
+        elif safety_status == "paused_fail_closed_control":
+            headline.append("remote writes fail-closed by invalid control")
+        elif safety_status == "operator_paused":
+            headline.append("remote writes operator-paused")
+        else:
+            headline.append("remote-write safety ready")
     if handled_api_restrictions:
         deleted_incidents = {
             (
@@ -5386,10 +6623,31 @@ def analyse(
                     "handled API restriction incident",
                 )
             )
-    handled_media_fallbacks = [item for item in media_upload_incidents if item.get("status") == "handled"]
-    unrecovered_media = [item for item in media_upload_incidents if item.get("status") != "handled"]
+    handled_media_fallbacks = [
+        item
+        for item in media_upload_incidents
+        if item.get("status") == "handled"
+    ]
+    reconciled_media_uploads = [
+        item
+        for item in media_upload_incidents
+        if item.get("status") == "reconciled"
+    ]
+    unrecovered_media = [
+        item
+        for item in media_upload_incidents
+        if item.get("status") not in {"handled", "reconciled"}
+    ]
     if handled_media_fallbacks:
         headline.append(plural_count(len(handled_media_fallbacks), "handled media-upload fallback"))
+    if reconciled_media_uploads:
+        headline.append(
+            plural_count(
+                len(reconciled_media_uploads),
+                "durably reconciled media-upload ambiguity",
+                "durably reconciled media-upload ambiguities",
+            )
+        )
     if unrecovered_media:
         headline.append(plural_count(len(unrecovered_media), "unrecovered media-upload failure"))
     if self_test_errors:
@@ -5497,7 +6755,16 @@ def analyse(
         and item.get("restriction_kind") == "deleted_or_inaccessible_tweet"
         for item in all_api_failures
     )
-    posting_attempt_count = sum(item.get("endpoint") == "post/reply" for item in all_api_failures)
+    posting_attempt_count = sum(
+        item.get("endpoint") in {"post/reply", "tweet/create"}
+        for item in all_api_failures
+    )
+    tweet_create_request_count = sum(
+        item.get("endpoint") == "tweet/create" for item in x_requests
+    )
+    media_upload_request_count = sum(
+        item.get("endpoint") == "media/upload" for item in x_requests
+    )
     transient_failure_count = sum(
         str(item.get("status") or "") in {"408", "425"}
         or str(item.get("status") or "").startswith("5")
@@ -5637,6 +6904,9 @@ def analyse(
             "status_counts": dict(sorted(api_status_counts.items())),
             "unique_incident_count": len(unique_api_incidents),
             "posting_attempt_count": posting_attempt_count,
+            "tweet_create_request_count": tweet_create_request_count,
+            "media_upload_request_count": media_upload_request_count,
+            "x_requests": x_requests,
             "target_eligibility_403_count": target_eligibility_403_count,
             "deleted_or_inaccessible_tweet_403_count": (
                 deleted_or_inaccessible_tweet_403_count
@@ -5649,6 +6919,7 @@ def analyse(
             "receipt_events": receipt_events,
             "confirmed_post_recovery": confirmed_post_recovery,
         },
+        "remote_write_transactions": remote_write_transactions,
         "confirmed_reply_recovery": {
             "receipt_events": confirmed_reply_receipts,
             "warnings": confirmed_reply_recovery,
@@ -5713,6 +6984,7 @@ def analyse(
         "media_upload": {
             "incidents": media_upload_incidents,
             "handled_fallbacks": handled_media_fallbacks,
+            "reconciled_incidents": reconciled_media_uploads,
             "unrecovered_failures": unrecovered_media,
         },
         "regular_image_usage": {
@@ -6087,12 +7359,151 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("```")
         out.append("")
 
+    safety = report.get("remote_write_safety") or {}
+    if safety:
+        out.append("## Remote-write safety")
+        if safety.get("configured") is not True:
+            out.append(
+                "No activated remote-write protocol state was found in the current "
+                "project directory; this section is informational for non-production checkouts."
+            )
+        elif safety.get("available") is not True:
+            out.append(
+                "Current safety state is **unavailable**: "
+                + str(safety.get("reason") or "inspection failed")
+            )
+        else:
+            status = str(safety.get("status") or "unavailable")
+            out.append(
+                "Current read-only filesystem snapshot: "
+                f"**{status.replace('_', ' ')}**"
+                + (
+                    "; active safety barriers are present."
+                    if safety.get("blocking") is True
+                    else "; no active transaction safety barrier is present."
+                )
+            )
+            protocol = safety.get("protocol") or {}
+            control = safety.get("control") or {}
+            transport = safety.get("transport") or {}
+            media = safety.get("media") or {}
+            ledgers = safety.get("retirement_ledgers") or []
+            healthy_ledgers = sum(
+                row.get("valid") is True and row.get("blocking") is not True
+                for row in ledgers
+            )
+            out.append("```text")
+            out.append(
+                "protocol_activation      = "
+                + ("valid v2" if protocol.get("valid") is True else "INVALID/MISSING")
+            )
+            out.append(
+                f"transport_journal        = {transport.get('classification', 'unavailable')}"
+            )
+            out.append(
+                f"media_upload_receipt     = {media.get('classification', 'unavailable')}"
+            )
+            out.append(
+                f"retirement_ledgers       = {healthy_ledgers} / {len(ledgers)} valid and nonblocking"
+            )
+            out.append(
+                f"active_barrier_entries   = {len(safety.get('active_entries') or [])}"
+            )
+            out.append(
+                f"control_generation       = {control.get('generation')}"
+            )
+            out.append(
+                "control_active_keys      = "
+                + (", ".join(control.get("active_keys") or []) or "none")
+            )
+            out.append(
+                "ready_for_remote_writes  = "
+                + str(safety.get("ready_for_remote_writes") is True).lower()
+            )
+            out.append("```")
+            active_entries = safety.get("active_entries") or []
+            if active_entries:
+                out.append("Active blockers:")
+                out.append(md_table_row(["name", "kind", "safe regular", "mode", "size"]))
+                out.append(md_table_row(["---", "---", "---", "---", "---"]))
+                for item in active_entries:
+                    out.append(
+                        md_table_row(
+                            [
+                                item.get("name", ""),
+                                item.get("kind", ""),
+                                item.get("safe_regular", ""),
+                                item.get("mode", ""),
+                                item.get("size", ""),
+                            ]
+                        )
+                    )
+            archive = safety.get("reconciliation_archive") or {}
+            if archive.get("present") is True and archive.get("valid") is not True:
+                out.append(
+                    "Warning: the reconciliation archive contains invalid audit "
+                    "evidence; it cannot resolve a historical ambiguity."
+                )
+                for reason in archive.get("invalid_audits") or []:
+                    out.append("- Invalid audit: `" + str(reason) + "`")
+            marker_audit = archive.get("latest_marker_reconciliation") or {}
+            media_audit = archive.get("latest_media_reconciliation") or {}
+            if marker_audit or media_audit:
+                out.append(
+                    "Durable reconciliation evidence: marker audits "
+                    f"**{archive.get('valid_marker_reconciliation_count', 0)}**; "
+                    "unattached-media audits "
+                    f"**{archive.get('valid_media_reconciliation_count', 0)}**."
+                )
+                if marker_audit:
+                    out.append(
+                        "- Latest marker audit: `"
+                        + str(marker_audit.get("audit_path") or "")
+                        + "`"
+                    )
+                if media_audit:
+                    out.append(
+                        "- Latest media audit: `"
+                        + str(media_audit.get("audit_path") or "")
+                        + "`"
+                    )
+        out.append("")
+
+    remote_transactions = report.get("remote_write_transactions") or []
+    if remote_transactions:
+        out.append("## Remote-write transaction lifecycle")
+        out.append(
+            md_table_row(
+                ["time", "kind", "phase", "lane", "transaction/attempt", "detail"]
+            )
+        )
+        out.append(md_table_row(["---", "---", "---", "---", "---", "---"]))
+        for item in remote_transactions:
+            out.append(
+                md_table_row(
+                    [
+                        item.get("time", ""),
+                        item.get("kind", ""),
+                        item.get("phase", ""),
+                        item.get("lane", ""),
+                        item.get("transaction_id") or item.get("attempt_id") or "",
+                        item.get("image")
+                        or item.get("post_id")
+                        or item.get("disposition")
+                        or item.get("path")
+                        or "",
+                    ]
+                )
+            )
+        out.append("")
+
     media_upload = report.get("media_upload") or {}
     media_incidents = media_upload.get("incidents") or []
     if media_incidents:
         out.append("## Media upload incidents")
         out.append("```text")
         out.append(f"handled_fallbacks     = {len(media_upload.get('handled_fallbacks') or [])}")
+        out.append(f"reconciled_ambiguities = {len(media_upload.get('reconciled_incidents') or [])}")
         out.append(f"unrecovered_failures  = {len(media_upload.get('unrecovered_failures') or [])}")
         out.append("```")
         out.append(md_table_row(["time", "status", "media", "v1.1 result", "post result", "summary"]))
@@ -8157,7 +9568,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("## API health")
         out.append(
             f"Unique incidents: **{api_health.get('unique_incident_count', 0)}**; "
-            f"posting attempts: **{api_health.get('posting_attempt_count', 0)}**; "
+            "tweet-create requests observed: "
+            f"**{api_health.get('tweet_create_request_count', 0)}**; "
+            "media-upload requests observed: "
+            f"**{api_health.get('media_upload_request_count', 0)}**; "
+            "failed post/reply requests: "
+            f"**{api_health.get('posting_attempt_count', 0)}**; "
             f"reply-target eligibility 403 responses: **{api_health.get('target_eligibility_403_count', 0)}**; "
             f"deleted/inaccessible-tweet 403 responses: "
             f"**{api_health.get('deleted_or_inaccessible_tweet_403_count', 0)}**; "
@@ -8609,6 +10025,16 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         if isinstance(resume_data.get("last_pending_qt"), dict):
             initial_pending_qt = dict(resume_data.get("last_pending_qt") or {})
             initial_pending_qt["considered_seq"] = -1
+    try:
+        current_remote_write_safety = remote_write_safety_snapshot(project_dir)
+    except Exception as exc:
+        current_remote_write_safety = {
+            "configured": True,
+            "available": False,
+            "status": "inspection_failed",
+            "blocking": None,
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
     report = analyse(
         records,
         max_text=args.max_text,
@@ -8616,7 +10042,9 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         initial_active_xai_call_attempt=initial_active_xai_call_attempt,
         initial_pending_mention=initial_pending_mention,
         initial_pending_qt=initial_pending_qt,
+        current_remote_write_safety=current_remote_write_safety,
     )
+    report["remote_write_safety"] = current_remote_write_safety
     report_window_end = until or (max((record.ts for record in records), default=None))
 
     report["log_files"] = [str(p) for p in logs]
