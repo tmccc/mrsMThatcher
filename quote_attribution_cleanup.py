@@ -1679,6 +1679,24 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "new_unadjudicated_quote_ids": sorted(missing_quote_ids),
         "new_ai_spend_usd": 0.0,
     }
+    # The recorded 91-pair adjudication is an authoritative input to the
+    # current 611-quotation generation.  Reapply it after rebuilding the
+    # attribution-cleaned base so this canonical builder does not regress to
+    # the earlier, intentionally incomplete matrix.
+    from semantic_veto_new_quote_adjudication import compile_manifest
+
+    new_quote_adjudication_path = (
+        ROOT
+        / "semantic_alignment_research"
+        / "new_quote_semantic_veto_adjudication_001"
+        / "new_quote_pair_adjudications.json"
+    )
+    recorded_adjudication = read_json(new_quote_adjudication_path)
+    manifest = compile_manifest(
+        manifest,
+        recorded_adjudication.get("records") or [],
+        adjudication_path=new_quote_adjudication_path,
+    )
     gorbachev_quote_id = "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d"
     gorbachev_image_hash = "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a"
     image_contracts = {
@@ -1735,7 +1753,9 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "validation_evidence": manifest["validation_evidence"],
         "removed_or_unresolved_quote_ids_present": [],
         "stale_quote_ids_removed": sorted(stale_quote_ids),
-        "new_unadjudicated_quote_ids": sorted(missing_quote_ids),
+        "new_unadjudicated_quote_ids": list(
+            manifest["validation_evidence"]["new_unadjudicated_quote_ids"]
+        ),
         "runtime_eligibility_manifest_path": str(eligibility_path.relative_to(ROOT)),
         "runtime_eligibility_manifest_sha256": sha256_file(eligibility_path),
         "active_enforcement": False,

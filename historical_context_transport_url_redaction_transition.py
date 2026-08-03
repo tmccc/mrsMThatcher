@@ -145,11 +145,12 @@ REQUIRED_INVARIANT_LABELS = frozenset({
     "unresolved",
 })
 
-# The immutable transport-redaction transition predates one reviewed,
-# provenance-only refresh of the semantic-veto manifest.  The formatter gained
-# receipt-durability code without changing the attribution predicate, pair
-# judgements, policy, population or counts.  Keep this compatibility tuple
-# deliberately exact: it must never become a generic source-pin bypass.
+# The immutable transport-redaction transition predates reviewed,
+# provenance-only refreshes of the eligibility and semantic-veto manifests.
+# The formatter gained receipt-durability code without changing the
+# attribution predicate, pair judgements, policy, population or counts.  Keep
+# these compatibility tuples deliberately exact: they must never become a
+# generic source-pin bypass.
 SEMANTIC_VETO_REPOSITORY_PATH = (
     "semantic_alignment_research/quote_attribution_cleanup_001/"
     "deployment_candidate/material_veto_v3_shadow_manifest.json"
@@ -158,7 +159,7 @@ SEMANTIC_VETO_HISTORICAL_SHA256 = (
     "6dd8eaf84bd913c359caf55bb213c79dbefaeeb5b0bbe4d9b0ad7f4414869d32"
 )
 SEMANTIC_VETO_SUCCESSOR_SHA256 = (
-    "fa10a7d8bc4df00385c2a1acb29c1bfda46ecf0de8764c92107f49b8b46ae514"
+    "50fd87e23fb32bb26149f611459c42326a203430af9ff09d4aa8bd357eb1efd8"
 )
 SEMANTIC_VETO_HISTORICAL_CANONICAL_SHA256 = (
     "ab4ac8138ee2faad2e761796df4a43fc04af63f39d08befbb437fb50322319c7"
@@ -168,7 +169,7 @@ ATTRIBUTION_PREDICATE_HISTORICAL_SHA256 = (
     "8b9848106390806ceefb282630ad4ffbce59af40e2f4a16eeb16f398a1d4a04d"
 )
 ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256 = (
-    "38cbf7d7989c8c6cf8f7612e004f2a9c1dec4ddc8714579ee8a31a282109b056"
+    "55982ee4906c020e6dc3fbcd0ea09950d4de6a3e3a75968240ca04163dd806a8"
 )
 ATTRIBUTION_PREDICATE_AST_PROJECTION_SHA256 = (
     "66e7912a6b2891e42cc7fce27c773c602ad81abd4448d6b5b38921475e6b668c"
@@ -180,6 +181,25 @@ ATTRIBUTION_PREDICATE_GLOBALS = (
     "_MARGARET_THATCHER_CANONICAL_SPEAKER",
     "THATCHER_ATTRIBUTION_RULE_VERSION",
 )
+RUNTIME_ELIGIBILITY_REPOSITORY_PATH = (
+    "semantic_alignment_research/quote_attribution_cleanup_001/"
+    "deployment_candidate/runtime_eligible_quote_manifest.json"
+)
+RUNTIME_ELIGIBILITY_HISTORICAL_SHA256 = (
+    "8b74dab5db91082e5448b89eb0d5a9e13d79939ff2af5d30b922aadacaa0141f"
+)
+RUNTIME_ELIGIBILITY_SUCCESSOR_SHA256 = (
+    "44c999cd52ce86c62611e0cf6b27889437493255671705d037a34a00b804d6f8"
+)
+RUNTIME_ELIGIBILITY_HISTORICAL_PREDICATE_SHA256 = (
+    "1bfc42e977316dd36beee8093d23e83816371988e18c8d22798e4a6a54a64ffb"
+)
+RUNTIME_ELIGIBILITY_SEMANTIC_SUMMARY = {
+    "runtime_eligible_quote_count": 611,
+    "runtime_eligible_quote_ids_in_order_sha256": (
+        "db72c0c0e8cf766c5ac463bb3ad0d2538733d37e8c1938f59c90cf73c9bb87d2"
+    ),
+}
 
 
 class TransitionError(RuntimeError):
@@ -981,6 +1001,17 @@ def _expected_semantic_veto_historical_binding() -> dict[str, Any]:
     }
 
 
+def _expected_runtime_eligibility_historical_binding() -> dict[str, Any]:
+    return {
+        "after_sha256": RUNTIME_ELIGIBILITY_HISTORICAL_SHA256,
+        "before_sha256": RUNTIME_ELIGIBILITY_HISTORICAL_SHA256,
+        "bytes_unchanged": True,
+        "repository_path": RUNTIME_ELIGIBILITY_REPOSITORY_PATH,
+        "semantic_summary": dict(RUNTIME_ELIGIBILITY_SEMANTIC_SUMMARY),
+        "unchanged": True,
+    }
+
+
 def _attribution_predicate_ast_projection_sha256(source: bytes) -> str:
     try:
         tree = ast.parse(source)
@@ -1121,6 +1152,16 @@ def _validate_semantic_veto_provenance_successor(
         raise TransitionError(
             "semantic_veto attribution-predicate successor binding differs"
         )
+    eligibility_binding = source_hashes.get(
+        "runtime_eligible_quote_manifest"
+    )
+    if eligibility_binding != {
+        "path": RUNTIME_ELIGIBILITY_REPOSITORY_PATH,
+        "sha256": RUNTIME_ELIGIBILITY_SUCCESSOR_SHA256,
+    }:
+        raise TransitionError(
+            "semantic_veto runtime-eligibility successor binding differs"
+        )
     _validate_attribution_predicate_source(
         root=root,
         expected_sha256=ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256,
@@ -1128,9 +1169,17 @@ def _validate_semantic_veto_provenance_successor(
 
     successor_hash = ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256.encode("ascii")
     historical_hash = ATTRIBUTION_PREDICATE_HISTORICAL_SHA256.encode("ascii")
+    eligibility_successor_hash = (
+        RUNTIME_ELIGIBILITY_SUCCESSOR_SHA256.encode("ascii")
+    )
+    eligibility_historical_hash = (
+        RUNTIME_ELIGIBILITY_HISTORICAL_SHA256.encode("ascii")
+    )
     if (
         current_bytes.count(successor_hash) != 1
         or historical_hash in current_bytes
+        or current_bytes.count(eligibility_successor_hash) != 1
+        or eligibility_historical_hash in current_bytes
     ):
         raise TransitionError(
             "semantic_veto provenance successor byte binding is ambiguous"
@@ -1138,6 +1187,10 @@ def _validate_semantic_veto_provenance_successor(
     reconstructed_bytes = current_bytes.replace(
         successor_hash,
         historical_hash,
+        1,
+    ).replace(
+        eligibility_successor_hash,
+        eligibility_historical_hash,
         1,
     )
     if _sha256_bytes(reconstructed_bytes) != SEMANTIC_VETO_HISTORICAL_SHA256:
@@ -1149,12 +1202,72 @@ def _validate_semantic_veto_provenance_successor(
     reconstructed_value["source_file_hashes"]["attribution_predicate"][
         "sha256"
     ] = ATTRIBUTION_PREDICATE_HISTORICAL_SHA256
+    reconstructed_value["source_file_hashes"][
+        "runtime_eligible_quote_manifest"
+    ]["sha256"] = RUNTIME_ELIGIBILITY_HISTORICAL_SHA256
     if _sha256_json(reconstructed_value) != (
         SEMANTIC_VETO_HISTORICAL_CANONICAL_SHA256
     ):
         raise TransitionError(
             "semantic_veto provenance successor changes semantics"
         )
+
+
+def _validate_runtime_eligibility_provenance_successor(
+    *,
+    root: Path,
+    current_bytes: bytes,
+    current_value: dict[str, Any],
+    item: dict[str, Any],
+) -> None:
+    """Accept the exact predicate-pin-only ordinary-cycle successor."""
+    if item != _expected_runtime_eligibility_historical_binding():
+        raise TransitionError(
+            "ordinary_cycle historical invariant binding differs"
+        )
+    if _sha256_bytes(current_bytes) != RUNTIME_ELIGIBILITY_SUCCESSOR_SHA256:
+        raise TransitionError(
+            "ordinary_cycle provenance successor hash differs"
+        )
+    source_hashes = current_value.get("source_file_hashes")
+    if (
+        not isinstance(source_hashes, dict)
+        or source_hashes.get("attribution_predicate")
+        != ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256
+    ):
+        raise TransitionError(
+            "ordinary_cycle attribution-predicate successor binding differs"
+        )
+    _validate_attribution_predicate_source(
+        root=root,
+        expected_sha256=ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256,
+    )
+    successor_hash = ATTRIBUTION_PREDICATE_SUCCESSOR_SHA256.encode("ascii")
+    historical_hash = (
+        RUNTIME_ELIGIBILITY_HISTORICAL_PREDICATE_SHA256.encode("ascii")
+    )
+    if (
+        current_bytes.count(successor_hash) != 1
+        or historical_hash in current_bytes
+    ):
+        raise TransitionError(
+            "ordinary_cycle provenance successor byte binding is ambiguous"
+        )
+    reconstructed_bytes = current_bytes.replace(
+        successor_hash,
+        historical_hash,
+        1,
+    )
+    if _sha256_bytes(reconstructed_bytes) != (
+        RUNTIME_ELIGIBILITY_HISTORICAL_SHA256
+    ):
+        raise TransitionError(
+            "ordinary_cycle provenance successor changes additional bytes"
+        )
+    if item.get("semantic_summary") != _invariant_summary(
+        "ordinary_cycle", current_value
+    ):
+        raise TransitionError("ordinary_cycle invariant semantics differ")
 
 
 def load_and_validate_transition(
@@ -1322,6 +1435,35 @@ def load_and_validate_transition(
             source_name=current_path.name,
         )
         current_sha256 = _sha256_bytes(current_bytes)
+        exact_runtime_eligibility_binding = (
+            label == "ordinary_cycle"
+            and (
+                item.get("repository_path")
+                == RUNTIME_ELIGIBILITY_REPOSITORY_PATH
+                or item.get("after_sha256") in {
+                    RUNTIME_ELIGIBILITY_HISTORICAL_SHA256,
+                    RUNTIME_ELIGIBILITY_SUCCESSOR_SHA256,
+                }
+                or current_sha256 in {
+                    RUNTIME_ELIGIBILITY_HISTORICAL_SHA256,
+                    RUNTIME_ELIGIBILITY_SUCCESSOR_SHA256,
+                }
+            )
+        )
+        if exact_runtime_eligibility_binding:
+            if current_sha256 == RUNTIME_ELIGIBILITY_HISTORICAL_SHA256:
+                if item != _expected_runtime_eligibility_historical_binding():
+                    raise TransitionError(
+                        "ordinary_cycle historical invariant binding differs"
+                    )
+            else:
+                _validate_runtime_eligibility_provenance_successor(
+                    root=root,
+                    current_bytes=current_bytes,
+                    current_value=value,
+                    item=item,
+                )
+            continue
         exact_semantic_veto_binding = (
             label == "semantic_veto"
             and (
