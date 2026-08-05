@@ -2969,6 +2969,123 @@ def parse_remote_write_transaction_event(record: Record) -> Optional[Dict[str, A
     return None
 
 
+def summarise_main_post_receipt_lifecycle(
+    receipt_events: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Associate current and retained main-post receipt lifecycle events."""
+
+    pending: Dict[str, List[Dict[str, Any]]] = {
+        "quote_image": [],
+        "daily_meme": [],
+    }
+    unresolved: List[Dict[str, Any]] = []
+    completed_by_lane: Counter = Counter()
+    boundary_by_lane: Counter = Counter()
+
+    def normal_lane(item: Dict[str, Any]) -> str:
+        lane = str(item.get("lane") or "")
+        kind = str(item.get("kind") or "")
+        if lane in pending:
+            return lane
+        if kind.startswith("regular_"):
+            return "quote_image"
+        if kind.startswith("meme_"):
+            return "daily_meme"
+        return lane
+
+    def matching_index(lane: str, item: Dict[str, Any]) -> int | None:
+        candidates = pending.get(lane, [])
+        attempt_id = str(item.get("attempt_id") or "")
+        path = str(item.get("path") or "")
+        for index, candidate in enumerate(candidates):
+            if attempt_id and candidate.get("attempt_id") == attempt_id:
+                return index
+            if path and candidate.get("path") == path:
+                return index
+        return 0 if candidates else None
+
+    def observe_pending(
+        lane: str,
+        item: Dict[str, Any],
+        *,
+        opening_write_observed: bool,
+    ) -> None:
+        if lane not in pending:
+            unresolved.append(item)
+            return
+        index = matching_index(lane, item)
+        if index is None:
+            pending[lane].append(
+                {**item, "opening_write_observed": opening_write_observed}
+            )
+            return
+        existing = pending[lane][index]
+        pending[lane][index] = {
+            **existing,
+            **item,
+            "opening_write_observed": bool(
+                existing.get("opening_write_observed")
+                or opening_write_observed
+            ),
+        }
+
+    def terminal_removal(lane: str) -> None:
+        candidates = pending.get(lane, [])
+        if candidates:
+            lifecycle = candidates.pop(0)
+            if lifecycle.get("opening_write_observed"):
+                completed_by_lane[lane] += 1
+            else:
+                boundary_by_lane[lane] += 1
+        elif lane in pending:
+            boundary_by_lane[lane] += 1
+
+    for item in receipt_events:
+        kind = str(item.get("kind") or "")
+        phase = str(item.get("phase") or "")
+        lane = normal_lane(item)
+        if kind in {"regular_written", "meme_written"}:
+            observe_pending(lane, item, opening_write_observed=True)
+        elif kind == "main_post_receipt":
+            if phase == "sending_published":
+                observe_pending(lane, item, opening_write_observed=True)
+            elif phase in {
+                "attempting",
+                "confirmed_pending_schedule",
+                "schedule_finalised",
+            }:
+                observe_pending(lane, item, opening_write_observed=False)
+            elif phase == "sending_retired":
+                index = matching_index(lane, item)
+                if index is not None and lane in pending:
+                    pending[lane].pop(index)
+            else:
+                unresolved.append(item)
+        elif kind in {"regular_reconciled", "meme_reconciled"}:
+            observe_pending(lane, item, opening_write_observed=False)
+        elif kind in {"regular_removed", "meme_removed"}:
+            terminal_removal(lane)
+        elif kind in {
+            "regular_replay_suppressed_second_post",
+            "meme_replay_suppressed_second_post",
+        }:
+            continue
+        else:
+            unresolved.append(item)
+
+    for lane in ("quote_image", "daily_meme"):
+        unresolved.extend(pending[lane])
+    return {
+        "completed_count": sum(completed_by_lane.values()),
+        "regular_completed_count": completed_by_lane["quote_image"],
+        "meme_completed_count": completed_by_lane["daily_meme"],
+        "boundary_removal_count": sum(boundary_by_lane.values()),
+        "regular_boundary_removal_count": boundary_by_lane["quote_image"],
+        "meme_boundary_removal_count": boundary_by_lane["daily_meme"],
+        "unresolved": unresolved,
+    }
+
+
 def plural_count(count: Any, singular: str, plural: Optional[str] = None) -> str:
     """Format an integer with a correctly pluralised noun phrase."""
     try:
@@ -4916,6 +5033,40 @@ def analyse(
         reply_media_context.append(item)
         stats["reply_media_context_events"] += 1
 
+    def conversational_evidence_fields(
+        event_obj: Dict[str, Any],
+        *,
+        evidence_ids: Any,
+        factual_claim_count: Any,
+    ) -> Dict[str, Any]:
+        factual_claim = (
+            factual_claim_count > 0
+            if type(factual_claim_count) is int
+            else None
+        )
+        confidence = event_obj.get("evidence_confidence")
+        if not isinstance(confidence, str) or not confidence:
+            confidence = "none" if factual_claim is False else "unavailable"
+        retrieved_count = event_obj.get("retrieved_count")
+        if type(retrieved_count) is not int or retrieved_count < 0:
+            retrieved_count = None
+        reference_count = event_obj.get("evidence_reference_count")
+        if type(reference_count) is not int or reference_count < 0:
+            reference_count = (
+                len(evidence_ids) if isinstance(evidence_ids, list) else None
+            )
+        return {
+            "evidence_confidence": confidence,
+            "retrieved_count": retrieved_count,
+            "evidence_reference_count": reference_count,
+            "factual_claim": factual_claim,
+            "grounded": (
+                len(evidence_ids) > 0
+                if isinstance(evidence_ids, list)
+                else None
+            ),
+        }
+
     for record_index, r in enumerate(records):
         msg = r.msg
         production_record = not is_selftest_log_path(r.path)
@@ -4944,6 +5095,24 @@ def analyse(
                 "remote_write_transaction_"
                 + str(transaction_event.get("phase") or "observed")
             ] += 1
+            if transaction_event.get("kind") == "main_post_receipt":
+                add_receipt_event(
+                    "main_post_receipt",
+                    r,
+                    **{
+                        key: value
+                        for key, value in transaction_event.items()
+                        if key
+                        in {
+                            "phase",
+                            "lane",
+                            "attempt_id",
+                            "post_id",
+                            "path",
+                            "disposition",
+                        }
+                    },
+                )
 
         # Lifecycle/config/state
         if production_record and (
@@ -5327,13 +5496,14 @@ def analyse(
                     verification_omitted=event_obj.get("verification_omitted"),
                     reason=event_obj.get("reason") or "",
                     semantic_review_disposition=(
-                        event_obj.get("semantic_review_disposition")
+                        event_obj.get("semantic_review_disposition") or "unavailable"
                     ),
                     semantic_review_ledger_sha256=(
-                        event_obj.get("semantic_review_ledger_sha256") or ""
+                        event_obj.get("semantic_review_ledger_sha256") or "unavailable"
                     ),
                     semantic_review_projection_sha256=(
-                        event_obj.get("semantic_review_projection_sha256") or ""
+                        event_obj.get("semantic_review_projection_sha256")
+                        or "unavailable"
                     ),
                     reply_preview=event_obj.get("reply_preview") or "",
                 )
@@ -5403,6 +5573,21 @@ def analyse(
                 stats[f"daily_meme_failure_stage_{stage}"] += 1
             elif event_obj and event_obj.get("event") == "reply_strategy_decision":
                 retrieved_ids = event_obj.get("retrieved_quote_ids")
+                evidence_fields = conversational_evidence_fields(
+                    event_obj,
+                    evidence_ids=event_obj.get("evidence_ids"),
+                    factual_claim_count=(
+                        1 if event_obj.get("factual_claim_made") is True else 0
+                        if event_obj.get("factual_claim_made") is False else None
+                    ),
+                )
+                if type(event_obj.get("retrieved_count")) is not int:
+                    evidence_fields["retrieved_count"] = (
+                        len(retrieved_ids)
+                        if isinstance(retrieved_ids, list)
+                        else None
+                    )
+                evidence_fields["grounded"] = event_obj.get("grounded")
                 add_event(
                     "reply_strategy_decision",
                     r.ts,
@@ -5411,14 +5596,26 @@ def analyse(
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("humour_tone"),
                     tone=event_obj.get("humour_tone"),
-                    evidence_confidence=event_obj.get("evidence_confidence"),
-                    retrieved_count=len(retrieved_ids) if isinstance(retrieved_ids, list) else None,
-                    factual_claim=event_obj.get("factual_claim_made"),
-                    grounded=event_obj.get("grounded"),
+                    **evidence_fields,
                     no_reply_reason=event_obj.get("no_reply_reason"),
                 )
             elif event_obj and event_obj.get("event") == "reply_strategy_outcome":
                 retrieved_ids = event_obj.get("retrieved_quote_ids")
+                evidence_fields = conversational_evidence_fields(
+                    event_obj,
+                    evidence_ids=event_obj.get("evidence_ids"),
+                    factual_claim_count=(
+                        1 if event_obj.get("factual_claim_made") is True else 0
+                        if event_obj.get("factual_claim_made") is False else None
+                    ),
+                )
+                if type(event_obj.get("retrieved_count")) is not int:
+                    evidence_fields["retrieved_count"] = (
+                        len(retrieved_ids)
+                        if isinstance(retrieved_ids, list)
+                        else None
+                    )
+                evidence_fields["grounded"] = event_obj.get("grounded")
                 add_event(
                     "reply_strategy_outcome", r.ts,
                     status=event_obj.get("status") or "confirmed",
@@ -5428,10 +5625,7 @@ def analyse(
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("humour_tone"),
                     tone=event_obj.get("humour_tone"),
-                    evidence_confidence=event_obj.get("evidence_confidence"),
-                    retrieved_count=len(retrieved_ids) if isinstance(retrieved_ids, list) else None,
-                    factual_claim=event_obj.get("factual_claim_made"),
-                    grounded=event_obj.get("grounded"),
+                    **evidence_fields,
                     no_reply_reason=event_obj.get("no_reply_reason"),
                     failure_reason=event_obj.get("failure_reason") or "",
                 )
@@ -5452,6 +5646,11 @@ def analyse(
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
                 evidence_ids = event_obj.get("evidence_ids")
                 factual_claim_count = event_obj.get("factual_claim_count")
+                evidence_fields = conversational_evidence_fields(
+                    event_obj,
+                    evidence_ids=evidence_ids,
+                    factual_claim_count=factual_claim_count,
+                )
                 add_event(
                     "reply_strategy_decision",
                     r.ts,
@@ -5461,13 +5660,7 @@ def analyse(
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("tone"),
                     tone=event_obj.get("tone"),
-                    evidence_confidence="unavailable",
-                    retrieved_count=None,
-                    evidence_reference_count=(
-                        len(evidence_ids) if isinstance(evidence_ids, list) else None
-                    ),
-                    factual_claim=(factual_claim_count > 0) if type(factual_claim_count) is int else None,
-                    grounded=(len(evidence_ids) > 0) if isinstance(evidence_ids, list) else None,
+                    **evidence_fields,
                     no_reply_reason=event_obj.get("reason"),
                     reviewer_verdict=event_obj.get("reviewer_verdict"),
                     model_call_count=event_obj.get("model_call_count"),
@@ -5488,6 +5681,11 @@ def analyse(
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
                 evidence_ids = event_obj.get("evidence_ids")
                 factual_claim_count = event_obj.get("factual_claim_count")
+                evidence_fields = conversational_evidence_fields(
+                    event_obj,
+                    evidence_ids=evidence_ids,
+                    factual_claim_count=factual_claim_count,
+                )
                 add_event(
                     "reply_strategy_outcome",
                     r.ts,
@@ -5499,13 +5697,7 @@ def analyse(
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("tone"),
                     tone=event_obj.get("tone"),
-                    evidence_confidence="unavailable",
-                    retrieved_count=None,
-                    evidence_reference_count=(
-                        len(evidence_ids) if isinstance(evidence_ids, list) else None
-                    ),
-                    factual_claim=(factual_claim_count > 0) if type(factual_claim_count) is int else None,
-                    grounded=(len(evidence_ids) > 0) if isinstance(evidence_ids, list) else None,
+                    **evidence_fields,
                     reviewer_verdict=event_obj.get("reviewer_verdict"),
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
@@ -5592,11 +5784,23 @@ def analyse(
                 disposition="confirmed_state_fallback",
             )
             continue
-        if "Removed reconciled regular-post receipt" in msg:
-            add_receipt_event("regular_removed", r, lane="quote_image")
+        m = re.search(r"Removed reconciled regular-post receipt:\s*(.+)$", msg)
+        if m:
+            add_receipt_event(
+                "regular_removed",
+                r,
+                lane="quote_image",
+                path=m.group(1).strip(),
+            )
             continue
-        if "Removed reconciled meme-post receipt" in msg:
-            add_receipt_event("meme_removed", r, lane="daily_meme")
+        m = re.search(r"Removed reconciled meme-post receipt:\s*(.+)$", msg)
+        if m:
+            add_receipt_event(
+                "meme_removed",
+                r,
+                lane="daily_meme",
+                path=m.group(1).strip(),
+            )
             continue
         m = re.search(
             r"Removed reconciled confirmed-reply receipt"
@@ -8972,7 +9176,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"factual decisions generated: **{strategy.get('generated_factual_claim_count', 0)}**."
     )
     out.append(
-        f"Legacy packet retrieval for generated decisions average/max/none: **"
+        f"Evidence packet retrieval for generated decisions average/max/none: **"
         f"{round(strategy['generated_average_retrieved_packet_count'], 2) if strategy.get('generated_average_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_maximum_retrieved_packet_count') if strategy.get('generated_maximum_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_no_retrieved_packets_count', 0)}**."
@@ -8995,7 +9199,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"factual grounding rejections: **{strategy.get('factual_rejected_insufficient_grounding_count', 0)}**."
     )
     out.append(
-        f"Legacy packet retrieval for published/terminal decisions average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
+        f"Evidence packet retrieval for published/terminal decisions average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('maximum_retrieved_packet_count') if strategy.get('maximum_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('no_retrieved_packets_count', 0)}** "
         f"(metadata unavailable: {strategy.get('retrieved_packet_metadata_unavailable_count', 0)})."
@@ -9259,25 +9463,28 @@ def render_markdown(report: Dict[str, Any]) -> str:
     if receipt_events or confirmed_post_recovery:
         out.append("## Transactional receipt lifecycle")
         if receipt_events:
-            outstanding: List[Dict[str, Any]] = []
-            pending_by_lane: Counter = Counter()
-            normal_pairs = 0
-            for item in receipt_events:
-                kind = str(item.get("kind") or "")
-                lane = str(item.get("lane") or "")
-                if kind.endswith("_written"):
-                    pending_by_lane[lane] += 1
-                elif kind.endswith("_removed") and pending_by_lane[lane] > 0:
-                    pending_by_lane[lane] -= 1
-                    normal_pairs += 1
-                else:
-                    outstanding.append(item)
+            lifecycle_summary = summarise_main_post_receipt_lifecycle(
+                receipt_events
+            )
+            outstanding = lifecycle_summary["unresolved"]
+            normal_pairs = lifecycle_summary["completed_count"]
             out.append(
                 f"Routine two-phase receipt write/remove pairs completed: **{normal_pairs}**. "
                 "The write event can be logged at WARNING while still being a normal durable "
                 "transaction step; it is not an incident by itself."
             )
-            if any(pending_by_lane.values()) or outstanding:
+            out.append(
+                "Completed main-post receipt lifecycles by lane: "
+                f"regular quote/image **{lifecycle_summary['regular_completed_count']}**; "
+                f"daily-meme **{lifecycle_summary['meme_completed_count']}**."
+            )
+            if lifecycle_summary["boundary_removal_count"]:
+                out.append(
+                    "Reconciled main-post receipt removals whose opening write was "
+                    "outside the selected window: "
+                    f"**{lifecycle_summary['boundary_removal_count']}**."
+                )
+            if outstanding:
                 out.append("Stale or unresolved receipt events:")
                 out.append(md_table_row(["time", "level", "lane", "kind", "post_id", "quote_hash", "image/file", "message"]))
                 out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))

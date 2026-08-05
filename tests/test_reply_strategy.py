@@ -24,6 +24,7 @@ from reply_strategy import (
     claim_auditor_schema,
     claim_retrieval_query,
     deterministic_reply_error,
+    evidence_telemetry,
     evidence_schema,
     legacy_draft_audit,
     proposer_schema,
@@ -752,6 +753,19 @@ def test_philosophical_yes_no_challenge_uses_principle_mode_with_direct_opening(
 def test_direct_factual_answer_requires_claim_evidence_and_independent_review(
     repository: FakeRepository,
 ) -> None:
+    repository.candidate_override = [
+        repository.passage,
+        replace(
+            repository.passage,
+            evidence_id="d" * 64,
+            quote_id="e" * 64,
+        ),
+        replace(
+            repository.passage,
+            evidence_id="f" * 64,
+            quote_id="1" * 64,
+        ),
+    ]
     factual_text = "People moved from East Germany towards West Germany in November 1989."
     result, transport = run_pipeline(
         repository,
@@ -770,6 +784,23 @@ def test_direct_factual_answer_requires_claim_evidence_and_independent_review(
         "claim_id": "claim-1",
         "evidence_ids": [repository.passage.evidence_id],
     }]
+    assert result.reply.pipeline_metadata["evidence_confidence"] == "high"
+    assert result.reply.draft_record["retrieved_count"] == 3
+    assert result.reply.pipeline_metadata["retrieved_count"] == 3
+    assert result.reply.pipeline_metadata["evidence_reference_count"] == 1
+
+
+def test_old_selected_evidence_keeps_retrieval_total_unavailable(
+    repository: FakeRepository,
+) -> None:
+    telemetry = evidence_telemetry(
+        {"evidence_ids": [repository.passage.evidence_id]},
+        repository,
+    )
+
+    assert telemetry["evidence_confidence"] == "high"
+    assert telemetry["retrieved_count"] is None
+    assert telemetry["evidence_reference_count"] == 1
 
 
 def test_reviewer_is_fresh_and_does_not_receive_hidden_proposer_interpretation(

@@ -33,7 +33,7 @@
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",
-      "sha256": "24cdc67ac957c3a69c0b00435eb74cbe026834486ec080c28566eeeed2abdd32"
+      "sha256": "6d5e25367abf43336d41dc7a470f9976b055204fe844b652878eaac7837b5507"
     }
   },
   "manual_review_totals": {

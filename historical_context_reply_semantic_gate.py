@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 from typing import Collection, Mapping
@@ -30,7 +30,7 @@ SEMANTIC_REVIEW_PATH = (
 )
 POLICY_VERSION = "historical-context-semantic-gate-v1-open-review-whole-reply"
 EXPECTED_LEDGER_SHA256 = (
-    "dd041bb7745fa0b018ed09c3c0c9f8db676c0755d530572bc7e4bf56cdfc793e"
+    "f81832f3c0aa4e121e5ea521f0442fa90c024d1b3afd24fda4e2b49fe3cb0648"
 )
 EXPECTED_REVIEWED_COUNT = 115
 EXPECTED_BLOCKED_COUNT = 13
@@ -53,6 +53,9 @@ class HistoricalContextSemanticGate:
     ledger_sha256: str
     projection_sha256: str
     blocked_dispositions: Mapping[str, str]
+    reviewed_dispositions: Mapping[str, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
     @classmethod
     def closed(cls, reason: str, *, ledger_sha256: str = "") -> "HistoricalContextSemanticGate":
@@ -68,6 +71,10 @@ class HistoricalContextSemanticGate:
     def disposition(self, quote_id: str) -> str | None:
         """Return the reviewed open disposition for one canonical quote ID."""
         return self.blocked_dispositions.get(str(quote_id or ""))
+
+    def reviewed_disposition(self, quote_id: str) -> str | None:
+        """Return the ledger disposition when this quote received a review."""
+        return self.reviewed_dispositions.get(str(quote_id or ""))
 
     def blocks(self, quote_id: str) -> bool:
         """Return whether one canonical quote is blocked from a public reply."""
@@ -228,6 +235,11 @@ def load_historical_context_semantic_gate(
             and record.get("follow_up_status") == "remains_open"
         ]
         blocked: dict[str, str] = {}
+        reviewed = {
+            str(record.get("quote_id") or ""): str(record.get("disposition") or "")
+            for record in records
+            if isinstance(record, dict)
+        }
         for record in open_records:
             quote_id = str(record.get("quote_id") or "")
             disposition = str(record.get("disposition") or "")
@@ -291,6 +303,7 @@ def load_historical_context_semantic_gate(
             ledger_sha256=ledger_sha256,
             projection_sha256=projection_sha256,
             blocked_dispositions=MappingProxyType(dict(sorted(blocked.items()))),
+            reviewed_dispositions=MappingProxyType(dict(sorted(reviewed.items()))),
         )
     except Exception as exc:
         return HistoricalContextSemanticGate.closed(

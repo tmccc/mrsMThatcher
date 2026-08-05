@@ -239,6 +239,7 @@ def unit_approved_reply(
         model_call_count=3 if factual or claim_audit is not None else 2,
         revision_count=0,
         creation_time="2026-07-20T12:00:00Z",
+        retrieved_count=1 if factual else 0,
     )
     metadata = {
         "strategy_version": STRATEGY_VERSION,
@@ -510,6 +511,7 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             ledger_sha256="unit-test-ledger",
             projection_sha256="unit-test-projection",
             disposition=lambda _quote_id: None,
+            reviewed_disposition=lambda _quote_id: None,
         ),
     )
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
@@ -1342,12 +1344,61 @@ def test_operational_pipeline_failure_raises_retryable_api_error(
             "tone": "none",
             "factual_claim_count": 0,
             "evidence_ids": [],
+            "evidence_confidence": "none",
+            "retrieved_count": None,
+            "evidence_reference_count": 0,
             "reviewer_verdict": "not_approved",
             "reason": "proposer_invalid",
             "model_call_count": 2,
             "revision_count": 0,
         },
     )]
+
+
+def test_approved_ai_reply_decision_logs_existing_evidence_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import reply_strategy
+
+    context = unit_reply_context(
+        contribution="Where did people move in November 1989?"
+    )
+    reply = unit_approved_reply(
+        context,
+        text=(
+            "People moved from East Germany towards West Germany in November "
+            "1989."
+        ),
+        mode="direct_factual_answer",
+        factual=True,
+    )
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(
+        reply_strategy,
+        "run_reply_pipeline",
+        lambda **_kwargs: reply_strategy.PipelineResult(
+            reply,
+            "approved",
+            "reviewer_approved",
+            3,
+            0,
+            (),
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+
+    generated = bot.generate_ai_first_reply(context)
+
+    assert generated == reply
+    decision = events[-1][1]
+    assert decision["evidence_confidence"] == "high"
+    assert decision["retrieved_count"] == 1
+    assert decision["evidence_reference_count"] == 1
 
 
 def test_operational_pipeline_failure_does_not_consume_mention_target(
@@ -11569,6 +11620,37 @@ def test_schema_v4_confirmation_advances_daily_counters_once_across_midnight(
     else:
         assert state["daily_quote_reply_date"] == bot.epoch_date_str(attempt_epoch)
         assert state["daily_quote_reply_count"] == 3
+
+
+def test_confirmed_factual_reply_outcome_logs_existing_evidence_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+    receipt = unit_confirmed_reply_receipt(
+        factual=True,
+        text=(
+            "People moved from East Germany towards West Germany in November "
+            "1989."
+        ),
+    )
+
+    bot.apply_confirmed_reply_receipt(bot.default_state(), receipt)
+
+    outcome = next(
+        values
+        for name, values in events
+        if name == "ai_reply_pipeline_outcome"
+    )
+    assert outcome["status"] == "confirmed"
+    assert outcome["evidence_confidence"] == "high"
+    assert outcome["retrieved_count"] == 1
+    assert outcome["evidence_reference_count"] == 1
 
 
 def test_schema_v4_reconciliation_never_rolls_newer_daily_state_backward() -> None:

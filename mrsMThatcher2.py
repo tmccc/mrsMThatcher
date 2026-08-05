@@ -12344,6 +12344,7 @@ def maybe_post_historical_context_reply(
             gate = initialise_historical_context_semantic_gate(packets)
 
         gate_disposition = gate.disposition(packet["quote_id"])
+        reviewed_gate_disposition = gate.reviewed_disposition(packet["quote_id"])
         if not gate.available or gate_disposition is not None:
             reason = (
                 "semantic_review_gate_unavailable"
@@ -12491,6 +12492,11 @@ def maybe_post_historical_context_reply(
             verification_omitted="Verification:" not in event_text and "Verification —" not in event_text,
             formatter_version=event_metadata["formatter_version"],
             template_variant=event_metadata["template_variant"],
+            semantic_review_disposition=(
+                reviewed_gate_disposition or "unavailable"
+            ),
+            semantic_review_ledger_sha256=gate.ledger_sha256,
+            semantic_review_projection_sha256=gate.projection_sha256,
             reply_preview=event_text[:160],
             reason="post_failed" if result.get("status") == "failed" else "",
         )
@@ -18033,11 +18039,12 @@ def pending_ai_reply(
         return None
     record = drafts.get(pending_ai_reply_draft_key(target_id, candidate_source))
     try:
+        repository = reply_evidence_repository()
         validated = validate_persisted_draft(
             record,
             context=context,
             config=ai_first_reply_strategy,
-            repository=reply_evidence_repository(),
+            repository=repository,
             maximum_reply_length=MAX_REPLY_CHARS,
             recent_replies=recent_replies,
         )
@@ -18055,6 +18062,8 @@ def pending_ai_reply(
             if not drafts:
                 state.pop("pending_ai_reply_drafts", None)
         return None
+    from reply_strategy import evidence_telemetry
+
     metadata = {
         "strategy_version": validated["strategy_version"],
         "mode": validated["mode"],
@@ -18065,8 +18074,41 @@ def pending_ai_reply(
         "reviewer_verdict": validated["reviewer_verdict"],
         "model_call_count": validated["model_call_count"],
         "revision_count": validated["revision_count"],
+        **evidence_telemetry(validated, repository),
     }
     return AIReply(validated["proposed_reply"], copy.deepcopy(validated), metadata)
+
+
+def ai_reply_evidence_telemetry(reply: object) -> dict[str, object]:
+    """Return audit metrics from an already-validated AI reply draft."""
+
+    from reply_strategy import evidence_telemetry
+
+    metadata = getattr(reply, "pipeline_metadata", None)
+    telemetry_fields = (
+        "evidence_confidence",
+        "retrieved_count",
+        "evidence_reference_count",
+    )
+    if isinstance(metadata, dict) and all(
+        field in metadata for field in telemetry_fields
+    ):
+        return {field: metadata[field] for field in telemetry_fields}
+    draft = getattr(reply, "draft_record", reply)
+    if not isinstance(draft, dict):
+        return {
+            "evidence_confidence": "unavailable",
+            "retrieved_count": None,
+            "evidence_reference_count": None,
+        }
+    try:
+        return evidence_telemetry(draft, reply_evidence_repository())
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+        return {
+            "evidence_confidence": "unavailable",
+            "retrieved_count": None,
+            "evidence_reference_count": None,
+        }
 
 
 def clear_pending_ai_reply(state: dict, target_id: str, candidate_source: str) -> None:
@@ -18084,6 +18126,7 @@ def log_ai_reply_dry_run(*, context: dict[str, object], reply: str, lane: str, t
     metadata = getattr(reply, "pipeline_metadata", None)
     if not isinstance(metadata, dict):
         return
+    telemetry = ai_reply_evidence_telemetry(reply)
     log_event(
         "ai_reply_pipeline_dry_run",
         lane=lane,
@@ -18096,6 +18139,7 @@ def log_ai_reply_dry_run(*, context: dict[str, object], reply: str, lane: str, t
         tone=metadata.get("tone"),
         factual_claim_count=metadata.get("factual_claim_count"),
         evidence_ids=metadata.get("evidence_ids", []),
+        **telemetry,
         reviewer_verdict=metadata.get("reviewer_verdict"),
         model_call_count=metadata.get("model_call_count"),
         revision_count=metadata.get("revision_count"),
@@ -18115,6 +18159,7 @@ def log_ai_reply_posting_outcome(
     metadata = getattr(reply, "pipeline_metadata", None)
     if not isinstance(metadata, dict):
         return
+    telemetry = ai_reply_evidence_telemetry(reply)
     log_event(
         "ai_reply_pipeline_outcome",
         status=status,
@@ -18126,6 +18171,7 @@ def log_ai_reply_posting_outcome(
         tone=metadata.get("tone"),
         factual_claim_count=metadata.get("factual_claim_count"),
         evidence_ids=metadata.get("evidence_ids", []),
+        **telemetry,
         reviewer_verdict=metadata.get("reviewer_verdict"),
         model_call_count=metadata.get("model_call_count"),
         revision_count=metadata.get("revision_count"),
@@ -18263,6 +18309,9 @@ def generate_ai_first_reply(
             tone="none",
             factual_claim_count=0,
             evidence_ids=[],
+            evidence_confidence="none",
+            retrieved_count=None,
+            evidence_reference_count=0,
             reviewer_verdict="not_approved",
             reason=result.reason,
             model_call_count=result.model_call_count,
@@ -18278,6 +18327,8 @@ def generate_ai_first_reply(
         return None
 
     metadata = result.reply.pipeline_metadata
+    telemetry = ai_reply_evidence_telemetry(result.reply)
+    metadata.update(telemetry)
     log_event(
         "ai_reply_pipeline_decision",
         lane=lane,
@@ -18288,6 +18339,7 @@ def generate_ai_first_reply(
         tone=metadata["tone"],
         factual_claim_count=metadata["factual_claim_count"],
         evidence_ids=metadata["evidence_ids"],
+        **telemetry,
         reviewer_verdict=metadata["reviewer_verdict"],
         model_call_count=metadata["model_call_count"],
         revision_count=metadata["revision_count"],
@@ -19060,6 +19112,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     )
     ai_reply_draft = receipt.get("ai_reply_draft")
     if isinstance(ai_reply_draft, dict):
+        evidence_telemetry = ai_reply_evidence_telemetry(ai_reply_draft)
         record = {
             "target_id": target_id,
             "reply_post_id": reply_post_id,
@@ -19087,6 +19140,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
             tone=ai_reply_draft.get("tone"),
             factual_claim_count=len(ai_reply_draft.get("factual_claims", [])),
             evidence_ids=ai_reply_draft.get("evidence_ids", []),
+            **evidence_telemetry,
             reviewer_verdict=ai_reply_draft.get("reviewer_verdict"),
             model_call_count=ai_reply_draft.get("model_call_count"),
             revision_count=ai_reply_draft.get("revision_count"),

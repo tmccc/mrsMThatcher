@@ -25,10 +25,10 @@
     },
     "failure_reason": "",
     "reviewed_blocked_quote_count": 13,
-    "semantic_review_ledger_sha256": "dd041bb7745fa0b018ed09c3c0c9f8db676c0755d530572bc7e4bf56cdfc793e"
+    "semantic_review_ledger_sha256": "f81832f3c0aa4e121e5ea521f0442fa90c024d1b3afd24fda4e2b49fe3cb0648"
   },
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "dd041bb7745fa0b018ed09c3c0c9f8db676c0755d530572bc7e4bf56cdfc793e",
+    "historical_context_published_reply_semantic_review.json": "f81832f3c0aa4e121e5ea521f0442fa90c024d1b3afd24fda4e2b49fe3cb0648",
     "historical_context_source_role_audit.json": "ea2a7ce7e9b841da20aa6db7c48cc2e14666f9791d3e7398d349d5104b892e3f",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "research_packets.json": "5a49c91fc93f0734fb04d8f641ec93a8810a6f0878c8d0546f086a15cf7a7d2e",

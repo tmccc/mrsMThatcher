@@ -14,9 +14,9 @@ from typing import Any
 from historical_context_source_curated_evidence import validate_curated_evidence
 
 
-PACKET_CORRECTIONS_SCHEMA_VERSION = 1
+PACKET_CORRECTIONS_SCHEMA_VERSION = 2
 PACKET_CORRECTIONS_POLICY_VERSION = (
-    "historical-context-packet-corrections-v1-intended-argument-only"
+    "historical-context-packet-corrections-v2-reviewed-rendering-fields"
 )
 PACKET_CORRECTIONS_FILENAME = "historical_context_packet_corrections.json"
 
@@ -40,6 +40,7 @@ _ITEM_FIELDS = {
     "rationale",
     "reviewed_at",
 }
+_CORRECTABLE_FIELDS = {"historical_context", "intended_argument"}
 
 
 def _sha256_text(value: str) -> str:
@@ -110,9 +111,9 @@ def validate_packet_corrections(
             or item.get("quote_id") != quote_id
             or item.get("quote_text_sha256")
             != _sha256_text(str(packet.get("quote_text") or ""))
-            or item.get("field") != "intended_argument"
+            or item.get("field") not in _CORRECTABLE_FIELDS
             or item.get("original_value_sha256")
-            != _sha256_text(str(packet.get("intended_argument") or ""))
+            != _sha256_text(str(packet.get(str(item.get("field") or "")) or ""))
         ):
             raise RuntimeError(
                 f"historical-context packet correction identity differs: {quote_id}"
@@ -121,11 +122,12 @@ def validate_packet_corrections(
         corrected = item.get("corrected_value")
         evidence_source_ids = item.get("evidence_source_ids")
         correction_id = item.get("correction_id")
+        corrected_field = str(item["field"])
         if (
             not isinstance(corrected, str)
             or not corrected.strip()
             or corrected != corrected.strip()
-            or corrected == packet.get("intended_argument")
+            or corrected == packet.get(corrected_field)
             or "\n" in corrected
             or len(corrected) > 500
             or item.get("corrected_value_sha256") != _sha256_text(corrected)
@@ -156,18 +158,25 @@ def validate_packet_corrections(
         }
         for source_id in evidence_source_ids:
             source = sources_by_id.get(source_id)
+            required_roles = {"wording_verification", "attribution_support"}
+            required_claims = {"wording", "attribution"}
+            if corrected_field == "historical_context":
+                required_roles.update(
+                    {"historical_context_support", "source_event_support"}
+                )
+                required_claims.update(
+                    {"historical_context", "source_event", "date"}
+                )
             if (
                 source is None
                 or source.get("source_quality_class") != "strong_primary_evidence"
                 or source.get("page_independently_inspected") is not True
-                or not {
-                    "wording_verification",
-                    "attribution_support",
-                }.issubset(set(source.get("assigned_roles", [])))
-                or not {
-                    "wording",
-                    "attribution",
-                }.issubset(set(source.get("claims_supported", [])))
+                or not required_roles.issubset(
+                    set(source.get("assigned_roles", []))
+                )
+                or not required_claims.issubset(
+                    set(source.get("claims_supported", []))
+                )
             ):
                 raise RuntimeError(
                     "historical-context packet correction lacks reviewed primary "
@@ -181,12 +190,23 @@ def apply_packet_corrections(
     packets: dict[str, dict[str, Any]],
     curated_evidence: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """Return a rendering view with only reviewed intended arguments replaced."""
+    """Return a rendering view with only reviewed packet fields replaced."""
     validate_packet_corrections(manifest, packets, curated_evidence)
     corrected_packets = dict(packets)
     for quote_id, correction in manifest["items"].items():
-        corrected_packets[quote_id] = {
-            **packets[quote_id],
-            "intended_argument": correction["corrected_value"],
+        packet = packets[quote_id]
+        field = str(correction["field"])
+        corrected_packet = {
+            **packet,
+            field: correction["corrected_value"],
         }
+        if (
+            field == "historical_context"
+            and packet.get("immediate_subject") == packet.get("historical_context")
+        ):
+            # The provider packet duplicated the same prose into the renderer's
+            # immediate-subject projection. Keep that exact derivative aligned
+            # with the reviewed historical-context correction.
+            corrected_packet["immediate_subject"] = correction["corrected_value"]
+        corrected_packets[quote_id] = corrected_packet
     return corrected_packets

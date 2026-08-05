@@ -15,6 +15,7 @@ from historical_context_formatter import (
 from historical_context_packet_corrections import (
     PACKET_CORRECTIONS_FILENAME,
     apply_packet_corrections,
+    packet_correction_id,
     validate_packet_corrections,
 )
 from historical_context_source_curated_evidence import (
@@ -36,6 +37,9 @@ LOCAL_BOOK_CORRECTION_IDS = {
     "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
     "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
 }
+CONFERENCE_1967_QUOTE_ID = (
+    "921c766344671fdd29089f9f1801cb9343aa5f8a825f8342ebd8ba35b47705d5"
+)
 
 
 @pytest.fixture(scope="module")
@@ -103,7 +107,7 @@ def test_document_104653_correction_changes_only_future_meaning_view(
         for quote_id, packet in packets.items()
         if corrected[quote_id] is not packet
     }
-    assert len(correction_ids) == 15
+    assert len(correction_ids) == 16
     assert LOCAL_BOOK_CORRECTION_IDS <= correction_ids
     assert "inevitably" not in corrected[QUOTE_ID]["intended_argument"]
     assert "inherently" not in corrected[QUOTE_ID]["intended_argument"]
@@ -145,6 +149,47 @@ def test_core_loader_returns_validated_raw_corpus_without_context_sidecars():
     assert set(packets).isdisjoint(unresolved)
     assert "_source_role_audit" not in packets[QUOTE_ID]
     assert packets[QUOTE_ID]["intended_argument"] != CORRECTED_MEANING
+
+
+def test_1967_conference_context_correction_is_used_for_future_rendering(
+    evidence_documents,
+):
+    packets, curated, corrections = evidence_documents
+    original = copy.deepcopy(packets[CONFERENCE_1967_QUOTE_ID])
+
+    corrected = apply_packet_corrections(corrections, packets, curated)
+    packet = corrected[CONFERENCE_1967_QUOTE_ID]
+    rendered = format_context_reply_public(packet)
+
+    assert packets[CONFERENCE_1967_QUOTE_ID] == original
+    assert packet["quote_id"] == CONFERENCE_1967_QUOTE_ID
+    assert packet["quote_text"] == original["quote_text"]
+    assert packet["date"] == "1967-10-20"
+    assert packet["historical_context"].startswith("In 1967,")
+    assert packet["immediate_subject"].startswith("In 1967,")
+    assert "In 1968" not in packet["historical_context"]
+    assert rendered is not None
+    assert "20 October 1967: In 1967," in rendered["text"]
+    assert "In 1968" not in rendered["text"]
+
+
+@pytest.mark.parametrize(
+    "quote_id",
+    [CONFERENCE_1967_QUOTE_ID, QUOTE_ID],
+)
+def test_packet_correction_rejects_field_specific_no_op(
+    evidence_documents,
+    quote_id,
+):
+    packets, curated, corrections = evidence_documents
+    altered = copy.deepcopy(corrections)
+    item = altered["items"][quote_id]
+    item["corrected_value"] = packets[quote_id][item["field"]]
+    item["corrected_value_sha256"] = item["original_value_sha256"]
+    item["correction_id"] = packet_correction_id(item)
+
+    with pytest.raises(RuntimeError, match="is invalid"):
+        validate_packet_corrections(altered, packets, curated)
 
 
 @pytest.mark.parametrize(

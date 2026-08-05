@@ -1609,9 +1609,14 @@ def build_draft_record(
     model_call_count: int,
     revision_count: int,
     creation_time: str,
+    retrieved_count: int | None = None,
     claim_auditor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the immutable persisted-draft record for an approved reply."""
+    if retrieved_count is not None and (
+        type(retrieved_count) is not int or retrieved_count < 0
+    ):
+        raise ValueError("persisted draft retrieved count is invalid")
     references = [reference for row in evidence for reference in row.get("evidence", [])]
     evidence_ids = sorted({str(reference["evidence_id"]) for reference in references})
     claim_evidence = [
@@ -1688,8 +1693,58 @@ def build_draft_record(
         "revision_count": revision_count,
         "creation_time": creation_time,
     }
+    if retrieved_count is not None:
+        record["retrieved_count"] = retrieved_count
     record["approval_hash"] = value_hash(record)
     return record
+
+
+def evidence_telemetry(
+    draft_record: dict[str, Any],
+    repository: EvidenceRepository,
+) -> dict[str, Any]:
+    """Summarise stored retrieval and selected evidence without new retrieval."""
+
+    evidence_ids = draft_record.get("evidence_ids")
+    retrieved_count = draft_record.get("retrieved_count")
+    if type(retrieved_count) is not int or retrieved_count < 0:
+        retrieved_count = None
+    if not isinstance(evidence_ids, list):
+        return {
+            "evidence_confidence": "unavailable",
+            "retrieved_count": retrieved_count,
+            "evidence_reference_count": None,
+        }
+    if not evidence_ids:
+        return {
+            "evidence_confidence": "none",
+            "retrieved_count": retrieved_count,
+            "evidence_reference_count": 0,
+        }
+    passages = [repository.passages.get(str(value)) for value in evidence_ids]
+    if any(passage is None for passage in passages):
+        return {
+            "evidence_confidence": "unavailable",
+            "retrieved_count": retrieved_count,
+            "evidence_reference_count": len(evidence_ids),
+        }
+    confidence_order = {"low": 1, "medium": 2, "high": 3}
+    confidence_values = [
+        str(passage.research_confidence)
+        for passage in passages
+        if passage is not None
+    ]
+    evidence_confidence = (
+        min(confidence_values, key=lambda value: confidence_order[value])
+        if confidence_values
+        and all(value in confidence_order for value in confidence_values)
+        else "unavailable"
+    )
+    return {
+        "evidence_confidence": evidence_confidence,
+        "retrieved_count": retrieved_count,
+        "evidence_reference_count": len(evidence_ids),
+    }
 
 
 def validate_persisted_draft(
@@ -1718,6 +1773,8 @@ def validate_persisted_draft(
         "claim_auditor_prompt_version", "model_call_count",
         "revision_count", "creation_time", "approval_hash",
     }
+    if "retrieved_count" in record:
+        expected.add("retrieved_count")
     _validate_exact_keys(record, expected, "persisted draft")
     clean_context = validate_reply_context(context)
     if record.get("schema_version") != DRAFT_SCHEMA_VERSION or record.get("strategy_version") != STRATEGY_VERSION:
@@ -1766,6 +1823,11 @@ def validate_persisted_draft(
         raise ValueError("persisted draft model call count is invalid")
     if type(record.get("revision_count")) is not int or record["revision_count"] not in {0, 1}:
         raise ValueError("persisted draft revision count is invalid")
+    if "retrieved_count" in record and (
+        type(record.get("retrieved_count")) is not int
+        or record["retrieved_count"] < 0
+    ):
+        raise ValueError("persisted draft retrieved count is invalid")
     if not isinstance(record.get("creation_time"), str) or not record["creation_time"].endswith("Z"):
         raise ValueError("persisted draft creation time is invalid")
     try:
@@ -2257,6 +2319,7 @@ def run_reply_pipeline(
                 revisions += 1
                 continue
         evidence: list[dict[str, Any]] = []
+        retrieved_count = 0
         if claims:
             restrict_to_resolved_quote = bool(
                 proposer["mode"] == "direct_factual_answer"
@@ -2276,6 +2339,11 @@ def run_reply_pipeline(
                 )
                 for claim in claims
             }
+            retrieved_count = len({
+                str(passage.quote_id)
+                for passages in candidates.values()
+                for passage in passages
+            })
             if any(candidates.values()):
                 evidence_stage = "revision_evidence" if revisions else "evidence"
                 evidence_system, evidence_user = _evidence_prompts(claims, candidates)
@@ -2471,6 +2539,7 @@ def run_reply_pipeline(
                 model_call_count=call_count,
                 revision_count=revisions,
                 creation_time=creation_time or utc_now(),
+                retrieved_count=retrieved_count,
                 claim_auditor=claim_auditor_result,
             )
             metadata = {
@@ -2484,6 +2553,7 @@ def run_reply_pipeline(
                 "model_call_count": call_count,
                 "revision_count": revisions,
                 "claim_auditor_ran": claim_auditor_result is not None,
+                **evidence_telemetry(draft, repository),
             }
             reply = AIReply(proposer["proposed_reply"], draft, metadata)
             return PipelineResult(reply, "approved", "reviewer_approved", call_count, revisions, tuple(audit))

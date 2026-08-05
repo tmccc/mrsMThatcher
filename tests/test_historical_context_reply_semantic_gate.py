@@ -92,6 +92,7 @@ def _gate(
     blocked: dict[str, str] | None = None,
     *,
     available: bool = True,
+    reviewed: dict[str, str] | None = None,
 ) -> HistoricalContextSemanticGate:
     if not available:
         return HistoricalContextSemanticGate.closed("test gate unavailable")
@@ -101,6 +102,7 @@ def _gate(
         ledger_sha256=EXPECTED_LEDGER_SHA256,
         projection_sha256=EXPECTED_PROJECTION_SHA256,
         blocked_dispositions=MappingProxyType(dict(blocked or {})),
+        reviewed_dispositions=MappingProxyType(dict(reviewed or {})),
     )
 
 
@@ -213,6 +215,10 @@ def test_real_gate_is_hash_bound_and_contains_exact_115_13_6_7_policy():
     assert gate.disposition(NEW_POST_BASELINE_FUTURE) == "future_correction_needed"
     assert gate.disposition(OPEN_INSUFFICIENT) == "insufficient_to_assess"
     assert gate.disposition(NEW_UNREVIEWED) is None
+    assert gate.reviewed_disposition(
+        "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b"
+    ) == "supported_as_published"
+    assert gate.reviewed_disposition("f" * 64) is None
     assert gate.blocks(NEW_UNREVIEWED) is False
     assert gate.blocks(REMEDIATED_PRIMARY) is False
     assert gate.blocks(RESOLVED_104653) is False
@@ -604,6 +610,53 @@ def test_resolved_104653_and_other_allowed_quote_follow_public_post_path(
     assert len(format_calls) == 1
     assert len(post_calls) == 1
     assert post_calls[0]["quote_id"] == quote_id
+
+
+def test_completed_reply_emits_existing_semantic_review_telemetry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    quote_id = "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b"
+    packet = {"quote_id": quote_id, "quote_text": "Allowed reviewed quote"}
+    events = _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate(reviewed={quote_id: "supported_as_published"}),
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: False,
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: _formatted(quote_id),
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "post",
+        lambda self, **kwargs: {
+            "status": "completed",
+            "reply_post_id": "456",
+        },
+    )
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash=quote_id,
+        quote_text="Allowed reviewed quote",
+        parent_post_id="123",
+    )
+
+    assert result["status"] == "completed"
+    completed = events[-1]
+    assert completed["status"] == "completed"
+    assert completed["semantic_review_disposition"] == "supported_as_published"
+    assert completed["semantic_review_ledger_sha256"] == EXPECTED_LEDGER_SHA256
+    assert completed["semantic_review_projection_sha256"] == (
+        EXPECTED_PROJECTION_SHA256
+    )
 
 
 def test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate(

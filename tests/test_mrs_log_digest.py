@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pytest
+
 import mrs_log_digest as digest
 
 
@@ -899,6 +901,133 @@ def test_receipt_pairs_and_pending_then_confirmed_are_not_incidents():
     assert "## Confirmed-reply recovery" not in rendered
     assert "intermediate `context_reply_pending` states subsequently reached" in rendered
     assert "they are not outstanding" in rendered
+
+
+def structured_main_post_lifecycle(
+    start: int,
+    *,
+    lane: str,
+    attempt_id: str,
+) -> list[digest.Record]:
+    receipt_name = (
+        "regular_post_receipt.json"
+        if lane == "quote_image"
+        else "meme_post_receipt.json"
+    )
+    removal_label = "regular-post" if lane == "quote_image" else "meme-post"
+    path = f"/srv/{receipt_name}"
+    return [
+        record(
+            start,
+            "WARNING",
+            "write_main_post_attempt",
+            f"Wrote main-post sending receipt lane={lane} "
+            f"attempt_id={attempt_id} path={path}",
+        ),
+        record(
+            start + 1,
+            "WARNING",
+            "mark_main_post_attempt_attempting",
+            f"Promoted main-post receipt to attempting lane={lane} "
+            f"attempt_id={attempt_id} path={path}",
+        ),
+        record(
+            start + 2,
+            "WARNING",
+            "promote_main_post_attempt_to_pending_schedule",
+            "Promoted main-post attempt to confirmed pending-schedule receipt "
+            f"lane={lane} attempt_id={attempt_id} post_id={start + 1000} "
+            f"path={path}",
+        ),
+        record(
+            start + 3,
+            "WARNING",
+            "finalize_confirmed_pending_schedule_receipt",
+            "Finalised confirmed pending-schedule receipt "
+            f"lane={lane} post_id={start + 1000} path={path}",
+        ),
+        record(
+            start + 4,
+            "INFO",
+            f"remove_{removal_label.replace('-', '_')}_receipt",
+            f"Removed reconciled {removal_label} receipt: {path}",
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("lane", "lane_summary"),
+    [
+        ("quote_image", "regular quote/image **1**; daily-meme **0**"),
+        ("daily_meme", "regular quote/image **0**; daily-meme **1**"),
+    ],
+)
+def test_structured_main_post_lifecycle_is_completed_not_unresolved(
+    lane: str,
+    lane_summary: str,
+):
+    report = digest.analyse(
+        structured_main_post_lifecycle(0, lane=lane, attempt_id="attempt-1")
+    )
+    rendered = digest.render_markdown(report)
+
+    assert "Routine two-phase receipt write/remove pairs completed: **1**" in rendered
+    assert lane_summary in rendered
+    assert "Stale or unresolved receipt events:" not in rendered
+
+
+def test_main_post_removal_at_window_boundary_is_not_unresolved():
+    report = digest.analyse([
+        record(
+            0,
+            "INFO",
+            "remove_regular_post_receipt",
+            "Removed reconciled regular-post receipt: "
+            "/srv/regular_post_receipt.json",
+        )
+    ])
+    rendered = digest.render_markdown(report)
+
+    assert "opening write was outside the selected window: **1**" in rendered
+    assert "Stale or unresolved receipt events:" not in rendered
+
+
+def test_structured_main_post_write_without_removal_remains_unresolved():
+    records = structured_main_post_lifecycle(
+        0,
+        lane="quote_image",
+        attempt_id="attempt-unresolved",
+    )[:-1]
+    rendered = digest.render_markdown(digest.analyse(records))
+
+    assert "Routine two-phase receipt write/remove pairs completed: **0**" in rendered
+    assert "Stale or unresolved receipt events:" in rendered
+    assert "attempt-unresolved" in rendered
+
+
+def test_mixed_structured_main_post_fixture_counts_fifteen_regular_and_one_meme():
+    records: list[digest.Record] = []
+    for index in range(15):
+        records.extend(
+            structured_main_post_lifecycle(
+                index * 10,
+                lane="quote_image",
+                attempt_id=f"regular-{index}",
+            )
+        )
+    records.extend(
+        structured_main_post_lifecycle(
+            200,
+            lane="daily_meme",
+            attempt_id="meme-1",
+        )
+    )
+
+    rendered = digest.render_markdown(digest.analyse(records))
+
+    assert "Routine two-phase receipt write/remove pairs completed: **16**" in rendered
+    assert "regular quote/image **15**; daily-meme **1**" in rendered
+    assert "Stale or unresolved receipt events:" not in rendered
 
 
 def test_schema_v3_reply_receipt_lifecycle_is_routine_and_observable():

@@ -12,6 +12,7 @@ nohup.out
 *.pickle
 __pycache__/
 .pytest_cache/
+.cache/historical_context_search_research/
 .mrs_log_digest_state.json
 .generated_image_analysis.lock
 .mrs_asset_analysis.lock

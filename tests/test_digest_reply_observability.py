@@ -188,6 +188,59 @@ def test_historical_context_semantic_gate_metadata_is_retained_and_skip_is_summa
     assert "future_correction_needed" in rendered
 
 
+def test_completed_historical_context_semantic_metadata_is_rendered():
+    ledger_sha256 = "c" * 64
+    projection_sha256 = "d" * 64
+    record = digest.Record(
+        ts=datetime(2026, 7, 22, 12),
+        level="INFO",
+        src="log_event",
+        line=1,
+        msg="EVENT " + json.dumps({
+            "event": "historical_context_reply",
+            "status": "completed",
+            "quote_id": "b" * 64,
+            "semantic_review_disposition": "supported_as_published",
+            "semantic_review_ledger_sha256": ledger_sha256,
+            "semantic_review_projection_sha256": projection_sha256,
+        }),
+        path="mrsMThatcher.log",
+        ordinal=1,
+    )
+
+    report = digest.analyse([record])
+    rendered = digest.render_markdown(report)
+
+    assert "supported_as_published" in rendered
+    assert ledger_sha256 in rendered
+    assert projection_sha256 in rendered
+
+
+def test_old_historical_context_event_uses_explicit_missing_semantic_metadata():
+    record = digest.Record(
+        ts=datetime(2026, 7, 20, 12),
+        level="INFO",
+        src="log_event",
+        line=1,
+        msg=(
+            'EVENT {"event":"historical_context_reply","status":"completed",'
+            '"quote_id":"' + "b" * 64 + '"}'
+        ),
+        path="old.log",
+        ordinal=1,
+    )
+
+    report = digest.analyse([record])
+    event = next(
+        item for item in report["events"]
+        if item["kind"] == "historical_context_reply"
+    )
+
+    assert event["semantic_review_disposition"] == "unavailable"
+    assert event["semantic_review_ledger_sha256"] == "unavailable"
+    assert event["semantic_review_projection_sha256"] == "unavailable"
+
+
 def test_historical_context_v5_public_labels_are_not_downgraded_to_unavailable():
     labels = (
         "Exact wording verified",
@@ -473,6 +526,8 @@ def test_ai_first_events_report_native_modes_tones_and_reviewer_separately():
                 '"target_id":"100","status":"approved","strategy_version":"ai-first-reply-v2",'
                 '"mode":"direct_factual_answer","tone":"firm","factual_claim_count":1,'
                 '"evidence_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],'
+                '"evidence_confidence":"high","retrieved_count":3,'
+                '"evidence_reference_count":1,'
                 '"reviewer_verdict":"approve","model_call_count":3,"revision_count":0}'
             ),
             path="mrsMThatcher.log", ordinal=1,
@@ -485,6 +540,8 @@ def test_ai_first_events_report_native_modes_tones_and_reviewer_separately():
                 '"strategy_version":"ai-first-reply-v2","mode":"direct_factual_answer",'
                 '"tone":"firm","factual_claim_count":1,'
                 '"evidence_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],'
+                '"evidence_confidence":"high","retrieved_count":3,'
+                '"evidence_reference_count":1,'
                 '"reviewer_verdict":"approve","model_call_count":3,"revision_count":0}'
             ),
             path="mrsMThatcher.log", ordinal=2,
@@ -499,14 +556,16 @@ def test_ai_first_events_report_native_modes_tones_and_reviewer_separately():
     assert strategy["mode_counts"]["direct_factual_answer"] == 1
     assert strategy["generated_mode_counts"]["direct_factual_answer"] == 1
     assert strategy["humour_tone_counts"]["firm"] == 1
-    assert strategy["confidence_counts"]["unavailable"] == 1
+    assert strategy["confidence_counts"]["high"] == 1
     assert strategy["posted_grounded_count"] == 1
     assert strategy["generated_average_evidence_reference_count"] == 1
     assert strategy["average_evidence_reference_count"] == 1
-    assert strategy["generated_average_retrieved_packet_count"] is None
-    assert strategy["average_retrieved_packet_count"] is None
+    assert strategy["generated_average_retrieved_packet_count"] == 3
+    assert strategy["average_retrieved_packet_count"] == 3
     assert decisions[0]["evidence_reference_count"] == 1
     assert outcomes[0]["evidence_reference_count"] == 1
+    assert decisions[0]["evidence_confidence"] == "high"
+    assert outcomes[0]["evidence_confidence"] == "high"
     assert decisions[0]["reviewer_verdict"] == "approve"
     assert outcomes[0]["reviewer_verdict"] == "approve"
     rendered = digest.render_markdown(report)
@@ -516,6 +575,33 @@ def test_ai_first_events_report_native_modes_tones_and_reviewer_separately():
     assert "Generated tones:" in rendered
     assert "Published/terminal tones:" in rendered
     assert "humour tones" not in rendered
+
+
+def test_old_ai_first_factual_event_keeps_missing_metrics_explicit():
+    record = digest.Record(
+        ts=datetime(2026, 7, 20, 12),
+        level="INFO",
+        src="log_event",
+        line=1,
+        msg=(
+            'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+            '"target_id":"100","mode":"direct_factual_answer",'
+            '"factual_claim_count":1,'
+            '"evidence_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}'
+        ),
+        path="old.log",
+        ordinal=1,
+    )
+
+    report = digest.analyse([record])
+    decision = next(
+        item for item in report["events"]
+        if item["kind"] == "reply_strategy_decision"
+    )
+
+    assert decision["evidence_confidence"] == "unavailable"
+    assert decision["retrieved_count"] is None
+    assert decision["evidence_reference_count"] == 1
 
 
 def test_ai_first_usage_log_format_is_counted_with_pending_context():
