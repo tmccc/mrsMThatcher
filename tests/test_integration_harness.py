@@ -4063,6 +4063,9 @@ def test_per_author_cap_applies_to_quote_tweet_path(
     else:
         assert fake_server.xai_requests == []
         assert state["daily_replied_author_counts"]["310"] == 3
+        assert state["tweet_cache"]["910"]["post_type"] == "author_cap_quote_context"
+        assert state["tweet_cache"]["910"]["referenced_tweets"] == [{"type": "quoted", "id": "900"}]
+        assert state["tweet_cache"]["900"]["text"]
 
 
 @pytest.mark.parametrize("fake_server", ["grok_skip.json"], indirect=True)
@@ -4098,6 +4101,8 @@ def test_per_author_cap_skips_fourth_reply(tmp_path: Path, fake_server: FakeApiS
     assert fake_server.xai_requests == []
     state = read_json(base_dir / "bot_state.json")
     assert state["last_seen_mention_id"] == "140"
+    assert state["tweet_cache"]["140"]["post_type"] == "author_cap_context"
+    assert state["tweet_cache"]["140"]["text"]
 
 
 def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:

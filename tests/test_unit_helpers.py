@@ -12719,6 +12719,97 @@ def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal
     assert len(calls) == 1
 
 
+def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert bot.MAX_REPLIES_PER_AUTHOR_PER_DAY == 3
+    clock = [2_000_000_000]
+    state = bot.default_state()
+    state["daily_reply_date"] = datetime.fromtimestamp(clock[0]).strftime("%Y-%m-%d")
+    state["daily_reply_count"] = 3
+    state["daily_replied_author_ids"] = ["200"]
+    state["daily_replied_author_counts"] = {"200": 3}
+    state["tweet_cache"] = {
+        "100": {
+            "id": "100",
+            "author_id": "12345",
+            "conversation_id": "100",
+            "text": "The opening contribution.",
+            "referenced_tweets": [],
+        },
+    }
+    capped = {
+        "id": "200",
+        "author_id": "200",
+        "conversation_id": "100",
+        "text": "Please also account for the effect on small businesses.",
+        "created_at": "2026-01-01T12:00:00Z",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+    }
+    eligible = {
+        "id": "201",
+        "author_id": "200",
+        "conversation_id": "100",
+        "text": "What practical policy follows from that?",
+        "created_at": "2026-01-02T12:00:00Z",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+    }
+    current_candidates = [capped]
+    ai_contexts: list[dict[str, object]] = []
+
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    enabled_strategy = copy.deepcopy(bot.ai_first_reply_strategy)
+    enabled_strategy["enabled"] = True
+    monkeypatch.setattr(bot, "ai_first_reply_strategy", enabled_strategy)
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 3)
+    monkeypatch.setattr(bot, "now_epoch", lambda: clock[0])
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(clock[0]))
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: list(current_candidates))
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda *_args, **_kwargs: pytest.fail("context must use tweet_cache"),
+    )
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+
+    def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> AIReply:
+        ai_contexts.append(context)
+        return unit_approved_reply(context, text="A practical policy answer.")
+
+    monkeypatch.setattr(bot, "generate_ai_first_reply", answer)
+    install_receipt_bound_x_request_stub(
+        monkeypatch,
+        lambda *_args, **_kwargs: {"data": {"id": "900001"}},
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert ai_contexts == []
+    assert state["last_seen_mention_id"] == "200"
+    assert state["tweet_cache"]["200"]["post_type"] == "author_cap_context"
+
+    clock[0] += 24 * 60 * 60
+    current_candidates[:] = [eligible]
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
+    assert len(ai_contexts) == 1
+    assert ai_contexts[0]["target_id"] == "201"
+    assert [post["post_id"] for post in ai_contexts[0]["parent_thread"]] == ["100", "200"]
+    assert state["replied_to_ids"] == ["201"]
+
+
 def test_unrelated_follow_up_does_not_bypass_author_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -14966,6 +15057,106 @@ def test_long_parent_context_never_truncates_away_incoming_contribution(
         len(parent["text"]) <= bot.THREAD_CONTEXT_MAX_CHARS_PER_POST
         for parent in context["parent_thread"]
     )
+
+
+def test_author_cap_context_merges_siblings_with_parent_dedup_and_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mention = {
+        "id": "300",
+        "author_id": "200",
+        "conversation_id": "700",
+        "text": "What follows from all that?",
+        "referenced_tweets": [{"type": "replied_to", "id": "150"}],
+    }
+    state = bot.default_state()
+    state["tweet_cache"] = {
+        "100": {
+            "id": "100", "author_id": "12345", "conversation_id": "700",
+            "text": "Opening post.", "referenced_tweets": [],
+        },
+        "150": {
+            "id": "150", "author_id": "200", "conversation_id": "700",
+            "text": "Immediate capped parent.", "post_type": "author_cap_context",
+            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+        },
+        "160": {
+            "id": "160", "author_id": "200", "conversation_id": "700",
+            "text": "Older capped sibling.", "post_type": "author_cap_context",
+            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+        },
+        "170": {
+            "id": "170", "author_id": "200", "conversation_id": "700",
+            "text": "Newer capped sibling.", "post_type": "author_cap_context",
+            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+        },
+        "180": {
+            "id": "180", "author_id": "200", "conversation_id": "700",
+            "text": "Newest capped sibling.", "post_type": "author_cap_context",
+            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+        },
+        "190": {
+            "id": "190", "author_id": "201", "conversation_id": "700",
+            "text": "Other author.", "post_type": "author_cap_context",
+            "referenced_tweets": [],
+        },
+        "200": {
+            "id": "200", "author_id": "200", "conversation_id": "701",
+            "text": "Other conversation.", "post_type": "author_cap_context",
+            "referenced_tweets": [],
+        },
+    }
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda *_args, **_kwargs: pytest.fail("context must use tweet_cache"),
+    )
+
+    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+
+    assert should_continue is True
+    assert [post["post_id"] for post in context["parent_thread"]] == ["150", "170", "180"]
+    assert sum(post["post_id"] == "150" for post in context["parent_thread"]) == 1
+    assert all(post["post_id"] not in {"190", "200"} for post in context["parent_thread"])
+
+
+def test_author_cap_context_quote_commentary_recovers_original_from_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mention = {
+        "id": "920",
+        "author_id": "200",
+        "conversation_id": "910",
+        "text": "Can you answer beneath my quote?",
+        "referenced_tweets": [{"type": "replied_to", "id": "910"}],
+    }
+    state = bot.default_state()
+    state["tweet_cache"] = {
+        "900": {
+            "id": "900", "author_id": "12345", "conversation_id": "900",
+            "text": "The original account post.", "referenced_tweets": [],
+        },
+        "910": {
+            "id": "910", "author_id": "200", "conversation_id": "910",
+            "text": "My capped quote commentary.", "post_type": "author_cap_quote_context",
+            "referenced_tweets": [{"type": "quoted", "id": "900"}],
+        },
+    }
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda *_args, **_kwargs: pytest.fail("quote recovery must not fetch from X"),
+    )
+
+    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+
+    assert should_continue is True
+    assert context["parent_thread"] == [
+        {"post_id": "910", "author_role": "user", "text": "My capped quote commentary."},
+    ]
+    assert context["quoted_post"] == {
+        "post_id": "900", "author_role": "account", "text": "The original account post.",
+    }
 
 
 def test_trim_context_text_never_exceeds_requested_limit() -> None:

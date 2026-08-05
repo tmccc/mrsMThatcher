@@ -5996,6 +5996,64 @@ def build_parent_chain(mention: dict, state: dict) -> list[dict]:
     return chain
 
 
+def _reply_context_order(tweet: dict) -> tuple[int, str]:
+    """Return a stable chronological key for cached X posts."""
+    tweet_id = str(tweet.get("id") or "")
+    return (int(tweet_id) if tweet_id.isdigit() else 0, tweet_id)
+
+
+def _author_cap_context_posts(mention: dict, state: dict) -> list[dict]:
+    """Return cached cap-skipped contributions from this author and conversation."""
+    mention_id = str(mention.get("id") or "")
+    author_id = str(mention.get("author_id") or "")
+    conversation_id = str(mention.get("conversation_id") or mention_id)
+    cache = state.get("tweet_cache", {})
+    if not isinstance(cache, dict):
+        return []
+
+    posts = [
+        tweet
+        for tweet_id, tweet in cache.items()
+        if isinstance(tweet, dict)
+        and str(tweet_id) != mention_id
+        and tweet.get("post_type") in {"author_cap_context", "author_cap_quote_context"}
+        and str(tweet.get("author_id") or "") == author_id
+        and str(tweet.get("conversation_id") or tweet_id) == conversation_id
+    ]
+    return sorted(posts, key=_reply_context_order)
+
+
+def _cached_quoted_post_for_cap_context(
+    context_posts: list[dict],
+    state: dict,
+) -> dict[str, str] | None:
+    """Recover a capped quote-tweet's original post without an X lookup."""
+    cache = state.get("tweet_cache", {})
+    if not isinstance(cache, dict):
+        return None
+
+    for tweet in reversed(context_posts):
+        if tweet.get("post_type") != "author_cap_quote_context":
+            continue
+        references = tweet.get("referenced_tweets", []) or []
+        for reference in references:
+            if not isinstance(reference, dict) or reference.get("type") != "quoted":
+                continue
+            quoted_id = str(reference.get("id") or "")
+            quoted = cache.get(quoted_id)
+            if not isinstance(quoted, dict):
+                return {
+                    "post_id": quoted_id or "unknown",
+                    "author_role": "unknown",
+                    "text": "[Quoted post unavailable.]",
+                }
+            return _reply_context_post(
+                quoted,
+                maximum_chars=THREAD_CONTEXT_MAX_CHARS_PER_POST,
+            )
+    return None
+
+
 def is_our_auto_reply(tweet: dict | None, state: dict) -> bool:
     """Return whether is our auto reply."""
     if not tweet:
@@ -6083,12 +6141,33 @@ def build_context_for_reply_ai(mention: dict, state: dict) -> tuple[dict[str, ob
         )
         return {}, False
 
-    # The AI-first context contract permits at most three inherited posts. Prefer the nearest
-    # context and enforce the independently configurable aggregate text budget.
+    immediate_parent_id = str(immediate_parent.get("id") or "") if immediate_parent else ""
+    merged_by_id: dict[str, dict] = {}
+    for tweet in chain:
+        tweet_id = str(tweet.get("id") or "")
+        if tweet_id and tweet_id != mention_id:
+            merged_by_id[tweet_id] = tweet
+    for tweet in _author_cap_context_posts(mention, state):
+        tweet_id = str(tweet.get("id") or "")
+        if tweet_id:
+            merged_by_id[tweet_id] = tweet
+
+    merged_context = sorted(merged_by_id.values(), key=_reply_context_order)
+    selected_context = merged_context[-3:]
+    if immediate_parent_id and all(
+        str(tweet.get("id") or "") != immediate_parent_id for tweet in selected_context
+    ):
+        selected_context = sorted(
+            [immediate_parent, *selected_context[-2:]],
+            key=_reply_context_order,
+        )
+
+    # The AI-first context contract permits at most three inherited posts. Prefer the newest
+    # relevant context, retain the immediate parent, and enforce the aggregate text budget.
     remaining_parent_chars = min(max(int(THREAD_CONTEXT_MAX_TOTAL_CHARS), 0), 6_000)
     maximum_parent_chars = min(max(int(THREAD_CONTEXT_MAX_CHARS_PER_POST), 0), 2_000)
     parent_thread: list[dict[str, str]] = []
-    for tweet in reversed(chain[-3:]):
+    for tweet in reversed(selected_context):
         post = _reply_context_post(
             tweet,
             maximum_chars=min(maximum_parent_chars, remaining_parent_chars),
@@ -6100,7 +6179,10 @@ def build_context_for_reply_ai(mention: dict, state: dict) -> tuple[dict[str, ob
         "thread_id": str(mention.get("conversation_id") or mention_id),
         "lane": str(mention.get("_source") or "mention"),
         "incoming_contribution": trim_context_text(mention_text, REPLY_INCOMING_MAX_CHARS),
-        "quoted_post": _quoted_post_for_reply_context(mention, state),
+        "quoted_post": (
+            _quoted_post_for_reply_context(mention, state)
+            or _cached_quoted_post_for_cap_context(selected_context, state)
+        ),
         "parent_thread": parent_thread,
         "clarification_request": None,
         "current_date": current_datetime().strftime("%Y-%m-%d"),
@@ -19793,6 +19875,17 @@ def maybe_reply_to_mentions(state: dict) -> str:
                 mention_id,
                 author_id,
             )
+            if not is_probably_spam_or_not_worth_replying(incoming_text):
+                cache_tweet(
+                    state,
+                    tweet_id=mention_id,
+                    text=incoming_text,
+                    author_id=author_id,
+                    conversation_id=str(mention.get("conversation_id", mention_id)),
+                    referenced_tweets=mention.get("referenced_tweets", []),
+                    created_at=mention.get("created_at"),
+                    post_type="author_cap_context",
+                )
             maybe_mark_hot_post_reply_skipped(state, mention, reason="author_daily_cap")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="author_daily_cap", author_id=author_id)
             mark_mention_seen_if_applicable(state, mention)
@@ -20718,20 +20811,46 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 )
                 continue
 
+            cleaned_quote_text = clean_text_for_reply_context(quote_text)
+            cleaned_author_profile = clean_text_for_reply_context(
+                quote_author_profile_text(quote_tweet)
+            )
+            spam_check_text = f"{cleaned_quote_text}\n{cleaned_author_profile}".strip()
+            quote_is_usable = bool(cleaned_quote_text) and not is_probably_spam_or_not_worth_replying(
+                spam_check_text
+            )
+
             if daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY:
                 log.info(
                     "Skipping quote tweet %s: already reached per-author daily cap for author_id=%s",
                     quote_id,
                     author_id,
                 )
+                if quote_is_usable:
+                    cache_tweet(
+                        state,
+                        tweet_id=str(original_tweet.get("id", original_post_id)),
+                        text=original_tweet.get("text", ""),
+                        author_id=str(original_tweet.get("author_id", MY_USER_ID)),
+                        conversation_id=str(original_tweet.get("conversation_id", original_post_id)),
+                        referenced_tweets=original_tweet.get("referenced_tweets", []),
+                        created_at=original_tweet.get("created_at"),
+                        image_summary=original_tweet.get("image_summary"),
+                        post_type=original_tweet.get("post_type"),
+                    )
+                    cache_tweet(
+                        state,
+                        tweet_id=quote_id,
+                        text=quote_text,
+                        author_id=author_id,
+                        conversation_id=str(quote_tweet.get("conversation_id", quote_id)),
+                        referenced_tweets=quote_tweet.get("referenced_tweets", []),
+                        created_at=quote_tweet.get("created_at"),
+                        post_type="author_cap_quote_context",
+                    )
                 mark_quote_tweet_skipped(state, quote_id)
                 save_state(state)
                 continue
-
-            cleaned_quote_text = clean_text_for_reply_context(quote_text)
-            cleaned_author_profile = clean_text_for_reply_context(
-                quote_author_profile_text(quote_tweet)
-            )
 
             if not cleaned_quote_text:
                 log.info("Skipping quote tweet %s: no usable quote text after cleaning", quote_id)
@@ -20740,9 +20859,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 save_state(state)
                 continue
 
-            spam_check_text = f"{cleaned_quote_text}\n{cleaned_author_profile}".strip()
-
-            if is_probably_spam_or_not_worth_replying(spam_check_text):
+            if not quote_is_usable:
                 log.info(
                     "Skipping quote tweet %s: quote text/profile matched spam; marking author_id=%s as quote spam",
                     quote_id,
