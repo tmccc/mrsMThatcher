@@ -12733,6 +12733,7 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     state["tweet_cache"] = {
         "100": {
             "id": "100",
+            "cached_epoch": clock[0],
             "author_id": "12345",
             "conversation_id": "100",
             "text": "The opening contribution.",
@@ -15062,6 +15063,7 @@ def test_long_parent_context_never_truncates_away_incoming_contribution(
 def test_author_cap_context_merges_siblings_with_parent_dedup_and_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    cache_epoch = bot.now_epoch()
     mention = {
         "id": "300",
         "author_id": "200",
@@ -15072,36 +15074,36 @@ def test_author_cap_context_merges_siblings_with_parent_dedup_and_scope(
     state = bot.default_state()
     state["tweet_cache"] = {
         "100": {
-            "id": "100", "author_id": "12345", "conversation_id": "700",
+            "id": "100", "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "700",
             "text": "Opening post.", "referenced_tweets": [],
         },
         "150": {
-            "id": "150", "author_id": "200", "conversation_id": "700",
+            "id": "150", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
             "text": "Immediate capped parent.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "160": {
-            "id": "160", "author_id": "200", "conversation_id": "700",
+            "id": "160", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
             "text": "Older capped sibling.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "170": {
-            "id": "170", "author_id": "200", "conversation_id": "700",
+            "id": "170", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
             "text": "Newer capped sibling.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "180": {
-            "id": "180", "author_id": "200", "conversation_id": "700",
+            "id": "180", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "700",
             "text": "Newest capped sibling.", "post_type": "author_cap_context",
             "referenced_tweets": [{"type": "replied_to", "id": "100"}],
         },
         "190": {
-            "id": "190", "author_id": "201", "conversation_id": "700",
+            "id": "190", "cached_epoch": cache_epoch, "author_id": "201", "conversation_id": "700",
             "text": "Other author.", "post_type": "author_cap_context",
             "referenced_tweets": [],
         },
         "200": {
-            "id": "200", "author_id": "200", "conversation_id": "701",
+            "id": "200", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "701",
             "text": "Other conversation.", "post_type": "author_cap_context",
             "referenced_tweets": [],
         },
@@ -15123,6 +15125,7 @@ def test_author_cap_context_merges_siblings_with_parent_dedup_and_scope(
 def test_author_cap_context_quote_commentary_recovers_original_from_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    cache_epoch = bot.now_epoch()
     mention = {
         "id": "920",
         "author_id": "200",
@@ -15133,11 +15136,11 @@ def test_author_cap_context_quote_commentary_recovers_original_from_cache(
     state = bot.default_state()
     state["tweet_cache"] = {
         "900": {
-            "id": "900", "author_id": "12345", "conversation_id": "900",
+            "id": "900", "cached_epoch": cache_epoch, "author_id": "12345", "conversation_id": "900",
             "text": "The original account post.", "referenced_tweets": [],
         },
         "910": {
-            "id": "910", "author_id": "200", "conversation_id": "910",
+            "id": "910", "cached_epoch": cache_epoch, "author_id": "200", "conversation_id": "910",
             "text": "My capped quote commentary.", "post_type": "author_cap_quote_context",
             "referenced_tweets": [{"type": "quoted", "id": "900"}],
         },
