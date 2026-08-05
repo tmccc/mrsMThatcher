@@ -255,7 +255,7 @@ def prepare_base_dir(
         "STATE_BACKUP_COUNT": 0,
         "MAX_MENTIONS_PER_CHECK": 10,
         "MAX_AUTO_REPLIES_PER_DAY": 24,
-        "MAX_REPLIES_PER_AUTHOR_PER_DAY": 1,
+        "MAX_REPLIES_PER_AUTHOR_PER_DAY": 3,
         "ai_first_reply_strategy": {
             "enabled": True,
             "strategy_version": "ai-first-reply-v3",
@@ -4032,6 +4032,39 @@ def test_quote_tweet_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
     assert "910" in state["replied_to_quote_post_ids"]
 
 
+@pytest.mark.parametrize(("prior_count", "expected_posts"), [(0, 1), (1, 1), (2, 1), (3, 0)])
+@pytest.mark.parametrize("fake_server", ["quote_tweet_reply.json"], indirect=True)
+def test_per_author_cap_applies_to_quote_tweet_path(
+    tmp_path: Path,
+    fake_server: FakeApiServer,
+    prior_count: int,
+    expected_posts: int,
+) -> None:
+    base_dir = prepare_base_dir(
+        tmp_path,
+        state={
+            "recent_own_post_ids": ["900"],
+            "last_reply_epoch": 0,
+            "daily_reply_date": datetime.now().strftime("%Y-%m-%d"),
+            "daily_reply_count": prior_count,
+            "daily_replied_author_ids": ["310"] if prior_count else [],
+            "daily_replied_author_counts": {"310": prior_count} if prior_count else {},
+        },
+        local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False},
+    )
+
+    result = run_cycle(base_dir, fake_server)
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert len(fake_server.posts) == expected_posts
+    state = read_json(base_dir / "bot_state.json")
+    if prior_count < 3:
+        assert state["daily_replied_author_counts"]["310"] == prior_count + 1
+    else:
+        assert fake_server.xai_requests == []
+        assert state["daily_replied_author_counts"]["310"] == 3
+
+
 @pytest.mark.parametrize("fake_server", ["grok_skip.json"], indirect=True)
 def test_grok_skip_does_not_post(tmp_path: Path, fake_server: FakeApiServer) -> None:
     base_dir = prepare_base_dir(tmp_path)
@@ -4046,14 +4079,15 @@ def test_grok_skip_does_not_post(tmp_path: Path, fake_server: FakeApiServer) -> 
 
 
 @pytest.mark.parametrize("fake_server", ["per_author_cap.json"], indirect=True)
-def test_per_author_cap_skips_second_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
+def test_per_author_cap_skips_fourth_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
     today = datetime.now().strftime("%Y-%m-%d")
     base_dir = prepare_base_dir(
         tmp_path,
         state={
             "daily_reply_date": today,
-            "daily_reply_count": 1,
+            "daily_reply_count": 3,
             "daily_replied_author_ids": ["240"],
+            "daily_replied_author_counts": {"240": 3},
             "last_reply_epoch": 0,
         },
     )
@@ -4091,12 +4125,19 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
                     "conversation_id": "102",
                     "created_at": "2026-06-30T12:02:00Z",
                 },
+                {
+                    "id": "103",
+                    "text": "@mrsMThatcher fourth",
+                    "author_id": "240",
+                    "conversation_id": "103",
+                    "created_at": "2026-06-30T12:03:00Z",
+                },
             ],
-            "grok_replies": ["First reply.", "Second reply.", "Third reply should not be used."],
+            "grok_replies": ["First reply.", "Second reply.", "Third reply.", "Fourth reply should not be used."],
         }
     ).start()
     try:
-        base_dir = prepare_base_dir(tmp_path, local_config={"MAX_REPLIES_PER_AUTHOR_PER_DAY": 2})
+        base_dir = prepare_base_dir(tmp_path, local_config={"MAX_REPLIES_PER_AUTHOR_PER_DAY": 3})
 
         first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
         assert first.returncode == 0, first.stderr + first.stdout
@@ -4104,15 +4145,18 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
         assert second.returncode == 0, second.stderr + second.stdout
         third = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000004"})
         assert third.returncode == 0, third.stderr + third.stdout
+        fourth = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000006"})
+        assert fourth.returncode == 0, fourth.stderr + fourth.stdout
 
-        assert len(server.posts) == 2
+        assert len(server.posts) == 3
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
         assert server.posts[1]["reply"]["in_reply_to_tweet_id"] == "101"
-        assert len(server.xai_requests) == 6
+        assert server.posts[2]["reply"]["in_reply_to_tweet_id"] == "102"
+        assert len(server.xai_requests) == 9
         state = read_json(base_dir / "bot_state.json")
-        assert state["daily_replied_author_counts"]["240"] == 2
+        assert state["daily_replied_author_counts"]["240"] == 3
         assert state["daily_replied_author_ids"] == ["240"]
-        assert state["last_seen_mention_id"] == "102"
+        assert state["last_seen_mention_id"] == "103"
     finally:
         server.stop()
 

@@ -20,6 +20,7 @@ from reply_strategy import (
     REVIEWER_PROMPT_VERSION,
     STRATEGY_VERSION,
     _claim_auditor_prompts,
+    _proposer_prompts,
     _reviewer_prompts,
     claim_auditor_schema,
     claim_retrieval_query,
@@ -467,6 +468,63 @@ def test_configuration_is_explicit_and_fail_closed() -> None:
     assert validate_strategy_config(strategy_config(proposer_timeout_seconds=121))
     assert validate_strategy_config(strategy_config(evidence_max_output_tokens=4001))
     assert validate_strategy_config({**strategy_config(), "legacy_mode": True})
+
+
+def test_conversational_engagement_prompt_versions_are_current() -> None:
+    assert PROPOSER_PROMPT_VERSION == "ai-first-proposer-v15"
+    assert REVIEWER_PROMPT_VERSION == "independent-reply-reviewer-v13"
+
+
+def test_proposer_prompt_defaults_to_safe_relevant_engagement() -> None:
+    system, _ = _proposer_prompts(
+        reply_context("A civil and relevant contribution."),
+        [],
+        resolved_quotation=None,
+        revision=None,
+    )
+
+    assert "exists to engage civil, relevant people, not merely to answer factual questions" in system
+    assert "need not contain a question, disagreement, challenge, new factual claim or new subject matter" in system
+    assert "Relevant agreement, support, appreciation, admiration, nostalgia, sadness, thanks" in system
+    assert "a friendly comparison, a concise reaction or a thoughtful related observation" in system
+    assert "A quote-tweet is a first-class contribution" in system
+    assert "Use courtesy for acknowledgement, warmth, appreciation or thanks" in system
+    assert "Use opinion_or_principle when adding a directly related value judgement" in system
+    assert "underlying political, moral or policy theme using claim-free normative language" in system
+    assert "absence of a question or new matter is never sufficient by itself for no_reply" in system
+    assert "Prefer no_reply to an unrelated platitude." not in system
+
+
+def test_proposer_revision_prefers_claim_free_social_engagement() -> None:
+    system, _ = _proposer_prompts(
+        reply_context("A civil observation containing an unsupported prediction."),
+        [],
+        resolved_quotation=None,
+        revision={"review_findings": "Remove the unsupported prediction."},
+    )
+
+    assert "claim-free acknowledgement, value judgement or directly relevant explicit recommendation" in system
+    assert "rather than automatically choosing no_reply" in system
+
+
+def test_reviewer_prompt_accepts_safe_social_engagement_without_weakening_safeguards() -> None:
+    system, _ = _reviewer_prompts(
+        reply_context("I miss her."),
+        proposer(mode="courtesy", reply="That affection still speaks warmly.", claims=[]),
+        [],
+        None,
+    )
+
+    assert "Absence of a question, challenge or new factual matter is not a defect" in system
+    assert "concise, topically relevant courtesy response is suitable account behaviour" in system
+    assert "acknowledgement of agreement, support, admiration, nostalgia, thanks or a friendly comparison" in system
+    assert "claim-free extension of a thoughtful related observation" in system
+    assert "Quote-tweets are first-class engagement" in system
+    assert "Do not confuse brevity with an unrelated platitude" in system
+    assert "prefer revise into claim-free normative language rather than reject" in system
+    assert "dangerous amplification of unsupported accusations" in system
+    assert "Classify causal, comparative, predictive and habitual political generalisations as checkable" in system
+    assert "endorses an unsupported allegation, lacks evidence" in system
 
 
 @pytest.mark.parametrize(
