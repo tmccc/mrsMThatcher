@@ -16,10 +16,13 @@ from reply_strategy import (
     DRAFT_SCHEMA_VERSION,
     EVIDENCE_PROMPT_VERSION,
     MODES,
+    NO_REPLY_REVIEW_PROMPT_VERSION,
+    PipelineResult,
     PROPOSER_PROMPT_VERSION,
     REVIEWER_PROMPT_VERSION,
     STRATEGY_VERSION,
     _claim_auditor_prompts,
+    _no_reply_review_prompts,
     _proposer_prompts,
     _reviewer_prompts,
     claim_auditor_schema,
@@ -29,6 +32,8 @@ from reply_strategy import (
     evidence_schema,
     legacy_draft_audit,
     proposer_schema,
+    no_reply_review_schema,
+    outcome_telemetry,
     reviewer_schema,
     run_reply_pipeline,
     sentence_count,
@@ -36,6 +41,7 @@ from reply_strategy import (
     validate_evidence_response,
     validate_claim_auditor,
     validate_persisted_draft,
+    validate_no_reply_review,
     validate_proposer,
     validate_reply_context,
     validate_reviewer,
@@ -368,6 +374,24 @@ def reviewer(
     return value
 
 
+def no_reply_review(
+    verdict: str = "confirm_no_reply",
+) -> dict[str, object]:
+    return {
+        "verdict": verdict,
+        "reasons": [
+            "Silence is warranted."
+            if verdict == "confirm_no_reply"
+            else "A safe, relevant response remains possible."
+        ],
+        "revision_instructions": (
+            "Acknowledge the civil contribution without repeating unsupported claims."
+            if verdict == "require_reply"
+            else ""
+        ),
+    }
+
+
 def claim_auditor(factual_claims: list[str] | None = None) -> dict[str, object]:
     """Return a strict scripted claim-auditor response."""
     claims = list(factual_claims or [])
@@ -414,6 +438,24 @@ def supporting_evidence(repository: FakeRepository) -> Callable[..., object]:
     return response
 
 
+def insufficient_evidence(**kwargs: Any) -> object:
+    payload = json.loads(kwargs["user_prompt"])
+    return {
+        "claims": [{
+            "claim_id": supplied_claim["claim_id"],
+            "claim_text": supplied_claim["claim_text"],
+            "verdict": "insufficient",
+            "evidence": [],
+            "actor": supplied_claim["actor"],
+            "action_or_relationship": supplied_claim["action_or_relationship"],
+            "direction_or_polarity": supplied_claim["direction_or_polarity"],
+            "date_or_period": supplied_claim["date_or_period"],
+            "quantity": supplied_claim["quantity"],
+            "explanation": "No supplied passage supports the complete claim.",
+        } for supplied_claim in payload["claims"]],
+    }
+
+
 def run_pipeline(
     repository: FakeRepository,
     responses: dict[str, object | list[object] | Callable[..., object]],
@@ -438,13 +480,17 @@ def test_source_schemas_are_strict_and_provider_compatible() -> None:
     proposal = proposer(mode="courtesy", reply="Thank you for saying so.", claims=[])
     audit = claim_auditor()
     review = reviewer(direct_question=False, answers_first=False)
+    silence_review = no_reply_review()
     validate_json_schema(proposal, proposer_schema(500, 6))
     validate_json_schema(audit, claim_auditor_schema(6))
     validate_json_schema(review, reviewer_schema(6))
+    validate_json_schema(silence_review, no_reply_review_schema())
+    assert validate_no_reply_review(silence_review) == silence_review
     assert proposer_schema(500, 6)["additionalProperties"] is False
     assert evidence_schema(6, 24)["additionalProperties"] is False
     assert claim_auditor_schema(6)["additionalProperties"] is False
     assert reviewer_schema(6)["additionalProperties"] is False
+    assert no_reply_review_schema()["additionalProperties"] is False
 
 
 def test_claim_auditor_must_cover_the_exact_reply_without_internal_conflict() -> None:
@@ -473,6 +519,24 @@ def test_configuration_is_explicit_and_fail_closed() -> None:
 def test_conversational_engagement_prompt_versions_are_current() -> None:
     assert PROPOSER_PROMPT_VERSION == "ai-first-proposer-v15"
     assert REVIEWER_PROMPT_VERSION == "independent-reply-reviewer-v13"
+    assert NO_REPLY_REVIEW_PROMPT_VERSION == "independent-no-reply-review-v1"
+
+
+def test_no_reply_review_prompt_is_independent_and_cannot_write_the_reply() -> None:
+    proposal = proposer(mode="no_reply")
+    system, user = _no_reply_review_prompts(
+        reply_context("A civil and relevant contribution."),
+        proposal,
+    )
+
+    payload = json.loads(user)
+    assert payload["context_sections"]["incoming_contribution_to_answer"] == (
+        "A civil and relevant contribution."
+    )
+    assert payload["proposer_interpretation_untrusted"] == proposal["interpretation"]
+    assert payload["proposer_no_reply_reason_untrusted"] == proposal["no_reply_reason"]
+    assert "must not write the public reply" in system
+    assert "serious unsupported accusations" in system
 
 
 def test_proposer_prompt_defaults_to_safe_relevant_engagement() -> None:
@@ -577,12 +641,207 @@ def test_context_keeps_contribution_quoted_post_parent_and_clarification_separat
         validate_reply_context(bad)
 
 
-def test_no_reply_uses_only_one_proposer_call(repository: FakeRepository) -> None:
-    result, transport = run_pipeline(repository, {"proposer": proposer(mode="no_reply")})
+def test_no_reply_is_confirmed_by_independent_reviewer(repository: FakeRepository) -> None:
+    interpretation_marker = "PRIVATE_PROPOSER_INTERPRETATION_MARKER"
+    reason_marker = "PRIVATE_PROPOSER_NO_REPLY_REASON_MARKER"
+    proposal = proposer(
+        mode="no_reply",
+        no_reply_reason=reason_marker,
+    )
+    proposal["interpretation"] = interpretation_marker
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposal,
+            "no_reply_reviewer": no_reply_review(),
+        },
+    )
     assert result.reply is None
     assert result.status == "no_reply"
-    assert result.model_call_count == 1
-    assert [call["stage"] for call in transport.calls] == ["proposer"]
+    assert result.reason == "independent_no_reply_confirmed"
+    assert result.model_call_count == 2
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "no_reply_reviewer",
+    ]
+    assert result.audit[-1] == {
+        "stage": "no_reply_reviewer",
+        "status": "completed",
+        "verdict": "confirm_no_reply",
+    }
+    terminal_snapshot = {
+        "reply": str(result.reply) if result.reply is not None else None,
+        "status": result.status,
+        "reason": result.reason,
+        "model_call_count": result.model_call_count,
+        "revision_count": result.revision_count,
+        "audit": list(result.audit),
+    }
+    serialised_result = json.dumps(terminal_snapshot, sort_keys=True)
+    telemetry = outcome_telemetry(result)
+    serialised_telemetry = json.dumps(telemetry, sort_keys=True)
+    for private_marker in (interpretation_marker, reason_marker):
+        assert private_marker not in serialised_result
+        assert private_marker not in serialised_telemetry
+    assert telemetry == {
+        "proposer_mode": "no_reply",
+        "proposer_tone": "neutral",
+        "factual_claim_count": 0,
+        "terminal_stage": "no_reply_reviewer",
+        "reviewer_verdict": "confirm_no_reply",
+        "claim_auditor_status": "not_run",
+        "evidence_status": "not_run",
+    }
+
+
+def test_no_reply_is_overturned_into_one_approved_revised_reply(
+    repository: FakeRepository,
+) -> None:
+    interpretation_marker = "PRIVATE_PROPOSER_INTERPRETATION_MARKER"
+    reason_marker = "PRIVATE_PROPOSER_NO_REPLY_REASON_MARKER"
+    proposal = proposer(
+        mode="no_reply",
+        no_reply_reason=reason_marker,
+    )
+    proposal["interpretation"] = interpretation_marker
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposal,
+            "no_reply_reviewer": no_reply_review("require_reply"),
+            "revision_proposer": proposer(
+                mode="courtesy",
+                reply="Thank you for the thoughtful contribution.",
+                claims=[],
+            ),
+            "revision_reviewer": reviewer(
+                direct_question=False,
+                answers_first=False,
+            ),
+        },
+        context=reply_context("A civil and relevant contribution."),
+    )
+
+    assert result.status == "approved"
+    assert result.reason == "reviewer_approved"
+    assert str(result.reply) == "Thank you for the thoughtful contribution."
+    assert result.revision_count == 1
+    assert result.model_call_count == 4
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "no_reply_reviewer", "revision_proposer", "revision_reviewer",
+    ]
+    calls_by_stage = {call["stage"]: call for call in transport.calls}
+    no_reply_reviewer_user = calls_by_stage["no_reply_reviewer"]["user_prompt"]
+    revision_call = calls_by_stage["revision_proposer"]
+    for private_marker in (interpretation_marker, reason_marker):
+        assert private_marker in no_reply_reviewer_user
+        assert private_marker not in revision_call["user_prompt"]
+        assert private_marker not in revision_call["system_prompt"]
+    revision_payload = json.loads(revision_call["user_prompt"])
+    revision = revision_payload["single_allowed_revision"]
+    assert revision["reviewer_reasons"] == [
+        "A safe, relevant response remains possible."
+    ]
+    instruction = revision["reviewer_revision_instructions"]
+    assert "Produce a safe, relevant public response" in instruction
+    assert "Acknowledge the civil contribution without repeating unsupported claims." in instruction
+
+
+def test_no_reply_is_overturned_into_supported_factual_reply_in_five_calls(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="no_reply"),
+            "no_reply_reviewer": no_reply_review("require_reply"),
+            "revision_proposer": proposer(),
+            "revision_evidence": supporting_evidence(repository),
+            "revision_reviewer": reviewer(),
+        },
+    )
+
+    assert result.status == "approved"
+    assert result.model_call_count == 5
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "no_reply_reviewer", "revision_proposer",
+        "revision_evidence", "revision_reviewer",
+    ]
+
+
+def test_revised_no_reply_confirmation_uses_deterministic_reason(
+    repository: FakeRepository,
+) -> None:
+    private_marker = "PRIVATE_REVISED_MODEL_REASON_MUST_NOT_ESCAPE"
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="no_reply"),
+            "no_reply_reviewer": no_reply_review("require_reply"),
+            "revision_proposer": proposer(
+                mode="no_reply",
+                no_reply_reason=private_marker,
+            ),
+            "revision_no_reply_reviewer": no_reply_review(),
+        },
+    )
+
+    assert result.status == "no_reply"
+    assert result.reason == "independent_no_reply_confirmed"
+    assert result.model_call_count == 4
+    assert private_marker not in json.dumps(outcome_telemetry(result), sort_keys=True)
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "no_reply_reviewer",
+        "revision_proposer", "revision_no_reply_reviewer",
+    ]
+
+
+def test_repeated_require_reply_after_revision_limit_is_operational_failure(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="no_reply"),
+            "no_reply_reviewer": no_reply_review("require_reply"),
+            "revision_proposer": proposer(mode="no_reply"),
+            "revision_no_reply_reviewer": no_reply_review("require_reply"),
+        },
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "no_reply_review_requires_reply_after_revision"
+    assert result.revision_count == 1
+    assert result.model_call_count == 4
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "no_reply_reviewer",
+        "revision_proposer", "revision_no_reply_reviewer",
+    ]
+
+
+def test_invalid_no_reply_reviewer_output_retries_only_within_existing_limits(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="no_reply"),
+            "no_reply_reviewer": ["", ""],
+        },
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "no_reply_reviewer_invalid"
+    assert result.model_call_count == 3
+    assert result.model_call_count <= strategy_config()["maximum_model_calls"]
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "no_reply_reviewer", "no_reply_reviewer",
+    ]
+    assert [row["status"] for row in result.audit[-2:]] == [
+        "invalid_response_retry", "invalid",
+    ]
+    assert outcome_telemetry(result)["reviewer_verdict"] == "invalid"
 
 
 def test_one_invalid_proposer_response_is_retried_then_accepted(
@@ -590,16 +849,22 @@ def test_one_invalid_proposer_response_is_retried_then_accepted(
 ) -> None:
     result, transport = run_pipeline(
         repository,
-        {"proposer": ["", proposer(mode="no_reply")]},
+        {
+            "proposer": ["", proposer(mode="no_reply")],
+            "no_reply_reviewer": no_reply_review(),
+        },
     )
 
     assert result.reply is None
-    assert result.reason == "No useful and safe reply is warranted."
-    assert result.model_call_count == 2
-    assert [call["stage"] for call in transport.calls] == ["proposer", "proposer"]
+    assert result.reason == "independent_no_reply_confirmed"
+    assert result.model_call_count == 3
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "proposer", "no_reply_reviewer",
+    ]
     assert [row["status"] for row in result.audit] == [
         "not_resolved",
         "invalid_response_retry",
+        "completed",
         "completed",
     ]
 
@@ -622,6 +887,15 @@ def test_second_invalid_proposer_response_fails_closed(
         "invalid_response_retry",
         "invalid",
     ]
+    assert outcome_telemetry(result) == {
+        "proposer_mode": "not_run",
+        "proposer_tone": "none",
+        "factual_claim_count": None,
+        "terminal_stage": "proposer",
+        "reviewer_verdict": "not_run",
+        "claim_auditor_status": "not_run",
+        "evidence_status": "not_run",
+    }
 
 
 def test_invalid_response_retry_remains_bounded_by_global_call_limit(
@@ -898,6 +1172,114 @@ def test_explicit_reviewer_approval_is_mandatory(repository: FakeRepository) -> 
     )
     assert result.reply is None
     assert result.reason == "reviewer_rejected"
+    telemetry = outcome_telemetry(result)
+    assert telemetry["terminal_stage"] == "reviewer"
+    assert telemetry["reviewer_verdict"] == "reject"
+    assert telemetry["claim_auditor_status"] == "not_run"
+    assert telemetry["evidence_status"] == "not_run"
+
+
+def test_outcome_telemetry_preserves_completed_evidence_before_operational_failure(
+    repository: FakeRepository,
+) -> None:
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "evidence": supporting_evidence(repository),
+            "reviewer": ["", ""],
+        },
+    )
+
+    assert result.status == "operational_failure"
+    assert result.reason == "reviewer_invalid"
+    assert outcome_telemetry(result) == {
+        "proposer_mode": "direct_factual_answer",
+        "proposer_tone": "neutral",
+        "factual_claim_count": 1,
+        "terminal_stage": "reviewer",
+        "reviewer_verdict": "invalid",
+        "claim_auditor_status": "not_run",
+        "evidence_status": "completed",
+    }
+
+
+def test_valid_unsupported_evidence_is_audited_as_insufficient(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "People moved from East Germany towards West Germany in November 1989."
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply=reply_text,
+                claims=[claim(reply_text)],
+            ),
+            "evidence": insufficient_evidence,
+            "reviewer": reviewer(
+                verdict="reject",
+                direct_question=False,
+                answers_first=False,
+                factual_claims=[reply_text],
+                unsupported_factual_claims=[reply_text],
+                contains_unsupported_factual_claims=True,
+            ),
+        },
+    )
+
+    evidence_rows = [row for row in result.audit if row.get("stage") == "evidence"]
+    assert evidence_rows == [{
+        "stage": "evidence",
+        "status": "insufficient",
+        "supported": False,
+    }]
+    assert outcome_telemetry(result)["evidence_status"] == "insufficient"
+
+
+def test_outcome_telemetry_maps_legacy_unsupported_completion_to_insufficient() -> None:
+    result = PipelineResult(
+        None,
+        "no_reply",
+        "insufficient_claim_evidence",
+        2,
+        0,
+        ({"stage": "evidence", "status": "completed", "supported": False},),
+    )
+
+    assert outcome_telemetry(result)["evidence_status"] == "insufficient"
+
+
+def test_outcome_telemetry_prefers_later_direct_factual_rejection() -> None:
+    result = PipelineResult(
+        None,
+        "no_reply",
+        "insufficient_claim_evidence",
+        2,
+        0,
+        (
+            {"stage": "evidence", "status": "insufficient", "supported": False},
+            {"stage": "evidence", "status": "rejected"},
+        ),
+    )
+
+    assert outcome_telemetry(result)["evidence_status"] == "rejected"
+
+
+def test_outcome_telemetry_prefers_later_successful_revision_evidence() -> None:
+    result = PipelineResult(
+        None,
+        "operational_failure",
+        "reviewer_invalid",
+        5,
+        1,
+        (
+            {"stage": "evidence", "status": "insufficient", "supported": False},
+            {"stage": "revision_evidence", "status": "completed", "supported": True},
+        ),
+    )
+
+    assert outcome_telemetry(result)["evidence_status"] == "completed"
 
 
 def test_one_revision_cycle_is_the_absolute_maximum(repository: FakeRepository) -> None:
@@ -942,14 +1324,16 @@ def test_claim_auditor_catches_a_factual_claim_omitted_by_proposer(
                 mode="no_reply",
                 no_reply_reason="The unsupported factual claim cannot be repaired safely.",
             ),
+            "revision_no_reply_reviewer": no_reply_review(),
         },
         context=reply_context("Government must show resolve on inflation."),
     )
 
     assert result.reply is None
-    assert result.reason == "The unsupported factual claim cannot be repaired safely."
+    assert result.reason == "independent_no_reply_confirmed"
     assert [call["stage"] for call in transport.calls] == [
         "proposer", "claim_auditor", "revision_proposer",
+        "revision_no_reply_reviewer",
     ]
     assert any(
         row.get("stage") == "claim_auditor"
@@ -1404,7 +1788,10 @@ def test_complete_valid_fixture_passes_the_real_pipeline(repository: FakeReposit
     assert len(cases) == 6
     for case in cases:
         if case["mode"] == "no_reply":
-            scripted = {"proposer": proposer(mode="no_reply")}
+            scripted = {
+                "proposer": proposer(mode="no_reply"),
+                "no_reply_reviewer": no_reply_review(),
+            }
         elif case["requires_evidence"]:
             scripted = {
                 "proposer": proposer(mode=case["mode"], reply=case["reply"]),
@@ -2094,7 +2481,10 @@ def test_resolved_quotation_is_supplied_before_proposer_drafting(
     }
     result, transport = run_pipeline(
         repository,
-        {"proposer": proposer(mode="no_reply")},
+        {
+            "proposer": proposer(mode="no_reply"),
+            "no_reply_reviewer": no_reply_review(),
+        },
     )
 
     assert result.status == "no_reply"
@@ -2132,6 +2522,7 @@ def test_wrong_resolved_actor_cannot_receive_reviewer_approval(
                 mode="no_reply",
                 no_reply_reason="The authorship correction could not be completed safely.",
             ),
+            "revision_no_reply_reviewer": no_reply_review(),
         },
         context=reply_context("Did Winston Churchill write this quotation?"),
     )
@@ -2144,6 +2535,7 @@ def test_wrong_resolved_actor_cannot_receive_reviewer_approval(
     )
     assert [call["stage"] for call in transport.calls] == [
         "proposer", "evidence", "reviewer", "revision_proposer",
+        "revision_no_reply_reviewer",
     ]
 
 
@@ -2280,11 +2672,12 @@ def test_claim_auditor_forces_hidden_world_claims_into_revision(
                 mode="no_reply",
                 no_reply_reason="The factual generalisation could not be supported safely.",
             ),
+            "revision_no_reply_reviewer": no_reply_review(),
         },
     )
 
     assert result.reply is None
-    assert result.reason == "The factual generalisation could not be supported safely."
+    assert result.reason == "independent_no_reply_confirmed"
     assert any(
         row.get("stage") == "claim_auditor"
         and row.get("factual_claim_count") == 1
@@ -2292,6 +2685,7 @@ def test_claim_auditor_forces_hidden_world_claims_into_revision(
     )
     assert [call["stage"] for call in transport.calls] == [
         "proposer", "claim_auditor", "revision_proposer",
+        "revision_no_reply_reviewer",
     ]
 
 
@@ -2515,6 +2909,7 @@ def test_reviewer_direct_answer_metadata_must_match_the_proposer(
                 mode="no_reply",
                 no_reply_reason="The direct answer could not be reconciled safely.",
             ),
+            "revision_no_reply_reviewer": no_reply_review(),
         },
     )
 
@@ -2679,9 +3074,11 @@ def test_real_source_grounded_berlin_answer_can_pass_the_complete_pipeline(
     assert "prefer a clearly rhetorical quip or question" in transport.calls[0]["system_prompt"]
     assert "Never omit a genuine claim merely to avoid evidence review" in transport.calls[0]["system_prompt"]
     assert "civil challenge to a clear political or moral principle is likewise in scope" in transport.calls[0]["system_prompt"]
-    assert "do not assume that this account never engages with civil disagreement" in transport.calls[0]["system_prompt"]
     assert "names and addresses the specific disputed principle" in transport.calls[0]["system_prompt"]
-    assert "bounded thread explicitly shows that this account has already answered" in transport.calls[0]["system_prompt"]
+    system_prompt = transport.calls[0]["system_prompt"]
+    assert "repeated argument" in system_prompt
+    assert "bounded thread" in system_prompt
+    assert "already answered" in system_prompt
     assert "A normative wrapper does not hide a factual premise" in transport.calls[0]["system_prompt"]
     assert "defence rather than defense" in transport.calls[0]["system_prompt"]
     assert "ordinary paraphrases" in transport.calls[1]["system_prompt"]

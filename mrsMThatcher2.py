@@ -6147,7 +6147,12 @@ def build_context_for_reply_ai(mention: dict, state: dict) -> tuple[dict[str, ob
         tweet_id = str(tweet.get("id") or "")
         if tweet_id and tweet_id != mention_id:
             merged_by_id[tweet_id] = tweet
-    for tweet in _author_cap_context_posts(mention, state):
+    complete_cap_context = _author_cap_context_posts(mention, state)
+    recovered_cap_quoted_post = _cached_quoted_post_for_cap_context(
+        complete_cap_context,
+        state,
+    )
+    for tweet in complete_cap_context:
         tweet_id = str(tweet.get("id") or "")
         if tweet_id:
             merged_by_id[tweet_id] = tweet
@@ -6181,7 +6186,7 @@ def build_context_for_reply_ai(mention: dict, state: dict) -> tuple[dict[str, ob
         "incoming_contribution": trim_context_text(mention_text, REPLY_INCOMING_MAX_CHARS),
         "quoted_post": (
             _quoted_post_for_reply_context(mention, state)
-            or _cached_quoted_post_for_cap_context(selected_context, state)
+            or recovered_cap_quoted_post
         ),
         "parent_thread": parent_thread,
         "clarification_request": None,
@@ -18355,7 +18360,7 @@ def generate_ai_first_reply(
     evaluation_outcome: dict | None = None,
 ) -> str | None:
     """Run the sole conversational reply strategy and return only approved prose."""
-    from reply_strategy import STRATEGY_VERSION, run_reply_pipeline
+    from reply_strategy import STRATEGY_VERSION, outcome_telemetry, run_reply_pipeline
 
     lane = str(context.get("lane") or "")
     target_id = str(context.get("target_id") or "")
@@ -18370,6 +18375,9 @@ def generate_ai_first_reply(
         media_context=media_context,
     )
     if result.reply is None:
+        pipeline_telemetry = outcome_telemetry(result)
+        evidence_status = pipeline_telemetry["evidence_status"]
+        evidence_absent = evidence_status in {"not_run", "insufficient"}
         operational_failure = result.status not in {"no_reply", "disabled"}
         log_method = log.error if operational_failure else log.info
         log_method(
@@ -18387,14 +18395,22 @@ def generate_ai_first_reply(
             target_id=target_id,
             status=result.status,
             strategy_version=STRATEGY_VERSION,
-            mode="no_reply" if result.status == "no_reply" else "unavailable",
-            tone="none",
-            factual_claim_count=0,
-            evidence_ids=[],
-            evidence_confidence="none",
+            mode=(
+                pipeline_telemetry["proposer_mode"]
+                if pipeline_telemetry["proposer_mode"] != "not_run"
+                else "unavailable"
+            ),
+            proposer_mode=pipeline_telemetry["proposer_mode"],
+            tone=pipeline_telemetry["proposer_tone"],
+            factual_claim_count=pipeline_telemetry["factual_claim_count"],
+            evidence_ids=[] if evidence_absent else None,
+            evidence_confidence="none" if evidence_absent else "unavailable",
             retrieved_count=None,
-            evidence_reference_count=0,
-            reviewer_verdict="not_approved",
+            evidence_reference_count=0 if evidence_absent else None,
+            reviewer_verdict=pipeline_telemetry["reviewer_verdict"],
+            terminal_stage=pipeline_telemetry["terminal_stage"],
+            claim_auditor_status=pipeline_telemetry["claim_auditor_status"],
+            evidence_status=evidence_status,
             reason=result.reason,
             model_call_count=result.model_call_count,
             revision_count=result.revision_count,

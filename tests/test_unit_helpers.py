@@ -1301,7 +1301,7 @@ def test_disabled_ai_first_strategy_skips_quote_lane_before_discovery(
     assert state.get("reply_evaluation_records", {}) == {}
 
 
-def test_operational_pipeline_failure_raises_retryable_api_error(
+def test_proposer_invalid_pipeline_telemetry_raises_retryable_api_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import reply_strategy
@@ -1321,7 +1321,7 @@ def test_operational_pipeline_failure_raises_retryable_api_error(
             "proposer_invalid",
             2,
             0,
-            (),
+            ({"stage": "proposer", "status": "invalid", "attempt": 2},),
         ),
     )
     monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
@@ -1341,18 +1341,122 @@ def test_operational_pipeline_failure_raises_retryable_api_error(
             "status": "operational_failure",
             "strategy_version": STRATEGY_VERSION,
             "mode": "unavailable",
+            "proposer_mode": "not_run",
             "tone": "none",
-            "factual_claim_count": 0,
+            "factual_claim_count": None,
             "evidence_ids": [],
             "evidence_confidence": "none",
             "retrieved_count": None,
             "evidence_reference_count": 0,
-            "reviewer_verdict": "not_approved",
+            "reviewer_verdict": "not_run",
+            "terminal_stage": "proposer",
+            "claim_auditor_status": "not_run",
+            "evidence_status": "not_run",
             "reason": "proposer_invalid",
             "model_call_count": 2,
             "revision_count": 0,
         },
     )]
+
+
+def test_confirmed_no_reply_pipeline_telemetry_reports_independent_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import reply_strategy
+
+    interpretation_marker = "PRIVATE_PROPOSER_INTERPRETATION_MARKER"
+    reason_marker = "PRIVATE_PROPOSER_NO_REPLY_REASON_MARKER"
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(
+        reply_strategy,
+        "run_reply_pipeline",
+        lambda **_kwargs: reply_strategy.PipelineResult(
+            None,
+            "no_reply",
+            "independent_no_reply_confirmed",
+            2,
+            0,
+            (
+                {
+                    "stage": "proposer",
+                    "status": "completed",
+                    "mode": "no_reply",
+                    "tone": "none",
+                    "factual_claim_count": 0,
+                },
+                {
+                    "stage": "no_reply_reviewer",
+                    "status": "completed",
+                    "verdict": "confirm_no_reply",
+                },
+            ),
+        ),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
+
+    assert bot.generate_ai_first_reply(unit_reply_context()) is None
+
+    name, decision = events[-1]
+    assert name == "ai_reply_pipeline_decision"
+    assert decision["mode"] == "no_reply"
+    assert decision["proposer_mode"] == "no_reply"
+    assert decision["terminal_stage"] == "no_reply_reviewer"
+    assert decision["reviewer_verdict"] == "confirm_no_reply"
+    assert decision["claim_auditor_status"] == "not_run"
+    assert decision["evidence_status"] == "not_run"
+    assert decision["reason"] == "independent_no_reply_confirmed"
+    serialised_decision = json.dumps(decision, sort_keys=True)
+    for private_marker in (interpretation_marker, reason_marker):
+        assert private_marker not in serialised_decision
+    assert "no_reply_reason" not in decision
+    assert "interpretation" not in decision
+
+
+def test_evidence_stage_operational_failure_telemetry_keeps_unknown_references(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import reply_strategy
+
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
+    monkeypatch.setattr(
+        reply_strategy,
+        "run_reply_pipeline",
+        lambda **_kwargs: reply_strategy.PipelineResult(
+            None,
+            "operational_failure",
+            "reviewer_invalid",
+            4,
+            0,
+            (
+                {
+                    "stage": "proposer",
+                    "status": "completed",
+                    "mode": "direct_factual_answer",
+                    "tone": "neutral",
+                    "factual_claim_count": 1,
+                },
+                {"stage": "evidence", "status": "completed", "supported": True},
+                {"stage": "reviewer", "status": "invalid", "attempt": 2},
+            ),
+        ),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
+
+    with pytest.raises(bot.ApiError, match="operational failure: reviewer_invalid"):
+        bot.generate_ai_first_reply(unit_reply_context())
+
+    name, failure = events[-1]
+    assert name == "ai_reply_pipeline_failure"
+    assert failure["proposer_mode"] == "direct_factual_answer"
+    assert failure["terminal_stage"] == "reviewer"
+    assert failure["reviewer_verdict"] == "invalid"
+    assert failure["claim_auditor_status"] == "not_run"
+    assert failure["evidence_status"] == "completed"
+    assert failure["evidence_ids"] is None
+    assert failure["evidence_confidence"] == "unavailable"
+    assert failure["evidence_reference_count"] is None
 
 
 def test_approved_ai_reply_decision_logs_existing_evidence_metrics(
@@ -15125,6 +15229,7 @@ def test_author_cap_context_merges_siblings_with_parent_dedup_and_scope(
 def test_author_cap_context_quote_commentary_recovers_original_from_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
     cache_epoch = bot.now_epoch()
     mention = {
         "id": "920",
@@ -15157,6 +15262,57 @@ def test_author_cap_context_quote_commentary_recovers_original_from_cache(
     assert context["parent_thread"] == [
         {"post_id": "910", "author_role": "user", "text": "My capped quote commentary."},
     ]
+    assert context["quoted_post"] == {
+        "post_id": "900", "author_role": "account", "text": "The original account post.",
+    }
+
+
+def test_author_cap_context_quote_survives_parent_thread_truncation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    cache_epoch = bot.now_epoch()
+    mention = {
+        "id": "960",
+        "author_id": "200",
+        "conversation_id": "910",
+        "text": "A newer contribution in the same conversation.",
+        "referenced_tweets": [],
+    }
+    state = bot.default_state()
+    state["tweet_cache"] = {
+        "900": {
+            "id": "900", "cached_epoch": cache_epoch, "author_id": "12345",
+            "conversation_id": "900", "text": "The original account post.",
+            "referenced_tweets": [],
+        },
+        "910": {
+            "id": "910", "cached_epoch": cache_epoch, "author_id": "200",
+            "conversation_id": "910", "text": "Older capped quote commentary.",
+            "post_type": "author_cap_quote_context",
+            "referenced_tweets": [{"type": "quoted", "id": "900"}],
+        },
+        **{
+            str(tweet_id): {
+                "id": str(tweet_id), "cached_epoch": cache_epoch,
+                "author_id": "200", "conversation_id": "910",
+                "text": f"Newer capped context {tweet_id}.",
+                "post_type": "author_cap_context", "referenced_tweets": [],
+            }
+            for tweet_id in (920, 930, 940, 950)
+        },
+    }
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda *_args, **_kwargs: pytest.fail("cached cap context must not fetch from X"),
+    )
+
+    context, should_continue = bot.build_context_for_reply_ai(mention, state)
+
+    assert should_continue is True
+    assert [post["post_id"] for post in context["parent_thread"]] == ["930", "940", "950"]
+    assert all(post["post_id"] != "910" for post in context["parent_thread"])
     assert context["quoted_post"] == {
         "post_id": "900", "author_role": "account", "text": "The original account post.",
     }

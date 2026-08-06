@@ -4105,6 +4105,111 @@ def test_per_author_cap_skips_fourth_reply(tmp_path: Path, fake_server: FakeApiS
     assert state["tweet_cache"]["140"]["text"]
 
 
+def test_author_cap_context_survives_restart_in_newer_target_prompt(
+    tmp_path: Path,
+) -> None:
+    first_epoch = 2_000_000_000
+    second_epoch = first_epoch + 86_400
+    london = ZoneInfo("Europe/London")
+    first_date = datetime.fromtimestamp(first_epoch, london).strftime("%Y-%m-%d")
+    second_date = datetime.fromtimestamp(second_epoch, london).strftime("%Y-%m-%d")
+    assert second_date != first_date
+
+    capped_text = "@MrsMThatcher Older capped contribution about responsibility."
+    newer_text = "@MrsMThatcher Newer contribution asking what responsibility requires."
+    server = FakeApiServer(
+        {
+            "mention_responses": [
+                [{
+                    "id": "500",
+                    "text": capped_text,
+                    "author_id": "240",
+                    "conversation_id": "500",
+                    "created_at": "2026-06-30T12:00:00Z",
+                    "referenced_tweets": [],
+                }],
+                [{
+                    "id": "510",
+                    "text": newer_text,
+                    "author_id": "240",
+                    "conversation_id": "500",
+                    "created_at": "2026-06-30T12:05:00Z",
+                    "referenced_tweets": [{"type": "replied_to", "id": "500"}],
+                }],
+            ],
+            "grok_replies": ["Responsibility should be matched by sound judgement."],
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "daily_reply_date": first_date,
+                "daily_reply_count": 1,
+                "daily_replied_author_ids": ["240"],
+                "daily_replied_author_counts": {"240": 1},
+                "last_reply_epoch": 0,
+            },
+            local_config={
+                "MAX_REPLIES_PER_AUTHOR_PER_DAY": 1,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+            },
+        )
+
+        process_a = run_bot_command(
+            base_dir,
+            server,
+            "--test-cycle",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(first_epoch)},
+        )
+        assert process_a.returncode == 0, process_a.stderr + process_a.stdout
+        assert server.xai_requests == []
+        assert server.posts == []
+        state_after_a = read_json(base_dir / "bot_state.json")
+        assert state_after_a["tweet_cache"]["500"]["post_type"] == "author_cap_context"
+        assert state_after_a["tweet_cache"]["500"]["text"] == capped_text
+
+        process_b = run_bot_command(
+            base_dir,
+            server,
+            "--test-cycle",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(second_epoch)},
+        )
+        assert process_b.returncode == 0, process_b.stderr + process_b.stdout
+
+        proposer_requests = [
+            request
+            for request in server.xai_requests
+            if request.get("response_format", {}).get("json_schema", {}).get("name")
+            == "ai_reply_proposer"
+        ]
+        assert len(proposer_requests) == 1
+        user_content = proposer_requests[0]["messages"][-1]["content"]
+        if isinstance(user_content, list):
+            user_content = next(
+                item["text"]
+                for item in user_content
+                if isinstance(item, dict) and item.get("type") == "text"
+            )
+        proposer_payload = json.loads(user_content)
+        sections = proposer_payload["context_sections"]
+        assert sections["incoming_contribution_to_answer"] == newer_text
+        assert sections["quoted_post_context_only"] is None
+        assert sections["bounded_parent_thread_context_only"] == [{
+            "post_id": "500",
+            "author_role": "user",
+            "text": capped_text,
+        }]
+        assert json.dumps(proposer_payload, sort_keys=True).count(capped_text) == 1
+        assert proposer_payload["target"]["target_id"] == "510"
+        assert proposer_payload["target"]["thread_id"] == "500"
+        assert fake_server_post_replies(server) == ["510"]
+        assert all(reply_target != "500" for reply_target in fake_server_post_replies(server))
+    finally:
+        server.stop()
+
+
 def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
     server = FakeApiServer(
         {

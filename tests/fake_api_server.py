@@ -153,6 +153,26 @@ class FakeApiServer:
                         "no_reply_reason": "",
                     }
 
+                if stage in {"no_reply_reviewer", "revision_no_reply_reviewer"}:
+                    verdicts = self.fake.scenario.setdefault(
+                        "no_reply_review_verdicts",
+                        [],
+                    )
+                    verdict = str(
+                        verdicts.pop(0) if verdicts else "confirm_no_reply"
+                    )
+                    return {
+                        "verdict": verdict,
+                        "reasons": [
+                            "The deterministic integration fixture reviewed the silence decision."
+                        ],
+                        "revision_instructions": (
+                            "Produce a safe, relevant acknowledgement."
+                            if verdict == "require_reply"
+                            else ""
+                        ),
+                    }
+
                 if stage in {"evidence", "revision_evidence"}:
                     rows = []
                     claims = supplied.get("claims", []) if isinstance(supplied, dict) else []
@@ -411,7 +431,12 @@ class FakeApiServer:
                 if path.startswith("/2/users/") and path.endswith("/mentions"):
                     account_id = path.split("/")[3]
                     mentions = []
-                    for raw_mention in self.fake.scenario.get("mentions", []):
+                    if "mention_responses" in self.fake.scenario:
+                        responses = self.fake.scenario["mention_responses"]
+                        raw_mentions = responses.pop(0) if responses else []
+                    else:
+                        raw_mentions = self.fake.scenario.get("mentions", [])
+                    for raw_mention in raw_mentions:
                         mention = dict(raw_mention)
                         if "entities" not in mention:
                             mention["entities"] = {

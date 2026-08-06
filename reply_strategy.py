@@ -31,6 +31,7 @@ DRAFT_SCHEMA_VERSION = 9
 PROPOSER_PROMPT_VERSION = "ai-first-proposer-v15"
 EVIDENCE_PROMPT_VERSION = "claim-evidence-entailment-v6"
 REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v13"
+NO_REPLY_REVIEW_PROMPT_VERSION = "independent-no-reply-review-v1"
 CLAIM_AUDITOR_PROMPT_VERSION = "claim-inventory-auditor-v5"
 LEGACY_DRAFT_AUDIT_SCHEMA_VERSION = 1
 
@@ -46,6 +47,7 @@ TONES = {"firm", "dry", "wry", "warm", "neutral", "light", "none"}
 CONFIDENCE_LEVELS = {"low": 1, "medium": 2, "high": 3}
 EVIDENCE_VERDICTS = {"supports", "contradicts", "insufficient"}
 REVIEWER_VERDICTS = {"approve", "reject", "revise"}
+NO_REPLY_REVIEW_VERDICTS = {"confirm_no_reply", "require_reply"}
 LANES = {"mention", "hot_post_reply", "quote_tweet"}
 ANSWER_TYPES = {
     "none",
@@ -396,6 +398,24 @@ def reviewer_schema(maximum_claims: int) -> dict[str, Any]:
         "original_prose_clearly_not_historical_quotation": {"type": "boolean"},
         "mode_and_tone_match": {"type": "boolean"},
         "suitable_for_account": {"type": "boolean"},
+        "revision_instructions": {"type": "string", "maxLength": 800},
+    }
+    return _strict_object(properties, list(properties))
+
+
+def no_reply_review_schema() -> dict[str, Any]:
+    """Return the strict schema for independent review of proposed silence."""
+    properties = {
+        "verdict": {
+            "type": "string",
+            "enum": sorted(NO_REPLY_REVIEW_VERDICTS),
+        },
+        "reasons": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1, "maxLength": 300},
+            "minItems": 1,
+            "maxItems": 8,
+        },
         "revision_instructions": {"type": "string", "maxLength": 800},
     }
     return _strict_object(properties, list(properties))
@@ -1020,6 +1040,38 @@ def validate_reviewer(
     return item
 
 
+def validate_no_reply_review(value: object) -> dict[str, Any]:
+    """Validate an independent decision to confirm silence or require a reply."""
+    item = _parse_object(value, "no-reply reviewer")
+    _validate_exact_keys(
+        item,
+        {"verdict", "reasons", "revision_instructions"},
+        "no-reply reviewer",
+    )
+    if item.get("verdict") not in NO_REPLY_REVIEW_VERDICTS:
+        raise ValueError("no-reply reviewer verdict is invalid")
+    reasons = item.get("reasons")
+    if (
+        not isinstance(reasons, list)
+        or not 1 <= len(reasons) <= 8
+        or any(
+            not isinstance(reason, str)
+            or not reason.strip()
+            or len(reason) > 300
+            for reason in reasons
+        )
+    ):
+        raise ValueError("no-reply reviewer reasons are invalid")
+    instructions = item.get("revision_instructions")
+    if not isinstance(instructions, str) or len(instructions) > 800:
+        raise ValueError("no-reply reviewer revision instructions are invalid")
+    if item["verdict"] == "require_reply" and not instructions.strip():
+        raise ValueError("require_reply needs revision instructions")
+    if item["verdict"] == "confirm_no_reply" and instructions:
+        raise ValueError("confirm_no_reply cannot include revision instructions")
+    return item
+
+
 def reviewer_checks_approve(review: dict[str, Any]) -> bool:
     """Return whether every independent approval condition is satisfied."""
     positive = (
@@ -1428,6 +1480,41 @@ def _evidence_prompts(
     return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
+def _no_reply_review_prompts(
+    context: dict[str, Any],
+    proposer: dict[str, Any],
+) -> tuple[str, str]:
+    """Build a bounded independent review of a proposer's no-reply choice."""
+    system = (
+        "You are an independent no-reply reviewer for a Margaret Thatcher quotation account on X. "
+        "You did not make the proposal and must decide only whether silence is warranted. The incoming "
+        "contribution has priority over quoted and parent context. Confirm no_reply for spam or advertising, "
+        "incoherence or unintelligibility, abuse or harassment, clear bad-faith bait, repetition explicitly "
+        "shown in the bounded thread, serious unsupported accusations or conspiracy claims whose engagement "
+        "would dangerously amplify them, wholly unrelated material, or when no safe and genuinely relevant "
+        "response is possible. Do not weaken those safeguards. Absence of a question, disagreement, challenge "
+        "or new factual matter is not sufficient by itself to confirm silence. Civil, intelligible and relevant "
+        "agreement, support, appreciation, nostalgia, thanks, a friendly comparison or a thoughtful related "
+        "observation normally warrants a brief natural response. An unsupported claim must not be repeated or "
+        "endorsed, but require a reply when a safe claim-free acknowledgement, recommendation or value judgement "
+        "can address the underlying theme without amplification. Use confirm_no_reply only when silence is "
+        "warranted; use require_reply when the single revision proposer should produce a safe, relevant response. "
+        "You must not write the public reply. For require_reply, give concise revision instructions to the separate "
+        "proposer. Return only the required JSON object."
+    )
+    payload = {
+        "context_sections": {
+            "incoming_contribution_to_answer": context["incoming_contribution"],
+            "quoted_post_context_only": context["quoted_post"],
+            "bounded_parent_thread_context_only": context["parent_thread"],
+            "clarification_request_if_any": context["clarification_request"],
+        },
+        "proposer_interpretation_untrusted": proposer["interpretation"],
+        "proposer_no_reply_reason_untrusted": proposer["no_reply_reason"],
+    }
+    return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
 def _claim_auditor_prompts(proposed_reply: str) -> tuple[str, str]:
     """Build a fresh factual-claim audit with no proposer classifications."""
     system = (
@@ -1774,6 +1861,58 @@ def evidence_telemetry(
     }
 
 
+def outcome_telemetry(result: PipelineResult) -> dict[str, Any]:
+    """Derive truthful non-content outcome telemetry from a pipeline audit."""
+    proposer_mode = "not_run"
+    proposer_tone = "none"
+    factual_claim_count: int | None = None
+    terminal_stage = "not_run"
+    reviewer_verdict = "not_run"
+    claim_auditor_status = "not_run"
+    evidence_status = "not_run"
+
+    for row in result.audit:
+        if not isinstance(row, dict):
+            continue
+        stage = str(row.get("stage") or "")
+        status = str(row.get("status") or "")
+        if stage:
+            terminal_stage = stage
+        if stage in {"proposer", "revision_proposer"} and status == "completed":
+            proposer_mode = str(row.get("mode") or "not_run")
+            proposer_tone = str(row.get("tone") or "none")
+            count = row.get("factual_claim_count")
+            factual_claim_count = count if type(count) is int and count >= 0 else None
+        if stage in {
+            "no_reply_reviewer", "revision_no_reply_reviewer",
+            "reviewer", "revision_reviewer",
+        }:
+            verdict = row.get("verdict")
+            if verdict in NO_REPLY_REVIEW_VERDICTS | REVIEWER_VERDICTS:
+                reviewer_verdict = str(verdict)
+            elif status == "invalid":
+                reviewer_verdict = "invalid"
+        if stage in {"claim_auditor", "revision_claim_auditor"}:
+            claim_auditor_status = "invalid" if status == "invalid" else "completed"
+        if stage in {"evidence", "revision_evidence"}:
+            if status in {"completed", "insufficient", "rejected", "invalid"}:
+                evidence_status = (
+                    "insufficient"
+                    if status == "completed" and row.get("supported") is False
+                    else status
+                )
+
+    return {
+        "proposer_mode": proposer_mode,
+        "proposer_tone": proposer_tone,
+        "factual_claim_count": factual_claim_count,
+        "terminal_stage": terminal_stage,
+        "reviewer_verdict": reviewer_verdict,
+        "claim_auditor_status": claim_auditor_status,
+        "evidence_status": evidence_status,
+    }
+
+
 def validate_persisted_draft(
     record: object,
     *,
@@ -2100,7 +2239,17 @@ def run_reply_pipeline(
     """Run proposer, claim evidence and fresh reviewer with at most one revision."""
     config_errors = validate_strategy_config(config)
     if config_errors:
-        return PipelineResult(None, "operational_failure", "invalid_strategy_config", 0, 0, tuple({"error": error} for error in config_errors))
+        return PipelineResult(
+            None,
+            "operational_failure",
+            "invalid_strategy_config",
+            0,
+            0,
+            tuple(
+                {"stage": "strategy_config", "status": "invalid", "error": error}
+                for error in config_errors
+            ),
+        )
     if config["enabled"] is not True:
         return PipelineResult(None, "disabled", "strategy_disabled", 0, 0, ())
     clean_context = validate_reply_context(context)
@@ -2237,9 +2386,76 @@ def run_reply_pipeline(
         )
         if proposer is None:
             return PipelineResult(None, "operational_failure", f"{proposer_stage}_invalid", call_count, revisions, tuple(audit))
-        audit.append({"stage": proposer_stage, "status": "completed", "mode": proposer["mode"]})
+        audit.append({
+            "stage": proposer_stage,
+            "status": "completed",
+            "mode": proposer["mode"],
+            "tone": proposer["tone"],
+            "factual_claim_count": len(proposer["factual_claims"]),
+        })
         if proposer["mode"] == "no_reply":
-            return PipelineResult(None, "no_reply", proposer["no_reply_reason"], call_count, revisions, tuple(audit))
+            no_reply_reviewer_stage = (
+                "revision_no_reply_reviewer" if revisions else "no_reply_reviewer"
+            )
+            no_reply_system, no_reply_user = _no_reply_review_prompts(
+                clean_context,
+                proposer,
+            )
+            no_reply_review = call_and_validate(
+                no_reply_reviewer_stage,
+                model=config["reviewer_model"],
+                system_prompt=no_reply_system,
+                user_prompt=no_reply_user,
+                schema=no_reply_review_schema(),
+                timeout=config["reviewer_timeout_seconds"],
+                max_output_tokens=config["reviewer_max_output_tokens"],
+                include_media=True,
+                validator=validate_no_reply_review,
+            )
+            if no_reply_review is None:
+                return PipelineResult(
+                    None,
+                    "operational_failure",
+                    f"{no_reply_reviewer_stage}_invalid",
+                    call_count,
+                    revisions,
+                    tuple(audit),
+                )
+            audit.append({
+                "stage": no_reply_reviewer_stage,
+                "status": "completed",
+                "verdict": no_reply_review["verdict"],
+            })
+            if no_reply_review["verdict"] == "confirm_no_reply":
+                return PipelineResult(
+                    None,
+                    "no_reply",
+                    "independent_no_reply_confirmed",
+                    call_count,
+                    revisions,
+                    tuple(audit),
+                )
+            if revisions >= config["maximum_revisions"]:
+                return PipelineResult(
+                    None,
+                    "operational_failure",
+                    "no_reply_review_requires_reply_after_revision",
+                    call_count,
+                    revisions,
+                    tuple(audit),
+                )
+            revision_request = {
+                "previous_reply": "",
+                "reviewer_reasons": no_reply_review["reasons"],
+                "reviewer_revision_instructions": (
+                    "Produce a safe, relevant public response; do not choose silence merely because the "
+                    "contribution lacks a question or new factual matter. Do not repeat or endorse unsupported "
+                    "claims. " + no_reply_review["revision_instructions"]
+                ),
+                "evidence_status": [],
+            }
+            revisions += 1
+            continue
 
         hard_error = deterministic_reply_error(
             proposer,
@@ -2397,7 +2613,12 @@ def run_reply_pipeline(
                 if evidence_result is None:
                     return PipelineResult(None, "operational_failure", f"{evidence_stage}_invalid", call_count, revisions, tuple(audit))
                 evidence = evidence_result
-                audit.append({"stage": evidence_stage, "status": "completed", "supported": _all_claims_supported(claims, evidence)})
+                adjudication_supported = _all_claims_supported(claims, evidence)
+                audit.append({
+                    "stage": evidence_stage,
+                    "status": "completed" if adjudication_supported else "insufficient",
+                    "supported": adjudication_supported,
+                })
             else:
                 evidence = _insufficient_evidence_rows(claims)
                 audit.append({"stage": "evidence", "status": "insufficient", "reason": "claim_without_candidate_passage"})
