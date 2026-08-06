@@ -696,6 +696,109 @@ def _ordinary_cycle_successor_fixture(
     }
 
 
+def _historical_context_gate_successor_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    """Create an exact analogue of the gate ledger-pin-only successor."""
+    paths = _rebind_fixture(tmp_path / "fixture")
+    root = paths["root"]
+    gate_pair = paths["invariant_pairs"]["historical_context_gate"]
+
+    historical_ledger_bytes = b"historical semantic review ledger\n"
+    successor_ledger_bytes = b"successor semantic review ledger\n"
+    historical_ledger_sha256 = hashlib.sha256(
+        historical_ledger_bytes
+    ).hexdigest()
+    successor_ledger_path = (
+        root / transition.HISTORICAL_CONTEXT_GATE_LEDGER_REPOSITORY_PATH
+    )
+    successor_ledger_path.write_bytes(successor_ledger_bytes)
+    successor_ledger_sha256 = _sha(successor_ledger_path)
+
+    historical_value = json.loads(gate_pair.before.read_text())
+    historical_value["gate"]["semantic_review_ledger_sha256"] = (
+        historical_ledger_sha256
+    )
+    historical_value["input_hashes"][
+        transition.HISTORICAL_CONTEXT_GATE_LEDGER_REPOSITORY_PATH
+    ] = historical_ledger_sha256
+    successor_value = copy.deepcopy(historical_value)
+    successor_value["gate"]["semantic_review_ledger_sha256"] = (
+        successor_ledger_sha256
+    )
+    successor_value["input_hashes"][
+        transition.HISTORICAL_CONTEXT_GATE_LEDGER_REPOSITORY_PATH
+    ] = successor_ledger_sha256
+
+    historical_path = _write(
+        tmp_path / "historical-context-gate.json",
+        historical_value,
+    )
+    current_path = root / gate_pair.repository_path
+    _write(current_path, successor_value)
+    semantic_summary = transition._invariant_summary(
+        "historical_context_gate", historical_value
+    )
+    historical_before_sha256 = "6" * 64
+    historical_binding = {
+        "after_sha256": _sha(historical_path),
+        "before_sha256": historical_before_sha256,
+        "bytes_unchanged": False,
+        "repository_path": gate_pair.repository_path,
+        "semantic_summary": semantic_summary,
+        "unchanged": True,
+    }
+    manifest = json.loads(paths["manifest"].read_text())
+    manifest["unchanged_invariants"][
+        "historical_context_gate"
+    ] = historical_binding
+    _write(paths["manifest"], manifest)
+
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_REPOSITORY_PATH",
+        gate_pair.repository_path,
+    )
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_HISTORICAL_BEFORE_SHA256",
+        historical_before_sha256,
+    )
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_HISTORICAL_SHA256",
+        _sha(historical_path),
+    )
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256",
+        _sha(current_path),
+    )
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_HISTORICAL_LEDGER_SHA256",
+        historical_ledger_sha256,
+    )
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_SUCCESSOR_LEDGER_SHA256",
+        successor_ledger_sha256,
+    )
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_SEMANTIC_SUMMARY",
+        semantic_summary,
+    )
+    return {
+        **paths,
+        "manifest_value": manifest,
+        "current_path": current_path,
+        "historical_bytes": historical_path.read_bytes(),
+        "successor_ledger_path": successor_ledger_path,
+    }
+
+
 def test_manifest_is_deterministic_scoped_and_secret_free(tmp_path):
     paths = _fixture(tmp_path)
     first = _build(paths)
@@ -872,6 +975,187 @@ def test_exact_ordinary_cycle_provenance_successor_is_accepted_deterministically
     )
 
     assert first == second == paths["manifest"]
+
+
+def test_exact_historical_context_gate_provenance_successor_is_accepted(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _historical_context_gate_successor_fixture(
+        tmp_path, monkeypatch
+    )
+
+    first = transition.load_and_validate_transition(
+        paths["manifest"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    )
+    second = transition.load_and_validate_transition(
+        paths["manifest"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    )
+
+    assert first == second == paths["manifest_value"]
+
+
+def test_historical_context_gate_successor_rejects_unrelated_byte_change(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _historical_context_gate_successor_fixture(
+        tmp_path, monkeypatch
+    )
+    current = json.loads(paths["current_path"].read_text())
+    current["policy_version"] = "changed-policy"
+    _write(paths["current_path"], current)
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256",
+        _sha(paths["current_path"]),
+    )
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="changes additional bytes",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_historical_context_gate_successor_rejects_only_one_changed_pin(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _historical_context_gate_successor_fixture(
+        tmp_path, monkeypatch
+    )
+    current = json.loads(paths["current_path"].read_text())
+    current["gate"]["semantic_review_ledger_sha256"] = (
+        transition.HISTORICAL_CONTEXT_GATE_HISTORICAL_LEDGER_SHA256
+    )
+    _write(paths["current_path"], current)
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256",
+        _sha(paths["current_path"]),
+    )
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="successor ledger binding differs",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_historical_context_gate_successor_rejects_ambiguous_extra_pin(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _historical_context_gate_successor_fixture(
+        tmp_path, monkeypatch
+    )
+    current = json.loads(paths["current_path"].read_text())
+    current["unrelated_duplicate_pin"] = (
+        transition.HISTORICAL_CONTEXT_GATE_SUCCESSOR_LEDGER_SHA256
+    )
+    _write(paths["current_path"], current)
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256",
+        _sha(paths["current_path"]),
+    )
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="byte binding is ambiguous",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_historical_context_gate_successor_rejects_wrong_ledger_bytes(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _historical_context_gate_successor_fixture(
+        tmp_path, monkeypatch
+    )
+    paths["successor_ledger_path"].write_bytes(b"wrong ledger bytes\n")
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="successor ledger hash differs",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("open_review_disposition", "changed-disposition"),
+        ("suppressed_reply", "Changed suppressed reply."),
+        ("quote_id", "7" * 64),
+        ("public_reply_decision", "eligible_allow"),
+    ),
+)
+def test_historical_context_gate_successor_rejects_semantic_field_change(
+    tmp_path,
+    monkeypatch,
+    field,
+    value,
+):
+    paths = _historical_context_gate_successor_fixture(
+        tmp_path, monkeypatch
+    )
+    current = json.loads(paths["current_path"].read_text())
+    current["records"][0][field] = value
+    _write(paths["current_path"], current)
+    monkeypatch.setattr(
+        transition,
+        "HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256",
+        _sha(paths["current_path"]),
+    )
+
+    with pytest.raises(
+        transition.TransitionError,
+        match="changes additional bytes",
+    ):
+        transition.load_and_validate_transition(
+            paths["manifest"],
+            research_dir=paths["research"],
+            root=paths["root"],
+        )
+
+
+def test_historical_context_gate_historical_source_is_still_accepted(
+    tmp_path,
+    monkeypatch,
+):
+    paths = _historical_context_gate_successor_fixture(
+        tmp_path, monkeypatch
+    )
+    paths["current_path"].write_bytes(paths["historical_bytes"])
+
+    assert transition.load_and_validate_transition(
+        paths["manifest"],
+        research_dir=paths["research"],
+        root=paths["root"],
+    ) == paths["manifest_value"]
 
 
 def test_ordinary_cycle_provenance_successor_rejects_another_change(

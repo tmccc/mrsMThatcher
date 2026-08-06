@@ -238,6 +238,7 @@ def _install_real_context_worker_success_fixture(
         ledger_sha256="a" * 64,
         projection_sha256="b" * 64,
         disposition=lambda _quote_id: None,
+        reviewed_disposition=lambda _quote_id: None,
     )
     monkeypatch.setattr(
         bot,
@@ -429,13 +430,15 @@ def test_context_semantic_block_does_not_remove_ordinary_quote_eligibility(
     quote_text = "An ordinarily eligible quotation."
     quote_id = bot.quote_text_hash(quote_text)
     bot.LINES_FILE.write_text(f"{quote_text}\n", encoding="utf-8")
+    def gate_disposition(candidate_id):
+        return "future_correction_needed" if candidate_id == quote_id else None
+
     gate = SimpleNamespace(
         available=True,
         ledger_sha256="incident-ledger",
         projection_sha256="incident-projection",
-        disposition=lambda candidate_id: (
-            "future_correction_needed" if candidate_id == quote_id else None
-        ),
+        disposition=gate_disposition,
+        reviewed_disposition=gate_disposition,
     )
     packet = {"quote_id": quote_id, "quote_text": quote_text}
     events: list[tuple[str, dict]] = []
@@ -1239,6 +1242,7 @@ def test_real_context_worker_wires_exact_source_before_remote_phase(
         ledger_sha256="a" * 64,
         projection_sha256="b" * 64,
         disposition=lambda _quote_id: None,
+        reviewed_disposition=lambda _quote_id: None,
     )
     monkeypatch.setattr(
         bot,
@@ -2681,6 +2685,7 @@ def test_real_context_worker_forwards_confirmed_receipt_before_history_retiremen
         ledger_sha256="a" * 64,
         projection_sha256="b" * 64,
         disposition=lambda _quote_id: None,
+        reviewed_disposition=lambda _quote_id: None,
     )
     monkeypatch.setattr(
         bot,

@@ -2528,7 +2528,7 @@ def test_wrong_resolved_actor_cannot_receive_reviewer_approval(
     )
 
     assert result.reply is None
-    assert result.reason == "The authorship correction could not be completed safely."
+    assert result.reason == "independent_no_reply_confirmed"
     assert any(
         row.get("reason") == "direct_answer_missing_resolved_actor"
         for row in result.audit

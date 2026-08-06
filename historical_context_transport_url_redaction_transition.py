@@ -145,6 +145,42 @@ REQUIRED_INVARIANT_LABELS = frozenset({
     "unresolved",
 })
 
+# The frozen transition binds the historical semantic-gate audit.  Its only
+# accepted successor refreshes both pins for the reviewed semantic ledger.
+HISTORICAL_CONTEXT_GATE_REPOSITORY_PATH = (
+    "historical_context_reply_semantic_gate_audit.json"
+)
+HISTORICAL_CONTEXT_GATE_HISTORICAL_BEFORE_SHA256 = (
+    "8f453580c49ec98cd114525fd54d0844767254359f8ba18ad6db88384a8cb732"
+)
+HISTORICAL_CONTEXT_GATE_HISTORICAL_SHA256 = (
+    "b1c163e09a2c7ebf7ae33221d093ad6855e2ba7e1ddc5b4bf78706e43633ff4d"
+)
+HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256 = (
+    "7ad0af49ee90ab1cff0f0f2fd76391afaa5c6dbfe15bb481d765d52d84f9c4f2"
+)
+HISTORICAL_CONTEXT_GATE_LEDGER_REPOSITORY_PATH = (
+    "historical_context_published_reply_semantic_review.json"
+)
+HISTORICAL_CONTEXT_GATE_HISTORICAL_LEDGER_SHA256 = (
+    "dd041bb7745fa0b018ed09c3c0c9f8db676c0755d530572bc7e4bf56cdfc793e"
+)
+HISTORICAL_CONTEXT_GATE_SUCCESSOR_LEDGER_SHA256 = (
+    "f81832f3c0aa4e121e5ea521f0442fa90c024d1b3afd24fda4e2b49fe3cb0648"
+)
+HISTORICAL_CONTEXT_GATE_SEMANTIC_SUMMARY = {
+    "blocked_quote_count": 13,
+    "blocked_quote_ids_sha256": (
+        "7b1e3a2d0599860aff61c1503b84a4bca0252c5a209525da2d00c4824fbae611"
+    ),
+    "normalised_audit_sha256": (
+        "3d365c1465b39c2d6ce7629b9cc77a53956f63c7bde6acbbe15acabc4beca5e6"
+    ),
+    "policy_version": (
+        "historical-context-semantic-gate-v1-open-review-whole-reply"
+    ),
+}
+
 # The immutable transport-redaction transition predates reviewed,
 # provenance-only refreshes of the eligibility and semantic-veto manifests.
 # The formatter gained receipt-durability code without changing the
@@ -987,6 +1023,101 @@ def _resolved_beneath(root: Path, relative: str) -> Path:
     return candidate
 
 
+def _expected_historical_context_gate_historical_binding() -> dict[str, Any]:
+    return {
+        "after_sha256": HISTORICAL_CONTEXT_GATE_HISTORICAL_SHA256,
+        "before_sha256": HISTORICAL_CONTEXT_GATE_HISTORICAL_BEFORE_SHA256,
+        "bytes_unchanged": False,
+        "repository_path": HISTORICAL_CONTEXT_GATE_REPOSITORY_PATH,
+        "semantic_summary": dict(HISTORICAL_CONTEXT_GATE_SEMANTIC_SUMMARY),
+        "unchanged": True,
+    }
+
+
+def _validate_historical_context_gate_provenance_successor(
+    *,
+    root: Path,
+    current_bytes: bytes,
+    current_value: dict[str, Any],
+    item: dict[str, Any],
+) -> None:
+    """Accept one exact semantic-ledger-pin-only gate-audit successor."""
+    if item != _expected_historical_context_gate_historical_binding():
+        raise TransitionError(
+            "historical_context_gate historical invariant binding differs"
+        )
+    if _sha256_bytes(current_bytes) != (
+        HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256
+    ):
+        raise TransitionError(
+            "historical_context_gate provenance successor hash differs"
+        )
+
+    gate = current_value.get("gate")
+    input_hashes = current_value.get("input_hashes")
+    if (
+        not isinstance(gate, dict)
+        or not isinstance(input_hashes, dict)
+        or gate.get("semantic_review_ledger_sha256")
+        != HISTORICAL_CONTEXT_GATE_SUCCESSOR_LEDGER_SHA256
+        or input_hashes.get(
+            HISTORICAL_CONTEXT_GATE_LEDGER_REPOSITORY_PATH
+        ) != HISTORICAL_CONTEXT_GATE_SUCCESSOR_LEDGER_SHA256
+    ):
+        raise TransitionError(
+            "historical_context_gate successor ledger binding differs"
+        )
+
+    ledger_path = _resolved_beneath(
+        root,
+        HISTORICAL_CONTEXT_GATE_LEDGER_REPOSITORY_PATH,
+    )
+    try:
+        ledger_bytes = ledger_path.read_bytes()
+    except OSError as exc:
+        raise TransitionError(
+            "historical_context_gate successor ledger cannot be read"
+        ) from exc
+    if _sha256_bytes(ledger_bytes) != (
+        HISTORICAL_CONTEXT_GATE_SUCCESSOR_LEDGER_SHA256
+    ):
+        raise TransitionError(
+            "historical_context_gate successor ledger hash differs"
+        )
+
+    successor_hash = (
+        HISTORICAL_CONTEXT_GATE_SUCCESSOR_LEDGER_SHA256.encode("ascii")
+    )
+    historical_hash = (
+        HISTORICAL_CONTEXT_GATE_HISTORICAL_LEDGER_SHA256.encode("ascii")
+    )
+    if (
+        current_bytes.count(successor_hash) != 2
+        or historical_hash in current_bytes
+    ):
+        raise TransitionError(
+            "historical_context_gate provenance successor byte binding "
+            "is ambiguous"
+        )
+    reconstructed_bytes = current_bytes.replace(
+        successor_hash,
+        historical_hash,
+    )
+    if _sha256_bytes(reconstructed_bytes) != (
+        HISTORICAL_CONTEXT_GATE_HISTORICAL_SHA256
+    ):
+        raise TransitionError(
+            "historical_context_gate provenance successor changes "
+            "additional bytes"
+        )
+    if item.get("semantic_summary") != _invariant_summary(
+        "historical_context_gate", current_value
+    ):
+        raise TransitionError(
+            "historical_context_gate invariant semantics differ"
+        )
+
+
 def _expected_semantic_veto_historical_binding() -> dict[str, Any]:
     return {
         "after_sha256": SEMANTIC_VETO_HISTORICAL_SHA256,
@@ -1435,6 +1566,44 @@ def load_and_validate_transition(
             source_name=current_path.name,
         )
         current_sha256 = _sha256_bytes(current_bytes)
+        exact_historical_context_gate_binding = (
+            label == "historical_context_gate"
+            and (
+                item.get("repository_path")
+                == HISTORICAL_CONTEXT_GATE_REPOSITORY_PATH
+                or item.get("after_sha256") in {
+                    HISTORICAL_CONTEXT_GATE_HISTORICAL_SHA256,
+                    HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256,
+                }
+                or current_sha256 in {
+                    HISTORICAL_CONTEXT_GATE_HISTORICAL_SHA256,
+                    HISTORICAL_CONTEXT_GATE_SUCCESSOR_SHA256,
+                }
+            )
+        )
+        if exact_historical_context_gate_binding:
+            if current_sha256 == HISTORICAL_CONTEXT_GATE_HISTORICAL_SHA256:
+                if item != (
+                    _expected_historical_context_gate_historical_binding()
+                ):
+                    raise TransitionError(
+                        "historical_context_gate historical invariant "
+                        "binding differs"
+                    )
+                if item.get("semantic_summary") != _invariant_summary(
+                    "historical_context_gate", value
+                ):
+                    raise TransitionError(
+                        "historical_context_gate invariant semantics differ"
+                    )
+            else:
+                _validate_historical_context_gate_provenance_successor(
+                    root=root,
+                    current_bytes=current_bytes,
+                    current_value=value,
+                    item=item,
+                )
+            continue
         exact_runtime_eligibility_binding = (
             label == "ordinary_cycle"
             and (

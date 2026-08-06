@@ -931,6 +931,7 @@ def test_digest_cli_emits_structured_engagement_without_network(tmp_path, monkey
     json_output = tmp_path / "digest.json"
     markdown_output = tmp_path / "digest.md"
     monkeypatch.setattr(requests, "get", lambda *_a, **_k: pytest.fail("digest made a network call"))
+    monkeypatch.setattr(analytics, "utc_now", lambda: NOW)
 
     assert digest.main([
         str(log_path), "--project-dir", str(test_paths.project_dir), "--no-state",

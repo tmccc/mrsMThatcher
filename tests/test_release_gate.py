@@ -12,6 +12,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import types
 from pathlib import Path
 
@@ -931,48 +932,53 @@ def test_containment_masks_host_unix_socket_and_allows_anonymous_ipc(
     tmp_path: Path,
 ) -> None:
     repo = _git_repo(tmp_path)
-    socket_path = tmp_path / "harmless-host-control.sock"
-    listener = _pathname_unix_socket_or_skip(socket.SOCK_STREAM)
-    try:
-        listener.bind(str(socket_path))
-        listener.listen(1)
-        listener.settimeout(0.2)
-        script = (
-            "import errno,socket,stat,sys\n"
-            "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_STREAM)\n"
-            "left.send(b'works')\n"
-            "if right.recv(16) != b'works': raise SystemExit(94)\n"
-            "left.close(); right.close()\n"
-            "try:\n"
-            " socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
-            "except OSError as exc:\n"
-            " if exc.errno != errno.EPERM: raise SystemExit(95)\n"
-            "else:\n"
-            " raise SystemExit(96)\n"
-            "identity=__import__('pathlib').Path(sys.argv[1]).lstat()\n"
-            "if not stat.S_ISCHR(identity.st_mode): raise SystemExit(93)\n"
-            "try:\n"
-            " socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
-            "except OSError as exc:\n"
-            " raise SystemExit(0 if exc.errno == errno.EPERM else 97)\n"
-            "raise SystemExit(98)\n"
-        )
-        command = release_gate.containment_namespace_command(
-            (sys.executable, "-c", script, str(socket_path)),
-            candidate_root=repo,
-            blocked_unix_sockets=(socket_path,),
-        )
-        result = release_gate._run(
-            command, cwd=repo, check=False, timeout=10
-        )
-        if result.returncode in {1, 75} and b"Operation not permitted" in result.stdout:
-            pytest.skip("OS containment unavailable on this test host")
-        assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
-        with pytest.raises(TimeoutError):
-            listener.accept()
-    finally:
-        listener.close()
-        socket_path.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix="mrs-rg-sock-", dir="/tmp") as socket_dir:
+        socket_path = Path(socket_dir) / "s"
+        listener = _pathname_unix_socket_or_skip(socket.SOCK_STREAM)
+        try:
+            assert len(os.fsencode(socket_path)) < 108
+            listener.bind(str(socket_path))
+            listener.listen(1)
+            listener.settimeout(0.2)
+            script = (
+                "import errno,socket,stat,sys\n"
+                "left,right=socket.socketpair(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+                "left.send(b'works')\n"
+                "if right.recv(16) != b'works': raise SystemExit(94)\n"
+                "left.close(); right.close()\n"
+                "try:\n"
+                " socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)\n"
+                "except OSError as exc:\n"
+                " if exc.errno != errno.EPERM: raise SystemExit(95)\n"
+                "else:\n"
+                " raise SystemExit(96)\n"
+                "identity=__import__('pathlib').Path(sys.argv[1]).lstat()\n"
+                "if not stat.S_ISCHR(identity.st_mode): raise SystemExit(93)\n"
+                "try:\n"
+                " socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)\n"
+                "except OSError as exc:\n"
+                " raise SystemExit(0 if exc.errno == errno.EPERM else 97)\n"
+                "raise SystemExit(98)\n"
+            )
+            command = release_gate.containment_namespace_command(
+                (sys.executable, "-c", script, str(socket_path)),
+                candidate_root=repo,
+                blocked_unix_sockets=(socket_path,),
+            )
+            result = release_gate._run(
+                command, cwd=repo, check=False, timeout=10
+            )
+            if (
+                result.returncode in {1, 75}
+                and b"Operation not permitted" in result.stdout
+            ):
+                pytest.skip("OS containment unavailable on this test host")
+            assert result.returncode == 0, result.stdout.decode("utf-8", "replace")
+            with pytest.raises(TimeoutError):
+                listener.accept()
+        finally:
+            listener.close()
+            socket_path.unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("relative_binding", [False, True])

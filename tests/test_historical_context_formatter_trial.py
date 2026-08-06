@@ -97,6 +97,7 @@ def test_production_v1_golden_outputs_are_byte_stable(corpus):
 
 def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
     packets, _ = corpus
+    raw_packets, _raw_unresolved = v1.load_and_validate_corpus_core(RESEARCH)
     frozen = read_json(
         Path("semantic_alignment_research/historical_context_formatter_trial_001")
         / "formatter_v2_candidate.json"
@@ -151,20 +152,36 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
         expected_text = expected["text"]
         if quote_id in corrections:
             correction = corrections[quote_id]
-            original_meaning = expected["field_provenance"]["meaning"][
-                "intended_argument"
-            ]
-            assert hashlib.sha256(original_meaning.encode()).hexdigest() == (
+            correction_field = correction["field"]
+            if correction_field not in {"intended_argument", "historical_context"}:
+                pytest.fail(f"unsupported correction field: {correction_field}")
+            raw_value = raw_packets[quote_id][correction_field]
+            assert hashlib.sha256(raw_value.encode()).hexdigest() == (
                 correction["original_value_sha256"]
             )
             assert hashlib.sha256(
                 correction["corrected_value"].encode()
             ).hexdigest() == correction["corrected_value_sha256"]
-            expected_text = expected_text.replace(
-                original_meaning,
-                correction["corrected_value"],
-                1,
-            )
+            assert packet[correction_field] == correction["corrected_value"]
+            if correction_field == "intended_argument":
+                frozen_value = expected["field_provenance"]["meaning"][
+                    "intended_argument"
+                ]
+                assert hashlib.sha256(frozen_value.encode()).hexdigest() == (
+                    correction["original_value_sha256"]
+                )
+                assert expected_text.count(frozen_value) == 1
+                expected_text = expected_text.replace(
+                    frozen_value,
+                    correction["corrected_value"],
+                    1,
+                )
+            else:
+                assert quote_id in mtf_live_transition
+                assert raw_packets[quote_id]["immediate_subject"] == raw_value
+                assert packet["historical_context"] == correction["corrected_value"]
+                assert packet["immediate_subject"] == correction["corrected_value"]
+                assert raw_value not in expected_text
         if quote_id in mtf_live_transition:
             reviewed = mtf_live_transition[quote_id]
             assert actual["source_omitted"] is False
