@@ -7253,6 +7253,101 @@ def test_regular_schedule_failure_replays_exact_bound_meme_delay(
     assert state["next_meme_post_epoch"] != confirmed_epoch + 1800
 
 
+def test_regular_restart_replays_bound_meme_delay_from_receipt_after_state_save_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        lines_used,
+        images_used,
+        state,
+        _lines_used_file,
+        _images_used_file,
+        receipt_file,
+        _lines_file,
+    ) = configure_simple_quote_post(tmp_path, monkeypatch)
+    confirmed_epoch = int(datetime(2026, 7, 6, 13, 0, 0).timestamp())
+    stale_due_epoch = confirmed_epoch - 60
+    state.update(
+        {
+            "next_meme_post_epoch": stale_due_epoch,
+            "meme_schedule_version": bot.MEME_SCHEDULE_VERSION,
+            "next_meme_schedule_mode": "fallback",
+            "next_meme_schedule_date": bot.meme_schedule_date_str(
+                stale_due_epoch
+            ),
+            "meme_anchor_quote_post_epoch": 0,
+        }
+    )
+    bot.save_state(state, durable=True)
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", True)
+    monkeypatch.setattr(bot, "MEME_TRIGGER_AFTER_HOUR", 12)
+    monkeypatch.setattr(bot, "now_epoch", lambda: confirmed_epoch)
+
+    def bound_delays(low: int, high: int) -> int:
+        if (low, high) == (bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX):
+            return 7200
+        assert (low, high) == (
+            bot.MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
+            bot.MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
+        )
+        return 3600
+
+    monkeypatch.setattr(bot.random, "randint", bound_delays)
+    original_save_protected = bot.save_regular_post_protected_state
+    monkeypatch.setattr(
+        bot,
+        "save_regular_post_protected_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("injected protected-state save failure")
+        ),
+    )
+
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    status, receipt = bot.load_regular_post_receipt()
+    assert status == "valid"
+    assert receipt is not None
+    assert receipt["source_attempt"]["recovery_plan"]["meme_delay_seconds"] == 3600
+    assert receipt["next_meme_post_epoch"] == confirmed_epoch + 3600
+
+    restarted_state = bot.load_runtime_state()
+    assert restarted_state["next_meme_post_epoch"] == stale_due_epoch
+    monkeypatch.setattr(
+        bot,
+        "save_regular_post_protected_state",
+        original_save_protected,
+    )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **_kwargs: pytest.fail(
+            "startup receipt replay must not create another regular post"
+        ),
+    )
+
+    reconciled = bot.reconcile_startup_main_post_receipts(
+        set(),
+        set(),
+        restarted_state,
+        confirmed_epoch + 1,
+    )
+
+    assert reconciled == {"regular": True, "meme": False}
+    assert not receipt_file.exists()
+    assert restarted_state["last_quote_post_epoch"] == confirmed_epoch
+    assert restarted_state["next_meme_post_epoch"] == confirmed_epoch + 3600
+    assert restarted_state["next_meme_schedule_mode"] == (
+        "after_first_quote_after_midday"
+    )
+    assert restarted_state["meme_anchor_quote_post_epoch"] == confirmed_epoch
+    assert restarted_state["next_meme_post_epoch"] != confirmed_epoch + 1800
+    assert bot.load_runtime_state()["next_meme_post_epoch"] == (
+        confirmed_epoch + 3600
+    )
+
+
 def test_schema_v2_regular_replay_does_not_invent_unbound_meme_schedule(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -8426,6 +8521,71 @@ def test_confirmed_meme_state_failure_reconciles_receipt(
     assert recovered["last_main_post_id"] == "970001"
     assert recovered["posted_meme_filenames"] == ["001_meme.png"]
     assert recovered["next_meme_post_epoch"] == receipt["next_meme_post_epoch"]
+
+
+def test_meme_restart_recovers_confirmation_after_state_save_failure_before_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, receipt_file = configure_simple_meme_post(tmp_path, monkeypatch)
+    (bot.MEME_DIR / "002_meme.png").write_bytes(b"second meme")
+    confirmed_epoch = 1_800_000_000
+    bot.save_state(state, durable=True)
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **kwargs: mock_confirmed_main_post(
+            kwargs,
+            {"data": {"id": "970001"}},
+        ),
+    )
+    original_save_state = bot.save_state
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("injected confirmed-state save failure")
+        ),
+    )
+
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
+        bot.post_next_meme(state)
+
+    status, receipt = bot.load_meme_post_receipt()
+    assert status == "valid"
+    assert receipt is not None and receipt["post_id"] == "970001"
+    restarted_state = bot.load_runtime_state()
+    assert int(restarted_state.get("last_meme_post_epoch", 0) or 0) == 0
+
+    monkeypatch.setattr(bot, "save_state", original_save_state)
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **_kwargs: pytest.fail(
+            "restart must not create a second meme on the confirmed local date"
+        ),
+    )
+    reconciled = bot.reconcile_startup_main_post_receipts(
+        set(),
+        set(),
+        restarted_state,
+        confirmed_epoch,
+    )
+
+    assert reconciled == {"regular": False, "meme": True}
+    assert not receipt_file.exists()
+    assert restarted_state["last_main_post_id"] == "970001"
+    assert restarted_state["last_meme_post_epoch"] == confirmed_epoch
+    assert restarted_state["posted_meme_filenames"] == ["001_meme.png"]
+    assert bot.load_runtime_state()["last_meme_post_epoch"] == confirmed_epoch
+
+    bot.post_next_meme(restarted_state)
+
+    assert restarted_state["last_main_post_id"] == "970001"
+    assert restarted_state["posted_meme_filenames"] == ["001_meme.png"]
+    assert bot.meme_schedule_date_str(
+        restarted_state["next_meme_post_epoch"]
+    ) > bot.meme_schedule_date_str(confirmed_epoch)
 
 
 def test_meme_receipt_replay_does_not_create_second_post(
