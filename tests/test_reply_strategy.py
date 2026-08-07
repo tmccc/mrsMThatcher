@@ -1122,6 +1122,173 @@ def test_direct_factual_answer_requires_claim_evidence_and_independent_review(
     assert result.reply.pipeline_metadata["evidence_reference_count"] == 1
 
 
+def test_clarification_rejects_nonfactual_mode_before_downstream_model_stages(
+    repository: FakeRepository,
+) -> None:
+    correction = "You still did not answer which way people moved."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply="Resolve must be matched by courage.",
+                claims=[],
+            ),
+            "claim_auditor": claim_auditor(),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=reply_context(
+            correction,
+            clarification_request={
+                "original_question": "Which way did people move when the Berlin Wall fell?",
+                "correction": correction,
+            },
+        ),
+    )
+
+    assert result.reply is None
+    assert result.status == "no_reply"
+    assert result.reason == "clarification_not_direct_factual_answer"
+    assert [call["stage"] for call in transport.calls] == ["proposer"]
+    assert result.audit[-1] == {
+        "stage": "proposer",
+        "status": "rejected",
+        "reason": "clarification_not_direct_factual_answer",
+    }
+
+
+def test_clarification_direct_factual_answer_retains_factual_pipeline(
+    repository: FakeRepository,
+) -> None:
+    correction = "I asked which way people moved."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(),
+        },
+        context=reply_context(
+            correction,
+            clarification_request={
+                "original_question": "Which way did people move when the Berlin Wall fell?",
+                "correction": correction,
+            },
+        ),
+    )
+
+    assert isinstance(result.reply, AIReply)
+    assert result.reply.draft_record["mode"] == "direct_factual_answer"
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "evidence",
+        "reviewer",
+    ]
+
+
+def test_clarification_no_reply_keeps_independent_no_reply_review(
+    repository: FakeRepository,
+) -> None:
+    correction = "I asked which way people moved."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="no_reply",
+                no_reply_reason="I cannot safely formulate the requested fact.",
+            ),
+            "no_reply_reviewer": no_reply_review(),
+        },
+        context=reply_context(
+            correction,
+            clarification_request={
+                "original_question": "Which way did people move when the Berlin Wall fell?",
+                "correction": correction,
+            },
+        ),
+    )
+
+    assert result.reply is None
+    assert result.status == "no_reply"
+    assert result.reason == "independent_no_reply_confirmed"
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "no_reply_reviewer",
+    ]
+
+
+def test_clarification_revision_proposer_has_same_mode_restriction(
+    repository: FakeRepository,
+) -> None:
+    correction = "I asked which way people moved."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(verdict="revise", topically_relevant=False),
+            "revision_proposer": proposer(
+                mode="opinion_or_principle",
+                reply="Resolve must be matched by courage.",
+                claims=[],
+            ),
+            "revision_claim_auditor": claim_auditor(),
+            "revision_reviewer": reviewer(
+                direct_question=False,
+                answers_first=False,
+            ),
+        },
+        context=reply_context(
+            correction,
+            clarification_request={
+                "original_question": "Which way did people move when the Berlin Wall fell?",
+                "correction": correction,
+            },
+        ),
+    )
+
+    assert result.reply is None
+    assert result.reason == "clarification_not_direct_factual_answer"
+    assert result.revision_count == 1
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "evidence",
+        "reviewer",
+        "revision_proposer",
+    ]
+    assert result.audit[-1]["stage"] == "revision_proposer"
+
+
+def test_clarification_mode_refusal_does_not_expose_proposer_prose_in_outcome(
+    repository: FakeRepository,
+) -> None:
+    marker = "MODEL_GENERATED_REFUSAL_EXPLANATION"
+    correction = "I asked which way people moved."
+    proposal = proposer(
+        mode="opinion_or_principle",
+        reply="Resolve must be matched by courage.",
+        claims=[],
+    )
+    proposal["interpretation"] = marker
+    result, _transport = run_pipeline(
+        repository,
+        {"proposer": proposal},
+        context=reply_context(
+            correction,
+            clarification_request={
+                "original_question": "Which way did people move when the Berlin Wall fell?",
+                "correction": correction,
+            },
+        ),
+    )
+
+    assert result.reason == "clarification_not_direct_factual_answer"
+    assert marker not in result.reason
+    assert marker not in json.dumps(result.audit, sort_keys=True)
+    assert marker not in json.dumps(outcome_telemetry(result), sort_keys=True)
+
+
 def test_old_selected_evidence_keeps_retrieval_total_unavailable(
     repository: FakeRepository,
 ) -> None:
