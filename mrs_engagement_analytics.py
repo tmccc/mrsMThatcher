@@ -818,7 +818,10 @@ def discover_post_pairs(
             if quote_id not in packets:
                 continue
             quote_text = str(record["quote_text"] or "")
-            if quote_text_hash(quote_text) != quote_id:
+            # Stored post-pair rows are bound to canonical corpus IDs, which
+            # are raw UTF-8 SHA-256 identities and can preserve repeated
+            # whitespace.
+            if hashlib.sha256(quote_text.encode("utf-8")).hexdigest() != quote_id:
                 raise IdentityConflict(f"stored quote text conflicts for main post {main_post_id}")
             item = candidate_for(main_post_id, "engagement_post_pair_ledger")
             _merge_identity(item, "quote_id", quote_id, "engagement_post_pair_ledger")

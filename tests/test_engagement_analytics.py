@@ -395,6 +395,26 @@ def test_discovery_accepts_exact_corpus_identity_with_repeated_whitespace(
     assert pairs[0]["quote_id"] == quote_id
     assert pairs[0]["quote_text"] == quote_text
 
+    # Persist the discovered pair, then prove that the next collector run can
+    # replay the canonical raw-hash identity from the durable ledger.
+    analytics.initialise_database(test_paths)
+    connection = analytics.connect_database(test_paths)
+    try:
+        analytics.apply_discovery(connection, pairs, now=NOW)
+    finally:
+        connection.close()
+
+    replayed = analytics.discover_post_pairs(
+        test_paths,
+        since_days=1,
+        now=NOW,
+    )
+
+    assert len(replayed) == 1
+    assert replayed[0]["quote_id"] == quote_id
+    assert replayed[0]["quote_text"] == quote_text
+    assert "engagement_post_pair_ledger" in replayed[0]["discovery_sources"]
+
 
 def test_exact_historical_line_shift_correction_preserves_one_canonical_pair_and_history(
     tmp_path, monkeypatch, caplog
