@@ -617,11 +617,15 @@ cp mrsMThatcher.env.example mrsMThatcher.env
 chmod 600 mrsMThatcher.env
 ```
 
-`runMrsMThatcher2` is the tracked live launcher. It contains no secrets. It
-sources the ignored `mrsMThatcher.env` file and then runs
-`/usr/local/bin/mrsMThatcher2.py`. If the Python process exits, the launcher
-waits 60 seconds before restarting it; the bot's ordinary scheduling still
-happens inside the Python process.
+`/disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py` is the canonical production
+bot script. `runMrsMThatcher2` is the tracked live launcher. It contains no
+secrets, sources the ignored `mrsMThatcher.env` file, and runs that
+repository-side script from its configured `WORK_DIR` by default. Systemd
+continues to enter through `/usr/local/bin/runMrsMThatcher2`. Production should
+not set `MRS_BOT_SCRIPT` unless deliberately overriding the canonical runtime
+for a controlled reason. If the Python process exits, the launcher waits 60
+seconds before restarting it; the bot's ordinary scheduling still happens
+inside the Python process.
 
 The real `mrsMThatcher.env` is intentionally ignored by Git. Do not commit live
 API credentials.
@@ -640,6 +644,11 @@ Install updated units as regular files and reload the user manager with:
 ```bash
 deploy/systemd-user/install.sh --install
 ```
+
+The main service preflight checks the canonical repository-side
+`/disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py`, then starts the launcher at
+`/usr/local/bin/runMrsMThatcher2`. The launcher executes the same checked script
+by default.
 
 The installer uses atomic per-file replacement. It does not enable, start, stop,
 or restart any unit. Enable units separately when required:
@@ -680,25 +689,21 @@ loginctl show-user "$USER" -p Linger
 
 ## Deployment Smoke Test
 
-On this host, `/usr/local/bin/mrsMThatcher2.py` is a symlink to the script in
-this repository. Before replacing a non-symlink live script on another host,
-make a timestamped backup:
+The canonical production bot script is the tracked repository file. Ensure it
+is executable:
 
 ```bash
-cp /usr/local/bin/mrsMThatcher2.py /usr/local/bin/mrsMThatcher2.py.$(date +%Y%m%d-%H%M%S).bak
+chmod +x /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py
 ```
 
-Install or refresh the live symlink if needed:
+The previous `/usr/local/bin/mrsMThatcher2.py` symlink is no longer required
+and should not be part of the normal deployment procedure. Keep
+`/usr/local/bin/runMrsMThatcher2` as the systemd entry point.
+
+Compile-check the canonical repository file directly:
 
 ```bash
-ln -sfn /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py /usr/local/bin/mrsMThatcher2.py
-chmod +x mrsMThatcher2.py
-```
-
-Compile-check the installed file:
-
-```bash
-PYTHONPYCACHEPREFIX=/tmp/mrs-pycache python3 -m py_compile /usr/local/bin/mrsMThatcher2.py
+PYTHONPYCACHEPREFIX=/tmp/mrs-pycache python3 -m py_compile /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py
 ```
 
 Source the live environment, then run the bot self-test:
@@ -707,7 +712,7 @@ Source the live environment, then run the bot self-test:
 set -a
 source /disks/disk1/etc/mrsMThatcher/mrsMThatcher.env
 set +a
-python3 /usr/local/bin/mrsMThatcher2.py --self-test
+python3 /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py --self-test
 ```
 
 The self-test validates local configuration, credentials and core installation

@@ -3,7 +3,7 @@ set -euo pipefail
 
 WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
 ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
-BOT_SCRIPT=${MRS_BOT_SCRIPT:-/usr/local/bin/mrsMThatcher2.py}
+BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}
 
 cd "$WORK_DIR"
 

@@ -12,6 +12,21 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 SYSTEMD_DIR = PROJECT_DIR / "deploy" / "systemd-user"
 
 
+def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
+    launcher = (PROJECT_DIR / "runMrsMThatcher2").read_text(encoding="utf-8")
+    main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
+
+    bot_script_assignment = next(
+        line for line in launcher.splitlines() if line.startswith("BOT_SCRIPT=")
+    )
+    assert bot_script_assignment == 'BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}'
+    assert "/usr/local/bin/mrsMThatcher2.py" not in bot_script_assignment
+
+    assert "ExecStart=/usr/local/bin/runMrsMThatcher2" in main
+    preflight = next(line for line in main.splitlines() if line.startswith("ExecStartPre="))
+    assert "-r /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py" in preflight
+
+
 def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
     analytics = (SYSTEMD_DIR / "mrs-engagement-analytics.service").read_text(encoding="utf-8")
