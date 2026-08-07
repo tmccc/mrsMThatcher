@@ -621,11 +621,12 @@ chmod 600 mrsMThatcher.env
 bot script. `runMrsMThatcher2` is the tracked live launcher. It contains no
 secrets, sources the ignored `mrsMThatcher.env` file, and runs that
 repository-side script from its configured `WORK_DIR` by default. Systemd
-continues to enter through `/usr/local/bin/runMrsMThatcher2`. Production should
-not set `MRS_BOT_SCRIPT` unless deliberately overriding the canonical runtime
-for a controlled reason. If the Python process exits, the launcher waits 60
-seconds before restarting it; the bot's ordinary scheduling still happens
-inside the Python process.
+invokes the tracked launcher directly at
+`/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2`. Production should not set
+`MRS_BOT_SCRIPT` unless deliberately overriding the canonical runtime for a
+controlled reason. If the Python process exits, the launcher waits 60 seconds
+before restarting it; the bot's ordinary scheduling still happens inside the
+Python process.
 
 The real `mrsMThatcher.env` is intentionally ignored by Git. Do not commit live
 API credentials.
@@ -646,9 +647,9 @@ deploy/systemd-user/install.sh --install
 ```
 
 The main service preflight checks the canonical repository-side
-`/disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py`, then starts the launcher at
-`/usr/local/bin/runMrsMThatcher2`. The launcher executes the same checked script
-by default.
+`/disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py` and tracked launcher, then
+starts `/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2` directly. The launcher
+executes the same checked bot script by default.
 
 The installer uses atomic per-file replacement. It does not enable, start, stop,
 or restart any unit. Enable units separately when required:
@@ -689,16 +690,18 @@ loginctl show-user "$USER" -p Linger
 
 ## Deployment Smoke Test
 
-The canonical production bot script is the tracked repository file. Ensure it
-is executable:
+The canonical production bot script and launcher are the tracked repository
+files. Ensure both are executable:
 
 ```bash
-chmod +x /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py
+chmod +x /disks/disk1/etc/mrsMThatcher/runMrsMThatcher2 \
+  /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py
 ```
 
-The previous `/usr/local/bin/mrsMThatcher2.py` symlink is no longer required
-and should not be part of the normal deployment procedure. Keep
-`/usr/local/bin/runMrsMThatcher2` as the systemd entry point.
+The previous `/usr/local/bin/mrsMThatcher2.py` and
+`/usr/local/bin/runMrsMThatcher2` symlinks are no longer required and should not
+be part of the normal deployment procedure. Systemd uses the tracked launcher
+directly.
 
 Compile-check the canonical repository file directly:
 
