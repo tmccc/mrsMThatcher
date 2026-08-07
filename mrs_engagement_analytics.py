@@ -983,7 +983,18 @@ def discover_post_pairs(
             continue
         packet = packets.get(quote_id)
         quote_text = packet.get("quote_text") if isinstance(packet, dict) else item.get("quote_text")
-        if not isinstance(quote_text, str) or quote_text_hash(quote_text) != quote_id:
+        if not isinstance(quote_text, str):
+            raise IdentityConflict(f"canonical quote identity mismatch for main post {main_post_id}")
+
+        # Canonical research-packet IDs are raw UTF-8 SHA-256 identities.
+        # Fallback text discovered outside the canonical packet corpus retains
+        # the bot's whitespace-normalised identity rule.
+        resolved_quote_id = (
+            hashlib.sha256(quote_text.encode("utf-8")).hexdigest()
+            if isinstance(packet, dict)
+            else quote_text_hash(quote_text)
+        )
+        if resolved_quote_id != quote_id:
             raise IdentityConflict(f"canonical quote identity mismatch for main post {main_post_id}")
         context_post_id = item.get("context_post_id")
         if context_post_id:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -308,6 +309,91 @@ def test_discovery_rejects_conflicting_quote_identity(tmp_path, monkeypatch):
     (test_paths.project_dir / "historical_context_reply_history.json").write_text(json.dumps(history))
     with pytest.raises(analytics.IdentityConflict, match="quote_id conflict"):
         analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+
+
+def test_discovery_accepts_exact_corpus_identity_with_repeated_whitespace(
+    tmp_path,
+    monkeypatch,
+):
+    test_paths = paths(tmp_path)
+    quote_text = (
+        "In a free society, people can give away as much as they want to and "
+        "whenever they want to. They don't have to say, 'I will only give mine "
+        "away, if I can compel you to give yours away too.'  "
+        "If they believe in pooling their possessions with others, they're "
+        "welcome to do so."
+    )
+    quote_id = hashlib.sha256(quote_text.encode("utf-8")).hexdigest()
+
+    assert quote_id == (
+        "b301858e2ba14514c52ef64b217348cfceabe769c1530033761a2fef8c4304e8"
+    )
+    assert analytics.quote_text_hash(quote_text) != quote_id
+
+    packets = {
+        quote_id: {
+            "quote_id": quote_id,
+            "quote_text": quote_text,
+            "research_confidence": "high",
+        },
+    }
+    monkeypatch.setattr(
+        formatter,
+        "load_and_validate_corpus",
+        lambda _path: (packets, set()),
+    )
+    monkeypatch.setattr(
+        formatter,
+        "format_context_reply",
+        lambda _packet: {
+            "character_count": 487,
+            "verification_label": "Historically verified variant",
+            "source_class": "Margaret Thatcher Foundation",
+            "historical_confidence": "high",
+            "shortening_applied": False,
+            "meaning_included": True,
+        },
+    )
+
+    main_time = NOW - timedelta(hours=1)
+    context_time = main_time + timedelta(seconds=1)
+    main_post_id = snowflake(main_time, 101)
+    context_post_id = snowflake(context_time, 102)
+
+    test_paths.project_dir.joinpath("mrsMThatcher.txt").write_text(
+        quote_text + "\n",
+        encoding="utf-8",
+    )
+    test_paths.project_dir.joinpath("quote_analysis.json").write_text(
+        json.dumps({"items": {}}),
+        encoding="utf-8",
+    )
+    test_paths.project_dir.joinpath("bot_state.json").write_text(
+        json.dumps({}),
+        encoding="utf-8",
+    )
+    test_paths.project_dir.joinpath(
+        "historical_context_reply_history.json"
+    ).write_text(
+        json.dumps({
+            "schema_version": 1,
+            "items": {
+                main_post_id: {
+                    "status": "completed",
+                    "parent_post_id": main_post_id,
+                    "reply_post_id": context_post_id,
+                    "quote_id": quote_id,
+                },
+            },
+        }),
+        encoding="utf-8",
+    )
+
+    pairs = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+
+    assert len(pairs) == 1
+    assert pairs[0]["quote_id"] == quote_id
+    assert pairs[0]["quote_text"] == quote_text
 
 
 def test_exact_historical_line_shift_correction_preserves_one_canonical_pair_and_history(
