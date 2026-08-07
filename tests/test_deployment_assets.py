@@ -22,12 +22,12 @@ def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
     assert bot_script_assignment == 'BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}'
     assert "/usr/local/bin/mrsMThatcher2.py" not in bot_script_assignment
 
-    assert "ExecStart=/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2" in main
-    assert "/usr/local/bin/runMrsMThatcher2" not in main
+    exec_start = next(line for line in main.splitlines() if line.startswith("ExecStart="))
+    assert exec_start == "ExecStart=/usr/local/bin/runMrsMThatcher2"
     preflight = next(line for line in main.splitlines() if line.startswith("ExecStartPre="))
-    assert "-x /disks/disk1/etc/mrsMThatcher/runMrsMThatcher2" in preflight
     assert "-r /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py" in preflight
-    assert '"^python3 /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py$"' in main
+    exec_stop = next(line for line in main.splitlines() if line.startswith("ExecStop="))
+    assert '"^python3 /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py$"' in exec_stop
     assert "/usr/local/bin/mrsMThatcher2.py" not in main
 
 
@@ -38,7 +38,7 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     shadow_health = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.service").read_text(encoding="utf-8")
     shadow_timer = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.timer").read_text(encoding="utf-8")
 
-    assert "ExecStart=/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2" in main
+    assert "ExecStart=/usr/local/bin/runMrsMThatcher2" in main
     assert "Restart=on-failure" in main
     assert "KillMode=control-group" in main
     assert "StandardOutput=journal" in main

@@ -7,7 +7,7 @@ StartLimitIntervalSec=0
 Type=simple
 WorkingDirectory=/disks/disk1/etc/mrsMThatcher
 ExecStartPre=/bin/bash -c 'for _ in {1..12}; do if [[ -d /disks/disk1/etc/mrsMThatcher && -x /disks/disk1/etc/mrsMThatcher/runMrsMThatcher2 && -r /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py && -r /disks/disk1/etc/mrsMThatcher/mrsMThatcher.env ]]; then exit 0; fi; echo "MrsMThatcher project or wrapper not ready; retrying in 10 seconds" >&2; /bin/sleep 10; done; echo "MrsMThatcher project or wrapper unavailable after 120 seconds" >&2; exit 1'
-ExecStart=/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2
+ExecStart=/usr/local/bin/runMrsMThatcher2
 ExecStop=/bin/bash -c 'child=$(/usr/bin/pgrep -P "$${MAINPID}" -f "^python3 /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py$" || true); if [[ -n "$${child}" ]]; then /bin/kill -INT "$${child}"; for _ in {1..30}; do if ! /bin/kill -0 "$${child}" 2>/dev/null; then break; fi; /bin/sleep 1; done; fi; if /bin/kill -0 "$${MAINPID}" 2>/dev/null; then /bin/kill -TERM "$${MAINPID}"; fi'
 Restart=on-failure
 RestartSec=60
