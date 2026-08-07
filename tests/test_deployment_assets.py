@@ -25,6 +25,8 @@ def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
     assert "ExecStart=/usr/local/bin/runMrsMThatcher2" in main
     preflight = next(line for line in main.splitlines() if line.startswith("ExecStartPre="))
     assert "-r /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py" in preflight
+    assert '"^python3 /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py$"' in main
+    assert "/usr/local/bin/mrsMThatcher2.py" not in main
 
 
 def test_canonical_user_units_cover_live_services_without_secrets() -> None:
