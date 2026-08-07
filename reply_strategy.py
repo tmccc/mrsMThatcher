@@ -43,6 +43,8 @@ MODES = {
     "no_reply",
 }
 CLAIM_AUDITED_MODES = {"opinion_or_principle", "light_humour"}
+CLARIFICATION_ALLOWED_MODES = {"direct_factual_answer", "no_reply"}
+CLARIFICATION_MODE_REFUSAL_REASON = "clarification_not_direct_factual_answer"
 TONES = {"firm", "dry", "wry", "warm", "neutral", "light", "none"}
 CONFIDENCE_LEVELS = {"low": 1, "medium": 2, "high": 3}
 EVIDENCE_VERDICTS = {"supports", "contradicts", "insufficient"}
@@ -2393,6 +2395,23 @@ def run_reply_pipeline(
             "tone": proposer["tone"],
             "factual_claim_count": len(proposer["factual_claims"]),
         })
+        if (
+            clean_context["clarification_request"] is not None
+            and proposer["mode"] not in CLARIFICATION_ALLOWED_MODES
+        ):
+            audit.append({
+                "stage": proposer_stage,
+                "status": "rejected",
+                "reason": CLARIFICATION_MODE_REFUSAL_REASON,
+            })
+            return PipelineResult(
+                None,
+                "no_reply",
+                CLARIFICATION_MODE_REFUSAL_REASON,
+                call_count,
+                revisions,
+                tuple(audit),
+            )
         if proposer["mode"] == "no_reply":
             no_reply_reviewer_stage = (
                 "revision_no_reply_reviewer" if revisions else "no_reply_reviewer"

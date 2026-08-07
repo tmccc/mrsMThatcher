@@ -3121,6 +3121,13 @@ def classify_operational_error(message: str) -> str:
     text = str(message or "")
     lowered = text.lower()
     exception_line = _incident_exception_line(text).lower()
+    if "clarification reply lacks direct_factual_answer mode" in lowered:
+        return "clarification_mode_local_rejection"
+    if (
+        any(marker in lowered for marker in ("readtimeout", "read timed out"))
+        and any(marker in lowered for marker in ("xai", "grok", "api.x.ai"))
+    ):
+        return "xai_provider_timeout"
     if is_deleted_or_inaccessible_tweet_403(text):
         return "deleted_or_inaccessible_tweet"
     if any(
@@ -3211,6 +3218,14 @@ def summarise_operational_error_health(
 ) -> Dict[str, Any]:
     """Group traceback cascades and distinguish recovered from current incidents."""
     serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
+    operational = [
+        item
+        for item in serious
+        if classify_operational_error(
+            str(item.get("_raw_message") or item.get("message") or "")
+        )
+        != "clarification_mode_local_rejection"
+    ]
     groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     stable_root_categories = {
         "historical_context_source_role_incompatibility",
@@ -3223,6 +3238,7 @@ def summarise_operational_error_health(
         "remote_write_transaction_barrier",
         "instance_lock_conflict",
         "x_api_transient_failure",
+        "xai_provider_timeout",
     }
     ambiguity_times = [
         _event_time(item)
@@ -3233,7 +3249,7 @@ def summarise_operational_error_health(
         == "remote_write_ambiguity_barrier"
     ]
     ambiguity_times = [item for item in ambiguity_times if item is not None]
-    for item in serious:
+    for item in operational:
         raw = str(item.get("_raw_message") or item.get("message") or "")
         category = classify_operational_error(raw)
         item_time = _event_time(item)
@@ -3244,11 +3260,27 @@ def summarise_operational_error_health(
         ):
             category = "remote_write_ambiguity_barrier"
         root = (_incident_exception_line(raw) or raw.splitlines()[0]) if raw else category
-        signature = (
-            category
-            if category in stable_root_categories
-            else _normalise_incident_text(root)
-        )
+        if category == "xai_provider_timeout" and item_time is not None:
+            signature = ""
+            for (candidate_category, candidate_signature), rows in reversed(
+                list(groups.items())
+            ):
+                previous_time = _event_time(rows[-1])
+                if (
+                    candidate_category == category
+                    and previous_time is not None
+                    and seconds_between(item_time, previous_time) <= 5
+                ):
+                    signature = candidate_signature
+                    break
+            if not signature:
+                signature = f"{category}:{dt_text(item_time)}"
+        else:
+            signature = (
+                category
+                if category in stable_root_categories
+                else _normalise_incident_text(root)
+            )
         groups.setdefault((category, signature), []).append(item)
 
     event_times: Dict[str, List[datetime]] = {}
@@ -3327,7 +3359,7 @@ def summarise_operational_error_health(
                 for ts in successful_restart_times
                 if ts > last_time
             )
-        elif category == "x_api_transient_failure":
+        elif category in {"x_api_transient_failure", "xai_provider_timeout"}:
             return (
                 True,
                 "point-in-time upstream transport failure; current local safety is assessed separately",
@@ -3435,11 +3467,18 @@ def summarise_operational_error_health(
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
     current = [item for item in incidents if item["status"] == "current_unresolved"]
     resolved = [item for item in incidents if item["status"] == "historical_resolved"]
+    transient_provider_timeouts = [
+        item for item in incidents if item["category"] == "xai_provider_timeout"
+    ]
     return {
         "current_independent_incident_count": len(current),
         "historical_resolved_incident_count": len(resolved),
         "raw_serious_error_record_count": len(serious),
         "raw_traceback_count": sum(item.get("traceback_count", 0) for item in incidents),
+        "transient_provider_timeout_count": len(transient_provider_timeouts),
+        "transient_provider_timeout_record_count": sum(
+            item.get("record_count", 0) for item in transient_provider_timeouts
+        ),
         "current_incidents": current,
         "historical_resolved_incidents": resolved,
     }
@@ -3737,6 +3776,8 @@ def xai_reply_cost_summary(
     decisions: Dict[Tuple[str, str], Dict[str, Any]] = {}
     outcomes: Dict[Tuple[str, str], Dict[str, Any]] = {}
     failures: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    local_rejections: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    local_rejections_by_target: Dict[str, Dict[str, Any]] = {}
     execution_event_counts: Counter = Counter()
     for item in reply_events:
         target_id = str(item.get("target_id") or "")
@@ -3752,6 +3793,9 @@ def xai_reply_cost_summary(
         elif kind == "reply_strategy_failure":
             failures[key] = item
             execution_event_counts[key] += 1
+        elif kind == "reply_strategy_local_rejection":
+            local_rejections[key] = item
+            local_rejections_by_target[target_id] = item
 
     grouped_usage: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     unattributed_usage: List[Dict[str, Any]] = []
@@ -3813,6 +3857,14 @@ def xai_reply_cost_summary(
         decision = decisions.get(key)
         outcome = outcomes.get(key)
         failure = failures.get(key)
+        local_rejection = local_rejections.get(key) or local_rejections_by_target.get(
+            context_id
+        )
+        terminal_local_outcome = _terminal_local_rejection_outcome(
+            (decision or {}).get("no_reply_reason")
+        ) or _terminal_local_rejection_outcome(
+            (local_rejection or {}).get("reason")
+        )
         outcome_status = str((outcome or {}).get("status") or "")
         if outcome_status in {"confirmed", "posted"}:
             disposition = "published"
@@ -3820,6 +3872,8 @@ def xai_reply_cost_summary(
             "fail" in outcome_status or outcome_status not in {"", "confirmed"}
         ):
             disposition = "posting_failed"
+        elif terminal_local_outcome is not None:
+            disposition = terminal_local_outcome
         elif decision is not None and decision.get("mode") == "no_reply":
             disposition = "deliberately_declined"
         elif failure is not None:
@@ -3979,6 +4033,8 @@ def xai_reply_cost_summary(
         "deliberately_declined",
         "posting_failed",
         "pipeline_failed",
+        "terminal_repetition_rejection",
+        "terminal_clarification_mode_rejection",
     }
     coverage_reasons: List[str] = []
     if unattributed_usage:
@@ -4481,6 +4537,17 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
+def _terminal_local_rejection_outcome(reason: Any) -> Optional[str]:
+    """Return the terminal local outcome represented by a pipeline reason."""
+    normalised = str(reason or "").strip().lower()
+    return {
+        "near_duplicate_reply": "terminal_repetition_rejection",
+        "clarification_not_direct_factual_answer": (
+            "terminal_clarification_mode_rejection"
+        ),
+    }.get(normalised)
+
+
 def _no_reply_category(value: Any) -> str:
     reason = " ".join(str(value or "").lower().replace("-", "_").split())
     if not reason:
@@ -4510,6 +4577,33 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         decision_id = f"{lane}:{target}" if target else f"missing:{index}"
         decision_by_id.setdefault(decision_id, event)
     decisions = list(decision_by_id.values())
+    terminal_local_rejections: Dict[Tuple[str, str], str] = {}
+    for index, event in enumerate(decisions):
+        outcome = _terminal_local_rejection_outcome(event.get("no_reply_reason"))
+        if outcome is None:
+            continue
+        lane = _normalise_lane(event.get("lane"))
+        target = str(event.get("target_id") or f"missing-decision-{index}")
+        terminal_local_rejections[(lane, target)] = outcome
+    for index, event in enumerate(events):
+        if event.get("kind") != "reply_strategy_local_rejection":
+            continue
+        outcome = _terminal_local_rejection_outcome(event.get("reason"))
+        if outcome is None:
+            continue
+        target = str(event.get("target_id") or f"missing-local-{index}")
+        lane = _normalise_lane(event.get("lane"))
+        matching_decision = next(
+            (
+                decision
+                for decision in decisions
+                if str(decision.get("target_id") or "") == target
+            ),
+            None,
+        )
+        if lane == "unavailable" and matching_decision is not None:
+            lane = _normalise_lane(matching_decision.get("lane"))
+        terminal_local_rejections[(lane, target)] = outcome
     outcome_by_id: Dict[str, Dict[str, Any]] = {}
     for index, event in enumerate(events):
         if event.get("kind") != "reply_strategy_outcome":
@@ -4605,6 +4699,14 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         else:
             outcome_status_counts[status or "unavailable"] += 1
     outcome_status_counts["terminal_no_reply"] += sum(event.get("mode") == "no_reply" for event in decisions)
+    outcome_status_counts["terminal_repetition_rejection"] += sum(
+        outcome == "terminal_repetition_rejection"
+        for outcome in terminal_local_rejections.values()
+    )
+    outcome_status_counts["terminal_clarification_mode_rejection"] += sum(
+        outcome == "terminal_clarification_mode_rejection"
+        for outcome in terminal_local_rejections.values()
+    )
     retrieved = [int(event["retrieved_count"]) for event in observations if type(event.get("retrieved_count")) is int]
     generated_retrieved = [
         int(event["retrieved_count"])
@@ -4634,6 +4736,16 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         for event in decisions
         if event.get("mode") == "no_reply" and event.get("target_id")
     }
+    terminal_local_targets = set(terminal_local_rejections)
+    for (lane, target), outcome in terminal_local_rejections.items():
+        reason = (
+            "near_duplicate_reply"
+            if outcome == "terminal_repetition_rejection"
+            else "clarification_not_direct_factual_answer"
+        )
+        rejection_reasons[reason] += 1
+        if outcome == "terminal_repetition_rejection":
+            repetition_controls["highly_similar_reply_rejected"] += 1
     seen_skips = set()
     for event in events:
         if event.get("kind") == "reply_strategy_rejection":
@@ -4645,7 +4757,11 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             reason = str(event.get("reason") or "other")
             if (
                 reason == "no_usable_reply_generated"
-                and (_normalise_lane(event.get("lane")), str(event.get("target_id") or "")) in no_reply_targets
+                and (
+                    _normalise_lane(event.get("lane")),
+                    str(event.get("target_id") or ""),
+                )
+                in no_reply_targets | terminal_local_targets
             ):
                 continue
             identity = (event.get("time"), event.get("lane"), event.get("target_id"), reason)
@@ -4668,6 +4784,15 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     confidence_counts = _count_optional(observations, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
     generated_humour_counts = _count_optional(decisions, "humour_tone", tone_values)
     generated_confidence_counts = _count_optional(decisions, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
+    # Preserve the established sparse outcome-status result shape.
+    # New terminal categories are present only when actually observed.
+    for zero_only_key in (
+        "terminal_repetition_rejection",
+        "terminal_clarification_mode_rejection",
+    ):
+        if not outcome_status_counts.get(zero_only_key):
+            outcome_status_counts.pop(zero_only_key, None)
+
     return {
         "mode_counts": dict(sorted(modes.items())),
         "mode_counts_by_lane": {lane: dict(sorted(counts.items())) for lane, counts in sorted(by_lane.items())},
@@ -4719,7 +4844,21 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         ),
         "conversational_candidate_count": len(decisions),
         "deliberately_declined_count": sum(
-            event.get("mode") == "no_reply" for event in decisions
+            event.get("mode") == "no_reply"
+            and (
+                _normalise_lane(event.get("lane")),
+                str(event.get("target_id") or ""),
+            )
+            not in terminal_local_targets
+            for event in decisions
+        ),
+        "terminal_repetition_rejection_count": sum(
+            outcome == "terminal_repetition_rejection"
+            for outcome in terminal_local_rejections.values()
+        ),
+        "terminal_clarification_mode_rejection_count": sum(
+            outcome == "terminal_clarification_mode_rejection"
+            for outcome in terminal_local_rejections.values()
         ),
         "factual_claim_count": sum(event.get("factual_claim") is True for event in observations),
         "factual_claim_metadata_unavailable_count": sum(type(event.get("factual_claim")) is not bool for event in observations),
@@ -5212,6 +5351,18 @@ def analyse(
             or "Image used-history still contains legacy integer entries" in msg
         )
         is_reply_media_context = msg.startswith("Reply media context")
+        clarification_mode_refusal = re.search(
+            r"Clarification reply lacks direct_factual_answer mode; refusing target_id=(\d+)",
+            msg,
+        )
+        if clarification_mode_refusal is not None:
+            add_event(
+                "reply_strategy_local_rejection",
+                r.ts,
+                lane=pending_mention.get("source") or "unavailable",
+                target_id=clarification_mode_refusal.group(1),
+                reason="clarification_not_direct_factual_answer",
+            )
 
         # Error/warning collection. Exclude routine KeyboardInterrupt, expected
         # self-test failures, and handled target restrictions from operational errors.
@@ -6764,6 +6915,9 @@ def analyse(
     )
     current_incidents = int(error_health["current_independent_incident_count"])
     resolved_incidents = int(error_health["historical_resolved_incident_count"])
+    transient_provider_timeouts = int(
+        error_health.get("transient_provider_timeout_count", 0)
+    )
     if current_incidents:
         headline.append(
             "current health: "
@@ -6774,10 +6928,20 @@ def analyse(
         )
     else:
         headline.append("current health: no unresolved operational incidents")
-    if resolved_incidents:
+    if transient_provider_timeouts:
         headline.append(
             plural_count(
-                resolved_incidents,
+                transient_provider_timeouts,
+                "transient provider timeout",
+            )
+        )
+    non_transient_resolved_incidents = max(
+        0, resolved_incidents - transient_provider_timeouts
+    )
+    if non_transient_resolved_incidents:
+        headline.append(
+            plural_count(
+                non_transient_resolved_incidents,
                 "historical/resolved incident",
             )
             + " in window"
@@ -6973,7 +7137,7 @@ def analyse(
         str(item.get("status") or "") in {"408", "425"}
         or str(item.get("status") or "").startswith("5")
         for item in all_api_failures
-    )
+    ) + transient_provider_timeouts
     rate_limit_failure_count = sum(str(item.get("status") or "") == "429" for item in all_api_failures)
     legacy_cooldown_from_target_restriction_count = sum(
         any(
@@ -7064,11 +7228,22 @@ def analyse(
     candidates = int(strategy_quality.get("conversational_candidate_count", 0) or 0)
     posted_replies = int(strategy_quality.get("confirmed_outcome_count", 0) or 0)
     declined = int(strategy_quality.get("deliberately_declined_count", 0) or 0)
+    repetition_rejections = int(
+        strategy_quality.get("terminal_repetition_rejection_count", 0) or 0
+    )
+    clarification_rejections = int(
+        strategy_quality.get(
+            "terminal_clarification_mode_rejection_count", 0
+        )
+        or 0
+    )
     if candidates:
         headline.insert(
             health_index,
             f"{plural_count(candidates, 'conversational candidate')} AI-reviewed; "
             f"{plural_count(posted_replies, 'reply', 'replies')} posted; "
+            f"{plural_count(repetition_rejections, 'terminal repetition rejection')}; "
+            f"{plural_count(clarification_rejections, 'terminal clarification-mode rejection')}; "
             f"{declined} deliberately declined",
         )
     routine_reason_map = {
@@ -9162,6 +9337,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append(
         f"**{plural_count(strategy.get('conversational_candidate_count', 0), 'conversational candidate')} "
         f"AI-reviewed; {plural_count(strategy.get('confirmed_outcome_count', 0), 'reply', 'replies')} posted; "
+        f"{plural_count(strategy.get('terminal_repetition_rejection_count', 0), 'terminal repetition rejection')}; "
+        f"{plural_count(strategy.get('terminal_clarification_mode_rejection_count', 0), 'terminal clarification-mode rejection')}; "
         f"{strategy.get('deliberately_declined_count', 0)} deliberately declined.**"
     )
     out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -591,6 +592,177 @@ def test_reply_summary_classifies_declines_duplicates_and_posted_modes():
     assert summary["repetition_control_counts"]["exact_duplicate_rejected"] == 3
     assert summary["claim_free_opinion_or_principle_count"] == 2
     assert summary["humour_reply_count"] == 0
+
+
+def test_reply_accounting_reconciles_terminal_local_rejections_and_timeout_wrapper():
+    def event_row(offset: int, payload: dict) -> digest.Record:
+        return record(
+            offset,
+            "INFO",
+            "log_event",
+            "EVENT " + json.dumps(payload, separators=(",", ":")),
+        )
+
+    records: list[digest.Record] = []
+    for index in range(6):
+        target_id = str(100 + index)
+        records.extend(
+            [
+                event_row(
+                    index * 3,
+                    {
+                        "event": "ai_reply_pipeline_decision",
+                        "status": "approved",
+                        "lane": "mention",
+                        "target_id": target_id,
+                        "mode": "opinion_or_principle",
+                        "tone": "firm",
+                        "factual_claim_count": 0,
+                        "model_call_count": 2,
+                        "revision_count": 0,
+                    },
+                ),
+                event_row(
+                    index * 3 + 1,
+                    {
+                        "event": "ai_reply_pipeline_outcome",
+                        "status": "confirmed",
+                        "lane": "mention",
+                        "target_id": target_id,
+                        "reply_post_id": str(900 + index),
+                        "mode": "opinion_or_principle",
+                        "tone": "firm",
+                        "factual_claim_count": 0,
+                        "model_call_count": 2,
+                        "revision_count": 0,
+                    },
+                ),
+            ]
+        )
+    records.append(
+        event_row(
+            20,
+            {
+                "event": "ai_reply_pipeline_decision",
+                "status": "no_reply",
+                "lane": "mention",
+                "target_id": "200",
+                "mode": "opinion_or_principle",
+                "tone": "firm",
+                "factual_claim_count": 0,
+                "reason": "near_duplicate_reply",
+                "model_call_count": 1,
+                "revision_count": 0,
+            },
+        )
+    )
+    records.extend(
+        [
+            record(
+                22,
+                "INFO",
+                "maybe_reply_to_mentions",
+                "Considering mention id=300 author_id=42 text='Which way?'",
+            ),
+            event_row(
+                23,
+                {
+                    "event": "ai_reply_pipeline_decision",
+                    "status": "approved",
+                    "lane": "mention",
+                    "target_id": "300",
+                    "mode": "opinion_or_principle",
+                    "tone": "firm",
+                    "factual_claim_count": 0,
+                    "model_call_count": 3,
+                    "revision_count": 0,
+                },
+            ),
+            record(
+                24,
+                "ERROR",
+                "maybe_reply_to_mentions",
+                "Clarification reply lacks direct_factual_answer mode; refusing "
+                "target_id=300",
+            ),
+        ]
+    )
+    timeout_detail = (
+        "HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. "
+        "(read timeout=30)"
+    )
+    records.extend(
+        [
+            record(
+                30,
+                "ERROR",
+                "xai_structured_reply_call",
+                "xAI reply stage=proposer failed before receiving a response\n"
+                "Traceback (most recent call last):\n"
+                '  File "/srv/mrsMThatcher2.py", line 1, in xai_structured_reply_call\n'
+                f"requests.exceptions.ReadTimeout: {timeout_detail}",
+            ),
+            record(
+                30,
+                "ERROR",
+                "maybe_reply_to_mentions",
+                "Failed to ask Grok for reply\n"
+                "Traceback (most recent call last):\n"
+                '  File "/srv/mrsMThatcher2.py", line 2, in maybe_reply_to_mentions\n'
+                f"requests.exceptions.ReadTimeout: {timeout_detail}\n"
+                "The above exception was the direct cause of the following exception:\n"
+                "Traceback (most recent call last):\n"
+                '  File "/srv/mrsMThatcher2.py", line 3, in maybe_reply_to_mentions\n'
+                f"ApiError: {timeout_detail}",
+            ),
+        ]
+    )
+
+    report = digest.analyse(records)
+    strategy = report["reply_strategy"]
+    cost = report["xai_usage"]["cost_summary"]
+    health = report["error_health"]
+    outcome_counts = {
+        row["outcome"]: row["candidate_count"] for row in cost["outcomes"]
+    }
+
+    assert strategy["conversational_candidate_count"] == 8
+    assert strategy["confirmed_outcome_count"] == 6
+    assert strategy["terminal_repetition_rejection_count"] == 1
+    assert strategy["terminal_clarification_mode_rejection_count"] == 1
+    assert strategy["deliberately_declined_count"] == 0
+    assert cost["candidate_count"] == 8
+    assert cost["published_candidate_count"] == 6
+    assert outcome_counts == {
+        "published": 6,
+        "terminal_clarification_mode_rejection": 1,
+        "terminal_repetition_rejection": 1,
+    }
+    assert all(
+        row["outcome"] != "approved_not_confirmed_in_window"
+        for row in cost["candidates"]
+    )
+    assert health["current_independent_incident_count"] == 0
+    assert health["transient_provider_timeout_count"] == 1
+    assert health["transient_provider_timeout_record_count"] == 2
+    assert health["historical_resolved_incidents"][0]["record_count"] == 2
+    assert report["api_health"]["transient_failure_count"] == 1
+    assert len(report["errors_and_warnings"]) == 3
+    raw_error_detail = "\n".join(
+        row["message"] for row in report["errors_and_warnings"]
+    )
+    assert "Clarification reply lacks direct_factual_answer mode" in raw_error_detail
+    assert "requests.exceptions.ReadTimeout" in raw_error_detail
+    assert "ApiError" in raw_error_detail
+    assert sum(
+        "Traceback" in row["message"] for row in report["errors_and_warnings"]
+    ) == 2
+    assert "8 conversational candidates AI-reviewed" in report["summary"]["headline"]
+    assert "6 replies posted" in report["summary"]["headline"]
+    assert "1 terminal repetition rejection" in report["summary"]["headline"]
+    assert "1 terminal clarification-mode rejection" in report["summary"]["headline"]
+    assert "current health: no unresolved operational incidents" in report["summary"]["headline"]
+    assert "1 transient provider timeout" in report["summary"]["headline"]
 
 
 def test_conversational_strategy_reply_count_is_pluralised():
