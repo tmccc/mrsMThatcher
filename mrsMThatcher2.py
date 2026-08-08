@@ -278,6 +278,9 @@ NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
 NORMAL_CHECK_STATUS_DISABLED = "disabled"
 NORMAL_CHECK_STATUS_API_ERROR = "api_error"
 
+REPLY_EVALUATION_MIN_RETENTION_SECONDS = 30 * 24 * 60 * 60
+REPLY_EVALUATION_MAX_RECORDS = 25_000
+
 # ---------------------------------------------------------------------
 # Reply automation
 # ---------------------------------------------------------------------
@@ -534,8 +537,8 @@ def setup_logging(
     if configure_file_logging:
         target_log.parent.mkdir(parents=True, exist_ok=True)
 
-    level_name = os.getenv("LOG_LEVEL", "DEBUG").upper()
-    level = getattr(logging, level_name, logging.DEBUG)
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
 
     logger = logging.getLogger("mrsMThatcher")
     logger.setLevel(level)
@@ -571,7 +574,7 @@ def setup_logging(
 
 
 log = logging.getLogger("mrsMThatcher")
-_IMPORT_LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "DEBUG").upper(), logging.DEBUG)
+_IMPORT_LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
 log.setLevel(_IMPORT_LOG_LEVEL)
 log.propagate = False
 remove_managed_log_handlers(log)
@@ -1141,16 +1144,76 @@ def redact_secret(value: str, visible: int = 4) -> str:
 
 
 def log_json_debug(label: str, obj: object, max_chars: int = 4000) -> None:
-    """Log a JSON payload at debug level with sensitive fields redacted."""
+    """Log bounded JSON with recursively redacted credential-like values."""
+
+    sensitive_markers = (
+        "secret",
+        "token",
+        "password",
+        "authorization",
+        "apikey",
+        "bearer",
+        "cookie",
+        "oauth",
+    )
+
+    def sanitise(value: object, seen: set[int], depth: int = 0) -> object:
+        if depth > 20:
+            return "<maximum-depth>"
+        if isinstance(value, dict):
+            identity = id(value)
+            if identity in seen:
+                return "<circular-reference>"
+            seen.add(identity)
+            try:
+                cleaned: dict[str, object] = {}
+                for key, item in value.items():
+                    key_text = str(key)
+                    compact_key = re.sub(r"[^a-z0-9]", "", key_text.lower())
+                    if any(marker in compact_key for marker in sensitive_markers):
+                        cleaned[key_text] = "[REDACTED]"
+                    else:
+                        cleaned[key_text] = sanitise(item, seen, depth + 1)
+                return cleaned
+            finally:
+                seen.remove(identity)
+        if isinstance(value, (list, tuple)):
+            identity = id(value)
+            if identity in seen:
+                return "<circular-reference>"
+            seen.add(identity)
+            try:
+                return [sanitise(item, seen, depth + 1) for item in value]
+            finally:
+                seen.remove(identity)
+        return value
+
     try:
-        text = json.dumps(obj, indent=2, sort_keys=True, default=str)
+        redacted = sanitise(obj, set())
+        text = json.dumps(redacted, indent=2, sort_keys=True, default=str)
     except Exception:
-        text = repr(obj)
+        text = "<unserialisable-redacted-payload>"
 
     if len(text) > max_chars:
         text = text[:max_chars] + "...<truncated>"
 
     log.debug("%s: %s", label, text)
+
+
+def state_debug_summary(state: object) -> dict[str, object]:
+    """Return state keys and collection sizes without any state values."""
+    if not isinstance(state, dict):
+        return {"type": type(state).__name__}
+    collection_counts = {
+        str(key): len(value)
+        for key, value in state.items()
+        if isinstance(value, (dict, list, tuple, set))
+    }
+    return {
+        "key_count": len(state),
+        "keys": sorted(str(key) for key in state),
+        "collection_counts": dict(sorted(collection_counts.items())),
+    }
 
 
 def log_event(event: str, **fields: object) -> None:
@@ -3818,6 +3881,73 @@ def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, di
     return out
 
 
+def prune_reply_evaluation_records(
+    state: dict,
+    *,
+    current_epoch: int | None = None,
+) -> None:
+    """Prune old terminal evaluations while preserving recent replay protection."""
+    records = state.get("reply_evaluation_records")
+    if not isinstance(records, dict):
+        return
+    if current_epoch is None:
+        current_epoch = now_epoch()
+    current_epoch = int(current_epoch)
+    cutoff = current_epoch - REPLY_EVALUATION_MIN_RETENTION_SECONDS
+
+    def evaluated_epoch(item: tuple[str, dict]) -> int | None:
+        value = item[1].get("evaluated_epoch")
+        if type(value) is not int or value < 0 or value > MAX_REASONABLE_STATE_EPOCH:
+            return None
+        return value
+
+    items = [
+        (str(target_id), dict(record))
+        for target_id, record in records.items()
+        if isinstance(record, dict)
+    ]
+    protected = [
+        item
+        for item in items
+        if evaluated_epoch(item) is None or evaluated_epoch(item) > cutoff
+    ]
+    older = [
+        item
+        for item in items
+        if evaluated_epoch(item) is not None and evaluated_epoch(item) <= cutoff
+    ]
+
+    def sort_key(item: tuple[str, dict]) -> tuple[int, str]:
+        epoch = evaluated_epoch(item)
+        return (epoch if epoch is not None else MAX_REASONABLE_STATE_EPOCH + 1, item[0])
+
+    protected.sort(key=sort_key)
+    older.sort(key=sort_key)
+    if len(protected) > REPLY_EVALUATION_MAX_RECORDS:
+        retained = protected
+        log.warning(
+            "Recent or conservatively protected reply evaluations exceed nominal cap: "
+            "protected=%s cap=%s; retaining all protected records",
+            len(protected),
+            REPLY_EVALUATION_MAX_RECORDS,
+        )
+    else:
+        available_older_slots = max(0, REPLY_EVALUATION_MAX_RECORDS - len(protected))
+        retained = protected + older[-available_older_slots:] if available_older_slots else protected
+    retained.sort(key=sort_key)
+    state["reply_evaluation_records"] = {
+        target_id: record for target_id, record in retained
+    }
+    removed = len(records) - len(retained)
+    if removed:
+        log.info(
+            "Pruned %s old reply evaluation records; retained=%s cap=%s",
+            removed,
+            len(retained),
+            REPLY_EVALUATION_MAX_RECORDS,
+        )
+
+
 def normalise_tweet_cache_entry(tweet_id: object, entry: dict, *, path: Path) -> dict[str, object] | None:
     """Normalise tweet cache entry."""
     cached_epoch = normalise_state_epoch(entry.get("cached_epoch", 0), key=f"tweet_cache.{tweet_id}.cached_epoch", path=path)
@@ -4181,6 +4311,8 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
     if not validate_meme_schedule_version_for_candidate(normalised, path=path):
         return None
 
+    prune_reply_evaluation_records(normalised)
+
     return normalised
 
 
@@ -4254,7 +4386,7 @@ def load_state() -> dict:
                 latest_backup_path,
             )
             raise RuntimeError(message)
-        log_json_debug("Loaded state", primary)
+        log_json_debug("Loaded state summary", state_debug_summary(primary))
         return primary
 
     # Only inspect backups until the first usable generation is found.  Older
@@ -4264,7 +4396,7 @@ def load_state() -> dict:
         if recovered is None:
             continue
         log.warning("Recovered state from backup %s", candidate)
-        log_json_debug("Loaded state", recovered)
+        log_json_debug("Loaded state summary", state_debug_summary(recovered))
         return recovered
 
     if existing_candidates:
@@ -4372,11 +4504,11 @@ class StateBackupWriteError(RuntimeError):
 
 
 def save_state(state: dict, *, durable: bool = False) -> None:
-    """Persist runtime state atomically with bounded backups."""
+    """Persist state atomically, logging only a value-free structural summary."""
     if test_process_production_state_write_blocked(STATE_FILE):
         raise RuntimeError(f"Refusing test-process write to production state: {STATE_FILE}")
     log.debug("Saving state to %s", STATE_FILE)
-    log_json_debug("State being saved", state)
+    log_json_debug("State summary being saved", state_debug_summary(state))
 
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -4413,7 +4545,7 @@ def save_state(state: dict, *, durable: bool = False) -> None:
 
 def reset_daily_reply_count_if_needed(state: dict) -> None:
     """Reset daily reply count if needed."""
-    today = current_datetime().strftime("%Y-%m-%d")
+    today = reply_cap_date_str()
 
     if state.get("daily_reply_date") != today:
         log.info(
@@ -4430,7 +4562,7 @@ def reset_daily_reply_count_if_needed(state: dict) -> None:
 
 def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
     """Reset daily quote reply count if needed."""
-    today = current_datetime().strftime("%Y-%m-%d")
+    today = reply_cap_date_str()
 
     if state.get("daily_quote_reply_date") != today:
         log.info(
@@ -10269,6 +10401,14 @@ def safe_epoch_date_str(epoch: int) -> str | None:
     """Return the safe epoch date str."""
     try:
         return epoch_date_str(epoch)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+
+
+def safe_reply_cap_date_str(epoch: int) -> str | None:
+    """Return a safe Europe/London conversational daily-cap date."""
+    try:
+        return reply_cap_date_str(epoch)
     except (TypeError, ValueError, OverflowError, OSError):
         return None
 
@@ -17181,6 +17321,16 @@ def epoch_date_str(epoch: int | None = None) -> str:
     return datetime.fromtimestamp(int(epoch)).strftime("%Y-%m-%d")
 
 
+def reply_cap_date_str(epoch: int | None = None) -> str:
+    """Return the conversational daily-cap date in Europe/London."""
+    if epoch is None:
+        epoch = now_epoch()
+    return datetime.fromtimestamp(
+        int(epoch),
+        tz=ZoneInfo(MAIN_POST_SCHEDULE_TIMEZONE),
+    ).strftime("%Y-%m-%d")
+
+
 def meme_schedule_datetime(epoch: int) -> datetime:
     """Interpret a meme schedule epoch in the production calendar zone."""
 
@@ -18481,6 +18631,7 @@ def record_terminal_reply_evaluation(
         "evaluated_epoch": now_epoch(),
     }
     state["reply_evaluation_records"] = records
+    prune_reply_evaluation_records(state)
 
 
 def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
@@ -18581,7 +18732,7 @@ def _conversational_reply_receipt_is_semantically_valid(
             ):
                 return False
             effective_epoch = confirmation_epoch
-        expected_date = safe_epoch_date_str(effective_epoch)
+        expected_date = safe_reply_cap_date_str(effective_epoch)
         if expected_date is None or data.get("daily_reply_date") != expected_date:
             return False
         if source == "quote_tweet":
@@ -18713,7 +18864,7 @@ def conversational_sending_receipt_from_confirmed(
     source["lifecycle_state"] = "sending"
     if attempt_epoch is None:
         raise ValueError("confirmed conversational receipt lacks attempt time")
-    attempt_date = safe_epoch_date_str(attempt_epoch)
+    attempt_date = safe_reply_cap_date_str(attempt_epoch)
     if attempt_date is None:
         raise ValueError("confirmed conversational attempt time is invalid")
     source["reply_epoch"] = attempt_epoch
@@ -18850,7 +19001,7 @@ def bind_conversational_reply_attempt_time(receipt_template: dict) -> dict:
     if timing_fields.intersection(receipt_template):
         raise RuntimeError("Reply attempt template already contains timing fields")
     attempt_epoch = now_epoch()
-    attempt_date = epoch_date_str(attempt_epoch)
+    attempt_date = reply_cap_date_str(attempt_epoch)
     prepared = {
         **receipt_template,
         "attempt_epoch": attempt_epoch,
@@ -18877,7 +19028,7 @@ def _confirmed_reply_receipt_from_sending(
         "reply_post_id": str(reply_post_id),
     }
     if sending_receipt.get("schema_version") == 4:
-        confirmed_date = epoch_date_str(confirmation_epoch)
+        confirmed_date = reply_cap_date_str(confirmation_epoch)
         confirmed.update(
             {
                 "confirmation_epoch": confirmation_epoch,
@@ -19091,7 +19242,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     candidate_source = str(receipt.get("candidate_source") or "mention")
     conversation_id = str(receipt.get("conversation_id") or target_id)
     reply_text = str(receipt.get("reply_text") or "")
-    receipt_reply_date = str(receipt.get("daily_reply_date") or epoch_date_str(reply_epoch))
+    receipt_reply_date = str(receipt.get("daily_reply_date") or reply_cap_date_str(reply_epoch))
     receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
     if receipt.get("schema_version") == 4:
         _advance_reply_counters_to_confirmation_date(

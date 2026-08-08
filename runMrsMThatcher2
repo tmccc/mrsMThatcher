@@ -3,7 +3,7 @@ set -euo pipefail
 
 WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
 ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
-BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}
+INHERITED_BOT_SCRIPT=${MRS_BOT_SCRIPT:-}
 
 cd "$WORK_DIR"
 
@@ -15,6 +15,16 @@ fi
 set -a
 source "$ENV_FILE"
 set +a
+
+if [[ ${MRS_TEST_MODE:-0} != 1 && ( -n "$INHERITED_BOT_SCRIPT" || -n "${MRS_BOT_SCRIPT:-}" ) ]]; then
+  echo "MRS_BOT_SCRIPT is test-only and is refused unless MRS_TEST_MODE=1" >&2
+  exit 2
+fi
+if [[ ${MRS_TEST_MODE:-0} == 1 ]]; then
+  BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}
+else
+  BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"
+fi
 
 # Derive and validate the final effective launcher settings only after the
 # environment file has loaded.  This prevents either an MRS_* setting or an

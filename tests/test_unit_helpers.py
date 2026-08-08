@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import hashlib
 import logging
@@ -15201,28 +15202,93 @@ def test_quote_tweet_completed_ledger_is_not_a_bounded_seen_cache() -> None:
     assert len(state["replied_to_quote_post_ids"]) == 2502
 
 
-def test_terminal_reply_evaluation_ledger_never_evicts_old_targets() -> None:
-    state = bot.default_state()
-    state["reply_evaluation_records"] = {
-        "oldest": {
-            "target_id": "oldest",
-            "lane": "mention",
-            "outcome": "no_reply",
-            "reason": "terminal",
-            "evaluated_epoch": 1,
-        },
-        **{
-            str(index): {
-                "target_id": str(index),
-                "lane": "mention",
-                "outcome": "no_reply",
-                "reason": "terminal",
-                "evaluated_epoch": index + 2,
-            }
-            for index in range(2100)
-        },
+def reply_evaluation_record(target_id: str, evaluated_epoch: int) -> dict:
+    return {
+        "target_id": target_id,
+        "lane": "mention",
+        "outcome": "no_reply",
+        "reason": "terminal",
+        "evaluated_epoch": evaluated_epoch,
     }
 
+
+def test_recent_reply_evaluations_survive_nominal_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MAX_RECORDS", 2)
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MIN_RETENTION_SECONDS", 100)
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        bot.log,
+        "warning",
+        lambda message, *args: warnings.append(message % args),
+    )
+    state = bot.default_state()
+    state["reply_evaluation_records"] = {
+        target_id: reply_evaluation_record(target_id, epoch)
+        for target_id, epoch in (("a", 950), ("b", 960), ("c", 970))
+    }
+
+    bot.prune_reply_evaluation_records(state, current_epoch=1000)
+
+    assert list(state["reply_evaluation_records"]) == ["a", "b", "c"]
+    assert any("retaining all protected records" in warning for warning in warnings)
+
+
+def test_old_reply_evaluation_overflow_prunes_oldest_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MAX_RECORDS", 3)
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MIN_RETENTION_SECONDS", 100)
+    state = {
+        "reply_evaluation_records": {
+            target_id: reply_evaluation_record(target_id, epoch)
+            for target_id, epoch in (("e", 5), ("a", 1), ("d", 4), ("b", 2), ("c", 3))
+        }
+    }
+
+    bot.prune_reply_evaluation_records(state, current_epoch=1000)
+
+    assert list(state["reply_evaluation_records"]) == ["c", "d", "e"]
+
+
+def test_reply_evaluation_ties_are_deterministic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MAX_RECORDS", 2)
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MIN_RETENTION_SECONDS", 100)
+    first = {
+        "reply_evaluation_records": {
+            target_id: reply_evaluation_record(target_id, 1)
+            for target_id in ("c", "a", "b")
+        }
+    }
+    second = {
+        "reply_evaluation_records": {
+            target_id: reply_evaluation_record(target_id, 1)
+            for target_id in ("b", "c", "a")
+        }
+    }
+
+    bot.prune_reply_evaluation_records(first, current_epoch=1000)
+    bot.prune_reply_evaluation_records(second, current_epoch=1000)
+
+    assert list(first["reply_evaluation_records"]) == ["b", "c"]
+    assert first["reply_evaluation_records"] == second["reply_evaluation_records"]
+
+
+def test_recorded_terminal_reply_evaluation_remains_replay_protection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MAX_RECORDS", 2)
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MIN_RETENTION_SECONDS", 100)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1000)
+    state = {
+        "reply_evaluation_records": {
+            target_id: reply_evaluation_record(target_id, epoch)
+            for target_id, epoch in (("oldest", 1), ("older", 2))
+        }
+    }
     bot.record_terminal_reply_evaluation(
         state,
         target_id="newest",
@@ -15230,9 +15296,150 @@ def test_terminal_reply_evaluation_ledger_never_evicts_old_targets() -> None:
         reason="terminal",
     )
 
-    assert bot.terminal_reply_evaluation(state, "oldest") is not None
+    assert bot.terminal_reply_evaluation(state, "oldest") is None
     assert bot.terminal_reply_evaluation(state, "newest") is not None
-    assert len(state["reply_evaluation_records"]) == 2102
+    assert list(state["reply_evaluation_records"]) == ["older", "newest"]
+
+
+def test_normalised_loaded_state_prunes_oversized_reply_evaluations(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MAX_RECORDS", 2)
+    monkeypatch.setattr(bot, "REPLY_EVALUATION_MIN_RETENTION_SECONDS", 100)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1000)
+    state = {
+        "reply_evaluation_records": {
+            target_id: reply_evaluation_record(target_id, epoch)
+            for target_id, epoch in (("one", 1), ("three", 3), ("two", 2))
+        }
+    }
+
+    normalised = bot.normalise_state_candidate(state, path=tmp_path / "bot_state.json")
+
+    assert normalised is not None
+    assert list(normalised["reply_evaluation_records"]) == ["two", "three"]
+
+
+def test_log_json_debug_recursively_redacts_credentials_and_keeps_metadata() -> None:
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    previous_level = bot.log.level
+    bot.log.addHandler(handler)
+    bot.log.setLevel(logging.DEBUG)
+    try:
+        bot.log_json_debug(
+            "payload",
+            {
+                "request_id": "request-123",
+                "nested": {
+                    "API-Key": "api-key-value",
+                    "Authorization": "Bearer auth-value",
+                    "items": [
+                        {"oauth_token": "oauth-value", "status": "harmless"},
+                        {"cookieJar": "cookie-value", "count": 3},
+                    ],
+                },
+            },
+        )
+    finally:
+        bot.log.removeHandler(handler)
+        bot.log.setLevel(previous_level)
+
+    output = stream.getvalue()
+    assert "api-key-value" not in output
+    assert "auth-value" not in output
+    assert "oauth-value" not in output
+    assert "cookie-value" not in output
+    assert output.count("[REDACTED]") == 4
+    assert "request-123" in output
+    assert "harmless" in output
+    assert '"count": 3' in output
+
+
+def test_save_state_debug_logging_uses_value_free_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    state = bot.default_state()
+    state["tweet_cache"] = {"10": {"text": "cached incoming post secret text"}}
+    state["pending_ai_reply_drafts"] = {
+        "10": {"proposed_reply": "private reply draft text"}
+    }
+    state["provider_credentials"] = {"api_key": "credential-value"}
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    previous_level = bot.log.level
+    bot.log.addHandler(handler)
+    bot.log.setLevel(logging.DEBUG)
+    try:
+        bot.save_state(state)
+    finally:
+        bot.log.removeHandler(handler)
+        bot.log.setLevel(previous_level)
+
+    output = stream.getvalue()
+    assert "State summary being saved" in output
+    assert "tweet_cache" in output
+    assert "pending_ai_reply_drafts" in output
+    assert "cached incoming post secret text" not in output
+    assert "private reply draft text" not in output
+    assert "credential-value" not in output
+
+
+def test_logging_defaults_to_info_and_explicit_debug_remains_supported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    assert bot.setup_logging(configure_file_logging=False).level == logging.INFO
+
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+    debug_logger = bot.setup_logging(configure_file_logging=False)
+    assert debug_logger.level == logging.DEBUG
+    assert debug_logger.isEnabledFor(logging.DEBUG)
+
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    bot.setup_logging(configure_file_logging=False)
+
+
+def test_reply_daily_cap_dates_ignore_ambient_timezone_and_reset_authors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epoch = int(datetime(2026, 7, 1, 0, 30, tzinfo=ZoneInfo("Europe/London")).timestamp())
+    original_tz = os.environ.get("TZ")
+    try:
+        for ambient_tz in ("UTC", "America/Los_Angeles"):
+            os.environ["TZ"] = ambient_tz
+            time.tzset()
+            monkeypatch.setattr(bot, "now_epoch", lambda: epoch)
+            assert bot.reply_cap_date_str() == "2026-07-01"
+            state = bot.default_state()
+            state.update(
+                {
+                    "daily_reply_date": "2026-06-30",
+                    "daily_reply_count": 4,
+                    "daily_replied_author_ids": ["42"],
+                    "daily_replied_author_counts": {"42": 2},
+                    "daily_quote_reply_date": "2026-06-30",
+                    "daily_quote_reply_count": 3,
+                }
+            )
+            bot.reset_daily_reply_count_if_needed(state)
+            bot.reset_daily_quote_reply_count_if_needed(state)
+            assert state["daily_reply_date"] == "2026-07-01"
+            assert state["daily_quote_reply_date"] == "2026-07-01"
+            assert state["daily_replied_author_ids"] == []
+            assert state["daily_replied_author_counts"] == {}
+            assert state["daily_reply_count"] == 0
+            assert state["daily_quote_reply_count"] == 0
+    finally:
+        if original_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original_tz
+        time.tzset()
 
 
 @pytest.mark.parametrize("lane", ["mention", "quote_tweet"])

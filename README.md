@@ -622,9 +622,10 @@ bot script. `runMrsMThatcher2` is the tracked live launcher. It contains no
 secrets, sources the ignored `mrsMThatcher.env` file, and runs that
 repository-side script from its configured `WORK_DIR` by default. Systemd
 invokes the tracked launcher directly at
-`/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2`. Production should not set
-`MRS_BOT_SCRIPT` unless deliberately overriding the canonical runtime for a
-controlled reason. If the Python process exits, the launcher waits 60 seconds
+`/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2`. `MRS_BOT_SCRIPT` is a
+test-only launcher hook and is honoured only with `MRS_TEST_MODE=1`; production
+fails closed if either the inherited environment or the private env file sets
+it. If the Python process exits, the launcher waits 60 seconds
 before restarting it; the bot's ordinary scheduling still happens inside the
 Python process.
 
@@ -640,7 +641,8 @@ installation for drift with:
 deploy/systemd-user/install.sh --check
 ```
 
-Install updated units as regular files and reload the user manager with:
+Install updated units as regular files, prepare private scheduled-task state,
+and reload the user manager with:
 
 ```bash
 deploy/systemd-user/install.sh --install
@@ -651,13 +653,15 @@ The main service preflight checks the canonical repository-side
 starts `/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2` directly. The launcher
 executes the same checked bot script by default.
 
-The installer uses atomic per-file replacement. It does not enable, start, stop,
-or restart any unit. Enable units separately when required:
+The installer uses atomic per-file replacement. It enables the main service and
+semantic-veto health timer without starting or restarting them. The analytics
+timer is enabled only when the existing database passes the analytics CLI's
+non-mutating `status` check. If it is not initialised, the installer leaves that
+timer disabled and prints the existing initialisation command:
 
 ```bash
-systemctl --user enable mrsMThatcher.service
-systemctl --user enable mrs-engagement-analytics.timer
-systemctl --user enable mrs-semantic-veto-shadow-health.timer
+/usr/bin/python3 /disks/disk1/etc/mrsMThatcher/mrs_engagement_analytics.py initialise \
+  --project-dir /disks/disk1/etc/mrsMThatcher
 ```
 
 The semantic-veto health timer runs daily at 23:35 Europe/London. It validates

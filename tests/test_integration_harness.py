@@ -2336,6 +2336,7 @@ def test_launcher_restarts_after_child_exits_nonzero(tmp_path: Path) -> None:
     env = base_test_env()
     env.update(
         {
+            "MRS_TEST_MODE": "1",
             "MRS_WORK_DIR": str(work_dir),
             "MRS_ENV_FILE": str(env_file),
             "MRS_BOT_SCRIPT": str(fake_bot),
@@ -2395,6 +2396,7 @@ def test_launcher_surfaces_child_output_and_exits_after_fast_failure_limit(
     env = base_test_env()
     env.update(
         {
+            "MRS_TEST_MODE": "1",
             "MRS_WORK_DIR": str(work_dir),
             "MRS_ENV_FILE": str(env_file),
             "MRS_BOT_SCRIPT": str(fake_bot),
@@ -2443,6 +2445,7 @@ def test_launcher_treats_repeated_fast_clean_exits_as_unhealthy(
     env = base_test_env()
     env.update(
         {
+            "MRS_TEST_MODE": "1",
             "MRS_WORK_DIR": str(work_dir),
             "MRS_ENV_FILE": str(env_file),
             "MRS_BOT_SCRIPT": str(fake_bot),
@@ -2481,6 +2484,7 @@ def test_launcher_setup_failure_exits_before_starting_child(tmp_path: Path) -> N
     env = base_test_env()
     env.update(
         {
+            "MRS_TEST_MODE": "1",
             "MRS_WORK_DIR": str(tmp_path / "does-not-exist"),
             "MRS_ENV_FILE": str(tmp_path / "missing.env"),
             "MRS_BOT_SCRIPT": str(fake_bot),
@@ -2500,6 +2504,106 @@ def test_launcher_setup_failure_exits_before_starting_child(tmp_path: Path) -> N
 
     assert result.returncode != 0
     assert not count_file.exists()
+
+
+@pytest.mark.parametrize("override_source", ["inherited", "env_file"])
+def test_launcher_rejects_production_bot_script_override(
+    tmp_path: Path,
+    override_source: str,
+) -> None:
+    work_dir = tmp_path / "launcher-work"
+    work_dir.mkdir()
+    count_file = tmp_path / "count.txt"
+    fake_bot = tmp_path / "fake-bot.sh"
+    fake_bot.write_text(
+        "#!/bin/bash\n"
+        "echo started >> \"$MRS_FAKE_COUNT_FILE\"\n",
+        encoding="utf-8",
+    )
+    fake_bot.chmod(0o755)
+    env_file = tmp_path / "launcher.env"
+    env_file.write_text(
+        f"MRS_BOT_SCRIPT={fake_bot}\n" if override_source == "env_file" else "",
+        encoding="utf-8",
+    )
+    env = base_test_env()
+    env.pop("MRS_TEST_MODE", None)
+    env.pop("MRS_BOT_SCRIPT", None)
+    env.update(
+        {
+            "MRS_WORK_DIR": str(work_dir),
+            "MRS_ENV_FILE": str(env_file),
+            "MRS_FAKE_COUNT_FILE": str(count_file),
+        }
+    )
+    if override_source == "inherited":
+        env["MRS_BOT_SCRIPT"] = str(fake_bot)
+
+    result = subprocess.run(
+        [str(ROOT / "runMrsMThatcher2")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "MRS_BOT_SCRIPT is test-only and is refused unless MRS_TEST_MODE=1" in result.stderr
+    assert not count_file.exists()
+
+
+def test_launcher_honours_test_bot_script_from_env_file(tmp_path: Path) -> None:
+    work_dir = tmp_path / "launcher-work"
+    work_dir.mkdir()
+    count_file = tmp_path / "count.txt"
+    fake_bot = tmp_path / "fake-bot.sh"
+    fake_bot.write_text(
+        "#!/bin/bash\n"
+        "echo started >> \"$MRS_FAKE_COUNT_FILE\"\n"
+        "exit 9\n",
+        encoding="utf-8",
+    )
+    fake_bot.chmod(0o755)
+    env_file = tmp_path / "launcher.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "MRS_TEST_MODE=1",
+                f"MRS_BOT_SCRIPT={fake_bot}",
+                "MRS_RESTART_SLEEP_SECONDS=0",
+                "MRS_FAST_FAILURE_WINDOW_SECONDS=10",
+                "MRS_MAX_CONSECUTIVE_FAST_FAILURES=1",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    env = base_test_env()
+    env.pop("MRS_TEST_MODE", None)
+    env.pop("MRS_BOT_SCRIPT", None)
+    env.update(
+        {
+            "MRS_WORK_DIR": str(work_dir),
+            "MRS_ENV_FILE": str(env_file),
+            "MRS_FAKE_COUNT_FILE": str(count_file),
+        }
+    )
+
+    result = subprocess.run(
+        [str(ROOT / "runMrsMThatcher2")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 9
+    assert count_file.read_text(encoding="utf-8").splitlines() == ["started"]
+    assert "fast failure limit 1/1 reached" in result.stderr
 
 
 @pytest.mark.parametrize(
@@ -2540,6 +2644,7 @@ def test_launcher_validates_effective_settings_loaded_from_env_file(
     env = base_test_env()
     env.update(
         {
+            "MRS_TEST_MODE": "1",
             "MRS_WORK_DIR": str(work_dir),
             "MRS_ENV_FILE": str(env_file),
             "MRS_BOT_SCRIPT": str(fake_bot),

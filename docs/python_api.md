@@ -43,20 +43,20 @@ loop. Operational entry points require `production_bootstrap()` first.
 
 ## Quotation Corpus Accounting
 
-The immutable research archive remains a historical 632-record partition: 626
-completed packets and six unresolved records. The active source is different:
+The maintained research corpus contains 627 completed packets and five
+unresolved quotations. The active source is partitioned as follows:
 
 | Layer | Count |
 |---|---:|
 | Canonical records currently in `mrsMThatcher.txt` | 619 |
-| Current attribution-eligible runtime quotations | 610 |
-| Source-retained but runtime-ineligible records | 9 |
+| Current attribution-eligible runtime quotations | 611 |
+| Source-retained but runtime-ineligible records | 8 |
 
-The nine runtime exclusions comprise the six unresolved records and three
+The eight runtime exclusions comprise the five unresolved records and three
 additional packets rejected by the current source-grounded attribution
 predicate. Historical research, logs and receipts retain their original IDs.
 The production selector, reply retriever and historical-context path fail closed
-unless attribution eligibility is exactly 610.
+unless attribution eligibility is exactly 611.
 
 ## Safety Boundaries
 

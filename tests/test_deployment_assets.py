@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import mrsMThatcher2 as bot
+import pytest
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -16,11 +20,11 @@ def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
     launcher = (PROJECT_DIR / "runMrsMThatcher2").read_text(encoding="utf-8")
     main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
 
-    bot_script_assignment = next(
-        line for line in launcher.splitlines() if line.startswith("BOT_SCRIPT=")
-    )
-    assert bot_script_assignment == 'BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}'
-    assert "/usr/local/bin/mrsMThatcher2.py" not in bot_script_assignment
+    assert launcher.index('source "$ENV_FILE"') < launcher.index("\n  BOT_SCRIPT=")
+    assert 'BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}' in launcher
+    assert 'BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"' in launcher
+    assert "MRS_BOT_SCRIPT is test-only" in launcher
+    assert "/usr/local/bin/mrsMThatcher2.py" not in launcher
 
     exec_start = next(line for line in main.splitlines() if line.startswith("ExecStart="))
     assert exec_start == "ExecStart=/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2"
@@ -28,6 +32,7 @@ def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
     preflight = next(line for line in main.splitlines() if line.startswith("ExecStartPre="))
     assert "-x /disks/disk1/etc/mrsMThatcher/runMrsMThatcher2" in preflight
     assert "-r /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py" in preflight
+    assert "-x /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py" in preflight
     exec_stop = next(line for line in main.splitlines() if line.startswith("ExecStop="))
     assert '"^python3 /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py$"' in exec_stop
     assert "/usr/local/bin/mrsMThatcher2.py" not in main
@@ -45,6 +50,7 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert "KillMode=control-group" in main
     assert "StandardOutput=journal" in main
     assert "StandardError=journal" in main
+    assert "UMask=0077" in main
     assert "MrsMThatcher project or wrapper unavailable after 120 seconds" in main
     assert "User=" not in main
 
@@ -65,14 +71,99 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert not re.search(r"(?i)(api[_-]?key|access[_-]?token|client[_-]?secret)\s*=\s*\S+", combined)
 
 
-def test_user_unit_installer_cannot_activate_or_restart_services() -> None:
+def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     installer = (SYSTEMD_DIR / "install.sh").read_text(encoding="utf-8")
 
     assert "systemctl --user daemon-reload" in installer
     assert "mv -f --" in installer
     assert "cmp -s --" in installer
     assert "ln -s" not in installer
-    assert not re.search(r"systemctl\s+--user\s+(?:enable|disable|start|stop|restart|reload)\b", installer)
+    assert 'install -d -m 0700 -- "${SHADOW_HEALTH_DIR}" "${SHADOW_HEALTH_DIR}/history"' in installer
+    assert installer.index("prepare_scheduled_task_state") < installer.index(
+        "systemctl --user enable mrs-semantic-veto-shadow-health.timer"
+    )
+    assert '"${ANALYTICS_PROGRAM}" status --project-dir "${PROJECT_DIR}"' in installer
+    assert "json.load(sys.stdin).get(\"initialised\") is True" in installer
+    assert "systemctl --user enable mrsMThatcher.service" in installer
+    assert "systemctl --user enable mrs-semantic-veto-shadow-health.timer" in installer
+    assert "systemctl --user enable mrs-engagement-analytics.timer" in installer
+    assert "systemctl --user disable mrs-engagement-analytics.timer" in installer
+    assert "/usr/bin/python3 %q initialise --project-dir %q" in installer
+    assert not re.search(r"systemctl\s+--user\s+(?:start|stop|restart|reload)\b", installer)
+
+
+@pytest.mark.parametrize("analytics_initialised", [False, True])
+def test_user_unit_installer_gates_analytics_without_blocking_other_units(
+    tmp_path: Path,
+    analytics_initialised: bool,
+) -> None:
+    project = tmp_path / "project"
+    deployed = project / "deploy" / "systemd-user"
+    deployed.mkdir(parents=True)
+    for source in SYSTEMD_DIR.iterdir():
+        if source.is_file():
+            shutil.copy2(source, deployed / source.name)
+    analytics_program = project / "mrs_engagement_analytics.py"
+    analytics_program.write_text(
+        "import json, os, sys\n"
+        "assert sys.argv[1:] == ['status', '--project-dir', os.environ['EXPECTED_PROJECT']]\n"
+        "print(json.dumps({'initialised': os.environ['ANALYTICS_INITIALISED'] == '1'}))\n",
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "systemd-analyze").write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+    (fake_bin / "systemctl").write_text(
+        "#!/bin/bash\n"
+        "printf '%s\\n' \"$*\" >> \"$SYSTEMCTL_CALLS\"\n"
+        "if [[ \"$*\" == *'enable mrs-semantic-veto-shadow-health.timer'* ]]; then\n"
+        "  [[ $(stat -c %a \"$XDG_STATE_HOME/mrsMThatcher/semantic-veto-health\") == 700 ]]\n"
+        "  [[ $(stat -c %a \"$XDG_STATE_HOME/mrsMThatcher/semantic-veto-health/history\") == 700 ]]\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    for command in (fake_bin / "systemd-analyze", fake_bin / "systemctl"):
+        command.chmod(0o755)
+    calls = tmp_path / "systemctl.calls"
+    env = os.environ.copy()
+    env.update(
+        {
+            "ANALYTICS_INITIALISED": "1" if analytics_initialised else "0",
+            "EXPECTED_PROJECT": str(project),
+            "HOME": str(tmp_path / "home"),
+            "MRS_SEMANTIC_VETO_HEALTH_DIR": str(
+                tmp_path / "state" / "mrsMThatcher" / "semantic-veto-health"
+            ),
+            "PATH": f"{fake_bin}:{env.get('PATH', '')}",
+            "SYSTEMCTL_CALLS": str(calls),
+            "XDG_CONFIG_HOME": str(tmp_path / "config"),
+            "XDG_STATE_HOME": str(tmp_path / "state"),
+        }
+    )
+
+    result = subprocess.run(
+        [str(deployed / "install.sh"), "--install"],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    systemctl_calls = calls.read_text(encoding="utf-8")
+    assert "--user enable mrsMThatcher.service" in systemctl_calls
+    assert "--user enable mrs-semantic-veto-shadow-health.timer" in systemctl_calls
+    if analytics_initialised:
+        assert "--user enable mrs-engagement-analytics.timer" in systemctl_calls
+        assert "--user disable mrs-engagement-analytics.timer" not in systemctl_calls
+    else:
+        assert "--user disable mrs-engagement-analytics.timer" in systemctl_calls
+        assert "--user enable mrs-engagement-analytics.timer" not in systemctl_calls
+        assert (
+            f"run: /usr/bin/python3 {analytics_program} initialise --project-dir {project}"
+            in result.stdout
+        )
 
 
 def test_local_config_example_covers_current_optional_selection_features() -> None:

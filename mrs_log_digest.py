@@ -3359,12 +3359,6 @@ def summarise_operational_error_health(
                 for ts in successful_restart_times
                 if ts > last_time
             )
-        elif category in {"x_api_transient_failure", "xai_provider_timeout"}:
-            return (
-                True,
-                "point-in-time upstream transport failure; current local safety is assessed separately",
-                last_time,
-            )
         elif category in {
             "remote_write_ambiguity_barrier",
             "remote_write_protocol_barrier",
@@ -3436,7 +3430,16 @@ def summarise_operational_error_health(
         )
         first_time = parse_dt(str(ordered[0].get("time") or "")) or datetime.min
         last_time = parse_dt(str(ordered[-1].get("time") or "")) or first_time
-        resolved, resolution_reason, resolution_time = recovered_after(category, last_time)
+        transient_observation = category in {
+            "x_api_transient_failure",
+            "xai_provider_timeout",
+        }
+        if transient_observation:
+            resolved, resolution_reason, resolution_time = False, "", None
+            status = "transient_observation_recovery_unverified"
+        else:
+            resolved, resolution_reason, resolution_time = recovered_after(category, last_time)
+            status = "historical_resolved" if resolved else "current_unresolved"
         representative = str(
             ordered[0].get("_raw_message") or ordered[0].get("message") or ""
         ).splitlines()[0]
@@ -3444,7 +3447,7 @@ def summarise_operational_error_health(
             {
                 "category": category,
                 "signature": signature,
-                "status": "historical_resolved" if resolved else "current_unresolved",
+                "status": status,
                 "first_seen": dt_text(first_time),
                 "last_seen": dt_text(last_time),
                 "record_count": len(ordered),
@@ -3467,8 +3470,15 @@ def summarise_operational_error_health(
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
     current = [item for item in incidents if item["status"] == "current_unresolved"]
     resolved = [item for item in incidents if item["status"] == "historical_resolved"]
+    transient_provider_observations = [
+        item
+        for item in incidents
+        if item["status"] == "transient_observation_recovery_unverified"
+    ]
     transient_provider_timeouts = [
-        item for item in incidents if item["category"] == "xai_provider_timeout"
+        item
+        for item in transient_provider_observations
+        if item["category"] == "xai_provider_timeout"
     ]
     return {
         "current_independent_incident_count": len(current),
@@ -3479,8 +3489,13 @@ def summarise_operational_error_health(
         "transient_provider_timeout_record_count": sum(
             item.get("record_count", 0) for item in transient_provider_timeouts
         ),
+        "transient_provider_observation_count": len(transient_provider_observations),
+        "transient_provider_observation_record_count": sum(
+            item.get("record_count", 0) for item in transient_provider_observations
+        ),
         "current_incidents": current,
         "historical_resolved_incidents": resolved,
+        "transient_provider_observations": transient_provider_observations,
     }
 
 
@@ -6930,14 +6945,10 @@ def analyse(
         headline.append("current health: no unresolved operational incidents")
     if transient_provider_timeouts:
         headline.append(
-            plural_count(
-                transient_provider_timeouts,
-                "transient provider timeout",
-            )
+            f"{plural_count(transient_provider_timeouts, 'transient provider timeout')} "
+            "observed (provider recovery unverified)"
         )
-    non_transient_resolved_incidents = max(
-        0, resolved_incidents - transient_provider_timeouts
-    )
+    non_transient_resolved_incidents = resolved_incidents
     if non_transient_resolved_incidents:
         headline.append(
             plural_count(
@@ -10051,6 +10062,44 @@ def render_markdown(report: Dict[str, Any]) -> str:
     error_health = report.get("error_health") or {}
     current_incidents = error_health.get("current_incidents") or []
     historical_incidents = error_health.get("historical_resolved_incidents") or []
+    transient_observations = error_health.get("transient_provider_observations") or []
+    out.append("## Transient provider observations")
+    if not transient_observations:
+        out.append("None observed in the selected window.")
+    else:
+        out.append(
+            "A transient provider failure was observed. Provider recovery is unverified: "
+            "these point-in-time observations are neither current local safety incidents "
+            "nor historically resolved incidents."
+        )
+        out.append(
+            md_table_row(
+                [
+                    "category",
+                    "first seen",
+                    "last seen",
+                    "error records",
+                    "tracebacks",
+                    "locations",
+                ]
+            )
+        )
+        out.append(md_table_row(["---"] * 6))
+        for observation in transient_observations:
+            out.append(
+                md_table_row(
+                    [
+                        str(observation.get("category") or "").replace("_", " "),
+                        observation.get("first_seen", ""),
+                        observation.get("last_seen", ""),
+                        observation.get("record_count", 0),
+                        observation.get("traceback_count", 0),
+                        ", ".join(observation.get("affected_locations") or []),
+                    ]
+                )
+            )
+    out.append("")
+
     out.append("## Current independent errors")
     if not current_incidents:
         out.append("None unresolved in the selected window.")

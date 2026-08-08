@@ -743,9 +743,13 @@ def test_reply_accounting_reconciles_terminal_local_rejections_and_timeout_wrapp
         for row in cost["candidates"]
     )
     assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 0
     assert health["transient_provider_timeout_count"] == 1
     assert health["transient_provider_timeout_record_count"] == 2
-    assert health["historical_resolved_incidents"][0]["record_count"] == 2
+    assert health["transient_provider_observation_count"] == 1
+    observation = health["transient_provider_observations"][0]
+    assert observation["record_count"] == 2
+    assert observation["status"] == "transient_observation_recovery_unverified"
     assert report["api_health"]["transient_failure_count"] == 1
     assert len(report["errors_and_warnings"]) == 3
     raw_error_detail = "\n".join(
@@ -763,6 +767,28 @@ def test_reply_accounting_reconciles_terminal_local_rejections_and_timeout_wrapp
     assert "1 terminal clarification-mode rejection" in report["summary"]["headline"]
     assert "current health: no unresolved operational incidents" in report["summary"]["headline"]
     assert "1 transient provider timeout" in report["summary"]["headline"]
+    assert "provider recovery unverified" in report["summary"]["headline"]
+    rendered = digest.render_markdown(report)
+    assert "## Transient provider observations" in rendered
+    assert "Provider recovery is unverified" in rendered
+    assert "xai provider timeout" in rendered
+
+
+def test_lone_x_transient_failure_is_observed_without_claiming_resolution():
+    report = digest.analyse(
+        [record(0, "ERROR", "x_request", "X API error 503: Service Unavailable")]
+    )
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["transient_provider_observation_count"] == 1
+    assert health["transient_provider_observations"][0]["category"] == (
+        "x_api_transient_failure"
+    )
+    rendered = digest.render_markdown(report)
+    assert "Provider recovery is unverified" in rendered
+    assert "historically resolved incidents" in rendered
 
 
 def test_conversational_strategy_reply_count_is_pluralised():
