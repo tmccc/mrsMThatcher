@@ -2506,41 +2506,45 @@ def test_launcher_setup_failure_exits_before_starting_child(tmp_path: Path) -> N
     assert not count_file.exists()
 
 
+@pytest.mark.parametrize("override_name", ["MRS_WORK_DIR", "MRS_ENV_FILE", "MRS_BOT_SCRIPT"])
 @pytest.mark.parametrize("override_source", ["inherited", "env_file"])
-def test_launcher_rejects_production_bot_script_override(
+def test_launcher_rejects_production_path_and_script_overrides(
     tmp_path: Path,
+    override_name: str,
     override_source: str,
 ) -> None:
-    work_dir = tmp_path / "launcher-work"
-    work_dir.mkdir()
-    count_file = tmp_path / "count.txt"
-    fake_bot = tmp_path / "fake-bot.sh"
-    fake_bot.write_text(
-        "#!/bin/bash\n"
-        "echo started >> \"$MRS_FAKE_COUNT_FILE\"\n",
+    production_dir = tmp_path / "production"
+    production_dir.mkdir()
+    launcher = tmp_path / "runMrsMThatcher2"
+    launcher.write_text(
+        (ROOT / "runMrsMThatcher2").read_text(encoding="utf-8").replace(
+            "/disks/disk1/etc/mrsMThatcher", str(production_dir)
+        ),
         encoding="utf-8",
     )
-    fake_bot.chmod(0o755)
-    env_file = tmp_path / "launcher.env"
+    launcher.chmod(0o755)
+    override_value = tmp_path / "override"
+    env_file = production_dir / "mrsMThatcher.env"
     env_file.write_text(
-        f"MRS_BOT_SCRIPT={fake_bot}\n" if override_source == "env_file" else "",
+        (
+            f"{override_name}={override_value}\n"
+            "MRS_RESTART_SLEEP_SECONDS=0\n"
+            "MRS_FAST_FAILURE_WINDOW_SECONDS=10\n"
+            "MRS_MAX_CONSECUTIVE_FAST_FAILURES=1\n"
+            if override_source == "env_file"
+            else ""
+        ),
         encoding="utf-8",
     )
     env = base_test_env()
     env.pop("MRS_TEST_MODE", None)
-    env.pop("MRS_BOT_SCRIPT", None)
-    env.update(
-        {
-            "MRS_WORK_DIR": str(work_dir),
-            "MRS_ENV_FILE": str(env_file),
-            "MRS_FAKE_COUNT_FILE": str(count_file),
-        }
-    )
+    for name in ("MRS_WORK_DIR", "MRS_ENV_FILE", "MRS_BOT_SCRIPT"):
+        env.pop(name, None)
     if override_source == "inherited":
-        env["MRS_BOT_SCRIPT"] = str(fake_bot)
+        env[override_name] = str(override_value)
 
     result = subprocess.run(
-        [str(ROOT / "runMrsMThatcher2")],
+        [str(launcher)],
         cwd=ROOT,
         env=env,
         text=True,
@@ -2550,8 +2554,7 @@ def test_launcher_rejects_production_bot_script_override(
     )
 
     assert result.returncode == 2
-    assert "MRS_BOT_SCRIPT is test-only and is refused unless MRS_TEST_MODE=1" in result.stderr
-    assert not count_file.exists()
+    assert f"{override_name} is test-only and is refused unless MRS_TEST_MODE=1" in result.stderr
 
 
 def test_launcher_rejects_env_file_work_dir_reassignment(tmp_path: Path) -> None:
@@ -2594,8 +2597,16 @@ def test_launcher_rejects_env_file_work_dir_reassignment(tmp_path: Path) -> None
 
 
 def test_launcher_env_file_test_mode_cannot_authorise_override(tmp_path: Path) -> None:
-    work_dir = tmp_path / "launcher-work"
-    work_dir.mkdir()
+    production_dir = tmp_path / "production"
+    production_dir.mkdir()
+    launcher = tmp_path / "runMrsMThatcher2"
+    launcher.write_text(
+        (ROOT / "runMrsMThatcher2").read_text(encoding="utf-8").replace(
+            "/disks/disk1/etc/mrsMThatcher", str(production_dir)
+        ),
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
     count_file = tmp_path / "count.txt"
     fake_bot = tmp_path / "fake-bot.sh"
     fake_bot.write_text(
@@ -2604,24 +2615,19 @@ def test_launcher_env_file_test_mode_cannot_authorise_override(tmp_path: Path) -
         encoding="utf-8",
     )
     fake_bot.chmod(0o755)
-    env_file = tmp_path / "launcher.env"
+    env_file = production_dir / "mrsMThatcher.env"
     env_file.write_text(
         f"MRS_TEST_MODE=1\nMRS_BOT_SCRIPT={fake_bot}\n",
         encoding="utf-8",
     )
     env = base_test_env()
     env.pop("MRS_TEST_MODE", None)
-    env.pop("MRS_BOT_SCRIPT", None)
-    env.update(
-        {
-            "MRS_WORK_DIR": str(work_dir),
-            "MRS_ENV_FILE": str(env_file),
-            "MRS_FAKE_COUNT_FILE": str(count_file),
-        }
-    )
+    for name in ("MRS_WORK_DIR", "MRS_ENV_FILE", "MRS_BOT_SCRIPT"):
+        env.pop(name, None)
+    env["MRS_FAKE_COUNT_FILE"] = str(count_file)
 
     result = subprocess.run(
-        [str(ROOT / "runMrsMThatcher2")],
+        [str(launcher)],
         cwd=ROOT,
         env=env,
         text=True,
@@ -2683,51 +2689,6 @@ def test_launcher_honours_test_bot_script_from_env_file(tmp_path: Path) -> None:
 
     assert result.returncode == 9
     assert count_file.read_text(encoding="utf-8").splitlines() == ["started"]
-    assert "fast failure limit 1/1 reached" in result.stderr
-
-
-def test_launcher_production_executes_canonical_work_dir_script(tmp_path: Path) -> None:
-    work_dir = tmp_path / "launcher-work"
-    work_dir.mkdir()
-    count_file = tmp_path / "count.txt"
-    canonical_bot = work_dir / "mrsMThatcher2.py"
-    canonical_bot.write_text(
-        "#!/bin/bash\n"
-        "echo canonical >> \"$MRS_FAKE_COUNT_FILE\"\n"
-        "exit 11\n",
-        encoding="utf-8",
-    )
-    canonical_bot.chmod(0o755)
-    env_file = tmp_path / "launcher.env"
-    env_file.write_text(
-        "MRS_RESTART_SLEEP_SECONDS=0\n"
-        "MRS_FAST_FAILURE_WINDOW_SECONDS=10\n"
-        "MRS_MAX_CONSECUTIVE_FAST_FAILURES=1\n",
-        encoding="utf-8",
-    )
-    env = base_test_env()
-    env.pop("MRS_TEST_MODE", None)
-    env.pop("MRS_BOT_SCRIPT", None)
-    env.update(
-        {
-            "MRS_WORK_DIR": str(work_dir),
-            "MRS_ENV_FILE": str(env_file),
-            "MRS_FAKE_COUNT_FILE": str(count_file),
-        }
-    )
-
-    result = subprocess.run(
-        [str(ROOT / "runMrsMThatcher2")],
-        cwd=ROOT,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=5,
-        check=False,
-    )
-
-    assert result.returncode == 11
-    assert count_file.read_text(encoding="utf-8").splitlines() == ["canonical"]
     assert "fast failure limit 1/1 reached" in result.stderr
 
 

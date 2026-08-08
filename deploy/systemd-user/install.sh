@@ -66,7 +66,11 @@ report_analytics_readiness() {
     return 1
   fi
   if ! readiness="$(printf '%s' "${status_json}" | /usr/bin/python3 -c \
-    'import json, sys; data = json.load(sys.stdin); value = data.get("initialised") if isinstance(data, dict) else None; assert type(value) is bool; print("initialised" if value else "uninitialised")' \
+    'import json, sys
+data = json.load(sys.stdin)
+if not isinstance(data, dict) or type(data.get("initialised")) is not bool:
+    raise ValueError("invalid analytics status")
+print("initialised" if data["initialised"] else "uninitialised")' \
     2>/dev/null)"; then
     printf 'analytics readiness failure: malformed status output for runtime directory %s\n' \
       "${RUNTIME_PROJECT_DIR}" >&2

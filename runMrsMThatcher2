@@ -1,11 +1,34 @@
 #!/bin/bash
 set -euo pipefail
 
-readonly WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
-readonly ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
-readonly CANONICAL_BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"
 readonly INHERITED_TEST_MODE=${MRS_TEST_MODE:-}
+readonly INHERITED_WORK_DIR=${MRS_WORK_DIR:-}
+readonly INHERITED_ENV_FILE=${MRS_ENV_FILE:-}
 readonly INHERITED_BOT_SCRIPT=${MRS_BOT_SCRIPT:-}
+
+if [[ "$INHERITED_TEST_MODE" != 1 ]]; then
+  if [[ -n "$INHERITED_WORK_DIR" ]]; then
+    echo "MRS_WORK_DIR is test-only and is refused unless MRS_TEST_MODE=1" >&2
+    exit 2
+  fi
+  if [[ -n "$INHERITED_ENV_FILE" ]]; then
+    echo "MRS_ENV_FILE is test-only and is refused unless MRS_TEST_MODE=1" >&2
+    exit 2
+  fi
+  if [[ -n "$INHERITED_BOT_SCRIPT" ]]; then
+    echo "MRS_BOT_SCRIPT is test-only and is refused unless MRS_TEST_MODE=1" >&2
+    exit 2
+  fi
+fi
+
+if [[ "$INHERITED_TEST_MODE" == 1 ]]; then
+  readonly WORK_DIR=${INHERITED_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
+  readonly ENV_FILE=${INHERITED_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
+else
+  readonly WORK_DIR=/disks/disk1/etc/mrsMThatcher
+  readonly ENV_FILE=/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env
+fi
+readonly CANONICAL_BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"
 
 cd "$WORK_DIR"
 
@@ -22,9 +45,19 @@ if [[ "$INHERITED_TEST_MODE" != 1 && ${MRS_TEST_MODE:-} == 1 ]]; then
   echo "MRS_TEST_MODE=1 must be inherited; the environment file cannot authorise test hooks" >&2
   exit 2
 fi
-if [[ "$INHERITED_TEST_MODE" != 1 && ( -n "$INHERITED_BOT_SCRIPT" || -n "${MRS_BOT_SCRIPT:-}" ) ]]; then
-  echo "MRS_BOT_SCRIPT is test-only and is refused unless MRS_TEST_MODE=1" >&2
-  exit 2
+if [[ "$INHERITED_TEST_MODE" != 1 ]]; then
+  if [[ -n "${MRS_WORK_DIR:-}" ]]; then
+    echo "MRS_WORK_DIR is test-only and is refused unless MRS_TEST_MODE=1" >&2
+    exit 2
+  fi
+  if [[ -n "${MRS_ENV_FILE:-}" ]]; then
+    echo "MRS_ENV_FILE is test-only and is refused unless MRS_TEST_MODE=1" >&2
+    exit 2
+  fi
+  if [[ -n "${MRS_BOT_SCRIPT:-}" ]]; then
+    echo "MRS_BOT_SCRIPT is test-only and is refused unless MRS_TEST_MODE=1" >&2
+    exit 2
+  fi
 fi
 if [[ "$INHERITED_TEST_MODE" == 1 ]]; then
   readonly BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$CANONICAL_BOT_SCRIPT"}

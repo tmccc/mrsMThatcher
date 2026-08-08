@@ -24,8 +24,14 @@ def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
     assert "readonly ENV_FILE=" in launcher
     assert 'readonly CANONICAL_BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"' in launcher
     assert launcher.index("readonly INHERITED_TEST_MODE=") < launcher.index('source "$ENV_FILE"')
+    assert launcher.index("readonly INHERITED_WORK_DIR=") < launcher.index('source "$ENV_FILE"')
+    assert launcher.index("readonly INHERITED_ENV_FILE=") < launcher.index('source "$ENV_FILE"')
     assert launcher.index("readonly INHERITED_BOT_SCRIPT=") < launcher.index('source "$ENV_FILE"')
+    assert "readonly WORK_DIR=/disks/disk1/etc/mrsMThatcher" in launcher
+    assert "readonly ENV_FILE=/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env" in launcher
     assert 'readonly BOT_SCRIPT="$CANONICAL_BOT_SCRIPT"' in launcher
+    assert "MRS_WORK_DIR is test-only" in launcher
+    assert "MRS_ENV_FILE is test-only" in launcher
     assert "MRS_BOT_SCRIPT is test-only" in launcher
     assert "the environment file cannot authorise test hooks" in launcher
     assert "/usr/local/bin/mrsMThatcher2.py" not in launcher
@@ -114,6 +120,7 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
         ("uninitialised", 0),
         ("command_failure", 1),
         ("malformed", 1),
+        ("non_boolean_optimized", 1),
     ],
 )
 def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
@@ -136,6 +143,7 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
         "status = os.environ['ANALYTICS_STATUS']\n"
         "if status == 'command_failure': raise SystemExit(7)\n"
         "if status == 'malformed': print('{malformed')\n"
+        "elif status == 'non_boolean_optimized': print(json.dumps({'initialised': 'yes'}))\n"
         "else: print(json.dumps({'initialised': status == 'initialised'}))\n",
         encoding="utf-8",
     )
@@ -163,6 +171,9 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
             "XDG_CONFIG_HOME": str(tmp_path / "config"),
         }
     )
+    env.pop("PYTHONOPTIMIZE", None)
+    if analytics_status == "non_boolean_optimized":
+        env["PYTHONOPTIMIZE"] = "1"
 
     result = subprocess.run(
         [str(deployed / "install.sh"), "--install"],
