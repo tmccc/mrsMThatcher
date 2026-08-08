@@ -1,13 +1,15 @@
-# Google structured-search credentials for the Thatcher evidence tool
+# Historical/archival Google Custom Search credentials for the Thatcher evidence tool
 
-> **Historical backend note:** This guide applies only to the earlier Google
-> Custom Search JSON / Programmable Search backend. It does not configure the
-> later Google Discovery Engine website-search implementation; the two
-> backends are distinct.
+> **Historical/archival backend note:** This guide preserves the credential
+> names and setup material for the earlier Google Custom Search JSON /
+> Programmable Search backend. The commands described by this guide referred to
+> an older version of `historical_context_search_research.py`. The current
+> restored program uses Google Discovery Engine and requires its own separate
+> configuration and authentication, which are not documented here.
 
-The research programme uses Google's ordinary Custom Search JSON API. It does
-not use Gemini, an AI-search API, browser automation, or scraped Google result
-pages.
+The earlier research programme used Google's ordinary Custom Search JSON API.
+It did not use Gemini, an AI-search API, browser automation, or scraped Google
+result pages.
 
 ## 1. Create or select a Google Cloud project
 
@@ -95,20 +97,23 @@ grep -Eq '^[[:space:]]*(export[[:space:]]+)?HISTORICAL_SEARCH_USD_PER_1000_REQUE
 
 Do not run a command which prints the environment file or echoes the values.
 
-## 7. Run the research only when the tool review is complete
+## 7. Historical invocation (do not use with the current restored program)
 
-The paid/resumable command is:
+The older Custom Search version of `historical_context_search_research.py` used
+this paid/resumable command:
 
 ```bash
 cd /disks/disk1/etc/mrsMThatcher
 python3 historical_context_search_research.py resume --execute-search
 ```
 
-Use `run --execute-search` instead only when no run-state file exists. The
-programme will not scrape Google HTML and will stop rather than substitute an
-AI search provider. It enforces 120 planned unique queries, 150 total request
-attempts including confirmed retries, a US$5 search-cost hard stop, and a
-400-URL fetch hard stop.
+Do not run that command against the current restored program as a Custom Search
+client. The following historical behaviour is retained only to document the
+older backend: `run --execute-search` was used instead when no run-state file
+existed; the programme did not scrape Google HTML or substitute an AI search
+provider; and it enforced 120 planned unique queries, 150 total request attempts
+including confirmed retries, a US$5 search-cost hard stop, and a 400-URL fetch
+hard stop.
 
 If Google no longer offers a usable Custom Search JSON/Programmable Search
 configuration for this account, leave the credentials unset. The required and

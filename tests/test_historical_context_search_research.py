@@ -478,6 +478,13 @@ def test_fresh_real_manifest_has_18_targets_and_at_most_150_scheduled_queries() 
     research.validate_query_manifest(manifest)
 
 
+def test_current_authoritative_derivation_reports_five_unresolved() -> None:
+    counts = research.derive_target_set(research.ROOT)["counts"]
+    assert counts["unresolved_count"] == 5
+    assert counts["unresolved_expected_count"] == 5
+    assert counts["unresolved_count_discrepancy"] == 0
+
+
 def test_semantically_tampered_but_rehashed_manifest_is_rejected(
     tmp_path: Path, monkeypatch
 ) -> None:

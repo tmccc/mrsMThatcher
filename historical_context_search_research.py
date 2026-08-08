@@ -95,7 +95,7 @@ BRAVE_QUERY_MAXIMUM_WORDS = 50
 BRAVE_QUERY_SAFE_EXCERPT_WORDS = 48
 
 EXPECTED_BLOCKED_COUNT = 18
-EXPECTED_UNRESOLVED_COUNT = 6
+EXPECTED_UNRESOLVED_COUNT = 5
 TOP_RESULTS = 10
 MAX_QUERIES_PER_QUOTE = 6
 PLANNED_QUERY_STAGES_PER_QUOTE = 5
@@ -765,8 +765,8 @@ def build_query_manifest(root: Path = ROOT) -> dict[str, Any]:
         ],
         "request_scheduling": "breadth_first_by_query_stage_then_quote_id",
         "scheduled_query_policy": (
-            "schedule at most five deterministic queries per quotation so the complete "
-            "30-quotation plan cannot exceed the 150-request hard cap"
+            "schedule at most five deterministic queries per quotation while enforcing "
+            "the 150-request absolute hard cap"
         ),
         "targets": targets,
         "global_request_order": global_order,
