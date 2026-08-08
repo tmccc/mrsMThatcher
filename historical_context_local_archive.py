@@ -208,6 +208,26 @@ class LocalArchiveMirror:
             item = (canonical, resolved, relative.as_posix())
             if item not in output:
                 output.append(item)
+            # HTTrack commonly stores an extensionless public MTF document URL
+            # as ``document/<id>.html``.  Keep the public identity
+            # extensionless and add only this exact numeric representation.
+            if (
+                len(option) >= 2
+                and option[-2] == "document"
+                and re.fullmatch(r"[0-9]+", option[-1])
+            ):
+                html_candidate = candidate.with_name(candidate.name + ".html")
+                html_resolved = html_candidate.resolve(strict=False)
+                try:
+                    html_relative = html_resolved.relative_to(self.root)
+                    html_resolved.relative_to(host_root)
+                except ValueError as exc:
+                    raise LocalArchiveError(
+                        "local archive HTML representation escapes its host directory"
+                    ) from exc
+                html_item = (canonical, html_resolved, html_relative.as_posix())
+                if html_item not in output:
+                    output.append(html_item)
         return output
 
     def _path_for(self, value: str) -> tuple[str, Path, str]:
@@ -289,15 +309,30 @@ class LocalArchiveMirror:
         }
 
     def iter_mtf_document_urls(self) -> Iterable[str]:
-        """Yield only exact numeric MTF document files in deterministic order."""
+        """Yield exact numeric MTF document identities in deterministic order.
+
+        Both an extensionless file and HTTrack's numeric ``.html``
+        representation map to the same extensionless public URL.  Conflicting
+        dual representations fail closed instead of selecting one silently.
+        """
         directory = self.root / "www.margaretthatcher.org" / "document"
         if not directory.is_dir() or directory.is_symlink():
             return
-        numbered: list[tuple[int, str]] = []
+        numbered: dict[str, list[Path]] = defaultdict(list)
         for path in directory.iterdir():
-            if path.is_file() and not path.is_symlink() and re.fullmatch(r"[0-9]+", path.name):
-                numbered.append((int(path.name), path.name))
-        for _number, name in sorted(numbered):
+            match = re.fullmatch(r"([0-9]+)(?:\.html)?", path.name)
+            if match and path.is_file() and not path.is_symlink():
+                numbered[match.group(1)].append(path)
+        for name in sorted(numbered, key=int):
+            representations = numbered[name]
+            if len(representations) > 1:
+                hashes = {
+                    _sha256_bytes(path.read_bytes()) for path in representations
+                }
+                if len(hashes) != 1:
+                    raise LocalArchiveError(
+                        f"conflicting local representations for MTF document {name}"
+                    )
             yield f"https://www.margaretthatcher.org/document/{name}"
 
     def inventory(self) -> LocalArchiveInventory:

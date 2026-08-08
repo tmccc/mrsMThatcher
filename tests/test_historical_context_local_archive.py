@@ -165,6 +165,42 @@ def test_document_inventory_ignores_malformed_and_non_numeric_names(
     assert mirror.inventory().document_count == 1
 
 
+def test_numeric_html_document_representation_maps_to_public_identity(
+    tmp_path: Path,
+) -> None:
+    root = _mirror_root(tmp_path)
+    document = root / "www.margaretthatcher.org" / "document"
+    path = document / "103384.html"
+    path.write_bytes(_document_html("103384", "Political myths die hard."))
+    mirror = LocalArchiveMirror(root, maximum_bytes=1024 * 1024)
+
+    assert list(mirror.iter_mtf_document_urls()) == [
+        "https://www.margaretthatcher.org/document/103384"
+    ]
+    record = mirror.read("https://www.margaretthatcher.org/document/103384")
+    assert record is not None
+    assert record["status"] == "fetched"
+    assert record["local_archive_relative_path"].endswith("/103384.html")
+    assert mirror.inventory().document_count == 1
+
+
+def test_conflicting_extensionless_and_html_documents_fail_closed(
+    tmp_path: Path,
+) -> None:
+    root = _mirror_root(tmp_path)
+    document = root / "www.margaretthatcher.org" / "document"
+    (document / "103384").write_bytes(
+        _document_html("103384", "Political myths die hard.")
+    )
+    (document / "103384.html").write_bytes(
+        _document_html("103384", "Political myths changed.")
+    )
+    mirror = LocalArchiveMirror(root, maximum_bytes=1024 * 1024)
+
+    with pytest.raises(LocalArchiveError, match="conflicting local representations"):
+        list(mirror.iter_mtf_document_urls())
+
+
 def test_inventory_changes_when_a_document_file_changes(tmp_path: Path) -> None:
     root = _mirror_root(tmp_path)
     path = _write_document(root, "103384", "Political myths die hard.")
