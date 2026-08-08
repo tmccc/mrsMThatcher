@@ -8,6 +8,7 @@ never mutates canonical data and never constructs a network search backend.
 from __future__ import annotations
 
 import argparse
+import copy
 import contextlib
 import datetime as dt
 import hashlib
@@ -52,7 +53,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v1"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v2"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -84,6 +85,65 @@ AUTHORITATIVE_INPUTS = (
         "deployment_candidate/runtime_eligible_quote_manifest.json"
     ),
 )
+
+CATEGORY_STRONGER_EVIDENCE = "stronger_primary_evidence"
+CATEGORY_WORDING_CORRECTION = "verified_text_correction"
+CATEGORY_EVENT_CORRECTION = "event_or_source_correction"
+CATEGORY_DATE_CORRECTION = "date_correction"
+CATEGORY_LOCATOR_CORRECTION = "stable_locator_or_source_identity_correction"
+CATEGORY_ATTRIBUTION_CORRECTION = "attribution_or_speaker_correction"
+CATEGORY_POTENTIAL_UNBLOCK = "potentially_unblockable"
+CATEGORY_NEUTRAL_MATCH_REVIEW = "attribution_or_noncontiguous_match_review"
+CATEGORY_NO_CHANGE = "no_advisory_change"
+CATEGORY_ADDITIONAL_OCCURRENCE = "additional_primary_occurrence"
+CATEGORY_EXACT_EXCERPT_CONFIRMATION = "exact_excerpt_confirmation"
+CATEGORY_CONTRADICTION = "contradictory_evidence"
+
+CATEGORY_DESCRIPTIONS = {
+    CATEGORY_STRONGER_EVIDENCE: "stronger primary evidence; no public-data change",
+    CATEGORY_WORDING_CORRECTION: "verified-text transcription correction",
+    CATEGORY_EVENT_CORRECTION: "event/source correction",
+    CATEGORY_DATE_CORRECTION: "date correction",
+    CATEGORY_LOCATOR_CORRECTION: "stable-locator/source-identity correction",
+    CATEGORY_ATTRIBUTION_CORRECTION: "attribution/speaker correction",
+    CATEGORY_POTENTIAL_UNBLOCK: "currently blocked quote potentially unblockable",
+    CATEGORY_NEUTRAL_MATCH_REVIEW: (
+        "attribution-sensitive or non-contiguous wording requiring neutral review"
+    ),
+    CATEGORY_ADDITIONAL_OCCURRENCE: (
+        "additional verified primary occurrence; preserve the current occurrence"
+    ),
+    CATEGORY_EXACT_EXCERPT_CONFIRMATION: (
+        "stored quotation confirmed as an exact excerpt; verified text unchanged"
+    ),
+    CATEGORY_CONTRADICTION: (
+        "evidence genuinely conflicting with an existing canonical claim"
+    ),
+}
+
+LEGACY_CATEGORY_NAMES = {
+    "A": CATEGORY_STRONGER_EVIDENCE,
+    "B": CATEGORY_WORDING_CORRECTION,
+    "C": CATEGORY_EVENT_CORRECTION,
+    "D": CATEGORY_DATE_CORRECTION,
+    "E": CATEGORY_LOCATOR_CORRECTION,
+    "F": CATEGORY_ATTRIBUTION_CORRECTION,
+    "G": CATEGORY_POTENTIAL_UNBLOCK,
+    "H": CATEGORY_NEUTRAL_MATCH_REVIEW,
+    "I": CATEGORY_NO_CHANGE,
+}
+
+IMPROVEMENT_CATEGORIES = {
+    CATEGORY_STRONGER_EVIDENCE,
+    CATEGORY_WORDING_CORRECTION,
+    CATEGORY_EVENT_CORRECTION,
+    CATEGORY_DATE_CORRECTION,
+    CATEGORY_LOCATOR_CORRECTION,
+    CATEGORY_ATTRIBUTION_CORRECTION,
+    CATEGORY_POTENTIAL_UNBLOCK,
+    CATEGORY_ADDITIONAL_OCCURRENCE,
+    CATEGORY_EXACT_EXCERPT_CONFIRMATION,
+}
 
 
 class ReauditError(RuntimeError):
@@ -156,39 +216,74 @@ def _registered_worktrees(project_root: Path) -> list[Path]:
     return roots
 
 
-def resolve_private_inputs(project_root: Path) -> tuple[Path, Path]:
-    """Resolve and validate the two operator-supplied private directories."""
+def _resolve_archive_root() -> Path:
     archive_raw = os.environ.get(LOCAL_ARCHIVE_ROOT_ENV, "").strip()
-    run_raw = os.environ.get(RUN_DIRECTORY_ENV, "").strip()
     if not archive_raw:
         raise ReauditError(f"{LOCAL_ARCHIVE_ROOT_ENV} must name the local archive root")
-    if not run_raw:
-        raise ReauditError(f"{RUN_DIRECTORY_ENV} must name a new private run directory")
     archive = Path(archive_raw)
-    run_dir = Path(run_raw)
     if not archive.is_absolute():
         raise ReauditError(f"{LOCAL_ARCHIVE_ROOT_ENV} must be an absolute path")
-    if not run_dir.is_absolute():
-        raise ReauditError(f"{RUN_DIRECTORY_ENV} must be an absolute path")
     try:
         archive = archive.resolve(strict=True)
-        run_dir = run_dir.resolve(strict=True)
     except OSError as exc:
-        raise ReauditError("a configured private directory does not exist") from exc
+        raise ReauditError("the configured local archive directory does not exist") from exc
     if not archive.is_dir():
         raise ReauditError(f"{LOCAL_ARCHIVE_ROOT_ENV} is not a directory")
+    return archive
+
+
+def _validate_new_private_output_dir(
+    project_root: Path, archive: Path, run_dir: Path
+) -> Path:
+    if not run_dir.is_absolute():
+        raise ReauditError("the private output directory must be an absolute path")
+    try:
+        run_dir = run_dir.resolve(strict=True)
+    except OSError as exc:
+        raise ReauditError("the configured private output directory does not exist") from exc
     if not run_dir.is_dir():
-        raise ReauditError(f"{RUN_DIRECTORY_ENV} is not a directory")
+        raise ReauditError("the private output path is not a directory")
     if run_dir.stat().st_mode & 0o777 != 0o700:
-        raise ReauditError(f"{RUN_DIRECTORY_ENV} must have mode 0700")
+        raise ReauditError("the private output directory must have mode 0700")
     if any(run_dir.iterdir()):
-        raise ReauditError(f"{RUN_DIRECTORY_ENV} must be empty before the run")
+        raise ReauditError("the private output directory must be empty before the run")
     for worktree in _registered_worktrees(project_root):
         if run_dir == worktree or _is_relative_to(run_dir, worktree):
-            raise ReauditError(f"{RUN_DIRECTORY_ENV} must be outside every Git worktree")
+            raise ReauditError("the private output directory must be outside every Git worktree")
     if run_dir == archive or _is_relative_to(run_dir, archive):
-        raise ReauditError(f"{RUN_DIRECTORY_ENV} must be outside the local archive")
+        raise ReauditError("the private output directory must be outside the local archive")
+    return run_dir
+
+
+def resolve_private_inputs(project_root: Path) -> tuple[Path, Path]:
+    """Resolve and validate the two operator-supplied private directories."""
+    archive = _resolve_archive_root()
+    run_raw = os.environ.get(RUN_DIRECTORY_ENV, "").strip()
+    if not run_raw:
+        raise ReauditError(f"{RUN_DIRECTORY_ENV} must name a new private run directory")
+    run_dir = _validate_new_private_output_dir(project_root, archive, Path(run_raw))
     return archive, run_dir
+
+
+def resolve_reclassification_inputs(
+    project_root: Path, source_run_dir: Path, output_dir: Path
+) -> tuple[Path, Path, Path]:
+    """Resolve one read-only source package and one new private output directory."""
+    archive = _resolve_archive_root()
+    if not source_run_dir.is_absolute():
+        raise ReauditError("the source run directory must be an absolute path")
+    try:
+        source_run_dir = source_run_dir.resolve(strict=True)
+    except OSError as exc:
+        raise ReauditError("the source run directory does not exist") from exc
+    if not source_run_dir.is_dir() or source_run_dir.is_symlink():
+        raise ReauditError("the source run path must be a real directory")
+    output_dir = _validate_new_private_output_dir(
+        project_root, archive, output_dir
+    )
+    if output_dir == source_run_dir or _is_relative_to(output_dir, source_run_dir):
+        raise ReauditError("the new output directory must be outside the source run directory")
+    return archive, source_run_dir, output_dir
 
 
 def _guarded_output_path(run_dir: Path, filename: str) -> Path:
@@ -757,6 +852,54 @@ def _event_equivalent(current: str, candidate: str) -> bool:
     return left <= right or right <= left or len(left & right) / len(left | right) >= 0.55
 
 
+def _contains_token_sequence(container: str, excerpt: str) -> bool:
+    container_tokens = word_tokens(container)
+    excerpt_tokens = word_tokens(excerpt)
+    if not container_tokens or not excerpt_tokens or len(excerpt_tokens) > len(container_tokens):
+        return False
+    width = len(excerpt_tokens)
+    return any(
+        container_tokens[index:index + width] == excerpt_tokens
+        for index in range(len(container_tokens) - width + 1)
+    )
+
+
+def _authoritative_candidate_wording(
+    target: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> str:
+    """Return only an exact quotation or recorded variant present in the passage."""
+    passage = str(candidate.get("supporting_passage") or "")
+    quotation = str(target.get("quotation_text") or "")
+    if quotation and _contains_token_sequence(passage, quotation):
+        return quotation
+    if candidate.get("match_type") == "recorded variant":
+        for variant in target.get("recorded_variants", []):
+            value = str(variant or "").strip()
+            if value and _contains_token_sequence(passage, value):
+                return value
+    return ""
+
+
+def _neutral_match_review(candidate: Mapping[str, Any]) -> bool:
+    match_type = str(candidate.get("match_type") or "")
+    return bool(
+        candidate.get("cross_speaker_join_rejected")
+        or (
+            match_type in {"partial/assembled wording", "similar sentiment only"}
+            and candidate.get("candidate_classification") == "contradictory_evidence"
+        )
+    )
+
+
+def _genuine_canonical_contradiction(candidate: Mapping[str, Any]) -> bool:
+    if candidate.get("conflicts_with_existing_canonical_claim") is True:
+        return True
+    return bool(
+        candidate.get("candidate_classification") == "contradictory_evidence"
+        and not _neutral_match_review(candidate)
+    )
+
+
 def _blocking_reason_resolved(
     disposition: str,
     reason: str,
@@ -790,9 +933,16 @@ def classify_changes(
     candidate: Mapping[str, Any],
     current: Mapping[str, Any],
 ) -> tuple[list[str], dict[str, Any], bool, str]:
-    """Return separate advisory A-I categories without applying any of them."""
+    """Return semantic advisory categories without applying any proposed value."""
     categories: list[str] = []
     proposed: dict[str, Any] = {}
+    if candidate.get("candidate_evidence_stale") is True:
+        return (
+            [CATEGORY_NO_CHANGE],
+            proposed,
+            False,
+            "candidate evidence identity is stale and cannot support admission",
+        )
     document_id = str(candidate.get("candidate_mtf_document_id") or "")
     match_type = str(candidate.get("match_type") or "")
     strong = bool(
@@ -800,26 +950,30 @@ def classify_changes(
         and candidate.get("speaker_author_evidence", {}).get("verified")
         and match_type in {"exact quotation", "recorded variant"}
     )
-    if candidate.get("cross_speaker_join_rejected") or (
-        match_type in {"partial/assembled wording", "similar sentiment only"}
-        and candidate.get("candidate_classification") == "contradictory_evidence"
-    ):
-        categories.append("H")
-        proposed["historical_context_confidence"] = "possible downgrade; manual review required"
+    if _neutral_match_review(candidate):
+        categories.append(CATEGORY_NEUTRAL_MATCH_REVIEW)
+    elif _genuine_canonical_contradiction(candidate):
+        categories.append(CATEGORY_CONTRADICTION)
+        proposed["historical_context_confidence"] = (
+            "possible downgrade; genuine conflict requires manual review"
+        )
     if strong:
         already_inspected = document_id in set(
             current.get("independently_inspected_mtf_document_ids", [])
         )
         if not already_inspected:
-            categories.append("A")
+            categories.append(CATEGORY_STRONGER_EVIDENCE)
             proposed["evidence"] = "retain inspected local primary passage and hashes for review"
         current_date = _normalised_date(current.get("date"))
         candidate_date = _normalised_date(candidate.get("document_date_evidence"))
-        same_identity = (
-            not current.get("known_mtf_document_ids")
-            or document_id in set(current.get("known_mtf_document_ids", []))
-        )
-        if candidate_date.get("known") and same_identity:
+        known_ids = set(current.get("known_mtf_document_ids", []))
+        same_identity = bool(document_id and document_id in known_ids)
+        identity_unknown = not known_ids
+        current_disproved = bool(candidate.get("current_occurrence_disproved"))
+        correction_identity = same_identity or current_disproved
+        can_fill_unknown = same_identity or identity_unknown
+        additional_occurrence = False
+        if candidate_date.get("known"):
             current_iso = str(current_date.get("iso_date") or "")
             candidate_iso = str(candidate_date.get("iso_date") or "")
             improves_precision = (
@@ -827,38 +981,73 @@ def classify_changes(
                 or (current_date.get("precision") != "day" and candidate_date.get("precision") == "day")
             )
             differs = bool(current_iso and candidate_iso and current_iso != candidate_iso)
-            if improves_precision or differs:
-                categories.append("D")
+            if improves_precision and can_fill_unknown:
+                categories.append(CATEGORY_DATE_CORRECTION)
                 proposed["date"] = candidate_iso or candidate_date.get("raw")
+            elif differs and correction_identity:
+                categories.append(CATEGORY_DATE_CORRECTION)
+                proposed["date"] = candidate_iso or candidate_date.get("raw")
+            elif differs:
+                additional_occurrence = True
         event = str(candidate.get("document_event_evidence") or "")
         current_event = str(current.get("source_event") or "")
-        if event and same_identity and (
-            not current_event or not _event_equivalent(current_event, event)
-        ):
-            categories.append("C")
+        if event and not current_event and can_fill_unknown:
+            categories.append(CATEGORY_EVENT_CORRECTION)
             proposed["source_event"] = event
-        known_ids = set(current.get("known_mtf_document_ids", []))
+        elif event and current_event and not _event_equivalent(current_event, event):
+            if correction_identity:
+                categories.append(CATEGORY_EVENT_CORRECTION)
+                proposed["source_event"] = event
+            else:
+                additional_occurrence = True
+        if additional_occurrence and not current_disproved:
+            categories.append(CATEGORY_ADDITIONAL_OCCURRENCE)
+            proposed["additional_primary_occurrence"] = {
+                "date": candidate_date.get("iso_date") or candidate_date.get("raw"),
+                "source_event": event,
+                "mtf_document_id": document_id,
+            }
         direct_urls = " ".join(current.get("direct_mtf_public_urls", []))
-        if not known_ids or (document_id in known_ids and document_id not in direct_urls):
-            categories.append("E")
+        if not additional_occurrence and (
+            (identity_unknown and document_id)
+            or (same_identity and document_id not in direct_urls)
+        ):
+            categories.append(CATEGORY_LOCATOR_CORRECTION)
             proposed["stable_locator"] = f"Margaret Thatcher Foundation Document {document_id}"
             proposed["canonical_public_url"] = candidate.get("canonical_public_url")
         passage = str(candidate.get("supporting_passage") or "")
         verified_text = str(current.get("verified_text") or "")
         quotation_text = str(current.get("quotation_text") or "")
-        if (
+        authoritative_wording = _authoritative_candidate_wording(target, candidate)
+        quote_is_exact_excerpt = bool(
+            quotation_text
+            and authoritative_wording == quotation_text
+            and _contains_token_sequence(passage, quotation_text)
+            and _contains_token_sequence(verified_text, quotation_text)
+            and (
+                len(word_tokens(passage)) > len(word_tokens(quotation_text))
+                or len(word_tokens(verified_text)) > len(word_tokens(quotation_text))
+            )
+        )
+        if quote_is_exact_excerpt:
+            categories.append(CATEGORY_EXACT_EXCERPT_CONFIRMATION)
+        elif (
             same_identity
-            and passage
             and verified_text
-            and word_tokens(verified_text) != word_tokens(quotation_text)
+            and authoritative_wording
+            and not _contains_token_sequence(verified_text, authoritative_wording)
         ):
-            comparison = compare_primary_wording(passage, quotation_text)
-            if comparison.get("classification") == "exact_primary_wording":
-                categories.append("B")
-                proposed["verified_text"] = quotation_text
+            comparison = compare_primary_wording(
+                authoritative_wording, verified_text
+            )
+            if comparison.get("classification") in {
+                "exact_primary_wording", "primary_variant"
+            }:
+                categories.append(CATEGORY_WORDING_CORRECTION)
+                proposed["verified_text"] = authoritative_wording
         speaker = str(current.get("speaker") or "")
         if speaker and "thatcher" not in speaker.casefold():
-            categories.append("F")
+            categories.append(CATEGORY_ATTRIBUTION_CORRECTION)
             proposed["speaker"] = candidate.get("speaker_author_evidence", {}).get("speaker_label") or "Margaret Thatcher"
     review = target.get("current_gate_review")
     reason = str(review.get("reason") or "") if isinstance(review, Mapping) else ""
@@ -882,9 +1071,9 @@ def classify_changes(
             context_date_source_sufficient=context_sufficient,
         )
         if proposed_unblock:
-            categories.append("G")
+            categories.append(CATEGORY_POTENTIAL_UNBLOCK)
     if not categories:
-        categories = ["I"]
+        categories = [CATEGORY_NO_CHANGE]
     return list(dict.fromkeys(categories)), proposed, proposed_unblock, unblock_reason
 
 
@@ -919,7 +1108,7 @@ def verify_candidate(
         "cross_speaker_join_rejected": False,
         "current_values": current_values(target),
         "proposed_values": {},
-        "proposed_change_category": ["I"],
+        "proposed_change_category": [CATEGORY_NO_CHANGE],
         "confidence": "low",
         "manual_review_still_required": False,
         "proposed_unblock": False,
@@ -1007,7 +1196,7 @@ def verify_candidate(
     base.update({
         "proposed_values": proposed,
         "proposed_change_category": categories,
-        "manual_review_still_required": categories != ["I"],
+        "manual_review_still_required": categories != [CATEGORY_NO_CHANGE],
         "proposed_unblock": proposed_unblock,
         "proposed_unblock_rationale": unblock_reason,
     })
@@ -1016,6 +1205,7 @@ def verify_candidate(
 
 def _candidate_sort_key(candidate: Mapping[str, Any]) -> tuple[Any, ...]:
     return (
+        1 if candidate.get("candidate_evidence_stale") else 0,
         0 if candidate.get("accepted_as_primary_evidence") else 1,
         {"exact quotation": 0, "recorded variant": 1, "partial/assembled wording": 2,
          "similar sentiment only": 3, "no support": 4}.get(str(candidate.get("match_type")), 5),
@@ -1050,6 +1240,9 @@ def reassess_blocked(
                 "supporting_passage": best.get("supporting_passage"),
                 "supporting_passage_sha256": best.get("supporting_passage_sha256"),
                 "local_file_sha256": best.get("local_file_sha256"),
+                "candidate_evidence_identity_status": best.get(
+                    "candidate_evidence_identity_status", "not_reclassified"
+                ),
                 "confidence": best.get("confidence"),
             } if best else None),
             "speaker_attribution_verified": bool(
@@ -1082,7 +1275,7 @@ def proposed_changes(candidates: Sequence[Mapping[str, Any]]) -> list[dict[str, 
     for candidate in candidates:
         categories = list(candidate.get("proposed_change_category") or [])
         for category in categories:
-            if category == "I":
+            if category == CATEGORY_NO_CHANGE:
                 continue
             output.append({
                 "quote_id": candidate["quote_id"],
@@ -1093,6 +1286,9 @@ def proposed_changes(candidates: Sequence[Mapping[str, Any]]) -> list[dict[str, 
                 "current_values": candidate["current_values"],
                 "proposed_values": candidate["proposed_values"],
                 "confidence": candidate["confidence"],
+                "candidate_evidence_identity_status": candidate.get(
+                    "candidate_evidence_identity_status", "not_reclassified"
+                ),
                 "proposed_unblock": candidate["proposed_unblock"],
                 "manual_review_required": True,
                 "advisory_only_not_applied": True,
@@ -1120,26 +1316,52 @@ def build_summary(
 ) -> dict[str, Any]:
     stable = inventory_is_stable(before, after)
     categories = lambda row, value: value in set(row.get("proposed_change_category", []))
-    useful = lambda row: any(value != "I" for value in row.get("proposed_change_category", []))
+    useful = lambda row: bool(
+        set(row.get("proposed_change_category", [])) & IMPROVEMENT_CATEGORIES
+    )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "record_kind": "historical_context_local_corpus_reaudit_summary",
         "programme_version": PROGRAMME_VERSION,
         "completed_at": completed_at,
         "eligible_quotations_assessed": len(targets),
         "quotations_with_at_least_one_local_candidate": len({row["quote_id"] for row in candidates}),
-        "quotations_with_verified_useful_evidence": _quote_count(candidates, useful),
+        "quotations_with_verified_useful_evidence": _quote_count(
+            candidates,
+            lambda row: row.get("accepted_as_primary_evidence")
+            and not row.get("candidate_evidence_stale"),
+        ),
         "exact_primary_matches": _quote_count(
             candidates, lambda row: row.get("accepted_as_primary_evidence") and row.get("match_type") == "exact quotation"
         ),
         "primary_variants": _quote_count(
             candidates, lambda row: row.get("accepted_as_primary_evidence") and row.get("match_type") == "recorded variant"
         ),
-        "proposed_date_improvements": _quote_count(candidates, lambda row: categories(row, "D")),
-        "proposed_event_source_improvements": _quote_count(candidates, lambda row: categories(row, "C")),
-        "proposed_locator_source_identity_improvements": _quote_count(candidates, lambda row: categories(row, "E")),
-        "proposed_wording_corrections": _quote_count(candidates, lambda row: categories(row, "B")),
-        "contradictory_downgrade_candidates": _quote_count(candidates, lambda row: categories(row, "H")),
+        "proposed_date_improvements": _quote_count(
+            candidates, lambda row: categories(row, CATEGORY_DATE_CORRECTION)
+        ),
+        "proposed_event_source_improvements": _quote_count(
+            candidates, lambda row: categories(row, CATEGORY_EVENT_CORRECTION)
+        ),
+        "proposed_locator_source_identity_improvements": _quote_count(
+            candidates, lambda row: categories(row, CATEGORY_LOCATOR_CORRECTION)
+        ),
+        "proposed_wording_corrections": _quote_count(
+            candidates, lambda row: categories(row, CATEGORY_WORDING_CORRECTION)
+        ),
+        "additional_primary_occurrences": _quote_count(
+            candidates, lambda row: categories(row, CATEGORY_ADDITIONAL_OCCURRENCE)
+        ),
+        "exact_excerpt_confirmations": _quote_count(
+            candidates,
+            lambda row: categories(row, CATEGORY_EXACT_EXCERPT_CONFIRMATION),
+        ),
+        "attribution_or_noncontiguous_match_reviews": _quote_count(
+            candidates, lambda row: categories(row, CATEGORY_NEUTRAL_MATCH_REVIEW)
+        ),
+        "genuine_contradiction_candidates": _quote_count(
+            candidates, lambda row: categories(row, CATEGORY_CONTRADICTION)
+        ),
         "blocked_quotes_reassessed": len(blocked),
         "blocked_quotes_with_proposed_unblock_true": sum(bool(row.get("proposed_unblock")) for row in blocked),
         "proposed_unblock_quote_ids": sorted(
@@ -1187,7 +1409,10 @@ def render_report(summary: Mapping[str, Any]) -> str:
         f"- Proposed event/source improvements: {summary['proposed_event_source_improvements']}",
         f"- Proposed locator/source-identity improvements: {summary['proposed_locator_source_identity_improvements']}",
         f"- Proposed wording corrections: {summary['proposed_wording_corrections']}",
-        f"- Contradictory/downgrade candidates: {summary['contradictory_downgrade_candidates']}",
+        f"- Additional verified primary occurrences: {summary['additional_primary_occurrences']}",
+        f"- Exact excerpt confirmations: {summary['exact_excerpt_confirmations']}",
+        f"- Attribution/non-contiguous match reviews: {summary['attribution_or_noncontiguous_match_reviews']}",
+        f"- Genuine canonical-claim conflicts: {summary['genuine_contradiction_candidates']}",
         f"- Blocked quotations reassessed: {summary['blocked_quotes_reassessed']}",
         f"- Proposed unblock quotations: {summary['blocked_quotes_with_proposed_unblock_true']} ({', '.join(unblock_ids) if unblock_ids else 'none'})",
         f"- Unresolved quotations with improved evidence: {summary['unresolved_quotes_with_improved_evidence']}",
@@ -1206,16 +1431,360 @@ def render_report(summary: Mapping[str, Any]) -> str:
     ))
 
 
-def assert_no_private_path_disclosure(
-    values: Sequence[Any], archive_root: Path, run_dir: Path
-) -> None:
+def assert_no_private_path_disclosure(values: Sequence[Any], *private_paths: Path) -> None:
     encoded = "\n".join(
         value if isinstance(value, str) else canonical_json_bytes(value).decode("utf-8")
         for value in values
     )
-    for private in (str(archive_root), str(run_dir)):
+    for private in (str(path) for path in private_paths):
         if private and private in encoded:
             raise ReauditError("generated advisory output discloses a private absolute path")
+
+
+def _source_run_file(source_run_dir: Path, filename: str) -> Path:
+    if filename not in OUTPUT_FILENAMES:
+        raise ReauditError(f"unrecognised source-run filename: {filename}")
+    path = source_run_dir / filename
+    if path.is_symlink() or not path.is_file():
+        raise ReauditError(f"source run is missing a regular {filename}")
+    if path.resolve(strict=True).parent != source_run_dir:
+        raise ReauditError("source-run file escaped its directory")
+    return path
+
+
+def _source_run_snapshot(source_run_dir: Path) -> dict[str, str]:
+    output: dict[str, str] = {}
+    for path in sorted(source_run_dir.iterdir(), key=lambda item: item.name):
+        if path.is_symlink() or not path.is_file():
+            raise ReauditError("source run contains a non-regular entry")
+        output[path.name] = file_sha256(path)
+    return output
+
+
+def _normalised_existing_categories(candidate: Mapping[str, Any]) -> set[str]:
+    return {
+        LEGACY_CATEGORY_NAMES.get(str(value), str(value))
+        for value in candidate.get("proposed_change_category", [])
+    }
+
+
+def _candidate_requires_identity_revalidation(candidate: Mapping[str, Any]) -> bool:
+    categories = _normalised_existing_categories(candidate)
+    return bool(
+        candidate.get("accepted_as_primary_evidence")
+        or candidate.get("proposed_unblock")
+        or candidate.get("candidate_classification") == "contradictory_evidence"
+        or any(category != CATEGORY_NO_CHANGE for category in categories)
+    )
+
+
+def _stale_identity_result(reason: str) -> dict[str, Any]:
+    return {
+        "candidate_evidence_identity_status": "stale",
+        "candidate_evidence_stale": True,
+        "candidate_evidence_identity_reason": reason,
+    }
+
+
+def revalidate_candidate_identity(
+    mirror: LocalArchiveMirror, candidate: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Revalidate a selected ledger candidate without searching or rematching text."""
+    if not _candidate_requires_identity_revalidation(candidate):
+        return {
+            "candidate_evidence_identity_status": "not_selected_for_revalidation",
+            "candidate_evidence_stale": False,
+            "candidate_evidence_identity_reason": (
+                "candidate was not selected for positive or admission consideration"
+            ),
+        }
+    document_id = str(candidate.get("candidate_mtf_document_id") or "")
+    url = str(candidate.get("canonical_public_url") or "")
+    recorded_hash = str(candidate.get("local_file_sha256") or "")
+    recorded_identity = candidate.get("document_identity_evidence")
+    if (
+        not document_id.isdigit()
+        or _document_id_from_value(url) != document_id
+        or not re.fullmatch(r"[0-9a-f]{64}", recorded_hash)
+        or (
+            isinstance(recorded_identity, Mapping)
+            and str(recorded_identity.get("document_id") or document_id) != document_id
+        )
+    ):
+        return _stale_identity_result("recorded_candidate_identity_is_invalid")
+    try:
+        record = mirror.read(url)
+    except Exception:
+        return _stale_identity_result("candidate_file_is_missing_or_unsafe")
+    if not record or record.get("status") != "fetched":
+        return _stale_identity_result("candidate_file_is_missing_or_unreadable")
+    current_hash = str(record.get("local_archive_file_sha256") or "")
+    if current_hash != recorded_hash:
+        return _stale_identity_result("candidate_file_sha256_changed")
+    validation = research.inspect_mtf_document(
+        url, str(record.get("content_type") or ""), bytes(record.get("body") or b"")
+    )
+    if (
+        not validation.get("valid")
+        or str(validation.get("document_number") or "") != document_id
+        or _document_id_from_value(validation.get("canonical_url")) != document_id
+        or _document_id_from_value(validation.get("declared_canonical_url")) != document_id
+    ):
+        return _stale_identity_result("candidate_mtf_document_identity_changed")
+    return {
+        "candidate_evidence_identity_status": "valid",
+        "candidate_evidence_stale": False,
+        "candidate_evidence_identity_reason": (
+            "recorded MTF document identity and local file SHA-256 still match"
+        ),
+    }
+
+
+def _reclassify_candidate(
+    mirror: LocalArchiveMirror,
+    target: Mapping[str, Any],
+    source_candidate: Mapping[str, Any],
+) -> dict[str, Any]:
+    candidate = copy.deepcopy(dict(source_candidate))
+    candidate.update({
+        "quotation_text": target["quotation_text"],
+        "current_gate_disposition": target["current_gate_disposition"],
+        "current_gate_status": target["current_gate_status"],
+        "current_unresolved_status": target["current_unresolved_status"],
+        "current_values": current_values(target),
+        **revalidate_candidate_identity(mirror, candidate),
+    })
+    candidate["recorded_accepted_as_primary_evidence"] = bool(
+        source_candidate.get("accepted_as_primary_evidence")
+    )
+    if candidate["candidate_evidence_stale"]:
+        candidate["accepted_as_primary_evidence"] = False
+    categories, proposed, proposed_unblock, unblock_reason = classify_changes(
+        target, candidate, candidate["current_values"]
+    )
+    candidate.update({
+        "proposed_values": proposed,
+        "proposed_change_category": categories,
+        "manual_review_still_required": (
+            candidate["candidate_evidence_stale"]
+            or categories != [CATEGORY_NO_CHANGE]
+        ),
+        "proposed_unblock": proposed_unblock,
+        "proposed_unblock_rationale": unblock_reason,
+        "classification_rerun_without_discovery": True,
+    })
+    return candidate
+
+
+def _build_reclassification_summary(
+    targets: Sequence[Mapping[str, Any]],
+    candidates: Sequence[Mapping[str, Any]],
+    blocked: Sequence[Mapping[str, Any]],
+    source_before: Mapping[str, Any],
+    source_after: Mapping[str, Any],
+    *,
+    input_hashes_stable: bool,
+    completed_at: str,
+    source_candidate_ledger_sha256: str,
+) -> dict[str, Any]:
+    summary = build_summary(
+        targets,
+        candidates,
+        blocked,
+        source_before,
+        source_after,
+        input_hashes_stable=input_hashes_stable,
+        completed_at=completed_at,
+    )
+    selected = [
+        row for row in candidates
+        if row.get("candidate_evidence_identity_status") in {"valid", "stale"}
+    ]
+    positive = [
+        row for row in candidates
+        if row.get("recorded_accepted_as_primary_evidence")
+    ]
+    summary.update({
+        "reclassification_mode": True,
+        "source_candidate_ledger_sha256": source_candidate_ledger_sha256,
+        "source_run_inventory_was_unstable": not inventory_is_stable(
+            source_before, source_after
+        ),
+        "candidate_level_evidence_identities_revalidated": True,
+        "candidate_identity_revalidation_required_count": len(selected),
+        "candidate_identity_valid_count": sum(
+            row.get("candidate_evidence_identity_status") == "valid"
+            for row in selected
+        ),
+        "stale_candidate_count": sum(
+            row.get("candidate_evidence_identity_status") == "stale"
+            for row in selected
+        ),
+        "recorded_positive_candidate_count": len(positive),
+        "positive_candidates_remaining_valid": sum(
+            row.get("candidate_evidence_identity_status") == "valid"
+            for row in positive
+        ),
+        "positive_candidates_stale": sum(
+            row.get("candidate_evidence_identity_status") == "stale"
+            for row in positive
+        ),
+        "negative_no_hit_conclusions_provisional": True,
+        "search_index_discovery_call_count": 0,
+        "archive_inventory_rescan_performed": False,
+        "original_source_run_write_count": 0,
+        "run_finality": (
+            "candidate_revalidated_advisory_package_with_provisional_negatives"
+        ),
+    })
+    return summary
+
+
+def render_reclassification_report(summary: Mapping[str, Any]) -> str:
+    return "\n".join((
+        "# Existing-package historical-context reclassification",
+        "",
+        f"Programme: `{PROGRAMME_VERSION}`",
+        "",
+        "This private advisory package reused the recorded candidate ledger and reran classification only. No quotation discovery or archive inventory scan was performed.",
+        "",
+        "## Candidate evidence boundary",
+        "",
+        f"- Source run inventory was unstable: {str(summary['source_run_inventory_was_unstable']).lower()}",
+        f"- Candidate-level evidence identities revalidated: {str(summary['candidate_level_evidence_identities_revalidated']).lower()}",
+        f"- Candidates selected for identity revalidation: {summary['candidate_identity_revalidation_required_count']}",
+        f"- Candidate identities still valid: {summary['candidate_identity_valid_count']}",
+        f"- Stale candidates: {summary['stale_candidate_count']}",
+        f"- Positive candidates remaining valid: {summary['positive_candidates_remaining_valid']}",
+        f"- Negative/no-hit conclusions remain provisional: {str(summary['negative_no_hit_conclusions_provisional']).lower()}",
+        "",
+        "## Revised advisory classification",
+        "",
+        f"- Verified useful evidence quotations: {summary['quotations_with_verified_useful_evidence']}",
+        f"- Proposed date corrections/fills: {summary['proposed_date_improvements']}",
+        f"- Proposed event/source corrections/fills: {summary['proposed_event_source_improvements']}",
+        f"- Proposed locator/source-identity corrections: {summary['proposed_locator_source_identity_improvements']}",
+        f"- Proposed verified-text corrections: {summary['proposed_wording_corrections']}",
+        f"- Additional verified primary occurrences: {summary['additional_primary_occurrences']}",
+        f"- Exact excerpt confirmations: {summary['exact_excerpt_confirmations']}",
+        f"- Attribution/non-contiguous match reviews: {summary['attribution_or_noncontiguous_match_reviews']}",
+        f"- Genuine canonical-claim conflicts: {summary['genuine_contradiction_candidates']}",
+        "",
+        "## Safety",
+        "",
+        "The source package was read only. Socket and DNS entry points were denied; search/index discovery calls, external-provider calls, canonical writes, and source-package writes were all zero.",
+        "",
+    ))
+
+
+def reclassify_existing(
+    project_root: Path, source_run_dir: Path, output_dir: Path
+) -> dict[str, Any]:
+    """Cheaply reclassify one completed package without rerunning discovery."""
+    project_root = resolve_project_root(project_root)
+    archive_root, source_run_dir, output_dir = resolve_reclassification_inputs(
+        project_root, source_run_dir, output_dir
+    )
+    source_snapshot = _source_run_snapshot(source_run_dir)
+    candidate_path = _source_run_file(
+        source_run_dir, "corpus_reaudit_candidates.json"
+    )
+    source_candidate_document = read_json(candidate_path)
+    source_before = read_json(
+        _source_run_file(source_run_dir, "archive_inventory_before.json")
+    )
+    source_after = read_json(
+        _source_run_file(source_run_dir, "archive_inventory_after.json")
+    )
+    if not isinstance(source_candidate_document, Mapping) or not isinstance(
+        source_candidate_document.get("records"), list
+    ):
+        raise ReauditError("source candidate ledger is malformed")
+    source_records = source_candidate_document["records"]
+    if not all(isinstance(row, Mapping) for row in source_records):
+        raise ReauditError("source candidate ledger contains a malformed record")
+
+    input_before = authoritative_hashes(project_root)
+    mirror = LocalArchiveMirror(archive_root, maximum_bytes=MAXIMUM_DOCUMENT_BYTES)
+    with deny_network():
+        derived = derive_eligible_targets(
+            project_root, prepare_search_strategy=False
+        )
+        targets = derived["targets"]
+        targets_by_id = {str(row["quote_id"]): row for row in targets}
+        candidates = []
+        for source_candidate in source_records:
+            quote_id = str(source_candidate.get("quote_id") or "")
+            target = targets_by_id.get(quote_id)
+            if target is None:
+                raise ReauditError(
+                    "source candidate no longer maps to an authoritative quotation"
+                )
+            candidates.append(
+                _reclassify_candidate(mirror, target, source_candidate)
+            )
+
+    input_after = authoritative_hashes(project_root)
+    assert_authoritative_inputs_unchanged(input_before, input_after)
+    blocked = reassess_blocked(targets, candidates)
+    changes = proposed_changes(candidates)
+    source_ledger_sha256 = file_sha256(candidate_path)
+    summary = _build_reclassification_summary(
+        targets,
+        candidates,
+        blocked,
+        source_before,
+        source_after,
+        input_hashes_stable=input_before == input_after,
+        completed_at=utc_now(),
+        source_candidate_ledger_sha256=source_ledger_sha256,
+    )
+    candidate_document = {
+        "schema_version": 2,
+        "record_kind": "historical_context_local_corpus_reaudit_candidates",
+        "programme_version": PROGRAMME_VERSION,
+        "eligible_quote_count": len(targets),
+        "candidate_count": len(candidates),
+        "source_candidate_ledger_sha256": source_ledger_sha256,
+        "source_candidate_ledger_referenced_by_sha256": True,
+        "source_candidate_records_reused_without_discovery": True,
+        "records": candidates,
+        "advisory_only": True,
+        "private_root_not_recorded": True,
+    }
+    blocked_document = {
+        "schema_version": 2,
+        "record_kind": "blocked_historical_context_quote_reassessment",
+        "semantic_gate_policy_version": SEMANTIC_GATE_POLICY_VERSION,
+        "blocked_quote_count": len(blocked),
+        "records": blocked,
+        "advisory_only": True,
+    }
+    change_document = {
+        "schema_version": 2,
+        "record_kind": "proposed_historical_data_changes",
+        "change_count": len(changes),
+        "records": changes,
+        "categories": CATEGORY_DESCRIPTIONS,
+        "advisory_only_not_applied": True,
+    }
+    report = render_reclassification_report(summary)
+    assert_no_private_path_disclosure(
+        [candidate_document, blocked_document, change_document, summary, report],
+        archive_root,
+        source_run_dir,
+        output_dir,
+    )
+    write_json(output_dir, "corpus_reaudit_candidates.json", candidate_document)
+    write_json(output_dir, "blocked_quote_reassessment.json", blocked_document)
+    write_json(
+        output_dir, "proposed_historical_data_changes.json", change_document
+    )
+    write_json(output_dir, "corpus_reaudit_summary.json", summary)
+    write_report(output_dir, report)
+    if source_snapshot != _source_run_snapshot(source_run_dir):
+        raise ReauditError("source run changed during reclassification")
+    return summary
 
 
 def execute(project_root: Path) -> dict[str, Any]:
@@ -1266,7 +1835,7 @@ def execute(project_root: Path) -> dict[str, Any]:
         input_hashes_stable=input_stable, completed_at=utc_now(),
     )
     candidate_document = {
-        "schema_version": 1,
+        "schema_version": 2,
         "record_kind": "historical_context_local_corpus_reaudit_candidates",
         "programme_version": PROGRAMME_VERSION,
         "eligible_quote_count": len(targets),
@@ -1285,20 +1854,11 @@ def execute(project_root: Path) -> dict[str, Any]:
         "advisory_only": True,
     }
     change_document = {
-        "schema_version": 1,
+        "schema_version": 2,
         "record_kind": "proposed_historical_data_changes",
         "change_count": len(changes),
         "records": changes,
-        "categories": {
-            "A": "stronger evidence, no public-data change",
-            "B": "wording/variant correction",
-            "C": "event/source correction",
-            "D": "date correction",
-            "E": "stable-locator/source-identity correction",
-            "F": "attribution/speaker correction",
-            "G": "currently blocked quote potentially unblockable",
-            "H": "contradictory evidence / possible downgrade",
-        },
+        "categories": CATEGORY_DESCRIPTIONS,
         "advisory_only_not_applied": True,
     }
     report = render_report(summary)
@@ -1319,20 +1879,52 @@ def execute(project_root: Path) -> dict[str, Any]:
 
 def build_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--execute", action="store_true",
         help="perform the local-only advisory run using the two required environment variables",
+    )
+    mode.add_argument(
+        "--reclassify-existing",
+        metavar="SOURCE_RUN_DIR",
+        type=Path,
+        help="reuse one completed private candidate ledger without discovery",
+    )
+    parser.add_argument(
+        "--output-dir",
+        metavar="NEW_RUN_DIR",
+        type=Path,
+        help="new empty mode-0700 private directory for reclassified outputs",
     )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_argument_parser().parse_args(argv)
-    if not args.execute:
+    if args.reclassify_existing is not None and args.output_dir is None:
+        print(
+            "NOT STARTED: --reclassify-existing requires --output-dir",
+            file=sys.stderr,
+        )
+        return 2
+    if args.reclassify_existing is None and args.output_dir is not None:
+        print(
+            "NOT STARTED: --output-dir is only valid with --reclassify-existing",
+            file=sys.stderr,
+        )
+        return 2
+    if not args.execute and args.reclassify_existing is None:
         print("NOT STARTED: pass --execute after preparing the required private directories")
         return 2
     try:
-        summary = execute(Path(__file__).resolve().parent)
+        if args.reclassify_existing is not None:
+            summary = reclassify_existing(
+                Path(__file__).resolve().parent,
+                args.reclassify_existing,
+                args.output_dir,
+            )
+        else:
+            summary = execute(Path(__file__).resolve().parent)
     except Exception as exc:
         print(f"LOCAL CORPUS RE-AUDIT FAILED: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
@@ -1342,8 +1934,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         "verified_useful_evidence": summary["quotations_with_verified_useful_evidence"],
         "proposed_unblock_quote_ids": summary["proposed_unblock_quote_ids"],
         "archive_inventory_stable": summary["archive_inventory_stable"],
+        "reclassification_mode": bool(summary.get("reclassification_mode")),
+        "stale_candidate_count": summary.get("stale_candidate_count", 0),
+        "positive_candidates_remaining_valid": summary.get(
+            "positive_candidates_remaining_valid"
+        ),
         "network_attempt_count": 0,
     }, sort_keys=True))
+    if summary.get("reclassification_mode"):
+        return 0
     return 0 if summary["reproducible_against_one_stable_inventory"] else 3
 
 

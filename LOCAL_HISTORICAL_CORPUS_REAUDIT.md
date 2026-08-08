@@ -23,3 +23,37 @@ runner. It records numeric-document inventories before and after the search;
 an inventory change makes the package non-reproducible and incomplete. The
 outputs never contain the private archive or run-directory path and must not be
 added to Git.
+
+## Reclassify an existing package without discovery
+
+To reuse an existing candidate ledger after an unstable source-run inventory,
+prepare another empty mode-`0700` private directory and run:
+
+```bash
+export MRS_MTHATCHER_LOCAL_ARCHIVE_ROOT=/operator/private/archive-root
+python3 historical_context_local_corpus_reaudit.py \
+  --reclassify-existing /operator/private/existing-run \
+  --output-dir /operator/private/new-empty-run
+```
+
+This mode reads current authoritative historical inputs, but does not prepare
+search queries, build an index, run archive discovery across the 611
+quotations, or inventory the whole archive. It reruns classification only for
+candidates already present in the source ledger. Every candidate selected for
+positive, admission, or advisory consideration must still resolve to the
+recorded MTF document and exact local file SHA-256. Changed or missing files are
+marked stale and cannot support a positive conclusion. The source inventory may
+remain unstable: unchanged candidate identities retain positive evidential
+value, while negative/no-hit conclusions remain provisional. The existing
+package is read only, and the new ledger records its SHA-256 without recording
+either private path.
+
+The semantic advisory categories include `additional_primary_occurrence` for
+another valid date/event that does not disprove the current occurrence,
+`exact_excerpt_confirmation` when the stored quotation is an exact excerpt of
+a longer authoritative passage, and
+`attribution_or_noncontiguous_match_review` for attribution-sensitive or
+assembled wording. Only `contradictory_evidence` represents a genuine conflict
+with an existing canonical claim. Date, event, or verified-text corrections
+require evidence about the current occurrence or transcription; they are not
+inferred merely from another occurrence or a longer source passage.
