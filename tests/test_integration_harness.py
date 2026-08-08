@@ -5702,7 +5702,13 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "current health: no unresolved operational incidents" in (
         classified_digest.stdout
     )
-    assert "1 historical/resolved incident in window" in classified_digest.stdout
+    assert "## Transient provider observations" in classified_digest.stdout
+    assert "Provider recovery is unverified" in classified_digest.stdout
+    assert "x api transient failure" in classified_digest.stdout
+    assert (
+        "## Historical/resolved incident errors\n"
+        "None identified in the selected window."
+    ) in classified_digest.stdout
     assert "1 handled API restriction incident" in classified_digest.stdout
     assert "self-test failures: 2 check(s)" in classified_digest.stdout
     assert "Handled API restrictions" in classified_digest.stdout
