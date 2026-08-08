@@ -1,9 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
-ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
-INHERITED_BOT_SCRIPT=${MRS_BOT_SCRIPT:-}
+readonly WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
+readonly ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
+readonly CANONICAL_BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"
+readonly INHERITED_TEST_MODE=${MRS_TEST_MODE:-}
+readonly INHERITED_BOT_SCRIPT=${MRS_BOT_SCRIPT:-}
 
 cd "$WORK_DIR"
 
@@ -16,14 +18,18 @@ set -a
 source "$ENV_FILE"
 set +a
 
-if [[ ${MRS_TEST_MODE:-0} != 1 && ( -n "$INHERITED_BOT_SCRIPT" || -n "${MRS_BOT_SCRIPT:-}" ) ]]; then
+if [[ "$INHERITED_TEST_MODE" != 1 && ${MRS_TEST_MODE:-} == 1 ]]; then
+  echo "MRS_TEST_MODE=1 must be inherited; the environment file cannot authorise test hooks" >&2
+  exit 2
+fi
+if [[ "$INHERITED_TEST_MODE" != 1 && ( -n "$INHERITED_BOT_SCRIPT" || -n "${MRS_BOT_SCRIPT:-}" ) ]]; then
   echo "MRS_BOT_SCRIPT is test-only and is refused unless MRS_TEST_MODE=1" >&2
   exit 2
 fi
-if [[ ${MRS_TEST_MODE:-0} == 1 ]]; then
-  BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}
+if [[ "$INHERITED_TEST_MODE" == 1 ]]; then
+  readonly BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$CANONICAL_BOT_SCRIPT"}
 else
-  BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"
+  readonly BOT_SCRIPT="$CANONICAL_BOT_SCRIPT"
 fi
 
 # Derive and validate the final effective launcher settings only after the

@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-readonly PROJECT_DIR="$(cd -- "${SOURCE_DIR}/../.." && pwd -P)"
+readonly SOURCE_PROJECT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+readonly UNIT_SOURCE_DIR="${SOURCE_PROJECT_DIR}/deploy/systemd-user"
+readonly INHERITED_TEST_MODE="${MRS_TEST_MODE:-}"
+if [[ -n "${MRS_RUNTIME_PROJECT_DIR:-}" && "${INHERITED_TEST_MODE}" != 1 ]]; then
+  printf '%s\n' 'MRS_RUNTIME_PROJECT_DIR is test-only and is refused unless MRS_TEST_MODE=1 is inherited' >&2
+  exit 2
+fi
+readonly RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMThatcher}"
 readonly TARGET_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
-readonly SHADOW_HEALTH_DIR="${MRS_SEMANTIC_VETO_HEALTH_DIR:-/home/tonym/.local/state/mrsMThatcher/semantic-veto-health}"
-readonly ANALYTICS_PROGRAM="${PROJECT_DIR}/mrs_engagement_analytics.py"
+readonly SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"
+readonly ANALYTICS_PROGRAM="${RUNTIME_PROJECT_DIR}/mrs_engagement_analytics.py"
 readonly UNITS=(
   mrsMThatcher.service
   mrs-engagement-analytics.service
@@ -19,10 +25,10 @@ usage() {
 Usage: deploy/systemd-user/install.sh --check|--install
 
   --check    Validate tracked units and report drift from the user installation.
-  --install  Copy tracked units, prepare private state, enable safe units, and reload systemd.
+  --install  Copy tracked units, prepare private state, and reload systemd.
 
-Installation never starts, stops, or restarts a unit. The analytics timer is
-enabled only when its existing database passes the non-mutating status check.
+Installation does not enable, disable, start, stop, or restart any unit. It
+reports analytics readiness and prints separate operator activation commands.
 EOF
 }
 
@@ -30,7 +36,7 @@ verify_sources() {
   local paths=()
   local unit
   for unit in "${UNITS[@]}"; do
-    paths+=("${SOURCE_DIR}/${unit}")
+    paths+=("${UNIT_SOURCE_DIR}/${unit}")
   done
   systemd-analyze --user verify "${paths[@]}"
 }
@@ -42,7 +48,7 @@ check_installation() {
     if [[ ! -f "${TARGET_DIR}/${unit}" ]]; then
       printf 'missing: %s\n' "${TARGET_DIR}/${unit}" >&2
       failed=1
-    elif ! cmp -s -- "${SOURCE_DIR}/${unit}" "${TARGET_DIR}/${unit}"; then
+    elif ! cmp -s -- "${UNIT_SOURCE_DIR}/${unit}" "${TARGET_DIR}/${unit}"; then
       printf 'drift: %s\n' "${TARGET_DIR}/${unit}" >&2
       failed=1
     else
@@ -52,13 +58,36 @@ check_installation() {
   return "${failed}"
 }
 
-analytics_is_initialised() {
-  local status_json
-  if ! status_json="$(/usr/bin/python3 "${ANALYTICS_PROGRAM}" status --project-dir "${PROJECT_DIR}")"; then
+report_analytics_readiness() {
+  local readiness status_json
+  if ! status_json="$(/usr/bin/python3 "${ANALYTICS_PROGRAM}" status --project-dir "${RUNTIME_PROJECT_DIR}")"; then
+    printf 'analytics readiness failure: status command failed for runtime directory %s\n' \
+      "${RUNTIME_PROJECT_DIR}" >&2
     return 1
   fi
-  printf '%s' "${status_json}" | /usr/bin/python3 -c \
-    'import json, sys; raise SystemExit(0 if json.load(sys.stdin).get("initialised") is True else 1)'
+  if ! readiness="$(printf '%s' "${status_json}" | /usr/bin/python3 -c \
+    'import json, sys; data = json.load(sys.stdin); value = data.get("initialised") if isinstance(data, dict) else None; assert type(value) is bool; print("initialised" if value else "uninitialised")' \
+    2>/dev/null)"; then
+    printf 'analytics readiness failure: malformed status output for runtime directory %s\n' \
+      "${RUNTIME_PROJECT_DIR}" >&2
+    return 1
+  fi
+  if [[ "${readiness}" == initialised ]]; then
+    printf 'analytics database is initialised: %s\n' "${RUNTIME_PROJECT_DIR}"
+    return 0
+  fi
+  printf 'analytics status is valid but the database is uninitialised: %s\n' \
+    "${RUNTIME_PROJECT_DIR}"
+  printf 'initialise analytics: /usr/bin/python3 %q initialise --project-dir %q\n' \
+    "${ANALYTICS_PROGRAM}" "${RUNTIME_PROJECT_DIR}"
+}
+
+print_enable_commands() {
+  printf '%s\n' \
+    'enable each desired unit separately:' \
+    '  systemctl --user enable mrsMThatcher.service' \
+    '  systemctl --user enable mrs-semantic-veto-shadow-health.timer' \
+    '  systemctl --user enable mrs-engagement-analytics.timer'
 }
 
 prepare_scheduled_task_state() {
@@ -73,24 +102,17 @@ install_units() {
   local unit temporary
   for unit in "${UNITS[@]}"; do
     temporary="$(mktemp "${TARGET_DIR}/.${unit}.XXXXXX")"
-    install -m 0644 -- "${SOURCE_DIR}/${unit}" "${temporary}"
+    install -m 0644 -- "${UNIT_SOURCE_DIR}/${unit}" "${temporary}"
     mv -f -- "${temporary}" "${TARGET_DIR}/${unit}"
     printf 'installed: %s\n' "${TARGET_DIR}/${unit}"
   done
 
   systemctl --user daemon-reload
-  systemctl --user enable mrsMThatcher.service
-  systemctl --user enable mrs-semantic-veto-shadow-health.timer
-  if analytics_is_initialised; then
-    systemctl --user enable mrs-engagement-analytics.timer
-    printf '%s\n' 'enabled analytics timer after non-mutating database status check'
-  else
-    systemctl --user disable mrs-engagement-analytics.timer
-    printf '%s\n' 'analytics database is not initialised; analytics timer remains disabled'
-    printf 'run: /usr/bin/python3 %q initialise --project-dir %q\n' \
-      "${ANALYTICS_PROGRAM}" "${PROJECT_DIR}"
-  fi
-  printf '%s\n' 'user systemd manager reloaded; enabled units were not started or restarted'
+  local readiness_rc=0
+  report_analytics_readiness || readiness_rc=$?
+  print_enable_commands
+  printf '%s\n' 'user systemd manager reloaded; no unit activation state was changed'
+  return "${readiness_rc}"
 }
 
 main() {

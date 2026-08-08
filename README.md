@@ -653,15 +653,26 @@ The main service preflight checks the canonical repository-side
 starts `/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2` directly. The launcher
 executes the same checked bot script by default.
 
-The installer uses atomic per-file replacement. It enables the main service and
-semantic-veto health timer without starting or restarting them. The analytics
-timer is enabled only when the existing database passes the analytics CLI's
-non-mutating `status` check. If it is not initialised, the installer leaves that
-timer disabled and prints the existing initialisation command:
+The installer uses atomic per-file replacement and runs `daemon-reload`, but it
+does not enable, disable, start, stop, or restart any unit. Its non-mutating
+analytics `status` check always targets the runtime checkout at
+`/disks/disk1/etc/mrsMThatcher`, even when the installer itself is run from a
+different source worktree. It reports an initialised database, a valid but
+uninitialised database, or a status-command/malformed-output failure distinctly.
+For an uninitialised database it prints the initialisation command:
 
 ```bash
 /usr/bin/python3 /disks/disk1/etc/mrsMThatcher/mrs_engagement_analytics.py initialise \
   --project-dir /disks/disk1/etc/mrsMThatcher
+```
+
+After installation, enable each desired unit explicitly and separately (enable
+the analytics timer only after its database is ready):
+
+```bash
+systemctl --user enable mrsMThatcher.service
+systemctl --user enable mrs-semantic-veto-shadow-health.timer
+systemctl --user enable mrs-engagement-analytics.timer
 ```
 
 The semantic-veto health timer runs daily at 23:35 Europe/London. It validates

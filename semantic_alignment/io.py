@@ -24,6 +24,14 @@ def _atomic_write(path: Path, write_value: Any) -> None:
     """Commit a unique regular temporary file and fsync its directory."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        destination_mode = os.lstat(path).st_mode
+    except FileNotFoundError:
+        replacement_permissions = 0o600
+    else:
+        replacement_permissions = (
+            stat.S_IMODE(destination_mode) if stat.S_ISREG(destination_mode) else 0o600
+        )
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
         suffix=".tmp",
@@ -37,6 +45,7 @@ def _atomic_write(path: Path, write_value: Any) -> None:
             descriptor = -1
             write_value(handle)
             handle.flush()
+            os.fchmod(handle.fileno(), replacement_permissions)
             os.fsync(handle.fileno())
         os.replace(temporary, path)
         directory_descriptor = os.open(

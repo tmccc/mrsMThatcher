@@ -16,6 +16,8 @@ def test_atomic_writes_replace_existing_files_with_deterministic_content(
     text_path = tmp_path / "document.txt"
     json_path.write_text("old json\n", encoding="utf-8")
     text_path.write_text("old text\n", encoding="utf-8")
+    json_path.chmod(0o644)
+    text_path.chmod(0o644)
 
     io.atomic_write_json(json_path, {"z": 1, "a": "£"})
     io.atomic_write_text(text_path, "replacement\n")
@@ -25,7 +27,32 @@ def test_atomic_writes_replace_existing_files_with_deterministic_content(
     )
     assert json.loads(json_path.read_text(encoding="utf-8")) == {"a": "£", "z": 1}
     assert text_path.read_text(encoding="utf-8") == "replacement\n"
+    assert json_path.stat().st_mode & 0o777 == 0o644
+    assert text_path.stat().st_mode & 0o777 == 0o644
     assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_atomic_write_creates_new_destination_with_private_permissions(tmp_path: Path) -> None:
+    target = tmp_path / "new.txt"
+
+    io.atomic_write_text(target, "private\n")
+
+    assert target.stat().st_mode & 0o777 == 0o600
+
+
+def test_atomic_write_does_not_follow_existing_destination_symlink(tmp_path: Path) -> None:
+    symlink_target = tmp_path / "target.txt"
+    symlink_target.write_text("target\n", encoding="utf-8")
+    symlink_target.chmod(0o644)
+    destination = tmp_path / "destination.txt"
+    destination.symlink_to(symlink_target)
+
+    io.atomic_write_text(destination, "replacement\n")
+
+    assert not destination.is_symlink()
+    assert destination.read_text(encoding="utf-8") == "replacement\n"
+    assert destination.stat().st_mode & 0o777 == 0o600
+    assert symlink_target.read_text(encoding="utf-8") == "target\n"
 
 
 def test_atomic_write_cleans_uncommitted_temporary_on_replace_failure(

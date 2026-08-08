@@ -20,10 +20,14 @@ def test_launcher_and_service_use_the_same_canonical_bot_script() -> None:
     launcher = (PROJECT_DIR / "runMrsMThatcher2").read_text(encoding="utf-8")
     main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
 
-    assert launcher.index('source "$ENV_FILE"') < launcher.index("\n  BOT_SCRIPT=")
-    assert 'BOT_SCRIPT=${MRS_BOT_SCRIPT:-"$WORK_DIR/mrsMThatcher2.py"}' in launcher
-    assert 'BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"' in launcher
+    assert "readonly WORK_DIR=" in launcher
+    assert "readonly ENV_FILE=" in launcher
+    assert 'readonly CANONICAL_BOT_SCRIPT="$WORK_DIR/mrsMThatcher2.py"' in launcher
+    assert launcher.index("readonly INHERITED_TEST_MODE=") < launcher.index('source "$ENV_FILE"')
+    assert launcher.index("readonly INHERITED_BOT_SCRIPT=") < launcher.index('source "$ENV_FILE"')
+    assert 'readonly BOT_SCRIPT="$CANONICAL_BOT_SCRIPT"' in launcher
     assert "MRS_BOT_SCRIPT is test-only" in launcher
+    assert "the environment file cannot authorise test hooks" in launcher
     assert "/usr/local/bin/mrsMThatcher2.py" not in launcher
 
     exec_start = next(line for line in main.splitlines() if line.startswith("ExecStart="))
@@ -62,7 +66,8 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert "semantic_veto_shadow_health.py" in shadow_health
     assert "Semantic-veto health inputs unavailable after 120 seconds" in shadow_health
     assert "RestrictAddressFamilies=AF_UNIX" in shadow_health
-    assert "ReadWritePaths=/home/tonym/.local/state/mrsMThatcher/semantic-veto-health" in shadow_health
+    assert "--output-dir %h/.local/state/mrsMThatcher/semantic-veto-health" in shadow_health
+    assert "ReadWritePaths=%h/.local/state/mrsMThatcher/semantic-veto-health" in shadow_health
     assert "OnCalendar=*-*-* 23:35:00 Europe/London" in shadow_timer
     assert "Persistent=true" in shadow_timer
     assert "AccuracySec=1s" in shadow_timer
@@ -78,36 +83,60 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert "mv -f --" in installer
     assert "cmp -s --" in installer
     assert "ln -s" not in installer
+    assert "SOURCE_PROJECT_DIR=" in installer
+    assert 'RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMThatcher}"' in installer
     assert 'install -d -m 0700 -- "${SHADOW_HEALTH_DIR}" "${SHADOW_HEALTH_DIR}/history"' in installer
-    assert installer.index("prepare_scheduled_task_state") < installer.index(
-        "systemctl --user enable mrs-semantic-veto-shadow-health.timer"
+    assert 'SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"' in installer
+    assert "MRS_SEMANTIC_VETO_HEALTH_DIR" not in installer
+    assert '"${ANALYTICS_PROGRAM}" status --project-dir "${RUNTIME_PROJECT_DIR}"' in installer
+    assert "initialise --project-dir %q" in installer
+    assert installer.index("systemctl --user daemon-reload") < installer.index(
+        "report_analytics_readiness ||"
     )
-    assert '"${ANALYTICS_PROGRAM}" status --project-dir "${PROJECT_DIR}"' in installer
-    assert "json.load(sys.stdin).get(\"initialised\") is True" in installer
-    assert "systemctl --user enable mrsMThatcher.service" in installer
-    assert "systemctl --user enable mrs-semantic-veto-shadow-health.timer" in installer
-    assert "systemctl --user enable mrs-engagement-analytics.timer" in installer
-    assert "systemctl --user disable mrs-engagement-analytics.timer" in installer
-    assert "/usr/bin/python3 %q initialise --project-dir %q" in installer
-    assert not re.search(r"systemctl\s+--user\s+(?:start|stop|restart|reload)\b", installer)
+    systemctl_invocations = [
+        line.strip()
+        for line in installer.splitlines()
+        if line.strip().startswith("systemctl ")
+    ]
+    assert systemctl_invocations == ["systemctl --user daemon-reload"]
+    for unit in (
+        "mrsMThatcher.service",
+        "mrs-semantic-veto-shadow-health.timer",
+        "mrs-engagement-analytics.timer",
+    ):
+        assert f"systemctl --user enable {unit}" in installer
 
 
-@pytest.mark.parametrize("analytics_initialised", [False, True])
-def test_user_unit_installer_gates_analytics_without_blocking_other_units(
+@pytest.mark.parametrize(
+    ("analytics_status", "expected_returncode"),
+    [
+        ("initialised", 0),
+        ("uninitialised", 0),
+        ("command_failure", 1),
+        ("malformed", 1),
+    ],
+)
+def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
     tmp_path: Path,
-    analytics_initialised: bool,
+    analytics_status: str,
+    expected_returncode: int,
 ) -> None:
-    project = tmp_path / "project"
-    deployed = project / "deploy" / "systemd-user"
+    source_project = tmp_path / "source-project"
+    deployed = source_project / "deploy" / "systemd-user"
     deployed.mkdir(parents=True)
     for source in SYSTEMD_DIR.iterdir():
         if source.is_file():
             shutil.copy2(source, deployed / source.name)
-    analytics_program = project / "mrs_engagement_analytics.py"
+    runtime_project = tmp_path / "runtime-project"
+    runtime_project.mkdir()
+    analytics_program = runtime_project / "mrs_engagement_analytics.py"
     analytics_program.write_text(
         "import json, os, sys\n"
         "assert sys.argv[1:] == ['status', '--project-dir', os.environ['EXPECTED_PROJECT']]\n"
-        "print(json.dumps({'initialised': os.environ['ANALYTICS_INITIALISED'] == '1'}))\n",
+        "status = os.environ['ANALYTICS_STATUS']\n"
+        "if status == 'command_failure': raise SystemExit(7)\n"
+        "if status == 'malformed': print('{malformed')\n"
+        "else: print(json.dumps({'initialised': status == 'initialised'}))\n",
         encoding="utf-8",
     )
     fake_bin = tmp_path / "bin"
@@ -115,11 +144,7 @@ def test_user_unit_installer_gates_analytics_without_blocking_other_units(
     (fake_bin / "systemd-analyze").write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
     (fake_bin / "systemctl").write_text(
         "#!/bin/bash\n"
-        "printf '%s\\n' \"$*\" >> \"$SYSTEMCTL_CALLS\"\n"
-        "if [[ \"$*\" == *'enable mrs-semantic-veto-shadow-health.timer'* ]]; then\n"
-        "  [[ $(stat -c %a \"$XDG_STATE_HOME/mrsMThatcher/semantic-veto-health\") == 700 ]]\n"
-        "  [[ $(stat -c %a \"$XDG_STATE_HOME/mrsMThatcher/semantic-veto-health/history\") == 700 ]]\n"
-        "fi\n",
+        "printf '%s\\n' \"$*\" >> \"$SYSTEMCTL_CALLS\"\n",
         encoding="utf-8",
     )
     for command in (fake_bin / "systemd-analyze", fake_bin / "systemctl"):
@@ -128,16 +153,14 @@ def test_user_unit_installer_gates_analytics_without_blocking_other_units(
     env = os.environ.copy()
     env.update(
         {
-            "ANALYTICS_INITIALISED": "1" if analytics_initialised else "0",
-            "EXPECTED_PROJECT": str(project),
+            "ANALYTICS_STATUS": analytics_status,
+            "EXPECTED_PROJECT": str(runtime_project),
             "HOME": str(tmp_path / "home"),
-            "MRS_SEMANTIC_VETO_HEALTH_DIR": str(
-                tmp_path / "state" / "mrsMThatcher" / "semantic-veto-health"
-            ),
+            "MRS_RUNTIME_PROJECT_DIR": str(runtime_project),
+            "MRS_TEST_MODE": "1",
             "PATH": f"{fake_bin}:{env.get('PATH', '')}",
             "SYSTEMCTL_CALLS": str(calls),
             "XDG_CONFIG_HOME": str(tmp_path / "config"),
-            "XDG_STATE_HOME": str(tmp_path / "state"),
         }
     )
 
@@ -150,20 +173,58 @@ def test_user_unit_installer_gates_analytics_without_blocking_other_units(
         check=False,
     )
 
-    assert result.returncode == 0, result.stderr + result.stdout
-    systemctl_calls = calls.read_text(encoding="utf-8")
-    assert "--user enable mrsMThatcher.service" in systemctl_calls
-    assert "--user enable mrs-semantic-veto-shadow-health.timer" in systemctl_calls
-    if analytics_initialised:
-        assert "--user enable mrs-engagement-analytics.timer" in systemctl_calls
-        assert "--user disable mrs-engagement-analytics.timer" not in systemctl_calls
-    else:
-        assert "--user disable mrs-engagement-analytics.timer" in systemctl_calls
-        assert "--user enable mrs-engagement-analytics.timer" not in systemctl_calls
+    assert result.returncode == expected_returncode, result.stderr + result.stdout
+    systemctl_calls = calls.read_text(encoding="utf-8").splitlines()
+    assert systemctl_calls == ["--user daemon-reload"]
+    assert not any(
+        re.search(r"(?:^|\s)(?:enable|disable|start|stop|restart)(?:\s|$)", call)
+        for call in systemctl_calls
+    )
+    target_dir = tmp_path / "config" / "systemd" / "user"
+    for unit in (
+        "mrsMThatcher.service",
+        "mrs-engagement-analytics.service",
+        "mrs-engagement-analytics.timer",
+        "mrs-semantic-veto-shadow-health.service",
+        "mrs-semantic-veto-shadow-health.timer",
+    ):
+        assert (target_dir / unit).read_bytes() == (deployed / unit).read_bytes()
+    health_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "semantic-veto-health"
+    assert health_dir.stat().st_mode & 0o777 == 0o700
+    assert (health_dir / "history").stat().st_mode & 0o777 == 0o700
+    assert "enable each desired unit separately" in result.stdout
+    if analytics_status == "initialised":
+        assert "analytics database is initialised" in result.stdout
+        assert "initialise analytics:" not in result.stdout
+    elif analytics_status == "uninitialised":
+        assert "status is valid but the database is uninitialised" in result.stdout
         assert (
-            f"run: /usr/bin/python3 {analytics_program} initialise --project-dir {project}"
+            f"initialise analytics: /usr/bin/python3 {analytics_program} "
+            f"initialise --project-dir {runtime_project}"
             in result.stdout
         )
+    elif analytics_status == "command_failure":
+        assert "analytics readiness failure: status command failed" in result.stderr
+    else:
+        assert "analytics readiness failure: malformed status output" in result.stderr
+
+
+def test_user_unit_installer_rejects_production_runtime_override(tmp_path: Path) -> None:
+    env = os.environ.copy()
+    env.pop("MRS_TEST_MODE", None)
+    env["MRS_RUNTIME_PROJECT_DIR"] = str(tmp_path / "runtime-project")
+
+    result = subprocess.run(
+        [str(SYSTEMD_DIR / "install.sh"), "--check"],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "MRS_RUNTIME_PROJECT_DIR is test-only" in result.stderr
 
 
 def test_local_config_example_covers_current_optional_selection_features() -> None:
