@@ -1,0 +1,54 @@
+{
+  "base": {
+    "branch": "research/historical-context",
+    "commit": "5b207d36c4d47458b5d6bf9f018908806f123cc9"
+  },
+  "document_kind": "generic_mtf_332_archive2_preparation_manifest",
+  "execution": {
+    "assessment_started": false,
+    "inventory_built": false,
+    "network_calls": 0,
+    "output_created": false,
+    "status": "prepared_not_started"
+  },
+  "mirror": {
+    "archive_host_tree_required": false,
+    "direct_www_root": null,
+    "document_filename_forms": [
+      "document/<number>",
+      "document/<number>.html",
+      "document%2F<number>"
+    ],
+    "numeric_document_files_at_preparation": 873,
+    "location_policy": "operator-supplied --mirror-www-root; private location is outside Git"
+  },
+  "preserved_inputs": {
+    "assessment_sha256": "4fd87c65ea93e5391aa6b55bb25d5cb0258e3d65425088583b9101e166f5f64b",
+    "render_review_sha256": "12942c85ef541e79cd4871a92b6eeed1bd5979472db523d706fa61372755aad7",
+    "runner_sha256": "20bb4f15ea6833465f64b9e74758c0351d2fa95a9cfe3e0627c47cdc50e97079",
+    "target_document_count": 170,
+    "target_quote_count": 332
+  },
+  "production_inputs": {
+    "git_commit_at_preparation": "982eda4374ef294cb4ae20b0aa40b97de3862592",
+    "research_packets_sha256": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0",
+    "source_role_audit_sha256": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
+    "target_quote_ids_present_in_both_inputs": 332,
+    "write_targets": []
+  },
+  "validation": {
+    "compile_passed": true,
+    "diff_check_passed": true,
+    "focused_test_command": "python3 -m pytest -q tests/test_generic_mtf_332_archive2_runner.py",
+    "focused_test_result": "4 passed",
+    "preserved_target_document_count_verified": 170,
+    "preserved_target_quote_count_verified": 332,
+    "runner_without_execute_created_output": false
+  },
+  "schema_version": 1,
+  "worktree": {
+    "branch": "research/generic-mtf-332-archive2-20260726T062054Z",
+    "path": null,
+    "path_status": "historical worktree retired; absolute path not retained"
+  }
+}
