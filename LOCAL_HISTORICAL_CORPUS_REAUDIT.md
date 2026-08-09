@@ -42,11 +42,15 @@ quotations, or inventory the whole archive. It reruns classification only for
 candidates already present in the source ledger. Every candidate selected for
 positive, admission, or advisory consideration must still resolve to the
 recorded MTF document and exact local file SHA-256. Changed or missing files are
-marked stale and cannot support a positive conclusion. The source inventory may
-remain unstable: unchanged candidate identities retain positive evidential
-value, while negative/no-hit conclusions remain provisional. The existing
-package is read only, and the new ledger records its SHA-256 without recording
-either private path.
+marked stale and cannot support a positive conclusion. Exact or variant
+positive evidence also requires a valid supporting-passage SHA-256 and a
+normalised passage still present in the current document text. The source
+inventory may remain unstable: unchanged candidate identities retain positive
+evidential value, while negative/no-hit conclusions remain provisional. The
+existing package is read only and is resnapshotted before any output is
+published; a source mutation aborts publication, and a failed output write
+removes the incomplete package. The new ledger records the source ledger's
+SHA-256 without recording either private path.
 
 The semantic advisory categories include `additional_primary_occurrence` for
 another valid date/event that does not disprove the current occurrence,
@@ -57,3 +61,6 @@ assembled wording. Only `contradictory_evidence` represents a genuine conflict
 with an existing canonical claim. Date, event, or verified-text corrections
 require evidence about the current occurrence or transcription; they are not
 inferred merely from another occurrence or a longer source passage.
+Current-occurrence identity comes from the packet stable locator or a
+source-role record directly bound to the packet's date and event; other known
+MTF documents remain provenance only.

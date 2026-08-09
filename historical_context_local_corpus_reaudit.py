@@ -325,6 +325,21 @@ def write_report(run_dir: Path, value: str) -> None:
         raise
 
 
+def _remove_incomplete_output_package(run_dir: Path) -> None:
+    failures = []
+    for filename in OUTPUT_FILENAMES:
+        path = run_dir / filename
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            failures.append(filename)
+    if failures:
+        raise ReauditError(
+            "failed to remove incomplete reclassification output package: "
+            + ", ".join(failures)
+        )
+
+
 @contextlib.contextmanager
 def deny_network() -> Iterable[None]:
     """Fail closed if any selected code path attempts DNS or a socket connection."""
@@ -762,32 +777,86 @@ def _source_rows(role: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return rows
 
 
+def _current_occurrence_source_rows(
+    role: Mapping[str, Any]
+) -> list[Mapping[str, Any]]:
+    rows: list[Mapping[str, Any]] = []
+    for key in ("sources", "renderable_sources"):
+        values = role.get(key)
+        if isinstance(values, list):
+            rows.extend(value for value in values if isinstance(value, Mapping))
+    return rows
+
+
+def _source_row_document_id(row: Mapping[str, Any]) -> str:
+    for key in ("canonical_url", "public_url", "source_url", "source_title"):
+        document_id = _document_id_from_value(row.get(key))
+        if document_id:
+            return document_id
+    return ""
+
+
+def _source_row_is_bound_to_current_occurrence(
+    packet: Mapping[str, Any], row: Mapping[str, Any]
+) -> bool:
+    """Recognise only explicit packet-locator or matching date/event bindings."""
+    packet_document_id = _document_id_from_value(packet.get("stable_locator"))
+    row_document_id = _source_row_document_id(row)
+    if packet_document_id and row_document_id == packet_document_id:
+        return True
+
+    packet_date = _normalised_date(packet.get("date"))
+    row_date: dict[str, Any] = {"known": False}
+    for key in ("source_date", "document_date", "publication_date", "date"):
+        row_date = _normalised_date(row.get(key))
+        if row_date.get("known"):
+            break
+    packet_event = str(packet.get("source_event") or "")
+    row_event = ""
+    for key in ("source_event", "document_event", "event", "event_title"):
+        row_event = str(row.get(key) or "")
+        if row_event:
+            break
+    return bool(
+        row_document_id
+        and packet_date.get("known")
+        and row_date.get("known")
+        and _dates_directly_bound(packet_date, row_date)
+        and packet_event
+        and row_event
+        and _event_equivalent(packet_event, row_event)
+    )
+
+
 def current_values(target: Mapping[str, Any]) -> dict[str, Any]:
     packet = target["current_packet"]
     role = target["current_source_role"]
-    known_ids = {_document_id_from_value(packet.get("stable_locator"))}
+    packet_document_id = _document_id_from_value(packet.get("stable_locator"))
+    current_occurrence_ids = {packet_document_id}
+    known_evidence_ids = {packet_document_id}
     direct_urls: set[str] = set()
     inspected_ids: set[str] = set()
     inspected_hashes: set[str] = set()
     for row in _source_rows(role):
+        row_document_id = _source_row_document_id(row)
+        if row_document_id:
+            known_evidence_ids.add(row_document_id)
         for key in ("canonical_url", "public_url", "source_url", "source_title"):
-            document_id = _document_id_from_value(row.get(key))
-            if document_id:
-                known_ids.add(document_id)
             value = str(row.get(key) or "")
             if "margaretthatcher.org/document/" in value and value.startswith(("http://", "https://")):
                 direct_urls.add(value)
         if row.get("page_independently_inspected") is True:
-            document_id = ""
-            for key in ("canonical_url", "public_url", "source_url", "source_title"):
-                document_id = document_id or _document_id_from_value(row.get(key))
-            if document_id:
-                inspected_ids.add(document_id)
+            if row_document_id:
+                inspected_ids.add(row_document_id)
             for key in ("page_sha256", "page_text_sha256"):
                 value = str(row.get(key) or "")
                 if re.fullmatch(r"[0-9a-f]{64}", value):
                     inspected_hashes.add(value)
-    known_ids.discard("")
+    for row in _current_occurrence_source_rows(role):
+        if _source_row_is_bound_to_current_occurrence(packet, row):
+            current_occurrence_ids.add(_source_row_document_id(row))
+    current_occurrence_ids.discard("")
+    known_evidence_ids.discard("")
     return {
         "quotation_text": packet.get("quote_text"),
         "verified_text": packet.get("verified_text"),
@@ -802,7 +871,10 @@ def current_values(target: Mapping[str, Any]) -> dict[str, Any]:
             role.get("confidence_after", {}).get("historical_context")
             if isinstance(role.get("confidence_after"), Mapping) else ""
         ),
-        "known_mtf_document_ids": sorted(known_ids, key=int),
+        "current_occurrence_mtf_document_ids": sorted(
+            current_occurrence_ids, key=int
+        ),
+        "known_evidence_mtf_document_ids": sorted(known_evidence_ids, key=int),
         "direct_mtf_public_urls": sorted(direct_urls),
         "independently_inspected_mtf_document_ids": sorted(inspected_ids, key=int),
         "independently_inspected_hashes": sorted(inspected_hashes),
@@ -840,6 +912,38 @@ def _normalised_date(value: Any) -> dict[str, Any]:
     return parsed
 
 
+def _dates_directly_bound(
+    current: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> bool:
+    if not current.get("known") or not candidate.get("known"):
+        return False
+    if current.get("precision") != candidate.get("precision"):
+        return False
+    if current.get("precision") == "day":
+        return bool(
+            current.get("iso_date")
+            and current.get("iso_date") == candidate.get("iso_date")
+        )
+    return bool(
+        current.get("precision") == "year"
+        and current.get("year") == candidate.get("year")
+    )
+
+
+def _date_evidence_conflicts(
+    current: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> bool:
+    if not current.get("known") or not candidate.get("known"):
+        return False
+    if current.get("year") != candidate.get("year"):
+        return True
+    return bool(
+        current.get("precision") == "day"
+        and candidate.get("precision") == "day"
+        and current.get("iso_date") != candidate.get("iso_date")
+    )
+
+
 def _event_equivalent(current: str, candidate: str) -> bool:
     def tokens(value: str) -> set[str]:
         return {
@@ -850,6 +954,32 @@ def _event_equivalent(current: str, candidate: str) -> bool:
     if not left or not right:
         return False
     return left <= right or right <= left or len(left & right) / len(left | right) >= 0.55
+
+
+def _occurrence_relation(
+    candidate: Mapping[str, Any], current: Mapping[str, Any]
+) -> str:
+    """Resolve occurrence identity once before considering individual fields."""
+    document_id = str(candidate.get("candidate_mtf_document_id") or "")
+    current_ids = set(current.get("current_occurrence_mtf_document_ids", []))
+    if candidate.get("current_occurrence_disproved") is True:
+        return "current_occurrence_explicitly_disproved"
+    if document_id and document_id in current_ids:
+        return "same_current_occurrence"
+
+    current_date = _normalised_date(current.get("date"))
+    candidate_date = _normalised_date(candidate.get("document_date_evidence"))
+    date_conflicts = _date_evidence_conflicts(current_date, candidate_date)
+    current_event = str(current.get("source_event") or "")
+    candidate_event = str(candidate.get("document_event_evidence") or "")
+    event_conflicts = bool(
+        current_event
+        and candidate_event
+        and not _event_equivalent(current_event, candidate_event)
+    )
+    if date_conflicts or event_conflicts:
+        return "distinct_additional_occurrence"
+    return "identity_unknown_nonconflicting"
 
 
 def _contains_token_sequence(container: str, excerpt: str) -> bool:
@@ -966,14 +1096,24 @@ def classify_changes(
             proposed["evidence"] = "retain inspected local primary passage and hashes for review"
         current_date = _normalised_date(current.get("date"))
         candidate_date = _normalised_date(candidate.get("document_date_evidence"))
-        known_ids = set(current.get("known_mtf_document_ids", []))
-        same_identity = bool(document_id and document_id in known_ids)
-        identity_unknown = not known_ids
-        current_disproved = bool(candidate.get("current_occurrence_disproved"))
+        current_occurrence_ids = set(
+            current.get("current_occurrence_mtf_document_ids", [])
+        )
+        occurrence_relation = _occurrence_relation(candidate, current)
+        same_identity = occurrence_relation == "same_current_occurrence"
+        current_disproved = (
+            occurrence_relation == "current_occurrence_explicitly_disproved"
+        )
         correction_identity = same_identity or current_disproved
-        can_fill_unknown = same_identity or identity_unknown
-        additional_occurrence = False
-        if candidate_date.get("known"):
+        identity_unknown = not current_occurrence_ids
+        can_fill_unknown = bool(
+            occurrence_relation == "identity_unknown_nonconflicting"
+            and identity_unknown
+        )
+        additional_occurrence = (
+            occurrence_relation == "distinct_additional_occurrence"
+        )
+        if candidate_date.get("known") and not additional_occurrence:
             current_iso = str(current_date.get("iso_date") or "")
             candidate_iso = str(candidate_date.get("iso_date") or "")
             improves_precision = (
@@ -981,25 +1121,31 @@ def classify_changes(
                 or (current_date.get("precision") != "day" and candidate_date.get("precision") == "day")
             )
             differs = bool(current_iso and candidate_iso and current_iso != candidate_iso)
-            if improves_precision and can_fill_unknown:
+            if improves_precision and (correction_identity or can_fill_unknown):
                 categories.append(CATEGORY_DATE_CORRECTION)
                 proposed["date"] = candidate_iso or candidate_date.get("raw")
             elif differs and correction_identity:
                 categories.append(CATEGORY_DATE_CORRECTION)
                 proposed["date"] = candidate_iso or candidate_date.get("raw")
-            elif differs:
-                additional_occurrence = True
         event = str(candidate.get("document_event_evidence") or "")
         current_event = str(current.get("source_event") or "")
-        if event and not current_event and can_fill_unknown:
+        if (
+            event
+            and not current_event
+            and not additional_occurrence
+            and (correction_identity or can_fill_unknown)
+        ):
             categories.append(CATEGORY_EVENT_CORRECTION)
             proposed["source_event"] = event
-        elif event and current_event and not _event_equivalent(current_event, event):
-            if correction_identity:
-                categories.append(CATEGORY_EVENT_CORRECTION)
-                proposed["source_event"] = event
-            else:
-                additional_occurrence = True
+        elif (
+            event
+            and current_event
+            and not additional_occurrence
+            and not _event_equivalent(current_event, event)
+            and correction_identity
+        ):
+            categories.append(CATEGORY_EVENT_CORRECTION)
+            proposed["source_event"] = event
         if additional_occurrence and not current_disproved:
             categories.append(CATEGORY_ADDITIONAL_OCCURRENCE)
             proposed["additional_primary_occurrence"] = {
@@ -1011,6 +1157,7 @@ def classify_changes(
         if not additional_occurrence and (
             (identity_unknown and document_id)
             or (same_identity and document_id not in direct_urls)
+            or (current_disproved and document_id)
         ):
             categories.append(CATEGORY_LOCATOR_CORRECTION)
             proposed["stable_locator"] = f"Margaret Thatcher Foundation Document {document_id}"
@@ -1032,7 +1179,7 @@ def classify_changes(
         if quote_is_exact_excerpt:
             categories.append(CATEGORY_EXACT_EXCERPT_CONFIRMATION)
         elif (
-            same_identity
+            correction_identity
             and verified_text
             and authoritative_wording
             and not _contains_token_sequence(verified_text, authoritative_wording)
@@ -1478,6 +1625,22 @@ def _candidate_requires_identity_revalidation(candidate: Mapping[str, Any]) -> b
     )
 
 
+def _candidate_requires_supporting_passage_revalidation(
+    candidate: Mapping[str, Any]
+) -> bool:
+    match_type = str(candidate.get("match_type") or "")
+    return bool(
+        (
+            candidate.get("accepted_as_primary_evidence")
+            or candidate.get("proposed_unblock")
+        )
+        and match_type in {
+            "exact quotation", "recorded variant",
+            "exact_quotation", "recorded_variant",
+        }
+    )
+
+
 def _stale_identity_result(reason: str) -> dict[str, Any]:
     return {
         "candidate_evidence_identity_status": "stale",
@@ -1531,11 +1694,37 @@ def revalidate_candidate_identity(
         or _document_id_from_value(validation.get("declared_canonical_url")) != document_id
     ):
         return _stale_identity_result("candidate_mtf_document_identity_changed")
+    passage_revalidation_required = (
+        _candidate_requires_supporting_passage_revalidation(candidate)
+    )
+    if passage_revalidation_required:
+        passage = str(candidate.get("supporting_passage") or "")
+        passage_hash = str(candidate.get("supporting_passage_sha256") or "")
+        if not passage.strip():
+            return _stale_identity_result("supporting_passage_is_empty")
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", passage_hash):
+            return _stale_identity_result("supporting_passage_sha256_is_invalid")
+        if sha256_bytes(passage.encode("utf-8")) != passage_hash.casefold():
+            return _stale_identity_result("supporting_passage_sha256_mismatch")
+        extraction = research.extract_page_text({
+            **record,
+            "mtf_document_validation": validation,
+        })
+        if extraction.get("status") != "extracted":
+            return _stale_identity_result("candidate_document_text_is_unreadable")
+        if not _contains_token_sequence(
+            str(extraction.get("text") or ""), passage
+        ):
+            return _stale_identity_result(
+                "supporting_passage_absent_from_current_document"
+            )
     return {
         "candidate_evidence_identity_status": "valid",
         "candidate_evidence_stale": False,
         "candidate_evidence_identity_reason": (
-            "recorded MTF document identity and local file SHA-256 still match"
+            "recorded MTF document, file SHA-256, and required supporting passage still match"
+            if passage_revalidation_required
+            else "recorded MTF document identity and local file SHA-256 still match"
         ),
     }
 
@@ -1686,6 +1875,9 @@ def reclassify_existing(
         project_root, source_run_dir, output_dir
     )
     source_snapshot = _source_run_snapshot(source_run_dir)
+    source_ledger_sha256 = source_snapshot.get(
+        "corpus_reaudit_candidates.json", ""
+    )
     candidate_path = _source_run_file(
         source_run_dir, "corpus_reaudit_candidates.json"
     )
@@ -1728,7 +1920,6 @@ def reclassify_existing(
     assert_authoritative_inputs_unchanged(input_before, input_after)
     blocked = reassess_blocked(targets, candidates)
     changes = proposed_changes(candidates)
-    source_ledger_sha256 = file_sha256(candidate_path)
     summary = _build_reclassification_summary(
         targets,
         candidates,
@@ -1775,15 +1966,22 @@ def reclassify_existing(
         source_run_dir,
         output_dir,
     )
-    write_json(output_dir, "corpus_reaudit_candidates.json", candidate_document)
-    write_json(output_dir, "blocked_quote_reassessment.json", blocked_document)
-    write_json(
-        output_dir, "proposed_historical_data_changes.json", change_document
-    )
-    write_json(output_dir, "corpus_reaudit_summary.json", summary)
-    write_report(output_dir, report)
     if source_snapshot != _source_run_snapshot(source_run_dir):
         raise ReauditError("source run changed during reclassification")
+    try:
+        write_json(output_dir, "corpus_reaudit_candidates.json", candidate_document)
+        write_json(output_dir, "blocked_quote_reassessment.json", blocked_document)
+        write_json(
+            output_dir, "proposed_historical_data_changes.json", change_document
+        )
+        write_json(output_dir, "corpus_reaudit_summary.json", summary)
+        write_report(output_dir, report)
+    except Exception as exc:
+        try:
+            _remove_incomplete_output_package(output_dir)
+        except ReauditError as cleanup_error:
+            raise cleanup_error from exc
+        raise
     return summary
 
 

@@ -102,7 +102,12 @@ def current_claim(
             f"Margaret Thatcher Foundation Document {document_id}"
             if document_id else ""
         ),
-        "known_mtf_document_ids": [document_id] if document_id else [],
+        "current_occurrence_mtf_document_ids": (
+            [document_id] if document_id else []
+        ),
+        "known_evidence_mtf_document_ids": (
+            [document_id] if document_id else []
+        ),
         "direct_mtf_public_urls": (
             [f"https://www.margaretthatcher.org/document/{document_id}"]
             if document_id else []
@@ -245,7 +250,8 @@ def test_wording_correction_requires_same_current_source_identity() -> None:
         "source_event": "Speech to a Conservative audience",
         "date": "1980-01-26",
         "stable_locator": "Margaret Thatcher Foundation Document 100000",
-        "known_mtf_document_ids": ["100000"],
+        "current_occurrence_mtf_document_ids": ["100000"],
+        "known_evidence_mtf_document_ids": ["100000"],
         "direct_mtf_public_urls": [
             "https://www.margaretthatcher.org/document/100000"
         ],
@@ -269,6 +275,70 @@ def test_second_date_and_event_is_an_additional_primary_occurrence() -> None:
         classification_target(quotation),
         primary_candidate(quotation),
         current_claim(quotation),
+    )
+    assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE in categories
+    assert reaudit.CATEGORY_DATE_CORRECTION not in categories
+    assert reaudit.CATEGORY_EVENT_CORRECTION not in categories
+    assert "date" not in proposed
+    assert "source_event" not in proposed
+
+
+def test_known_evidence_id_does_not_become_current_occurrence_identity() -> None:
+    quotation = "Freedom cannot be divided."
+    target = {
+        **classification_target(quotation),
+        "current_packet": {
+            "quote_text": quotation,
+            "verified_text": quotation,
+            "speaker": "Margaret Thatcher",
+            "source_event": "Speech at the first event",
+            "date": "1980-01-26",
+            "stable_locator": "Margaret Thatcher Foundation Document 100000",
+        },
+        "current_source_role": {
+            "sources": [{
+                "canonical_url": (
+                    "https://www.margaretthatcher.org/document/200000"
+                ),
+                "source_event": "Speech at a second event",
+                "source_date": "1981-02-03",
+            }],
+        },
+    }
+    current = reaudit.current_values(target)
+    assert current["current_occurrence_mtf_document_ids"] == ["100000"]
+    assert current["known_evidence_mtf_document_ids"] == ["100000", "200000"]
+
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        target, primary_candidate(quotation), current
+    )
+    assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE in categories
+    assert reaudit.CATEGORY_DATE_CORRECTION not in categories
+    assert reaudit.CATEGORY_EVENT_CORRECTION not in categories
+    assert "date" not in proposed
+    assert "source_event" not in proposed
+
+
+def test_date_conflict_prevents_filling_missing_current_event() -> None:
+    quotation = "Freedom cannot be divided."
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(quotation),
+        primary_candidate(quotation),
+        current_claim(quotation, event=""),
+    )
+    assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE in categories
+    assert reaudit.CATEGORY_DATE_CORRECTION not in categories
+    assert reaudit.CATEGORY_EVENT_CORRECTION not in categories
+    assert "date" not in proposed
+    assert "source_event" not in proposed
+
+
+def test_event_conflict_prevents_filling_missing_current_date() -> None:
+    quotation = "Freedom cannot be divided."
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(quotation),
+        primary_candidate(quotation),
+        current_claim(quotation, date=""),
     )
     assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE in categories
     assert reaudit.CATEGORY_DATE_CORRECTION not in categories
@@ -516,7 +586,21 @@ def prepare_reclassification_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     }
 
 
-def test_reclassification_accepts_unchanged_candidate_file_hash(
+def update_source_candidate(case: dict, **changes: object) -> None:
+    path = case["source"] / "corpus_reaudit_candidates.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["records"][0].update(changes)
+    path.write_bytes(reaudit.canonical_json_bytes(document))
+    path.chmod(0o600)
+
+
+def reclassified_candidate(case: dict) -> dict:
+    return json.loads(
+        (case["output"] / "corpus_reaudit_candidates.json").read_text()
+    )["records"][0]
+
+
+def test_reclassification_accepts_valid_file_passage_and_hash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     case = prepare_reclassification_case(tmp_path, monkeypatch)
@@ -531,10 +615,66 @@ def test_reclassification_accepts_unchanged_candidate_file_hash(
     assert summary["candidate_identity_valid_count"] == 1
     assert summary["stale_candidate_count"] == 0
     assert summary["positive_candidates_remaining_valid"] == 1
-    assert candidate_document["records"][0]["candidate_evidence_identity_status"] == "valid"
+    candidate = candidate_document["records"][0]
+    assert candidate["candidate_evidence_identity_status"] == "valid"
+    assert "supporting passage still match" in candidate[
+        "candidate_evidence_identity_reason"
+    ]
     assert all(
         path.stat().st_mode & 0o777 == 0o600
         for path in case["output"].iterdir()
+    )
+
+
+def test_reclassification_marks_altered_passage_with_recorded_hash_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    update_source_candidate(
+        case,
+        supporting_passage=case["quotation"] + " Altered ledger passage.",
+    )
+    reaudit.reclassify_existing(case["project"], case["source"], case["output"])
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_stale"] is True
+    assert candidate["accepted_as_primary_evidence"] is False
+    assert candidate["candidate_evidence_identity_reason"] == (
+        "supporting_passage_sha256_mismatch"
+    )
+
+
+def test_reclassification_marks_altered_passage_hash_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    update_source_candidate(case, supporting_passage_sha256="0" * 64)
+    reaudit.reclassify_existing(case["project"], case["source"], case["output"])
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_stale"] is True
+    assert candidate["accepted_as_primary_evidence"] is False
+    assert candidate["candidate_evidence_identity_reason"] == (
+        "supporting_passage_sha256_mismatch"
+    )
+
+
+def test_reclassification_marks_passage_absent_from_current_document_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    absent_passage = "This supporting passage is absent from the document."
+    update_source_candidate(
+        case,
+        supporting_passage=absent_passage,
+        supporting_passage_sha256=hashlib.sha256(
+            absent_passage.encode("utf-8")
+        ).hexdigest(),
+    )
+    reaudit.reclassify_existing(case["project"], case["source"], case["output"])
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_stale"] is True
+    assert candidate["accepted_as_primary_evidence"] is False
+    assert candidate["candidate_evidence_identity_reason"] == (
+        "supporting_passage_absent_from_current_document"
     )
 
 
@@ -586,6 +726,61 @@ def test_reclassification_leaves_original_private_package_untouched(
     before = reaudit._source_run_snapshot(case["source"])
     reaudit.reclassify_existing(case["project"], case["source"], case["output"])
     assert reaudit._source_run_snapshot(case["source"]) == before
+
+
+def test_source_mutation_is_detected_before_any_output_is_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    source_contents = {
+        path.name: path.read_bytes() for path in case["source"].iterdir()
+    }
+    candidate_path = case["source"] / "corpus_reaudit_candidates.json"
+    injected_contents = source_contents[candidate_path.name] + b"\n"
+    original_reclassify = reaudit._reclassify_candidate
+
+    def mutate_source_during_reclassification(*args: object, **kwargs: object) -> dict:
+        result = original_reclassify(*args, **kwargs)
+        candidate_path.write_bytes(injected_contents)
+        candidate_path.chmod(0o600)
+        return result
+
+    monkeypatch.setattr(
+        reaudit, "_reclassify_candidate", mutate_source_during_reclassification
+    )
+    with pytest.raises(reaudit.ReauditError, match="source run changed"):
+        reaudit.reclassify_existing(
+            case["project"], case["source"], case["output"]
+        )
+
+    assert candidate_path.read_bytes() == injected_contents
+    assert all(
+        path.read_bytes() == source_contents[path.name]
+        for path in case["source"].iterdir()
+        if path != candidate_path
+    )
+    assert not any(case["output"].iterdir())
+
+
+def test_output_write_failure_removes_entire_incomplete_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    original_write_json = reaudit.write_json
+
+    def fail_after_write(
+        run_dir: Path, filename: str, value: object
+    ) -> None:
+        original_write_json(run_dir, filename, value)
+        if filename == "blocked_quote_reassessment.json":
+            raise OSError("injected output-write failure")
+
+    monkeypatch.setattr(reaudit, "write_json", fail_after_write)
+    with pytest.raises(OSError, match="injected output-write failure"):
+        reaudit.reclassify_existing(
+            case["project"], case["source"], case["output"]
+        )
+    assert not any(case["output"].iterdir())
 
 
 def test_reclassification_outputs_do_not_disclose_private_paths(
