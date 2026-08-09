@@ -901,6 +901,246 @@ def test_h1_h2_h3_neither_reset_archive_run_nor_supply_content(
     assert fields["accepted_as_primary_evidence"] is accepted
 
 
+def test_explicit_and_inherited_mt_blocks_match_within_one_archive_run() -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="mt">Freedom cannot</p><p>be divided.</p>',
+        author="Archive transcript",
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    target_blocks = [
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] in {"Freedom cannot", "be divided."}
+    ]
+    assert len({row["archive_attribution_run_id"] for row in target_blocks}) == 1
+    assert {row["archive_attribution_run_polarity"] for row in target_blocks} == {
+        "mt"
+    }
+    assert fields["raw_match_type"] == "exact_quotation"
+    assert fields["accepted_as_primary_evidence"] is True
+    assert fields["cross_speaker_join_rejected"] is False
+    assert fields["archive_attribution_provenance"] == "archive_mt_run"
+    assert fields["direct_primary_attribution_basis"] == "archive_mt_run"
+    assert fields["archive_attribution_match_spans_inherited_content"] is True
+    assert fields["archive_attribution_match_spans_multiple_blocks"] is True
+    assert fields["archive_attribution_component_provenance"] == [
+        "explicit_archive_mt_content",
+        "inherited_archive_mt_content",
+    ]
+    assert fields["archive_attribution_matched_component_provenance"] == [
+        "explicit_archive_mt_content",
+        "inherited_archive_mt_content",
+    ]
+
+
+def test_intmt_split_wording_matches_within_one_labelled_run() -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="intmt">Prime Minister</p>'
+        '<p>Freedom cannot</p><p>be divided.</p>',
+        author="Archive transcript",
+    )
+    blocks = [
+        row for row in reaudit.speaker_segments(body, validation)[
+            "contribution_blocks"
+        ]
+        if row["normalised_text"] in {
+            "Prime Minister", "Freedom cannot", "be divided."
+        }
+    ]
+    assert len({row["archive_attribution_run_id"] for row in blocks}) == 1
+    assert fields["raw_match_type"] == "exact_quotation"
+    assert fields["archive_attribution_provenance"] == "archive_mt_run"
+    assert fields["direct_primary_attribution_basis"] == "archive_mt_run"
+    assert fields["speaker_author_evidence"]["speaker_label"] == "Prime Minister"
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+@pytest.mark.parametrize(
+    "middle",
+    ['<p class="mt">be divided.</p>', '<h2>Economic policy</h2><p>be divided.</p>'],
+)
+def test_compatible_explicit_mt_or_heading_continuation_stays_in_one_run(
+    middle: str,
+) -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation, f'<p class="mt">Freedom cannot</p>{middle}'
+    )
+    target_blocks = [
+        row for row in reaudit.speaker_segments(body, validation)[
+            "contribution_blocks"
+        ]
+        if row["normalised_text"] in {"Freedom cannot", "be divided."}
+    ]
+    assert len({row["archive_attribution_run_id"] for row in target_blocks}) == 1
+    assert fields["raw_match_type"] == "exact_quotation"
+    assert fields["archive_attribution_provenance"] == "archive_mt_run"
+    assert fields["cross_speaker_join_rejected"] is False
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_explicit_and_inherited_nonmt_blocks_form_one_secondary_run() -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="nonmt">Mrs Thatcher reportedly said freedom cannot</p>'
+        '<p>be divided.</p>',
+    )
+    target_blocks = [
+        row for row in reaudit.speaker_segments(body, validation)[
+            "contribution_blocks"
+        ]
+        if "freedom cannot" in row["normalised_text"].casefold()
+        or row["normalised_text"] == "be divided."
+    ]
+    evidence = fields["reported_or_secondary_nonmt_match_evidence"]
+    assert len({row["archive_attribution_run_id"] for row in target_blocks}) == 1
+    assert fields["raw_match_type"] == "exact_quotation"
+    assert fields["archive_attribution_provenance"] == "archive_nonmt_run"
+    assert fields["archive_attribution_match_spans_inherited_content"] is True
+    assert fields["supporting_passage"]
+    assert fields["surrounding_context"]
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_archive_nonmt"
+    )
+    assert evidence["archive_attribution_provenance"] == "archive_nonmt_run"
+    assert evidence["archive_attribution_component_provenance"] == [
+        "explicit_archive_nonmt_content",
+        "inherited_archive_nonmt_content",
+    ]
+
+
+def test_intnonmt_split_wording_is_one_secondary_not_assembled_match() -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="intnonmt">Reporter</p>'
+        '<p>Freedom cannot</p><p>be divided.</p>',
+    )
+    blocks = [
+        row for row in reaudit.speaker_segments(body, validation)[
+            "contribution_blocks"
+        ]
+        if row["normalised_text"] in {"Reporter", "Freedom cannot", "be divided."}
+    ]
+    assert len({row["archive_attribution_run_id"] for row in blocks}) == 1
+    assert fields["raw_match_type"] == "exact_quotation"
+    assert fields["archive_attribution_provenance"] == "archive_nonmt_run"
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    assert fields["cross_speaker_join_rejected"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+@pytest.mark.parametrize(
+    "article",
+    [
+        '<p class="nonmt">Freedom cannot</p><p class="mt">be divided.</p>',
+        '<p class="mt">Freedom cannot</p><p class="nonmt">be divided.</p>',
+    ],
+)
+def test_wording_across_archive_polarity_run_ids_is_rejected(
+    article: str,
+) -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation, article, author="Archive transcript"
+    )
+    blocks = [
+        row for row in reaudit.speaker_segments(body, validation)[
+            "contribution_blocks"
+        ]
+        if row["normalised_text"] in {"Freedom cannot", "be divided."}
+    ]
+    assert len({row["archive_attribution_run_id"] for row in blocks}) == 2
+    assert {row["archive_attribution_run_polarity"] for row in blocks} == {
+        "mt", "nonmt"
+    }
+    assert fields["raw_match_type"] == "assembled_clauses"
+    assert fields["cross_speaker_join_rejected"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+@pytest.mark.parametrize(
+    ("marker", "polarity"),
+    [("intmt", "mt"), ("intnonmt", "nonmt")],
+)
+def test_repeated_equal_archive_labels_start_distinct_contribution_runs(
+    marker: str, polarity: str,
+) -> None:
+    quotation = "Freedom cannot be divided."
+    label = "Prime Minister" if polarity == "mt" else "Reporter"
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="{marker}">{label}</p><p>Freedom cannot</p>'
+        f'<p class="{marker}">{label}</p><p>be divided.</p>',
+    )
+    blocks = [
+        row for row in reaudit.speaker_segments(body, validation)[
+            "contribution_blocks"
+        ]
+        if row["normalised_text"] in {"Freedom cannot", "be divided."}
+    ]
+    assert len({row["archive_attribution_run_id"] for row in blocks}) == 2
+    assert {row["archive_attribution_run_polarity"] for row in blocks} == {
+        polarity
+    }
+    assert fields["raw_match_type"] == "assembled_clauses"
+    assert fields["cross_speaker_join_rejected"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_conflicting_run_is_bounded_by_later_unambiguous_mt_run() -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="mt nonmt">Freedom cannot</p>'
+        '<p class="mt">be divided.</p>',
+        author="Archive transcript",
+    )
+    segments = reaudit.speaker_segments(body, validation)["segments"]
+    conflict = next(row for row in segments if "Freedom cannot" in row["text"])
+    later_mt = next(row for row in segments if "be divided" in row["text"])
+    assert conflict["archive_attribution_run_polarity"] == "conflicting"
+    assert later_mt["archive_attribution_run_polarity"] == "mt"
+    assert conflict["archive_attribution_run_id"] != later_mt[
+        "archive_attribution_run_id"
+    ]
+    assert later_mt["archive_attribution_conflict"] is False
+    assert fields["raw_match_type"] == "assembled_clauses"
+    assert fields["cross_speaker_join_rejected"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_split_mt_variant_outranks_split_nonmt_exact_and_retains_diagnostic() -> None:
+    quotation = (
+        "Freedom cannot endure unless we defend individual responsibility."
+    )
+    variant = "Freedom can't endure unless we defend individual responsibility."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="nonmt">Freedom cannot endure unless</p>'
+        '<p>we defend individual responsibility.</p>'
+        '<p class="mt">Freedom can\'t endure unless</p>'
+        '<p>we defend individual responsibility.</p>',
+        variants=[variant],
+    )
+    evidence = fields["reported_or_secondary_nonmt_match_evidence"]
+    assert fields["match_type"] == "recorded variant"
+    assert fields["archive_attribution_provenance"] == "archive_mt_run"
+    assert fields["direct_primary_attribution_basis"] == "archive_mt_run"
+    assert fields["accepted_as_primary_evidence"] is True
+    assert evidence["match_type"] == "exact_quotation"
+    assert evidence["archive_attribution_provenance"] == "archive_nonmt_run"
+    assert evidence["archive_attribution_match_spans_multiple_blocks"] is True
+    assert fields["reported_or_secondary_nonmt_match"] is True
+
+
 def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
     common = {"candidate_semantically_reverified": True}
     candidates = [
@@ -926,7 +1166,7 @@ def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
             **common,
             "archive_attribution_markup_detected": True,
             "accepted_as_primary_evidence": True,
-            "direct_primary_attribution_basis": "inherited_archive_mt_run",
+            "direct_primary_attribution_basis": "archive_mt_run",
             "reported_or_secondary_nonmt_match": True,
         },
         {
@@ -943,7 +1183,7 @@ def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
                 "reverified_rejected_archive_nonmt"
             ),
             "archive_attribution_provenance": (
-                "explicit_archive_nonmt_content"
+                "archive_nonmt_run"
             ),
             "reported_or_secondary_nonmt_match": True,
         },
@@ -952,6 +1192,7 @@ def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
             "archive_attribution_markup_detected": True,
             "accepted_as_primary_evidence": False,
             "archive_attribution_conflict": True,
+            "archive_attribution_provenance": "conflicting_archive_run",
         },
         {
             **common,
@@ -986,7 +1227,9 @@ def test_accepted_candidates_never_use_nonmt_or_conflicting_attribution() -> Non
     forbidden = {
         "explicit_archive_nonmt_content",
         "inherited_archive_nonmt_content",
+        "archive_nonmt_run",
         "conflicting_archive_attribution",
+        "conflicting_archive_run",
     }
     assert all(
         row["archive_attribution_provenance"] not in forbidden

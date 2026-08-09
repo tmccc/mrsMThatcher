@@ -114,18 +114,21 @@ the applicable ancestry is a conflict and fails closed. `h1`, `h2`, and `h3`
 remain structural rather than speaker or quotation elements.
 
 Archive attribution has first precedence and is a persistent ordered run state.
-`intmt` and `intnonmt` are label-only state changes; `mt` and `nonmt` classify
-their current content and also replace the active state. Following unclassed
-paragraph, list, and blockquote contributions inherit that polarity until a
-later unambiguous marker replaces it or the selected body ends. Structural
-headings neither supply quotation content nor reset the run. Conflicting
-explicit polarity makes current content, when present, and all following
-unclassed contributions conflicting/unverified until an unambiguous marker
-resets the state. Maintained transcript labels and contextual speaker heuristics
-are used only with no active archive state. Verified whole-document authorship
-is unavailable whenever recognised archive attribution exists elsewhere in the
-selected body. Documents without any of the four exact tokens retain the
-previous transcript-label and document-author fallbacks unchanged.
+Each archive run has a deterministic document-local integer ID and an `mt`,
+`nonmt`, or `conflicting` polarity. `intmt` and `intnonmt` are label-only state
+changes and always start a new contribution run, including repeated equal
+labels. `mt` and `nonmt` classify their current content and continue an active
+compatible run or start a run when the active polarity differs. Following
+unclassed paragraph, list, and blockquote contributions inherit the active run
+ID and polarity until a later unambiguous marker replaces it or the selected
+body ends. Structural headings neither supply quotation content nor reset the
+run. Conflicting explicit polarity starts a conflicting run whose following
+unclassed contributions remain conflicting/unverified until an unambiguous
+marker starts another run. Maintained transcript labels and contextual speaker
+heuristics are used only with no active archive state. Verified whole-document
+authorship is unavailable whenever recognised archive attribution exists
+elsewhere in the selected body. Documents without any of the four exact tokens
+retain the previous transcript-label and document-author fallbacks unchanged.
 
 Each contribution and generated candidate records whether its applicable
 polarity is explicit MT content, inherited MT content, explicit non-MT content,
@@ -133,6 +136,17 @@ inherited non-MT content, an explicit MT/non-MT label state, conflicting, or
 absent. Explicit MT content uses its direct content basis; an accepted unclassed
 MT continuation uses `inherited_archive_mt_run`. No synthetic speaker name is
 invented when the markup supplies polarity without a visible label.
+
+Matching coalesces consecutive searchable contribution blocks with the same
+non-empty archive run ID, joining their text with ordinary spacing while
+retaining the ordered unique explicit/inherited constituent provenance. Thus a
+quotation may match directly across an explicit paragraph and its inherited
+continuation within one run; an MT run is direct Thatcher evidence and a non-MT
+run remains reported/secondary evidence. Separate run IDs, archive polarities,
+conflicting attribution, repeated contribution labels, and maintained
+transcript-speaker turns remain hard matching boundaries: wording found only by
+joining them is rejected as assembled clauses. Supporting passage and context
+for a within-run match come from that run-level unit.
 
 Text under explicit or inherited non-MT state is not removed. An exact or
 authorised-variant occurrence is retained with its supporting passage and
