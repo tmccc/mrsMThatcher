@@ -3251,12 +3251,6 @@ def summarise_operational_error_health(
             continue
         where = str(item.get("where") or "").lower()
         lane_hint: Optional[str] = None
-        if "mention" in where:
-            lane_hint = "mention"
-        elif "quote_tweet" in where or "quote-tweet" in where:
-            lane_hint = "quote-tweet"
-        elif "hot_post" in where or "hot-post" in where:
-            lane_hint = "hot-post"
         lane_match = re.search(r"\blane[=:]\s*([a-z_-]+)", raw, re.IGNORECASE)
         if lane_match:
             parsed_lane = _normalise_lane(lane_match.group(1))
@@ -3266,6 +3260,13 @@ def summarise_operational_error_health(
             r"\btarget_id[=:]\s*([A-Za-z0-9_-]+)", raw, re.IGNORECASE
         )
         target_hint = target_match.group(1) if target_match else None
+        if lane_hint is None and target_hint is None:
+            if "quote_tweet" in where or "quote-tweet" in where:
+                lane_hint = "quote-tweet"
+            elif "hot_post" in where or "hot-post" in where:
+                lane_hint = "hot-post"
+            elif "maybe_reply_to_mentions" not in where and "mention" in where:
+                lane_hint = "mention"
         candidates: List[Tuple[float, Tuple[str, str]]] = []
         for identity, failures_for_target in pipeline_failures_by_identity.items():
             lane, target_id = identity
@@ -3401,14 +3402,28 @@ def summarise_operational_error_health(
             ):
                 continue
             kind = event.get("kind")
-            if kind == "reply_strategy_decision" and event.get("mode") == "no_reply":
-                candidates.append(
-                    (
-                        ts,
-                        "later terminal no-reply decision observed for "
-                        f"{lane} target {target_id}",
-                    )
+            if kind == "reply_strategy_decision":
+                terminal_local_outcome = _terminal_local_rejection_outcome(
+                    event.get("reason")
+                ) or _terminal_local_rejection_outcome(
+                    event.get("no_reply_reason")
                 )
+                if event.get("mode") == "no_reply":
+                    candidates.append(
+                        (
+                            ts,
+                            "later terminal no-reply decision observed for "
+                            f"{lane} target {target_id}",
+                        )
+                    )
+                elif terminal_local_outcome is not None:
+                    candidates.append(
+                        (
+                            ts,
+                            "later terminal local decision observed for "
+                            f"{lane} target {target_id}",
+                        )
+                    )
             elif kind == "reply_strategy_outcome" and str(
                 event.get("status") or "confirmed"
             ) in {"confirmed", "posted"}:
@@ -4773,6 +4788,9 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         raw_reason = event.get("no_reply_reason")
         outcome = _terminal_local_rejection_outcome(raw_reason)
         if outcome is None:
+            raw_reason = event.get("reason")
+            outcome = _terminal_local_rejection_outcome(raw_reason)
+        if outcome is None:
             continue
         lane = _normalise_lane(event.get("lane"))
         target = str(event.get("target_id") or f"missing-decision-{index}")
@@ -4829,20 +4847,31 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             target_field = {"mention": "mention_id", "hot-post": "hot_post_reply_id", "quote-tweet": "quote_tweet_id"}[lane]
             posted.append((lane, str(event.get(target_field) or "")))
 
-    observations = list(published_outcomes)
-    observations.extend(event for event in decisions if event.get("mode") == "no_reply")
     outcome_targets = {
         (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
         for event in published_outcomes
         if event.get("target_id")
     }
+    observations = list(published_outcomes)
+    observed_decision_ids = set()
+    for index, event in enumerate(decisions):
+        lane = _normalise_lane(event.get("lane"))
+        target = str(event.get("target_id") or f"missing-decision-{index}")
+        identity = (lane, target)
+        if identity in outcome_targets:
+            continue
+        if event.get("mode") == "no_reply" or identity in terminal_local_rejections:
+            observations.append(event)
+            observed_decision_ids.add(id(event))
     targeted_decisions: Dict[tuple[str, str], list[Dict[str, Any]]] = {}
     anonymous_decisions: Dict[str, list[Dict[str, Any]]] = {}
     for event in decisions:
-        if event.get("mode") == "no_reply":
+        if id(event) in observed_decision_ids:
             continue
         lane = _normalise_lane(event.get("lane"))
         target = str(event.get("target_id") or "")
+        if target and (lane, target) in outcome_targets:
+            continue
         if target:
             targeted_decisions.setdefault((lane, target), []).append(event)
         else:

@@ -704,6 +704,114 @@ def test_pipeline_failure_wrapper_resolves_after_same_target_terminal_no_reply()
     assert "Traceback" in raw_errors
 
 
+@pytest.mark.parametrize("duplicate_reason", ["exact_duplicate_reply", "near_duplicate_reply"])
+def test_pipeline_failure_wrapper_resolves_after_terminal_duplicate_decision(
+    duplicate_reason: str,
+):
+    target_id = "2086177789732958385"
+    records = [
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_failure",'
+            '"status":"operational_failure","lane":"mention",'
+            f'"target_id":"{target_id}",'
+            '"reason":"no_reply_reviewer_invalid"}',
+        ),
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_mentions",
+            traceback(
+                "Failed to ask Grok for reply",
+                "APIError: reviewer returned an invalid no-reply verdict",
+            ),
+        ),
+        record(
+            10,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_decision",'
+            '"status":"no_reply","lane":"mention",'
+            f'"target_id":"{target_id}","mode":"courtesy",'
+            f'"reason":"{duplicate_reason}","reviewer_verdict":"not_run"}}',
+        ),
+    ]
+
+    report = digest.analyse(records)
+    health = report["error_health"]
+
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "reply_strategy_pipeline_failure"
+    assert incident["lane"] == "mention"
+    assert incident["target_id"] == target_id
+    assert incident["pipeline_failure_event_count"] == 1
+    assert incident["wrapper_record_count"] == 1
+    assert incident["record_count"] == 1
+    assert incident["resolution_reason"] == (
+        "later terminal local decision observed for mention target " + target_id
+    )
+    assert incident["resolution_time"] == "2026-07-25 09:00:10"
+    raw_errors = "\n".join(
+        row["message"] for row in report["errors_and_warnings"]
+    )
+    assert "Failed to ask Grok for reply" in raw_errors
+    assert "APIError" in raw_errors
+    assert "Traceback" in raw_errors
+
+
+def test_hot_post_pipeline_wrapper_from_combined_handler_resolves_once():
+    target_id = "2086177789732958386"
+    records = [
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_failure",'
+            '"status":"operational_failure","lane":"hot-post",'
+            f'"target_id":"{target_id}",'
+            '"reason":"no_reply_reviewer_invalid"}',
+        ),
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_mentions",
+            traceback(
+                "Failed to ask Grok for reply",
+                "APIError: reviewer returned an invalid no-reply verdict",
+            ),
+        ),
+        record(
+            10,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_decision",'
+            '"status":"no_reply","lane":"hot-post",'
+            f'"target_id":"{target_id}","mode":"courtesy",'
+            '"reason":"exact_duplicate_reply","reviewer_verdict":"not_run"}',
+        ),
+    ]
+
+    report = digest.analyse(records)
+    health = report["error_health"]
+
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "reply_strategy_pipeline_failure"
+    assert incident["lane"] == "hot-post"
+    assert incident["target_id"] == target_id
+    assert incident["pipeline_failure_event_count"] == 1
+    assert incident["wrapper_record_count"] == 1
+    assert incident["record_count"] == 1
+    assert incident["resolution_reason"] == (
+        "later terminal local decision observed for hot-post target " + target_id
+    )
+
+
 def test_unrelated_apierror_remains_independent_of_resolved_pipeline_wrapper():
     target_id = "2086177789732958385"
     report = digest.analyse(

@@ -974,7 +974,9 @@ def test_exact_duplicate_terminal_accounting_reconciles_headline_and_costs():
                 'EVENT {"event":"ai_reply_pipeline_outcome",'
                 '"status":"confirmed","lane":"mention",'
                 f'"target_id":"{target_id}","reply_post_id":"{9000 + index}",'
-                '"mode":"opinion_or_principle","model_call_count":1}',
+                '"mode":"opinion_or_principle","tone":"firm",'
+                '"factual_claim_count":0,"retrieved_count":0,'
+                '"evidence_reference_count":0,"model_call_count":1}',
             )
         elif index < 19:
             add(
@@ -983,6 +985,8 @@ def test_exact_duplicate_terminal_accounting_reconciles_headline_and_costs():
                 'EVENT {"event":"ai_reply_pipeline_decision",'
                 '"status":"no_reply","lane":"mention",'
                 f'"target_id":"{target_id}","mode":"no_reply",'
+                '"tone":"none","factual_claim_count":0,'
+                '"retrieved_count":0,"evidence_reference_count":0,'
                 '"reviewer_verdict":"confirm_no_reply",'
                 '"reason":"independent_no_reply_confirmed",'
                 '"model_call_count":1}',
@@ -993,8 +997,11 @@ def test_exact_duplicate_terminal_accounting_reconciles_headline_and_costs():
                 "log_event",
                 'EVENT {"event":"ai_reply_pipeline_decision",'
                 '"status":"no_reply","lane":"mention",'
-                f'"target_id":"{target_id}","mode":"no_reply",'
-                '"reason":"exact_duplicate_reply","model_call_count":1}',
+                f'"target_id":"{target_id}","mode":"courtesy",'
+                '"tone":"neutral","reason":"exact_duplicate_reply",'
+                '"reviewer_verdict":"not_run","factual_claim_count":0,'
+                '"retrieved_count":0,"evidence_reference_count":0,'
+                '"model_call_count":1}',
             )
 
     report = digest.analyse(records)
@@ -1013,6 +1020,20 @@ def test_exact_duplicate_terminal_accounting_reconciles_headline_and_costs():
         "terminal_repetition_rejection": 2,
     }
     assert strategy["repetition_control_counts"]["exact_duplicate_rejected"] == 2
+    assert sum(strategy["mode_counts"].values()) == 21
+    assert strategy["mode_counts"]["courtesy"] == 2
+    assert strategy["mode_counts"]["no_reply"] == 8
+    assert sum(
+        sum(counts.values())
+        for counts in strategy["mode_counts_by_lane"].values()
+    ) == 21
+    assert sum(strategy["humour_tone_counts"].values()) == 21
+    assert strategy["grounding_metadata_unavailable_count"] == 21
+    assert strategy["factual_claim_metadata_unavailable_count"] == 0
+    assert strategy["no_retrieved_packets_count"] == 21
+    assert strategy["retrieved_packet_metadata_unavailable_count"] == 0
+    assert strategy["no_evidence_references_count"] == 21
+    assert strategy["evidence_reference_metadata_unavailable_count"] == 0
     assert cost["coverage_complete"] is True
     assert cost["candidate_count"] == 21
     assert cost["published_candidate_count"] == 11
