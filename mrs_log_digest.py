@@ -3240,14 +3240,49 @@ def summarise_operational_error_health(
             event
         )
 
-    wrapper_identities: Dict[int, Tuple[str, str]] = {}
+    raw_pipeline_evidence: Dict[
+        int, Tuple[Tuple[str, str], str]
+    ] = {}
     for item in operational:
         raw = str(item.get("_raw_message") or item.get("message") or "")
+        item_time = _event_time(item)
+        if item_time is None:
+            continue
+        pipeline_ended_match = re.fullmatch(
+            r"AI-first reply pipeline ended\s+"
+            r"status=(?P<status>\S+)\s+lane=(?P<lane>\S+)\s+"
+            r"target_id=(?P<target_id>[A-Za-z0-9_-]+)\s+"
+            r"reason=(?P<reason>\S+)\s+calls=\d+\s+revisions=\d+",
+            raw.strip(),
+        )
+        if pipeline_ended_match is not None:
+            lane = _normalise_lane(pipeline_ended_match.group("lane"))
+            target_id = pipeline_ended_match.group("target_id")
+            reason = pipeline_ended_match.group("reason")
+            matching_failures: List[Tuple[str, str]] = []
+            if (
+                pipeline_ended_match.group("status") == "operational_failure"
+                and lane in {"mention", "hot-post", "quote-tweet"}
+                and target_id
+                and reason
+            ):
+                identity = (lane, target_id)
+                for failure in pipeline_failures_by_identity.get(identity, []):
+                    failure_time = _event_time(failure)
+                    if (
+                        failure_time is not None
+                        and str(failure.get("reason") or "") == reason
+                        and abs((item_time - failure_time).total_seconds()) <= 5
+                    ):
+                        matching_failures.append(identity)
+            if len(matching_failures) == 1:
+                raw_pipeline_evidence[id(item)] = (
+                    matching_failures[0],
+                    "pipeline_error",
+                )
+            continue
         lowered = raw.lower()
         if "failed to ask grok for reply" not in lowered or "apierror" not in lowered:
-            continue
-        wrapper_time = _event_time(item)
-        if wrapper_time is None:
             continue
         where = str(item.get("where") or "").lower()
         lane_hint: Optional[str] = None
@@ -3275,7 +3310,7 @@ def summarise_operational_error_health(
             if target_hint is not None and target_id != target_hint:
                 continue
             deltas = [
-                (wrapper_time - failure_time).total_seconds()
+                (item_time - failure_time).total_seconds()
                 for failure in failures_for_target
                 if (failure_time := _event_time(failure)) is not None
             ]
@@ -3292,7 +3327,10 @@ def summarise_operational_error_health(
                 }
             )
             if len(nearest_identities) == 1:
-                wrapper_identities[id(item)] = nearest_identities[0]
+                raw_pipeline_evidence[id(item)] = (
+                    nearest_identities[0],
+                    "outer_wrapper",
+                )
 
     groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     stable_root_categories = {
@@ -3319,10 +3357,11 @@ def summarise_operational_error_health(
     ambiguity_times = [item for item in ambiguity_times if item is not None]
     for item in operational:
         raw = str(item.get("_raw_message") or item.get("message") or "")
-        wrapper_identity = wrapper_identities.get(id(item))
+        pipeline_evidence = raw_pipeline_evidence.get(id(item))
+        evidence_identity = pipeline_evidence[0] if pipeline_evidence else None
         category = (
             "reply_strategy_pipeline_failure"
-            if wrapper_identity is not None
+            if evidence_identity is not None
             else classify_operational_error(raw)
         )
         item_time = _event_time(item)
@@ -3348,8 +3387,8 @@ def summarise_operational_error_health(
                     break
             if not signature:
                 signature = f"{category}:{dt_text(item_time)}"
-        elif wrapper_identity is not None:
-            signature = f"{wrapper_identity[0]}:{wrapper_identity[1]}"
+        elif evidence_identity is not None:
+            signature = f"{evidence_identity[0]}:{evidence_identity[1]}"
         else:
             signature = (
                 category
@@ -3651,7 +3690,11 @@ def summarise_operational_error_health(
                     "lane": pipeline_identity[0],
                     "target_id": pipeline_identity[1],
                     "pipeline_failure_event_count": len(pipeline_failure_events),
-                    "wrapper_record_count": len(ordered),
+                    "wrapper_record_count": sum(
+                        raw_pipeline_evidence.get(id(item), (pipeline_identity, ""))[1]
+                        == "outer_wrapper"
+                        for item in ordered
+                    ),
                     "pipeline_failure_reason_counts": dict(reasons.most_common()),
                 }
             )

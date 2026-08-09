@@ -647,6 +647,95 @@ def test_pipeline_failure_and_apierror_wrapper_are_one_current_incident():
     assert "Traceback" in raw_errors
 
 
+def test_pipeline_failure_raw_evidence_resolves_as_one_incident():
+    target_id = "2086177789732958385"
+    records = [
+        record(
+            0,
+            "ERROR",
+            "build_ai_reply",
+            "AI-first reply pipeline ended status=operational_failure lane=mention "
+            f"target_id={target_id} reason=no_reply_reviewer_invalid "
+            "calls=3 revisions=0",
+        ),
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_failure",'
+            '"status":"operational_failure","lane":"mention",'
+            f'"target_id":"{target_id}",'
+            '"reason":"no_reply_reviewer_invalid"}',
+        ),
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_mentions",
+            traceback(
+                "Failed to ask Grok for reply",
+                "APIError: reviewer returned an invalid no-reply verdict",
+            ),
+        ),
+        record(
+            10,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_decision",'
+            '"status":"no_reply","lane":"mention",'
+            f'"target_id":"{target_id}","mode":"no_reply",'
+            '"reviewer_verdict":"confirm_no_reply",'
+            '"reason":"independent_no_reply_confirmed"}',
+        ),
+    ]
+
+    report = digest.analyse(records)
+    health = report["error_health"]
+
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "reply_strategy_pipeline_failure"
+    assert incident["record_count"] == 2
+    assert incident["wrapper_record_count"] == 1
+    assert incident["pipeline_failure_event_count"] == 1
+    assert incident["traceback_count"] == 1
+    assert incident["pipeline_failure_reason_counts"] == {
+        "no_reply_reviewer_invalid": 1
+    }
+    raw_errors = "\n".join(
+        row["message"] for row in report["errors_and_warnings"]
+    )
+    assert "AI-first reply pipeline ended" in raw_errors
+    assert "Failed to ask Grok for reply" in raw_errors
+    assert "APIError" in raw_errors
+    assert "Traceback" in raw_errors
+
+
+def test_pipeline_failure_raw_error_without_structured_match_stays_independent():
+    target_id = "2086177789732958385"
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "ERROR",
+                "build_ai_reply",
+                "AI-first reply pipeline ended status=operational_failure "
+                f"lane=mention target_id={target_id} "
+                "reason=no_reply_reviewer_invalid calls=3 revisions=0",
+            )
+        ]
+    )
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["record_count"] == 1
+    raw_errors = "\n".join(
+        row["message"] for row in report["errors_and_warnings"]
+    )
+    assert "AI-first reply pipeline ended" in raw_errors
+
+
 def test_pipeline_failure_wrapper_resolves_after_same_target_terminal_no_reply():
     target_id = "2086177789732958385"
     records = [
