@@ -583,15 +583,254 @@ def test_reply_summary_classifies_declines_duplicates_and_posted_modes():
     summary = digest.reply_strategy_summary(events)
     assert summary["conversational_candidate_count"] == 11
     assert summary["confirmed_outcome_count"] == 2
-    assert summary["deliberately_declined_count"] == 9
+    assert summary["deliberately_declined_count"] == 6
+    assert summary["terminal_repetition_rejection_count"] == 3
+    assert summary["outcome_status_counts"] == {
+        "posted": 2,
+        "terminal_no_reply": 6,
+        "terminal_repetition_rejection": 3,
+    }
     assert summary["no_reply_category_counts"] == {
-        "duplicate_response_rejection": 3,
         "no_substantive_prompt": 2,
         "low_value_or_repetitive_engagement": 4,
     }
     assert summary["repetition_control_counts"]["exact_duplicate_rejected"] == 3
     assert summary["claim_free_opinion_or_principle_count"] == 2
     assert summary["humour_reply_count"] == 0
+
+
+def test_pipeline_failure_and_apierror_wrapper_are_one_current_incident():
+    target_id = "2086177789732958385"
+    records = [
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_failure",'
+            '"status":"operational_failure","lane":"mention",'
+            f'"target_id":"{target_id}",'
+            '"reason":"no_reply_reviewer_invalid"}',
+        ),
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_mentions",
+            traceback(
+                "Failed to ask Grok for reply",
+                "APIError: reviewer returned an invalid no-reply verdict",
+            ),
+        ),
+    ]
+
+    report = digest.analyse(records)
+    health = report["error_health"]
+
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["raw_serious_error_record_count"] == 1
+    assert health["raw_traceback_count"] == 1
+    incident = health["current_incidents"][0]
+    assert incident["category"] == "reply_strategy_pipeline_failure"
+    assert incident["lane"] == "mention"
+    assert incident["target_id"] == target_id
+    assert incident["pipeline_failure_event_count"] == 1
+    assert incident["wrapper_record_count"] == 1
+    assert incident["record_count"] == 1
+    assert incident["pipeline_failure_reason_counts"] == {
+        "no_reply_reviewer_invalid": 1
+    }
+    raw_errors = "\n".join(
+        row["message"] for row in report["errors_and_warnings"]
+    )
+    assert "Failed to ask Grok for reply" in raw_errors
+    assert "APIError" in raw_errors
+    assert "Traceback" in raw_errors
+
+
+def test_pipeline_failure_wrapper_resolves_after_same_target_terminal_no_reply():
+    target_id = "2086177789732958385"
+    records = [
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_failure",'
+            '"status":"operational_failure","lane":"mention",'
+            f'"target_id":"{target_id}",'
+            '"reason":"no_reply_reviewer_invalid"}',
+        ),
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_mentions",
+            traceback(
+                "Failed to ask Grok for reply",
+                "APIError: reviewer returned an invalid no-reply verdict",
+            ),
+        ),
+        record(
+            10,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_decision",'
+            '"status":"no_reply","lane":"mention",'
+            f'"target_id":"{target_id}","mode":"no_reply",'
+            '"reviewer_verdict":"confirm_no_reply",'
+            '"reason":"independent_no_reply_confirmed"}',
+        ),
+    ]
+
+    report = digest.analyse(records)
+    health = report["error_health"]
+    rendered = digest.render_markdown(report)
+
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "reply_strategy_pipeline_failure"
+    assert incident["target_id"] == target_id
+    assert incident["record_count"] == 1
+    assert incident["resolution_reason"] == (
+        "later terminal no-reply decision observed for mention target " + target_id
+    )
+    assert incident["resolution_time"] == "2026-07-25 09:00:10"
+    assert "None unresolved in the selected window." in rendered
+    assert "reply strategy pipeline failure" in rendered
+    raw_errors = "\n".join(
+        row["message"] for row in report["errors_and_warnings"]
+    )
+    assert "Failed to ask Grok for reply" in raw_errors
+    assert "APIError" in raw_errors
+    assert "Traceback" in raw_errors
+
+
+def test_unrelated_apierror_remains_independent_of_resolved_pipeline_wrapper():
+    target_id = "2086177789732958385"
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "INFO",
+                "log_event",
+                'EVENT {"event":"ai_reply_pipeline_failure",'
+                '"status":"operational_failure","lane":"mention",'
+                f'"target_id":"{target_id}",'
+                '"reason":"no_reply_reviewer_invalid"}',
+            ),
+            record(
+                0,
+                "ERROR",
+                "maybe_reply_to_mentions",
+                traceback(
+                    "Failed to ask Grok for reply",
+                    "APIError: reviewer returned an invalid no-reply verdict",
+                ),
+            ),
+            record(
+                10,
+                "INFO",
+                "log_event",
+                'EVENT {"event":"ai_reply_pipeline_decision",'
+                '"status":"no_reply","lane":"mention",'
+                f'"target_id":"{target_id}","mode":"no_reply",'
+                '"reviewer_verdict":"confirm_no_reply",'
+                '"reason":"independent_no_reply_confirmed"}',
+            ),
+            record(
+                20,
+                "ERROR",
+                "unrelated_worker",
+                traceback(
+                    "Unrelated provider operation failed",
+                    "APIError: unrelated fixture failure",
+                ),
+            ),
+        ]
+    )
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 1
+    assert health["current_incidents"][0]["category"] == "apierror"
+    assert health["current_incidents"][0]["record_count"] == 1
+    assert health["raw_serious_error_record_count"] == 2
+
+
+def carried_state_report(state_timestamp: str | None) -> dict:
+    report = digest.analyse([])
+    report["summary"]["time_start"] = "2026-07-25 09:00:00"
+    report["summary"]["time_end"] = "2026-07-25 12:00:00"
+    report["latest_state"] = {
+        "time": state_timestamp,
+        "_carried_forward": True,
+        "daily_reply_date": "2026-07-24",
+        "daily_reply_count": 7,
+        "daily_quote_reply_date": "2026-07-24",
+        "daily_quote_reply_count": 3,
+        "next_reply_lane_priority": "quote-tweet",
+        "next_quote_post_epoch": 1784984400,
+        "next_quote_post_human": "2026-07-25 13:00:00",
+        "next_meme_post_epoch": 1784988000,
+        "next_meme_post_human": "2026-07-25 14:00:00",
+        "next_meme_schedule_mode": "fallback",
+        "next_meme_schedule_date": "2026-07-25",
+    }
+    report["latest_config"] = {
+        "MAX_AUTO_REPLIES_PER_DAY": "12",
+        "MAX_QUOTE_REPLIES_PER_DAY": "6",
+        "ENABLE_DAILY_MEME_POSTS": "true",
+    }
+    digest.refresh_derived(report)
+    return report
+
+
+def test_carried_forward_state_before_window_is_stale_snapshot():
+    rendered = digest.render_markdown(
+        carried_state_report("2026-07-24 09:00:00")
+    )
+
+    assert "## Latest state (stale carried-forward snapshot)" in rendered
+    assert "stale snapshot age at window end: 1 day 3 hours" in rendered
+    assert "counters and schedules below are not current" in rendered
+    assert "snapshot_daily_reply_count       = 7" in rendered
+    assert "snapshot_next_quote_post" in rendered
+    assert "snapshot_next_meme_post" in rendered
+    assert "snapshot_next_meme" in rendered
+    assert "current_next_meme" not in rendered
+    assert "snapshot auto replies used  = 7 / 12" in rendered
+    assert "snapshot quote replies used = 3 / 6" in rendered
+    assert "snapshot_next_priority" in rendered
+    assert "current_next_priority" not in rendered
+
+
+def test_carried_forward_state_timestamp_within_window_is_not_stale():
+    rendered = digest.render_markdown(
+        carried_state_report("2026-07-25 10:00:00")
+    )
+
+    assert "## Latest state\n" in rendered
+    assert (
+        "State timestamp: `2026-07-25 10:00:00` "
+        "(carried forward from previous digest state)"
+    ) in rendered
+    assert "stale snapshot" not in rendered
+    assert "daily_reply_count       = 7" in rendered
+    assert "snapshot_daily_reply_count" not in rendered
+    assert "current_next_meme" in rendered
+    assert "auto replies used  = 7 / 12" in rendered
+    assert "current_next_priority" in rendered
+
+
+def test_carried_forward_state_without_timestamp_has_unknown_age():
+    rendered = digest.render_markdown(carried_state_report(None))
+
+    assert "## Latest state (carried-forward snapshot; age unavailable)" in rendered
+    assert "age and staleness unavailable" in rendered
+    assert "without a state timestamp their currentness cannot be established" in rendered
+    assert "snapshot_daily_reply_count       = 7" in rendered
+    assert "snapshot_next_quote_post" in rendered
+    assert "snapshot_next_meme_post" in rendered
+    assert "snapshot auto replies used  = 7 / 12" in rendered
 
 
 def test_reply_accounting_reconciles_terminal_local_rejections_and_timeout_wrapper():

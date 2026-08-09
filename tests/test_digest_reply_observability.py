@@ -912,6 +912,142 @@ def test_conversational_ai_cost_is_attributed_by_candidate_outcome_and_stage():
     assert digest.render_markdown(report) == rendered
 
 
+def test_exact_duplicate_terminal_accounting_reconciles_headline_and_costs():
+    records = []
+    ordinal = 0
+    base = datetime(2026, 7, 28, 15)
+
+    def add(offset, source, message):
+        nonlocal ordinal
+        ordinal += 1
+        records.append(
+            digest.Record(
+                ts=base + timedelta(seconds=offset),
+                level="INFO",
+                src=source,
+                line=ordinal,
+                msg=message,
+                path="mrsMThatcher.log",
+                ordinal=ordinal,
+            )
+        )
+
+    for index in range(21):
+        target_id = str(1000 + index)
+        offset = index * 10
+        ticks = (index + 1) * 1_000_000
+        tokens = 100 + index
+        add(
+            offset,
+            "maybe_reply_to_mentions",
+            f"Considering mention id={target_id} author_id=456 text='fixture'",
+        )
+        add(
+            offset + 1,
+            "xai_structured_reply_call",
+            "Calling AI-first reply stage=reviewer model=grok-4.3",
+        )
+        add(
+            offset + 2,
+            "xai_structured_reply_call",
+            (
+                "xAI reply stage=reviewer usage={'prompt_tokens': 10, "
+                "'completion_tokens': 2, "
+                f"'total_tokens': {tokens}, "
+                "'prompt_tokens_details': {'cached_tokens': 1}, "
+                "'completion_tokens_details': {'reasoning_tokens': 3}, "
+                f"'num_sources_used': 0, 'cost_in_usd_ticks': {ticks}}}"
+            ),
+        )
+        if index < 11:
+            add(
+                offset + 3,
+                "log_event",
+                'EVENT {"event":"ai_reply_pipeline_decision",'
+                '"status":"approved","lane":"mention",'
+                f'"target_id":"{target_id}",'
+                '"mode":"opinion_or_principle","model_call_count":1}',
+            )
+            add(
+                offset + 4,
+                "log_event",
+                'EVENT {"event":"ai_reply_pipeline_outcome",'
+                '"status":"confirmed","lane":"mention",'
+                f'"target_id":"{target_id}","reply_post_id":"{9000 + index}",'
+                '"mode":"opinion_or_principle","model_call_count":1}',
+            )
+        elif index < 19:
+            add(
+                offset + 3,
+                "log_event",
+                'EVENT {"event":"ai_reply_pipeline_decision",'
+                '"status":"no_reply","lane":"mention",'
+                f'"target_id":"{target_id}","mode":"no_reply",'
+                '"reviewer_verdict":"confirm_no_reply",'
+                '"reason":"independent_no_reply_confirmed",'
+                '"model_call_count":1}',
+            )
+        else:
+            add(
+                offset + 3,
+                "log_event",
+                'EVENT {"event":"ai_reply_pipeline_decision",'
+                '"status":"no_reply","lane":"mention",'
+                f'"target_id":"{target_id}","mode":"no_reply",'
+                '"reason":"exact_duplicate_reply","model_call_count":1}',
+            )
+
+    report = digest.analyse(records)
+    strategy = report["reply_strategy"]
+    cost = report["xai_usage"]["cost_summary"]
+    cost_outcomes = {row["outcome"]: row for row in cost["outcomes"]}
+    rendered = digest.render_markdown(report)
+
+    assert strategy["conversational_candidate_count"] == 21
+    assert strategy["confirmed_outcome_count"] == 11
+    assert strategy["deliberately_declined_count"] == 8
+    assert strategy["terminal_repetition_rejection_count"] == 2
+    assert strategy["outcome_status_counts"] == {
+        "posted": 11,
+        "terminal_no_reply": 8,
+        "terminal_repetition_rejection": 2,
+    }
+    assert strategy["repetition_control_counts"]["exact_duplicate_rejected"] == 2
+    assert cost["coverage_complete"] is True
+    assert cost["candidate_count"] == 21
+    assert cost["published_candidate_count"] == 11
+    assert {
+        outcome: row["candidate_count"]
+        for outcome, row in cost_outcomes.items()
+    } == {
+        "deliberately_declined": 8,
+        "published": 11,
+        "terminal_repetition_rejection": 2,
+    }
+    assert cost_outcomes["terminal_repetition_rejection"] == {
+        "outcome": "terminal_repetition_rejection",
+        "candidate_count": 2,
+        "observed_successful_calls": 2,
+        "total_tokens": 239,
+        "known_cost_in_usd_ticks": 41_000_000,
+        "uncosted_successful_calls": 0,
+    }
+    assert all(
+        candidate["outcome"] != "approved_not_confirmed_in_window"
+        for candidate in cost["candidates"]
+    )
+    assert sum(row["candidate_count"] for row in cost["outcomes"]) == 21
+    assert "21 conversational candidates AI-reviewed" in report["summary"]["headline"]
+    assert "11 replies posted" in report["summary"]["headline"]
+    assert "2 terminal repetition rejections" in report["summary"]["headline"]
+    assert "8 deliberately declined" in report["summary"]["headline"]
+    assert (
+        "Public outcomes: posted=11, terminal_no_reply=8, "
+        "terminal_repetition_rejection=2"
+    ) in rendered
+    assert "| terminal repetition rejection | 2 | 2 | 239 | US$0.00410000 |" in rendered
+
+
 def test_conversational_ai_missing_usage_and_cost_are_not_reported_as_zero():
     records = [
         digest.Record(

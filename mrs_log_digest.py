@@ -3226,6 +3226,73 @@ def summarise_operational_error_health(
         )
         != "clarification_mode_local_rejection"
     ]
+    pipeline_failures_by_identity: Dict[
+        Tuple[str, str], List[Dict[str, Any]]
+    ] = {}
+    for event in events:
+        if event.get("kind") != "reply_strategy_failure":
+            continue
+        lane = _normalise_lane(event.get("lane"))
+        target_id = str(event.get("target_id") or "")
+        if lane == "unavailable" or not target_id:
+            continue
+        pipeline_failures_by_identity.setdefault((lane, target_id), []).append(
+            event
+        )
+
+    wrapper_identities: Dict[int, Tuple[str, str]] = {}
+    for item in operational:
+        raw = str(item.get("_raw_message") or item.get("message") or "")
+        lowered = raw.lower()
+        if "failed to ask grok for reply" not in lowered or "apierror" not in lowered:
+            continue
+        wrapper_time = _event_time(item)
+        if wrapper_time is None:
+            continue
+        where = str(item.get("where") or "").lower()
+        lane_hint: Optional[str] = None
+        if "mention" in where:
+            lane_hint = "mention"
+        elif "quote_tweet" in where or "quote-tweet" in where:
+            lane_hint = "quote-tweet"
+        elif "hot_post" in where or "hot-post" in where:
+            lane_hint = "hot-post"
+        lane_match = re.search(r"\blane[=:]\s*([a-z_-]+)", raw, re.IGNORECASE)
+        if lane_match:
+            parsed_lane = _normalise_lane(lane_match.group(1))
+            if parsed_lane != "unavailable":
+                lane_hint = parsed_lane
+        target_match = re.search(
+            r"\btarget_id[=:]\s*([A-Za-z0-9_-]+)", raw, re.IGNORECASE
+        )
+        target_hint = target_match.group(1) if target_match else None
+        candidates: List[Tuple[float, Tuple[str, str]]] = []
+        for identity, failures_for_target in pipeline_failures_by_identity.items():
+            lane, target_id = identity
+            if lane_hint is not None and lane != lane_hint:
+                continue
+            if target_hint is not None and target_id != target_hint:
+                continue
+            deltas = [
+                (wrapper_time - failure_time).total_seconds()
+                for failure in failures_for_target
+                if (failure_time := _event_time(failure)) is not None
+            ]
+            causal_deltas = [delta for delta in deltas if 0 <= delta <= 5]
+            if causal_deltas:
+                candidates.append((min(causal_deltas), identity))
+        if candidates:
+            nearest_delta = min(delta for delta, _identity in candidates)
+            nearest_identities = sorted(
+                {
+                    identity
+                    for delta, identity in candidates
+                    if delta == nearest_delta
+                }
+            )
+            if len(nearest_identities) == 1:
+                wrapper_identities[id(item)] = nearest_identities[0]
+
     groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
     stable_root_categories = {
         "historical_context_source_role_incompatibility",
@@ -3251,7 +3318,12 @@ def summarise_operational_error_health(
     ambiguity_times = [item for item in ambiguity_times if item is not None]
     for item in operational:
         raw = str(item.get("_raw_message") or item.get("message") or "")
-        category = classify_operational_error(raw)
+        wrapper_identity = wrapper_identities.get(id(item))
+        category = (
+            "reply_strategy_pipeline_failure"
+            if wrapper_identity is not None
+            else classify_operational_error(raw)
+        )
         item_time = _event_time(item)
         if (
             category == "x_api_transient_failure"
@@ -3275,6 +3347,8 @@ def summarise_operational_error_health(
                     break
             if not signature:
                 signature = f"{category}:{dt_text(item_time)}"
+        elif wrapper_identity is not None:
+            signature = f"{wrapper_identity[0]}:{wrapper_identity[1]}"
         else:
             signature = (
                 category
@@ -3282,6 +3356,15 @@ def summarise_operational_error_health(
                 else _normalise_incident_text(root)
             )
         groups.setdefault((category, signature), []).append(item)
+
+    pipeline_identity_by_group: Dict[Tuple[str, str], Tuple[str, str]] = {}
+    for identity in pipeline_failures_by_identity:
+        group_key = (
+            "reply_strategy_pipeline_failure",
+            f"{identity[0]}:{identity[1]}",
+        )
+        groups.setdefault(group_key, [])
+        pipeline_identity_by_group[group_key] = identity
 
     event_times: Dict[str, List[datetime]] = {}
     for event in events:
@@ -3302,6 +3385,56 @@ def summarise_operational_error_health(
         ts = _event_time(item)
         if ts is not None:
             successful_restart_times.append(ts)
+
+    def pipeline_recovered_after(
+        identity: Tuple[str, str], last_time: datetime
+    ) -> Tuple[bool, str, Optional[datetime]]:
+        lane, target_id = identity
+        candidates: List[Tuple[datetime, str]] = []
+        for event in events:
+            ts = _event_time(event)
+            if ts is None or ts <= last_time:
+                continue
+            if (
+                _normalise_lane(event.get("lane")) != lane
+                or str(event.get("target_id") or "") != target_id
+            ):
+                continue
+            kind = event.get("kind")
+            if kind == "reply_strategy_decision" and event.get("mode") == "no_reply":
+                candidates.append(
+                    (
+                        ts,
+                        "later terminal no-reply decision observed for "
+                        f"{lane} target {target_id}",
+                    )
+                )
+            elif kind == "reply_strategy_outcome" and str(
+                event.get("status") or "confirmed"
+            ) in {"confirmed", "posted"}:
+                candidates.append(
+                    (
+                        ts,
+                        "later confirmed reply outcome observed for "
+                        f"{lane} target {target_id}",
+                    )
+                )
+            elif (
+                kind == "reply_strategy_local_rejection"
+                and _terminal_local_rejection_outcome(event.get("reason"))
+                is not None
+            ):
+                candidates.append(
+                    (
+                        ts,
+                        "later terminal local rejection observed for "
+                        f"{lane} target {target_id}",
+                    )
+                )
+        if not candidates:
+            return False, "", None
+        recovery_time, reason = min(candidates, key=lambda item: (item[0], item[1]))
+        return True, reason, recovery_time
 
     def recovered_after(category: str, last_time: datetime) -> Tuple[bool, str, Optional[datetime]]:
         candidates: List[Tuple[datetime, str]] = []
@@ -3428,23 +3561,54 @@ def summarise_operational_error_health(
             rows,
             key=lambda item: (str(item.get("time") or ""), str(item.get("where") or "")),
         )
-        first_time = parse_dt(str(ordered[0].get("time") or "")) or datetime.min
-        last_time = parse_dt(str(ordered[-1].get("time") or "")) or first_time
+        group_key = (category, signature)
+        pipeline_identity = pipeline_identity_by_group.get(group_key)
+        pipeline_failure_events = (
+            pipeline_failures_by_identity.get(pipeline_identity, [])
+            if pipeline_identity is not None
+            else []
+        )
+        evidence_times = [
+            ts
+            for item in [*ordered, *pipeline_failure_events]
+            if (ts := _event_time(item)) is not None
+        ]
+        first_time = min(evidence_times) if evidence_times else datetime.min
+        last_time = max(evidence_times) if evidence_times else first_time
         transient_observation = category in {
             "x_api_transient_failure",
             "xai_provider_timeout",
         }
-        if transient_observation:
+        if pipeline_identity is not None:
+            resolved, resolution_reason, resolution_time = pipeline_recovered_after(
+                pipeline_identity, last_time
+            )
+            status = "historical_resolved" if resolved else "current_unresolved"
+        elif transient_observation:
             resolved, resolution_reason, resolution_time = False, "", None
             status = "transient_observation_recovery_unverified"
         else:
             resolved, resolution_reason, resolution_time = recovered_after(category, last_time)
             status = "historical_resolved" if resolved else "current_unresolved"
-        representative = str(
-            ordered[0].get("_raw_message") or ordered[0].get("message") or ""
-        ).splitlines()[0]
-        incidents.append(
-            {
+        if pipeline_identity is not None:
+            reasons = Counter(
+                str(event.get("reason") or "unknown_pipeline_failure")
+                for event in pipeline_failure_events
+            )
+            reason_text = ", ".join(
+                f"{reason}={count}" for reason, count in sorted(reasons.items())
+            )
+            representative = (
+                f"AI reply pipeline failure for {pipeline_identity[0]} target "
+                f"{pipeline_identity[1]}: {reason_text}"
+            )
+        else:
+            representative = str(
+                ordered[0].get("_raw_message")
+                or ordered[0].get("message")
+                or ""
+            ).splitlines()[0]
+        incident = {
                 "category": category,
                 "signature": signature,
                 "status": status,
@@ -3466,7 +3630,17 @@ def summarise_operational_error_health(
                 "resolution_reason": resolution_reason,
                 "resolution_time": dt_text(resolution_time) if resolution_time else None,
             }
-        )
+        if pipeline_identity is not None:
+            incident.update(
+                {
+                    "lane": pipeline_identity[0],
+                    "target_id": pipeline_identity[1],
+                    "pipeline_failure_event_count": len(pipeline_failure_events),
+                    "wrapper_record_count": len(ordered),
+                    "pipeline_failure_reason_counts": dict(reasons.most_common()),
+                }
+            )
+        incidents.append(incident)
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
     current = [item for item in incidents if item["status"] == "current_unresolved"]
     resolved = [item for item in incidents if item["status"] == "historical_resolved"]
@@ -4556,6 +4730,7 @@ def _terminal_local_rejection_outcome(reason: Any) -> Optional[str]:
     """Return the terminal local outcome represented by a pipeline reason."""
     normalised = str(reason or "").strip().lower()
     return {
+        "exact_duplicate_reply": "terminal_repetition_rejection",
         "near_duplicate_reply": "terminal_repetition_rejection",
         "clarification_not_direct_factual_answer": (
             "terminal_clarification_mode_rejection"
@@ -4593,13 +4768,16 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         decision_by_id.setdefault(decision_id, event)
     decisions = list(decision_by_id.values())
     terminal_local_rejections: Dict[Tuple[str, str], str] = {}
+    terminal_local_rejection_reasons: Dict[Tuple[str, str], str] = {}
     for index, event in enumerate(decisions):
-        outcome = _terminal_local_rejection_outcome(event.get("no_reply_reason"))
+        raw_reason = event.get("no_reply_reason")
+        outcome = _terminal_local_rejection_outcome(raw_reason)
         if outcome is None:
             continue
         lane = _normalise_lane(event.get("lane"))
         target = str(event.get("target_id") or f"missing-decision-{index}")
         terminal_local_rejections[(lane, target)] = outcome
+        terminal_local_rejection_reasons[(lane, target)] = str(raw_reason)
     for index, event in enumerate(events):
         if event.get("kind") != "reply_strategy_local_rejection":
             continue
@@ -4619,6 +4797,9 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         if lane == "unavailable" and matching_decision is not None:
             lane = _normalise_lane(matching_decision.get("lane"))
         terminal_local_rejections[(lane, target)] = outcome
+        terminal_local_rejection_reasons[(lane, target)] = str(
+            event.get("reason") or ""
+        )
     outcome_by_id: Dict[str, Dict[str, Any]] = {}
     for index, event in enumerate(events):
         if event.get("kind") != "reply_strategy_outcome":
@@ -4713,7 +4894,15 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             outcome_status_counts["posting_failed"] += 1
         else:
             outcome_status_counts[status or "unavailable"] += 1
-    outcome_status_counts["terminal_no_reply"] += sum(event.get("mode") == "no_reply" for event in decisions)
+    outcome_status_counts["terminal_no_reply"] += sum(
+        event.get("mode") == "no_reply"
+        and (
+            _normalise_lane(event.get("lane")),
+            str(event.get("target_id") or ""),
+        )
+        not in terminal_local_rejections
+        for event in decisions
+    )
     outcome_status_counts["terminal_repetition_rejection"] += sum(
         outcome == "terminal_repetition_rejection"
         for outcome in terminal_local_rejections.values()
@@ -4753,14 +4942,19 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
     terminal_local_targets = set(terminal_local_rejections)
     for (lane, target), outcome in terminal_local_rejections.items():
-        reason = (
+        reason = terminal_local_rejection_reasons.get((lane, target)) or (
             "near_duplicate_reply"
             if outcome == "terminal_repetition_rejection"
             else "clarification_not_direct_factual_answer"
         )
         rejection_reasons[reason] += 1
         if outcome == "terminal_repetition_rejection":
-            repetition_controls["highly_similar_reply_rejected"] += 1
+            repetition_key = (
+                "exact_duplicate_rejected"
+                if str(reason).strip().lower() == "exact_duplicate_reply"
+                else "highly_similar_reply_rejected"
+            )
+            repetition_controls[repetition_key] += 1
     seen_skips = set()
     for event in events:
         if event.get("kind") == "reply_strategy_rejection":
@@ -4788,6 +4982,12 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             (routine_reasons if reason in routine else rejection_reasons)[reason] += 1
     for event in decisions:
         if event.get("mode") == "no_reply":
+            target = (
+                _normalise_lane(event.get("lane")),
+                str(event.get("target_id") or ""),
+            )
+            if target in terminal_local_targets:
+                continue
             reason = str(event.get("no_reply_reason") or "model-selected no_reply")
             rejection_reasons[reason] += 1
             category = _no_reply_category(reason)
@@ -7597,6 +7797,58 @@ def _source_bits_for_state_config(st: Dict[str, Any], cfg: Dict[str, Any]) -> Li
         bits.append(f"config partly filled from earlier log scan{f' at {ts}' if ts else ''}")
     return bits
 
+
+def _human_snapshot_age(seconds: float) -> str:
+    """Return a deterministic, whole-second age for state presentation."""
+    remaining = max(0, int(seconds))
+    parts: List[str] = []
+    for unit_seconds, singular in (
+        (24 * 60 * 60, "day"),
+        (60 * 60, "hour"),
+        (60, "minute"),
+        (1, "second"),
+    ):
+        value, remaining = divmod(remaining, unit_seconds)
+        if value:
+            parts.append(plural_count(value, singular))
+    return " ".join(parts) if parts else "0 seconds"
+
+
+def _carried_state_presentation(
+    st: Dict[str, Any], summary: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Describe carried state freshness without changing persisted context."""
+    carried = bool(st.get("_carried_forward"))
+    if not carried:
+        return {"stale": False, "snapshot_only": False, "age": None}
+    try:
+        state_time = parse_dt(st.get("time"))
+    except (TypeError, ValueError):
+        state_time = None
+    try:
+        window_start = parse_dt(summary.get("time_start"))
+    except (TypeError, ValueError):
+        window_start = None
+    try:
+        window_end = parse_dt(summary.get("time_end"))
+    except (TypeError, ValueError):
+        window_end = None
+    stale = bool(
+        state_time is not None
+        and window_start is not None
+        and state_time < window_start
+    )
+    age = (
+        _human_snapshot_age((window_end - state_time).total_seconds())
+        if state_time is not None and window_end is not None
+        else None
+    )
+    return {
+        "stale": stale,
+        "snapshot_only": stale or state_time is None,
+        "age": age,
+    }
+
 def render_markdown(report: Dict[str, Any]) -> str:
     """Render digest metrics as deterministic Markdown."""
     s = report["summary"]
@@ -7667,11 +7919,39 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append("")
 
     st = report.get("latest_state") or {}
+    state_presentation = _carried_state_presentation(st, s)
+    stale_state_snapshot = state_presentation["stale"] is True
+    state_snapshot_only = state_presentation["snapshot_only"] is True
+    state_label_prefix = "snapshot_" if state_snapshot_only else ""
     if st:
-        out.append("## Latest state")
+        if stale_state_snapshot:
+            out.append("## Latest state (stale carried-forward snapshot)")
+        elif state_snapshot_only:
+            out.append("## Latest state (carried-forward snapshot; age unavailable)")
+        else:
+            out.append("## Latest state")
         state_source = st.get("_state_source")
         state_source_path = st.get("_state_source_path")
-        if st.get("_carried_forward"):
+        if stale_state_snapshot:
+            out.append(
+                f"State timestamp: `{st.get('time')}` (carried forward from previous "
+                f"digest state; stale snapshot age at window end: "
+                f"{state_presentation.get('age') or 'unavailable'})"
+            )
+            out.append(
+                "Historical snapshot values only; the counters and schedules below "
+                "are not current."
+            )
+        elif state_snapshot_only:
+            out.append(
+                "State timestamp: `unavailable` (carried forward from previous digest "
+                "state; age and staleness unavailable)"
+            )
+            out.append(
+                "Snapshot values only; without a state timestamp their currentness "
+                "cannot be established."
+            )
+        elif st.get("_carried_forward"):
             out.append(f"State timestamp: `{st.get('time')}` (carried forward from previous digest state)")
         elif st.get("_filled_from_previous"):
             out.append(f"State timestamp: `{st.get('time')}` (current snapshot with missing fields filled from previous digest state)")
@@ -7684,65 +7964,69 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"State timestamp: `{st.get('time')}`")
         out.append("")
         out.append("```text")
-        out.append(f"daily_reply_count       = {st.get('daily_reply_count')}  date={st.get('daily_reply_date')}")
-        out.append(f"daily_quote_reply_count = {st.get('daily_quote_reply_count')}  date={st.get('daily_quote_reply_date')}")
+        out.append(f"{state_label_prefix}daily_reply_count       = {st.get('daily_reply_count')}  date={st.get('daily_reply_date')}")
+        out.append(f"{state_label_prefix}daily_quote_reply_count = {st.get('daily_quote_reply_count')}  date={st.get('daily_quote_reply_date')}")
         if st.get("next_reply_lane_priority") is not None:
-            out.append(f"next_reply_lane_priority = {st.get('next_reply_lane_priority')}")
+            out.append(f"{state_label_prefix}next_reply_lane_priority = {st.get('next_reply_lane_priority')}")
         if st.get("skipped_hot_reply_count") is not None:
-            out.append(f"skipped_hot_reply_count = {st.get('skipped_hot_reply_count')}")
-        out.append(f"quote_spam_author_count = {st.get('quote_spam_author_count')}")
+            out.append(f"{state_label_prefix}skipped_hot_reply_count = {st.get('skipped_hot_reply_count')}")
+        out.append(f"{state_label_prefix}quote_spam_author_count = {st.get('quote_spam_author_count')}")
         api_cooldown_status = cooldown_state_text(st.get("api_cooldown_until_epoch"), st.get("time"))
         api_cooldown_suffix = f"  {api_cooldown_status}" if api_cooldown_status else ""
         api_cooldown_human = st.get("api_cooldown_until_human") or "none"
         out.append(
-            f"x_read_api_cooldown_until = {st.get('api_cooldown_until_epoch')}  "
+            f"{state_label_prefix}x_read_api_cooldown_until = {st.get('api_cooldown_until_epoch')}  "
             f"{api_cooldown_human}{api_cooldown_suffix}"
         )
         if st.get("api_cooldown_reason"):
-            out.append(f"x_read_api_cooldown_reason = {st.get('api_cooldown_reason')}")
+            out.append(f"{state_label_prefix}x_read_api_cooldown_reason = {st.get('api_cooldown_reason')}")
         x_write_api_cooldown_status = cooldown_state_text(st.get("x_write_api_cooldown_until_epoch"), st.get("time"))
         x_write_api_cooldown_suffix = f"  {x_write_api_cooldown_status}" if x_write_api_cooldown_status else ""
         x_write_api_cooldown_human = st.get("x_write_api_cooldown_until_human") or "none"
         out.append(
-            f"x_write_api_cooldown_until = {st.get('x_write_api_cooldown_until_epoch')}  "
+            f"{state_label_prefix}x_write_api_cooldown_until = {st.get('x_write_api_cooldown_until_epoch')}  "
             f"{x_write_api_cooldown_human}{x_write_api_cooldown_suffix}"
         )
         if st.get("x_write_api_cooldown_reason"):
-            out.append(f"x_write_api_cooldown_reason = {st.get('x_write_api_cooldown_reason')}")
+            out.append(f"{state_label_prefix}x_write_api_cooldown_reason = {st.get('x_write_api_cooldown_reason')}")
         xai_api_cooldown_status = cooldown_state_text(st.get("xai_api_cooldown_until_epoch"), st.get("time"))
         xai_api_cooldown_suffix = f"  {xai_api_cooldown_status}" if xai_api_cooldown_status else ""
         xai_api_cooldown_human = st.get("xai_api_cooldown_until_human") or "none"
         out.append(
-            f"xai_api_cooldown_until  = {st.get('xai_api_cooldown_until_epoch')}  "
+            f"{state_label_prefix}xai_api_cooldown_until  = {st.get('xai_api_cooldown_until_epoch')}  "
             f"{xai_api_cooldown_human}{xai_api_cooldown_suffix}"
         )
         if st.get("xai_api_cooldown_reason"):
-            out.append(f"xai_api_cooldown_reason = {st.get('xai_api_cooldown_reason')}")
+            out.append(f"{state_label_prefix}xai_api_cooldown_reason = {st.get('xai_api_cooldown_reason')}")
         quote_api_cooldown_status = cooldown_state_text(st.get("quote_api_cooldown_until_epoch"), st.get("time"))
         quote_api_cooldown_suffix = f"  {quote_api_cooldown_status}" if quote_api_cooldown_status else ""
         quote_api_cooldown_human = st.get("quote_api_cooldown_until_human") or "none"
         out.append(
-            f"quote_api_cooldown_until = {st.get('quote_api_cooldown_until_epoch')}  "
+            f"{state_label_prefix}quote_api_cooldown_until = {st.get('quote_api_cooldown_until_epoch')}  "
             f"{quote_api_cooldown_human}{quote_api_cooldown_suffix}"
         )
         if st.get("quote_api_cooldown_reason"):
-            out.append(f"quote_api_cooldown_reason = {st.get('quote_api_cooldown_reason')}")
-        out.append(f"last_main_post_id       = {st.get('last_main_post_id')}")
-        out.append(f"last_seen_mention_id    = {st.get('last_seen_mention_id')}")
+            out.append(f"{state_label_prefix}quote_api_cooldown_reason = {st.get('quote_api_cooldown_reason')}")
+        out.append(f"{state_label_prefix}last_main_post_id       = {st.get('last_main_post_id')}")
+        out.append(f"{state_label_prefix}last_seen_mention_id    = {st.get('last_seen_mention_id')}")
         if st.get("last_quote_post_epoch") is not None:
-            out.append(f"last_quote_post         = {st.get('last_quote_post_human')}  epoch={st.get('last_quote_post_epoch')}")
-        out.append(f"next_quote_post         = {st.get('next_quote_post_human')}  epoch={st.get('next_quote_post_epoch')}")
-        out.append(f"next_meme_post          = {st.get('next_meme_post_human')}  epoch={st.get('next_meme_post_epoch')}")
+            out.append(f"{state_label_prefix}last_quote_post         = {st.get('last_quote_post_human')}  epoch={st.get('last_quote_post_epoch')}")
+        out.append(f"{state_label_prefix}next_quote_post         = {st.get('next_quote_post_human')}  epoch={st.get('next_quote_post_epoch')}")
+        out.append(f"{state_label_prefix}next_meme_post          = {st.get('next_meme_post_human')}  epoch={st.get('next_meme_post_epoch')}")
         if st.get("next_meme_schedule_mode") is not None:
-            out.append(f"next_meme_mode          = {st.get('next_meme_schedule_mode')}  date={st.get('next_meme_schedule_date')}")
+            out.append(f"{state_label_prefix}next_meme_mode          = {st.get('next_meme_schedule_mode')}  date={st.get('next_meme_schedule_date')}")
         if st.get("meme_anchor_quote_post_epoch"):
-            out.append(f"meme_anchor_quote_post  = {st.get('meme_anchor_quote_post_human')}  epoch={st.get('meme_anchor_quote_post_epoch')}")
+            out.append(f"{state_label_prefix}meme_anchor_quote_post  = {st.get('meme_anchor_quote_post_human')}  epoch={st.get('meme_anchor_quote_post_epoch')}")
         if st.get("meme_schedule_version") is not None:
-            out.append(f"meme_schedule_version   = {st.get('meme_schedule_version')}")
-        out.append(f"posted_meme_count       = {st.get('posted_meme_count')}")
+            out.append(f"{state_label_prefix}meme_schedule_version   = {st.get('meme_schedule_version')}")
+        out.append(f"{state_label_prefix}posted_meme_count       = {st.get('posted_meme_count')}")
         out.append("```")
         if st.get("posted_meme_filenames_tail"):
-            out.append("Recent posted meme filenames:")
+            out.append(
+                "Snapshot recent posted meme filenames:"
+                if state_snapshot_only
+                else "Recent posted meme filenames:"
+            )
             out.append("```text")
             for name in st["posted_meme_filenames_tail"]:
                 out.append(str(name))
@@ -7936,6 +8220,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("## Daily meme schedule")
             out.append("```text")
             source_bits = _source_bits_for_state_config(st, cfg)
+            if stale_state_snapshot:
+                source_bits.append(
+                    "state is a stale snapshot"
+                    + (
+                        f" ({state_presentation.get('age')} old at window end)"
+                        if state_presentation.get("age")
+                        else ""
+                    )
+                )
+            elif state_snapshot_only:
+                source_bits.append("state snapshot age unavailable")
             if source_bits:
                 out.append(f"source                  = {', '.join(source_bits)}")
             enabled = _cfg_bool(cfg, "ENABLE_DAILY_MEME_POSTS")
@@ -7960,14 +8255,31 @@ def render_markdown(report: Dict[str, Any]) -> str:
             if cfg.get("MEME_SCHEDULE_VERSION") is not None:
                 out.append(f"config_schedule_version = {cfg.get('MEME_SCHEDULE_VERSION')}")
             if st.get("next_meme_post_epoch") is not None:
-                out.append(f"current_next_meme       = {st.get('next_meme_post_human')}  epoch={st.get('next_meme_post_epoch')}")
+                state_meme_label = (
+                    "snapshot_next_meme"
+                    if state_snapshot_only
+                    else "current_next_meme"
+                )
+                out.append(f"{state_meme_label:<24} = {st.get('next_meme_post_human')}  epoch={st.get('next_meme_post_epoch')}")
             if st.get("next_meme_schedule_mode") is not None:
-                out.append(f"current_mode            = {st.get('next_meme_schedule_mode')}  date={st.get('next_meme_schedule_date')}")
+                state_mode_label = (
+                    "snapshot_mode" if state_snapshot_only else "current_mode"
+                )
+                out.append(f"{state_mode_label:<24} = {st.get('next_meme_schedule_mode')}  date={st.get('next_meme_schedule_date')}")
             if st.get("meme_anchor_quote_post_epoch"):
-                out.append(f"current_anchor          = {st.get('meme_anchor_quote_post_human')}  epoch={st.get('meme_anchor_quote_post_epoch')}")
+                state_anchor_label = (
+                    "snapshot_anchor" if state_snapshot_only else "current_anchor"
+                )
+                out.append(f"{state_anchor_label:<24} = {st.get('meme_anchor_quote_post_human')}  epoch={st.get('meme_anchor_quote_post_epoch')}")
             else:
                 if st.get("next_meme_schedule_mode") and str(st.get("next_meme_schedule_mode")).startswith("fallback"):
-                    out.append("current_anchor          = none yet; fallback remains until first qualifying post/image after midday")
+                    if state_snapshot_only:
+                        out.append(
+                            "snapshot_anchor          = none recorded in snapshot; "
+                            "snapshot fallback mode retained for diagnosis"
+                        )
+                    else:
+                        out.append("current_anchor          = none yet; fallback remains until first qualifying post/image after midday")
             out.append("```")
             out.append("")
 
@@ -7981,6 +8293,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
         source_bits = []
         if budget.get("state_carried_forward"):
             source_bits.append("state carried forward")
+            if stale_state_snapshot:
+                source_bits.append("state counters are stale snapshot values")
+            elif state_snapshot_only:
+                source_bits.append("state counter age unavailable")
         if budget.get("config_carried_forward"):
             source_bits.append("config carried forward")
         if budget.get("config_carried_from_log_backscan"):
@@ -7997,6 +8313,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"source             = {', '.join(source_bits)}")
         if not budget.get("has_any_budget_input"):
             out.append("not available      = no state/config snapshot in this window or saved resume context")
+        elif state_snapshot_only:
+            if au is not None or al is not None:
+                out.append(
+                    f"snapshot auto replies used  = {au if au is not None else '?'} / "
+                    f"{al if al is not None else '?'}  snapshot_remaining="
+                    f"{ar if ar is not None else '?'}"
+                )
+            if qu is not None or ql is not None:
+                out.append(
+                    f"snapshot quote replies used = {qu if qu is not None else '?'} / "
+                    f"{ql if ql is not None else '?'}  snapshot_remaining="
+                    f"{qr if qr is not None else '?'}"
+                )
         else:
             if au is not None or al is not None:
                 out.append(f"auto replies used  = {au if au is not None else '?'} / {al if al is not None else '?'}  remaining={ar if ar is not None else '?'}")
@@ -8012,6 +8341,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
         source_bits = []
         if lane.get("state_carried_forward"):
             source_bits.append("state carried forward")
+            if stale_state_snapshot:
+                source_bits.append("state priority is a stale snapshot value")
+            elif state_snapshot_only:
+                source_bits.append("state priority age unavailable")
         if lane.get("state_filled_from_previous"):
             source_bits.append("state partly filled")
         if lane.get("config_carried_forward"):
@@ -8027,7 +8360,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
         if source_bits:
             out.append(f"source                         = {', '.join(source_bits)}")
         priority = lane.get("current_next_priority")
-        out.append(f"current_next_priority          = {priority if priority is not None else 'not available'}")
+        priority_label = (
+            "snapshot_next_priority" if state_snapshot_only else "current_next_priority"
+        )
+        out.append(f"{priority_label:<31} = {priority if priority is not None else 'not available'}")
         out.append(f"normal_lane_due_checks         = {lane.get('normal_lane_due_checks')}")
         out.append(f"mention_function_entries       = {lane.get('mention_function_entries')}")
         out.append(f"mention_fetch_attempts         = {lane.get('mention_fetch_attempts')}")
