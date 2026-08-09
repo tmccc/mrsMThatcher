@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v4"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v5"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -865,6 +865,39 @@ _NAME_WITH_OUTLET_LABEL = re.compile(
     r"^[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){1,3},\s*"
     r"(?:[A-Z]{2,12}|[A-Z][A-Za-z&.-]+(?:\s+[A-Z][A-Za-z&.-]+){0,3})$"
 )
+_UNTITLED_PERSON_LABEL = re.compile(
+    r"^(?P<name>"
+    r"[A-Z][A-Za-z'’.-]*[a-z][A-Za-z'’.-]*"
+    r"(?:\s+[A-Z][A-Za-z'’.-]*[a-z][A-Za-z'’.-]*){1,3}"
+    r")"
+    r"(?:\s+\((?:[A-Z]{2,12}|[A-Z][A-Za-z&.'’-]+)"
+    r"(?:\s+(?:[A-Z]{2,12}|[A-Z][A-Za-z&.'’-]+)){0,4}\))?$"
+)
+_NON_PERSON_HEADING_WORDS = frozenset({
+    "affairs", "agriculture", "budget", "chapter", "conference", "defence",
+    "defense", "economic", "economics", "economy", "education", "election",
+    "employment", "energy", "environment", "europe", "european", "foreign",
+    "health", "home", "industry", "issues", "policy", "politics", "section",
+    "speech", "statement", "tax", "taxation", "trade", "transport",
+    "unemployment",
+})
+_NON_PERSON_INITIALS = frozenset({"AI", "EU", "IT", "TV", "UK", "UN", "US"})
+_CONTRIBUTION_TAGS = frozenset({"p", "li", "blockquote"})
+
+
+def _is_untitled_person_label(value: str) -> bool:
+    match = _UNTITLED_PERSON_LABEL.fullmatch(value)
+    if not match:
+        return False
+    name_words = {
+        word.casefold().strip(".'’-_")
+        for word in match.group("name").split()
+    }
+    return not bool(name_words & _NON_PERSON_HEADING_WORDS)
+
+
+def _is_short_interviewer_initials(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Z]{2}", value)) and value not in _NON_PERSON_INITIALS
 
 
 def _speaker_heading_class(
@@ -883,6 +916,7 @@ def _speaker_heading_class(
     if allow_personal_name and (
         _TITLED_PERSON_LABEL.fullmatch(label)
         or _NAME_WITH_OUTLET_LABEL.fullmatch(label)
+        or _is_untitled_person_label(label)
     ):
         return "other"
     return None
@@ -908,20 +942,84 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         for node in article.find_all(("p", "li", "blockquote", "h2", "h3"))
     ]
     blocks = [(tag, value) for tag, value in blocks if value]
-    transcript_structure = any(
-        _speaker_heading_class(
-            " ".join(match.group(1).split()), allow_personal_name=True
-        ) is not None
-        if (match := _SPEAKER_PREFIX.match(value))
-        else _speaker_heading_class(value) is not None
-        for _tag, value in blocks
-    )
+    base_classes: list[str | None] = []
+    for tag, value in blocks:
+        if tag not in _CONTRIBUTION_TAGS:
+            base_classes.append(None)
+            continue
+        match = _SPEAKER_PREFIX.match(value)
+        if match:
+            possible = " ".join(match.group(1).split())
+            base_classes.append(_speaker_heading_class(
+                possible, allow_personal_name=True
+            ))
+        else:
+            base_classes.append(_speaker_heading_class(value))
+    transcript_structure = any(value is not None for value in base_classes)
+
+    def contribution_text_at(index: int) -> bool:
+        return bool(
+            0 <= index < len(blocks)
+            and blocks[index][0] in _CONTRIBUTION_TAGS
+            and base_classes[index] is None
+            and _SPEAKER_PREFIX.match(blocks[index][1]) is None
+        )
+
+    def alternates_with_explicit_thatcher(index: int) -> bool:
+        return bool(
+            (
+                contribution_text_at(index + 1)
+                and index + 2 < len(blocks)
+                and base_classes[index + 2] == "thatcher"
+            )
+            or (
+                index >= 2
+                and base_classes[index - 2] == "thatcher"
+                and contribution_text_at(index - 1)
+                and contribution_text_at(index + 1)
+            )
+        )
+
+    repeated_context_labels: dict[str, int] = {}
+    for index, (tag, value) in enumerate(blocks):
+        if (
+            tag in _CONTRIBUTION_TAGS
+            and contribution_text_at(index + 1)
+            and (
+                _is_untitled_person_label(value)
+                or _is_short_interviewer_initials(value)
+            )
+        ):
+            repeated_context_labels[value] = repeated_context_labels.get(value, 0) + 1
+    contextual_other_labels = {
+        index
+        for index, (tag, value) in enumerate(blocks)
+        if transcript_structure
+        and tag in _CONTRIBUTION_TAGS
+        and contribution_text_at(index + 1)
+        and (
+            (
+                _is_untitled_person_label(value)
+                and (
+                    alternates_with_explicit_thatcher(index)
+                    or repeated_context_labels.get(value, 0) >= 2
+                )
+            )
+            or (
+                _is_short_interviewer_initials(value)
+                and alternates_with_explicit_thatcher(index)
+            )
+        )
+    }
     parsed: list[tuple[str, str, str, str | None]] = []
     labels_detected = False
     author_verified = research._is_margaret_thatcher_author(
         str(validation.get("author") or "")
     )
-    for tag, block in blocks:
+    for index, (tag, block) in enumerate(blocks):
+        if tag not in _CONTRIBUTION_TAGS:
+            parsed.append((tag, "", "", None))
+            continue
         match = _SPEAKER_PREFIX.match(block)
         label = ""
         value = block
@@ -938,17 +1036,21 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             speaker_class = _speaker_heading_class(block)
             if (
                 speaker_class is None
-                and tag not in {"h2", "h3"}
                 and transcript_structure
+                and (
+                    _TITLED_PERSON_LABEL.fullmatch(block)
+                    or _NAME_WITH_OUTLET_LABEL.fullmatch(block)
+                    or index in contextual_other_labels
+                )
             ):
                 speaker_class = _speaker_heading_class(
                     block, allow_personal_name=True
                 )
+                if speaker_class is None and index in contextual_other_labels:
+                    speaker_class = "other"
         if not match and speaker_class is not None:
             label, value = block, ""
             labels_detected = True
-        if tag in {"h2", "h3"} and not label:
-            value = ""
         parsed.append((tag, label, value, speaker_class))
     if not labels_detected:
         text = " ".join(article.get_text(" ", strip=True).split())
@@ -2331,13 +2433,46 @@ def _normalised_existing_categories(candidate: Mapping[str, Any]) -> set[str]:
     }
 
 
-def _candidate_requires_identity_revalidation(candidate: Mapping[str, Any]) -> bool:
+def _candidate_reverification_selection_reason(
+    candidate: Mapping[str, Any],
+) -> str:
     categories = _normalised_existing_categories(candidate)
-    return bool(
+    existing_signal = bool(
         candidate.get("accepted_as_primary_evidence")
         or candidate.get("proposed_unblock")
         or candidate.get("candidate_classification") == "contradictory_evidence"
         or any(category != CATEGORY_NO_CHANGE for category in categories)
+    )
+    if existing_signal:
+        return "existing_admission_or_advisory_signal"
+
+    document_id = str(candidate.get("candidate_mtf_document_id") or "")
+    url = str(candidate.get("canonical_public_url") or "")
+    url_match = re.fullmatch(
+        r"https://www\.margaretthatcher\.org/document/([0-9]+)", url
+    )
+    identity_shape_valid = bool(
+        document_id.isdigit()
+        and url_match
+        and url_match.group(1) == document_id
+        and re.fullmatch(
+            r"[0-9a-f]{64}", str(candidate.get("local_file_sha256") or "")
+        )
+        and str(candidate.get("supporting_passage") or "").strip()
+    )
+    primary_wording_signal = bool(
+        candidate.get("raw_match_type") in {"exact_quotation", "recorded_variant"}
+        or candidate.get("match_type") in {"exact quotation", "recorded variant"}
+        or candidate.get("candidate_classification") == "strong_primary_evidence"
+    )
+    if identity_shape_valid and primary_wording_signal:
+        return "recorded_primary_wording_signal"
+    return "not_selected_no_reverification_signal"
+
+
+def _candidate_requires_identity_revalidation(candidate: Mapping[str, Any]) -> bool:
+    return _candidate_reverification_selection_reason(candidate) != (
+        "not_selected_no_reverification_signal"
     )
 
 
@@ -2353,13 +2488,15 @@ def _open_candidate_for_reverification(
     mirror: LocalArchiveMirror, candidate: Mapping[str, Any]
 ) -> tuple[dict[str, Any], Mapping[str, Any] | None, Mapping[str, Any] | None, Mapping[str, Any] | None]:
     """Open and identity-check one selected candidate without any discovery."""
-    if not _candidate_requires_identity_revalidation(candidate):
+    selection_reason = _candidate_reverification_selection_reason(candidate)
+    if selection_reason == "not_selected_no_reverification_signal":
         return ({
             "candidate_evidence_identity_status": "not_selected_for_revalidation",
             "candidate_evidence_stale": False,
             "candidate_evidence_identity_reason": (
-                "candidate was not selected for positive or admission consideration"
+                "candidate did not retain a bounded reverification signal"
             ),
+            "candidate_reverification_selection_reason": selection_reason,
         }, None, None, None)
     document_id = str(candidate.get("candidate_mtf_document_id") or "")
     url = str(candidate.get("canonical_public_url") or "")
@@ -2374,24 +2511,28 @@ def _open_candidate_for_reverification(
             and str(recorded_identity.get("document_id") or document_id) != document_id
         )
     ):
-        return (_stale_identity_result(
-            "recorded_candidate_identity_is_invalid"
-        ), None, None, None)
+        return ({
+            **_stale_identity_result("recorded_candidate_identity_is_invalid"),
+            "candidate_reverification_selection_reason": selection_reason,
+        }, None, None, None)
     try:
         record = mirror.read(url)
     except Exception:
-        return (_stale_identity_result(
-            "candidate_file_is_missing_or_unsafe"
-        ), None, None, None)
+        return ({
+            **_stale_identity_result("candidate_file_is_missing_or_unsafe"),
+            "candidate_reverification_selection_reason": selection_reason,
+        }, None, None, None)
     if not record or record.get("status") != "fetched":
-        return (_stale_identity_result(
-            "candidate_file_is_missing_or_unreadable"
-        ), None, None, None)
+        return ({
+            **_stale_identity_result("candidate_file_is_missing_or_unreadable"),
+            "candidate_reverification_selection_reason": selection_reason,
+        }, None, None, None)
     current_hash = str(record.get("local_archive_file_sha256") or "")
     if current_hash != recorded_hash:
-        return (_stale_identity_result(
-            "candidate_file_sha256_changed"
-        ), None, None, None)
+        return ({
+            **_stale_identity_result("candidate_file_sha256_changed"),
+            "candidate_reverification_selection_reason": selection_reason,
+        }, None, None, None)
     body = bytes(record.get("body") or b"")
     validation = research.inspect_mtf_document(
         url, str(record.get("content_type") or ""), body
@@ -2402,9 +2543,10 @@ def _open_candidate_for_reverification(
         or _document_id_from_value(validation.get("canonical_url")) != document_id
         or _document_id_from_value(validation.get("declared_canonical_url")) != document_id
     ):
-        return (_stale_identity_result(
-            "candidate_mtf_document_identity_changed"
-        ), None, None, None)
+        return ({
+            **_stale_identity_result("candidate_mtf_document_identity_changed"),
+            "candidate_reverification_selection_reason": selection_reason,
+        }, None, None, None)
     extraction = research.extract_page_text({
         **record,
         "mtf_document_validation": validation,
@@ -2415,6 +2557,7 @@ def _open_candidate_for_reverification(
         "candidate_evidence_identity_reason": (
             "recorded MTF document identity and exact local file SHA-256 still match"
         ),
+        "candidate_reverification_selection_reason": selection_reason,
     }, record, validation, extraction)
 
 

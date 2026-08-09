@@ -38,16 +38,20 @@ python3 historical_context_local_corpus_reaudit.py \
 
 This mode reads current authoritative historical inputs, but does not prepare
 search queries, build an index, run archive discovery across the 611
-quotations, or inventory the whole archive. For every candidate selected by the
-existing positive/admission/advisory predicate, it reopens only the recorded
-local MTF document, verifies the document identity and exact local-file
-SHA-256, extracts the current text, and freshly reruns contribution-aware
-matching and source classification. The previous match type, passage, speaker,
-classification, acceptance, and confidence are retained only as recorded
-discovery history and cannot support a new proposal. An unchanged file remains
-identity-valid even when the fresh rematch rejects its wording or speaker;
-changed or missing files alone are marked stale. Unselected candidates do not
-retain positive proposals from their old semantic fields.
+quotations, or inventory the whole archive. It selects candidates through the
+existing positive/admission/advisory predicate and also selects an old
+exact/recorded-variant primary-wording candidate when it retains a numeric MTF
+document ID, an agreeing canonical MTF URL, a valid recorded local-file SHA-256,
+and a non-empty supporting passage. For each selected candidate it reopens only
+the recorded local MTF document, verifies the document identity and exact
+local-file SHA-256, extracts the current text, and freshly reruns
+contribution-aware matching and source classification. The previous match type,
+passage, speaker, classification, acceptance, and confidence are retained only
+as recorded discovery history and cannot decide the fresh result. In
+particular, an old negative speaker verdict does not veto fresh rematching. An
+unchanged file remains identity-valid even when the fresh rematch rejects its
+wording or speaker; changed or missing files alone are marked stale. Unselected
+candidates do not retain positive proposals from their old semantic fields.
 
 Optional historical metadata uses conservative missing-value semantics.
 Case-, spacing-, and punctuation-normalised forms such as `unknown`, `not
@@ -69,17 +73,22 @@ variant evidence. Original packet values remain available in provenance.
 
 Transcript segmentation retains each block's source tag. Explicit role labels
 such as `Question`, `Interviewer`, `Prime Minister`, and `Mrs Thatcher` remain
-speaker boundaries. A titled personal name or name-plus-outlet is recognised
-only in a paragraph/colon transcript structure; arbitrary title-case phrases
-and short all-capital text are not person labels. Ordinary `h2`/`h3` section
-headings never change the active speaker, and a personal name in `h2`/`h3`
-does not establish authorship. This prevents interviewer repetitions from
-inheriting a Thatcher speaker label while preserving explicit document
-authorship across article and speech section headings. Fresh matching first
-selects exact or authorised-variant support inside a verified Thatcher
-contribution; only when none exists does a stronger interviewer or unverified
-occurrence become the diagnostic result. Cross-speaker clause assembly remains
-rejected.
+speaker boundaries. A titled personal name or name-plus-outlet remains
+recognisable in paragraph/colon transcript structure. An untitled two-to-four
+token personal name, optionally followed by a parenthesised outlet, becomes an
+interviewer boundary only at a paragraph/list/blockquote contribution boundary
+when recognised transcript roles and label/text alternation establish the
+context; repeated contextual labels are supporting evidence. Short uppercase
+interviewer initials require alternation with an explicit Thatcher label.
+Arbitrary title-case phrases, policy headings, acronyms, and short all-capital
+text are not person labels. Ordinary `h2`/`h3` section headings never change the
+active speaker, and a personal name in `h2`/`h3` does not establish authorship.
+This prevents interviewer repetitions from inheriting a Thatcher speaker label
+while preserving explicit document authorship across article and speech
+section headings. Fresh matching first selects exact or authorised-variant
+support inside a verified Thatcher contribution; only when none exists does a
+stronger interviewer or unverified occurrence become the diagnostic result.
+Cross-speaker clause assembly remains rejected.
 
 The source inventory may remain unstable: only freshly accepted candidates
 retain positive evidential value, while negative/no-hit conclusions remain

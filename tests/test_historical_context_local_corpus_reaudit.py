@@ -353,6 +353,82 @@ def test_named_interviewer_quotation_is_not_thatcher_speech(
     )
 
 
+def test_hugo_young_and_prime_minister_alternate_as_speakers() -> None:
+    question = "Why should the public accept that argument?"
+    answer = "Because freedom depends on individual responsibility."
+    body = html(
+        "103384",
+        f"<p>Hugo Young</p><p>{question}</p>"
+        f"<p>Prime Minister</p><p>{answer}</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    question_segment = next(
+        row for row in segmentation["segments"] if question in row["text"]
+    )
+    answer_segment = next(
+        row for row in segmentation["segments"] if answer in row["text"]
+    )
+    assert question_segment["speaker_label"] == "Hugo Young"
+    assert question_segment["speaker_class"] == "other"
+    assert answer_segment["speaker_label"] == "Prime Minister"
+    assert answer_segment["speaker_class"] == "thatcher"
+
+
+def test_hy_and_mt_alternate_as_speakers() -> None:
+    question = "Would you change course now?"
+    answer = "No, the principle remains sound."
+    body = html(
+        "103384",
+        f"<p>HY</p><p>{question}</p><p>MT</p><p>{answer}</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        target(question), extraction, body, validation
+    )
+    assert match["match_type"] == "exact_quotation"
+    assert speaker["speaker_label"] == "HY"
+    assert speaker["speaker_class"] == "other"
+    assert speaker["verified"] is False
+
+
+def test_parenthesised_interviewer_outlet_is_not_thatcher_speech() -> None:
+    quotation = "Is that really the choice before the country?"
+    body = html(
+        "103384",
+        f"<p>Diane Sawyer (CBS Morning News)</p><p>{quotation}</p>"
+        "<p>Prime Minister</p><p>Yes, that is the central choice.</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    fields = reaudit._fresh_semantic_fields(
+        classification_target(quotation),
+        url="https://www.margaretthatcher.org/document/103384",
+        body=body,
+        validation=validation,
+        extraction=extraction,
+        reverified=True,
+    )
+    assert fields["speaker_author_evidence"]["speaker_label"] == (
+        "Diane Sawyer (CBS Morning News)"
+    )
+    assert fields["speaker_author_evidence"]["speaker_class"] == "other"
+    assert fields["accepted_as_primary_evidence"] is False
+
+
 def test_standalone_prime_minister_contribution_is_accepted() -> None:
     quotation = "Freedom cannot be divided."
     body = html(
@@ -442,6 +518,24 @@ def test_name_in_h2_does_not_attribute_commentary_to_thatcher() -> None:
     assert speaker["labels_detected"] is False
 
 
+@pytest.mark.parametrize(
+    ("tag", "heading"), [("h2", "Interviewer"), ("h3", "Prime Minister")]
+)
+def test_structural_headings_never_establish_speaker_identity(
+    tag: str, heading: str
+) -> None:
+    quotation = "Freedom cannot be divided."
+    body = html(
+        "103384", f"<{tag}>{heading}</{tag}><p>{quotation}</p>"
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["labels_detected"] is False
+    assert segmentation["segments"][0]["speaker_class"] == "thatcher"
+
+
 def test_ordinary_phrases_are_not_person_labels() -> None:
     body = html(
         "103384",
@@ -454,6 +548,61 @@ def test_ordinary_phrases_are_not_person_labels() -> None:
     segmentation = reaudit.speaker_segments(body, validation)
     assert segmentation["labels_detected"] is False
     assert segmentation["segments"][0]["speaker_class"] == "thatcher"
+
+
+def test_standalone_person_name_in_ordinary_prose_is_not_a_label() -> None:
+    body = html(
+        "103384",
+        "<p>Hugo Young</p><p>His article then turns to economic policy.</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["labels_detected"] is False
+    assert segmentation["segments"][0]["speaker_class"] == "thatcher"
+
+
+@pytest.mark.parametrize(
+    "phrase", ["Income Tax", "Economic Policy", "ELECTION ISSUES", "UK"]
+)
+def test_policy_phrases_and_acronyms_are_not_contextual_speaker_labels(
+    phrase: str,
+) -> None:
+    body = html(
+        "103384",
+        f"<p>{phrase}</p><p>Introductory section text.</p>"
+        "<p>Prime Minister</p><p>The answer concerns a different matter.</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert phrase not in {
+        row["speaker_label"] for row in segmentation["segments"]
+    }
+
+
+def test_named_interviewer_exactness_does_not_beat_thatcher_wording() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html(
+        "103384",
+        f"<p>Hugo Young</p><p>{quotation}</p>"
+        f"<p>Prime Minister</p><p>{quotation}</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        target(quotation), extraction, body, validation
+    )
+    assert match["match_type"] == "exact_quotation"
+    assert speaker["verified"] is True
+    assert speaker["speaker_label"] == "Prime Minister"
 
 
 def test_thatcher_variant_beats_interviewer_exact_wording() -> None:
@@ -1114,11 +1263,15 @@ def test_candidate_json_does_not_contain_mirror_root(tmp_path: Path) -> None:
     assert candidate["actual_regular_file_verified"] is True
 
 
-def prepare_reclassification_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
+def prepare_reclassification_case(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    quotation: str = "Political myths cherished by commentators die hard.",
+) -> dict:
     project = tmp_path / "project"
     project.mkdir()
     archive = mirror_root(tmp_path)
-    quotation = "Political myths cherished by commentators die hard."
     document_path = write_document(root=archive, document_id="103384", article=f"<p>{quotation}</p>")
     synthetic = {
         **classification_target(quotation),
@@ -1247,6 +1400,9 @@ def test_reclassification_accepts_valid_file_passage_and_hash(
     assert candidate["candidate_semantic_reverification_status"] == (
         "reverified_accepted"
     )
+    assert candidate["candidate_reverification_selection_reason"] == (
+        "existing_admission_or_advisory_signal"
+    )
     assert candidate["candidate_document_rematched_without_discovery"] is True
     assert all(
         path.stat().st_mode & 0o777 == 0o600
@@ -1268,6 +1424,9 @@ def test_advisory_selected_old_negative_counts_as_fresh_positive(
     )
     candidate = reclassified_candidate(case)
     assert candidate["recorded_accepted_as_primary_evidence"] is False
+    assert candidate["candidate_reverification_selection_reason"] == (
+        "existing_admission_or_advisory_signal"
+    )
     assert candidate["candidate_semantic_reverification_status"] == (
         "reverified_accepted"
     )
@@ -1363,7 +1522,7 @@ def test_identity_valid_recorded_positive_can_be_semantically_rejected(
     assert summary["candidate_semantic_reverification_rejected_count"] == 1
 
 
-def test_unselected_candidate_cannot_retain_old_positive_proposal(
+def test_old_no_support_candidate_remains_unselected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     case = prepare_reclassification_case(tmp_path, monkeypatch)
@@ -1371,7 +1530,9 @@ def test_unselected_candidate_cannot_retain_old_positive_proposal(
         case,
         accepted_as_primary_evidence=False,
         proposed_unblock=False,
-        candidate_classification="strong_primary_evidence",
+        raw_match_type="none",
+        match_type="no support",
+        candidate_classification="no_support",
         proposed_change_category=[reaudit.CATEGORY_NO_CHANGE],
     )
     reaudit.reclassify_existing(case["project"], case["source"], case["output"])
@@ -1382,8 +1543,192 @@ def test_unselected_candidate_cannot_retain_old_positive_proposal(
     assert candidate["candidate_semantic_reverification_status"] == (
         "not_selected_for_reverification"
     )
+    assert candidate["candidate_reverification_selection_reason"] == (
+        "not_selected_no_reverification_signal"
+    )
     assert candidate["accepted_as_primary_evidence"] is False
     assert candidate["proposed_change_category"] == [reaudit.CATEGORY_NO_CHANGE]
+
+
+def test_old_exact_candidate_without_supporting_passage_remains_unselected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    update_source_candidate(
+        case,
+        accepted_as_primary_evidence=False,
+        proposed_unblock=False,
+        raw_match_type="exact_quotation",
+        match_type="exact quotation",
+        candidate_classification="strong_primary_evidence",
+        supporting_passage="",
+        proposed_change_category=[reaudit.CATEGORY_NO_CHANGE],
+    )
+    reaudit.reclassify_existing(case["project"], case["source"], case["output"])
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_identity_status"] == (
+        "not_selected_for_revalidation"
+    )
+    assert candidate["candidate_reverification_selection_reason"] == (
+        "not_selected_no_reverification_signal"
+    )
+
+
+def test_old_exact_candidate_with_disagreeing_url_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    update_source_candidate(
+        case,
+        accepted_as_primary_evidence=False,
+        proposed_unblock=False,
+        raw_match_type="exact_quotation",
+        match_type="exact quotation",
+        candidate_classification="strong_primary_evidence",
+        canonical_public_url="https://www.margaretthatcher.org/document/999999",
+        proposed_change_category=[reaudit.CATEGORY_NO_CHANGE],
+    )
+    reaudit.reclassify_existing(case["project"], case["source"], case["output"])
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_identity_status"] == (
+        "not_selected_for_revalidation"
+    )
+    assert candidate["candidate_reverification_selection_reason"] == (
+        "not_selected_no_reverification_signal"
+    )
+
+
+@pytest.mark.parametrize(
+    "wording_signal",
+    [
+        {"raw_match_type": "exact_quotation"},
+        {"raw_match_type": "recorded_variant"},
+        {"match_type": "exact quotation"},
+        {"match_type": "recorded variant"},
+        {"candidate_classification": "strong_primary_evidence"},
+    ],
+)
+def test_each_retained_primary_wording_signal_selects_valid_identity_shape(
+    wording_signal: dict[str, str],
+) -> None:
+    candidate = {
+        "candidate_mtf_document_id": "103384",
+        "canonical_public_url": (
+            "https://www.margaretthatcher.org/document/103384"
+        ),
+        "local_file_sha256": "a" * 64,
+        "supporting_passage": "Retained primary wording.",
+        "accepted_as_primary_evidence": False,
+        "proposed_unblock": False,
+        "proposed_change_category": [reaudit.CATEGORY_NO_CHANGE],
+        **wording_signal,
+    }
+    assert reaudit._candidate_reverification_selection_reason(candidate) == (
+        "recorded_primary_wording_signal"
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw_match_type", "match_type"),
+    [
+        ("distinctive_fragment_only", "partial/assembled wording"),
+        ("near_exact_variant", "similar sentiment only"),
+        ("assembled_clauses", "partial/assembled wording"),
+        ("none", "no support"),
+    ],
+)
+def test_non_primary_wording_shapes_do_not_select_reverification(
+    raw_match_type: str, match_type: str
+) -> None:
+    candidate = {
+        "candidate_mtf_document_id": "103384",
+        "canonical_public_url": (
+            "https://www.margaretthatcher.org/document/103384"
+        ),
+        "local_file_sha256": "a" * 64,
+        "supporting_passage": "Only non-primary wording support.",
+        "raw_match_type": raw_match_type,
+        "match_type": match_type,
+        "candidate_classification": "no_support",
+        "accepted_as_primary_evidence": False,
+        "proposed_unblock": False,
+        "proposed_change_category": [reaudit.CATEGORY_NO_CHANGE],
+    }
+    assert reaudit._candidate_reverification_selection_reason(candidate) == (
+        "not_selected_no_reverification_signal"
+    )
+
+
+def test_recorded_primary_wording_false_negative_is_freshly_reverified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    quotation = "the exact quotation"
+    old_speaker_label = "So just let me plunge in quickly"
+    case = prepare_reclassification_case(
+        tmp_path, monkeypatch, quotation=quotation
+    )
+    case["document_path"].write_bytes(html(
+        "103384",
+        f"<p>{old_speaker_label}</p><p>{quotation}</p>",
+    ))
+    update_source_candidate(
+        case,
+        accepted_as_primary_evidence=False,
+        proposed_unblock=False,
+        raw_match_type="exact_quotation",
+        match_type="exact quotation",
+        candidate_classification="strong_primary_evidence",
+        proposed_change_category=[reaudit.CATEGORY_NO_CHANGE],
+        supporting_passage=quotation,
+        local_file_sha256=reaudit.file_sha256(case["document_path"]),
+        speaker_author_evidence={
+            "speaker_label": old_speaker_label,
+            "verified": False,
+        },
+    )
+    source_snapshot = reaudit._source_run_snapshot(case["source"])
+
+    def unexpected_discovery(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("search/index discovery must not run")
+
+    def unexpected_inventory(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("archive inventory must not be scanned")
+
+    monkeypatch.setattr(LocalMTFDocumentIndex, "discover", unexpected_discovery)
+    monkeypatch.setattr(LocalArchiveMirror, "inventory", unexpected_inventory)
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    candidate = reclassified_candidate(case)
+
+    assert candidate["candidate_reverification_selection_reason"] == (
+        "recorded_primary_wording_signal"
+    )
+    assert candidate["candidate_evidence_identity_status"] == "valid"
+    assert candidate["speaker_author_evidence"]["labels_detected"] is False
+    assert candidate["speaker_author_evidence"]["evidence_basis"] == (
+        "explicit_document_author"
+    )
+    assert candidate["raw_match_type"] == "exact_quotation"
+    assert reaudit.word_tokens(candidate["supporting_passage"]) == (
+        reaudit.word_tokens(quotation)
+    )
+    assert candidate["candidate_semantic_reverification_status"] == (
+        "reverified_accepted"
+    )
+    assert candidate["accepted_as_primary_evidence"] is True
+    assert candidate["candidate_document_rematched_without_discovery"] is True
+    assert candidate["recorded_accepted_as_primary_evidence"] is False
+    assert candidate["recorded_semantic_history"]["speaker_author_evidence"] == {
+        "speaker_label": old_speaker_label,
+        "verified": False,
+    }
+    assert summary["recorded_positive_candidates_remaining_valid"] == 0
+    assert summary["reverified_positive_candidate_count"] == 1
+    assert summary["positive_candidates_remaining_valid"] == 1
+    assert summary["search_index_discovery_call_count"] == 0
+    assert summary["archive_inventory_rescan_performed"] is False
+    assert reaudit._source_run_snapshot(case["source"]) == source_snapshot
 
 
 @pytest.mark.parametrize("change", ["changed", "missing"])
