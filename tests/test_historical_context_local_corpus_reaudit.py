@@ -102,13 +102,13 @@ def current_claim(
             f"Margaret Thatcher Foundation Document {document_id}"
             if document_id else ""
         ),
-        "current_occurrence_mtf_document_ids": (
+        "current_occurrence_direct_mtf_document_ids": (
             [document_id] if document_id else []
         ),
-        "known_evidence_mtf_document_ids": (
+        "known_evidence_direct_mtf_document_ids": (
             [document_id] if document_id else []
         ),
-        "direct_mtf_public_urls": (
+        "known_evidence_direct_mtf_public_urls": (
             [f"https://www.margaretthatcher.org/document/{document_id}"]
             if document_id else []
         ),
@@ -242,6 +242,57 @@ def test_zero_lexical_overlap_cannot_be_recorded_variant_evidence() -> None:
     assert filtered["lexically_unrelated_variant_rejection_count"] == 1
 
 
+def test_one_shared_content_word_does_not_authorise_long_variant() -> None:
+    filtered = reaudit._semantic_match_target(classification_target(
+        "Enterprise flourishes when taxation falls and individual choice expands.",
+        variants=[
+            "Diplomatic negotiations continued through winter while regional taxation records were archived."
+        ],
+    ))
+    assert filtered["recorded_variants"] == []
+    diagnostic = filtered["variant_relationship_diagnostics"][0]
+    assert diagnostic["reason"] == "fewer_than_two_shared_content_tokens"
+    assert diagnostic["shared_content_token_count"] == 1
+
+
+def test_two_shared_words_with_negligible_long_overlap_are_rejected() -> None:
+    filtered = reaudit._semantic_match_target(classification_target(
+        "Freedom and enterprise require courage responsibility incentives markets choice opportunity prosperity and national renewal.",
+        variants=[
+            "A lengthy diplomatic memorandum discusses freedom enterprise treaties borders committees ambassadors negotiations security alliances and protocol."
+        ],
+    ))
+    assert filtered["recorded_variants"] == []
+    diagnostic = filtered["variant_relationship_diagnostics"][0]
+    assert diagnostic["shared_content_token_count"] == 2
+    assert diagnostic["content_overlap"] < diagnostic["minimum_content_overlap"]
+
+
+def test_contraction_and_punctuation_variant_is_authorised() -> None:
+    variant = "Freedom can't endure unless we defend individual responsibility!"
+    filtered = reaudit._semantic_match_target(classification_target(
+        "Freedom cannot endure unless we defend individual responsibility.",
+        variants=[variant],
+    ))
+    assert filtered["recorded_variants"] == [variant]
+    assert filtered["variant_relationship_diagnostics"][0]["accepted"] is True
+
+
+def test_substantive_variant_with_strong_token_overlap_is_authorised() -> None:
+    variant = (
+        "We should reduce excessive taxation so enterprise can create greater "
+        "prosperity across Britain."
+    )
+    filtered = reaudit._semantic_match_target(classification_target(
+        "We must reduce taxation so that enterprise can create prosperity throughout Britain.",
+        variants=[variant],
+    ))
+    assert filtered["recorded_variants"] == [variant]
+    diagnostic = filtered["variant_relationship_diagnostics"][0]
+    assert diagnostic["shared_content_token_count"] >= 2
+    assert diagnostic["word_sequence_similarity"] >= 0.5
+
+
 def test_zero_wording_similarity_cannot_support_primary_variant() -> None:
     quotation = "Freedom cannot be divided."
     candidate = {
@@ -334,6 +385,169 @@ def test_standalone_prime_minister_contribution_is_accepted() -> None:
     assert fields["candidate_semantic_reverification_status"] == (
         "reverified_accepted"
     )
+
+
+def test_thatcher_article_section_heading_preserves_document_authorship() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html("103384", f"<h2>Economic Policy</h2><p>{quotation}</p>")
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        target(quotation), extraction, body, validation
+    )
+    assert match["match_type"] == "exact_quotation"
+    assert speaker["verified"] is True
+    assert speaker["evidence_basis"] == "explicit_document_author"
+    assert speaker["labels_detected"] is False
+
+
+def test_all_capital_and_ordinary_article_headings_preserve_authorship() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html(
+        "103384",
+        "<h2>ELECTION ISSUES</h2><p>Opening discussion.</p>"
+        f"<h3>Income Tax</h3><p>{quotation}</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["labels_detected"] is False
+    assert segmentation["segments"][0]["speaker_class"] == "thatcher"
+
+
+def test_name_in_h2_does_not_attribute_commentary_to_thatcher() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html(
+        "103384", f"<h2>Margaret Thatcher</h2><p>{quotation}</p>",
+        author="Independent Commentator",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        target(quotation), extraction, body, validation
+    )
+    assert match["match_type"] == "exact_quotation"
+    assert speaker["verified"] is False
+    assert speaker["labels_detected"] is False
+
+
+def test_ordinary_phrases_are_not_person_labels() -> None:
+    body = html(
+        "103384",
+        "<p>So just let me plunge in quickly</p><p>Income Tax</p>"
+        "<p>Freedom cannot be divided.</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["labels_detected"] is False
+    assert segmentation["segments"][0]["speaker_class"] == "thatcher"
+
+
+def test_thatcher_variant_beats_interviewer_exact_wording() -> None:
+    quotation = (
+        "Freedom cannot endure unless we defend individual responsibility."
+    )
+    variant = "Freedom can't endure unless we defend individual responsibility."
+    body = html(
+        "103384",
+        f"<p>Interviewer</p><p>{quotation}</p>"
+        f"<p>Prime Minister</p><p>{variant}</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        classification_target(quotation, variants=[variant]),
+        extraction,
+        body,
+        validation,
+    )
+    assert match["match_type"] == "recorded_variant"
+    assert reaudit.word_tokens(match["supporting_passage"]) == (
+        reaudit.word_tokens(variant)
+    )
+    assert match["stronger_non_thatcher_occurrence"]["match_type"] == (
+        "exact_quotation"
+    )
+    assert speaker["verified"] is True
+    fields = reaudit._fresh_semantic_fields(
+        classification_target(quotation, variants=[variant]),
+        url="https://www.margaretthatcher.org/document/103384",
+        body=body,
+        validation=validation,
+        extraction=extraction,
+        reverified=True,
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_interviewer_exact_without_thatcher_support_is_rejected_for_speaker() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html(
+        "103384",
+        f"<p>Interviewer</p><p>{quotation}</p>"
+        "<p>Prime Minister</p><p>I would answer a different question.</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    fields = reaudit._fresh_semantic_fields(
+        classification_target(quotation),
+        url="https://www.margaretthatcher.org/document/103384",
+        body=body,
+        validation=validation,
+        extraction=extraction,
+        reverified=True,
+    )
+    assert fields["match_type"] == "exact quotation"
+    assert fields["speaker_author_evidence"]["speaker_class"] == "other"
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_speaker"
+    )
+
+
+def test_thatcher_exact_is_preferred_when_both_speakers_repeat_wording() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html(
+        "103384",
+        f"<p>Interviewer</p><p>{quotation}</p>"
+        f"<p>Prime Minister</p><p>{quotation}</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        target(quotation), extraction, body, validation
+    )
+    assert match["match_type"] == "exact_quotation"
+    assert speaker["verified"] is True
+    assert speaker["speaker_label"] == "Prime Minister"
 
 
 def test_normal_prose_beginning_with_person_name_is_not_a_heading() -> None:
@@ -469,9 +683,9 @@ def test_wording_correction_requires_same_current_source_identity() -> None:
         "source_event": "Speech to a Conservative audience",
         "date": "1980-01-26",
         "stable_locator": "Margaret Thatcher Foundation Document 100000",
-        "current_occurrence_mtf_document_ids": ["100000"],
-        "known_evidence_mtf_document_ids": ["100000"],
-        "direct_mtf_public_urls": [
+        "current_occurrence_direct_mtf_document_ids": ["100000"],
+        "known_evidence_direct_mtf_document_ids": ["100000"],
+        "known_evidence_direct_mtf_public_urls": [
             "https://www.margaretthatcher.org/document/100000"
         ],
         "independently_inspected_mtf_document_ids": [],
@@ -525,8 +739,10 @@ def test_known_evidence_id_does_not_become_current_occurrence_identity() -> None
         },
     }
     current = reaudit.current_values(target)
-    assert current["current_occurrence_mtf_document_ids"] == ["100000"]
-    assert current["known_evidence_mtf_document_ids"] == ["100000", "200000"]
+    assert current["current_occurrence_direct_mtf_document_ids"] == ["100000"]
+    assert current["known_evidence_direct_mtf_document_ids"] == [
+        "100000", "200000"
+    ]
 
     categories, proposed, _unblock, _reason = reaudit.classify_changes(
         target, primary_candidate(quotation), current
@@ -535,6 +751,49 @@ def test_known_evidence_id_does_not_become_current_occurrence_identity() -> None
     assert reaudit.CATEGORY_DATE_CORRECTION not in categories
     assert reaudit.CATEGORY_EVENT_CORRECTION not in categories
     assert "date" not in proposed
+    assert "source_event" not in proposed
+
+
+def test_model_proposed_same_day_document_cannot_correct_current_occurrence() -> None:
+    quotation = "Freedom cannot be divided."
+    target = {
+        **classification_target(quotation),
+        "current_packet": {
+            "quote_text": quotation,
+            "verified_text": quotation,
+            "speaker": "Margaret Thatcher",
+            "source_event": "Election-eve speech",
+            "date": "1979-05-02",
+            "stable_locator": "Margaret Thatcher Foundation Document 100000",
+        },
+        "current_source_role": {
+            "model_proposed_source_leads": [{
+                "canonical_url": (
+                    "https://www.margaretthatcher.org/document/200000"
+                ),
+                "source_date": "1979-05-02",
+                "source_event": "Daily Telegraph article",
+            }],
+        },
+    }
+    current = reaudit.current_values(target)
+    candidate = primary_candidate(
+        quotation,
+        document_id="200000",
+        date="1979-05-02",
+        event="Daily Telegraph article",
+    )
+    assert current["current_occurrence_direct_mtf_document_ids"] == ["100000"]
+    assert current["known_evidence_direct_mtf_document_ids"] == [
+        "100000", "200000"
+    ]
+    assert reaudit._occurrence_relation(candidate, current) != (
+        "same_current_occurrence"
+    )
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        target, candidate, current
+    )
+    assert reaudit.CATEGORY_EVENT_CORRECTION not in categories
     assert "source_event" not in proposed
 
 
@@ -598,7 +857,7 @@ def test_placeholder_date_event_and_locator_are_missing_for_classification() -> 
     assert values["date"] == ""
     assert values["source_event"] == ""
     assert values["stable_locator"] == ""
-    assert values["current_occurrence_mtf_document_ids"] == []
+    assert values["current_occurrence_direct_mtf_document_ids"] == []
     assert values["original_packet_values"]["date"] == "Unknown"
     categories, proposed, _unblock, _reason = reaudit.classify_changes(
         classification_target(quotation),
@@ -664,15 +923,26 @@ def test_same_date_hc_title_variants_are_same_occurrence(
 
 def test_known_same_date_daily_telegraph_document_refines_source() -> None:
     quotation = "Freedom cannot be divided."
-    current = current_claim(
-        quotation,
-        document_id="100000",
-        date="1979-05-02",
-        event="Election-eve speech",
-    )
-    current["direct_mtf_public_urls"].append(
-        "https://www.margaretthatcher.org/document/200000"
-    )
+    target = {
+        **classification_target(quotation),
+        "current_packet": {
+            "quote_text": quotation,
+            "verified_text": quotation,
+            "speaker": "Margaret Thatcher",
+            "source_event": "Election-eve speech",
+            "date": "1979-05-02",
+            "stable_locator": "Margaret Thatcher Foundation Document 100000",
+        },
+        "current_source_role": {
+            "renderable_sources": [{
+                "canonical_url": (
+                    "https://www.margaretthatcher.org/document/200000"
+                ),
+                "source_date": "1979-05-02",
+            }],
+        },
+    }
+    current = reaudit.current_values(target)
     candidate = primary_candidate(
         quotation,
         document_id="200000",
@@ -680,7 +950,7 @@ def test_known_same_date_daily_telegraph_document_refines_source() -> None:
         event="Daily Telegraph article",
     )
     categories, proposed, _unblock, _reason = reaudit.classify_changes(
-        classification_target(quotation), candidate, current
+        target, candidate, current
     )
     assert reaudit.CATEGORY_EVENT_CORRECTION in categories
     assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE not in categories
@@ -963,6 +1233,7 @@ def test_reclassification_accepts_valid_file_passage_and_hash(
     assert summary["candidate_identity_valid_count"] == 1
     assert summary["stale_candidate_count"] == 0
     assert summary["positive_candidates_remaining_valid"] == 1
+    assert summary["recorded_positive_candidates_remaining_valid"] == 1
     assert summary["candidate_semantic_reverification_required_count"] == 1
     assert summary["candidate_semantic_reverified_count"] == 1
     assert summary["candidate_semantic_reverification_accepted_count"] == 1
@@ -981,6 +1252,28 @@ def test_reclassification_accepts_valid_file_passage_and_hash(
         path.stat().st_mode & 0o777 == 0o600
         for path in case["output"].iterdir()
     )
+
+
+def test_advisory_selected_old_negative_counts_as_fresh_positive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    update_source_candidate(
+        case,
+        accepted_as_primary_evidence=False,
+        proposed_change_category=[reaudit.CATEGORY_STRONGER_EVIDENCE],
+    )
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    candidate = reclassified_candidate(case)
+    assert candidate["recorded_accepted_as_primary_evidence"] is False
+    assert candidate["candidate_semantic_reverification_status"] == (
+        "reverified_accepted"
+    )
+    assert summary["recorded_positive_candidates_remaining_valid"] == 0
+    assert summary["reverified_positive_candidate_count"] == 1
+    assert summary["positive_candidates_remaining_valid"] == 1
 
 
 def test_reclassification_ignores_altered_recorded_passage_and_rematches(

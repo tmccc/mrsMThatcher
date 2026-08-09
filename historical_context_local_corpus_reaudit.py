@@ -18,6 +18,7 @@ import re
 import socket
 import subprocess
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -53,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v3"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v4"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -181,48 +182,172 @@ def _optional_historical_text(value: Any) -> str:
     return "" if not text or is_placeholder_text(text) else text
 
 
-def _variant_has_lexical_relationship(quotation: str, variant: str) -> bool:
-    """Require at least one shared content token for an authorised variant."""
-    quotation_tokens = set(word_tokens(quotation))
-    variant_tokens = set(word_tokens(variant))
-    if not quotation_tokens or not variant_tokens:
+def _reviewed_non_substantive_variant(
+    quotation: str,
+    variant: str,
+    record: Mapping[str, Any] | None,
+) -> bool:
+    """Recognise only provenance-bound transformations with deterministic text."""
+    if not isinstance(record, Mapping) or record.get("substantive") is not False:
         return False
-    quotation_content = quotation_tokens - _NON_MEANINGFUL_VARIANT_TOKENS
-    variant_content = variant_tokens - _NON_MEANINGFUL_VARIANT_TOKENS
-    if quotation_content and variant_content:
-        return bool(quotation_content & variant_content)
-    return bool(quotation_tokens & variant_tokens)
+    provenance = record.get("variant_provenance")
+    if not isinstance(provenance, Mapping) or not str(provenance.get("path") or ""):
+        return False
+    transformation = str(record.get("transformation_type") or "")
+    if transformation == "typography_or_punctuation_normalisation":
+        return word_tokens(quotation) == word_tokens(variant)
+    if transformation == "editorial_bracket_removal":
+        without_brackets = re.sub(r"\[[^\[\]]{1,120}\]", "", quotation)
+        return word_tokens(without_brackets) == word_tokens(variant)
+    return False
+
+
+def _variant_relationship_diagnostics(
+    quotation: str,
+    variant: str,
+    record: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return one deterministic, length-sensitive variant relationship result."""
+    quotation_tokens = word_tokens(quotation)
+    variant_tokens = word_tokens(variant)
+    quotation_content = {
+        token for token in quotation_tokens
+        if token not in _NON_MEANINGFUL_VARIANT_TOKENS
+    }
+    variant_content = {
+        token for token in variant_tokens
+        if token not in _NON_MEANINGFUL_VARIANT_TOKENS
+    }
+    shared_content = sorted(quotation_content & variant_content)
+    maximum_content_count = max(len(quotation_content), len(variant_content))
+    content_overlap = (
+        len(shared_content) / maximum_content_count
+        if maximum_content_count else 0.0
+    )
+    sequence_similarity = (
+        SequenceMatcher(
+            a=quotation_tokens, b=variant_tokens, autojunk=False
+        ).ratio()
+        if quotation_tokens and variant_tokens else 0.0
+    )
+    short_wording = maximum_content_count <= 4
+    minimum_content_overlap = 2 / 3 if short_wording else 0.40
+    minimum_sequence_similarity = 0.65 if short_wording else 0.50
+    normalised_identity = bool(
+        quotation_tokens and quotation_tokens == variant_tokens
+    )
+    reviewed_non_substantive = bool(
+        sequence_similarity >= 0.50
+        and _reviewed_non_substantive_variant(quotation, variant, record)
+    )
+    ordinary_overlap = bool(
+        len(shared_content) >= 2
+        and content_overlap >= minimum_content_overlap
+        and sequence_similarity >= minimum_sequence_similarity
+    )
+    accepted = normalised_identity or reviewed_non_substantive or ordinary_overlap
+    if normalised_identity:
+        reason = "normalised_wording_identity"
+    elif reviewed_non_substantive:
+        reason = "reviewed_non_substantive_transformation"
+    elif len(shared_content) < 2:
+        reason = "fewer_than_two_shared_content_tokens"
+    elif content_overlap < minimum_content_overlap:
+        reason = "content_overlap_below_length_sensitive_threshold"
+    elif sequence_similarity < minimum_sequence_similarity:
+        reason = "word_sequence_similarity_below_length_sensitive_threshold"
+    else:
+        reason = "meaningful_overlap_accepted"
+    return {
+        "accepted": accepted,
+        "reason": reason,
+        "quotation_token_count": len(quotation_tokens),
+        "variant_token_count": len(variant_tokens),
+        "quotation_content_token_count": len(quotation_content),
+        "variant_content_token_count": len(variant_content),
+        "shared_content_token_count": len(shared_content),
+        "shared_content_tokens": shared_content,
+        "content_overlap": round(content_overlap, 6),
+        "minimum_content_overlap": round(minimum_content_overlap, 6),
+        "word_sequence_similarity": round(sequence_similarity, 6),
+        "minimum_word_sequence_similarity": minimum_sequence_similarity,
+        "short_wording_rule_applied": short_wording,
+        "reviewed_non_substantive_transformation": reviewed_non_substantive,
+    }
+
+
+def _variant_has_lexical_relationship(
+    quotation: str,
+    variant: str,
+    record: Mapping[str, Any] | None = None,
+) -> bool:
+    """Return whether the shared variant relationship rule accepts the wording."""
+    return bool(
+        _variant_relationship_diagnostics(quotation, variant, record)["accepted"]
+    )
 
 
 def _filter_authorised_variants(
-    quotation: str, variants: Iterable[Any]
-) -> tuple[list[str], int, int]:
+    quotation: str,
+    variants: Iterable[Any],
+    records: Iterable[Any] = (),
+) -> tuple[list[str], int, int, list[dict[str, Any]]]:
     accepted: list[str] = []
     placeholder_rejections = 0
     lexical_rejections = 0
+    diagnostics: list[dict[str, Any]] = []
+    records_by_value = {
+        " ".join(str(row.get("search_variant") or "").split()): row
+        for row in records
+        if isinstance(row, Mapping)
+    }
     for raw in variants:
-        value = " ".join(str(raw or "").split())
+        record = raw if isinstance(raw, Mapping) else records_by_value.get(
+            " ".join(str(raw or "").split())
+        )
+        value = " ".join(str(
+            raw.get("search_variant") if isinstance(raw, Mapping) else raw or ""
+        ).split())
         if not value:
             continue
         if is_placeholder_text(value):
             placeholder_rejections += 1
+            diagnostics.append({
+                "variant": value,
+                "accepted": False,
+                "reason": "placeholder_variant",
+            })
             continue
-        if not _variant_has_lexical_relationship(quotation, value):
+        relationship = _variant_relationship_diagnostics(
+            quotation, value, record if isinstance(record, Mapping) else None
+        )
+        diagnostics.append({"variant": value, **relationship})
+        if not relationship["accepted"]:
             lexical_rejections += 1
             continue
         if value not in accepted:
             accepted.append(value)
-    return accepted, placeholder_rejections, lexical_rejections
+    return accepted, placeholder_rejections, lexical_rejections, diagnostics
 
 
 def _semantic_match_target(target: Mapping[str, Any]) -> dict[str, Any]:
     """Return a matching target containing only meaningful authorised variants."""
     result = copy.deepcopy(dict(target))
+    existing_diagnostics = result.get("variant_relationship_diagnostics")
     quotation = str(result.get("quotation_text") or "")
-    variants, placeholder_count, lexical_count = _filter_authorised_variants(
-        quotation, result.get("recorded_variants", [])
+    variants, placeholder_count, lexical_count, diagnostics = (
+        _filter_authorised_variants(
+            quotation,
+            result.get("recorded_variants", []),
+            result.get("documented_variant_records", []),
+        )
     )
     result["recorded_variants"] = variants
+    result["variant_relationship_diagnostics"] = (
+        copy.deepcopy(existing_diagnostics)
+        if isinstance(existing_diagnostics, list) and existing_diagnostics
+        else diagnostics
+    )
     result["placeholder_variant_rejection_count"] = max(
         int(result.get("placeholder_variant_rejection_count") or 0),
         placeholder_count,
@@ -564,8 +689,12 @@ def _normalise_enriched_target(
     result = copy.deepcopy(dict(target))
     quotation = str(result.get("quotation_text") or "")
     records = documented_variant_records(result)
-    variants, placeholder_count, lexical_count = _filter_authorised_variants(
-        quotation, (row.get("search_variant") for row in records)
+    variants, placeholder_count, lexical_count, relationship_diagnostics = (
+        _filter_authorised_variants(
+            quotation,
+            (row.get("search_variant") for row in records),
+            records,
+        )
     )
     remaining = list(variants)
     filtered_records = []
@@ -607,6 +736,7 @@ def _normalise_enriched_target(
     }
     result["placeholder_variant_rejection_count"] = placeholder_count
     result["lexically_unrelated_variant_rejection_count"] = lexical_count
+    result["variant_relationship_diagnostics"] = relationship_diagnostics
     return result
 
 
@@ -716,38 +846,45 @@ _THATCHER_LABEL = re.compile(
     r"(?:margaret(?:\s+hilda)?\s+)?thatcher$|^(?:mt|pm|prime minister|answer|a)$",
     re.I,
 )
+_THATCHER_ROLE_LABEL = re.compile(
+    r"^(?:(?:the\s+)?(?:rt\.?\s+hon\.?\s+)?"
+    r"mrs\.?\s+(?:margaret\s+)?thatcher|"
+    r"mt|pm|prime minister|answer|a)$",
+    re.I,
+)
 _GENERIC_OTHER_LABEL = re.compile(
     r"^(?:q|question|interviewer|interviewers?|chair(?:man|woman|person)|"
     r"moderator|journalist|press|reporter|audience)$",
     re.I,
 )
-_PERSON_NAME = re.compile(
-    r"^(?:(?:Sir|Dame|Lord|Lady|Mr|Mrs|Ms|Miss|Dr|Professor)\.?\s+)?"
-    r"[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){1,3}"
-    r"(?:,\s*(?:[A-Z]{2,12}|[A-Z][A-Za-z&.-]+(?:\s+[A-Z][A-Za-z&.-]+){0,3}))?$"
+_TITLED_PERSON_LABEL = re.compile(
+    r"^(?:Sir|Dame|Lord|Lady|Mr|Mrs|Ms|Miss|Dr|Professor)\.?\s+"
+    r"[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,3}$"
 )
-_AMBIGUOUS_HEADING = re.compile(
-    r"^(?:[A-Z][A-Za-z'’-]*)(?:\s+[A-Z][A-Za-z'’-]*){0,4}$"
+_NAME_WITH_OUTLET_LABEL = re.compile(
+    r"^[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){1,3},\s*"
+    r"(?:[A-Z]{2,12}|[A-Z][A-Za-z&.-]+(?:\s+[A-Z][A-Za-z&.-]+){0,3})$"
 )
 
 
-def _speaker_heading_class(value: str) -> str | None:
+def _speaker_heading_class(
+    value: str, *, allow_personal_name: bool = False
+) -> str | None:
     """Classify only conservative explicit transcript labels/headings."""
     label = " ".join(value.split()).strip(" -–—")
     if not label or len(label) > 80:
         return None
-    if _THATCHER_LABEL.fullmatch(label):
+    if _THATCHER_ROLE_LABEL.fullmatch(label):
         return "thatcher"
-    if _GENERIC_OTHER_LABEL.fullmatch(label) or _PERSON_NAME.fullmatch(label):
+    if _GENERIC_OTHER_LABEL.fullmatch(label):
         return "other"
-    if (
-        label == label.upper()
-        and 1 <= len(word_tokens(label)) <= 5
-        and re.search(r"[A-Z]", label)
+    if allow_personal_name and _THATCHER_LABEL.fullmatch(label):
+        return "thatcher"
+    if allow_personal_name and (
+        _TITLED_PERSON_LABEL.fullmatch(label)
+        or _NAME_WITH_OUTLET_LABEL.fullmatch(label)
     ):
         return "other"
-    if _AMBIGUOUS_HEADING.fullmatch(label):
-        return "unverified"
     return None
 
 
@@ -767,32 +904,52 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
     if article is None:
         return {"labels_detected": False, "segments": []}
     blocks = [
-        " ".join(node.get_text(" ", strip=True).split())
+        (node.name, " ".join(node.get_text(" ", strip=True).split()))
         for node in article.find_all(("p", "li", "blockquote", "h2", "h3"))
     ]
-    blocks = [value for value in blocks if value]
-    parsed: list[tuple[str, str, str | None]] = []
+    blocks = [(tag, value) for tag, value in blocks if value]
+    transcript_structure = any(
+        _speaker_heading_class(
+            " ".join(match.group(1).split()), allow_personal_name=True
+        ) is not None
+        if (match := _SPEAKER_PREFIX.match(value))
+        else _speaker_heading_class(value) is not None
+        for _tag, value in blocks
+    )
+    parsed: list[tuple[str, str, str, str | None]] = []
     labels_detected = False
     author_verified = research._is_margaret_thatcher_author(
         str(validation.get("author") or "")
     )
-    for block in blocks:
+    for tag, block in blocks:
         match = _SPEAKER_PREFIX.match(block)
         label = ""
         value = block
         speaker_class: str | None = None
         if match:
             possible = " ".join(match.group(1).split())
-            speaker_class = _speaker_heading_class(possible)
+            speaker_class = _speaker_heading_class(
+                possible, allow_personal_name=True
+            )
             if speaker_class is not None:
                 label, value = possible, match.group(2).strip()
                 labels_detected = True
         else:
             speaker_class = _speaker_heading_class(block)
+            if (
+                speaker_class is None
+                and tag not in {"h2", "h3"}
+                and transcript_structure
+            ):
+                speaker_class = _speaker_heading_class(
+                    block, allow_personal_name=True
+                )
         if not match and speaker_class is not None:
             label, value = block, ""
             labels_detected = True
-        parsed.append((label, value, speaker_class))
+        if tag in {"h2", "h3"} and not label:
+            value = ""
+        parsed.append((tag, label, value, speaker_class))
     if not labels_detected:
         text = " ".join(article.get_text(" ", strip=True).split())
         return {
@@ -810,7 +967,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
     segments: list[dict[str, str]] = []
     current_class = "unverified"
     current_label = ""
-    for label, value, heading_class in parsed:
+    for _tag, label, value, heading_class in parsed:
         if label:
             if heading_class == "thatcher" and (
                 author_verified
@@ -836,7 +993,10 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                 "speaker_class": current_class,
                 "speaker_label": current_label,
                 "text": value,
-                "evidence_basis": "explicit_transcript_speaker_label",
+                "evidence_basis": (
+                    "explicit_transcript_speaker_label" if current_label
+                    else "unlabelled_material_before_transcript"
+                ),
             })
     return {"labels_detected": True, "segments": segments}
 
@@ -849,6 +1009,40 @@ _MATCH_PRIORITY = {
     "distinctive_fragment_only": 4,
     "none": 5,
 }
+
+
+def _recorded_variant_match_relationship(
+    target: Mapping[str, Any], match: Mapping[str, Any]
+) -> dict[str, Any]:
+    value = str(match.get("matched_recorded_wording") or "").strip()
+    if not value:
+        return {
+            "accepted": False,
+            "reason": "matched_recorded_wording_missing",
+        }
+    record = next((
+        row for row in target.get("documented_variant_records", [])
+        if isinstance(row, Mapping)
+        and " ".join(str(row.get("search_variant") or "").split()) == value
+    ), None)
+    return _variant_relationship_diagnostics(
+        str(target.get("quotation_text") or ""), value, record
+    )
+
+
+def _acceptable_primary_contribution_match(
+    target: Mapping[str, Any], match: Mapping[str, Any]
+) -> bool:
+    match_type = str(match.get("match_type") or "none")
+    if match_type == "exact_quotation":
+        return True
+    if match_type != "recorded_variant":
+        return False
+    relationship = _recorded_variant_match_relationship(target, match)
+    return bool(
+        relationship["accepted"]
+        and float(match.get("wording_similarity") or 0.0) > 0.0
+    )
 
 
 def contribution_aware_match(
@@ -870,33 +1064,63 @@ def contribution_aware_match(
         )
         matches.append((rank, match, segment))
     if matches:
-        _rank, best, segment = min(matches, key=lambda row: row[0])
+        diagnostic_rank, diagnostic_match, diagnostic_segment = min(
+            matches, key=lambda row: row[0]
+        )
+        positive_matches = [
+            row for row in matches
+            if row[2].get("speaker_class") == "thatcher"
+            and _acceptable_primary_contribution_match(match_target, row[1])
+        ]
+        if positive_matches:
+            _positive_rank, best, segment = min(
+                positive_matches,
+                key=lambda row: (
+                    _MATCH_PRIORITY.get(
+                        str(row[1].get("match_type") or "none"), 9
+                    ),
+                    row[0][2],
+                ),
+            )
+            if (
+                diagnostic_segment.get("speaker_class") != "thatcher"
+                and diagnostic_rank[0]
+                < _MATCH_PRIORITY.get(
+                    str(best.get("match_type") or "none"), 9
+                )
+            ):
+                best = {
+                    **best,
+                    "stronger_non_thatcher_occurrence": {
+                        "match_type": diagnostic_match.get("match_type"),
+                        "speaker_class": diagnostic_segment.get("speaker_class"),
+                        "speaker_label": diagnostic_segment.get("speaker_label"),
+                    },
+                }
+        else:
+            best, segment = diagnostic_match, diagnostic_segment
     else:
+        positive_matches = []
         best = {"match_type": "none", "supporting_passage": "", "span": None}
         segment = {
             "speaker_class": "unverified", "speaker_label": "",
             "evidence_basis": "no_transcript_segment",
         }
-    full_match = research.extract_supporting_passage(
-        match_target, str(extraction.get("text") or "")
-    )
-    if segmentation["labels_detected"]:
+    cross_speaker = False
+    if segmentation["labels_detected"] and not positive_matches and matches:
         joined_match = research.extract_supporting_passage(
             match_target,
             " ".join(str(row.get("text") or "") for row in segmentation["segments"]),
         )
-        if _MATCH_PRIORITY.get(str(joined_match.get("match_type") or "none"), 9) < _MATCH_PRIORITY.get(
-            str(full_match.get("match_type") or "none"), 9
-        ):
-            full_match = joined_match
-    cross_speaker = bool(
-        segmentation["labels_detected"]
-        and _MATCH_PRIORITY.get(str(full_match.get("match_type") or "none"), 9)
-        < _MATCH_PRIORITY.get(str(best.get("match_type") or "none"), 9)
-    )
+        cross_speaker = bool(
+            _MATCH_PRIORITY.get(
+                str(joined_match.get("match_type") or "none"), 9
+            )
+            < _MATCH_PRIORITY.get(str(best.get("match_type") or "none"), 9)
+        )
     if cross_speaker:
         best = {
-            **full_match,
+            **joined_match,
             "match_type": "assembled_clauses",
             "cross_speaker_join_rejected": True,
         }
@@ -905,17 +1129,27 @@ def contribution_aware_match(
             "speaker_label": "multiple contributions",
             "evidence_basis": "cross_speaker_join_rejected",
         }
-    if (
-        best.get("match_type") == "recorded_variant"
-        and float(best.get("wording_similarity") or 0.0) <= 0.0
+    if best.get("match_type") == "recorded_variant" and (
+        not (
+            relationship := _recorded_variant_match_relationship(
+                match_target, best
+            )
+        )["accepted"]
+        or float(best.get("wording_similarity") or 0.0) <= 0.0
     ):
+        rejection_reason = (
+            "zero_wording_similarity"
+            if float(best.get("wording_similarity") or 0.0) <= 0.0
+            else str(relationship["reason"])
+        )
         best = {
             "match_type": "none",
             "wording_similarity": 0.0,
             "supporting_passage": "",
             "surrounding_context": "",
             "span": None,
-            "recorded_variant_rejected": "zero_wording_similarity",
+            "recorded_variant_rejected": rejection_reason,
+            "recorded_variant_relationship": relationship,
         }
         segment = {
             "speaker_class": "unverified",
@@ -923,6 +1157,13 @@ def contribution_aware_match(
             "evidence_basis": "recorded_variant_without_lexical_relationship",
         }
         cross_speaker = False
+    elif best.get("match_type") == "recorded_variant":
+        best = {
+            **best,
+            "recorded_variant_relationship": (
+                _recorded_variant_match_relationship(match_target, best)
+            ),
+        }
     speaker = {
         "verified": segment.get("speaker_class") == "thatcher" and not cross_speaker,
         "speaker_class": segment.get("speaker_class"),
@@ -975,7 +1216,24 @@ def _current_occurrence_source_rows(
     for key in ("sources", "renderable_sources"):
         values = role.get(key)
         if isinstance(values, list):
-            rows.extend(value for value in values if isinstance(value, Mapping))
+            for value in values:
+                if not isinstance(value, Mapping):
+                    continue
+                assigned_roles = set(value.get("assigned_roles") or [])
+                trustworthy_packet_source = bool(
+                    key == "sources"
+                    and assigned_roles
+                    & {
+                        "wording_verification",
+                        "attribution_support",
+                        "source_event_support",
+                        "historical_context_support",
+                    }
+                    and not assigned_roles
+                    & {"discovery_only", "rejected_irrelevant"}
+                )
+                if key == "renderable_sources" or trustworthy_packet_source:
+                    rows.append(value)
     return rows
 
 
@@ -990,7 +1248,7 @@ def _source_row_document_id(row: Mapping[str, Any]) -> str:
 def _source_row_is_bound_to_current_occurrence(
     packet: Mapping[str, Any], row: Mapping[str, Any]
 ) -> bool:
-    """Recognise only explicit packet-locator or matching date/event bindings."""
+    """Recognise an explicit locator, exact-day, or date-and-event binding."""
     packet_document_id = _document_id_from_value(packet.get("stable_locator"))
     row_document_id = _source_row_document_id(row)
     if packet_document_id and row_document_id == packet_document_id:
@@ -1008,14 +1266,26 @@ def _source_row_is_bound_to_current_occurrence(
         row_event = _optional_historical_text(row.get(key))
         if row_event:
             break
+    exact_day = bool(
+        packet_date.get("known")
+        and row_date.get("known")
+        and packet_date.get("precision") == "day"
+        and row_date.get("precision") == "day"
+        and packet_date.get("iso_date") == row_date.get("iso_date")
+    )
     return bool(
         row_document_id
-        and packet_date.get("known")
-        and row_date.get("known")
-        and _dates_directly_bound(packet_date, row_date)
-        and packet_event
-        and row_event
-        and _event_equivalent(packet_event, row_event)
+        and (
+            exact_day
+            or (
+                packet_date.get("known")
+                and row_date.get("known")
+                and _dates_directly_bound(packet_date, row_date)
+                and packet_event
+                and row_event
+                and _event_equivalent(packet_event, row_event)
+            )
+        )
     )
 
 
@@ -1070,11 +1340,13 @@ def current_values(target: Mapping[str, Any]) -> dict[str, Any]:
             role.get("confidence_after", {}).get("historical_context")
             if isinstance(role.get("confidence_after"), Mapping) else ""
         ),
-        "current_occurrence_mtf_document_ids": sorted(
+        "current_occurrence_direct_mtf_document_ids": sorted(
             current_occurrence_ids, key=int
         ),
-        "known_evidence_mtf_document_ids": sorted(known_evidence_ids, key=int),
-        "direct_mtf_public_urls": sorted(direct_urls),
+        "known_evidence_direct_mtf_document_ids": sorted(
+            known_evidence_ids, key=int
+        ),
+        "known_evidence_direct_mtf_public_urls": sorted(direct_urls),
         "independently_inspected_mtf_document_ids": sorted(inspected_ids, key=int),
         "independently_inspected_hashes": sorted(inspected_hashes),
     }
@@ -1179,7 +1451,9 @@ def _occurrence_relation(
 ) -> str:
     """Resolve occurrence identity once before considering individual fields."""
     document_id = str(candidate.get("candidate_mtf_document_id") or "")
-    current_ids = set(current.get("current_occurrence_mtf_document_ids", []))
+    current_ids = set(
+        current.get("current_occurrence_direct_mtf_document_ids", [])
+    )
     if candidate.get("current_occurrence_disproved") is True:
         return "current_occurrence_explicitly_disproved"
     if document_id and document_id in current_ids:
@@ -1194,14 +1468,6 @@ def _occurrence_relation(
         and candidate_date.get("precision") == "day"
         and current_date.get("iso_date") == candidate_date.get("iso_date")
     )
-    direct_current_ids = {
-        _document_id_from_value(value)
-        for value in current.get("direct_mtf_public_urls", [])
-    }
-    direct_current_ids.discard("")
-    if document_id and document_id in direct_current_ids and exact_day:
-        return "same_current_occurrence"
-
     date_conflicts = _date_evidence_conflicts(current_date, candidate_date)
     current_event = _optional_historical_text(current.get("source_event"))
     candidate_event = _optional_historical_text(
@@ -1253,6 +1519,30 @@ def _authoritative_candidate_wording(
             if value and _contains_token_sequence(passage, value):
                 return value
     return ""
+
+
+def _authorised_variant_relationship_in_passage(
+    target: Mapping[str, Any], passage: str
+) -> dict[str, Any]:
+    """Return the shared relationship result for an authorised present variant."""
+    for variant in target.get("recorded_variants", []):
+        value = str(variant or "").strip()
+        if not value or not _contains_token_sequence(passage, value):
+            continue
+        record = next((
+            row for row in target.get("documented_variant_records", [])
+            if isinstance(row, Mapping)
+            and " ".join(str(row.get("search_variant") or "").split()) == value
+        ), None)
+        relationship = _variant_relationship_diagnostics(
+            str(target.get("quotation_text") or ""), value, record
+        )
+        if relationship["accepted"]:
+            return {"variant": value, **relationship}
+    return {
+        "accepted": False,
+        "reason": "no_acceptable_recorded_variant_present_in_passage",
+    }
 
 
 def _neutral_match_review(candidate: Mapping[str, Any]) -> bool:
@@ -1351,15 +1641,13 @@ def classify_changes(
             "exact quotation", "recorded variant"
         } else 0.0
     passage_text = str(candidate.get("supporting_passage") or "")
-    filtered_variants = _semantic_match_target(target).get(
-        "recorded_variants", []
+    semantic_target = _semantic_match_target(target)
+    variant_relationship = _authorised_variant_relationship_in_passage(
+        semantic_target, passage_text
     )
     recorded_variant_is_authorised = bool(
         match_type != "recorded variant"
-        or any(
-            _contains_token_sequence(passage_text, str(variant))
-            for variant in filtered_variants
-        )
+        or variant_relationship["accepted"]
     )
     strong = bool(
         candidate.get("accepted_as_primary_evidence")
@@ -1386,7 +1674,7 @@ def classify_changes(
         current_date = _normalised_date(current.get("date"))
         candidate_date = _normalised_date(candidate.get("document_date_evidence"))
         current_occurrence_ids = set(
-            current.get("current_occurrence_mtf_document_ids", [])
+            current.get("current_occurrence_direct_mtf_document_ids", [])
         )
         occurrence_relation = _occurrence_relation(candidate, current)
         same_identity = occurrence_relation == "same_current_occurrence"
@@ -1449,10 +1737,9 @@ def classify_changes(
                 "source_event": event,
                 "mtf_document_id": document_id,
             }
-        direct_url_ids = {
-            _document_id_from_value(value)
-            for value in current.get("direct_mtf_public_urls", [])
-        }
+        direct_url_ids = set(
+            current.get("current_occurrence_direct_mtf_document_ids", [])
+        )
         if not additional_occurrence and (
             (identity_unknown and document_id)
             or (same_identity and document_id not in direct_url_ids)
@@ -1464,7 +1751,9 @@ def classify_changes(
         passage = str(candidate.get("supporting_passage") or "")
         verified_text = _optional_historical_text(current.get("verified_text"))
         quotation_text = str(current.get("quotation_text") or "")
-        authoritative_wording = _authoritative_candidate_wording(target, candidate)
+        authoritative_wording = _authoritative_candidate_wording(
+            semantic_target, candidate
+        )
         quote_is_exact_excerpt = bool(
             quotation_text
             and authoritative_wording == quotation_text
@@ -1540,6 +1829,9 @@ _SEMANTIC_FIELDS = (
     "candidate_classification_reason",
     "accepted_as_primary_evidence",
     "cross_speaker_join_rejected",
+    "recorded_variant_relationship",
+    "variant_relationship_diagnostics",
+    "stronger_non_thatcher_occurrence",
     "confidence",
 )
 
@@ -1576,7 +1868,7 @@ def _fresh_semantic_fields(
     wording_similarity = float(match.get("wording_similarity") or 0.0)
     passage = str(match.get("supporting_passage") or "")
     has_primary_wording = bool(
-        raw_match_type in {"exact_quotation", "recorded_variant"}
+        _acceptable_primary_contribution_match(match_target, match)
         and wording_similarity > 0.0
         and passage.strip()
     )
@@ -1603,6 +1895,15 @@ def _fresh_semantic_fields(
         "accepted_as_primary_evidence": accepted,
         "cross_speaker_join_rejected": bool(
             speaker.get("cross_speaker_join_rejected")
+        ),
+        "recorded_variant_relationship": copy.deepcopy(
+            match.get("recorded_variant_relationship")
+        ),
+        "variant_relationship_diagnostics": copy.deepcopy(
+            match_target.get("variant_relationship_diagnostics", [])
+        ),
+        "stronger_non_thatcher_occurrence": copy.deepcopy(
+            match.get("stronger_non_thatcher_occurrence")
         ),
         "confidence": (
             "high" if accepted else "medium"
@@ -2312,8 +2613,8 @@ def _build_reclassification_summary(
             for row in selected
         ),
         "reverified_positive_candidate_count": sum(
-            bool(row.get("candidate_semantically_reverified"))
-            and bool(row.get("accepted_as_primary_evidence"))
+            row.get("candidate_semantic_reverification_status")
+            == "reverified_accepted"
             for row in selected
         ),
         "placeholder_variant_rejection_count": sum(
@@ -2324,11 +2625,17 @@ def _build_reclassification_summary(
             )
             for row in targets
         ),
+        "recorded_positive_candidates_remaining_valid": sum(
+            row.get("candidate_evidence_identity_status") == "valid"
+            and row.get("candidate_semantic_reverification_status")
+            == "reverified_accepted"
+            for row in positive
+        ),
         "positive_candidates_remaining_valid": sum(
             row.get("candidate_evidence_identity_status") == "valid"
-            and row.get("candidate_semantically_reverified")
-            and row.get("accepted_as_primary_evidence")
-            for row in positive
+            and row.get("candidate_semantic_reverification_status")
+            == "reverified_accepted"
+            for row in selected
         ),
         "positive_candidates_stale": sum(
             row.get("candidate_evidence_identity_status") == "stale"
@@ -2364,9 +2671,10 @@ def render_reclassification_report(summary: Mapping[str, Any]) -> str:
         f"- Candidates semantically reverified: {summary['candidate_semantic_reverified_count']}",
         f"- Fresh semantic acceptances: {summary['candidate_semantic_reverification_accepted_count']}",
         f"- Fresh semantic rejections: {summary['candidate_semantic_reverification_rejected_count']}",
-        f"- Recorded positive candidates: {summary['recorded_positive_candidate_count']}",
-        f"- Reverified positive candidates: {summary['reverified_positive_candidate_count']}",
-        f"- Positive candidates remaining valid: {summary['positive_candidates_remaining_valid']}",
+        f"- Previously recorded positive candidates: {summary['recorded_positive_candidate_count']}",
+        f"- Previously recorded positives remaining identity-valid and freshly accepted: {summary['recorded_positive_candidates_remaining_valid']}",
+        f"- Freshly accepted reverified selected candidates: {summary['reverified_positive_candidate_count']}",
+        f"- Identity-valid freshly accepted candidates across all prior statuses: {summary['positive_candidates_remaining_valid']}",
         f"- Placeholder variants rejected: {summary['placeholder_variant_rejection_count']}",
         f"- Negative/no-hit conclusions remain provisional: {str(summary['negative_no_hit_conclusions_provisional']).lower()}",
         "",
@@ -2665,6 +2973,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "archive_inventory_stable": summary["archive_inventory_stable"],
         "reclassification_mode": bool(summary.get("reclassification_mode")),
         "stale_candidate_count": summary.get("stale_candidate_count", 0),
+        "recorded_positive_candidates_remaining_valid": summary.get(
+            "recorded_positive_candidates_remaining_valid"
+        ),
+        "reverified_positive_candidate_count": summary.get(
+            "reverified_positive_candidate_count"
+        ),
         "positive_candidates_remaining_valid": summary.get(
             "positive_candidates_remaining_valid"
         ),
