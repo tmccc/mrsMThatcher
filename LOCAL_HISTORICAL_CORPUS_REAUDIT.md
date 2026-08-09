@@ -90,6 +90,39 @@ support inside a verified Thatcher contribution; only when none exists does a
 stronger interviewer or unverified occurrence become the diagnostic result.
 Cross-speaker clause assembly remains rejected.
 
+The reclassification runner also retains each contribution block's exact CSS
+class tokens and any recognised attribution tokens on ancestors through the
+selected article node. Matching is case-insensitive but exact-token only:
+`mt` marks Margaret Thatcher contribution text, `intmt` marks a Thatcher
+speaker/contribution label, `nonmt` marks non-Thatcher contribution text,
+narration, or reporting, and `intnonmt` marks a non-Thatcher
+speaker/contribution label. Similar strings such as `notmt`, `mt-note`, and
+`nonmtish` have no attribution meaning. Simultaneous MT and non-MT polarity in
+the applicable ancestry is a conflict and fails closed. `h2` and `h3` remain
+structural rather than speaker elements.
+
+Archive attribution has first precedence: an explicit `mt` or `nonmt` content
+class overrides active speaker state, document authorship, and textual label
+heuristics. An `intmt` or `intnonmt` label controls immediately following
+unmarked contribution blocks until another explicit archive boundary; its
+visible wording is not guessed. Maintained transcript labels and contextual
+speaker heuristics are used next. Verified whole-document authorship is used
+only when no recognised archive attribution applies to contribution text.
+Consequently `mt` is direct Thatcher wording even under generic or
+non-Thatcher document metadata, while `nonmt` is never direct Thatcher wording
+even in a Thatcher-authored document. Documents without any of the four exact
+tokens retain the previous transcript-label and document-author fallbacks
+unchanged.
+
+Text in `nonmt` is not removed. An exact or authorised-variant occurrence is
+retained with its supporting passage and context as reported/secondary
+diagnostic evidence, but it cannot set `accepted_as_primary_evidence` or
+verified speaker attribution. A stronger `nonmt` exact occurrence also cannot
+displace a valid Thatcher variant in `mt`, and clauses are never assembled
+across `mt` and `nonmt` contributions. A candidate whose best direct match is
+only in `nonmt` receives `reverified_rejected_archive_nonmt`; its document
+identity remains valid rather than stale.
+
 The source inventory may remain unstable: only freshly accepted candidates
 retain positive evidential value, while negative/no-hit conclusions remain
 provisional. The existing package is read only and is resnapshotted before any
@@ -128,4 +161,12 @@ identity-valid, freshly reverified and accepted candidate regardless of its old
 ledger status. Summaries also retain placeholder-variant rejections and the
 quote IDs whose evidence is complete but whose maintained gate explicitly
 requires a separate semantic/Meaning review. That advisory flag never changes
-or bypasses the gate.
+or bypasses the gate. Five candidate-level markup counters report only
+documents opened by the bounded reclassification: candidates containing
+recognised archive attribution markup; accepted candidates whose selected
+wording is attributed through `mt` or `intmt`; rejected candidates whose direct
+match is in `nonmt`; candidates retaining any reported/secondary `nonmt` match
+(including one alongside an accepted `mt` match); and candidates with a
+matching contribution whose applicable archive ancestry has conflicting
+polarity. These counters never inventory or count all markup elements in the
+archive.

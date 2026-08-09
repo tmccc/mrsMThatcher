@@ -59,6 +59,34 @@ def classification_target(quotation: str, *, variants: list[str] | None = None) 
     }
 
 
+def synthetic_semantic_fields(
+    quotation: str,
+    article: str,
+    *,
+    author: str = "Margaret Thatcher",
+    variants: list[str] | None = None,
+) -> tuple[bytes, dict, dict, dict]:
+    body = html("103384", article, author=author)
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched",
+        "content_type": "text/html",
+        "body": body,
+        "mtf_document_validation": validation,
+    })
+    fields = reaudit._fresh_semantic_fields(
+        classification_target(quotation, variants=variants),
+        url="https://www.margaretthatcher.org/document/103384",
+        body=body,
+        validation=validation,
+        extraction=extraction,
+        reverified=True,
+    )
+    return body, validation, extraction, fields
+
+
 def primary_candidate(
     quotation: str,
     *,
@@ -198,6 +226,391 @@ def test_explicit_thatcher_contribution_verifies_speaker(tmp_path: Path) -> None
     assert match["match_type"] == "exact_quotation"
     assert speaker["verified"] is True
     assert speaker["speaker_label"] == "MRS THATCHER"
+
+
+def test_archive_intmt_label_plus_mt_content_is_direct_primary_evidence() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="intmt">Prime Minister</p><p class="mt">{quotation}</p>',
+        author="Archive transcript",
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+    assert fields["archive_attribution_classification"] == "mt_content"
+    assert fields["archive_attribution_class_tokens"] == ["mt"]
+    assert fields["direct_primary_attribution_basis"] == (
+        "explicit_archive_mt_content"
+    )
+
+
+def test_archive_mt_content_without_intmt_is_direct_primary_evidence() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation, f'<p class="mt">{quotation}</p>'
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+    assert fields["speaker_author_evidence"]["verified"] is True
+    assert fields["archive_attribution_classification"] == "mt_content"
+
+
+def test_archive_mt_outranks_non_thatcher_document_author() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="mt">{quotation}</p>',
+        author="Independent Commentator",
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+    assert fields["speaker_author_evidence"]["document_author"] == (
+        "Independent Commentator"
+    )
+    assert fields["direct_primary_attribution_basis"] == (
+        "explicit_archive_mt_content"
+    )
+
+
+def test_archive_intnonmt_plus_nonmt_is_diagnostic_not_primary() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="intnonmt">Question</p><p class="nonmt">{quotation}</p>',
+    )
+    assert fields["supporting_passage"]
+    assert fields["surrounding_context"]
+    assert fields["archive_attribution_classification"] == "nonmt_content"
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_archive_nonmt"
+    )
+
+
+def test_archive_nonmt_outranks_thatcher_document_authorship() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation, f'<p class="nonmt">{quotation}</p>'
+    )
+    assert fields["speaker_author_evidence"]["document_author"] == (
+        "Margaret Thatcher"
+    )
+    assert fields["speaker_author_evidence"]["speaker_class"] == "other"
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_reported_thatcher_words_inside_nonmt_remain_secondary_diagnostic() -> None:
+    quotation = "Freedom cannot be divided."
+    narration = f'Mrs Thatcher reportedly said, "{quotation}"'
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation, f'<p class="nonmt">{narration}</p>'
+    )
+    evidence = fields["reported_or_secondary_nonmt_match_evidence"]
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    assert reaudit.word_tokens(evidence["supporting_passage"]) == (
+        reaudit.word_tokens(quotation)
+    )
+    assert evidence["surrounding_context"]
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["speaker_author_evidence"]["verified"] is False
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["The Prime Minister (Mr James Callaghan)", "Chancellor Schmidt"],
+)
+def test_archive_intnonmt_label_text_never_promotes_following_nonmt(
+    label: str,
+) -> None:
+    quotation = "The policy requires a substantive political reply."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="intnonmt">{label}</p>'
+        f'<p class="nonmt">{quotation}</p>',
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    matched = next(
+        row for row in segmentation["segments"] if quotation in row["text"]
+    )
+    assert matched["speaker_class"] == "other"
+    assert matched["speaker_label"] == label
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_archive_intmt_unusual_label_is_retained_for_mt_content() -> None:
+    quotation = "Freedom cannot be divided."
+    unusual_label = "PM(MT) reply follows"
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="intmt">{unusual_label}</p>'
+        f'<p class="mt">{quotation}</p>',
+        author="Archive transcript",
+    )
+    segment = next(
+        row for row in reaudit.speaker_segments(body, validation)["segments"]
+        if quotation in row["text"]
+    )
+    assert segment["speaker_label"] == unusual_label
+    assert segment["speaker_class"] == "thatcher"
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_archive_intmt_establishes_unmarked_following_contribution() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="intmt">Unusual archive abbreviation</p><p>{quotation}</p>',
+        author="Archive transcript",
+    )
+    assert fields["archive_attribution_classification"] == "mt_label"
+    assert fields["direct_primary_attribution_basis"] == (
+        "explicit_archive_intmt_label"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_archive_content_class_overrides_inherited_opposite_label_state() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, mt_fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="intnonmt">Non-Thatcher speaker</p>'
+        f'<p class="mt">{quotation}</p>',
+        author="Archive transcript",
+    )
+    _body, _validation, _extraction, nonmt_fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="intmt">Thatcher speaker</p>'
+        f'<p class="nonmt">{quotation}</p>',
+    )
+    assert mt_fields["archive_attribution_classification"] == "mt_content"
+    assert mt_fields["accepted_as_primary_evidence"] is True
+    assert nonmt_fields["archive_attribution_classification"] == "nonmt_content"
+    assert nonmt_fields["accepted_as_primary_evidence"] is False
+
+
+def test_archive_nonmt_exact_does_not_suppress_mt_authorised_variant() -> None:
+    quotation = (
+        "Freedom cannot endure unless we defend individual responsibility."
+    )
+    variant = "Freedom can't endure unless we defend individual responsibility."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="intnonmt">Olivia O\'Leary</p>'
+        f'<p class="nonmt">{quotation}</p>'
+        f'<p class="intmt">Prime Minister</p>'
+        f'<p class="mt">{variant}</p>',
+        variants=[variant],
+    )
+    assert fields["match_type"] == "recorded variant"
+    assert reaudit.word_tokens(fields["supporting_passage"]) == (
+        reaudit.word_tokens(variant)
+    )
+    assert fields["archive_attribution_classification"] == "mt_content"
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    nonmt_evidence = fields["reported_or_secondary_nonmt_match_evidence"]
+    assert nonmt_evidence["match_type"] == "exact_quotation"
+    assert reaudit.word_tokens(nonmt_evidence["supporting_passage"]) == (
+        reaudit.word_tokens(quotation)
+    )
+    assert nonmt_evidence["surrounding_context"]
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_archive_clauses_cannot_be_assembled_across_nonmt_and_mt() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="nonmt">Freedom cannot</p>'
+        '<p class="mt">be divided.</p>',
+    )
+    assert fields["raw_match_type"] == "assembled_clauses"
+    assert fields["cross_speaker_join_rejected"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_unmarked_content_in_markup_document_does_not_inherit_authorship() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="mt">Different direct Thatcher wording.</p>'
+        f'<p>{quotation}</p>',
+    )
+    assert fields["archive_attribution_markup_detected"] is True
+    assert fields["archive_attribution_classification"] == (
+        "no_archive_attribution"
+    )
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_document_without_archive_markup_preserves_author_fallback() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation, f"<p>{quotation}</p>"
+    )
+    assert fields["archive_attribution_markup_detected"] is False
+    assert fields["archive_attribution_classification"] == (
+        "no_archive_attribution"
+    )
+    assert fields["direct_primary_attribution_basis"] == (
+        "explicit_document_author"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_archive_attribution_uses_exact_class_tokens_only() -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<p class="notmt nonmtish mt-note">{quotation}</p>',
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    block = next(
+        row for row in segmentation["contribution_blocks"]
+        if quotation in row["normalised_text"]
+    )
+    assert block["element_class_tokens"] == ["notmt", "nonmtish", "mt-note"]
+    assert block["archive_attribution_class_tokens"] == []
+    assert fields["archive_attribution_markup_detected"] is False
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_archive_attribution_class_on_ancestor_applies_to_contribution() -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation, f'<div class="MT"><p>{quotation}</p></div>',
+        author="Archive transcript",
+    )
+    block = next(
+        row for row in reaudit.speaker_segments(body, validation)[
+            "contribution_blocks"
+        ]
+        if quotation in row["normalised_text"]
+    )
+    assert block["element_class_tokens"] == []
+    assert block["ancestor_archive_attribution_class_tokens"] == ["MT"]
+    assert block["archive_attribution_classification"] == "mt_content"
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_conflicting_archive_attribution_fails_closed() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<div class="mt"><p class="nonmt">{quotation}</p></div>',
+    )
+    assert fields["archive_attribution_classification"] == (
+        "conflicting_archive_attribution"
+    )
+    assert fields["archive_attribution_conflict"] is True
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_archive_attribution_conflict"
+    )
+
+
+def test_conflicting_archive_label_state_fails_closed_for_unmarked_text() -> None:
+    quotation = "Freedom cannot be divided."
+    _body, _validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        '<p class="intmt intnonmt">Ambiguous archive label</p>'
+        f'<p>{quotation}</p>',
+    )
+    assert fields["archive_attribution_classification"] == (
+        "conflicting_archive_attribution"
+    )
+    assert fields["archive_attribution_conflict"] is True
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+@pytest.mark.parametrize(("tag", "heading"), [("h2", "Question"), ("h3", "Prime Minister")])
+def test_archive_structural_headings_do_not_establish_speaker_state(
+    tag: str, heading: str
+) -> None:
+    quotation = "Freedom cannot be divided."
+    body, validation, _extraction, fields = synthetic_semantic_fields(
+        quotation,
+        f'<{tag} class="intnonmt">{heading}</{tag}>'
+        f'<p class="mt">{quotation}</p>',
+        author="Archive transcript",
+    )
+    segment = next(
+        row for row in reaudit.speaker_segments(body, validation)["segments"]
+        if quotation in row["text"]
+    )
+    assert segment["speaker_class"] == "thatcher"
+    assert segment["speaker_label"] == "mt"
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
+    common = {"candidate_semantically_reverified": True}
+    candidates = [
+        {
+            **common,
+            "archive_attribution_markup_detected": True,
+            "accepted_as_primary_evidence": True,
+            "direct_primary_attribution_basis": "explicit_archive_mt_content",
+        },
+        {
+            **common,
+            "archive_attribution_markup_detected": True,
+            "accepted_as_primary_evidence": False,
+            "candidate_semantic_reverification_status": (
+                "reverified_rejected_archive_nonmt"
+            ),
+            "reported_or_secondary_nonmt_match": True,
+        },
+        {
+            **common,
+            "archive_attribution_markup_detected": True,
+            "accepted_as_primary_evidence": True,
+            "direct_primary_attribution_basis": "explicit_archive_intmt_label",
+            "reported_or_secondary_nonmt_match": True,
+        },
+        {
+            **common,
+            "archive_attribution_markup_detected": True,
+            "accepted_as_primary_evidence": False,
+            "archive_attribution_conflict": True,
+        },
+        {
+            **common,
+            "archive_attribution_markup_detected": False,
+            "accepted_as_primary_evidence": True,
+            "direct_primary_attribution_basis": "explicit_document_author",
+        },
+    ]
+    assert reaudit._archive_attribution_summary_counters(candidates) == {
+        "candidates_with_archive_attribution_markup": 4,
+        "accepted_candidates_using_archive_mt_markup": 2,
+        "rejected_candidates_with_direct_match_in_archive_nonmt": 1,
+        "reported_or_secondary_nonmt_match_count": 2,
+        "archive_attribution_conflict_count": 1,
+    }
+
+
+def test_accepted_candidates_never_use_nonmt_or_conflicting_attribution() -> None:
+    quotation = "Freedom cannot be divided."
+    articles = [
+        f'<p class="mt">{quotation}</p>',
+        f'<p class="nonmt">{quotation}</p>',
+        f'<div class="mt"><p class="nonmt">{quotation}</p></div>',
+        f"<p>{quotation}</p>",
+    ]
+    fields = [
+        synthetic_semantic_fields(quotation, article)[3]
+        for article in articles
+    ]
+    forbidden = {
+        "nonmt_content", "nonmt_label", "conflicting_archive_attribution",
+    }
+    assert all(
+        row["archive_attribution_classification"] not in forbidden
+        for row in fields
+        if row["accepted_as_primary_evidence"]
+    )
 
 
 def test_unknown_is_not_an_authorised_variant() -> None:
@@ -1408,6 +1821,55 @@ def test_reclassification_accepts_valid_file_passage_and_hash(
         path.stat().st_mode & 0o777 == 0o600
         for path in case["output"].iterdir()
     )
+
+
+def test_reclassification_summary_counts_archive_mt_acceptance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    case["document_path"].write_bytes(html(
+        "103384", f'<p class="mt">{case["quotation"]}</p>',
+        author="Archive transcript",
+    ))
+    update_source_candidate(
+        case, local_file_sha256=reaudit.file_sha256(case["document_path"])
+    )
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    assert summary["candidates_with_archive_attribution_markup"] == 1
+    assert summary["accepted_candidates_using_archive_mt_markup"] == 1
+    assert summary["rejected_candidates_with_direct_match_in_archive_nonmt"] == 0
+    assert summary["reported_or_secondary_nonmt_match_count"] == 0
+    assert summary["archive_attribution_conflict_count"] == 0
+
+
+def test_reclassification_nonmt_match_is_rejected_but_identity_valid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    case["document_path"].write_bytes(html(
+        "103384", f'<p class="nonmt">{case["quotation"]}</p>'
+    ))
+    update_source_candidate(
+        case, local_file_sha256=reaudit.file_sha256(case["document_path"])
+    )
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_identity_status"] == "valid"
+    assert candidate["candidate_evidence_stale"] is False
+    assert candidate["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_archive_nonmt"
+    )
+    assert candidate["accepted_as_primary_evidence"] is False
+    assert candidate["speaker_author_evidence"]["verified"] is False
+    assert summary["candidates_with_archive_attribution_markup"] == 1
+    assert summary["accepted_candidates_using_archive_mt_markup"] == 0
+    assert summary["rejected_candidates_with_direct_match_in_archive_nonmt"] == 1
+    assert summary["reported_or_secondary_nonmt_match_count"] == 1
+    assert summary["archive_attribution_conflict_count"] == 0
 
 
 def test_advisory_selected_old_negative_counts_as_fresh_positive(
