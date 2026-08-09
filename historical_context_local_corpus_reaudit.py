@@ -53,7 +53,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v2"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v3"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -144,6 +144,94 @@ IMPROVEMENT_CATEGORIES = {
     CATEGORY_ADDITIONAL_OCCURRENCE,
     CATEGORY_EXACT_EXCERPT_CONFIRMATION,
 }
+
+_PLACEHOLDER_FORMS = frozenset({
+    "unknown",
+    "not known",
+    "unavailable",
+    "not available",
+    "not available in primary sources",
+    "none",
+    "null",
+    "n a",
+    "na",
+    "unspecified",
+    "undated",
+})
+_NON_MEANINGFUL_VARIANT_TOKENS = frozenset({
+    "a", "an", "and", "as", "at", "be", "by", "for", "from", "in",
+    "is", "it", "of", "on", "or", "that", "the", "this", "to", "was",
+    "were", "with",
+})
+
+
+def _placeholder_form(value: Any) -> str:
+    """Normalise case, spacing, and punctuation for placeholder detection."""
+    return " ".join(word_tokens(str(value or "")))
+
+
+def is_placeholder_text(value: Any) -> bool:
+    """Return whether an optional historical value is an absence marker."""
+    form = _placeholder_form(value)
+    return bool(form and form in _PLACEHOLDER_FORMS)
+
+
+def _optional_historical_text(value: Any) -> str:
+    text = " ".join(str(value or "").split())
+    return "" if not text or is_placeholder_text(text) else text
+
+
+def _variant_has_lexical_relationship(quotation: str, variant: str) -> bool:
+    """Require at least one shared content token for an authorised variant."""
+    quotation_tokens = set(word_tokens(quotation))
+    variant_tokens = set(word_tokens(variant))
+    if not quotation_tokens or not variant_tokens:
+        return False
+    quotation_content = quotation_tokens - _NON_MEANINGFUL_VARIANT_TOKENS
+    variant_content = variant_tokens - _NON_MEANINGFUL_VARIANT_TOKENS
+    if quotation_content and variant_content:
+        return bool(quotation_content & variant_content)
+    return bool(quotation_tokens & variant_tokens)
+
+
+def _filter_authorised_variants(
+    quotation: str, variants: Iterable[Any]
+) -> tuple[list[str], int, int]:
+    accepted: list[str] = []
+    placeholder_rejections = 0
+    lexical_rejections = 0
+    for raw in variants:
+        value = " ".join(str(raw or "").split())
+        if not value:
+            continue
+        if is_placeholder_text(value):
+            placeholder_rejections += 1
+            continue
+        if not _variant_has_lexical_relationship(quotation, value):
+            lexical_rejections += 1
+            continue
+        if value not in accepted:
+            accepted.append(value)
+    return accepted, placeholder_rejections, lexical_rejections
+
+
+def _semantic_match_target(target: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a matching target containing only meaningful authorised variants."""
+    result = copy.deepcopy(dict(target))
+    quotation = str(result.get("quotation_text") or "")
+    variants, placeholder_count, lexical_count = _filter_authorised_variants(
+        quotation, result.get("recorded_variants", [])
+    )
+    result["recorded_variants"] = variants
+    result["placeholder_variant_rejection_count"] = max(
+        int(result.get("placeholder_variant_rejection_count") or 0),
+        placeholder_count,
+    )
+    result["lexically_unrelated_variant_rejection_count"] = max(
+        int(result.get("lexically_unrelated_variant_rejection_count") or 0),
+        lexical_count,
+    )
+    return result
 
 
 class ReauditError(RuntimeError):
@@ -438,13 +526,15 @@ def _query_strategy_phrases(
     """Extract plain textual fragments, never provider query syntax."""
     phrases: list[dict[str, str]] = []
     for variant in documented_variant_records(target):
-        phrases.append({
-            "variant": str(variant["search_variant"]),
-            "provenance": "authoritative_recorded_variant",
-        })
+        value = str(variant["search_variant"])
+        if not is_placeholder_text(value):
+            phrases.append({
+                "variant": value,
+                "provenance": "authoritative_recorded_variant",
+            })
     for row in plan:
         fragment = str(row.get("fragment_text") or row.get("fragment") or "").strip()
-        if fragment:
+        if fragment and not is_placeholder_text(fragment):
             phrases.append({
                 "variant": fragment,
                 "provenance": "deterministic_query_strategy_fragment",
@@ -452,7 +542,7 @@ def _query_strategy_phrases(
         multi = row.get("multi_anchor")
         if isinstance(multi, Mapping):
             for phrase in multi.get("anchor_phrases", []):
-                if str(phrase).strip():
+                if str(phrase).strip() and not is_placeholder_text(phrase):
                     phrases.append({
                         "variant": str(phrase).strip(),
                         "provenance": "deterministic_query_strategy_multi_anchor",
@@ -465,6 +555,59 @@ def _query_strategy_phrases(
             seen.add(key)
             unique.append(row)
     return unique
+
+
+def _normalise_enriched_target(
+    target: Mapping[str, Any], packet: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Filter optional packet metadata while retaining the packet as provenance."""
+    result = copy.deepcopy(dict(target))
+    quotation = str(result.get("quotation_text") or "")
+    records = documented_variant_records(result)
+    variants, placeholder_count, lexical_count = _filter_authorised_variants(
+        quotation, (row.get("search_variant") for row in records)
+    )
+    remaining = list(variants)
+    filtered_records = []
+    for row in records:
+        value = " ".join(str(row.get("search_variant") or "").split())
+        if value in remaining:
+            filtered_records.append(copy.deepcopy(dict(row)))
+            remaining.remove(value)
+    result["documented_variant_records"] = filtered_records
+    metadata = dict(result.get("source_metadata") or {})
+    for key in (
+        "source_event", "stable_locator", "source_type",
+        "verification_status", "text_variation_notes",
+    ):
+        metadata[key] = _optional_historical_text(metadata.get(key))
+    metadata["entities"] = [
+        value
+        for value in (
+            _optional_historical_text(item)
+            for item in metadata.get("entities", [])
+        )
+        if value
+    ]
+    raw_date = packet.get("date")
+    metadata["date"] = _normalised_date(raw_date)
+    metadata["date_relation_to_marriage"] = (
+        "unknown" if not metadata["date"].get("known")
+        else metadata.get("date_relation_to_marriage")
+    )
+    result["source_metadata"] = metadata
+    result["historical_metadata_provenance"] = {
+        "packet_values_preserved": {
+            key: packet.get(key)
+            for key in (
+                "verified_text", "date", "source_event", "stable_locator"
+            )
+        },
+        "placeholder_values_treated_as_missing_for_classification": True,
+    }
+    result["placeholder_variant_rejection_count"] = placeholder_count
+    result["lexically_unrelated_variant_rejection_count"] = lexical_count
+    return result
 
 
 def derive_eligible_targets(
@@ -522,6 +665,7 @@ def derive_eligible_targets(
             packet,
             packet_locator=f"{RESEARCH_RELATIVE.as_posix()}/research_packets.json/items/{quote_id}",
         )
+        enriched = _normalise_enriched_target(enriched, packet)
         if prepare_search_strategy:
             plan, diagnostics = build_query_plan(enriched, corpus_index)
         else:
@@ -572,12 +716,39 @@ _THATCHER_LABEL = re.compile(
     r"(?:margaret(?:\s+hilda)?\s+)?thatcher$|^(?:mt|pm|prime minister|answer|a)$",
     re.I,
 )
-_OTHER_LABEL = re.compile(
-    r"^(?:q|question|interviewer|interviewers?|chairman|moderator|journalist|"
-    r"press|reporter|audience|mr\.?\s+.+|mrs\.?\s+(?!thatcher).+|lord\s+.+|"
-    r"sir\s+.+|[A-Z][A-Z .'-]{1,50})$",
+_GENERIC_OTHER_LABEL = re.compile(
+    r"^(?:q|question|interviewer|interviewers?|chair(?:man|woman|person)|"
+    r"moderator|journalist|press|reporter|audience)$",
     re.I,
 )
+_PERSON_NAME = re.compile(
+    r"^(?:(?:Sir|Dame|Lord|Lady|Mr|Mrs|Ms|Miss|Dr|Professor)\.?\s+)?"
+    r"[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){1,3}"
+    r"(?:,\s*(?:[A-Z]{2,12}|[A-Z][A-Za-z&.-]+(?:\s+[A-Z][A-Za-z&.-]+){0,3}))?$"
+)
+_AMBIGUOUS_HEADING = re.compile(
+    r"^(?:[A-Z][A-Za-z'’-]*)(?:\s+[A-Z][A-Za-z'’-]*){0,4}$"
+)
+
+
+def _speaker_heading_class(value: str) -> str | None:
+    """Classify only conservative explicit transcript labels/headings."""
+    label = " ".join(value.split()).strip(" -–—")
+    if not label or len(label) > 80:
+        return None
+    if _THATCHER_LABEL.fullmatch(label):
+        return "thatcher"
+    if _GENERIC_OTHER_LABEL.fullmatch(label) or _PERSON_NAME.fullmatch(label):
+        return "other"
+    if (
+        label == label.upper()
+        and 1 <= len(word_tokens(label)) <= 5
+        and re.search(r"[A-Z]", label)
+    ):
+        return "other"
+    if _AMBIGUOUS_HEADING.fullmatch(label):
+        return "unverified"
+    return None
 
 
 def _article_node(body: bytes, validation: Mapping[str, Any]) -> Any:
@@ -600,7 +771,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         for node in article.find_all(("p", "li", "blockquote", "h2", "h3"))
     ]
     blocks = [value for value in blocks if value]
-    parsed: list[tuple[str, str]] = []
+    parsed: list[tuple[str, str, str | None]] = []
     labels_detected = False
     author_verified = research._is_margaret_thatcher_author(
         str(validation.get("author") or "")
@@ -609,18 +780,19 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         match = _SPEAKER_PREFIX.match(block)
         label = ""
         value = block
+        speaker_class: str | None = None
         if match:
             possible = " ".join(match.group(1).split())
-            if _THATCHER_LABEL.fullmatch(possible) or _OTHER_LABEL.fullmatch(possible):
+            speaker_class = _speaker_heading_class(possible)
+            if speaker_class is not None:
                 label, value = possible, match.group(2).strip()
                 labels_detected = True
-        elif block.casefold() in {
-            "q", "question", "interviewer", "mt", "pm", "prime minister",
-            "mrs thatcher", "margaret thatcher", "answer", "a",
-        }:
+        else:
+            speaker_class = _speaker_heading_class(block)
+        if not match and speaker_class is not None:
             label, value = block, ""
             labels_detected = True
-        parsed.append((label, value))
+        parsed.append((label, value, speaker_class))
     if not labels_detected:
         text = " ".join(article.get_text(" ", strip=True).split())
         return {
@@ -638,15 +810,15 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
     segments: list[dict[str, str]] = []
     current_class = "unverified"
     current_label = ""
-    for label, value in parsed:
+    for label, value, heading_class in parsed:
         if label:
-            if _THATCHER_LABEL.fullmatch(label) and (
+            if heading_class == "thatcher" and (
                 author_verified
                 or "thatcher" in label.casefold()
                 or label.casefold() == "mt"
             ):
                 current_class = "thatcher"
-            elif _OTHER_LABEL.fullmatch(label):
+            elif heading_class == "other":
                 current_class = "other"
             else:
                 current_class = "unverified"
@@ -686,10 +858,11 @@ def contribution_aware_match(
     validation: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Select evidence within one contribution; reject cross-speaker joins."""
+    match_target = _semantic_match_target(target)
     segmentation = speaker_segments(body, validation)
     matches: list[tuple[tuple[int, int, int], dict[str, Any], Mapping[str, str]]] = []
     for order, segment in enumerate(segmentation["segments"]):
-        match = research.extract_supporting_passage(target, segment["text"])
+        match = research.extract_supporting_passage(match_target, segment["text"])
         rank = (
             _MATCH_PRIORITY.get(str(match.get("match_type") or "none"), 9),
             0 if segment["speaker_class"] == "thatcher" else 1,
@@ -705,11 +878,11 @@ def contribution_aware_match(
             "evidence_basis": "no_transcript_segment",
         }
     full_match = research.extract_supporting_passage(
-        target, str(extraction.get("text") or "")
+        match_target, str(extraction.get("text") or "")
     )
     if segmentation["labels_detected"]:
         joined_match = research.extract_supporting_passage(
-            target,
+            match_target,
             " ".join(str(row.get("text") or "") for row in segmentation["segments"]),
         )
         if _MATCH_PRIORITY.get(str(joined_match.get("match_type") or "none"), 9) < _MATCH_PRIORITY.get(
@@ -732,6 +905,24 @@ def contribution_aware_match(
             "speaker_label": "multiple contributions",
             "evidence_basis": "cross_speaker_join_rejected",
         }
+    if (
+        best.get("match_type") == "recorded_variant"
+        and float(best.get("wording_similarity") or 0.0) <= 0.0
+    ):
+        best = {
+            "match_type": "none",
+            "wording_similarity": 0.0,
+            "supporting_passage": "",
+            "surrounding_context": "",
+            "span": None,
+            "recorded_variant_rejected": "zero_wording_similarity",
+        }
+        segment = {
+            "speaker_class": "unverified",
+            "speaker_label": "",
+            "evidence_basis": "recorded_variant_without_lexical_relationship",
+        }
+        cross_speaker = False
     speaker = {
         "verified": segment.get("speaker_class") == "thatcher" and not cross_speaker,
         "speaker_class": segment.get("speaker_class"),
@@ -811,10 +1002,10 @@ def _source_row_is_bound_to_current_occurrence(
         row_date = _normalised_date(row.get(key))
         if row_date.get("known"):
             break
-    packet_event = str(packet.get("source_event") or "")
+    packet_event = _optional_historical_text(packet.get("source_event"))
     row_event = ""
     for key in ("source_event", "document_event", "event", "event_title"):
-        row_event = str(row.get(key) or "")
+        row_event = _optional_historical_text(row.get(key))
         if row_event:
             break
     return bool(
@@ -859,11 +1050,19 @@ def current_values(target: Mapping[str, Any]) -> dict[str, Any]:
     known_evidence_ids.discard("")
     return {
         "quotation_text": packet.get("quote_text"),
-        "verified_text": packet.get("verified_text"),
-        "speaker": packet.get("speaker"),
-        "source_event": packet.get("source_event"),
-        "date": packet.get("date"),
-        "stable_locator": packet.get("stable_locator"),
+        "verified_text": _optional_historical_text(packet.get("verified_text")),
+        "speaker": _optional_historical_text(packet.get("speaker")),
+        "source_event": _optional_historical_text(packet.get("source_event")),
+        "date": _optional_historical_text(packet.get("date")),
+        "stable_locator": _optional_historical_text(packet.get("stable_locator")),
+        "original_packet_values": {
+            key: packet.get(key)
+            for key in (
+                "verified_text", "speaker", "source_event", "date",
+                "stable_locator",
+            )
+        },
+        "placeholder_values_treated_as_missing_for_classification": True,
         "verification_status": packet.get("verification_status"),
         "research_confidence": packet.get("research_confidence"),
         "wording_status": role.get("wording_status_after"),
@@ -882,6 +1081,15 @@ def current_values(target: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _normalised_date(value: Any) -> dict[str, Any]:
+    if is_placeholder_text(value):
+        return {
+            "raw": " ".join(str(value or "").split()),
+            "known": False,
+            "iso_date": "",
+            "year": None,
+            "precision": "unknown",
+            "placeholder_treated_as_missing": True,
+        }
     parsed = parse_source_date(str(value or ""))
     if parsed.get("known"):
         return parsed
@@ -944,13 +1152,23 @@ def _date_evidence_conflicts(
     )
 
 
+_GENERIC_EVENT_WRAPPERS = frozenset({
+    "a", "an", "and", "at", "bracket", "commons", "debate", "hc",
+    "house", "motion", "of", "on", "report", "s", "speech", "statement", "the",
+    "to",
+})
+
+
+def _event_subject_tokens(value: Any) -> set[str]:
+    text = _optional_historical_text(value)
+    return {
+        token for token in word_tokens(text)
+        if token not in _GENERIC_EVENT_WRAPPERS
+    }
+
+
 def _event_equivalent(current: str, candidate: str) -> bool:
-    def tokens(value: str) -> set[str]:
-        return {
-            token for token in word_tokens(value)
-            if token not in {"the", "a", "an", "for", "at", "on", "to", "and"}
-        }
-    left, right = tokens(current), tokens(candidate)
+    left, right = _event_subject_tokens(current), _event_subject_tokens(candidate)
     if not left or not right:
         return False
     return left <= right or right <= left or len(left & right) / len(left | right) >= 0.55
@@ -969,15 +1187,42 @@ def _occurrence_relation(
 
     current_date = _normalised_date(current.get("date"))
     candidate_date = _normalised_date(candidate.get("document_date_evidence"))
+    exact_day = bool(
+        current_date.get("known")
+        and candidate_date.get("known")
+        and current_date.get("precision") == "day"
+        and candidate_date.get("precision") == "day"
+        and current_date.get("iso_date") == candidate_date.get("iso_date")
+    )
+    direct_current_ids = {
+        _document_id_from_value(value)
+        for value in current.get("direct_mtf_public_urls", [])
+    }
+    direct_current_ids.discard("")
+    if document_id and document_id in direct_current_ids and exact_day:
+        return "same_current_occurrence"
+
     date_conflicts = _date_evidence_conflicts(current_date, candidate_date)
-    current_event = str(current.get("source_event") or "")
-    candidate_event = str(candidate.get("document_event_evidence") or "")
+    current_event = _optional_historical_text(current.get("source_event"))
+    candidate_event = _optional_historical_text(
+        candidate.get("document_event_evidence")
+    )
+    if exact_day and _event_equivalent(current_event, candidate_event):
+        return "same_current_occurrence"
+    current_subject = _event_subject_tokens(current_event)
+    candidate_subject = _event_subject_tokens(candidate_event)
     event_conflicts = bool(
-        current_event
-        and candidate_event
+        current_subject
+        and candidate_subject
         and not _event_equivalent(current_event, candidate_event)
     )
-    if date_conflicts or event_conflicts:
+    if date_conflicts:
+        return "distinct_additional_occurrence"
+    if exact_day:
+        if event_conflicts and not (current_subject & candidate_subject):
+            return "distinct_additional_occurrence"
+        return "same_day_occurrence_ambiguous"
+    if event_conflicts:
         return "distinct_additional_occurrence"
     return "identity_unknown_nonconflicting"
 
@@ -1058,6 +1303,22 @@ def _blocking_reason_resolved(
     return True, "verified primary evidence resolves the stated evidence-only blocking reason"
 
 
+def _requires_separate_semantic_review(disposition: str, reason: str) -> bool:
+    folded = reason.casefold()
+    return bool(
+        "outside the present evidence-admission scope" in folded
+        or any(marker in folded for marker in (
+            "meaning adds", "meaning implies", "meaning strengthens",
+            "published meaning", "unsupported claims about",
+            "semantic review", "meaning review",
+        ))
+        or (
+            disposition == "future_correction_needed"
+            and any(word in folded for word in ("meaning", "interpretation", "semantic"))
+        )
+    )
+
+
 def classify_changes(
     target: Mapping[str, Any],
     candidate: Mapping[str, Any],
@@ -1066,6 +1327,15 @@ def classify_changes(
     """Return semantic advisory categories without applying any proposed value."""
     categories: list[str] = []
     proposed: dict[str, Any] = {}
+    if candidate.get("candidate_semantic_reverification_status") == (
+        "not_selected_for_reverification"
+    ):
+        return (
+            [CATEGORY_NO_CHANGE],
+            proposed,
+            False,
+            "candidate was not selected for fresh semantic reverification",
+        )
     if candidate.get("candidate_evidence_stale") is True:
         return (
             [CATEGORY_NO_CHANGE],
@@ -1075,10 +1345,29 @@ def classify_changes(
         )
     document_id = str(candidate.get("candidate_mtf_document_id") or "")
     match_type = str(candidate.get("match_type") or "")
+    wording_similarity = candidate.get("wording_similarity")
+    if wording_similarity is None:
+        wording_similarity = 1.0 if match_type in {
+            "exact quotation", "recorded variant"
+        } else 0.0
+    passage_text = str(candidate.get("supporting_passage") or "")
+    filtered_variants = _semantic_match_target(target).get(
+        "recorded_variants", []
+    )
+    recorded_variant_is_authorised = bool(
+        match_type != "recorded variant"
+        or any(
+            _contains_token_sequence(passage_text, str(variant))
+            for variant in filtered_variants
+        )
+    )
     strong = bool(
         candidate.get("accepted_as_primary_evidence")
         and candidate.get("speaker_author_evidence", {}).get("verified")
         and match_type in {"exact quotation", "recorded variant"}
+        and float(wording_similarity or 0.0) > 0.0
+        and passage_text.strip()
+        and recorded_variant_is_authorised
     )
     if _neutral_match_review(candidate):
         categories.append(CATEGORY_NEUTRAL_MATCH_REVIEW)
@@ -1113,6 +1402,11 @@ def classify_changes(
         additional_occurrence = (
             occurrence_relation == "distinct_additional_occurrence"
         )
+        occurrence_ambiguous = (
+            occurrence_relation == "same_day_occurrence_ambiguous"
+        )
+        if occurrence_ambiguous:
+            categories.append(CATEGORY_NEUTRAL_MATCH_REVIEW)
         if candidate_date.get("known") and not additional_occurrence:
             current_iso = str(current_date.get("iso_date") or "")
             candidate_iso = str(candidate_date.get("iso_date") or "")
@@ -1127,8 +1421,10 @@ def classify_changes(
             elif differs and correction_identity:
                 categories.append(CATEGORY_DATE_CORRECTION)
                 proposed["date"] = candidate_iso or candidate_date.get("raw")
-        event = str(candidate.get("document_event_evidence") or "")
-        current_event = str(current.get("source_event") or "")
+        event = _optional_historical_text(
+            candidate.get("document_event_evidence")
+        )
+        current_event = _optional_historical_text(current.get("source_event"))
         if (
             event
             and not current_event
@@ -1153,17 +1449,20 @@ def classify_changes(
                 "source_event": event,
                 "mtf_document_id": document_id,
             }
-        direct_urls = " ".join(current.get("direct_mtf_public_urls", []))
+        direct_url_ids = {
+            _document_id_from_value(value)
+            for value in current.get("direct_mtf_public_urls", [])
+        }
         if not additional_occurrence and (
             (identity_unknown and document_id)
-            or (same_identity and document_id not in direct_urls)
+            or (same_identity and document_id not in direct_url_ids)
             or (current_disproved and document_id)
-        ):
+        ) and not occurrence_ambiguous:
             categories.append(CATEGORY_LOCATOR_CORRECTION)
             proposed["stable_locator"] = f"Margaret Thatcher Foundation Document {document_id}"
             proposed["canonical_public_url"] = candidate.get("canonical_public_url")
         passage = str(candidate.get("supporting_passage") or "")
-        verified_text = str(current.get("verified_text") or "")
+        verified_text = _optional_historical_text(current.get("verified_text"))
         quotation_text = str(current.get("quotation_text") or "")
         authoritative_wording = _authoritative_candidate_wording(target, candidate)
         quote_is_exact_excerpt = bool(
@@ -1192,18 +1491,23 @@ def classify_changes(
             }:
                 categories.append(CATEGORY_WORDING_CORRECTION)
                 proposed["verified_text"] = authoritative_wording
-        speaker = str(current.get("speaker") or "")
-        if speaker and "thatcher" not in speaker.casefold():
+        speaker = _optional_historical_text(current.get("speaker"))
+        provisional_speaker = bool(re.search(
+            r"\b(?:attributed|attribution|provisional|possibly|unverified)\b",
+            speaker,
+            re.I,
+        ))
+        if not speaker or "thatcher" not in speaker.casefold() or provisional_speaker:
             categories.append(CATEGORY_ATTRIBUTION_CORRECTION)
-            proposed["speaker"] = candidate.get("speaker_author_evidence", {}).get("speaker_label") or "Margaret Thatcher"
+            proposed["speaker"] = "Margaret Thatcher"
     review = target.get("current_gate_review")
     reason = str(review.get("reason") or "") if isinstance(review, Mapping) else ""
     disposition = str(target.get("current_gate_disposition") or "")
     wording_verified = strong
     context_sufficient = bool(
         strong
-        and candidate.get("document_date_evidence")
-        and candidate.get("document_event_evidence")
+        and _normalised_date(candidate.get("document_date_evidence")).get("known")
+        and _optional_historical_text(candidate.get("document_event_evidence"))
         and candidate.get("canonical_public_url")
         and candidate.get("surrounding_context")
     )
@@ -1222,6 +1526,109 @@ def classify_changes(
     if not categories:
         categories = [CATEGORY_NO_CHANGE]
     return list(dict.fromkeys(categories)), proposed, proposed_unblock, unblock_reason
+
+
+_SEMANTIC_FIELDS = (
+    "raw_match_type",
+    "match_type",
+    "wording_similarity",
+    "supporting_passage",
+    "supporting_passage_sha256",
+    "surrounding_context",
+    "speaker_author_evidence",
+    "candidate_classification",
+    "candidate_classification_reason",
+    "accepted_as_primary_evidence",
+    "cross_speaker_join_rejected",
+    "confidence",
+)
+
+
+def _fresh_semantic_fields(
+    target: Mapping[str, Any],
+    *,
+    url: str,
+    body: bytes,
+    validation: Mapping[str, Any],
+    extraction: Mapping[str, Any],
+    reverified: bool,
+) -> dict[str, Any]:
+    """Rematch and reclassify one already-opened local MTF document."""
+    match_target = _semantic_match_target(target)
+    match, speaker = contribution_aware_match(
+        match_target, extraction, body, validation
+    )
+    classification_extraction = dict(extraction)
+    if speaker.get("verified"):
+        metadata = dict(classification_extraction.get("metadata") or {})
+        metadata["author"] = (
+            str(metadata.get("author") or "") or "Margaret Thatcher"
+        )
+        classification_extraction["metadata"] = metadata
+    classified = research.classify_candidate(
+        match_target,
+        url=url,
+        extraction=classification_extraction,
+        match=match,
+        fetch_status="fetched",
+    )
+    raw_match_type = str(match.get("match_type") or "none")
+    wording_similarity = float(match.get("wording_similarity") or 0.0)
+    passage = str(match.get("supporting_passage") or "")
+    has_primary_wording = bool(
+        raw_match_type in {"exact_quotation", "recorded_variant"}
+        and wording_similarity > 0.0
+        and passage.strip()
+    )
+    accepted = bool(
+        classified.get("classification") == "strong_primary_evidence"
+        and classified.get("accepted_as_evidence")
+        and speaker.get("verified")
+        and has_primary_wording
+    )
+    fields = {
+        "raw_match_type": raw_match_type,
+        "match_type": _normalised_match_type(raw_match_type),
+        "wording_similarity": wording_similarity,
+        "supporting_passage": passage,
+        "supporting_passage_sha256": sha256_bytes(passage.encode("utf-8")),
+        "surrounding_context": str(match.get("surrounding_context") or ""),
+        "speaker_author_evidence": speaker,
+        "candidate_classification": str(
+            classified.get("classification") or "no_support"
+        ),
+        "candidate_classification_reason": str(
+            classified.get("decision_reason") or ""
+        ),
+        "accepted_as_primary_evidence": accepted,
+        "cross_speaker_join_rejected": bool(
+            speaker.get("cross_speaker_join_rejected")
+        ),
+        "confidence": (
+            "high" if accepted else "medium"
+            if raw_match_type not in {"none", "distinctive_fragment_only"}
+            else "low"
+        ),
+    }
+    if reverified:
+        if accepted:
+            status = "reverified_accepted"
+            reason = "fresh document rematch verified primary wording and Thatcher contribution"
+        elif fields["cross_speaker_join_rejected"] or raw_match_type == "assembled_clauses":
+            status = "reverified_neutral_noncontiguous"
+            reason = "fresh document rematch found only non-contiguous or cross-contribution wording"
+        elif has_primary_wording and not speaker.get("verified"):
+            status = "reverified_rejected_speaker"
+            reason = "fresh wording occurs outside a verified Thatcher contribution"
+        else:
+            status = "reverified_rejected_no_support"
+            reason = "fresh document rematch found no acceptable exact or authorised-variant support"
+        fields.update({
+            "candidate_semantic_reverification_status": status,
+            "candidate_semantic_reverification_reason": reason,
+            "candidate_semantically_reverified": True,
+        })
+    return fields
 
 
 def verify_candidate(
@@ -1285,38 +1692,17 @@ def verify_candidate(
     if extraction.get("status") != "extracted":
         base["candidate_status"] = str(extraction.get("error") or "extraction_failed")
         return base
-    match, speaker = contribution_aware_match(target, extraction, body, validation)
-    classification_extraction = dict(extraction)
-    if speaker.get("verified"):
-        metadata = dict(classification_extraction.get("metadata") or {})
-        metadata["author"] = (
-            str(metadata.get("author") or "") or "Margaret Thatcher"
-        )
-        classification_extraction["metadata"] = metadata
-    classified = research.classify_candidate(
+    semantic_fields = _fresh_semantic_fields(
         target,
         url=url,
-        extraction=classification_extraction,
-        match=match,
-        fetch_status="fetched",
+        body=body,
+        validation=validation,
+        extraction=extraction,
+        reverified=False,
     )
-    accepted = bool(
-        classified.get("classification") == "strong_primary_evidence"
-        and classified.get("accepted_as_evidence")
-        and speaker.get("verified")
-        and match.get("match_type") in {"exact_quotation", "recorded_variant"}
-    )
-    passage = str(match.get("supporting_passage") or "")
     base.update({
         "candidate_status": "inspected",
         "local_file_sha256": str(record.get("local_archive_file_sha256") or ""),
-        "match_type": _normalised_match_type(str(match.get("match_type") or "none")),
-        "raw_match_type": str(match.get("match_type") or "none"),
-        "wording_similarity": match.get("wording_similarity", 0.0),
-        "supporting_passage": passage,
-        "supporting_passage_sha256": sha256_bytes(passage.encode("utf-8")),
-        "surrounding_context": str(match.get("surrounding_context") or ""),
-        "speaker_author_evidence": speaker,
         "document_event_evidence": str(validation.get("title") or ""),
         "document_date_evidence": str(validation.get("date") or ""),
         "document_identity_evidence": {
@@ -1326,16 +1712,8 @@ def verify_candidate(
             "publisher": "Margaret Thatcher Foundation",
             "article_text_sha256": str(validation.get("article_text_sha256") or ""),
         },
-        "candidate_classification": str(classified.get("classification") or "no_support"),
-        "candidate_classification_reason": str(classified.get("decision_reason") or ""),
-        "accepted_as_primary_evidence": accepted,
         "actual_regular_file_verified": True,
-        "cross_speaker_join_rejected": bool(speaker.get("cross_speaker_join_rejected")),
-        "confidence": (
-            "high" if accepted else "medium"
-            if match.get("match_type") not in {"none", "distinctive_fragment_only"}
-            else "low"
-        ),
+        **semantic_fields,
     })
     categories, proposed, proposed_unblock, unblock_reason = classify_changes(
         target, base, base["current_values"]
@@ -1375,6 +1753,41 @@ def reassess_blocked(
         best = rows[0] if rows else None
         review = target.get("current_gate_review")
         reason = str(review.get("reason") or "") if isinstance(review, Mapping) else ""
+        match_type = str(best.get("match_type") or "") if best else ""
+        wording_present = bool(
+            best
+            and match_type in {"exact quotation", "recorded variant"}
+            and float(best.get("wording_similarity") or 0.0) > 0.0
+            and str(best.get("supporting_passage") or "").strip()
+            and best.get("candidate_semantic_reverification_status")
+            != "not_selected_for_reverification"
+        )
+        speaker_verified = bool(
+            wording_present
+            and best
+            and best.get("speaker_author_evidence", {}).get("verified")
+        )
+        wording_verified = bool(
+            wording_present
+            and best
+            and best.get("accepted_as_primary_evidence")
+        )
+        context_sufficient = bool(
+            wording_verified
+            and best
+            and best.get("surrounding_context")
+            and _normalised_date(best.get("document_date_evidence")).get("known")
+            and _optional_historical_text(best.get("document_event_evidence"))
+            and best.get("canonical_public_url")
+        )
+        separate_semantic_review = bool(
+            wording_verified
+            and speaker_verified
+            and context_sufficient
+            and _requires_separate_semantic_review(
+                str(target.get("current_gate_disposition") or ""), reason
+            )
+        )
         output.append({
             "quote_id": target["quote_id"],
             "quotation_text": target["quotation_text"],
@@ -1390,21 +1803,16 @@ def reassess_blocked(
                 "candidate_evidence_identity_status": best.get(
                     "candidate_evidence_identity_status", "not_reclassified"
                 ),
+                "candidate_semantic_reverification_status": best.get(
+                    "candidate_semantic_reverification_status", "fresh_discovery_match"
+                ),
                 "confidence": best.get("confidence"),
             } if best else None),
-            "speaker_attribution_verified": bool(
-                best and best.get("speaker_author_evidence", {}).get("verified")
-            ),
-            "exact_or_acceptable_primary_variant_verified": bool(
-                best and best.get("accepted_as_primary_evidence")
-                and best.get("match_type") in {"exact quotation", "recorded variant"}
-            ),
-            "supporting_context_date_source_identity_sufficient": bool(
-                best and best.get("accepted_as_primary_evidence")
-                and best.get("surrounding_context")
-                and best.get("document_date_evidence")
-                and best.get("document_event_evidence")
-                and best.get("canonical_public_url")
+            "speaker_attribution_verified": speaker_verified,
+            "exact_or_acceptable_primary_variant_verified": wording_verified,
+            "supporting_context_date_source_identity_sufficient": context_sufficient,
+            "evidence_complete_but_separate_semantic_review_required": (
+                separate_semantic_review
             ),
             "current_blocking_reason_resolved": bool(best and best.get("proposed_unblock")),
             "blocking_reason_assessment": (
@@ -1466,6 +1874,11 @@ def build_summary(
     useful = lambda row: bool(
         set(row.get("proposed_change_category", [])) & IMPROVEMENT_CATEGORIES
     )
+    semantic_review_ids = sorted(
+        str(row["quote_id"])
+        for row in blocked
+        if row.get("evidence_complete_but_separate_semantic_review_required")
+    )
     return {
         "schema_version": 2,
         "record_kind": "historical_context_local_corpus_reaudit_summary",
@@ -1514,6 +1927,8 @@ def build_summary(
         "proposed_unblock_quote_ids": sorted(
             str(row["quote_id"]) for row in blocked if row.get("proposed_unblock")
         ),
+        "evidence_complete_semantic_review_quote_count": len(semantic_review_ids),
+        "evidence_complete_semantic_review_quote_ids": semantic_review_ids,
         "unresolved_quotes_with_improved_evidence": _quote_count(
             candidates, lambda row: row.get("current_unresolved_status") and useful(row)
         ),
@@ -1625,22 +2040,6 @@ def _candidate_requires_identity_revalidation(candidate: Mapping[str, Any]) -> b
     )
 
 
-def _candidate_requires_supporting_passage_revalidation(
-    candidate: Mapping[str, Any]
-) -> bool:
-    match_type = str(candidate.get("match_type") or "")
-    return bool(
-        (
-            candidate.get("accepted_as_primary_evidence")
-            or candidate.get("proposed_unblock")
-        )
-        and match_type in {
-            "exact quotation", "recorded variant",
-            "exact_quotation", "recorded_variant",
-        }
-    )
-
-
 def _stale_identity_result(reason: str) -> dict[str, Any]:
     return {
         "candidate_evidence_identity_status": "stale",
@@ -1649,18 +2048,18 @@ def _stale_identity_result(reason: str) -> dict[str, Any]:
     }
 
 
-def revalidate_candidate_identity(
+def _open_candidate_for_reverification(
     mirror: LocalArchiveMirror, candidate: Mapping[str, Any]
-) -> dict[str, Any]:
-    """Revalidate a selected ledger candidate without searching or rematching text."""
+) -> tuple[dict[str, Any], Mapping[str, Any] | None, Mapping[str, Any] | None, Mapping[str, Any] | None]:
+    """Open and identity-check one selected candidate without any discovery."""
     if not _candidate_requires_identity_revalidation(candidate):
-        return {
+        return ({
             "candidate_evidence_identity_status": "not_selected_for_revalidation",
             "candidate_evidence_stale": False,
             "candidate_evidence_identity_reason": (
                 "candidate was not selected for positive or admission consideration"
             ),
-        }
+        }, None, None, None)
     document_id = str(candidate.get("candidate_mtf_document_id") or "")
     url = str(candidate.get("canonical_public_url") or "")
     recorded_hash = str(candidate.get("local_file_sha256") or "")
@@ -1674,18 +2073,27 @@ def revalidate_candidate_identity(
             and str(recorded_identity.get("document_id") or document_id) != document_id
         )
     ):
-        return _stale_identity_result("recorded_candidate_identity_is_invalid")
+        return (_stale_identity_result(
+            "recorded_candidate_identity_is_invalid"
+        ), None, None, None)
     try:
         record = mirror.read(url)
     except Exception:
-        return _stale_identity_result("candidate_file_is_missing_or_unsafe")
+        return (_stale_identity_result(
+            "candidate_file_is_missing_or_unsafe"
+        ), None, None, None)
     if not record or record.get("status") != "fetched":
-        return _stale_identity_result("candidate_file_is_missing_or_unreadable")
+        return (_stale_identity_result(
+            "candidate_file_is_missing_or_unreadable"
+        ), None, None, None)
     current_hash = str(record.get("local_archive_file_sha256") or "")
     if current_hash != recorded_hash:
-        return _stale_identity_result("candidate_file_sha256_changed")
+        return (_stale_identity_result(
+            "candidate_file_sha256_changed"
+        ), None, None, None)
+    body = bytes(record.get("body") or b"")
     validation = research.inspect_mtf_document(
-        url, str(record.get("content_type") or ""), bytes(record.get("body") or b"")
+        url, str(record.get("content_type") or ""), body
     )
     if (
         not validation.get("valid")
@@ -1693,39 +2101,55 @@ def revalidate_candidate_identity(
         or _document_id_from_value(validation.get("canonical_url")) != document_id
         or _document_id_from_value(validation.get("declared_canonical_url")) != document_id
     ):
-        return _stale_identity_result("candidate_mtf_document_identity_changed")
-    passage_revalidation_required = (
-        _candidate_requires_supporting_passage_revalidation(candidate)
-    )
-    if passage_revalidation_required:
-        passage = str(candidate.get("supporting_passage") or "")
-        passage_hash = str(candidate.get("supporting_passage_sha256") or "")
-        if not passage.strip():
-            return _stale_identity_result("supporting_passage_is_empty")
-        if not re.fullmatch(r"[0-9a-fA-F]{64}", passage_hash):
-            return _stale_identity_result("supporting_passage_sha256_is_invalid")
-        if sha256_bytes(passage.encode("utf-8")) != passage_hash.casefold():
-            return _stale_identity_result("supporting_passage_sha256_mismatch")
-        extraction = research.extract_page_text({
-            **record,
-            "mtf_document_validation": validation,
-        })
-        if extraction.get("status") != "extracted":
-            return _stale_identity_result("candidate_document_text_is_unreadable")
-        if not _contains_token_sequence(
-            str(extraction.get("text") or ""), passage
-        ):
-            return _stale_identity_result(
-                "supporting_passage_absent_from_current_document"
-            )
-    return {
+        return (_stale_identity_result(
+            "candidate_mtf_document_identity_changed"
+        ), None, None, None)
+    extraction = research.extract_page_text({
+        **record,
+        "mtf_document_validation": validation,
+    })
+    return ({
         "candidate_evidence_identity_status": "valid",
         "candidate_evidence_stale": False,
         "candidate_evidence_identity_reason": (
-            "recorded MTF document, file SHA-256, and required supporting passage still match"
-            if passage_revalidation_required
-            else "recorded MTF document identity and local file SHA-256 still match"
+            "recorded MTF document identity and exact local file SHA-256 still match"
         ),
+    }, record, validation, extraction)
+
+
+def revalidate_candidate_identity(
+    mirror: LocalArchiveMirror, candidate: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Revalidate only a ledger candidate's local-file identity."""
+    identity, _record, _validation, _extraction = (
+        _open_candidate_for_reverification(mirror, candidate)
+    )
+    return identity
+
+
+def _neutral_semantic_fields(
+    *, status: str, reason: str, reverified: bool = False
+) -> dict[str, Any]:
+    return {
+        "raw_match_type": "none",
+        "match_type": "no support",
+        "wording_similarity": 0.0,
+        "supporting_passage": "",
+        "supporting_passage_sha256": sha256_bytes(b""),
+        "surrounding_context": "",
+        "speaker_author_evidence": {
+            "verified": False,
+            "speaker_class": "unverified",
+            "evidence_basis": reason,
+        },
+        "candidate_classification": "no_support",
+        "candidate_classification_reason": reason,
+        "accepted_as_primary_evidence": False,
+        "cross_speaker_join_rejected": False,
+        "confidence": "low",
+        "candidate_semantic_reverification_status": status,
+        "candidate_semantic_reverification_reason": reason,
+        "candidate_semantically_reverified": reverified,
     }
 
 
@@ -1735,19 +2159,76 @@ def _reclassify_candidate(
     source_candidate: Mapping[str, Any],
 ) -> dict[str, Any]:
     candidate = copy.deepcopy(dict(source_candidate))
+    recorded_history = {
+        key: copy.deepcopy(source_candidate.get(key))
+        for key in _SEMANTIC_FIELDS
+        if key in source_candidate
+    }
+    identity, record, validation, extraction = _open_candidate_for_reverification(
+        mirror, source_candidate
+    )
     candidate.update({
         "quotation_text": target["quotation_text"],
         "current_gate_disposition": target["current_gate_disposition"],
         "current_gate_status": target["current_gate_status"],
         "current_unresolved_status": target["current_unresolved_status"],
         "current_values": current_values(target),
-        **revalidate_candidate_identity(mirror, candidate),
+        "recorded_semantic_history": recorded_history,
+        **identity,
     })
     candidate["recorded_accepted_as_primary_evidence"] = bool(
         source_candidate.get("accepted_as_primary_evidence")
     )
-    if candidate["candidate_evidence_stale"]:
-        candidate["accepted_as_primary_evidence"] = False
+    if identity["candidate_evidence_identity_status"] == "valid":
+        assert record is not None and validation is not None and extraction is not None
+        candidate.update({
+            "candidate_status": "inspected",
+            "actual_regular_file_verified": True,
+            "local_file_sha256": str(
+                record.get("local_archive_file_sha256") or ""
+            ),
+            "document_event_evidence": _optional_historical_text(
+                validation.get("title")
+            ),
+            "document_date_evidence": _optional_historical_text(
+                validation.get("date")
+            ),
+            "document_identity_evidence": {
+                "document_id": str(candidate.get("candidate_mtf_document_id") or ""),
+                "canonical_url": str(validation.get("canonical_url") or ""),
+                "declared_canonical_url": str(
+                    validation.get("declared_canonical_url") or ""
+                ),
+                "publisher": "Margaret Thatcher Foundation",
+                "article_text_sha256": str(
+                    validation.get("article_text_sha256") or ""
+                ),
+            },
+        })
+        if extraction.get("status") == "extracted":
+            candidate.update(_fresh_semantic_fields(
+                target,
+                url=str(candidate.get("canonical_public_url") or ""),
+                body=bytes(record.get("body") or b""),
+                validation=validation,
+                extraction=extraction,
+                reverified=True,
+            ))
+        else:
+            candidate.update(_neutral_semantic_fields(
+                status="semantic_reverification_failed_text_extraction",
+                reason="current candidate document text could not be extracted",
+            ))
+    elif identity["candidate_evidence_identity_status"] == "stale":
+        candidate.update(_neutral_semantic_fields(
+            status="not_reverified_identity_stale",
+            reason="semantic reverification was not possible because file identity is stale",
+        ))
+    else:
+        candidate.update(_neutral_semantic_fields(
+            status="not_selected_for_reverification",
+            reason="candidate was not selected by the existing revalidation policy",
+        ))
     categories, proposed, proposed_unblock, unblock_reason = classify_changes(
         target, candidate, candidate["current_values"]
     )
@@ -1760,7 +2241,12 @@ def _reclassify_candidate(
         ),
         "proposed_unblock": proposed_unblock,
         "proposed_unblock_rationale": unblock_reason,
-        "classification_rerun_without_discovery": True,
+        "classification_rerun_without_discovery": bool(
+            candidate.get("candidate_semantically_reverified")
+        ),
+        "candidate_document_rematched_without_discovery": bool(
+            candidate.get("candidate_semantically_reverified")
+        ),
     })
     return candidate
 
@@ -1810,8 +2296,38 @@ def _build_reclassification_summary(
             for row in selected
         ),
         "recorded_positive_candidate_count": len(positive),
+        "candidate_semantic_reverification_required_count": len(selected),
+        "candidate_semantic_reverified_count": sum(
+            bool(row.get("candidate_semantically_reverified"))
+            for row in selected
+        ),
+        "candidate_semantic_reverification_accepted_count": sum(
+            row.get("candidate_semantic_reverification_status")
+            == "reverified_accepted"
+            for row in selected
+        ),
+        "candidate_semantic_reverification_rejected_count": sum(
+            bool(row.get("candidate_semantically_reverified"))
+            and not row.get("accepted_as_primary_evidence")
+            for row in selected
+        ),
+        "reverified_positive_candidate_count": sum(
+            bool(row.get("candidate_semantically_reverified"))
+            and bool(row.get("accepted_as_primary_evidence"))
+            for row in selected
+        ),
+        "placeholder_variant_rejection_count": sum(
+            int(
+                _semantic_match_target(row).get(
+                    "placeholder_variant_rejection_count"
+                ) or 0
+            )
+            for row in targets
+        ),
         "positive_candidates_remaining_valid": sum(
             row.get("candidate_evidence_identity_status") == "valid"
+            and row.get("candidate_semantically_reverified")
+            and row.get("accepted_as_primary_evidence")
             for row in positive
         ),
         "positive_candidates_stale": sum(
@@ -1823,7 +2339,7 @@ def _build_reclassification_summary(
         "archive_inventory_rescan_performed": False,
         "original_source_run_write_count": 0,
         "run_finality": (
-            "candidate_revalidated_advisory_package_with_provisional_negatives"
+            "candidate_semantically_reverified_advisory_package_with_provisional_negatives"
         ),
     })
     return summary
@@ -1835,7 +2351,7 @@ def render_reclassification_report(summary: Mapping[str, Any]) -> str:
         "",
         f"Programme: `{PROGRAMME_VERSION}`",
         "",
-        "This private advisory package reused the recorded candidate ledger and reran classification only. No quotation discovery or archive inventory scan was performed.",
+        "This private advisory package reused the recorded candidate ledger, reopened selected local MTF documents, and freshly rematched and reclassified them. No quotation discovery or archive inventory scan was performed.",
         "",
         "## Candidate evidence boundary",
         "",
@@ -1844,7 +2360,14 @@ def render_reclassification_report(summary: Mapping[str, Any]) -> str:
         f"- Candidates selected for identity revalidation: {summary['candidate_identity_revalidation_required_count']}",
         f"- Candidate identities still valid: {summary['candidate_identity_valid_count']}",
         f"- Stale candidates: {summary['stale_candidate_count']}",
+        f"- Candidates requiring semantic reverification: {summary['candidate_semantic_reverification_required_count']}",
+        f"- Candidates semantically reverified: {summary['candidate_semantic_reverified_count']}",
+        f"- Fresh semantic acceptances: {summary['candidate_semantic_reverification_accepted_count']}",
+        f"- Fresh semantic rejections: {summary['candidate_semantic_reverification_rejected_count']}",
+        f"- Recorded positive candidates: {summary['recorded_positive_candidate_count']}",
+        f"- Reverified positive candidates: {summary['reverified_positive_candidate_count']}",
         f"- Positive candidates remaining valid: {summary['positive_candidates_remaining_valid']}",
+        f"- Placeholder variants rejected: {summary['placeholder_variant_rejection_count']}",
         f"- Negative/no-hit conclusions remain provisional: {str(summary['negative_no_hit_conclusions_provisional']).lower()}",
         "",
         "## Revised advisory classification",
@@ -1858,6 +2381,7 @@ def render_reclassification_report(summary: Mapping[str, Any]) -> str:
         f"- Exact excerpt confirmations: {summary['exact_excerpt_confirmations']}",
         f"- Attribution/non-contiguous match reviews: {summary['attribution_or_noncontiguous_match_reviews']}",
         f"- Genuine canonical-claim conflicts: {summary['genuine_contradiction_candidates']}",
+        f"- Evidence-complete quotations still requiring separate semantic review: {summary['evidence_complete_semantic_review_quote_count']} ({', '.join(summary['evidence_complete_semantic_review_quote_ids']) if summary['evidence_complete_semantic_review_quote_ids'] else 'none'})",
         "",
         "## Safety",
         "",
@@ -1939,6 +2463,7 @@ def reclassify_existing(
         "source_candidate_ledger_sha256": source_ledger_sha256,
         "source_candidate_ledger_referenced_by_sha256": True,
         "source_candidate_records_reused_without_discovery": True,
+        "selected_candidate_documents_rematched_without_discovery": True,
         "records": candidates,
         "advisory_only": True,
         "private_root_not_recorded": True,
@@ -1948,6 +2473,12 @@ def reclassify_existing(
         "record_kind": "blocked_historical_context_quote_reassessment",
         "semantic_gate_policy_version": SEMANTIC_GATE_POLICY_VERSION,
         "blocked_quote_count": len(blocked),
+        "evidence_complete_semantic_review_quote_count": summary[
+            "evidence_complete_semantic_review_quote_count"
+        ],
+        "evidence_complete_semantic_review_quote_ids": summary[
+            "evidence_complete_semantic_review_quote_ids"
+        ],
         "records": blocked,
         "advisory_only": True,
     }

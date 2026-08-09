@@ -200,6 +200,153 @@ def test_explicit_thatcher_contribution_verifies_speaker(tmp_path: Path) -> None
     assert speaker["speaker_label"] == "MRS THATCHER"
 
 
+def test_unknown_is_not_an_authorised_variant() -> None:
+    filtered = reaudit._semantic_match_target(
+        classification_target(
+            "Freedom cannot be divided.", variants=[" Unknown... "]
+        )
+    )
+    assert filtered["recorded_variants"] == []
+    assert filtered["placeholder_variant_rejection_count"] == 1
+
+
+def test_placeholder_variant_in_archive_header_is_rejected() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html("103384", "<p>A wholly unrelated archive passage.</p>").replace(
+        b"Speech to a Conservative audience", b"Unknown"
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        classification_target(quotation, variants=["unknown"]),
+        extraction,
+        body,
+        validation,
+    )
+    assert match["match_type"] == "none"
+    assert speaker["verified"] is True
+
+
+def test_zero_lexical_overlap_cannot_be_recorded_variant_evidence() -> None:
+    filtered = reaudit._semantic_match_target(
+        classification_target(
+            "Freedom cannot be divided.", variants=["Political mythology"]
+        )
+    )
+    assert filtered["recorded_variants"] == []
+    assert filtered["lexically_unrelated_variant_rejection_count"] == 1
+
+
+def test_zero_wording_similarity_cannot_support_primary_variant() -> None:
+    quotation = "Freedom cannot be divided."
+    candidate = {
+        **primary_candidate(quotation, passage="Freedom must remain indivisible."),
+        "match_type": "recorded variant",
+        "wording_similarity": 0.0,
+    }
+    categories, _proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(
+            quotation, variants=["Freedom must remain indivisible."]
+        ),
+        candidate,
+        current_claim(quotation),
+    )
+    assert reaudit.CATEGORY_STRONGER_EVIDENCE not in categories
+    assert reaudit.CATEGORY_WORDING_CORRECTION not in categories
+
+
+@pytest.mark.parametrize(
+    ("heading", "quotation"),
+    [
+        ("Diane Sawyer, CBS", "If you want something said, ask a man; if you want something done, ask a woman."),
+        ("Sir Robin Day", "I am not a consensus politician. I am a conviction politician."),
+    ],
+)
+def test_named_interviewer_quotation_is_not_thatcher_speech(
+    heading: str, quotation: str
+) -> None:
+    body = html(
+        "103384",
+        f"<p>{heading}</p><p>{quotation}</p>"
+        "<p>Prime Minister</p><p>That is not how I would put the matter.</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        target(quotation), extraction, body, validation
+    )
+    assert match["match_type"] == "exact_quotation"
+    assert speaker["speaker_class"] == "other"
+    assert speaker["verified"] is False
+    fields = reaudit._fresh_semantic_fields(
+        classification_target(quotation),
+        url="https://www.margaretthatcher.org/document/103384",
+        body=body,
+        validation=validation,
+        extraction=extraction,
+        reverified=True,
+    )
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_speaker"
+    )
+
+
+def test_standalone_prime_minister_contribution_is_accepted() -> None:
+    quotation = "Freedom cannot be divided."
+    body = html(
+        "103384",
+        "<p>Interviewer</p><p>What is your answer?</p>"
+        f"<p>Prime Minister</p><p>{quotation}</p>",
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    extraction = research.extract_page_text({
+        "status": "fetched", "content_type": "text/html", "body": body,
+        "mtf_document_validation": validation,
+    })
+    match, speaker = reaudit.contribution_aware_match(
+        target(quotation), extraction, body, validation
+    )
+    assert match["match_type"] == "exact_quotation"
+    assert speaker["verified"] is True
+    assert speaker["speaker_label"] == "Prime Minister"
+    fields = reaudit._fresh_semantic_fields(
+        classification_target(quotation),
+        url="https://www.margaretthatcher.org/document/103384",
+        body=body,
+        validation=validation,
+        extraction=extraction,
+        reverified=True,
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_accepted"
+    )
+
+
+def test_normal_prose_beginning_with_person_name_is_not_a_heading() -> None:
+    quotation = "Hugo Young described the argument before turning to policy."
+    body = html("103384", f"<p>{quotation}</p>")
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["labels_detected"] is False
+    assert segmentation["segments"][0]["speaker_class"] == "thatcher"
+
+
 def test_private_paths_are_rejected_from_generated_values(tmp_path: Path) -> None:
     archive = tmp_path / "private-archive"
     run = tmp_path / "private-run"
@@ -226,6 +373,78 @@ def test_blocked_unblock_logic_requires_all_admission_evidence() -> None:
         context_date_source_sufficient=True,
     )
     assert not_resolved is False
+
+
+def test_no_support_blocked_candidate_does_not_verify_speaker() -> None:
+    quotation = "Freedom cannot be divided."
+    quote_id = target(quotation)["quote_id"]
+    blocked_target = {
+        **classification_target(quotation),
+        "quote_id": quote_id,
+        "current_gate_status": "blocked",
+        "current_gate_disposition": "insufficient_to_assess",
+        "current_gate_review": {"reason": "Primary wording is not verified."},
+    }
+    candidate = {
+        **primary_candidate(quotation),
+        "quote_id": quote_id,
+        "accepted_as_primary_evidence": False,
+        "match_type": "no support",
+        "wording_similarity": 0.0,
+        "supporting_passage": "",
+        "speaker_author_evidence": {
+            "verified": True,
+            "evidence_basis": "explicit_document_author",
+        },
+        "candidate_semantic_reverification_status": (
+            "reverified_rejected_no_support"
+        ),
+        "proposed_unblock": False,
+        "proposed_unblock_rationale": "wording is not verified",
+    }
+    result = reaudit.reassess_blocked([blocked_target], [candidate])[0]
+    assert result["speaker_attribution_verified"] is False
+    assert result["exact_or_acceptable_primary_variant_verified"] is False
+
+
+def test_evidence_complete_semantic_review_is_advisory_not_unblocked() -> None:
+    quotation = "Freedom cannot be divided."
+    quote_id = target(quotation)["quote_id"]
+    blocked_target = {
+        **classification_target(quotation),
+        "quote_id": quote_id,
+        "current_gate_status": "blocked",
+        "current_gate_disposition": "future_correction_needed",
+        "current_gate_review": {
+            "reason": "Published meaning adds an unsupported interpretation requiring semantic review."
+        },
+    }
+    candidate = {
+        **primary_candidate(quotation),
+        "quote_id": quote_id,
+        "wording_similarity": 1.0,
+        "candidate_semantic_reverification_status": "reverified_accepted",
+        "proposed_unblock": False,
+        "proposed_unblock_rationale": (
+            "the source finding does not resolve the meaning issue"
+        ),
+    }
+    result = reaudit.reassess_blocked([blocked_target], [candidate])[0]
+    assert result[
+        "evidence_complete_but_separate_semantic_review_required"
+    ] is True
+    assert result["proposed_unblock"] is False
+    summary = reaudit.build_summary(
+        [blocked_target],
+        [candidate],
+        [result],
+        {"document_count": 1, "total_bytes": 1, "inventory_sha256": "a" * 64},
+        {"document_count": 1, "total_bytes": 1, "inventory_sha256": "a" * 64},
+        input_hashes_stable=True,
+        completed_at="synthetic",
+    )
+    assert summary["evidence_complete_semantic_review_quote_count"] == 1
+    assert summary["evidence_complete_semantic_review_quote_ids"] == [quote_id]
 
 
 def test_wording_correction_requires_same_current_source_identity() -> None:
@@ -359,6 +578,135 @@ def test_missing_current_date_and_event_can_be_filled_from_primary_evidence() ->
     assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE not in categories
     assert proposed["date"] == "1981-02-03"
     assert proposed["source_event"] == "Speech at a second event"
+
+
+def test_placeholder_date_event_and_locator_are_missing_for_classification() -> None:
+    quotation = "Freedom cannot be divided."
+    values = reaudit.current_values({
+        **classification_target(quotation),
+        "current_packet": {
+            "quote_text": quotation,
+            "verified_text": "N/A",
+            "speaker": "Margaret Thatcher",
+            "source_event": "Not available in primary sources",
+            "date": "Unknown",
+            "stable_locator": "Unspecified",
+        },
+        "current_source_role": {},
+    })
+    assert values["verified_text"] == ""
+    assert values["date"] == ""
+    assert values["source_event"] == ""
+    assert values["stable_locator"] == ""
+    assert values["current_occurrence_mtf_document_ids"] == []
+    assert values["original_packet_values"]["date"] == "Unknown"
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(quotation),
+        primary_candidate(quotation),
+        values,
+    )
+    assert reaudit.CATEGORY_DATE_CORRECTION in categories
+    assert reaudit.CATEGORY_EVENT_CORRECTION in categories
+    assert reaudit.CATEGORY_LOCATOR_CORRECTION in categories
+    assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE not in categories
+    assert proposed["date"] == "1981-02-03"
+
+
+def test_verified_evidence_corrects_provisional_thatcher_attribution() -> None:
+    quotation = "Freedom cannot be divided."
+    current = current_claim(quotation)
+    current["speaker"] = "Margaret Thatcher (Attributed)"
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(quotation),
+        primary_candidate(
+            quotation,
+            document_id="100000",
+            date="1980-01-26",
+            event="Speech at the first event",
+        ),
+        current,
+    )
+    assert reaudit.CATEGORY_ATTRIBUTION_CORRECTION in categories
+    assert proposed["speaker"] == "Margaret Thatcher"
+
+
+@pytest.mark.parametrize(
+    ("current_event", "candidate_event", "date"),
+    [
+        (
+            "House of Commons Debate on the European Community",
+            "HC S [European Community]",
+            "1991-06-26",
+        ),
+        (
+            "House of Commons Debate on Economic and Industrial Policy",
+            "HC S: [Government motion on economic and industrial policy]",
+            "1981-02-05",
+        ),
+    ],
+)
+def test_same_date_hc_title_variants_are_same_occurrence(
+    current_event: str, candidate_event: str, date: str
+) -> None:
+    quotation = "Freedom cannot be divided."
+    current = current_claim(
+        quotation, document_id="100000", date=date, event=current_event
+    )
+    candidate = primary_candidate(
+        quotation, document_id="200000", date=date, event=candidate_event
+    )
+    assert reaudit._occurrence_relation(candidate, current) == "same_current_occurrence"
+    categories, _proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(quotation), candidate, current
+    )
+    assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE not in categories
+
+
+def test_known_same_date_daily_telegraph_document_refines_source() -> None:
+    quotation = "Freedom cannot be divided."
+    current = current_claim(
+        quotation,
+        document_id="100000",
+        date="1979-05-02",
+        event="Election-eve speech",
+    )
+    current["direct_mtf_public_urls"].append(
+        "https://www.margaretthatcher.org/document/200000"
+    )
+    candidate = primary_candidate(
+        quotation,
+        document_id="200000",
+        date="1979-05-02",
+        event="Daily Telegraph article",
+    )
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(quotation), candidate, current
+    )
+    assert reaudit.CATEGORY_EVENT_CORRECTION in categories
+    assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE not in categories
+    assert proposed["source_event"] == "Daily Telegraph article"
+
+
+def test_same_day_ambiguous_source_is_neutral_review() -> None:
+    quotation = "Freedom cannot be divided."
+    candidate = primary_candidate(
+        quotation,
+        document_id="200000",
+        date="1980-01-26",
+        event="European community policy statement",
+    )
+    current = current_claim(
+        quotation,
+        document_id="100000",
+        date="1980-01-26",
+        event="European industrial policy report",
+    )
+    categories, proposed, _unblock, _reason = reaudit.classify_changes(
+        classification_target(quotation), candidate, current
+    )
+    assert reaudit.CATEGORY_NEUTRAL_MATCH_REVIEW in categories
+    assert reaudit.CATEGORY_ADDITIONAL_OCCURRENCE not in categories
+    assert "source_event" not in proposed
 
 
 def test_exact_excerpt_confirms_without_rewriting_verified_text() -> None:
@@ -615,18 +963,27 @@ def test_reclassification_accepts_valid_file_passage_and_hash(
     assert summary["candidate_identity_valid_count"] == 1
     assert summary["stale_candidate_count"] == 0
     assert summary["positive_candidates_remaining_valid"] == 1
+    assert summary["candidate_semantic_reverification_required_count"] == 1
+    assert summary["candidate_semantic_reverified_count"] == 1
+    assert summary["candidate_semantic_reverification_accepted_count"] == 1
+    assert summary["candidate_semantic_reverification_rejected_count"] == 0
+    assert summary["reverified_positive_candidate_count"] == 1
     candidate = candidate_document["records"][0]
     assert candidate["candidate_evidence_identity_status"] == "valid"
-    assert "supporting passage still match" in candidate[
+    assert "exact local file SHA-256 still match" in candidate[
         "candidate_evidence_identity_reason"
     ]
+    assert candidate["candidate_semantic_reverification_status"] == (
+        "reverified_accepted"
+    )
+    assert candidate["candidate_document_rematched_without_discovery"] is True
     assert all(
         path.stat().st_mode & 0o777 == 0o600
         for path in case["output"].iterdir()
     )
 
 
-def test_reclassification_marks_altered_passage_with_recorded_hash_stale(
+def test_reclassification_ignores_altered_recorded_passage_and_rematches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     case = prepare_reclassification_case(tmp_path, monkeypatch)
@@ -636,28 +993,34 @@ def test_reclassification_marks_altered_passage_with_recorded_hash_stale(
     )
     reaudit.reclassify_existing(case["project"], case["source"], case["output"])
     candidate = reclassified_candidate(case)
-    assert candidate["candidate_evidence_stale"] is True
-    assert candidate["accepted_as_primary_evidence"] is False
-    assert candidate["candidate_evidence_identity_reason"] == (
-        "supporting_passage_sha256_mismatch"
+    assert candidate["candidate_evidence_stale"] is False
+    assert candidate["candidate_evidence_identity_status"] == "valid"
+    assert candidate["accepted_as_primary_evidence"] is True
+    assert candidate["candidate_semantic_reverification_status"] == "reverified_accepted"
+    assert candidate["recorded_semantic_history"]["supporting_passage"].endswith(
+        "Altered ledger passage."
+    )
+    assert reaudit.word_tokens(candidate["supporting_passage"]) == (
+        reaudit.word_tokens(case["quotation"])
     )
 
 
-def test_reclassification_marks_altered_passage_hash_stale(
+def test_reclassification_does_not_trust_recorded_passage_hash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     case = prepare_reclassification_case(tmp_path, monkeypatch)
     update_source_candidate(case, supporting_passage_sha256="0" * 64)
     reaudit.reclassify_existing(case["project"], case["source"], case["output"])
     candidate = reclassified_candidate(case)
-    assert candidate["candidate_evidence_stale"] is True
-    assert candidate["accepted_as_primary_evidence"] is False
-    assert candidate["candidate_evidence_identity_reason"] == (
-        "supporting_passage_sha256_mismatch"
+    assert candidate["candidate_evidence_stale"] is False
+    assert candidate["accepted_as_primary_evidence"] is True
+    assert candidate["supporting_passage_sha256"] != "0" * 64
+    assert candidate["recorded_semantic_history"]["supporting_passage_sha256"] == (
+        "0" * 64
     )
 
 
-def test_reclassification_marks_passage_absent_from_current_document_stale(
+def test_reclassification_replaces_absent_recorded_passage_with_fresh_match(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     case = prepare_reclassification_case(tmp_path, monkeypatch)
@@ -671,11 +1034,63 @@ def test_reclassification_marks_passage_absent_from_current_document_stale(
     )
     reaudit.reclassify_existing(case["project"], case["source"], case["output"])
     candidate = reclassified_candidate(case)
-    assert candidate["candidate_evidence_stale"] is True
-    assert candidate["accepted_as_primary_evidence"] is False
-    assert candidate["candidate_evidence_identity_reason"] == (
-        "supporting_passage_absent_from_current_document"
+    assert candidate["candidate_evidence_stale"] is False
+    assert candidate["accepted_as_primary_evidence"] is True
+    assert reaudit.word_tokens(candidate["supporting_passage"]) == (
+        reaudit.word_tokens(case["quotation"])
     )
+    assert candidate["recorded_semantic_history"]["supporting_passage"] == (
+        absent_passage
+    )
+
+
+def test_identity_valid_recorded_positive_can_be_semantically_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    case["document_path"].write_bytes(
+        html("103384", "<p>This document contains unrelated wording only.</p>")
+    )
+    update_source_candidate(
+        case,
+        local_file_sha256=reaudit.file_sha256(case["document_path"]),
+    )
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_identity_status"] == "valid"
+    assert candidate["candidate_evidence_stale"] is False
+    assert candidate["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_no_support"
+    )
+    assert candidate["accepted_as_primary_evidence"] is False
+    assert candidate["match_type"] == "no support"
+    assert summary["positive_candidates_remaining_valid"] == 0
+    assert summary["candidate_semantic_reverification_rejected_count"] == 1
+
+
+def test_unselected_candidate_cannot_retain_old_positive_proposal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    update_source_candidate(
+        case,
+        accepted_as_primary_evidence=False,
+        proposed_unblock=False,
+        candidate_classification="strong_primary_evidence",
+        proposed_change_category=[reaudit.CATEGORY_NO_CHANGE],
+    )
+    reaudit.reclassify_existing(case["project"], case["source"], case["output"])
+    candidate = reclassified_candidate(case)
+    assert candidate["candidate_evidence_identity_status"] == (
+        "not_selected_for_revalidation"
+    )
+    assert candidate["candidate_semantic_reverification_status"] == (
+        "not_selected_for_reverification"
+    )
+    assert candidate["accepted_as_primary_evidence"] is False
+    assert candidate["proposed_change_category"] == [reaudit.CATEGORY_NO_CHANGE]
 
 
 @pytest.mark.parametrize("change", ["changed", "missing"])
@@ -716,6 +1131,21 @@ def test_reclassification_performs_zero_search_index_discovery_calls(
         case["project"], case["source"], case["output"]
     )
     assert summary["search_index_discovery_call_count"] == 0
+    assert summary["archive_inventory_rescan_performed"] is False
+
+
+def test_reclassification_does_not_scan_archive_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+
+    def unexpected_inventory(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("archive inventory must not be scanned")
+
+    monkeypatch.setattr(LocalArchiveMirror, "inventory", unexpected_inventory)
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
     assert summary["archive_inventory_rescan_performed"] is False
 
 
