@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v9"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v10"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -974,6 +974,60 @@ def _normalised_dom_text_excluding(node: Any, excluded: Sequence[Any]) -> str:
     return " ".join(" ".join(values).split())
 
 
+def _substantive_text_precedes(parent: Any, marker: Any) -> bool:
+    """Treat a marker as leading when only layout/page-number text precedes it."""
+    for descendant in parent.descendants:
+        if descendant is marker:
+            return False
+        if getattr(descendant, "name", None):
+            continue
+        if not str(descendant).strip():
+            continue
+        ancestor = descendant.parent
+        ignored = False
+        while ancestor is not None and ancestor is not parent:
+            tag = str(getattr(ancestor, "name", "") or "")
+            if (
+                tag == "span"
+                and "pagenum" in {
+                    token.casefold() for token in _node_class_tokens(ancestor)
+                }
+            ):
+                ignored = True
+                break
+            ancestor = ancestor.parent
+        if not ignored:
+            return True
+    return False
+
+
+def _normalised_dom_text_chunks_excluding(
+    node: Any, excluded: Sequence[Any]
+) -> list[str]:
+    """Split parent text at excluded markers so matching cannot cross them."""
+    chunks: list[list[str]] = [[]]
+    for descendant in node.descendants:
+        if any(descendant is item for item in excluded):
+            chunks.append([])
+            continue
+        if getattr(descendant, "name", None):
+            continue
+        ancestor = descendant.parent
+        within_excluded = False
+        while ancestor is not None and ancestor is not node:
+            if any(ancestor is item for item in excluded):
+                within_excluded = True
+                break
+            ancestor = ancestor.parent
+        if not within_excluded:
+            chunks[-1].append(str(descendant))
+    return [
+        normalised
+        for values in chunks
+        if (normalised := " ".join(" ".join(values).split()))
+    ]
+
+
 def _normalised_editorial_phrase(value: str) -> str:
     value = re.sub(r"^\(\d{1,3}\)\s*", "", " ".join(value.split()))
     value = value.casefold().strip(" .:;–—-")
@@ -1237,14 +1291,35 @@ def _archive_ordered_body_events(
                 if _normalised_dom_text(item)
             ]
             recognised_ed_comments = []
+            recognised_details = []
             for marker in ed_comments:
                 label = _normalised_dom_text(marker)
                 numbered = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(label)
                 semantics = _maintained_editorial_marker_semantics(label)
                 if numbered:
+                    recognised_ed_comments.append(marker)
+                    recognised_details.append((
+                        marker, label, numbered.group(1), semantics,
+                    ))
+                elif semantics == "editorial_only":
+                    recognised_ed_comments.append(marker)
+                    recognised_details.append((marker, label, "", semantics))
+            ambiguous_inline_parent = any(
+                number and _substantive_text_precedes(node, marker)
+                for marker, _label, number, _semantics in recognised_details
+            )
+            for marker, label, number, semantics in recognised_details:
+                if number and ambiguous_inline_parent:
+                    events.append(_editorial_event_record(
+                        label=label,
+                        kind="ambiguous_inline_source_marker",
+                        reason="inline_source_marker_after_substantive_text",
+                        number=number,
+                    ))
+                elif number:
                     baseline, reason = _numbered_source_section_baseline(
                         label,
-                        numbered.group(1),
+                        number,
                         metadata,
                         author_verified=author_verified,
                     )
@@ -1253,18 +1328,30 @@ def _archive_ordered_body_events(
                         kind="editorial_source_boundary",
                         baseline=baseline,
                         reason=reason,
-                        number=numbered.group(1),
+                        number=number,
                     ))
-                    recognised_ed_comments.append(marker)
                 elif semantics == "editorial_only":
                     events.append(_editorial_event_record(
                         label=label,
                         kind="editorial_only_marker",
                         reason="maintained_editorial_check_or_end_marker",
                     ))
-                    recognised_ed_comments.append(marker)
             if recognised_ed_comments:
                 consumed_markers.update(id(marker) for marker in recognised_ed_comments)
+                if ambiguous_inline_parent:
+                    for part, text in enumerate(
+                        _normalised_dom_text_chunks_excluding(
+                            node, recognised_ed_comments
+                        ),
+                        start=1,
+                    ):
+                        record = _archive_block_record(
+                            node, text, body_root=article
+                        )
+                        record["ambiguous_inline_source_marker"] = True
+                        record["ambiguous_inline_source_part"] = part
+                        events.append(record)
+                    continue
                 if all(
                     _only_marker_and_page_number(node, marker)
                     for marker in recognised_ed_comments
@@ -1667,6 +1754,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
     editorial_markers_detected = any(
         block.get("ordered_body_event_kind") in {
             "editorial_source_boundary", "editorial_only_marker",
+            "ambiguous_inline_source_marker",
         }
         for block in blocks
     )
@@ -1674,6 +1762,9 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
     for block in blocks:
         value = str(block["normalised_text"])
         if not _is_searchable_contribution_record(block):
+            base_classes.append(None)
+            continue
+        if block.get("ambiguous_inline_source_marker"):
             base_classes.append(None)
             continue
         if block["archive_attribution_classification"] != "no_archive_attribution":
@@ -1764,6 +1855,14 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                 **block_record,
                 "maintained_label": "",
                 "maintained_value": "",
+                "maintained_speaker_class": None,
+            })
+            continue
+        if block_record.get("ambiguous_inline_source_marker"):
+            parsed.append({
+                **block_record,
+                "maintained_label": "",
+                "maintained_value": block,
                 "maintained_speaker_class": None,
             })
             continue
@@ -1887,6 +1986,32 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         archive_run_counter += 1
         return archive_run_counter
 
+    def terminate_section_speaker_state() -> None:
+        nonlocal archive_state_class
+        nonlocal archive_state_label
+        nonlocal archive_state_classification
+        nonlocal archive_state_tokens
+        nonlocal archive_state_run_id
+        nonlocal archive_state_run_polarity
+        nonlocal archive_state_origin
+        nonlocal source_section_baseline_run_id
+        nonlocal maintained_transcript_turn_active
+        nonlocal current_class
+        nonlocal current_label
+        nonlocal current_basis
+        archive_state_class = None
+        archive_state_label = ""
+        archive_state_classification = "no_archive_attribution"
+        archive_state_tokens = []
+        archive_state_run_id = None
+        archive_state_run_polarity = "none"
+        archive_state_origin = "none"
+        source_section_baseline_run_id = None
+        maintained_transcript_turn_active = False
+        current_class = "unverified"
+        current_label = ""
+        current_basis = "unlabelled_material_before_transcript"
+
     def append_segment(
         value: str,
         *,
@@ -1947,13 +2072,39 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         else:
             segments.append(segment)
 
-    if author_verified and not maintained_labels_detected and not archive_markup_detected:
+    if (
+        author_verified
+        and not maintained_labels_detected
+        and not archive_markup_detected
+        and not editorial_source_sections_detected
+    ):
         current_class = "thatcher"
         current_label = str(validation.get("author") or "")
         current_basis = "explicit_document_author"
 
     for block_record in parsed:
         event_kind = str(block_record.get("ordered_body_event_kind") or "")
+        if event_kind == "ambiguous_inline_source_marker":
+            editorial_marker_count += 1
+            terminate_section_speaker_state()
+            source_section_baseline = "unverified"
+            source_section_boundary_kind = event_kind
+            source_section_boundary_reason = str(
+                block_record.get("archive_source_section_boundary_reason") or ""
+            )
+            source_section_label = ""
+            block_record["archive_source_section_id"] = source_section_id
+            if len(editorial_marker_events) < _MAX_EDITORIAL_SOURCE_DIAGNOSTICS:
+                editorial_marker_events.append({
+                    "archive_source_section_id": source_section_id,
+                    "editorial_marker_kind": event_kind,
+                    "editorial_marker_reason": source_section_boundary_reason,
+                    "editorial_marker_label": str(
+                        block_record.get("archive_source_section_label") or ""
+                    ),
+                    "editorial_marker_non_searchable": True,
+                })
+            continue
         if event_kind == "editorial_source_boundary":
             editorial_marker_count += 1
             source_section_id += 1
@@ -2042,6 +2193,30 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         if not _is_searchable_contribution_record(block_record):
             continue
         block = str(block_record["normalised_text"])
+        if block_record.get("ambiguous_inline_source_marker"):
+            ambiguous_run_id = start_archive_run("unverified")
+            block_record["archive_attribution_provenance"] = (
+                "inline_source_marker_after_substantive_text"
+            )
+            block_record["effective_archive_attribution_classification"] = (
+                "ambiguous_inline_source_marker"
+            )
+            block_record["archive_attribution_conflict"] = False
+            block_record["archive_attribution_run_id"] = ambiguous_run_id
+            block_record["archive_attribution_run_polarity"] = "unverified"
+            append_segment(
+                block,
+                speaker_class="unverified",
+                speaker_label="",
+                evidence_basis="inline_source_marker_after_substantive_text",
+                archive_classification="ambiguous_inline_source_marker",
+                archive_provenance="inline_source_marker_after_substantive_text",
+                archive_tokens=[],
+                archive_run_id=ambiguous_run_id,
+                archive_run_polarity="unverified",
+            )
+            source_section_baseline_run_id = None
+            continue
         archive_classification = str(
             block_record["archive_attribution_classification"]
         )
@@ -2091,7 +2266,9 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                     archive_run_polarity="conflicting",
                 )
             source_section_baseline_run_id = None
-            if not source_section_id:
+            if source_section_id:
+                terminate_section_speaker_state()
+            else:
                 archive_state_run_id = conflict_run_id
                 archive_state_run_polarity = "conflicting"
                 archive_state_class = "unverified"
@@ -2150,7 +2327,9 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                 archive_run_polarity=polarity,
             )
             source_section_baseline_run_id = None
-            if not source_section_id:
+            if source_section_id and not compatible_label:
+                terminate_section_speaker_state()
+            elif not source_section_id:
                 archive_state_class = speaker_class
                 archive_state_label = archive_state_label if compatible_state else ""
                 archive_state_classification = archive_classification
@@ -2273,7 +2452,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         "labels_detected": bool(
             maintained_labels_detected
             or archive_markup_detected
-            or editorial_source_sections_detected
+            or editorial_markers_detected
         ),
         "archive_attribution_markup_detected": archive_markup_detected,
         "editorial_source_sections_detected": editorial_source_sections_detected,

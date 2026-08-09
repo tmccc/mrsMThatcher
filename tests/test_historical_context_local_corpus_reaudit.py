@@ -1296,6 +1296,446 @@ def test_numbered_ed_comment_is_removed_without_dropping_substantive_parent_text
     assert "Speaking text" not in fields["surrounding_context"]
 
 
+def test_nonmt_section_standalone_content_terminates_intmt_turn() -> None:
+    quotation = "The continuation returns to reportorial attribution."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Partial paraphrase.</ed-comment></p>'
+        '<p class="intmt">Prime Minister</p>'
+        '<p class="nonmt">A standalone reportorial block.</p>'
+        f'<p>{quotation}</p>',
+        author="Archive transcript",
+        source="(1) Partial paraphrase",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    explicit = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == "A standalone reportorial block."
+    )
+    continuation = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == quotation
+    )
+    continuation_segment = next(
+        row for row in segmentation["segments"] if quotation in row["text"]
+    )
+    assert explicit["archive_attribution_run_polarity"] == "nonmt"
+    assert continuation["archive_source_section_baseline_applied"] is True
+    assert continuation["archive_attribution_run_polarity"] == "nonmt"
+    assert continuation["archive_attribution_run_id"] != explicit[
+        "archive_attribution_run_id"
+    ]
+    assert continuation_segment["evidence_basis"] == (
+        "editorial_source_section_nonmt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_mt_section_standalone_content_terminates_intnonmt_turn() -> None:
+    quotation = "The continuation returns to direct attribution."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p class="intnonmt">Interviewer</p>'
+        '<p class="mt">A standalone direct block.</p>'
+        f'<p>{quotation}</p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    explicit = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == "A standalone direct block."
+    )
+    continuation = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == quotation
+    )
+    assert explicit["archive_attribution_run_polarity"] == "mt"
+    assert continuation["archive_source_section_baseline_applied"] is True
+    assert continuation["archive_attribution_run_polarity"] == "mt"
+    assert continuation["archive_attribution_run_id"] != explicit[
+        "archive_attribution_run_id"
+    ]
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_section_override_terminates_maintained_thatcher_turn() -> None:
+    quotation = "The reportorial baseline does not resume Thatcher."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Partial paraphrase.</ed-comment></p>'
+        '<p>Prime Minister</p><p>An explicitly labelled answer.</p>'
+        '<p class="nonmt">A standalone reportorial block.</p>'
+        f'<p>{quotation}</p>',
+        source="(1) Partial paraphrase",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    continuation = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == quotation
+    )
+    continuation_segment = next(
+        row for row in segmentation["segments"] if quotation in row["text"]
+    )
+    explicit = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == "A standalone reportorial block."
+    )
+    assert continuation["archive_source_section_baseline_applied"] is True
+    assert continuation["archive_attribution_run_polarity"] == "nonmt"
+    assert continuation["archive_attribution_run_id"] != explicit[
+        "archive_attribution_run_id"
+    ]
+    assert continuation_segment["evidence_basis"] == (
+        "editorial_source_section_nonmt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_section_override_terminates_maintained_other_turn() -> None:
+    quotation = "The direct baseline does not resume the interviewer."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p>Interviewer</p><p>An explicitly labelled question.</p>'
+        '<p class="mt">A standalone direct block.</p>'
+        f'<p>{quotation}</p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    continuation = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == quotation
+    )
+    explicit = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == "A standalone direct block."
+    )
+    assert continuation["archive_source_section_baseline_applied"] is True
+    assert continuation["archive_attribution_run_polarity"] == "mt"
+    assert continuation["archive_attribution_run_id"] != explicit[
+        "archive_attribution_run_id"
+    ]
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_section_conflict_terminates_prior_archive_label() -> None:
+    quotation = "The continuation cannot resume the earlier Thatcher label."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Partial paraphrase.</ed-comment></p>'
+        '<p class="intmt">Prime Minister</p>'
+        '<p class="mt nonmt">A conflicting contribution.</p>'
+        f'<p>{quotation}</p>',
+        author="Archive transcript",
+        source="(1) Partial paraphrase",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    conflict = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == "A conflicting contribution."
+    )
+    continuation = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == quotation
+    )
+    assert conflict["archive_attribution_run_polarity"] == "conflicting"
+    assert continuation["archive_source_section_baseline_applied"] is True
+    assert continuation["archive_attribution_run_polarity"] == "nonmt"
+    assert continuation["archive_attribution_run_id"] != conflict[
+        "archive_attribution_run_id"
+    ]
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_section_compatible_intmt_turn_remains_one_run() -> None:
+    quotation = "The labelled Thatcher turn continues."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Partial paraphrase.</ed-comment></p>'
+        '<p class="intmt">Prime Minister</p>'
+        '<p class="mt">Opening direct answer.</p>'
+        f'<p>{quotation}</p>',
+        author="Archive transcript",
+        source="(1) Partial paraphrase",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    explicit = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == "Opening direct answer."
+    )
+    continuation = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == quotation
+    )
+    continuation_segment = next(
+        row for row in segmentation["segments"] if quotation in row["text"]
+    )
+    assert continuation["archive_attribution_run_id"] == explicit[
+        "archive_attribution_run_id"
+    ]
+    assert continuation["archive_source_section_baseline_applied"] is False
+    assert continuation_segment["speaker_label"] == "Prime Minister"
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_section_compatible_intnonmt_turn_remains_one_run() -> None:
+    quotation = "The labelled interviewer turn continues."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p class="intnonmt">Interviewer</p>'
+        '<p class="nonmt">Opening question.</p>'
+        f'<p>{quotation}</p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    explicit = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == "Opening question."
+    )
+    continuation = next(
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] == quotation
+    )
+    continuation_segment = next(
+        row for row in segmentation["segments"] if quotation in row["text"]
+    )
+    assert continuation["archive_attribution_run_id"] == explicit[
+        "archive_attribution_run_id"
+    ]
+    assert continuation["archive_source_section_baseline_applied"] is False
+    assert continuation_segment["speaker_label"] == "Interviewer"
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_verified_author_does_not_cover_unmarked_pre_boundary_summary() -> None:
+    quotation = "This sentence appears only in the reporter summary."
+    body = modern_html(
+        "103384",
+        f'<p>Reporter summary: {quotation}</p>'
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p>The verified direct source begins here.</p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segment = next(
+        row for row in reaudit.speaker_segments(body, validation)["segments"]
+        if quotation in row["text"]
+    )
+    assert fields["editorial_source_sections_detected"] is True
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert segment["evidence_basis"] == (
+        "unlabelled_material_before_transcript"
+    )
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_verified_author_source_baseline_applies_only_after_boundary() -> None:
+    quotation = "This sentence belongs to the verified speaking text."
+    body = modern_html(
+        "103384",
+        '<p>A reporter summary precedes the source.</p>'
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        f'<p>{quotation}</p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["archive_source_section_baseline_applied"] is True
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_editorial_only_marker_retains_document_author_fallback() -> None:
+    quotation = "Document authorship still covers this unmarked sentence."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>Beginning of section checked against BBC Radio News '
+        'Report 2200</ed-comment></p>'
+        f'<p>{quotation}</p>',
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    assert fields["editorial_source_sections_detected"] is False
+    assert fields["direct_primary_attribution_basis"] == (
+        "explicit_document_author"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_explicit_mt_before_source_boundary_remains_direct() -> None:
+    quotation = "Explicit pre-boundary Thatcher content remains direct."
+    body = modern_html(
+        "103384",
+        f'<p class="mt">{quotation}</p>'
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p>Later verified source text.</p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    assert fields["direct_primary_attribution_basis"] == (
+        "explicit_archive_mt_content"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_inline_numbered_marker_after_text_fails_parent_closed() -> None:
+    quotation = "Earlier text must not inherit a positive source state."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        f'<p>{quotation} '
+        '<ed-comment>(2) Speaking text.</ed-comment></p>',
+        source=(
+            "(1) Thatcher Archive: speaking text "
+            "(2) Thatcher Archive: speaking text"
+        ),
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    segment = next(row for row in segmentation["segments"] if quotation in row["text"])
+    diagnostic = next(
+        row for row in segmentation["archive_editorial_marker_events"]
+        if row["editorial_marker_kind"] == "ambiguous_inline_source_marker"
+    )
+    assert diagnostic["editorial_marker_reason"] == (
+        "inline_source_marker_after_substantive_text"
+    )
+    assert segment["speaker_class"] == "unverified"
+    assert segment["archive_source_section_baseline_applied"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+    assert "Speaking text" not in fields["supporting_passage"]
+    assert "Speaking text" not in fields["surrounding_context"]
+
+
+def test_inline_numbered_marker_splits_both_sides_into_unverified_runs() -> None:
+    quotation = "Freedom cannot be divided."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p>Freedom cannot '
+        '<ed-comment>(2) Speaking text.</ed-comment>be divided.</p>',
+        source=(
+            "(1) Thatcher Archive: speaking text "
+            "(2) Thatcher Archive: speaking text"
+        ),
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    parts = [
+        row for row in segmentation["contribution_blocks"]
+        if row.get("ambiguous_inline_source_marker")
+    ]
+    assert [row["normalised_text"] for row in parts] == [
+        "Freedom cannot", "be divided.",
+    ]
+    assert len({row["archive_attribution_run_id"] for row in parts}) == 2
+    assert all(
+        row["archive_source_section_baseline_applied"] is False for row in parts
+    )
+    assert fields["raw_match_type"] == "assembled_clauses"
+    assert fields["cross_speaker_join_rejected"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_pagenum_before_inline_marker_is_not_substantive() -> None:
+    quotation = "Page layout does not invalidate the source boundary."
+    body = modern_html(
+        "103384",
+        '<p><span class="pagenum">[end p1]</span>'
+        '<ed-comment>(1) Speaking text.</ed-comment> '
+        f'{quotation}</p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["archive_source_section_count"] == 1
+    assert not any(
+        row["editorial_marker_kind"] == "ambiguous_inline_source_marker"
+        for row in segmentation["archive_editorial_marker_events"]
+    )
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+def test_formatting_wrapper_before_inline_marker_is_harmless() -> None:
+    quotation = "Formatting does not invalidate the source boundary."
+    body = modern_html(
+        "103384",
+        '<p><strong><ed-comment>(1) Speaking text.</ed-comment></strong> '
+        f'<em>{quotation}</em></p>',
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["archive_source_section_count"] == 1
+    assert fields["archive_source_section_baseline_applied"] is True
+    assert fields["accepted_as_primary_evidence"] is True
+    assert "Speaking text" not in fields["supporting_passage"]
+    assert "Speaking text" not in fields["surrounding_context"]
+
+
+def test_clean_boundary_restores_baseline_after_ambiguous_inline_marker() -> None:
+    quotation = "A later clean source boundary restores direct attribution."
+    body = modern_html(
+        "103384",
+        '<p>Earlier ambiguous parent text. '
+        '<ed-comment>(1) Speaking text.</ed-comment>Later ambiguous text.</p>'
+        '<p>This intervening text remains unverified.</p>'
+        '<p><ed-comment>(2) Speaking text.</ed-comment></p>'
+        f'<p>{quotation}</p>',
+        source=(
+            "(1) Thatcher Archive: speaking text "
+            "(2) Thatcher Archive: speaking text"
+        ),
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    intervening = next(
+        row for row in segmentation["segments"]
+        if "intervening text" in row["text"]
+    )
+    assert intervening["speaker_class"] == "unverified"
+    assert segmentation["archive_source_section_count"] == 1
+    assert fields["archive_source_section_id"] == 1
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
 def test_italic_editorial_sections_separate_paraphrase_and_modified_text() -> None:
     quotation = "Freedom cannot be divided."
     body = modern_html(

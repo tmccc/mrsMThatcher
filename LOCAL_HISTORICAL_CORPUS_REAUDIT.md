@@ -127,6 +127,17 @@ when the structured editorial comment explicitly says that same source reported
 the event. A missing, inconsistent, or ambiguous numbered entry still creates a
 hard boundary but gives the section an `unverified` baseline.
 
+A numbered `ed-comment` nested in a contribution parent is a source boundary
+only when it is the first substantive content in that parent. Whitespace,
+formatting wrappers, and `span.pagenum` do not count as substantive. A
+marker-first parent remains supported: the non-searchable marker is emitted
+first and the remaining parent text receives the new baseline. If substantive
+text precedes the marker, its placement is ambiguous and fails closed with the
+bounded reason `inline_source_marker_after_substantive_text`; the marker stays
+out of matching and context, the entire parent is unverified, matching cannot
+join text across the marker, and following material remains unverified until a
+later clean source boundary or explicit attribution establishes new state.
+
 An italic source marker is recognised only as a direct child of the selected
 body, or as the only substantive content of a paragraph apart from formatting
 and a `span.pagenum`. After an optional number, the complete maintained direct
@@ -153,9 +164,20 @@ coalesced only within both one run ID and one source-section ID, so clauses are
 never assembled across source sections and a later report occurrence cannot
 suppress a valid direct occurrence in another section.
 
+When the selected body contains a recognised source boundary, verified
+document authorship is not seeded as attribution for unmarked material before
+the first boundary. Such introductions, summaries, and reports remain
+unverified; explicit pre-boundary archive or maintained speaker attribution is
+still evaluated normally. Documents without a source boundary, including
+documents containing only editorial check/end markers, retain the document-
+author fallback.
+
 Inside a recognised source section, an `mt` or `nonmt` content token without a
 compatible active `intmt`/`intnonmt` label overrides only that block. The next
-unclassed contribution returns to the section baseline and a new run. A
+unclassed contribution returns to the section baseline and a new run. Before
+that return, a standalone or incompatible explicit content block, including a
+conflicting block, terminates any superseded archive-label or maintained
+transcript turn state. A
 compatible content token following `intmt` or `intnonmt` remains part of that
 explicit labelled contribution, whose turn semantics persist to the next label
 or source boundary. Outside recognised source sections, the v8 persistent-run
