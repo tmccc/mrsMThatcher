@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, Iterator
+from zoneinfo import ZoneInfo
 
 
 SCHEMA_VERSION = 1
@@ -44,8 +45,6 @@ VERSION_CONSTANTS = (
 )
 EXPLICIT_JSON_FILES = (
     "confirmed_reply_receipt.json",
-    "historical_context_reply_history.json",
-    "historical_context_reply_receipt.json",
 )
 FINGERPRINT_FILES = ("reply_strategy.py", "mrsMThatcher2.py", "bot_state.json")
 OUTPUT_FILES = (
@@ -71,6 +70,67 @@ ROUTINE_REASON_LABELS = (
     "own_account",
     "already_seen",
     "lane_not_due",
+)
+CONVERSATIONAL_LANES = frozenset({"mention", "hot-post", "quote-tweet"})
+LOCAL_REJECTION_REASONS = frozenset(
+    {
+        "clarification_not_direct_factual_answer",
+        "clarification_thread_terminal",
+        "exact_duplicate_reply",
+        "near_duplicate_reply",
+        "reply_not_permitted",
+        "spam_or_not_worth_replying",
+        "target_does_not_directly_mention_account",
+    }
+)
+EDITORIAL_SKIP_REASONS = frozenset(
+    {
+        "no_usable_reply_generated",
+        "reviewer_approval_missing",
+    }
+)
+OPERATIONAL_SKIP_REASONS = frozenset(
+    {
+        "ai_reply_persistence_validation_failed",
+        "context_unavailable",
+        "reply_evidence_unavailable",
+    }
+)
+NON_TERMINAL_REASONS = frozenset({"strategy_disabled"})
+LONDON = ZoneInfo("Europe/London")
+LEGACY_REPLY_FUNCTION_PREFIXES = (
+    "maybe_reply_to_mentions",
+    "maybe_reply_to_quote_tweets",
+    "generate_ai_first_reply",
+    "reply_strategy",
+    "conversational_reply",
+)
+LEGACY_REPLY_MESSAGE_PREFIXES = (
+    "AI-first reply ",
+    "Conversational reply ",
+    "Considering mention ",
+    "Considering hot_post_reply ",
+    "Considering quote tweet ",
+    "Generated reply to mention ",
+    "Generated reply to quote tweet ",
+    "Reply posted",
+    "Quote-tweet reply posted",
+    "No usable reply generated for ",
+    "Skipping mention ",
+    "Skipping hot_post_reply ",
+    "Skipping hot-post candidate ",
+    "Skipping quote tweet ",
+    "Skipping conversational reply ",
+    "Wrote confirmed reply receipt",
+    "Wrote conversational reply ",
+    "Promoted conversational reply ",
+    "Removed conversational reply ",
+    "Reconciling confirmed reply receipt",
+    "Confirmed conversational reply ",
+    "Hot-post reply ",
+    "Mention reply ",
+    "Reply candidate ",
+    "Reply strategy ",
 )
 DIAGNOSTIC_PHRASES = (
     "well noted",
@@ -134,6 +194,21 @@ def normalise_created_at(value: str | None) -> str:
         raise ExtractionError("--created-at must include a UTC offset or Z")
     if parsed.utcoffset().total_seconds() != 0:
         raise ExtractionError("--created-at must be UTC")
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def utc_timestamp(value: Any, *, assume_london: bool = True) -> str:
+    """Normalise an ISO timestamp to UTC, treating naive bot times as London."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    candidate = text[:-1] + "+00:00" if text.endswith(("Z", "z")) else text
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        return ""
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        parsed = parsed.replace(tzinfo=LONDON if assume_london else timezone.utc)
     return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -284,6 +359,15 @@ def safe_read_bytes(path: Path, project: Path) -> bytes:
         os.close(descriptor)
 
 
+def source_sort_key(name: str) -> tuple[int, int, str]:
+    match = LOG_NAME_RE.fullmatch(name)
+    if match:
+        # A project log is one stream: oldest/highest rotation to active.
+        suffix = int(match.group(1)) if match.group(1) is not None else 0
+        return (0, -suffix, name)
+    return (1, 0, name)
+
+
 def source_candidates(project: Path) -> list[Path]:
     allowed_fixed = set(FINGERPRINT_FILES) | set(EXPLICIT_JSON_FILES)
     names: set[str] = set()
@@ -297,20 +381,24 @@ def source_candidates(project: Path) -> list[Path]:
         # before safe_read_bytes() has proved its target stays in-project.
         if entry.name in allowed_fixed or LOG_NAME_RE.fullmatch(entry.name):
             names.add(entry.name)
-    return [project / name for name in sorted(names)]
+    return [project / name for name in sorted(names, key=source_sort_key)]
 
 
 def warning(kind: str, **fields: Any) -> dict[str, Any]:
     return {"kind": kind, **fields}
 
 
-def parse_log_records(data: bytes, source_key: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def parse_log_records(
+    data: bytes,
+    source_key: str,
+    pair_counts: Counter[tuple[str, str]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     records: list[dict[str, Any]] = []
     source_warnings: list[dict[str, Any]] = []
     current: list[bytes] = []
     current_header: re.Match[bytes] | None = None
     current_warnings: list[dict[str, Any]] = []
-    pair_counts: Counter[tuple[str, str]] = Counter()
+    stream_pair_counts: Counter[tuple[str, str]] = pair_counts if pair_counts is not None else Counter()
 
     def flush() -> None:
         nonlocal current, current_header, current_warnings
@@ -318,10 +406,11 @@ def parse_log_records(data: bytes, source_key: str) -> tuple[list[dict[str, Any]
             return
         raw = b"".join(current)
         raw_hash = sha256_bytes(raw)
-        timestamp = current_header.group("ts").decode("ascii")
-        pair = (timestamp, raw_hash)
-        pair_counts[pair] += 1
-        ordinal = pair_counts[pair]
+        original_timestamp = current_header.group("ts").decode("ascii")
+        timestamp = utc_timestamp(original_timestamp)
+        pair = (original_timestamp, raw_hash)
+        stream_pair_counts[pair] += 1
+        ordinal = stream_pair_counts[pair]
         source_metadata = current_header.group("src").decode("utf-8", "surrogateescape").strip()
         line_raw = current_header.group("line")
         first_line = current[0]
@@ -342,12 +431,13 @@ def parse_log_records(data: bytes, source_key: str) -> tuple[list[dict[str, Any]
                 structured = value
             except (json.JSONDecodeError, ValueError) as exc:
                 record_warnings.append(warning("malformed_structured_event", detail=str(exc)))
-        record_id = stable_id("record", timestamp, raw_hash, ordinal)
+        record_id = stable_id("record", original_timestamp, raw_hash, ordinal)
         records.append(
             {
                 "level": current_header.group("level").decode("ascii"),
                 "line": int(line_raw) if line_raw else None,
                 "message": message,
+                "original_timestamp_text": original_timestamp,
                 "pair_ordinal": ordinal,
                 "parse_warnings": record_warnings,
                 "raw_record_sha256": raw_hash,
@@ -435,10 +525,26 @@ def event_lane(kind: str, event: dict[str, Any]) -> str:
 def make_evidence_event(kind: str, record: dict[str, Any], fields: dict[str, Any]) -> dict[str, Any]:
     return {
         "kind": kind,
+        "original_timestamp_text": record.get("original_timestamp_text"),
         "record_id": record["record_id"],
         "timestamp": record["timestamp"],
         **fields,
     }
+
+
+def is_reply_related_structured_kind(kind: str) -> bool:
+    lowered = kind.strip().lower()
+    return "reply" in lowered and lowered.startswith(
+        (
+            "ai_reply_",
+            "confirmed_reply_",
+            "conversational_reply_",
+            "hot_post_reply_",
+            "mention_reply_",
+            "quote_tweet_reply_",
+            "reply_",
+        )
+    )
 
 
 def structured_evidence(records: Iterable[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -462,15 +568,30 @@ def structured_evidence(records: Iterable[dict[str, Any]]) -> tuple[list[dict[st
         "reply_strategy_local_rejection",
         "reply_strategy_rejection",
         "reply_evidence_unavailable",
+        "confirmed_reply_receipt_sending",
+        "confirmed_reply_receipt_promoted",
+        "confirmed_reply_receipt_removed",
+        "confirmed_reply_receipt_reconciled",
     }
     for record in records:
         event = record.get("structured_event")
         if not isinstance(event, dict):
             continue
         kind = str(event.get("event") or event.get("kind") or "")
-        if kind not in recognised and not (
+        recognised_kind = kind in recognised or (
             "hot_post" in kind and "reply" in kind and ("outcome" in kind or "posted" in kind)
-        ):
+        )
+        if not recognised_kind:
+            if is_reply_related_structured_kind(kind):
+                unmatched.append(
+                    {
+                        "event_kind": kind or "unavailable",
+                        "message_class": "unrecognised_structured_reply_event",
+                        "reason": "structured reply-related event kind is not supported",
+                        "record_id": record["record_id"],
+                        "timestamp": record["timestamp"],
+                    }
+                )
             continue
         fields = dict(event)
         fields.pop("event", None)
@@ -478,12 +599,17 @@ def structured_evidence(records: Iterable[dict[str, Any]]) -> tuple[list[dict[st
         fields["lane"] = event_lane(kind, event)
         fields["target_id"] = target_from_event(event)
         item = make_evidence_event(kind, record, fields)
-        if fields["target_id"]:
+        if fields["target_id"] and fields["lane"] in CONVERSATIONAL_LANES:
             relevant.append(item)
+        elif fields["target_id"]:
+            # Structured regular-post, meme and historical-context evidence is
+            # outside this deliberately conversational corpus.
+            continue
         else:
             unmatched.append(
                 {
                     "event_kind": kind,
+                    "message_class": "structured_reply_event_missing_target",
                     "reason": "structured reply event lacks explicit target identity",
                     "record_id": record["record_id"],
                     "timestamp": record["timestamp"],
@@ -492,11 +618,27 @@ def structured_evidence(records: Iterable[dict[str, Any]]) -> tuple[list[dict[st
     return relevant, unmatched
 
 
-def legacy_evidence(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def is_reply_related_legacy_record(record: dict[str, Any]) -> bool:
+    message = str(record.get("message") or "")
+    if message.startswith("EVENT "):
+        return False
+    if message.startswith(LEGACY_REPLY_MESSAGE_PREFIXES):
+        return True
+    source = str(record.get("source_metadata") or "").split(".")[-1]
+    return source.startswith(LEGACY_REPLY_FUNCTION_PREFIXES) and message.startswith(
+        ("Candidate reply ", "Pipeline reply ")
+    )
+
+
+def legacy_evidence(
+    records: list[dict[str, Any]],
+    pending: dict[str, dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Recognise only legacy forms established in mrs_log_digest.py."""
     events: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
-    pending: dict[str, dict[str, Any]] = {}
+    if pending is None:
+        pending = {}
 
     def add(record: dict[str, Any], kind: str, **fields: Any) -> None:
         events.append(make_evidence_event(kind, record, fields))
@@ -573,7 +715,19 @@ def legacy_evidence(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]]
             continue
         match = re.search(r"Generated reply to quote tweet (\d+): (.*)$", message, re.S)
         if match:
-            item = pending.get("quote-tweet", {"target_id": match.group(1)})
+            item = pending.get("quote-tweet")
+            if not item or item.get("target_id") != match.group(1):
+                unmatched.append(
+                    {
+                        "event_kind": "legacy_quote_reply_generated",
+                        "message_class": "legacy_reply_target_mismatch",
+                        "reason": "generated quote-tweet reply has no pending candidate with the same target ID",
+                        "record_id": record["record_id"],
+                        "target_id": match.group(1),
+                        "timestamp": record["timestamp"],
+                    }
+                )
+                continue
             item["actual_reply_text"] = decode_literal(match.group(2))
             pending["quote-tweet"] = item
             add(record, "legacy_reply_generated", lane="quote-tweet", **item)
@@ -625,6 +779,17 @@ def legacy_evidence(records: list[dict[str, Any]]) -> tuple[list[dict[str, Any]]
         match = re.search(r"Reconciling confirmed reply receipt(?: source=([^\s]+))? target_id=([^\s]+) reply_post_id=([^\s]+)", message)
         if match:
             add(record, "confirmed_reply_receipt_reconciled", lane=normalise_lane(match.group(1)), target_id=match.group(2), reply_post_id=match.group(3))
+            continue
+        if is_reply_related_legacy_record(record):
+            unmatched.append(
+                {
+                    "event_kind": "legacy_reply_record",
+                    "message_class": "unrecognised_legacy_reply_record",
+                    "reason": "legacy reply-related record form is not supported",
+                    "record_id": record["record_id"],
+                    "timestamp": record["timestamp"],
+                }
+            )
     return events, unmatched
 
 
@@ -647,6 +812,25 @@ def normalise_routine_reason(reason: Any) -> str | None:
     if "lane_not_due" in text or "lane not due" in text or "check not due" in text:
         return "lane_not_due"
     return None
+
+
+def normalise_reason(reason: Any) -> str:
+    return "_".join(str(reason or "").strip().lower().replace("-", "_").split())
+
+
+def skip_reason_taxonomy(reason: Any) -> tuple[str | None, str | None]:
+    """Return an explicit terminal class and optional routine label."""
+    routine = normalise_routine_reason(reason)
+    if routine:
+        return None, routine
+    value = normalise_reason(reason)
+    if value in LOCAL_REJECTION_REASONS or value.startswith("already_evaluated_reply_not_permitted"):
+        return "deterministic_rejection", None
+    if value in EDITORIAL_SKIP_REASONS or value.startswith("already_evaluated_no_reply"):
+        return "editorial_no_reply", None
+    if value in OPERATIONAL_SKIP_REASONS:
+        return "operational_failure", None
+    return None, None
 
 
 def parse_timestamp_sort(value: str) -> tuple[int, str]:
@@ -756,29 +940,17 @@ def supplemental_json_evidence(
                 rows.extend(item for item in value if isinstance(item, dict))
     elif name == "confirmed_reply_receipt.json" and isinstance(document, dict):
         rows = [document]
-    elif name.startswith("historical_context_reply_"):
-        if isinstance(document, list):
-            rows = [item for item in document if isinstance(item, dict)]
-        elif isinstance(document, dict):
-            for key in ("history", "records", "items"):
-                if isinstance(document.get(key), list):
-                    rows = [item for item in document[key] if isinstance(item, dict)]
-                    break
-            if not rows and (document.get("target_id") or document.get("parent_post_id")):
-                rows = [document]
     for index, row in enumerate(rows):
         target = target_from_event(row)
         if not target:
             continue
-        lane = normalise_lane(
-            row.get("lane")
-            or row.get("candidate_source")
-            or ("historical-context" if name.startswith("historical_context") else "unavailable")
-        )
-        timestamp = (
-            epoch_timestamp(row.get("confirmation_epoch") or row.get("reply_epoch") or row.get("completed_epoch"))
-            or str(row.get("creation_time") or row.get("confirmed_at") or row.get("created_at") or "")
-        )
+        lane = normalise_lane(row.get("lane") or row.get("candidate_source") or row.get("source"))
+        if lane not in CONVERSATIONAL_LANES:
+            continue
+        epoch_value = row.get("confirmation_epoch") or row.get("reply_epoch") or row.get("completed_epoch")
+        iso_value = row.get("creation_time") or row.get("confirmed_at") or row.get("created_at") or ""
+        original_timestamp = str(epoch_value if epoch_value not in (None, "") else iso_value)
+        timestamp = epoch_timestamp(epoch_value) if epoch_value not in (None, "") else utc_timestamp(iso_value)
         status = str(row.get("status") or row.get("lifecycle_state") or "")
         actual_reply = row.get("proposed_reply") or row.get("reply_text")
         fields = dict(row)
@@ -795,8 +967,10 @@ def supplemental_json_evidence(
         events.append(
             {
                 "kind": "supplemental_reply_evidence",
+                "original_timestamp_text": original_timestamp,
                 "record_id": "",
-                "supplemental_evidence_id": stable_id("evidence", source_sha, index, event_hash),
+                "supplemental_evidence_id": stable_id("evidence", event_hash),
+                "supplemental_occurrence_id": stable_id("supplemental-occurrence", source_identity, index, event_hash),
                 "timestamp": timestamp,
                 "status": status,
                 **fields,
@@ -808,7 +982,9 @@ def supplemental_json_evidence(
 def event_outcome(event: dict[str, Any]) -> str | None:
     kind = str(event.get("kind") or "")
     status = str(event.get("status") or "").lower()
-    reason = str(event.get("reason") or event.get("failure_reason") or "").lower()
+    reason = normalise_reason(
+        event.get("reason") or event.get("no_reply_reason") or event.get("failure_reason")
+    )
     if kind in {
         "mention_reply_posted",
         "hot_post_reply_posted",
@@ -838,18 +1014,17 @@ def event_outcome(event: dict[str, Any]) -> str | None:
     if kind in {"mention_grok_skip", "hot_post_reply_grok_skip", "legacy_editorial_no_reply"}:
         return "editorial_no_reply"
     if kind == "reply_strategy_decision" or kind == "ai_reply_pipeline_decision":
-        if str(event.get("mode") or "").lower() == "no_reply" or status in {"no_reply", "disabled"}:
+        if reason in LOCAL_REJECTION_REASONS:
+            return "deterministic_rejection"
+        if reason in NON_TERMINAL_REASONS or status == "disabled":
+            return None
+        if str(event.get("mode") or "").lower() == "no_reply" or status == "no_reply":
             return "editorial_no_reply"
     if kind in {"reply_target_terminal", "reply_strategy_local_rejection", "reply_strategy_rejection"}:
         return "deterministic_rejection"
     if kind in {"candidate_skipped", "legacy_candidate_skipped"}:
-        if normalise_routine_reason(reason):
-            return None
-        if any(word in reason for word in ("unavailable", "failed", "error", "persistence")):
-            return "operational_failure"
-        if reason in {"no_usable_reply_generated", "reviewer_approval_missing"} or "already_evaluated_no_reply" in reason:
-            return "editorial_no_reply"
-        return "deterministic_rejection"
+        outcome, _routine = skip_reason_taxonomy(reason)
+        return outcome
     if kind == "supplemental_reply_evidence":
         if event.get("reply_post_id") and event.get("actual_reply_text"):
             return "posted"
@@ -884,17 +1059,26 @@ def reconstruct_candidates(
     version_rows: list[dict[str, Any]],
     record_snapshots: dict[str, set[str]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], int]:
-    routine_map: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    routine_map: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     unmatched: list[dict[str, Any]] = []
     for event in evidence:
         lane = normalise_lane(event.get("lane"))
+        if lane not in CONVERSATIONAL_LANES and not (
+            event.get("kind") == "routine_skip" and lane == "unavailable"
+        ):
+            continue
         target = str(event.get("target_id") or "")
         routine_reason = None
         if event.get("kind") in {"candidate_skipped", "legacy_candidate_skipped", "routine_skip"}:
             routine_reason = normalise_routine_reason(event.get("reason"))
         if routine_reason:
-            key = (str(event.get("timestamp") or ""), lane, target, routine_reason)
+            source_evidence_id = str(
+                event.get("record_id")
+                or event.get("supplemental_evidence_id")
+                or stable_id("routine-source", json_text(event))
+            )
+            key = (str(event.get("timestamp") or ""), lane, target, routine_reason, source_evidence_id)
             row = routine_map.setdefault(
                 key,
                 {
@@ -938,7 +1122,11 @@ def reconstruct_candidates(
         "actual_reply_text": ("actual_reply_text", "reply_text", "reply", "proposed_reply"),
         "reply_post_id": ("reply_post_id",),
         "no_reply_reason": ("no_reply_reason",),
-        "deterministic_rejection_reason": ("deterministic_rejection_reason", "reason"),
+        "deterministic_rejection_reason": (
+            "deterministic_rejection_reason",
+            "reason",
+            "no_reply_reason",
+        ),
         "mode": ("mode", "proposer_mode"),
         "tone": ("tone", "humour_tone"),
         "reviewer_verdict": ("reviewer_verdict",),
@@ -950,7 +1138,53 @@ def reconstruct_candidates(
         events.sort(key=lambda item: (parse_timestamp_sort(str(item.get("timestamp") or "")), str(item.get("record_id") or item.get("supplemental_evidence_id") or ""), str(item.get("kind") or "")))
         source_record_ids = sorted({str(item.get("record_id")) for item in events if item.get("record_id")})
         supplemental_ids = sorted({str(item.get("supplemental_evidence_id")) for item in events if item.get("supplemental_evidence_id")})
+        supplemental_occurrences = sorted(
+            {
+                json_text(occurrence): occurrence
+                for item in events
+                for occurrence in item.get("supplemental_occurrences", [])
+            }.values(),
+            key=lambda item: (
+                str(item.get("supplemental_source") or ""),
+                str(item.get("supplemental_occurrence_id") or ""),
+            ),
+        )
+        timestamp_evidence = sorted(
+            {
+                json_text(row): row
+                for item in events
+                for row in (
+                    {
+                        "evidence_id": str(
+                            item.get("record_id")
+                            or item.get("supplemental_evidence_id")
+                            or ""
+                        ),
+                        "original_timestamp_text": item.get("original_timestamp_text"),
+                        "timestamp": item.get("timestamp") or None,
+                    },
+                )
+                if row["timestamp"] or row["original_timestamp_text"]
+            }.values(),
+            key=lambda row: (
+                str(row.get("timestamp") or ""),
+                str(row.get("evidence_id") or ""),
+                str(row.get("original_timestamp_text") or ""),
+            ),
+        )
         conflicts: list[dict[str, Any]] = []
+        for item in events:
+            for conflict in item.get("derivation_conflicts", []):
+                conflicts.append(
+                    {
+                        "field": f"legacy_derivation:{conflict['field']}",
+                        "values": [
+                            conflict["retained_value"],
+                            conflict["alternate_value"],
+                        ],
+                        "evidence_ids": [str(item.get("record_id") or "")],
+                    }
+                )
         resolved: dict[str, Any] = {}
         for output_field, keys in field_map.items():
             values = candidate_field_values(events, keys)
@@ -978,6 +1212,12 @@ def reconstruct_candidates(
             contradictory = [value for value in outcome_classes if value not in {"posted", "operational_failure"}]
             outcome = "posted"
             if contradictory:
+                conflicts.append({"field": "outcome", "values": outcome_classes, "evidence_ids": sorted({str(item.get("record_id") or item.get("supplemental_evidence_id") or "") for _value, item in terminal})})
+        elif "deterministic_rejection" in outcome_classes:
+            # Explicit local terminal reasons cannot be re-labelled editorial
+            # merely because a generic legacy no-usable-reply line also exists.
+            outcome = "deterministic_rejection"
+            if len(outcome_classes) > 1:
                 conflicts.append({"field": "outcome", "values": outcome_classes, "evidence_ids": sorted({str(item.get("record_id") or item.get("supplemental_evidence_id") or "") for _value, item in terminal})})
         elif len(outcome_classes) == 1:
             outcome = outcome_classes[0]
@@ -1045,12 +1285,40 @@ def reconstruct_candidates(
         else:
             status = "complete" if required_complete else "partial"
         notes: list[str] = []
+        raw_reasons = sorted(
+            {
+                str(value)
+                for item in events
+                for value in (
+                    item.get("reason"),
+                    item.get("no_reply_reason"),
+                    item.get("failure_reason"),
+                )
+                if value not in (None, "")
+            }
+        )
+        unknown_skip_reasons = sorted(
+            {
+                str(item.get("reason"))
+                for item in events
+                if item.get("kind") in {"candidate_skipped", "legacy_candidate_skipped"}
+                and item.get("reason")
+                and skip_reason_taxonomy(item.get("reason")) == (None, None)
+            }
+        )
         if not resolved.get("incoming_text"):
             notes.append("incoming contribution is absent from available evidence")
         if outcome == "posted" and not resolved.get("actual_reply_text"):
             notes.append("posted disposition is present but reply text is absent")
         if outcome == "unresolved":
             notes.append("no terminal disposition is present in selected evidence")
+        if unknown_skip_reasons:
+            notes.append(
+                "unknown candidate skip reason retained without inferring a terminal disposition: "
+                + ", ".join(unknown_skip_reasons)
+            )
+        if any(normalise_reason(reason) in NON_TERMINAL_REASONS for reason in raw_reasons):
+            notes.append("strategy-disabled execution is retained as non-terminal evidence")
         if version_confidence == "approximate":
             notes.append("version is inferred from the earliest selected snapshot containing the candidate; no exact deployment boundary is claimed")
         candidate = {
@@ -1071,6 +1339,7 @@ def reconstruct_candidates(
             "prompt_version_evidence": version_evidence,
             "quoted_post_id": resolved.get("quoted_post_id"),
             "quoted_post_text": resolved.get("quoted_post_text"),
+            "raw_reasons": raw_reasons,
             "reconstruction_notes": notes,
             "reconstruction_status": status,
             "reply_post_id": resolved.get("reply_post_id"),
@@ -1079,14 +1348,16 @@ def reconstruct_candidates(
             "source_record_ids": source_record_ids,
             "strategy_version": strategy_version,
             "supplemental_evidence_ids": supplemental_ids,
+            "supplemental_occurrences": supplemental_occurrences,
             "target_id": target,
             "terminal_timestamp": terminal_timestamps[-1] if terminal_timestamps else None,
             "thread_id": resolved.get("thread_id"),
+            "timestamp_evidence": timestamp_evidence,
             "tone": resolved.get("tone"),
             "version_confidence": version_confidence,
         }
         candidates.append(candidate)
-    routine = sorted(routine_map.values(), key=lambda row: (row["timestamp"], row["lane"], row["target_id"], row["reason"], row["routine_skip_id"]))
+    routine = sorted(routine_map.values(), key=lambda row: (row["timestamp"], row["lane"], str(row["target_id"] or ""), row["reason"], row["routine_skip_id"]))
     return candidates, routine, unmatched, ambiguity_count
 
 
@@ -1147,7 +1418,14 @@ def distribution(values: Iterable[int], buckets: tuple[int, ...]) -> dict[str, i
 
 
 def quality_inventory(candidates: list[dict[str, Any]]) -> dict[str, Any]:
-    posted = [item for item in candidates if item["outcome"] == "posted" and isinstance(item.get("actual_reply_text"), str) and item["actual_reply_text"]]
+    posted = [
+        item
+        for item in candidates
+        if item.get("lane") in CONVERSATIONAL_LANES
+        and item["outcome"] == "posted"
+        and isinstance(item.get("actual_reply_text"), str)
+        and item["actual_reply_text"]
+    ]
     replies = [str(item["actual_reply_text"]) for item in posted]
     normalised = [" ".join(tokens(reply)) for reply in replies]
     exact: dict[str, list[int]] = defaultdict(list)
@@ -1253,7 +1531,10 @@ def quality_inventory(candidates: list[dict[str, Any]]) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "sentence_count_distribution": dict(sorted(Counter(str(len([part for part in SENTENCE_RE.findall(reply) if part.strip()])) for reply in replies).items())),
         "tool_version": TOOL_VERSION,
-        "total_posted_candidates": sum(item["outcome"] == "posted" for item in candidates),
+        "total_posted_candidates": sum(
+            item["outcome"] == "posted" and item.get("lane") in CONVERSATIONAL_LANES
+            for item in candidates
+        ),
         "total_posted_replies_with_text": len(posted),
     }
 
@@ -1306,7 +1587,7 @@ def gap_report(records: list[dict[str, Any]]) -> dict[str, Any]:
     parsed: list[tuple[datetime, str]] = []
     for record in records:
         try:
-            parsed.append((datetime.strptime(record["timestamp"], "%Y-%m-%d %H:%M:%S"), record["record_id"]))
+            parsed.append((datetime.fromisoformat(record["timestamp"].replace("Z", "+00:00")), record["record_id"]))
         except ValueError:
             continue
     parsed.sort()
@@ -1314,7 +1595,7 @@ def gap_report(records: list[dict[str, Any]]) -> dict[str, Any]:
     for (before, before_id), (after, after_id) in zip(parsed, parsed[1:]):
         seconds = int((after - before).total_seconds())
         if seconds >= 24 * 60 * 60:
-            gaps.append({"after_record_id": after_id, "before_record_id": before_id, "end": after.strftime("%Y-%m-%d %H:%M:%S"), "seconds": seconds, "start": before.strftime("%Y-%m-%d %H:%M:%S")})
+            gaps.append({"after_record_id": after_id, "before_record_id": before_id, "end": after.isoformat().replace("+00:00", "Z"), "seconds": seconds, "start": before.isoformat().replace("+00:00", "Z")})
     return {
         "detected_temporal_gaps": gaps,
         "gap_rule": "adjacent canonical log-record timestamps differ by at least 86400 seconds",
@@ -1428,8 +1709,16 @@ def write_private(path: Path, data: bytes) -> None:
 
 
 def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
-    body = "".join(json_text(row) + "\n" for row in rows).encode("ascii")
-    write_private(path, body)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        for row in rows:
+            view = memoryview((json_text(row) + "\n").encode("ascii"))
+            while view:
+                written = os.write(descriptor, view)
+                view = view[written:]
+    finally:
+        os.close(descriptor)
+    os.chmod(path, 0o600)
 
 
 def execute(args: argparse.Namespace) -> dict[str, Any]:
@@ -1462,28 +1751,55 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     if live_project is not None:
         projects.append(("live", "live", live_project))
     source_rows: list[dict[str, Any]] = []
-    all_parsed_occurrences: list[dict[str, Any]] = []
-    parsed_by_source: list[list[dict[str, Any]]] = []
-    supplemental: list[dict[str, Any]] = []
-    source_bytes: dict[tuple[str, str], bytes] = {}
+    canonical: dict[str, dict[str, Any]] = {}
+    occurrence_rows: list[dict[str, Any]] = []
+    record_snapshots: dict[str, set[str]] = defaultdict(set)
+    structured: list[dict[str, Any]] = []
+    unmatched: list[dict[str, Any]] = []
+    legacy_by_source_record: dict[tuple[str, str], dict[str, Any]] = {}
+    legacy_unmatched: list[dict[str, Any]] = []
+    supplemental_unique: dict[str, dict[str, Any]] = {}
+    version_rows: list[dict[str, Any]] = []
+    raw_record_occurrence_count = 0
 
     for source_type, identity, project in projects:
+        stream_pair_counts: Counter[tuple[str, str]] = Counter()
+        pair_paths: dict[tuple[str, str], set[str]] = defaultdict(set)
+        legacy_pending: dict[str, dict[str, Any]] = {}
+        constants: dict[str, str] = {}
+        version_warnings: list[dict[str, Any]] = []
+        hashes: dict[str, str | None] = {
+            name: None for name in ("reply_strategy.py", "mrsMThatcher2.py", "bot_state.json")
+        }
         for path in source_candidates(project):
             relative_path = path.relative_to(project).as_posix()
             key = f"{source_type}:{identity}:{relative_path}"
             data = safe_read_bytes(path, project)
             digest = sha256_bytes(data)
-            source_bytes[(key, relative_path)] = data
+            byte_size = len(data)
+            if path.name in hashes:
+                hashes[path.name] = digest
             parse_warnings: list[dict[str, Any]] = []
             parsed: list[dict[str, Any]] = []
             if LOG_NAME_RE.fullmatch(path.name):
-                parsed, parse_warnings = parse_log_records(data, key)
+                parsed, parse_warnings = parse_log_records(data, key, stream_pair_counts)
+                raw_record_occurrence_count += len(parsed)
                 for sequence, record in enumerate(parsed, start=1):
                     record["source_file_sequence"] = sequence
                     record["source_identity"] = identity
                     record["source_key"] = key
                     record["source_path"] = relative_path
                     record["source_type"] = source_type
+                    pair = (record["original_timestamp_text"], record["raw_record_sha256"])
+                    prior_paths = pair_paths[pair]
+                    if prior_paths and relative_path not in prior_paths:
+                        record["parse_warnings"].append(
+                            warning(
+                                "ambiguous_identical_record_across_rotation_boundary",
+                                other_source_paths=sorted(prior_paths),
+                            )
+                        )
+                    prior_paths.add(relative_path)
                     parse_warnings.extend(
                         {
                             **item,
@@ -1492,15 +1808,100 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                         }
                         for item in record["parse_warnings"]
                     )
-                all_parsed_occurrences.extend(parsed)
-                parsed_by_source.append(parsed)
+                    record_id = record["record_id"]
+                    occurrence_id = stable_id("occurrence", key, sequence, record_id)
+                    occurrence_rows.append(
+                        {
+                            "occurrence_id": occurrence_id,
+                            "pair_ordinal": record["pair_ordinal"],
+                            "record_id": record_id,
+                            "source_file_sequence": sequence,
+                            "source_identity": identity,
+                            "source_path": relative_path,
+                            "source_type": source_type,
+                        }
+                    )
+                    if source_type == "snapshot":
+                        record_snapshots[record_id].add(identity)
+                    if record_id not in canonical:
+                        canonical[record_id] = {
+                            field: record[field]
+                            for field in (
+                                "level",
+                                "line",
+                                "message",
+                                "original_timestamp_text",
+                                "pair_ordinal",
+                                "parse_warnings",
+                                "raw_record_sha256",
+                                "raw_record_text",
+                                "record_id",
+                                "source_metadata",
+                                "structured_event",
+                                "timestamp",
+                            )
+                        }
+                        canonical[record_id]["logger"] = None
+                        canonical[record_id]["function"] = record["source_metadata"]
+                        canonical[record_id]["source_occurrence_ids"] = []
+                        found_structured, not_matched_structured = structured_evidence(
+                            [canonical[record_id]]
+                        )
+                        structured.extend(found_structured)
+                        unmatched.extend(not_matched_structured)
+                    else:
+                        known_warnings = {
+                            json_text(item) for item in canonical[record_id]["parse_warnings"]
+                        }
+                        canonical[record_id]["parse_warnings"].extend(
+                            item
+                            for item in record["parse_warnings"]
+                            if json_text(item) not in known_warnings
+                        )
+                    canonical[record_id]["source_occurrence_ids"].append(occurrence_id)
+                found_legacy, not_matched_legacy = legacy_evidence(parsed, legacy_pending)
+                for event in found_legacy:
+                    event_identity = (str(event.get("kind") or ""), str(event.get("record_id") or ""))
+                    retained = legacy_by_source_record.setdefault(event_identity, event)
+                    if retained is not event:
+                        conflicts = retained.setdefault("derivation_conflicts", [])
+                        for field, value in event.items():
+                            if value in (None, "", [], {}):
+                                continue
+                            if retained.get(field) in (None, "", [], {}):
+                                retained[field] = value
+                            elif retained[field] != value:
+                                conflict = {
+                                    "field": field,
+                                    "retained_value": retained[field],
+                                    "alternate_value": value,
+                                }
+                                if conflict not in conflicts:
+                                    conflicts.append(conflict)
+                legacy_unmatched.extend(not_matched_legacy)
             elif path.name in {"bot_state.json", *EXPLICIT_JSON_FILES}:
                 evidence, json_warnings = supplemental_json_evidence(path.name, data, key, digest)
-                supplemental.extend(evidence)
                 parse_warnings.extend(json_warnings)
+                for event in evidence:
+                    occurrence = {
+                        "supplemental_occurrence_id": event.pop("supplemental_occurrence_id"),
+                        "supplemental_source": event.pop("supplemental_source"),
+                        "supplemental_source_sha256": event.pop("supplemental_source_sha256"),
+                    }
+                    event_key = json_text(event)
+                    retained = supplemental_unique.setdefault(
+                        event_key, {**event, "supplemental_occurrences": []}
+                    )
+                    if occurrence not in retained["supplemental_occurrences"]:
+                        retained["supplemental_occurrences"].append(occurrence)
+            elif path.name == "reply_strategy.py":
+                values, warnings_found = ast_versions(data)
+                constants.update(values)
+                version_warnings.extend(warnings_found)
+                parse_warnings.extend(warnings_found)
             source_rows.append(
                 {
-                    "byte_size": len(data),
+                    "byte_size": byte_size,
                     "first_record_timestamp": parsed[0]["timestamp"] if parsed else None,
                     "is_log": bool(LOG_NAME_RE.fullmatch(path.name)),
                     "last_record_timestamp": parsed[-1]["timestamp"] if parsed else None,
@@ -1513,67 +1914,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     "source_type": source_type,
                 }
             )
-
-    canonical: dict[str, dict[str, Any]] = {}
-    occurrence_rows: list[dict[str, Any]] = []
-    record_snapshots: dict[str, set[str]] = defaultdict(set)
-    for occurrence in all_parsed_occurrences:
-        record_id = occurrence["record_id"]
-        occurrence_id = stable_id("occurrence", occurrence["source_key"], occurrence["source_file_sequence"], record_id)
-        row = {
-            "occurrence_id": occurrence_id,
-            "pair_ordinal": occurrence["pair_ordinal"],
-            "record_id": record_id,
-            "source_file_sequence": occurrence["source_file_sequence"],
-            "source_identity": occurrence["source_identity"],
-            "source_path": occurrence["source_path"],
-            "source_type": occurrence["source_type"],
-        }
-        occurrence_rows.append(row)
-        if occurrence["source_type"] == "snapshot":
-            record_snapshots[record_id].add(occurrence["source_identity"])
-        if record_id not in canonical:
-            canonical[record_id] = {
-                key: occurrence[key]
-                for key in (
-                    "level",
-                    "line",
-                    "message",
-                    "pair_ordinal",
-                    "parse_warnings",
-                    "raw_record_sha256",
-                    "raw_record_text",
-                    "record_id",
-                    "source_metadata",
-                    "structured_event",
-                    "timestamp",
-                )
-            }
-            canonical[record_id]["logger"] = None
-            canonical[record_id]["function"] = occurrence["source_metadata"]
-            canonical[record_id]["source_occurrence_ids"] = []
-        canonical[record_id]["source_occurrence_ids"].append(occurrence_id)
-    canonical_rows = sorted(canonical.values(), key=lambda row: (row["timestamp"], row["raw_record_sha256"], row["pair_ordinal"], row["record_id"]))
-    for row in canonical_rows:
-        row["source_occurrence_ids"].sort()
-        row["occurrence_count"] = len(row["source_occurrence_ids"])
-    occurrence_rows.sort(key=lambda row: (row["record_id"], row["source_type"], row["source_identity"], row["source_path"], row["source_file_sequence"]))
-    source_rows.sort(key=lambda row: (row["source_type"], snapshot_sort_key(str(row["source_identity"])), row["source_path"]))
-
-    version_rows: list[dict[str, Any]] = []
-    for source_type, identity, project in projects:
-        constants: dict[str, str] = {}
-        version_warnings: list[dict[str, Any]] = []
-        hashes: dict[str, str | None] = {name: None for name in ("reply_strategy.py", "mrsMThatcher2.py", "bot_state.json")}
-        for filename in hashes:
-            matching = next((row for row in source_rows if row["source_type"] == source_type and row["source_identity"] == identity and row["source_path"] == filename), None)
-            if matching:
-                hashes[filename] = matching["sha256"]
-                if filename == "reply_strategy.py":
-                    values, warnings_found = ast_versions(source_bytes[(f"{source_type}:{identity}:{filename}", filename)])
-                    constants.update(values)
-                    version_warnings.extend(warnings_found)
-                    matching["parse_warnings"].extend(warnings_found)
+            # Drop the complete file bytes and parsed occurrence objects before
+            # reading the next allow-listed source.
+            del data
+            del parsed
         inferred, method = inferred_snapshot_time(identity) if source_type == "snapshot" else (None, "live project is not a snapshot")
         version_rows.append(
             {
@@ -1587,30 +1931,31 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 "source_type": source_type,
             }
         )
+
+    canonical_rows = sorted(canonical.values(), key=lambda row: (row["timestamp"], row["raw_record_sha256"], row["pair_ordinal"], row["record_id"]))
+    for row in canonical_rows:
+        row["source_occurrence_ids"].sort()
+        row["occurrence_count"] = len(row["source_occurrence_ids"])
+    occurrence_rows.sort(key=lambda row: (row["record_id"], row["source_type"], row["source_identity"], row["source_path"], row["source_file_sequence"]))
+    source_rows.sort(key=lambda row: (row["source_type"], snapshot_sort_key(str(row["source_identity"])), source_sort_key(row["source_path"])))
     version_rows.sort(key=lambda row: (row["source_type"], snapshot_sort_key(str(row["snapshot_name"]))))
 
-    structured, unmatched = structured_evidence(canonical_rows)
-    legacy: list[dict[str, Any]] = []
-    legacy_unmatched: list[dict[str, Any]] = []
-    seen_legacy: set[str] = set()
-    for parsed in parsed_by_source:
-        found, not_matched = legacy_evidence(parsed)
-        for event in found:
-            identity = json_text(event)
-            # Ignore source-copy-only attributes when collapsing derived evidence.
-            identity = json_text({key: value for key, value in event.items() if key not in {"supplemental_source"}})
-            if identity not in seen_legacy:
-                seen_legacy.add(identity)
-                legacy.append(event)
-        legacy_unmatched.extend(not_matched)
-    # Identical persisted history items copied through snapshots collapse here;
-    # candidate rows still retain distinct logical replies by target identity.
-    supplemental_unique: dict[str, dict[str, Any]] = {}
-    for event in supplemental:
-        key = json_text({name: value for name, value in event.items() if name not in {"supplemental_evidence_id", "supplemental_source", "supplemental_source_sha256"}})
-        supplemental_unique.setdefault(key, event)
+    for event in supplemental_unique.values():
+        event["supplemental_occurrences"].sort(
+            key=lambda row: (row["supplemental_source"], row["supplemental_occurrence_id"])
+        )
+    matched_legacy_record_ids = {
+        str(event.get("record_id"))
+        for event in legacy_by_source_record.values()
+        if event.get("record_id")
+    }
+    legacy_unmatched = [
+        row
+        for row in legacy_unmatched
+        if not row.get("record_id") or str(row["record_id"]) not in matched_legacy_record_ids
+    ]
     candidates, routine, reconstruction_unmatched, ambiguity_count = reconstruct_candidates(
-        [*structured, *legacy, *supplemental_unique.values()], version_rows, record_snapshots
+        [*structured, *legacy_by_source_record.values(), *supplemental_unique.values()], version_rows, record_snapshots
     )
     unmatched_rows = [*unmatched, *legacy_unmatched, *reconstruction_unmatched]
     unmatched_unique = {json_text(row): row for row in unmatched_rows}
@@ -1636,7 +1981,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         "ambiguity_count": ambiguity_count,
         "candidate_count": len(candidates),
         "canonical_record_count": len(canonical_rows),
-        "raw_record_occurrence_count": len(all_parsed_occurrences),
+        "raw_record_occurrence_count": raw_record_occurrence_count,
         "record_warning_count": record_warning_count,
         "routine_skip_count": len(routine),
         "source_file_count": len(source_rows),

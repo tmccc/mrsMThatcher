@@ -362,3 +362,512 @@ def test_snapshot_version_row_uses_ast_constants(tmp_path: Path) -> None:
     row = jsonl(run_extract(tmp_path, root) / "snapshot_versions.jsonl")[0]
     assert row["constants"] == {"REVIEWER_PROMPT_VERSION": "review-2", "STRATEGY_VERSION": "era-1"}
     assert row["inferred_snapshot_ordering_timestamp"] == "2026-07-10T05:25:00"
+
+
+def test_legacy_mention_state_survives_rotation_boundary(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line("2026-07-10 05:30:00", "Considering mention id=101 author_id=201 text='Question'"),
+        filename="mrsMThatcher.log.1",
+    )
+    (source / "mrsMThatcher.log").write_bytes(
+        line("2026-07-10 05:30:01", "Generated reply to mention 101: 'Answer.'")
+        + line("2026-07-10 05:30:02", "Recorded and cached own auto-reply id=301")
+        + line("2026-07-10 05:30:03", "Reply posted successfully")
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "posted"
+    assert candidate["reply_post_id"] == "301"
+    assert candidate["reconstruction_status"] == "complete"
+
+
+def test_legacy_quote_tweet_state_survives_rotation_boundary(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line(
+            "2026-07-10 05:30:00",
+            "Considering quote tweet id=102 author_id=202 original_post_id=402 text='Question'",
+            function="maybe_reply_to_quote_tweets",
+        ),
+        filename="mrsMThatcher.log.1",
+    )
+    (source / "mrsMThatcher.log").write_bytes(
+        line("2026-07-10 05:30:01", "Generated reply to quote tweet 102: 'Answer.'", function="maybe_reply_to_quote_tweets")
+        + line("2026-07-10 05:30:02", "Recorded and cached own quote-tweet auto-reply id=302", function="maybe_reply_to_quote_tweets")
+        + line("2026-07-10 05:30:03", "Quote-tweet reply posted successfully", function="maybe_reply_to_quote_tweets")
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["lane"] == "quote-tweet"
+    assert candidate["outcome"] == "posted"
+    assert candidate["reply_post_id"] == "302"
+
+
+def test_legacy_editorial_no_reply_survives_rotation_boundary(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line("2026-07-10 05:30:00", "Considering mention id=103 author_id=203 text='Question'"),
+        filename="mrsMThatcher.log.1",
+    )
+    (source / "mrsMThatcher.log").write_bytes(
+        line("2026-07-10 05:30:01", "No usable reply generated for mention 103")
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "editorial_no_reply"
+    assert candidate["incoming_text"] == "Question"
+
+
+def test_legacy_logs_are_ordered_by_numeric_rotation_then_active(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line("2026-07-10 05:30:00", "Considering mention id=104 author_id=204 text='Question'"),
+        filename="mrsMThatcher.log.10",
+    )
+    (source / "mrsMThatcher.log.2").write_bytes(
+        line("2026-07-10 05:30:01", "Generated reply to mention 104: 'Answer.'")
+    )
+    (source / "mrsMThatcher.log.1").write_bytes(
+        line("2026-07-10 05:30:02", "Recorded and cached own auto-reply id=304")
+    )
+    (source / "mrsMThatcher.log").write_bytes(
+        line("2026-07-10 05:30:03", "Reply posted successfully")
+    )
+    output = run_extract(tmp_path, root)
+    log_sources = [row["source_path"] for row in jsonl(output / "source_files.jsonl") if row["is_log"]]
+    assert log_sources == [
+        "mrsMThatcher.log.10",
+        "mrsMThatcher.log.2",
+        "mrsMThatcher.log.1",
+        "mrsMThatcher.log",
+    ]
+    candidate = jsonl(output / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "posted"
+    assert candidate["reply_post_id"] == "304"
+
+
+def test_legacy_pending_state_does_not_leak_between_snapshots(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line("2026-07-10 05:30:00", "Considering mention id=105 author_id=205 text='Question'"),
+    )
+    write_project(
+        root,
+        "snap-2026-07-11-0525",
+        line("2026-07-11 05:30:00", "Reply posted successfully"),
+    )
+    output = run_extract(tmp_path, root)
+    candidate = jsonl(output / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "unresolved"
+    assert any(row["event_kind"] == "legacy_reply_posted" for row in jsonl(output / "unmatched_reply_records.jsonl"))
+
+
+@pytest.mark.parametrize("reason", ["exact_duplicate_reply", "near_duplicate_reply"])
+def test_pipeline_duplicate_reason_is_deterministic_rejection_in_non_no_reply_mode(
+    tmp_path: Path, reason: str
+) -> None:
+    root = tmp_path / "snapshots"
+    body = event(
+        "2026-07-10 05:30:00",
+        "ai_reply_pipeline_decision",
+        lane="mention",
+        target_id="110",
+        status="no_reply",
+        mode="courtesy",
+        reason=reason,
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "deterministic_rejection"
+    assert candidate["deterministic_rejection_reason"] == reason
+
+
+def test_clarification_mode_refusal_is_deterministic_rejection(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event(
+            "2026-07-10 05:30:00",
+            "reply_strategy_decision",
+            lane="mention",
+            target_id="111",
+            status="no_reply",
+            mode="opinion_or_principle",
+            no_reply_reason="clarification_not_direct_factual_answer",
+        ),
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "deterministic_rejection"
+    assert candidate["deterministic_rejection_reason"] == "clarification_not_direct_factual_answer"
+
+
+def test_local_rejection_outcome_precedes_generic_legacy_no_reply(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    body = line(
+        "2026-07-10 05:30:00",
+        "Considering mention id=1111 author_id=2111 text='Question'",
+    ) + event(
+        "2026-07-10 05:30:01",
+        "reply_strategy_decision",
+        lane="mention",
+        target_id="1111",
+        mode="courtesy",
+        reason="exact_duplicate_reply",
+        status="no_reply",
+    ) + line(
+        "2026-07-10 05:30:02",
+        "No usable reply generated for mention 1111",
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "deterministic_rejection"
+    assert candidate["reconstruction_status"] == "ambiguous"
+    assert any(item["field"] == "outcome" for item in candidate["conflict_evidence"])
+
+
+def test_strategy_disabled_is_non_terminal_evidence_with_raw_reason(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event(
+            "2026-07-10 05:30:00",
+            "ai_reply_pipeline_decision",
+            lane="mention",
+            target_id="112",
+            status="disabled",
+            mode="no_reply",
+            reason="strategy_disabled",
+        ),
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "unresolved"
+    assert candidate["raw_reasons"] == ["strategy_disabled"]
+    assert any("non-terminal" in note for note in candidate["reconstruction_notes"])
+
+
+def test_unknown_candidate_skip_reason_remains_unresolved(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event(
+            "2026-07-10 05:30:00",
+            "candidate_skipped",
+            lane="mention",
+            id="113",
+            reason="future_policy_gate",
+        ),
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "unresolved"
+    assert candidate["raw_reasons"] == ["future_policy_gate"]
+    assert any("unknown candidate skip reason" in note for note in candidate["reconstruction_notes"])
+
+
+def test_known_operational_candidate_skip_is_operational_failure(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event("2026-07-10 05:30:00", "candidate_skipped", lane="mention", id="114", reason="context_unavailable"),
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "operational_failure"
+    assert candidate["raw_reasons"] == ["context_unavailable"]
+
+
+def test_structured_confirmed_receipt_lifecycle_reconstructs_posted(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    body = event(
+        "2026-07-10 05:30:00",
+        "confirmed_reply_receipt_sending",
+        source="mention",
+        target_id="120",
+    ) + event(
+        "2026-07-10 05:30:01",
+        "confirmed_reply_receipt_promoted",
+        source="mention",
+        target_id="120",
+        reply_post_id="320",
+    ) + event(
+        "2026-07-10 05:30:02",
+        "confirmed_reply_receipt_removed",
+        source="mention",
+        target_id="120",
+        reply_post_id="320",
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "posted"
+    assert candidate["reply_post_id"] == "320"
+
+
+def test_structured_sending_receipt_alone_does_not_establish_posted(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event(
+            "2026-07-10 05:30:00",
+            "confirmed_reply_receipt_sending",
+            source="mention",
+            target_id="121",
+            reply_post_id="321",
+        ),
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "unresolved"
+    assert candidate["terminal_timestamp"] is None
+
+
+def test_unknown_reply_related_structured_event_is_unmatched(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event("2026-07-10 05:30:00", "reply_strategy_future_marker", lane="mention", target_id="122"),
+    )
+    unmatched = jsonl(run_extract(tmp_path, root) / "unmatched_reply_records.jsonl")
+    assert [(row["event_kind"], row["message_class"]) for row in unmatched] == [
+        ("reply_strategy_future_marker", "unrecognised_structured_reply_event")
+    ]
+
+
+def test_unknown_reply_related_legacy_record_is_unmatched(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line("2026-07-10 05:30:00", "Conversational reply future state was selected", function="maybe_reply_to_mentions"),
+    )
+    unmatched = jsonl(run_extract(tmp_path, root) / "unmatched_reply_records.jsonl")
+    assert unmatched[0]["message_class"] == "unrecognised_legacy_reply_record"
+
+
+def test_ordinary_unrelated_legacy_record_is_not_unmatched(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "ordinary scheduler record"))
+    assert jsonl(run_extract(tmp_path, root) / "unmatched_reply_records.jsonl") == []
+
+
+def test_log_timestamp_in_july_bst_is_normalised_to_utc(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "ordinary record"))
+    record = jsonl(run_extract(tmp_path, root) / "unique_log_records.jsonl")[0]
+    assert record["timestamp"] == "2026-07-10T04:30:00Z"
+    assert record["original_timestamp_text"] == "2026-07-10 05:30:00"
+
+
+def test_log_timestamp_in_winter_gmt_is_normalised_to_utc(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(root, "snap-2026-01-10-0525", line("2026-01-10 05:30:00", "ordinary record"))
+    record = jsonl(run_extract(tmp_path, root) / "unique_log_records.jsonl")[0]
+    assert record["timestamp"] == "2026-01-10T05:30:00Z"
+    assert record["original_timestamp_text"] == "2026-01-10 05:30:00"
+
+
+def test_log_and_supplemental_iso_timestamp_share_utc_chronology(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line("2026-07-10 13:00:00", "Considering mention id=130 author_id=230 text='Question'"),
+    )
+    (source / "bot_state.json").write_text(
+        json.dumps(
+            {
+                "ai_reply_history": [
+                    {
+                        "created_at": "2026-07-10T12:00:00Z",
+                        "lane": "mention",
+                        "proposed_reply": "Answer.",
+                        "reply_post_id": "330",
+                        "status": "confirmed",
+                        "target_id": "130",
+                    }
+                ]
+            }
+        )
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["first_timestamp"] == "2026-07-10T12:00:00Z"
+    assert candidate["terminal_timestamp"] == "2026-07-10T12:00:00Z"
+    assert {row["original_timestamp_text"] for row in candidate["timestamp_evidence"]} == {
+        "2026-07-10 13:00:00",
+        "2026-07-10T12:00:00Z",
+    }
+
+
+def test_supplemental_epoch_timestamp_is_normalised_to_utc(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(root, "snap-2026-07-10-0525", b"")
+    (source / "bot_state.json").write_text(
+        json.dumps(
+            {
+                "ai_reply_history": [
+                    {
+                        "lane": "mention",
+                        "reply_epoch": 1,
+                        "status": "failed",
+                        "target_id": "131",
+                    }
+                ]
+            }
+        )
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["first_timestamp"] == "1970-01-01T00:00:01Z"
+    assert candidate["terminal_timestamp"] == "1970-01-01T00:00:01Z"
+    assert candidate["timestamp_evidence"][0]["original_timestamp_text"] == "1"
+
+
+def test_historical_context_receipt_is_excluded_from_conversational_corpus(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(root, "snap-2026-07-10-0525", b"")
+    (source / "historical_context_reply_receipt.json").write_text(
+        json.dumps(
+            {
+                "created_at": "2026-07-10T12:00:00Z",
+                "lane": "historical-context",
+                "reply_post_id": "340",
+                "reply_text": "Historical output.",
+                "status": "confirmed",
+                "target_id": "140",
+            }
+        )
+    )
+    output = run_extract(tmp_path, root)
+    assert jsonl(output / "conversational_candidates.jsonl") == []
+    assert all(row["source_path"] != "historical_context_reply_receipt.json" for row in jsonl(output / "source_files.jsonl"))
+    inventory = json.loads((output / "reply_quality_inventory.json").read_text())
+    assert inventory["total_posted_candidates"] == 0
+    assert inventory["total_posted_replies_with_text"] == 0
+
+
+def test_write_jsonl_streams_a_one_pass_generator_with_stable_bytes(tmp_path: Path) -> None:
+    consumed: list[int] = []
+
+    def rows():
+        for value in (2, 1):
+            consumed.append(value)
+            yield {"value": value, "label": "row"}
+
+    output = tmp_path / "rows.jsonl"
+    tool.write_jsonl(output, rows())
+    assert consumed == [2, 1]
+    assert output.read_bytes() == (
+        b'{"label":"row","value":2}\n'
+        b'{"label":"row","value":1}\n'
+    )
+
+
+def test_many_duplicate_log_occurrences_retain_compact_canonical_semantics(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    body = b"".join(
+        line(f"2026-07-10 05:{index // 60:02d}:{index % 60:02d}", f"ordinary record {index}")
+        for index in range(100)
+    )
+    for day in range(1, 21):
+        write_project(root, f"snap-2026-07-{day:02d}-0525", body)
+    output = run_extract(tmp_path, root)
+    counts = manifest(output)["counts"]
+    assert counts["raw_record_occurrence_count"] == 2000
+    assert counts["canonical_record_count"] == 100
+    assert len(jsonl(output / "record_occurrences.jsonl")) == 2000
+    assert {row["occurrence_count"] for row in jsonl(output / "unique_log_records.jsonl")} == {20}
+
+
+def test_generated_quote_reply_requires_matching_pending_target(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    body = line(
+        "2026-07-10 05:30:00",
+        "Considering quote tweet id=150 author_id=250 original_post_id=450 text='Question'",
+        function="maybe_reply_to_quote_tweets",
+    ) + line(
+        "2026-07-10 05:30:01",
+        "Generated reply to quote tweet 151: 'Wrong target.'",
+        function="maybe_reply_to_quote_tweets",
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    output = run_extract(tmp_path, root)
+    candidate = jsonl(output / "conversational_candidates.jsonl")[0]
+    assert candidate["target_id"] == "150"
+    assert candidate["actual_reply_text"] is None
+    unmatched = jsonl(output / "unmatched_reply_records.jsonl")
+    assert unmatched[0]["event_kind"] == "legacy_quote_reply_generated"
+    assert unmatched[0]["target_id"] == "151"
+
+
+def test_same_timestamp_routine_records_remain_distinct_while_snapshot_copies_collapse(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    record = event(
+        "2026-07-10 05:30:00",
+        "candidate_skipped",
+        lane="mention",
+        id="160",
+        reason="spacing",
+    )
+    write_project(root, "snap-2026-07-10-0525", record + record)
+    write_project(root, "snap-2026-07-11-0525", record + record)
+    routine = jsonl(run_extract(tmp_path, root) / "routine_skips.jsonl")
+    assert len(routine) == 2
+    assert len({row["routine_skip_id"] for row in routine}) == 2
+    assert {len(row["source_record_ids"]) for row in routine} == {1}
+
+
+def test_identical_supplemental_evidence_retains_every_snapshot_occurrence(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    document = json.dumps(
+        {
+            "ai_reply_history": [
+                {
+                    "created_at": "2026-07-10T12:00:00Z",
+                    "lane": "mention",
+                    "proposed_reply": "Answer.",
+                    "reply_post_id": "370",
+                    "status": "confirmed",
+                    "target_id": "170",
+                }
+            ]
+        }
+    )
+    for snapshot in ("snap-2026-07-10-0525", "snap-2026-07-11-0525"):
+        source = write_project(root, snapshot, b"")
+        (source / "bot_state.json").write_text(document)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert len(candidate["supplemental_evidence_ids"]) == 1
+    assert len(candidate["supplemental_occurrences"]) == 2
+    assert {row["supplemental_source"].split(":", 2)[1] for row in candidate["supplemental_occurrences"]} == {
+        "snap-2026-07-10-0525",
+        "snap-2026-07-11-0525",
+    }
+
+
+def test_identical_same_timestamp_records_split_across_rotation_are_not_lost(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    repeated = line(
+        "2026-07-10 05:30:00",
+        "Considering mention id=180 author_id=280 text='Question'",
+        function="maybe_reply_to_mentions",
+    )
+    source = write_project(root, "snap-2026-07-10-0525", repeated, filename="mrsMThatcher.log.1")
+    (source / "mrsMThatcher.log").write_bytes(repeated)
+    output = run_extract(tmp_path, root)
+    records = jsonl(output / "unique_log_records.jsonl")
+    assert len(records) == 2
+    assert {row["pair_ordinal"] for row in records} == {1, 2}
+    assert any(
+        item["kind"] == "ambiguous_identical_record_across_rotation_boundary"
+        for row in records
+        for item in row["parse_warnings"]
+    )
