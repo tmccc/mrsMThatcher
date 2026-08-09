@@ -113,11 +113,63 @@ speaker/contribution label. Similar strings such as `notmt`, `mt-note`, and
 the applicable ancestry is a conflict and fails closed. `h1`, `h2`, and `h3`
 remain structural rather than speaker or quotation elements.
 
-Archive attribution has first precedence and is a persistent ordered run state.
+The ordered body model also retains non-searchable editorial events. A numbered
+`ed-comment` is a source boundary only when its complete normalised text begins
+with `(1)`, `(2)`, or another one-to-three-digit section number. Its number is
+bound only to the same numbered entry parsed from the document's structured
+`Source` or `Editorial comments` table row. A direct MT baseline requires both a
+direct form such as `speaking text` in the label and corresponding entry and an
+explicitly verified Margaret Thatcher document author. A non-MT baseline
+requires explicit partial-paraphrase, newspaper-report, reportorial-account,
+event-report, press-report, or other non-direct semantics. A named newspaper by
+itself is insufficient; a named source establishes reportorial semantics only
+when the structured editorial comment explicitly says that same source reported
+the event. A missing, inconsistent, or ambiguous numbered entry still creates a
+hard boundary but gives the section an `unverified` baseline.
+
+An italic source marker is recognised only as a direct child of the selected
+body, or as the only substantive content of a paragraph apart from formatting
+and a `span.pagenum`. After an optional number, the complete maintained direct
+forms are `speaking text`, `modified speaking text begins`, and `full speaking
+text begins`; the maintained reportorial forms are `partial paraphrase`,
+`partial paraphrase of speaking text`, and `opening of press release (partial
+paraphrase of speaking text)`. Complete `end of partial paraphrase` forms and
+`beginning/end of section checked against ...` forms are retained as
+non-searchable editorial-only diagnostics without changing section polarity.
+Ordinary headings, generic uses of speech/text/report/press/introduction,
+unmatched root-level italic sentences, `Manuscript addition by MT`, and
+`Typescript resumes` are not source boundaries. Editorial source labels and
+check/end markers never enter contribution text, matching, supporting passage,
+or surrounding context.
+
+Source-section baseline state is separate from archive contribution-run state.
+Every source boundary increments a deterministic document-local section ID,
+ends the current contribution run, and is a hard matching boundary. An
+unclassed contribution inherits an `mt`, `nonmt`, or `unverified` section
+baseline. MT-baseline acceptance records
+`editorial_source_section_mt_baseline`; reportorial evidence records
+`editorial_source_section_nonmt_baseline`. Consecutive contributions may be
+coalesced only within both one run ID and one source-section ID, so clauses are
+never assembled across source sections and a later report occurrence cannot
+suppress a valid direct occurrence in another section.
+
+Inside a recognised source section, an `mt` or `nonmt` content token without a
+compatible active `intmt`/`intnonmt` label overrides only that block. The next
+unclassed contribution returns to the section baseline and a new run. A
+compatible content token following `intmt` or `intnonmt` remains part of that
+explicit labelled contribution, whose turn semantics persist to the next label
+or source boundary. Outside recognised source sections, the v8 persistent-run
+rules remain unchanged. In particular, a 105381-style `p.nonmt` speaker
+introduction followed only by unclassed purported speech has neither a positive
+source boundary nor an `mt`/`intmt` marker and remains fail-closed as non-MT or
+unverified/manual evidence.
+
+Archive attribution otherwise has first precedence and is a persistent ordered run state.
 Each archive run has a deterministic document-local integer ID and an `mt`,
 `nonmt`, or `conflicting` polarity. `intmt` and `intnonmt` are label-only state
 changes and always start a new contribution run, including repeated equal
-labels. `mt` and `nonmt` classify their current content and continue an active
+labels. Outside an editorial source section, `mt` and `nonmt` classify their
+current content and continue an active
 compatible run or start a run when the active polarity differs. Following
 unclassed paragraph, list, and blockquote contributions inherit the active run
 ID and polarity until a later unambiguous marker replaces it or the selected
@@ -204,4 +256,13 @@ or inherited MT state; rejections with a direct match under explicit or
 inherited non-MT state; candidates retaining any explicit or inherited
 reported/secondary non-MT match (including one alongside an accepted MT match);
 and candidates with a match under explicit or inherited conflicting state.
-These counters never inventory or count all markup elements in the archive.
+Four additional candidate-level counters are equally bounded:
+`candidates_with_editorial_source_sections` counts a freshly reverified
+candidate once when its selected body contains at least one constrained source
+boundary; `accepted_candidates_using_editorial_mt_section_baseline` counts an
+accepted candidate once when its selected occurrence relies on that MT
+baseline; `candidates_with_reported_nonmt_editorial_sections` counts a candidate
+once when any recognised section has a non-MT reportorial baseline; and
+`rejected_cross_editorial_section_boundary_matches` counts a candidate once
+when its otherwise stronger wording would require crossing a source boundary.
+These counters never inventory the archive or count archive elements.

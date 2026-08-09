@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v8"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v9"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -889,11 +889,11 @@ _ARCHIVE_ATTRIBUTION_CLASS_TOKENS = frozenset({
 })
 _ARCHIVE_MT_PROVENANCE = frozenset({
     "explicit_archive_mt_content", "inherited_archive_mt_content",
-    "archive_mt_run",
+    "archive_mt_run", "editorial_source_section_mt_baseline",
 })
 _ARCHIVE_NONMT_PROVENANCE = frozenset({
     "explicit_archive_nonmt_content", "inherited_archive_nonmt_content",
-    "archive_nonmt_run",
+    "archive_nonmt_run", "editorial_source_section_nonmt_baseline",
 })
 _ARCHIVE_CONFLICT_PROVENANCE = frozenset({
     "conflicting_archive_attribution", "conflicting_archive_run",
@@ -903,6 +903,24 @@ _ARCHIVE_RUN_PROVENANCE = {
     "nonmt": "archive_nonmt_run",
     "conflicting": "conflicting_archive_run",
 }
+_NUMBERED_EDITORIAL_SOURCE_LABEL = re.compile(r"^\((\d{1,3})\)\s*(.+)$", re.S)
+_NUMBERED_METADATA_ENTRY = re.compile(r"(?:^|\s)\((\d{1,3})\)\s*")
+_DIRECT_EDITORIAL_SOURCE_FORMS = frozenset({
+    "speaking text",
+    "modified speaking text begins",
+    "full speaking text begins",
+})
+_REPORTORIAL_EDITORIAL_SOURCE_FORMS = frozenset({
+    "partial paraphrase",
+    "partial paraphrase of speaking text",
+    "opening of press release partial paraphrase of speaking text",
+})
+_EDITORIAL_ONLY_END_FORMS = frozenset({
+    "end of partial paraphrase",
+    "end of partial paraphrase of speaking text",
+})
+_MAX_EDITORIAL_SOURCE_DIAGNOSTICS = 50
+_MAX_EDITORIAL_SOURCE_LABEL_LENGTH = 240
 
 
 def archive_attribution_classification(
@@ -937,64 +955,436 @@ def _node_class_tokens(node: Any) -> list[str]:
     return [str(token) for token in value]
 
 
-def _archive_contribution_blocks(article: Any) -> list[dict[str, Any]]:
-    """Retain DOM and exact archive-attribution provenance for relevant blocks."""
-    blocks: list[dict[str, Any]] = []
-    block_tags = tuple(_CONTRIBUTION_TAGS | _STRUCTURAL_HEADING_TAGS)
-    for node in article.find_all(block_tags):
-        text = " ".join(node.get_text(" ", strip=True).split())
-        if not text:
-            continue
-        element_tokens = _node_class_tokens(node)
-        ancestor_tokens: list[str] = []
-        ancestor = node.parent
-        while ancestor is not None:
-            ancestor_tokens.extend(
-                token
-                for token in _node_class_tokens(ancestor)
-                if token.casefold() in _ARCHIVE_ATTRIBUTION_CLASS_TOKENS
-            )
-            if ancestor is article:
+def _normalised_dom_text(node: Any) -> str:
+    return " ".join(node.get_text(" ", strip=True).split())
+
+
+def _normalised_dom_text_excluding(node: Any, excluded: Sequence[Any]) -> str:
+    values: list[str] = []
+    for text_node in node.find_all(string=True):
+        ancestor = text_node.parent
+        within_excluded = False
+        while ancestor is not None and ancestor is not node:
+            if any(ancestor is item for item in excluded):
+                within_excluded = True
                 break
             ancestor = ancestor.parent
-        archive_tokens = [
-            token
-            for token in (*element_tokens, *ancestor_tokens)
-            if token.casefold() in _ARCHIVE_ATTRIBUTION_CLASS_TOKENS
-        ]
-        tag = str(node.name or "")
-        classification = (
-            archive_attribution_classification(
-                element_tokens, ancestor_tokens
-            )
-            if tag in _CONTRIBUTION_TAGS
-            else "no_archive_attribution"
+        if not within_excluded:
+            values.append(str(text_node))
+    return " ".join(" ".join(values).split())
+
+
+def _normalised_editorial_phrase(value: str) -> str:
+    value = re.sub(r"^\(\d{1,3}\)\s*", "", " ".join(value.split()))
+    value = value.casefold().strip(" .:;–—-")
+    return " ".join(re.sub(r"[^\w]+", " ", value).split())
+
+
+def _maintained_editorial_marker_semantics(value: str) -> str | None:
+    """Recognise only complete, maintained editorial marker phrases."""
+    phrase = _normalised_editorial_phrase(value)
+    if phrase in _DIRECT_EDITORIAL_SOURCE_FORMS:
+        return "mt"
+    if phrase in _REPORTORIAL_EDITORIAL_SOURCE_FORMS:
+        return "nonmt"
+    if phrase in _EDITORIAL_ONLY_END_FORMS:
+        return "editorial_only"
+    if re.fullmatch(r"(?:beginning|end) of section checked against .+", phrase):
+        return "editorial_only"
+    return None
+
+
+def _structured_editorial_metadata(body: bytes) -> dict[str, Any]:
+    """Read only the Source/editorial rows in the already-opened MTF HTML."""
+    soup = BeautifulSoup(body, "lxml")
+    fields: dict[str, str] = {}
+    for row in soup.find_all("tr"):
+        heading = row.find("th")
+        value = row.find("td")
+        if heading is None or value is None:
+            continue
+        key = _normalised_dom_text(heading).casefold().rstrip(":")
+        if key in {"source", "editorial comments"}:
+            fields[key] = _normalised_dom_text(value)
+    numbered: dict[str, list[dict[str, str]]] = {}
+    for field_name in ("source", "editorial comments"):
+        value = fields.get(field_name, "")
+        matches = list(_NUMBERED_METADATA_ENTRY.finditer(value))
+        for index, match in enumerate(matches):
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(value)
+            descriptor = " ".join(value[match.end():end].split()).strip(" ;")
+            if descriptor:
+                numbered.setdefault(match.group(1), []).append({
+                    "metadata_field": field_name,
+                    "descriptor": descriptor,
+                })
+    return {
+        "source": fields.get("source", ""),
+        "editorial_comments": fields.get("editorial comments", ""),
+        "numbered_entries": numbered,
+        "metadata_available": bool(fields),
+    }
+
+
+def _explicit_metadata_source_semantics(value: str) -> str | None:
+    phrase = _normalised_editorial_phrase(value)
+    if re.search(
+        r"\b(?:modified |full )?(?:speaking|speech) text\b|"
+        r"\bdirect thatcher text\b|"
+        r"\bdirect speech text\b",
+        phrase,
+    ):
+        return "mt"
+    if re.search(
+        r"\bpartial paraphrase\b|\bnewspaper report\b|"
+        r"\breportorial account\b|\breport of (?:the )?event\b|"
+        r"\bpress report\b|\bnon direct source\b",
+        phrase,
+    ):
+        return "nonmt"
+    return None
+
+
+def _metadata_explicitly_reports_source(
+    descriptor: str, editorial_comments: str
+) -> bool:
+    """Require a named source plus an explicit reported-account statement."""
+    source_name = re.split(r"[,;:]", descriptor, maxsplit=1)[0]
+    source_name = _normalised_editorial_phrase(source_name)
+    comments = _normalised_editorial_phrase(editorial_comments)
+    if len(source_name.split()) < 2 or source_name not in comments:
+        return False
+    return bool(re.search(
+        rf"\b{re.escape(source_name)}\b(?:\s+\w+){{0,6}}\s+reported\b",
+        comments,
+    ))
+
+
+def _numbered_source_section_baseline(
+    label: str,
+    number: str,
+    metadata: Mapping[str, Any],
+    *,
+    author_verified: bool,
+) -> tuple[str, str]:
+    entries = list((metadata.get("numbered_entries") or {}).get(number, []))
+    if not entries:
+        return "unverified", "numbered_source_metadata_entry_missing"
+    descriptors = [str(row.get("descriptor") or "") for row in entries]
+    label_descriptor = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(label)
+    label_value = label_descriptor.group(2) if label_descriptor else label
+    label_phrase = _normalised_editorial_phrase(label_value)
+    consistent = [
+        descriptor for descriptor in descriptors
+        if label_phrase in _normalised_editorial_phrase(descriptor)
+        or _normalised_editorial_phrase(descriptor) in label_phrase
+    ]
+    if not consistent:
+        return "unverified", "numbered_source_label_metadata_inconsistent"
+    label_semantics = _maintained_editorial_marker_semantics(label)
+    entry_semantics = {
+        _explicit_metadata_source_semantics(descriptor)
+        for descriptor in consistent
+    } - {None}
+    if label_semantics == "mt" and entry_semantics == {"mt"}:
+        if author_verified:
+            return "mt", "numbered_source_metadata_verified_direct_mt_text"
+        return "unverified", "direct_source_without_verified_thatcher_author"
+    if label_semantics == "nonmt" and entry_semantics == {"nonmt"}:
+        return "nonmt", "numbered_source_metadata_verified_non_direct_text"
+    if any(
+        _metadata_explicitly_reports_source(
+            descriptor, str(metadata.get("editorial_comments") or "")
         )
-        provenance = {
-            "mt_content": "explicit_archive_mt_content",
-            "nonmt_content": "explicit_archive_nonmt_content",
-            "mt_label": "explicit_archive_mt_label_state",
-            "nonmt_label": "explicit_archive_nonmt_label_state",
-            "conflicting_archive_attribution": (
-                "conflicting_archive_attribution"
-            ),
-        }.get(classification, "no_archive_attribution")
-        blocks.append({
-            "element_tag": tag,
-            "element_class_tokens": element_tokens,
-            "ancestor_archive_attribution_class_tokens": ancestor_tokens,
-            "archive_attribution_class_tokens": archive_tokens,
-            "normalised_text": text,
-            "archive_attribution_classification": classification,
-            "effective_archive_attribution_classification": classification,
-            "archive_attribution_provenance": provenance,
-            "archive_attribution_conflict": (
-                classification == "conflicting_archive_attribution"
-            ),
-            "archive_attribution_run_id": None,
-            "archive_attribution_run_polarity": "none",
-        })
-    return blocks
+        for descriptor in consistent
+    ):
+        return "nonmt", "numbered_source_metadata_verified_reportorial_account"
+    return "unverified", "numbered_source_metadata_semantics_ambiguous"
+
+
+def _only_marker_and_page_number(parent: Any, marker: Any) -> bool:
+    for text_node in parent.find_all(string=True):
+        if not str(text_node).strip():
+            continue
+        ancestor = text_node.parent
+        permitted = False
+        while ancestor is not None and ancestor is not parent:
+            if ancestor is marker:
+                permitted = True
+                break
+            if (
+                str(getattr(ancestor, "name", "") or "") == "span"
+                and "pagenum" in {
+                    token.casefold() for token in _node_class_tokens(ancestor)
+                }
+            ):
+                permitted = True
+                break
+            ancestor = ancestor.parent
+        if not permitted:
+            return False
+    return True
+
+
+def _bounded_editorial_label(value: str) -> str:
+    return " ".join(value.split())[:_MAX_EDITORIAL_SOURCE_LABEL_LENGTH]
+
+
+def _editorial_event_record(
+    *,
+    label: str,
+    kind: str,
+    baseline: str = "unverified",
+    reason: str,
+    number: str = "",
+) -> dict[str, Any]:
+    return {
+        "ordered_body_event_kind": kind,
+        "element_tag": "editorial-marker",
+        "element_class_tokens": [],
+        "ancestor_archive_attribution_class_tokens": [],
+        "archive_attribution_class_tokens": [],
+        "normalised_text": _bounded_editorial_label(label),
+        "archive_attribution_classification": "no_archive_attribution",
+        "effective_archive_attribution_classification": "no_archive_attribution",
+        "archive_attribution_provenance": "no_archive_attribution",
+        "archive_attribution_conflict": False,
+        "archive_attribution_run_id": None,
+        "archive_attribution_run_polarity": "none",
+        "archive_source_section_boundary_detected": kind == "editorial_source_boundary",
+        "archive_source_section_boundary_kind": kind,
+        "archive_source_section_boundary_reason": reason,
+        "archive_source_section_baseline_polarity": baseline,
+        "archive_source_section_label": _bounded_editorial_label(label),
+        "archive_source_section_number": number,
+        "editorial_marker_non_searchable": True,
+    }
+
+
+def _archive_block_record(
+    node: Any,
+    text: str,
+    *,
+    body_root: Any,
+    root_italic: bool = False,
+) -> dict[str, Any]:
+    element_tokens = _node_class_tokens(node)
+    ancestor_tokens: list[str] = []
+    ancestor = node.parent
+    while ancestor is not None:
+        ancestor_tokens.extend(
+            token
+            for token in _node_class_tokens(ancestor)
+            if token.casefold() in _ARCHIVE_ATTRIBUTION_CLASS_TOKENS
+        )
+        if ancestor is body_root:
+            break
+        ancestor = ancestor.parent
+    archive_tokens = [
+        token
+        for token in (*element_tokens, *ancestor_tokens)
+        if token.casefold() in _ARCHIVE_ATTRIBUTION_CLASS_TOKENS
+    ]
+    tag = str(node.name or "")
+    classification = (
+        archive_attribution_classification(element_tokens, ancestor_tokens)
+        if tag in _CONTRIBUTION_TAGS
+        else "no_archive_attribution"
+    )
+    provenance = {
+        "mt_content": "explicit_archive_mt_content",
+        "nonmt_content": "explicit_archive_nonmt_content",
+        "mt_label": "explicit_archive_mt_label_state",
+        "nonmt_label": "explicit_archive_nonmt_label_state",
+        "conflicting_archive_attribution": "conflicting_archive_attribution",
+    }.get(classification, "no_archive_attribution")
+    return {
+        "ordered_body_event_kind": "contribution_block",
+        "root_level_ordinary_italic": root_italic,
+        "element_tag": tag,
+        "element_class_tokens": element_tokens,
+        "ancestor_archive_attribution_class_tokens": ancestor_tokens,
+        "archive_attribution_class_tokens": archive_tokens,
+        "normalised_text": text,
+        "archive_attribution_classification": classification,
+        "effective_archive_attribution_classification": classification,
+        "archive_attribution_provenance": provenance,
+        "archive_attribution_conflict": classification == "conflicting_archive_attribution",
+        "archive_attribution_run_id": None,
+        "archive_attribution_run_polarity": "none",
+        "editorial_marker_non_searchable": False,
+    }
+
+
+def _archive_ordered_body_events(
+    article: Any,
+    body: bytes,
+    *,
+    author_verified: bool,
+) -> list[dict[str, Any]]:
+    """Retain searchable blocks and constrained non-searchable events in DOM order."""
+    metadata = _structured_editorial_metadata(body)
+    events: list[dict[str, Any]] = []
+    consumed_markers: set[int] = set()
+    block_tags = _CONTRIBUTION_TAGS | _STRUCTURAL_HEADING_TAGS
+    for node in article.descendants:
+        tag = str(getattr(node, "name", "") or "")
+        if not tag or id(node) in consumed_markers:
+            continue
+        if tag in block_tags:
+            ed_comments = [
+                item for item in node.find_all("ed-comment")
+                if _normalised_dom_text(item)
+            ]
+            recognised_ed_comments = []
+            for marker in ed_comments:
+                label = _normalised_dom_text(marker)
+                numbered = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(label)
+                semantics = _maintained_editorial_marker_semantics(label)
+                if numbered:
+                    baseline, reason = _numbered_source_section_baseline(
+                        label,
+                        numbered.group(1),
+                        metadata,
+                        author_verified=author_verified,
+                    )
+                    events.append(_editorial_event_record(
+                        label=label,
+                        kind="editorial_source_boundary",
+                        baseline=baseline,
+                        reason=reason,
+                        number=numbered.group(1),
+                    ))
+                    recognised_ed_comments.append(marker)
+                elif semantics == "editorial_only":
+                    events.append(_editorial_event_record(
+                        label=label,
+                        kind="editorial_only_marker",
+                        reason="maintained_editorial_check_or_end_marker",
+                    ))
+                    recognised_ed_comments.append(marker)
+            if recognised_ed_comments:
+                consumed_markers.update(id(marker) for marker in recognised_ed_comments)
+                if all(
+                    _only_marker_and_page_number(node, marker)
+                    for marker in recognised_ed_comments
+                ):
+                    continue
+            italic_markers = list(node.find_all("i")) if tag == "p" else []
+            italic_event = False
+            for marker in italic_markers:
+                label = _normalised_dom_text(marker)
+                semantics = _maintained_editorial_marker_semantics(label)
+                if semantics is None or not _only_marker_and_page_number(node, marker):
+                    continue
+                consumed_markers.add(id(marker))
+                italic_event = True
+                if semantics in {"mt", "nonmt"}:
+                    baseline = semantics
+                    reason = (
+                        "italic_marker_verified_direct_mt_text"
+                        if semantics == "mt" and author_verified
+                        else "direct_source_without_verified_thatcher_author"
+                        if semantics == "mt"
+                        else "italic_marker_verified_non_direct_text"
+                    )
+                    if semantics == "mt" and not author_verified:
+                        baseline = "unverified"
+                    number_match = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(label)
+                    events.append(_editorial_event_record(
+                        label=label,
+                        kind="editorial_source_boundary",
+                        baseline=baseline,
+                        reason=reason,
+                        number=number_match.group(1) if number_match else "",
+                    ))
+                else:
+                    events.append(_editorial_event_record(
+                        label=label,
+                        kind="editorial_only_marker",
+                        reason="maintained_editorial_check_or_end_marker",
+                    ))
+                break
+            if italic_event:
+                continue
+            text = _normalised_dom_text_excluding(
+                node, recognised_ed_comments
+            )
+            if text:
+                events.append(_archive_block_record(
+                    node, text, body_root=article
+                ))
+            continue
+        if tag == "ed-comment":
+            label = _normalised_dom_text(node)
+            numbered = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(label)
+            semantics = _maintained_editorial_marker_semantics(label)
+            if numbered:
+                baseline, reason = _numbered_source_section_baseline(
+                    label,
+                    numbered.group(1),
+                    metadata,
+                    author_verified=author_verified,
+                )
+                events.append(_editorial_event_record(
+                    label=label,
+                    kind="editorial_source_boundary",
+                    baseline=baseline,
+                    reason=reason,
+                    number=numbered.group(1),
+                ))
+            elif semantics == "editorial_only":
+                events.append(_editorial_event_record(
+                    label=label,
+                    kind="editorial_only_marker",
+                    reason="maintained_editorial_check_or_end_marker",
+                ))
+            continue
+        if tag == "i" and node.parent is article:
+            label = _normalised_dom_text(node)
+            semantics = _maintained_editorial_marker_semantics(label)
+            if semantics in {"mt", "nonmt"}:
+                baseline = semantics
+                reason = (
+                    "italic_marker_verified_direct_mt_text"
+                    if semantics == "mt" and author_verified
+                    else "direct_source_without_verified_thatcher_author"
+                    if semantics == "mt"
+                    else "italic_marker_verified_non_direct_text"
+                )
+                if semantics == "mt" and not author_verified:
+                    baseline = "unverified"
+                number_match = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(label)
+                events.append(_editorial_event_record(
+                    label=label,
+                    kind="editorial_source_boundary",
+                    baseline=baseline,
+                    reason=reason,
+                    number=number_match.group(1) if number_match else "",
+                ))
+            elif semantics == "editorial_only":
+                events.append(_editorial_event_record(
+                    label=label,
+                    kind="editorial_only_marker",
+                    reason="maintained_editorial_check_or_end_marker",
+                ))
+            else:
+                events.append(_archive_block_record(
+                    node, label, body_root=article, root_italic=True
+                ))
+    return events
+
+
+def _is_searchable_contribution_record(record: Mapping[str, Any]) -> bool:
+    return bool(
+        record.get("ordered_body_event_kind") == "contribution_block"
+        and (
+            record.get("element_tag") in _CONTRIBUTION_TAGS
+            or record.get("root_level_ordinary_italic")
+        )
+    )
+
+
 
 
 def _is_untitled_person_label(value: str) -> bool:
@@ -1098,11 +1488,22 @@ def _matching_units(
                 segment.get("archive_attribution_conflict")
             ),
             "evidence_basis": segment.get("evidence_basis"),
+            "archive_source_section_id": segment.get(
+                "archive_source_section_id"
+            ),
+            "archive_source_section_baseline_polarity": segment.get(
+                "archive_source_section_baseline_polarity", "unverified"
+            ),
+            "archive_source_section_baseline_applied": bool(
+                segment.get("archive_source_section_baseline_applied")
+            ),
         }
         if (
             run_id is not None
             and units
             and units[-1].get("archive_attribution_run_id") == run_id
+            and units[-1].get("archive_source_section_id")
+            == segment.get("archive_source_section_id")
         ):
             unit = units[-1]
             start = len(str(unit["text"])) + 1
@@ -1132,7 +1533,9 @@ def _matching_units(
         segment["archive_attribution_component_count"] = 1
         segment["archive_attribution_component_provenance"] = [provenance]
         segment["archive_attribution_run_provenance"] = (
-            _ARCHIVE_RUN_PROVENANCE.get(str(
+            str(segment.get("evidence_basis") or "")
+            if segment.get("archive_source_section_baseline_applied")
+            else _ARCHIVE_RUN_PROVENANCE.get(str(
                 segment.get("archive_attribution_run_polarity") or "none"
             ), "")
         )
@@ -1203,6 +1606,15 @@ def _matching_segment_for_span(
             component.get("archive_attribution_conflict")
         )
         segment["evidence_basis"] = component.get("evidence_basis")
+        segment["archive_source_section_id"] = component.get(
+            "archive_source_section_id"
+        )
+        segment["archive_source_section_baseline_polarity"] = component.get(
+            "archive_source_section_baseline_polarity", "unverified"
+        )
+        segment["archive_source_section_baseline_applied"] = bool(
+            component.get("archive_source_section_baseline_applied")
+        )
     elif segment.get("archive_attribution_run_id") is not None:
         run_provenance = str(
             segment.get("archive_attribution_run_provenance") or ""
@@ -1224,23 +1636,44 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         return {
             "labels_detected": False,
             "archive_attribution_markup_detected": False,
+            "editorial_source_sections_detected": False,
+            "reported_nonmt_editorial_sections_detected": False,
+            "archive_source_section_count": 0,
+            "archive_source_section_events": [],
+            "archive_editorial_marker_count": 0,
+            "archive_editorial_marker_events": [],
+            "ordered_body_events": [],
             "document_body_selector_kind": body_selector_kind,
             "contribution_blocks": [],
             "segments": [],
             "matching_units": [],
         }
-    blocks = _archive_contribution_blocks(document_body)
+    author_verified = research._is_margaret_thatcher_author(
+        str(validation.get("author") or "")
+    )
+    blocks = _archive_ordered_body_events(
+        document_body, body, author_verified=author_verified
+    )
     archive_markup_detected = any(
-        block["element_tag"] in _CONTRIBUTION_TAGS
+        _is_searchable_contribution_record(block)
         and block["archive_attribution_classification"]
         != "no_archive_attribution"
         for block in blocks
     )
+    editorial_source_sections_detected = any(
+        block.get("ordered_body_event_kind") == "editorial_source_boundary"
+        for block in blocks
+    )
+    editorial_markers_detected = any(
+        block.get("ordered_body_event_kind") in {
+            "editorial_source_boundary", "editorial_only_marker",
+        }
+        for block in blocks
+    )
     base_classes: list[str | None] = []
     for block in blocks:
-        tag = str(block["element_tag"])
         value = str(block["normalised_text"])
-        if tag not in _CONTRIBUTION_TAGS:
+        if not _is_searchable_contribution_record(block):
             base_classes.append(None)
             continue
         if block["archive_attribution_classification"] != "no_archive_attribution":
@@ -1262,7 +1695,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
     def contribution_text_at(index: int) -> bool:
         return bool(
             0 <= index < len(blocks)
-            and blocks[index]["element_tag"] in _CONTRIBUTION_TAGS
+            and _is_searchable_contribution_record(blocks[index])
             and base_classes[index] is None
             and blocks[index]["archive_attribution_classification"]
             == "no_archive_attribution"
@@ -1286,10 +1719,9 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
 
     repeated_context_labels: dict[str, int] = {}
     for index, block in enumerate(blocks):
-        tag = str(block["element_tag"])
         value = str(block["normalised_text"])
         if (
-            tag in _CONTRIBUTION_TAGS
+            _is_searchable_contribution_record(block)
             and block["archive_attribution_classification"]
             == "no_archive_attribution"
             and contribution_text_at(index + 1)
@@ -1301,11 +1733,10 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             repeated_context_labels[value] = repeated_context_labels.get(value, 0) + 1
     contextual_other_labels: set[int] = set()
     for index, block in enumerate(blocks):
-        tag = str(block["element_tag"])
         value = str(block["normalised_text"])
         if (
             transcript_structure
-            and tag in _CONTRIBUTION_TAGS
+            and _is_searchable_contribution_record(block)
             and block["archive_attribution_classification"]
             == "no_archive_attribution"
             and contribution_text_at(index + 1)
@@ -1326,13 +1757,9 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             contextual_other_labels.add(index)
     parsed: list[dict[str, Any]] = []
     maintained_labels_detected = False
-    author_verified = research._is_margaret_thatcher_author(
-        str(validation.get("author") or "")
-    )
     for index, block_record in enumerate(blocks):
-        tag = str(block_record["element_tag"])
         block = str(block_record["normalised_text"])
-        if tag not in _CONTRIBUTION_TAGS:
+        if not _is_searchable_contribution_record(block_record):
             parsed.append({
                 **block_record,
                 "maintained_label": "",
@@ -1384,7 +1811,11 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             "maintained_value": value,
             "maintained_speaker_class": speaker_class,
         })
-    if not maintained_labels_detected and not archive_markup_detected:
+    if (
+        not maintained_labels_detected
+        and not archive_markup_detected
+        and not editorial_markers_detected
+    ):
         text = " ".join(document_body.get_text(" ", strip=True).split())
         fallback_segments = [{
             "speaker_class": "thatcher" if author_verified else "unverified",
@@ -1402,12 +1833,29 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             "archive_attribution_conflict": False,
             "archive_attribution_run_id": None,
             "archive_attribution_run_polarity": "none",
+            "archive_source_section_id": 0,
+            "archive_source_section_baseline_polarity": "unverified",
+            "archive_source_section_boundary_detected": False,
+            "archive_source_section_boundary_kind": "",
+            "archive_source_section_boundary_reason": "",
+            "archive_source_section_label": "",
+            "archive_source_section_baseline_applied": False,
         }] if text else []
         return {
             "labels_detected": False,
             "archive_attribution_markup_detected": False,
+            "editorial_source_sections_detected": False,
+            "reported_nonmt_editorial_sections_detected": False,
+            "archive_source_section_count": 0,
+            "archive_source_section_events": [],
+            "archive_editorial_marker_count": 0,
+            "archive_editorial_marker_events": [],
+            "ordered_body_events": parsed,
             "document_body_selector_kind": body_selector_kind,
-            "contribution_blocks": blocks,
+            "contribution_blocks": [
+                row for row in parsed
+                if row.get("ordered_body_event_kind") == "contribution_block"
+            ],
             "segments": fallback_segments,
             "matching_units": _matching_units(fallback_segments),
         }
@@ -1421,7 +1869,18 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
     archive_state_tokens: list[str] = []
     archive_state_run_id: int | None = None
     archive_state_run_polarity = "none"
+    archive_state_origin = "none"
     archive_run_counter = 0
+    source_section_id = 0
+    source_section_baseline = "unverified"
+    source_section_boundary_kind = ""
+    source_section_boundary_reason = ""
+    source_section_label = ""
+    source_section_baseline_run_id: int | None = None
+    source_section_events: list[dict[str, Any]] = []
+    editorial_marker_events: list[dict[str, Any]] = []
+    editorial_marker_count = 0
+    maintained_transcript_turn_active = False
 
     def start_archive_run(polarity: str) -> int:
         nonlocal archive_run_counter
@@ -1440,6 +1899,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         archive_conflict: bool = False,
         archive_run_id: int | None = None,
         archive_run_polarity: str = "none",
+        source_section_baseline_applied: bool = False,
     ) -> None:
         if not value:
             return
@@ -1455,6 +1915,15 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             "archive_attribution_conflict": archive_conflict,
             "archive_attribution_run_id": archive_run_id,
             "archive_attribution_run_polarity": archive_run_polarity,
+            "archive_source_section_id": source_section_id,
+            "archive_source_section_baseline_polarity": source_section_baseline,
+            "archive_source_section_boundary_detected": bool(source_section_id),
+            "archive_source_section_boundary_kind": source_section_boundary_kind,
+            "archive_source_section_boundary_reason": source_section_boundary_reason,
+            "archive_source_section_label": source_section_label,
+            "archive_source_section_baseline_applied": (
+                source_section_baseline_applied
+            ),
         }
         merge_keys = (
             "speaker_class", "speaker_label", "evidence_basis",
@@ -1463,6 +1932,13 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             "archive_attribution_class_tokens", "archive_attribution_conflict",
             "archive_attribution_run_id",
             "archive_attribution_run_polarity",
+            "archive_source_section_id",
+            "archive_source_section_baseline_polarity",
+            "archive_source_section_boundary_detected",
+            "archive_source_section_boundary_kind",
+            "archive_source_section_boundary_reason",
+            "archive_source_section_label",
+            "archive_source_section_baseline_applied",
         )
         if archive_run_id is None and segments and all(
             segments[-1].get(key) == segment.get(key) for key in merge_keys
@@ -1471,9 +1947,99 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         else:
             segments.append(segment)
 
+    if author_verified and not maintained_labels_detected and not archive_markup_detected:
+        current_class = "thatcher"
+        current_label = str(validation.get("author") or "")
+        current_basis = "explicit_document_author"
+
     for block_record in parsed:
-        tag = str(block_record["element_tag"])
-        if tag not in _CONTRIBUTION_TAGS:
+        event_kind = str(block_record.get("ordered_body_event_kind") or "")
+        if event_kind == "editorial_source_boundary":
+            editorial_marker_count += 1
+            source_section_id += 1
+            source_section_baseline = str(
+                block_record.get("archive_source_section_baseline_polarity")
+                or "unverified"
+            )
+            source_section_boundary_kind = str(
+                block_record.get("archive_source_section_boundary_kind") or ""
+            )
+            source_section_boundary_reason = str(
+                block_record.get("archive_source_section_boundary_reason") or ""
+            )
+            source_section_label = str(
+                block_record.get("archive_source_section_label") or ""
+            )
+            block_record["archive_source_section_id"] = source_section_id
+            archive_state_class = None
+            archive_state_label = ""
+            archive_state_classification = "no_archive_attribution"
+            archive_state_tokens = []
+            archive_state_run_id = None
+            archive_state_run_polarity = "none"
+            archive_state_origin = "none"
+            source_section_baseline_run_id = None
+            current_class = "unverified"
+            current_label = ""
+            current_basis = "unlabelled_material_before_transcript"
+            maintained_transcript_turn_active = False
+            if len(source_section_events) < _MAX_EDITORIAL_SOURCE_DIAGNOSTICS:
+                source_section_events.append({
+                    "archive_source_section_id": source_section_id,
+                    "archive_source_section_number": str(
+                        block_record.get("archive_source_section_number") or ""
+                    ),
+                    "archive_source_section_baseline_polarity": (
+                        source_section_baseline
+                    ),
+                    "archive_source_section_boundary_kind": (
+                        source_section_boundary_kind
+                    ),
+                    "archive_source_section_boundary_reason": (
+                        source_section_boundary_reason
+                    ),
+                    "archive_source_section_label": source_section_label,
+                })
+            if len(editorial_marker_events) < _MAX_EDITORIAL_SOURCE_DIAGNOSTICS:
+                editorial_marker_events.append({
+                    "archive_source_section_id": source_section_id,
+                    "editorial_marker_kind": event_kind,
+                    "editorial_marker_reason": source_section_boundary_reason,
+                    "editorial_marker_label": source_section_label,
+                    "editorial_marker_non_searchable": True,
+                })
+            continue
+        if event_kind == "editorial_only_marker":
+            editorial_marker_count += 1
+            block_record["archive_source_section_id"] = source_section_id
+            block_record["archive_source_section_baseline_polarity"] = (
+                source_section_baseline
+            )
+            if len(editorial_marker_events) < _MAX_EDITORIAL_SOURCE_DIAGNOSTICS:
+                editorial_marker_events.append({
+                    "archive_source_section_id": source_section_id,
+                    "editorial_marker_kind": event_kind,
+                    "editorial_marker_reason": str(
+                        block_record.get(
+                            "archive_source_section_boundary_reason"
+                        ) or ""
+                    ),
+                    "editorial_marker_label": str(
+                        block_record.get("archive_source_section_label") or ""
+                    ),
+                    "editorial_marker_non_searchable": True,
+                })
+            continue
+        block_record.update({
+            "archive_source_section_id": source_section_id,
+            "archive_source_section_baseline_polarity": source_section_baseline,
+            "archive_source_section_boundary_detected": bool(source_section_id),
+            "archive_source_section_boundary_kind": source_section_boundary_kind,
+            "archive_source_section_boundary_reason": source_section_boundary_reason,
+            "archive_source_section_label": source_section_label,
+            "archive_source_section_baseline_applied": False,
+        })
+        if not _is_searchable_contribution_record(block_record):
             continue
         block = str(block_record["normalised_text"])
         archive_classification = str(
@@ -1496,17 +2062,19 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             archive_state_label = block
             archive_state_classification = archive_classification
             archive_state_tokens = archive_tokens
+            archive_state_origin = "label"
+            source_section_baseline_run_id = None
+            maintained_transcript_turn_active = False
             block_record["archive_attribution_run_id"] = archive_state_run_id
             block_record["archive_attribution_run_polarity"] = (
                 archive_state_run_polarity
             )
             continue
         if archive_classification == "conflicting_archive_attribution":
-            archive_state_run_id = start_archive_run("conflicting")
-            archive_state_run_polarity = "conflicting"
-            block_record["archive_attribution_run_id"] = archive_state_run_id
+            conflict_run_id = start_archive_run("conflicting")
+            block_record["archive_attribution_run_id"] = conflict_run_id
             block_record["archive_attribution_run_polarity"] = (
-                archive_state_run_polarity
+                "conflicting"
             )
             is_content_block = bool(token_polarities & {"mt", "nonmt"})
             if is_content_block:
@@ -1519,32 +2087,51 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                     archive_provenance="conflicting_archive_attribution",
                     archive_tokens=archive_tokens,
                     archive_conflict=True,
-                    archive_run_id=archive_state_run_id,
-                    archive_run_polarity=archive_state_run_polarity,
+                    archive_run_id=conflict_run_id,
+                    archive_run_polarity="conflicting",
                 )
-            archive_state_class = "unverified"
-            archive_state_label = (
-                "conflicting archive attribution" if is_content_block else block
-            )
-            archive_state_classification = archive_classification
-            archive_state_tokens = archive_tokens
+            source_section_baseline_run_id = None
+            if not source_section_id:
+                archive_state_run_id = conflict_run_id
+                archive_state_run_polarity = "conflicting"
+                archive_state_class = "unverified"
+                archive_state_label = (
+                    "conflicting archive attribution" if is_content_block else block
+                )
+                archive_state_classification = archive_classification
+                archive_state_tokens = archive_tokens
+                archive_state_origin = "content"
             continue
         if archive_classification in {"mt_content", "nonmt_content"}:
             speaker_class = (
                 "thatcher" if archive_classification == "mt_content" else "other"
             )
             polarity = "mt" if speaker_class == "thatcher" else "nonmt"
+            compatible_label = bool(
+                archive_state_origin == "label"
+                and archive_state_run_polarity == polarity
+            )
             compatible_state = archive_state_run_polarity == polarity
-            if not compatible_state:
-                archive_state_run_id = start_archive_run(polarity)
-            archive_state_run_polarity = polarity
-            block_record["archive_attribution_run_id"] = archive_state_run_id
+            if source_section_id:
+                content_run_id = (
+                    archive_state_run_id
+                    if compatible_label
+                    else start_archive_run(polarity)
+                )
+            else:
+                if not compatible_state:
+                    archive_state_run_id = start_archive_run(polarity)
+                content_run_id = archive_state_run_id
+                archive_state_run_polarity = polarity
+            block_record["archive_attribution_run_id"] = content_run_id
             block_record["archive_attribution_run_polarity"] = polarity
             append_segment(
                 block,
                 speaker_class=speaker_class,
                 speaker_label=(
-                    archive_state_label if compatible_state
+                    archive_state_label if compatible_label or (
+                        not source_section_id and compatible_state
+                    )
                     else ""
                 ),
                 evidence_basis=(
@@ -1559,13 +2146,16 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                     else "explicit_archive_nonmt_content"
                 ),
                 archive_tokens=archive_tokens,
-                archive_run_id=archive_state_run_id,
+                archive_run_id=content_run_id,
                 archive_run_polarity=polarity,
             )
-            archive_state_class = speaker_class
-            archive_state_label = archive_state_label if compatible_state else ""
-            archive_state_classification = archive_classification
-            archive_state_tokens = archive_tokens
+            source_section_baseline_run_id = None
+            if not source_section_id:
+                archive_state_class = speaker_class
+                archive_state_label = archive_state_label if compatible_state else ""
+                archive_state_classification = archive_classification
+                archive_state_tokens = archive_tokens
+                archive_state_origin = "content"
             continue
         if archive_state_class is not None:
             inherited_conflict = (
@@ -1625,22 +2215,82 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                 current_class = "unverified"
             current_label = label
             current_basis = "explicit_transcript_speaker_label"
+            maintained_transcript_turn_active = True
+            source_section_baseline_run_id = None
+        if maintained_transcript_turn_active or not source_section_id:
+            append_segment(
+                value,
+                speaker_class=current_class,
+                speaker_label=current_label,
+                evidence_basis=current_basis,
+                archive_classification="no_archive_attribution",
+                archive_provenance="no_archive_attribution",
+                archive_tokens=[],
+            )
+            continue
+        baseline_speaker = (
+            "thatcher" if source_section_baseline == "mt"
+            else "other" if source_section_baseline == "nonmt"
+            else "unverified"
+        )
+        baseline_basis = (
+            "editorial_source_section_mt_baseline"
+            if source_section_baseline == "mt"
+            else "editorial_source_section_nonmt_baseline"
+            if source_section_baseline == "nonmt"
+            else "editorial_source_section_unverified_baseline"
+        )
+        if source_section_baseline_run_id is None:
+            source_section_baseline_run_id = start_archive_run(
+                source_section_baseline
+            )
+        block_record["archive_attribution_provenance"] = baseline_basis
+        block_record["effective_archive_attribution_classification"] = (
+            f"editorial_source_section_{source_section_baseline}_baseline"
+        )
+        block_record["archive_attribution_run_id"] = (
+            source_section_baseline_run_id
+        )
+        block_record["archive_attribution_run_polarity"] = (
+            source_section_baseline
+        )
+        block_record["archive_source_section_baseline_applied"] = True
         append_segment(
             value,
-            speaker_class=current_class,
-            speaker_label=current_label,
-            evidence_basis=current_basis,
-            archive_classification="no_archive_attribution",
-            archive_provenance="no_archive_attribution",
+            speaker_class=baseline_speaker,
+            speaker_label=source_section_label,
+            evidence_basis=baseline_basis,
+            archive_classification=(
+                f"editorial_source_section_{source_section_baseline}_baseline"
+            ),
+            archive_provenance=baseline_basis,
             archive_tokens=[],
+            archive_run_id=source_section_baseline_run_id,
+            archive_run_polarity=source_section_baseline,
+            source_section_baseline_applied=True,
         )
     return {
         "labels_detected": bool(
-            maintained_labels_detected or archive_markup_detected
+            maintained_labels_detected
+            or archive_markup_detected
+            or editorial_source_sections_detected
         ),
         "archive_attribution_markup_detected": archive_markup_detected,
+        "editorial_source_sections_detected": editorial_source_sections_detected,
+        "reported_nonmt_editorial_sections_detected": any(
+            row["archive_source_section_baseline_polarity"] == "nonmt"
+            for row in source_section_events
+        ),
+        "archive_source_section_count": source_section_id,
+        "archive_source_section_events": source_section_events,
+        "archive_editorial_marker_count": editorial_marker_count,
+        "archive_editorial_marker_events": editorial_marker_events,
+        "ordered_body_events": parsed,
         "document_body_selector_kind": body_selector_kind,
-        "contribution_blocks": parsed,
+        "contribution_blocks": [
+            row for row in parsed
+            if row.get("ordered_body_event_kind") == "contribution_block"
+        ],
         "segments": segments,
         "matching_units": _matching_units(segments),
     }
@@ -1688,6 +2338,33 @@ def _acceptable_primary_contribution_match(
         relationship["accepted"]
         and float(match.get("wording_similarity") or 0.0) > 0.0
     )
+
+
+def _match_crosses_editorial_source_sections(
+    units: Sequence[Mapping[str, Any]], match: Mapping[str, Any]
+) -> bool:
+    span_values = match.get("component_spans") or (
+        [match.get("span")] if match.get("span") else []
+    )
+    spans = [
+        (int(value[0]), int(value[1]))
+        for value in span_values
+        if isinstance(value, (list, tuple)) and len(value) == 2
+    ]
+    if not spans:
+        return False
+    ranges: list[tuple[int, int, Any]] = []
+    offset = 0
+    for unit in units:
+        text = str(unit.get("text") or "")
+        ranges.append((offset, offset + len(text), unit.get("archive_source_section_id")))
+        offset += len(text) + 1
+    touched = {
+        section_id
+        for start, end, section_id in ranges
+        if any(start < span_end and end > span_start for span_start, span_end in spans)
+    }
+    return len(touched) > 1
 
 
 def contribution_aware_match(
@@ -1773,6 +2450,15 @@ def contribution_aware_match(
             "archive_attribution_run_polarity": nonmt_segment.get(
                 "archive_attribution_run_polarity", "none"
             ),
+            "archive_source_section_id": nonmt_segment.get(
+                "archive_source_section_id"
+            ),
+            "archive_source_section_baseline_polarity": nonmt_segment.get(
+                "archive_source_section_baseline_polarity", "unverified"
+            ),
+            "archive_source_section_baseline_applied": bool(
+                nonmt_segment.get("archive_source_section_baseline_applied")
+            ),
             "archive_attribution_component_provenance": list(
                 nonmt_segment.get(
                     "archive_attribution_component_provenance"
@@ -1839,6 +2525,15 @@ def contribution_aware_match(
                                 "archive_attribution_run_polarity", "none"
                             )
                         ),
+                        "archive_source_section_id": diagnostic_segment.get(
+                            "archive_source_section_id"
+                        ),
+                        "archive_source_section_baseline_polarity": (
+                            diagnostic_segment.get(
+                                "archive_source_section_baseline_polarity",
+                                "unverified",
+                            )
+                        ),
                         "archive_attribution_component_provenance": list(
                             diagnostic_segment.get(
                                 "archive_attribution_component_provenance"
@@ -1860,8 +2555,12 @@ def contribution_aware_match(
             "archive_attribution_conflict": False,
             "archive_attribution_run_id": None,
             "archive_attribution_run_polarity": "none",
+            "archive_source_section_id": None,
+            "archive_source_section_baseline_polarity": "unverified",
+            "archive_source_section_baseline_applied": False,
         }
     cross_speaker = False
+    cross_editorial_section = False
     acceptable_within_unit_matches = [
         row for row in matches
         if _acceptable_primary_contribution_match(match_target, row[1])
@@ -1881,6 +2580,12 @@ def contribution_aware_match(
             )
             < _MATCH_PRIORITY.get(str(best.get("match_type") or "none"), 9)
         )
+        cross_editorial_section = bool(
+            cross_speaker
+            and _match_crosses_editorial_source_sections(
+                matching_units, joined_match
+            )
+        )
     if cross_speaker:
         best = {
             **joined_match,
@@ -1897,6 +2602,9 @@ def contribution_aware_match(
             "archive_attribution_conflict": False,
             "archive_attribution_run_id": None,
             "archive_attribution_run_polarity": "none",
+            "archive_source_section_id": None,
+            "archive_source_section_baseline_polarity": "unverified",
+            "archive_source_section_baseline_applied": False,
         }
     if best.get("match_type") == "recorded_variant" and (
         not (
@@ -1930,8 +2638,12 @@ def contribution_aware_match(
             "archive_attribution_conflict": False,
             "archive_attribution_run_id": None,
             "archive_attribution_run_polarity": "none",
+            "archive_source_section_id": None,
+            "archive_source_section_baseline_polarity": "unverified",
+            "archive_source_section_baseline_applied": False,
         }
         cross_speaker = False
+        cross_editorial_section = False
     elif best.get("match_type") == "recorded_variant":
         best = {
             **best,
@@ -1953,6 +2665,9 @@ def contribution_aware_match(
         "labels_detected": bool(segmentation["labels_detected"]),
         "segments_inspected": len(segmentation["segments"]),
         "cross_speaker_join_rejected": cross_speaker,
+        "cross_editorial_section_boundary_match_rejected": (
+            cross_editorial_section
+        ),
         "document_body_selector_kind": segmentation.get(
             "document_body_selector_kind", "unsupported_or_ambiguous_body"
         ),
@@ -1982,6 +2697,45 @@ def contribution_aware_match(
         ),
         "archive_attribution_run_polarity": segment.get(
             "archive_attribution_run_polarity", "none"
+        ),
+        "editorial_source_sections_detected": bool(
+            segmentation.get("editorial_source_sections_detected")
+        ),
+        "reported_nonmt_editorial_sections_detected": bool(
+            segmentation.get("reported_nonmt_editorial_sections_detected")
+        ),
+        "archive_source_section_count": int(
+            segmentation.get("archive_source_section_count") or 0
+        ),
+        "archive_source_section_events": copy.deepcopy(
+            segmentation.get("archive_source_section_events") or []
+        ),
+        "archive_editorial_marker_count": int(
+            segmentation.get("archive_editorial_marker_count") or 0
+        ),
+        "archive_editorial_marker_events": copy.deepcopy(
+            segmentation.get("archive_editorial_marker_events") or []
+        ),
+        "archive_source_section_id": segment.get(
+            "archive_source_section_id"
+        ),
+        "archive_source_section_baseline_polarity": segment.get(
+            "archive_source_section_baseline_polarity", "unverified"
+        ),
+        "archive_source_section_boundary_detected": bool(
+            segment.get("archive_source_section_boundary_detected")
+        ),
+        "archive_source_section_boundary_kind": str(
+            segment.get("archive_source_section_boundary_kind") or ""
+        ),
+        "archive_source_section_boundary_reason": str(
+            segment.get("archive_source_section_boundary_reason") or ""
+        ),
+        "archive_source_section_label": str(
+            segment.get("archive_source_section_label") or ""
+        ),
+        "archive_source_section_baseline_applied": bool(
+            segment.get("archive_source_section_baseline_applied")
         ),
         "archive_attribution_component_provenance": list(
             segment.get("archive_attribution_component_provenance") or []
@@ -2674,6 +3428,7 @@ _SEMANTIC_FIELDS = (
     "candidate_classification_reason",
     "accepted_as_primary_evidence",
     "cross_speaker_join_rejected",
+    "cross_editorial_section_boundary_match_rejected",
     "recorded_variant_relationship",
     "variant_relationship_diagnostics",
     "stronger_non_thatcher_occurrence",
@@ -2686,6 +3441,19 @@ _SEMANTIC_FIELDS = (
     "archive_attribution_match_spans_multiple_blocks",
     "archive_attribution_run_id",
     "archive_attribution_run_polarity",
+    "editorial_source_sections_detected",
+    "reported_nonmt_editorial_sections_detected",
+    "archive_source_section_count",
+    "archive_source_section_events",
+    "archive_editorial_marker_count",
+    "archive_editorial_marker_events",
+    "archive_source_section_id",
+    "archive_source_section_baseline_polarity",
+    "archive_source_section_boundary_detected",
+    "archive_source_section_boundary_kind",
+    "archive_source_section_boundary_reason",
+    "archive_source_section_label",
+    "archive_source_section_baseline_applied",
     "archive_attribution_component_provenance",
     "archive_attribution_matched_component_provenance",
     "archive_attribution_class_tokens",
@@ -2716,7 +3484,7 @@ def _fresh_semantic_fields(
         metadata = dict(classification_extraction.get("metadata") or {})
         if speaker.get("direct_primary_attribution_basis") in {
             "explicit_archive_mt_content", "inherited_archive_mt_run",
-            "archive_mt_run",
+            "archive_mt_run", "editorial_source_section_mt_baseline",
         }:
             metadata["author"] = "Margaret Thatcher"
         else:
@@ -2796,6 +3564,9 @@ def _fresh_semantic_fields(
         "cross_speaker_join_rejected": bool(
             speaker.get("cross_speaker_join_rejected")
         ),
+        "cross_editorial_section_boundary_match_rejected": bool(
+            speaker.get("cross_editorial_section_boundary_match_rejected")
+        ),
         "recorded_variant_relationship": copy.deepcopy(
             match.get("recorded_variant_relationship")
         ),
@@ -2830,6 +3601,44 @@ def _fresh_semantic_fields(
         ),
         "archive_attribution_run_polarity": str(
             speaker.get("archive_attribution_run_polarity") or "none"
+        ),
+        "editorial_source_sections_detected": bool(
+            speaker.get("editorial_source_sections_detected")
+        ),
+        "reported_nonmt_editorial_sections_detected": bool(
+            speaker.get("reported_nonmt_editorial_sections_detected")
+        ),
+        "archive_source_section_count": int(
+            speaker.get("archive_source_section_count") or 0
+        ),
+        "archive_source_section_events": copy.deepcopy(
+            speaker.get("archive_source_section_events") or []
+        ),
+        "archive_editorial_marker_count": int(
+            speaker.get("archive_editorial_marker_count") or 0
+        ),
+        "archive_editorial_marker_events": copy.deepcopy(
+            speaker.get("archive_editorial_marker_events") or []
+        ),
+        "archive_source_section_id": speaker.get("archive_source_section_id"),
+        "archive_source_section_baseline_polarity": str(
+            speaker.get("archive_source_section_baseline_polarity")
+            or "unverified"
+        ),
+        "archive_source_section_boundary_detected": bool(
+            speaker.get("archive_source_section_boundary_detected")
+        ),
+        "archive_source_section_boundary_kind": str(
+            speaker.get("archive_source_section_boundary_kind") or ""
+        ),
+        "archive_source_section_boundary_reason": str(
+            speaker.get("archive_source_section_boundary_reason") or ""
+        ),
+        "archive_source_section_label": str(
+            speaker.get("archive_source_section_label") or ""
+        ),
+        "archive_source_section_baseline_applied": bool(
+            speaker.get("archive_source_section_baseline_applied")
         ),
         "archive_attribution_component_provenance": list(
             speaker.get("archive_attribution_component_provenance") or []
@@ -2915,6 +3724,7 @@ def verify_candidate(
         "accepted_as_primary_evidence": False,
         "actual_regular_file_verified": False,
         "cross_speaker_join_rejected": False,
+        "cross_editorial_section_boundary_match_rejected": False,
         "document_body_selector_kind": "unsupported_or_ambiguous_body",
         "archive_attribution_markup_detected": False,
         "archive_attribution_classification": "no_archive_attribution",
@@ -2924,6 +3734,19 @@ def verify_candidate(
         "archive_attribution_match_spans_multiple_blocks": False,
         "archive_attribution_run_id": None,
         "archive_attribution_run_polarity": "none",
+        "editorial_source_sections_detected": False,
+        "reported_nonmt_editorial_sections_detected": False,
+        "archive_source_section_count": 0,
+        "archive_source_section_events": [],
+        "archive_editorial_marker_count": 0,
+        "archive_editorial_marker_events": [],
+        "archive_source_section_id": None,
+        "archive_source_section_baseline_polarity": "unverified",
+        "archive_source_section_boundary_detected": False,
+        "archive_source_section_boundary_kind": "",
+        "archive_source_section_boundary_reason": "",
+        "archive_source_section_label": "",
+        "archive_source_section_baseline_applied": False,
         "archive_attribution_component_provenance": [],
         "archive_attribution_matched_component_provenance": [],
         "archive_attribution_class_tokens": [],
@@ -3458,6 +4281,7 @@ def _neutral_semantic_fields(
         "candidate_classification_reason": reason,
         "accepted_as_primary_evidence": False,
         "cross_speaker_join_rejected": False,
+        "cross_editorial_section_boundary_match_rejected": False,
         "document_body_selector_kind": "unsupported_or_ambiguous_body",
         "archive_attribution_markup_detected": False,
         "archive_attribution_classification": "no_archive_attribution",
@@ -3467,6 +4291,19 @@ def _neutral_semantic_fields(
         "archive_attribution_match_spans_multiple_blocks": False,
         "archive_attribution_run_id": None,
         "archive_attribution_run_polarity": "none",
+        "editorial_source_sections_detected": False,
+        "reported_nonmt_editorial_sections_detected": False,
+        "archive_source_section_count": 0,
+        "archive_source_section_events": [],
+        "archive_editorial_marker_count": 0,
+        "archive_editorial_marker_events": [],
+        "archive_source_section_id": None,
+        "archive_source_section_baseline_polarity": "unverified",
+        "archive_source_section_boundary_detected": False,
+        "archive_source_section_boundary_kind": "",
+        "archive_source_section_boundary_reason": "",
+        "archive_source_section_label": "",
+        "archive_source_section_baseline_applied": False,
         "archive_attribution_component_provenance": [],
         "archive_attribution_matched_component_provenance": [],
         "archive_attribution_class_tokens": [],
@@ -3715,6 +4552,24 @@ def _archive_attribution_summary_counters(
             bool(row.get("archive_attribution_conflict"))
             for row in reverified
         ),
+        "candidates_with_editorial_source_sections": sum(
+            bool(row.get("editorial_source_sections_detected"))
+            for row in reverified
+        ),
+        "accepted_candidates_using_editorial_mt_section_baseline": sum(
+            bool(row.get("accepted_as_primary_evidence"))
+            and row.get("direct_primary_attribution_basis")
+            == "editorial_source_section_mt_baseline"
+            for row in reverified
+        ),
+        "candidates_with_reported_nonmt_editorial_sections": sum(
+            bool(row.get("reported_nonmt_editorial_sections_detected"))
+            for row in reverified
+        ),
+        "rejected_cross_editorial_section_boundary_matches": sum(
+            bool(row.get("cross_editorial_section_boundary_match_rejected"))
+            for row in reverified
+        ),
     }
 
 
@@ -3747,6 +4602,10 @@ def render_reclassification_report(summary: Mapping[str, Any]) -> str:
         f"- Rejected candidates matched directly in explicit or inherited archive non-MT material: {summary['rejected_candidates_with_direct_match_in_archive_nonmt']}",
         f"- Candidates retaining explicit or inherited reported/secondary non-MT matches: {summary['reported_or_secondary_nonmt_match_count']}",
         f"- Candidates with a match under explicit or inherited conflicting archive attribution: {summary['archive_attribution_conflict_count']}",
+        f"- Candidates whose selected body contains constrained editorial source sections: {summary['candidates_with_editorial_source_sections']}",
+        f"- Accepted candidates using an editorial MT source-section baseline: {summary['accepted_candidates_using_editorial_mt_section_baseline']}",
+        f"- Candidates containing a reportorial non-MT editorial source section: {summary['candidates_with_reported_nonmt_editorial_sections']}",
+        f"- Candidates whose wording was rejected across an editorial source-section boundary: {summary['rejected_cross_editorial_section_boundary_matches']}",
         f"- Negative/no-hit conclusions remain provisional: {str(summary['negative_no_hit_conclusions_provisional']).lower()}",
         "",
         "## Revised advisory classification",

@@ -41,13 +41,29 @@ def modern_html(
     title: str = "Speech to a Conservative audience",
     sidebar: str = "",
     field_body: bool = True,
+    source: str = "",
+    editorial_comments: str = "",
+    leading_filler: bool = True,
 ) -> bytes:
     filler = "Substantial authentic contribution context for body selection. " * 3
-    contribution_html = f"<p>{filler}</p>{contribution}<p>{filler}</p>"
+    contribution_html = (
+        (f"<p>{filler}</p>" if leading_filler else "")
+        + contribution
+        + f"<p>{filler}</p>"
+    )
     body_html = (
         f'<div class="field field-body">{contribution_html}</div>'
         if field_body else contribution_html
     )
+    metadata_rows = "".join(
+        f"<tr><th>{label}:</th><td>{value}</td></tr>"
+        for label, value in (
+            ("Source", source),
+            ("Editorial comments", editorial_comments),
+        )
+        if value
+    )
+    metadata_html = f"<table>{metadata_rows}</table>" if metadata_rows else ""
     return f"""<!doctype html><html><head>
 <title>{title} | Margaret Thatcher Foundation</title>
 <link rel="canonical" href="https://www.margaretthatcher.org/document/{document_id}">
@@ -55,7 +71,7 @@ def modern_html(
 <header><h1 class="doctitle">{title}</h1>
 <div class="docauthor">{author}</div>
 <div class="docdate"><time datetime="1980-01-26">1980 Jan 26</time></div></header>
-{body_html}<aside>Other documents from this day. {sidebar}</aside>
+{metadata_html}{body_html}<aside>Other documents from this day. {sidebar}</aside>
 </article></body></html>""".encode()
 
 
@@ -1141,6 +1157,305 @@ def test_split_mt_variant_outranks_split_nonmt_exact_and_retains_diagnostic() ->
     assert fields["reported_or_secondary_nonmt_match"] is True
 
 
+def test_numbered_editorial_sources_bind_mt_and_report_sections() -> None:
+    quotation = (
+        "Freedom cannot endure unless we defend individual responsibility."
+    )
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p><ed-comment>Beginning of section checked against BBC Radio News '
+        'Report 2200</ed-comment></p>'
+        '<p class="nonmt">A block-specific editorial exception.</p>'
+        '<p>Freedom cannot endure unless</p>'
+        '<p>we defend individual responsibility.</p>'
+        '<p><ed-comment>End of section checked against BBC Radio News Report '
+        '2200.</ed-comment></p>'
+        '<p><ed-comment>(2) <i>Finchley Times</i>, 6 February 1976'
+        '</ed-comment></p>'
+        f'<p>Mrs Thatcher later said, “{quotation}”</p>',
+        source=(
+            "(1) Thatcher Archive: speaking text "
+            "(2) Finchley Times, 6 February 1976"
+        ),
+        editorial_comments=(
+            "The Finchley Times reported that MT made a second speech after "
+            "the cameras were switched off."
+        ),
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    events = segmentation["archive_source_section_events"]
+    blocks = {
+        row["normalised_text"]: row
+        for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] in {
+            "A block-specific editorial exception.",
+            "Freedom cannot endure unless",
+            "we defend individual responsibility.",
+        }
+    }
+
+    assert [row["archive_source_section_baseline_polarity"] for row in events] == [
+        "mt", "nonmt"
+    ]
+    assert blocks["A block-specific editorial exception."][
+        "archive_attribution_run_polarity"
+    ] == "nonmt"
+    assert blocks["Freedom cannot endure unless"][
+        "archive_source_section_baseline_applied"
+    ] is True
+    assert blocks["Freedom cannot endure unless"][
+        "archive_attribution_run_polarity"
+    ] == "mt"
+    assert blocks["Freedom cannot endure unless"][
+        "archive_attribution_run_id"
+    ] == blocks["we defend individual responsibility."][
+        "archive_attribution_run_id"
+    ]
+    assert fields["raw_match_type"] == "exact_quotation"
+    assert fields["accepted_as_primary_evidence"] is True
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["archive_source_section_id"] == 1
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    report = fields["reported_or_secondary_nonmt_match_evidence"]
+    assert report["archive_source_section_id"] == 2
+    assert report["archive_source_section_baseline_polarity"] == "nonmt"
+    assert report["archive_source_section_baseline_applied"] is True
+    searchable = " ".join(row["text"] for row in segmentation["segments"])
+    assert "checked against" not in searchable
+    assert "Speaking text" not in searchable
+    assert "Finchley Times" not in searchable
+    assert "checked against" not in fields["surrounding_context"]
+    marker_events = fields["archive_editorial_marker_events"]
+    assert fields["archive_editorial_marker_count"] == 4
+    assert len(marker_events) == 4
+    assert {row["editorial_marker_kind"] for row in marker_events} == {
+        "editorial_source_boundary", "editorial_only_marker"
+    }
+
+
+def test_numbered_editorial_source_boundary_is_hard_for_matching() -> None:
+    quotation = "Freedom cannot be divided."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment></p>'
+        '<p>Freedom cannot</p>'
+        '<p><ed-comment>(2) Finchley Times, 6 February 1976</ed-comment></p>'
+        '<p>be divided.</p>',
+        source=(
+            "(1) Thatcher Archive: speaking text "
+            "(2) Finchley Times, 6 February 1976"
+        ),
+        editorial_comments="The Finchley Times reported that MT spoke again.",
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    assert fields["raw_match_type"] == "assembled_clauses"
+    assert fields["cross_speaker_join_rejected"] is True
+    assert fields["cross_editorial_section_boundary_match_rejected"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_bare_numbered_newspaper_source_is_unverified_without_report_metadata() -> None:
+    quotation = "Freedom cannot be divided."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Finchley Times, 6 February 1976</ed-comment></p>'
+        f"<p>{quotation}</p>",
+        source="(1) Finchley Times, 6 February 1976",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["archive_source_section_events"][0][
+        "archive_source_section_baseline_polarity"
+    ] == "unverified"
+    assert fields["archive_source_section_baseline_polarity"] == "unverified"
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_numbered_ed_comment_is_removed_without_dropping_substantive_parent_text() -> None:
+    quotation = "Freedom cannot be divided."
+    body = modern_html(
+        "103384",
+        '<p><ed-comment>(1) Speaking text.</ed-comment> '
+        f"{quotation}</p>",
+        source="(1) Thatcher Archive: speaking text",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert [row["text"] for row in segmentation["segments"]][0] == quotation
+    assert fields["accepted_as_primary_evidence"] is True
+    assert "Speaking text" not in fields["supporting_passage"]
+    assert "Speaking text" not in fields["surrounding_context"]
+
+
+def test_italic_editorial_sections_separate_paraphrase_and_modified_text() -> None:
+    quotation = "Freedom cannot be divided."
+    body = modern_html(
+        "103384",
+        '<i>(1) Opening of press release (partial paraphrase of speaking text)</i>'
+        f'<p>The release paraphrased the claim: “{quotation}”</p>'
+        '<p class="nonmt"><i>End of partial paraphrase of speaking text.</i> '
+        '<span class="pagenum">[end p2]</span></p>'
+        '<p><i>(2) Modified speaking text begins</i> '
+        '<span class="pagenum">[end p3]</span></p>'
+        '<p><i>Manuscript addition by MT</i></p>'
+        '<p><i>Typescript resumes</i></p>'
+        '<p>Freedom cannot</p><p>be divided.</p>',
+        source="Thatcher MSS: THCR [speaking text]",
+        editorial_comments=(
+            "The press release included a partial paraphrase followed by the "
+            "modified speaking text."
+        ),
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    events = segmentation["archive_source_section_events"]
+    direct_blocks = [
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] in {"Freedom cannot", "be divided."}
+    ]
+    inline_blocks = [
+        row for row in segmentation["contribution_blocks"]
+        if row["normalised_text"] in {
+            "Manuscript addition by MT", "Typescript resumes"
+        }
+    ]
+
+    assert [row["archive_source_section_baseline_polarity"] for row in events] == [
+        "nonmt", "mt"
+    ]
+    assert segmentation["archive_source_section_count"] == 2
+    assert {row["archive_source_section_id"] for row in direct_blocks} == {2}
+    assert len({row["archive_attribution_run_id"] for row in direct_blocks}) == 1
+    assert {row["archive_source_section_id"] for row in inline_blocks} == {2}
+    assert {
+        row["archive_attribution_run_id"] for row in inline_blocks
+    } == {direct_blocks[0]["archive_attribution_run_id"]}
+    assert fields["accepted_as_primary_evidence"] is True
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["archive_source_section_id"] == 2
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    assert fields["reported_or_secondary_nonmt_match_evidence"][
+        "archive_source_section_id"
+    ] == 1
+    searchable = " ".join(row["text"] for row in segmentation["segments"])
+    assert "End of partial paraphrase" not in searchable
+    assert "Modified speaking text begins" not in searchable
+    assert fields["archive_editorial_marker_count"] == 3
+    assert len(fields["archive_editorial_marker_events"]) == 3
+
+
+def test_italic_editorial_source_boundary_is_hard_for_matching() -> None:
+    quotation = "Freedom cannot be divided."
+    body = modern_html(
+        "103384",
+        '<i>(1) Opening of press release (partial paraphrase of speaking text)</i>'
+        '<p>Freedom cannot</p>'
+        '<p><i>(2) Modified speaking text begins</i></p>'
+        '<p>be divided.</p>',
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    assert fields["raw_match_type"] == "assembled_clauses"
+    assert fields["cross_editorial_section_boundary_match_rejected"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_editorial_section_controls_preserve_existing_archive_runs() -> None:
+    quotation = "Freedom cannot be divided."
+    controls = {
+        "summary_then_full_text": (
+            '<h2>Summary</h2><p class="nonmt">Summary opening.</p>'
+            '<p>Summary continuation.</p><h2>Full Text</h2>'
+            f'<p class="mt">{quotation}</p><p>Direct continuation.</p>',
+            True,
+        ),
+        "newspaper_report": (
+            '<p class="nonmt">Newspaper account opening.</p>'
+            '<p>Reportorial continuation.</p>'
+            f'<p>“{quotation}” she said.</p>',
+            False,
+        ),
+        "ordinary_headings": (
+            '<p class="mt">Freedom cannot</p><h1>ELECTION ISSUES</h1>'
+            '<h2>Labour\'s record</h2><p>be divided.</p>',
+            True,
+        ),
+        "explicit_contribution_turns": (
+            '<p class="intnonmt">Interviewer</p><p class="nonmt">Question.</p>'
+            '<p class="intmt">Prime Minister</p>'
+            '<p class="mt">Freedom cannot</p><p>be divided.</p>',
+            True,
+        ),
+        "unmarked_speaker_transition": (
+            '<p class="nonmt"><span class="nm">Cecil Parkinson</span> '
+            'introduced the speaker.</p>'
+            '<p>Freedom cannot</p><p>be divided.</p>',
+            False,
+        ),
+    }
+    control_fields = {}
+    for name, (article, accepted) in controls.items():
+        _body, _validation, _extraction, fields = synthetic_semantic_fields(
+            quotation, article
+        )
+        control_fields[name] = fields
+        assert fields["accepted_as_primary_evidence"] is accepted, name
+        assert fields["editorial_source_sections_detected"] is False, name
+    assert control_fields["unmarked_speaker_transition"][
+        "archive_attribution_provenance"
+    ] == "archive_nonmt_run"
+    assert control_fields["unmarked_speaker_transition"][
+        "candidate_semantic_reverification_status"
+    ] == "reverified_rejected_archive_nonmt"
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "Economic Policy", "ELECTION ISSUES", "Labour's record",
+        "Income Tax", "Europe", "Defence",
+    ],
+)
+def test_generic_heading_never_creates_editorial_source_boundary(
+    heading: str,
+) -> None:
+    body = modern_html(
+        "103384", f"<h2>{heading}</h2><p>Ordinary article content.</p>"
+    )
+    validation = research.inspect_mtf_document(
+        "https://www.margaretthatcher.org/document/103384", "text/html", body
+    )
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["editorial_source_sections_detected"] is False
+    assert segmentation["archive_source_section_count"] == 0
+
+
+def test_unmaintained_root_italic_is_ordinary_content_not_source_boundary() -> None:
+    quotation = "Freedom cannot be divided."
+    body = modern_html(
+        "103384",
+        f"<i>{quotation}</i><p>Ordinary continuation.</p>",
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(quotation, body)
+    segmentation = reaudit.speaker_segments(body, validation)
+    assert segmentation["editorial_source_sections_detected"] is False
+    assert fields["raw_match_type"] == "exact_quotation"
+    assert fields["accepted_as_primary_evidence"] is True
+
+
 def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
     common = {"candidate_semantically_reverified": True}
     candidates = [
@@ -1200,6 +1515,26 @@ def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
             "accepted_as_primary_evidence": True,
             "direct_primary_attribution_basis": "explicit_document_author",
         },
+        {
+            **common,
+            "editorial_source_sections_detected": True,
+            "accepted_as_primary_evidence": True,
+            "direct_primary_attribution_basis": (
+                "editorial_source_section_mt_baseline"
+            ),
+        },
+        {
+            **common,
+            "editorial_source_sections_detected": True,
+            "reported_nonmt_editorial_sections_detected": True,
+            "accepted_as_primary_evidence": False,
+        },
+        {
+            **common,
+            "editorial_source_sections_detected": True,
+            "cross_editorial_section_boundary_match_rejected": True,
+            "accepted_as_primary_evidence": False,
+        },
     ]
     assert reaudit._archive_attribution_summary_counters(candidates) == {
         "candidates_with_archive_attribution_markup": 6,
@@ -1207,6 +1542,10 @@ def test_archive_attribution_summary_counters_are_candidate_bounded() -> None:
         "rejected_candidates_with_direct_match_in_archive_nonmt": 2,
         "reported_or_secondary_nonmt_match_count": 3,
         "archive_attribution_conflict_count": 1,
+        "candidates_with_editorial_source_sections": 3,
+        "accepted_candidates_using_editorial_mt_section_baseline": 1,
+        "candidates_with_reported_nonmt_editorial_sections": 1,
+        "rejected_cross_editorial_section_boundary_matches": 1,
     }
 
 
