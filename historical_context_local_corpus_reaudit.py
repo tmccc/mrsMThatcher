@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v6"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v7"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -883,8 +883,15 @@ _NON_PERSON_HEADING_WORDS = frozenset({
 })
 _NON_PERSON_INITIALS = frozenset({"AI", "EU", "IT", "TV", "UK", "UN", "US"})
 _CONTRIBUTION_TAGS = frozenset({"p", "li", "blockquote"})
+_STRUCTURAL_HEADING_TAGS = frozenset({"h1", "h2", "h3"})
 _ARCHIVE_ATTRIBUTION_CLASS_TOKENS = frozenset({
     "mt", "intmt", "nonmt", "intnonmt",
+})
+_ARCHIVE_MT_PROVENANCE = frozenset({
+    "explicit_archive_mt_content", "inherited_archive_mt_content",
+})
+_ARCHIVE_NONMT_PROVENANCE = frozenset({
+    "explicit_archive_nonmt_content", "inherited_archive_nonmt_content",
 })
 
 
@@ -923,7 +930,8 @@ def _node_class_tokens(node: Any) -> list[str]:
 def _archive_contribution_blocks(article: Any) -> list[dict[str, Any]]:
     """Retain DOM and exact archive-attribution provenance for relevant blocks."""
     blocks: list[dict[str, Any]] = []
-    for node in article.find_all(("p", "li", "blockquote", "h2", "h3")):
+    block_tags = tuple(_CONTRIBUTION_TAGS | _STRUCTURAL_HEADING_TAGS)
+    for node in article.find_all(block_tags):
         text = " ".join(node.get_text(" ", strip=True).split())
         if not text:
             continue
@@ -952,6 +960,15 @@ def _archive_contribution_blocks(article: Any) -> list[dict[str, Any]]:
             if tag in _CONTRIBUTION_TAGS
             else "no_archive_attribution"
         )
+        provenance = {
+            "mt_content": "explicit_archive_mt_content",
+            "nonmt_content": "explicit_archive_nonmt_content",
+            "mt_label": "explicit_archive_mt_label_state",
+            "nonmt_label": "explicit_archive_nonmt_label_state",
+            "conflicting_archive_attribution": (
+                "conflicting_archive_attribution"
+            ),
+        }.get(classification, "no_archive_attribution")
         blocks.append({
             "element_tag": tag,
             "element_class_tokens": element_tokens,
@@ -959,6 +976,8 @@ def _archive_contribution_blocks(article: Any) -> list[dict[str, Any]]:
             "archive_attribution_class_tokens": archive_tokens,
             "normalised_text": text,
             "archive_attribution_classification": classification,
+            "effective_archive_attribution_classification": classification,
+            "archive_attribution_provenance": provenance,
             "archive_attribution_conflict": (
                 classification == "conflicting_archive_attribution"
             ),
@@ -1003,27 +1022,52 @@ def _speaker_heading_class(
     return None
 
 
-def _article_node(body: bytes, validation: Mapping[str, Any]) -> Any:
+def _document_body_node(
+    body: bytes, validation: Mapping[str, Any]
+) -> tuple[Any | None, str]:
+    """Resolve one contribution root, failing closed on ambiguous modern bodies."""
     soup = BeautifulSoup(body, "lxml")
     selector = str(validation.get("selector_kind") or "")
     if selector == "legacy":
-        return soup.select_one("#documentbody")
+        node = soup.select_one("#documentbody")
+        return (
+            node,
+            "legacy_document_body" if node is not None
+            else "unsupported_or_ambiguous_body",
+        )
     if selector == "current_mirror":
-        return soup.select_one(".document-body")
-    return soup.select_one("article.node-archive-document")
+        node = soup.select_one(".document-body")
+        return (
+            node,
+            "current_mirror_article_fallback" if node is not None
+            else "unsupported_or_ambiguous_body",
+        )
+    article = soup.select_one("article.node-archive-document")
+    if article is None:
+        return None, "unsupported_or_ambiguous_body"
+    usable_field_bodies = [
+        node for node in article.select(".field-body")
+        if " ".join(node.get_text(" ", strip=True).split())
+    ]
+    if len(usable_field_bodies) == 1:
+        return usable_field_bodies[0], "current_mirror_field_body"
+    if usable_field_bodies:
+        return None, "unsupported_or_ambiguous_body"
+    return article, "current_mirror_article_fallback"
 
 
 def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, Any]:
     """Create contribution-bounded transcript segments without speaker joining."""
-    article = _article_node(body, validation)
-    if article is None:
+    document_body, body_selector_kind = _document_body_node(body, validation)
+    if document_body is None:
         return {
             "labels_detected": False,
             "archive_attribution_markup_detected": False,
+            "document_body_selector_kind": body_selector_kind,
             "contribution_blocks": [],
             "segments": [],
         }
-    blocks = _archive_contribution_blocks(article)
+    blocks = _archive_contribution_blocks(document_body)
     archive_markup_detected = any(
         block["element_tag"] in _CONTRIBUTION_TAGS
         and block["archive_attribution_classification"]
@@ -1179,10 +1223,11 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             "maintained_speaker_class": speaker_class,
         })
     if not maintained_labels_detected and not archive_markup_detected:
-        text = " ".join(article.get_text(" ", strip=True).split())
+        text = " ".join(document_body.get_text(" ", strip=True).split())
         return {
             "labels_detected": False,
             "archive_attribution_markup_detected": False,
+            "document_body_selector_kind": body_selector_kind,
             "contribution_blocks": blocks,
             "segments": [{
                 "speaker_class": "thatcher" if author_verified else "unverified",
@@ -1195,6 +1240,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                 "archive_attribution_classification": (
                     "no_archive_attribution"
                 ),
+                "archive_attribution_provenance": "no_archive_attribution",
                 "archive_attribution_class_tokens": [],
                 "archive_attribution_conflict": False,
             }] if text else [],
@@ -1215,6 +1261,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
         speaker_label: str,
         evidence_basis: str,
         archive_classification: str,
+        archive_provenance: str,
         archive_tokens: Sequence[str],
         archive_conflict: bool = False,
     ) -> None:
@@ -1227,12 +1274,14 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             "text": value,
             "evidence_basis": evidence_basis,
             "archive_attribution_classification": archive_classification,
+            "archive_attribution_provenance": archive_provenance,
             "archive_attribution_class_tokens": tokens,
             "archive_attribution_conflict": archive_conflict,
         }
         merge_keys = (
             "speaker_class", "speaker_label", "evidence_basis",
             "archive_attribution_classification",
+            "archive_attribution_provenance",
             "archive_attribution_class_tokens", "archive_attribution_conflict",
         )
         if segments and all(
@@ -1263,25 +1312,24 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             archive_state_tokens = archive_tokens
             continue
         if archive_classification == "conflicting_archive_attribution":
-            if not (token_polarities & {"mt", "nonmt"}):
-                archive_state_class = "unverified"
-                archive_state_label = block
-                archive_state_classification = archive_classification
-                archive_state_tokens = archive_tokens
-                continue
-            append_segment(
-                block,
-                speaker_class="unverified",
-                speaker_label="conflicting archive attribution",
-                evidence_basis="conflicting_archive_attribution",
-                archive_classification=archive_classification,
-                archive_tokens=archive_tokens,
-                archive_conflict=True,
+            is_content_block = bool(token_polarities & {"mt", "nonmt"})
+            if is_content_block:
+                append_segment(
+                    block,
+                    speaker_class="unverified",
+                    speaker_label="conflicting archive attribution",
+                    evidence_basis="conflicting_archive_attribution",
+                    archive_classification=archive_classification,
+                    archive_provenance="conflicting_archive_attribution",
+                    archive_tokens=archive_tokens,
+                    archive_conflict=True,
+                )
+            archive_state_class = "unverified"
+            archive_state_label = (
+                "conflicting archive attribution" if is_content_block else block
             )
-            archive_state_class = None
-            archive_state_label = ""
-            archive_state_classification = "no_archive_attribution"
-            archive_state_tokens = []
+            archive_state_classification = archive_classification
+            archive_state_tokens = archive_tokens
             continue
         if archive_classification in {"mt_content", "nonmt_content"}:
             speaker_class = (
@@ -1293,7 +1341,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                 speaker_class=speaker_class,
                 speaker_label=(
                     archive_state_label if compatible_state
-                    else "mt" if speaker_class == "thatcher" else "nonmt"
+                    else ""
                 ),
                 evidence_basis=(
                     "explicit_archive_mt_content"
@@ -1301,18 +1349,37 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                     else "explicit_archive_nonmt_content"
                 ),
                 archive_classification=archive_classification,
+                archive_provenance=(
+                    "explicit_archive_mt_content"
+                    if speaker_class == "thatcher"
+                    else "explicit_archive_nonmt_content"
+                ),
                 archive_tokens=archive_tokens,
             )
-            archive_state_class = None
-            archive_state_label = ""
-            archive_state_classification = "no_archive_attribution"
-            archive_state_tokens = []
+            archive_state_class = speaker_class
+            archive_state_label = archive_state_label if compatible_state else ""
+            archive_state_classification = archive_classification
+            archive_state_tokens = archive_tokens
             continue
         if archive_state_class is not None:
             inherited_conflict = (
                 archive_state_classification
                 == "conflicting_archive_attribution"
             )
+            inherited_provenance = (
+                "conflicting_archive_attribution"
+                if inherited_conflict
+                else "inherited_archive_mt_content"
+                if archive_state_class == "thatcher"
+                else "inherited_archive_nonmt_content"
+            )
+            block_record["archive_attribution_provenance"] = (
+                inherited_provenance
+            )
+            block_record["effective_archive_attribution_classification"] = (
+                archive_state_classification
+            )
+            block_record["archive_attribution_conflict"] = inherited_conflict
             append_segment(
                 block,
                 speaker_class=archive_state_class,
@@ -1320,11 +1387,12 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
                 evidence_basis=(
                     "conflicting_archive_attribution"
                     if inherited_conflict
-                    else "explicit_archive_intmt_label"
+                    else "inherited_archive_mt_run"
                     if archive_state_class == "thatcher"
-                    else "explicit_archive_intnonmt_label"
+                    else "inherited_archive_nonmt_run"
                 ),
                 archive_classification=archive_state_classification,
+                archive_provenance=inherited_provenance,
                 archive_tokens=archive_state_tokens,
                 archive_conflict=inherited_conflict,
             )
@@ -1351,6 +1419,7 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             speaker_label=current_label,
             evidence_basis=current_basis,
             archive_classification="no_archive_attribution",
+            archive_provenance="no_archive_attribution",
             archive_tokens=[],
         )
     return {
@@ -1358,7 +1427,8 @@ def speaker_segments(body: bytes, validation: Mapping[str, Any]) -> dict[str, An
             maintained_labels_detected or archive_markup_detected
         ),
         "archive_attribution_markup_detected": archive_markup_detected,
-        "contribution_blocks": blocks,
+        "document_body_selector_kind": body_selector_kind,
+        "contribution_blocks": parsed,
         "segments": segments,
     }
 
@@ -1429,14 +1499,22 @@ def contribution_aware_match(
         matches.append((rank, match, segment))
     archive_nonmt_matches = [
         row for row in matches
-        if row[2].get("archive_attribution_classification")
-        in {"nonmt_content", "nonmt_label"}
+        if (
+            row[2].get("archive_attribution_provenance")
+            in _ARCHIVE_NONMT_PROVENANCE
+            or row[2].get("archive_attribution_classification")
+            in {"nonmt_content", "nonmt_label"}
+        )
         and _acceptable_primary_contribution_match(match_target, row[1])
     ]
     archive_conflict_matches = [
         row for row in matches
-        if row[2].get("archive_attribution_classification")
-        == "conflicting_archive_attribution"
+        if (
+            row[2].get("archive_attribution_provenance")
+            == "conflicting_archive_attribution"
+            or row[2].get("archive_attribution_classification")
+            == "conflicting_archive_attribution"
+        )
         and _acceptable_primary_contribution_match(match_target, row[1])
     ]
     archive_nonmt_evidence: dict[str, Any] | None = None
@@ -1453,6 +1531,12 @@ def contribution_aware_match(
             "archive_attribution_classification": nonmt_segment.get(
                 "archive_attribution_classification"
             ),
+            "archive_attribution_provenance": nonmt_segment.get(
+                "archive_attribution_provenance"
+            ),
+            "archive_attribution_inherited": str(
+                nonmt_segment.get("archive_attribution_provenance") or ""
+            ).startswith("inherited_"),
             "archive_attribution_class_tokens": list(
                 nonmt_segment.get("archive_attribution_class_tokens") or []
             ),
@@ -1464,6 +1548,10 @@ def contribution_aware_match(
         positive_matches = [
             row for row in matches
             if row[2].get("speaker_class") == "thatcher"
+            and row[2].get("archive_attribution_provenance")
+            not in _ARCHIVE_NONMT_PROVENANCE | {
+                "conflicting_archive_attribution"
+            }
             and _acceptable_primary_contribution_match(match_target, row[1])
         ]
         if positive_matches:
@@ -1494,6 +1582,11 @@ def contribution_aware_match(
                                 "archive_attribution_classification"
                             )
                         ),
+                        "archive_attribution_provenance": (
+                            diagnostic_segment.get(
+                                "archive_attribution_provenance"
+                            )
+                        ),
                     },
                 }
         else:
@@ -1505,6 +1598,7 @@ def contribution_aware_match(
             "speaker_class": "unverified", "speaker_label": "",
             "evidence_basis": "no_transcript_segment",
             "archive_attribution_classification": "no_archive_attribution",
+            "archive_attribution_provenance": "no_archive_attribution",
             "archive_attribution_class_tokens": [],
             "archive_attribution_conflict": False,
         }
@@ -1531,6 +1625,7 @@ def contribution_aware_match(
             "speaker_label": "multiple contributions",
             "evidence_basis": "cross_speaker_join_rejected",
             "archive_attribution_classification": "no_archive_attribution",
+            "archive_attribution_provenance": "no_archive_attribution",
             "archive_attribution_class_tokens": [],
             "archive_attribution_conflict": False,
         }
@@ -1561,6 +1656,7 @@ def contribution_aware_match(
             "speaker_label": "",
             "evidence_basis": "recorded_variant_without_lexical_relationship",
             "archive_attribution_classification": "no_archive_attribution",
+            "archive_attribution_provenance": "no_archive_attribution",
             "archive_attribution_class_tokens": [],
             "archive_attribution_conflict": False,
         }
@@ -1573,7 +1669,14 @@ def contribution_aware_match(
             ),
         }
     speaker = {
-        "verified": segment.get("speaker_class") == "thatcher" and not cross_speaker,
+        "verified": bool(
+            segment.get("speaker_class") == "thatcher"
+            and segment.get("archive_attribution_provenance")
+            not in _ARCHIVE_NONMT_PROVENANCE | {
+                "conflicting_archive_attribution"
+            }
+            and not cross_speaker
+        ),
         "speaker_class": segment.get("speaker_class"),
         "speaker_label": segment.get("speaker_label"),
         "evidence_basis": segment.get("evidence_basis"),
@@ -1581,12 +1684,21 @@ def contribution_aware_match(
         "labels_detected": bool(segmentation["labels_detected"]),
         "segments_inspected": len(segmentation["segments"]),
         "cross_speaker_join_rejected": cross_speaker,
+        "document_body_selector_kind": segmentation.get(
+            "document_body_selector_kind", "unsupported_or_ambiguous_body"
+        ),
         "archive_attribution_markup_detected": bool(
             segmentation.get("archive_attribution_markup_detected")
         ),
         "archive_attribution_classification": segment.get(
             "archive_attribution_classification", "no_archive_attribution"
         ),
+        "archive_attribution_provenance": segment.get(
+            "archive_attribution_provenance", "no_archive_attribution"
+        ),
+        "archive_attribution_inherited": str(
+            segment.get("archive_attribution_provenance") or ""
+        ).startswith("inherited_"),
         "archive_attribution_class_tokens": list(
             segment.get("archive_attribution_class_tokens") or []
         ),
@@ -1598,7 +1710,14 @@ def contribution_aware_match(
         "reported_or_secondary_nonmt_match_evidence": archive_nonmt_evidence,
         "direct_primary_attribution_basis": (
             str(segment.get("evidence_basis") or "")
-            if segment.get("speaker_class") == "thatcher" and not cross_speaker
+            if (
+                segment.get("speaker_class") == "thatcher"
+                and segment.get("archive_attribution_provenance")
+                not in _ARCHIVE_NONMT_PROVENANCE | {
+                    "conflicting_archive_attribution"
+                }
+                and not cross_speaker
+            )
             else ""
         ),
     }
@@ -2265,8 +2384,11 @@ _SEMANTIC_FIELDS = (
     "recorded_variant_relationship",
     "variant_relationship_diagnostics",
     "stronger_non_thatcher_occurrence",
+    "document_body_selector_kind",
     "archive_attribution_markup_detected",
     "archive_attribution_classification",
+    "archive_attribution_provenance",
+    "archive_attribution_inherited",
     "archive_attribution_class_tokens",
     "archive_attribution_conflict",
     "reported_or_secondary_nonmt_match",
@@ -2294,7 +2416,7 @@ def _fresh_semantic_fields(
     if speaker.get("verified"):
         metadata = dict(classification_extraction.get("metadata") or {})
         if speaker.get("direct_primary_attribution_basis") in {
-            "explicit_archive_mt_content", "explicit_archive_intmt_label",
+            "explicit_archive_mt_content", "inherited_archive_mt_run",
         }:
             metadata["author"] = "Margaret Thatcher"
         else:
@@ -2327,11 +2449,21 @@ def _fresh_semantic_fields(
         speaker.get("archive_attribution_classification")
         or "no_archive_attribution"
     )
+    archive_provenance = str(
+        speaker.get("archive_attribution_provenance")
+        or "no_archive_attribution"
+    )
     archive_conflict = bool(speaker.get("archive_attribution_conflict"))
+    selected_archive_conflict = bool(
+        archive_provenance == "conflicting_archive_attribution"
+        or archive_classification == "conflicting_archive_attribution"
+    )
     reported_nonmt = bool(speaker.get("reported_or_secondary_nonmt_match"))
-    if archive_classification in {
-        "nonmt_content", "nonmt_label", "conflicting_archive_attribution",
-    }:
+    archive_nonmt = bool(
+        archive_provenance in _ARCHIVE_NONMT_PROVENANCE
+        or archive_classification in {"nonmt_content", "nonmt_label"}
+    )
+    if archive_nonmt or selected_archive_conflict:
         accepted = False
     candidate_classification = str(
         classified.get("classification") or "no_support"
@@ -2339,17 +2471,13 @@ def _fresh_semantic_fields(
     candidate_classification_reason = str(
         classified.get("decision_reason") or ""
     )
-    if has_primary_wording and archive_classification in {
-        "nonmt_content", "nonmt_label",
-    }:
+    if has_primary_wording and archive_nonmt:
         candidate_classification = "reported_or_secondary_archive_nonmt"
         candidate_classification_reason = (
             "wording occurs in archive-marked non-Thatcher material and is "
             "not direct Thatcher primary evidence"
         )
-    elif has_primary_wording and archive_classification == (
-        "conflicting_archive_attribution"
-    ):
+    elif has_primary_wording and selected_archive_conflict:
         candidate_classification = "archive_attribution_conflict_unverified"
         candidate_classification_reason = (
             "matching contribution has conflicting archive attribution markup"
@@ -2377,10 +2505,18 @@ def _fresh_semantic_fields(
         "stronger_non_thatcher_occurrence": copy.deepcopy(
             match.get("stronger_non_thatcher_occurrence")
         ),
+        "document_body_selector_kind": str(
+            speaker.get("document_body_selector_kind")
+            or "unsupported_or_ambiguous_body"
+        ),
         "archive_attribution_markup_detected": bool(
             speaker.get("archive_attribution_markup_detected")
         ),
         "archive_attribution_classification": archive_classification,
+        "archive_attribution_provenance": archive_provenance,
+        "archive_attribution_inherited": archive_provenance.startswith(
+            "inherited_"
+        ),
         "archive_attribution_class_tokens": list(
             speaker.get("archive_attribution_class_tokens") or []
         ),
@@ -2402,18 +2538,13 @@ def _fresh_semantic_fields(
         if accepted:
             status = "reverified_accepted"
             reason = "fresh document rematch verified primary wording and Thatcher contribution"
-        elif (
-            has_primary_wording
-            and archive_classification in {"nonmt_content", "nonmt_label"}
-        ):
+        elif has_primary_wording and archive_nonmt:
             status = "reverified_rejected_archive_nonmt"
             reason = (
                 "fresh wording occurs only as archive-marked non-Thatcher, "
                 "reported, or secondary material"
             )
-        elif has_primary_wording and archive_classification == (
-            "conflicting_archive_attribution"
-        ):
+        elif has_primary_wording and selected_archive_conflict:
             status = "reverified_rejected_archive_attribution_conflict"
             reason = "fresh wording has conflicting archive attribution markup"
         elif fields["cross_speaker_join_rejected"] or raw_match_type == "assembled_clauses":
@@ -2462,8 +2593,11 @@ def verify_candidate(
         "accepted_as_primary_evidence": False,
         "actual_regular_file_verified": False,
         "cross_speaker_join_rejected": False,
+        "document_body_selector_kind": "unsupported_or_ambiguous_body",
         "archive_attribution_markup_detected": False,
         "archive_attribution_classification": "no_archive_attribution",
+        "archive_attribution_provenance": "no_archive_attribution",
+        "archive_attribution_inherited": False,
         "archive_attribution_class_tokens": [],
         "archive_attribution_conflict": False,
         "reported_or_secondary_nonmt_match": False,
@@ -2996,8 +3130,11 @@ def _neutral_semantic_fields(
         "candidate_classification_reason": reason,
         "accepted_as_primary_evidence": False,
         "cross_speaker_join_rejected": False,
+        "document_body_selector_kind": "unsupported_or_ambiguous_body",
         "archive_attribution_markup_detected": False,
         "archive_attribution_classification": "no_archive_attribution",
+        "archive_attribution_provenance": "no_archive_attribution",
+        "archive_attribution_inherited": False,
         "archive_attribution_class_tokens": [],
         "archive_attribution_conflict": False,
         "reported_or_secondary_nonmt_match": False,
@@ -3224,7 +3361,10 @@ def _archive_attribution_summary_counters(
         "accepted_candidates_using_archive_mt_markup": sum(
             bool(row.get("accepted_as_primary_evidence"))
             and row.get("direct_primary_attribution_basis")
-            in {"explicit_archive_mt_content", "explicit_archive_intmt_label"}
+            in {
+                "explicit_archive_mt_content",
+                "inherited_archive_mt_run",
+            }
             for row in reverified
         ),
         "rejected_candidates_with_direct_match_in_archive_nonmt": sum(
@@ -3267,11 +3407,11 @@ def render_reclassification_report(summary: Mapping[str, Any]) -> str:
         f"- Freshly accepted reverified selected candidates: {summary['reverified_positive_candidate_count']}",
         f"- Identity-valid freshly accepted candidates across all prior statuses: {summary['positive_candidates_remaining_valid']}",
         f"- Placeholder variants rejected: {summary['placeholder_variant_rejection_count']}",
-        f"- Candidates with explicit archive attribution markup: {summary['candidates_with_archive_attribution_markup']}",
-        f"- Accepted candidates using archive `mt`/`intmt` attribution: {summary['accepted_candidates_using_archive_mt_markup']}",
-        f"- Rejected candidates matched directly in archive `nonmt`: {summary['rejected_candidates_with_direct_match_in_archive_nonmt']}",
-        f"- Candidates retaining reported/secondary `nonmt` matches: {summary['reported_or_secondary_nonmt_match_count']}",
-        f"- Candidates with matching archive-attribution conflicts: {summary['archive_attribution_conflict_count']}",
+        f"- Candidates whose selected body contains recognised archive attribution markup: {summary['candidates_with_archive_attribution_markup']}",
+        f"- Accepted candidates using explicit or inherited archive MT attribution: {summary['accepted_candidates_using_archive_mt_markup']}",
+        f"- Rejected candidates matched directly in explicit or inherited archive non-MT material: {summary['rejected_candidates_with_direct_match_in_archive_nonmt']}",
+        f"- Candidates retaining explicit or inherited reported/secondary non-MT matches: {summary['reported_or_secondary_nonmt_match_count']}",
+        f"- Candidates with a match under explicit or inherited conflicting archive attribution: {summary['archive_attribution_conflict_count']}",
         f"- Negative/no-hit conclusions remain provisional: {str(summary['negative_no_hit_conclusions_provisional']).lower()}",
         "",
         "## Revised advisory classification",
