@@ -6180,12 +6180,23 @@ def test_digest_saved_state_backfill_ignores_future_state_snapshot(tmp_path: Pat
 
     digest = run_digest(base, state_file=state_file, until=window_end)
     assert digest.returncode == 0, digest.stderr
-    assert "State timestamp: `2026-07-08 05:39:35` (carried forward from previous digest state)" in digest.stdout
-    assert "daily_reply_count       = 1" in digest.stdout
-    assert "daily_quote_reply_count = 1" in digest.stdout
-    assert "last_seen_mention_id    = 800" in digest.stdout
-    assert "daily_reply_count       = 2" not in digest.stdout
-    assert "last_seen_mention_id    = 1000" not in digest.stdout
+    assert "## Latest state (stale carried-forward snapshot)" in digest.stdout
+    assert (
+        "State timestamp: `2026-07-08 05:39:35` "
+        "(carried forward from previous digest state; "
+        "stale snapshot age at window end: 1 hour 3 seconds)"
+    ) in digest.stdout
+    assert (
+        "Historical snapshot values only; the counters and schedules below "
+        "are not current."
+    ) in digest.stdout
+    assert "snapshot_daily_reply_count       = 1" in digest.stdout
+    assert "snapshot_daily_quote_reply_count = 1" in digest.stdout
+    assert "snapshot_last_seen_mention_id    = 800" in digest.stdout
+    assert "snapshot_daily_reply_count       = 2" not in digest.stdout
+    assert "snapshot_last_seen_mention_id    = 1000" not in digest.stdout
+    assert "\ndaily_reply_count       = 2" not in digest.stdout
+    assert "\nlast_seen_mention_id    = 1000" not in digest.stdout
 
 
 def test_digest_saved_state_backfill_rejects_future_saved_state_snapshot(tmp_path: Path) -> None:
