@@ -21,6 +21,79 @@ def mirror_root(tmp_path: Path) -> Path:
     return root
 
 
+def test_resolve_archive_root_accepts_resolved_parent_shape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = mirror_root(tmp_path)
+    monkeypatch.setenv(reaudit.LOCAL_ARCHIVE_ROOT_ENV, str(root))
+
+    assert reaudit._resolve_archive_root() == root.resolve(strict=True)
+
+
+def test_resolve_archive_root_rejects_host_directory_itself(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = mirror_root(tmp_path) / "www.margaretthatcher.org"
+    monkeypatch.setenv(reaudit.LOCAL_ARCHIVE_ROOT_ENV, str(root))
+
+    with pytest.raises(reaudit.ReauditError) as error:
+        reaudit._resolve_archive_root()
+
+    assert reaudit.LOCAL_ARCHIVE_ROOT_ENV in str(error.value)
+    assert "www.margaretthatcher.org/document" in str(error.value)
+    assert str(root) not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "invalid_shape",
+    ["unrelated_directory", "host_without_document", "document_regular_file"],
+)
+def test_resolve_archive_root_rejects_invalid_existing_shape_without_path_disclosure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_shape: str,
+) -> None:
+    root = tmp_path / f"private-{invalid_shape}"
+    if invalid_shape == "unrelated_directory":
+        root.mkdir()
+    else:
+        host = root / "www.margaretthatcher.org"
+        host.mkdir(parents=True)
+        if invalid_shape == "document_regular_file":
+            (host / "document").write_text("not a directory", encoding="utf-8")
+    monkeypatch.setenv(reaudit.LOCAL_ARCHIVE_ROOT_ENV, str(root))
+
+    with pytest.raises(reaudit.ReauditError) as error:
+        reaudit._resolve_archive_root()
+
+    assert str(error.value) == (
+        f"{reaudit.LOCAL_ARCHIVE_ROOT_ENV} must contain "
+        "www.margaretthatcher.org/document"
+    )
+    assert str(root) not in str(error.value)
+
+
+def test_resolve_archive_root_retains_basic_path_protections(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = mirror_root(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(reaudit.LOCAL_ARCHIVE_ROOT_ENV, root.name)
+    with pytest.raises(reaudit.ReauditError, match="must be an absolute path"):
+        reaudit._resolve_archive_root()
+
+    nonexistent = tmp_path / "private-nonexistent"
+    monkeypatch.setenv(reaudit.LOCAL_ARCHIVE_ROOT_ENV, str(nonexistent))
+    with pytest.raises(reaudit.ReauditError, match="does not exist"):
+        reaudit._resolve_archive_root()
+
+    regular_file = tmp_path / "private-regular-file"
+    regular_file.write_text("not a directory", encoding="utf-8")
+    monkeypatch.setenv(reaudit.LOCAL_ARCHIVE_ROOT_ENV, str(regular_file))
+    with pytest.raises(reaudit.ReauditError, match="is not a directory"):
+        reaudit._resolve_archive_root()
+
+
 def html(document_id: str, article: str, *, author: str = "Margaret Thatcher") -> bytes:
     filler = "Context establishing a sufficiently substantial archive transcript. " * 3
     return f"""<!doctype html><html><head>
@@ -3908,6 +3981,29 @@ def update_source_candidate(case: dict, **changes: object) -> None:
     path.chmod(0o600)
 
 
+def append_source_candidate(
+    case: dict, *, document_id: str, local_file_sha256: str
+) -> None:
+    path = case["source"] / "corpus_reaudit_candidates.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    candidate = json.loads(json.dumps(document["records"][0]))
+    url = f"https://www.margaretthatcher.org/document/{document_id}"
+    candidate.update({
+        "candidate_mtf_document_id": document_id,
+        "canonical_public_url": url,
+        "local_file_sha256": local_file_sha256,
+    })
+    candidate["document_identity_evidence"].update({
+        "document_id": document_id,
+        "canonical_url": url,
+        "declared_canonical_url": url,
+    })
+    document["records"].append(candidate)
+    document["candidate_count"] = len(document["records"])
+    path.write_bytes(reaudit.canonical_json_bytes(document))
+    path.chmod(0o600)
+
+
 def reclassified_candidate(case: dict) -> dict:
     return json.loads(
         (case["output"] / "corpus_reaudit_candidates.json").read_text()
@@ -4359,17 +4455,13 @@ def test_recorded_primary_wording_false_negative_is_freshly_reverified(
     assert reaudit._source_run_snapshot(case["source"]) == source_snapshot
 
 
-@pytest.mark.parametrize("change", ["changed", "missing"])
-def test_reclassification_marks_changed_or_missing_candidate_stale(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
+def test_reclassification_marks_hash_changed_candidate_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     case = prepare_reclassification_case(tmp_path, monkeypatch)
-    if change == "changed":
-        case["document_path"].write_bytes(
-            html("103384", f"<p>{case['quotation']} Changed archive body.</p>")
-        )
-    else:
-        case["document_path"].unlink()
+    case["document_path"].write_bytes(
+        html("103384", f"<p>{case['quotation']} Changed archive body.</p>")
+    )
     summary = reaudit.reclassify_existing(
         case["project"], case["source"], case["output"]
     )
@@ -4380,8 +4472,207 @@ def test_reclassification_marks_changed_or_missing_candidate_stale(
     assert summary["stale_candidate_count"] == 1
     assert summary["positive_candidates_remaining_valid"] == 0
     assert candidate["candidate_evidence_stale"] is True
+    assert candidate["candidate_evidence_identity_reason"] == (
+        "candidate_file_sha256_changed"
+    )
     assert candidate["accepted_as_primary_evidence"] is False
     assert candidate["proposed_change_category"] == [reaudit.CATEGORY_NO_CHANGE]
+
+
+def test_all_selected_missing_aborts_before_publication_and_preserves_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    case["document_path"].unlink()
+    source_hashes_before = {
+        path.name: reaudit.file_sha256(path) for path in case["source"].iterdir()
+    }
+    authoritative_snapshots: list[dict[str, str]] = []
+
+    def stable_authoritative_hashes(_project: Path) -> dict[str, str]:
+        snapshot = {"authoritative-input": "stable-sha256"}
+        authoritative_snapshots.append(snapshot)
+        return snapshot
+
+    writer_calls: list[str] = []
+
+    def unexpected_json_writer(
+        _run_dir: Path, filename: str, _value: object
+    ) -> None:
+        writer_calls.append(filename)
+
+    def unexpected_report_writer(_run_dir: Path, _value: str) -> None:
+        writer_calls.append("corpus_reaudit_report.md")
+
+    monkeypatch.setattr(reaudit, "authoritative_hashes", stable_authoritative_hashes)
+    monkeypatch.setattr(reaudit, "write_json", unexpected_json_writer)
+    monkeypatch.setattr(reaudit, "write_report", unexpected_report_writer)
+
+    with pytest.raises(reaudit.ReauditError) as error:
+        reaudit.reclassify_existing(
+            case["project"], case["source"], case["output"]
+        )
+
+    assert str(error.value) == (
+        "every selected candidate file was missing or unreadable; check "
+        f"{reaudit.LOCAL_ARCHIVE_ROOT_ENV}"
+    )
+    assert str(case["archive"]) not in str(error.value)
+    assert str(case["document_path"]) not in str(error.value)
+    assert writer_calls == []
+    assert not any(case["output"].iterdir())
+    assert {
+        path.name: reaudit.file_sha256(path) for path in case["source"].iterdir()
+    } == source_hashes_before
+    assert authoritative_snapshots == [
+        {"authoritative-input": "stable-sha256"},
+        {"authoritative-input": "stable-sha256"},
+    ]
+
+
+def test_mixed_valid_and_missing_candidates_remains_advisory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    append_source_candidate(
+        case, document_id="103385", local_file_sha256="a" * 64
+    )
+
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    records = json.loads(
+        (case["output"] / "corpus_reaudit_candidates.json").read_text()
+    )["records"]
+
+    assert summary["candidate_identity_revalidation_required_count"] == 2
+    assert summary["candidate_identity_valid_count"] == 1
+    assert summary["stale_candidate_count"] == 1
+    assert summary["positive_candidates_remaining_valid"] == 1
+    assert [row["candidate_evidence_identity_status"] for row in records] == [
+        "valid",
+        "stale",
+    ]
+    assert records[1]["candidate_evidence_identity_reason"] == (
+        "candidate_file_is_missing_or_unreadable"
+    )
+
+
+def test_missing_and_hash_changed_candidates_do_not_trigger_all_missing_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    case["document_path"].write_bytes(
+        html("103384", f"<p>{case['quotation']} Changed archive body.</p>")
+    )
+    append_source_candidate(
+        case, document_id="103385", local_file_sha256="b" * 64
+    )
+
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    records = json.loads(
+        (case["output"] / "corpus_reaudit_candidates.json").read_text()
+    )["records"]
+
+    assert summary["candidate_identity_valid_count"] == 0
+    assert summary["stale_candidate_count"] == 2
+    assert {
+        row["candidate_evidence_identity_reason"] for row in records
+    } == {
+        "candidate_file_sha256_changed",
+        "candidate_file_is_missing_or_unreadable",
+    }
+
+
+def test_all_hash_mismatches_do_not_trigger_all_missing_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    case["document_path"].write_bytes(
+        html("103384", f"<p>{case['quotation']} First changed body.</p>")
+    )
+    write_document(
+        case["archive"], "103385", f"<p>{case['quotation']} Second body.</p>"
+    )
+    append_source_candidate(
+        case, document_id="103385", local_file_sha256="c" * 64
+    )
+
+    summary = reaudit.reclassify_existing(
+        case["project"], case["source"], case["output"]
+    )
+    records = json.loads(
+        (case["output"] / "corpus_reaudit_candidates.json").read_text()
+    )["records"]
+
+    assert summary["stale_candidate_count"] == 2
+    assert all(
+        row["candidate_evidence_identity_reason"]
+        == "candidate_file_sha256_changed"
+        for row in records
+    )
+
+
+def test_cli_all_selected_missing_returns_nonzero_path_free_diagnostic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    case["document_path"].unlink()
+
+    return_code = reaudit.main([
+        "--reclassify-existing",
+        str(case["source"]),
+        "--output-dir",
+        str(case["output"]),
+    ])
+    captured = capsys.readouterr()
+
+    assert return_code == 1
+    assert "every selected candidate file was missing or unreadable" in captured.err
+    assert f"check {reaudit.LOCAL_ARCHIVE_ROOT_ENV}" in captured.err
+    assert str(case["archive"]) not in captured.err
+    assert str(case["document_path"]) not in captured.err
+    assert not any(case["output"].iterdir())
+
+
+def test_archive_root_shape_failure_precedes_candidate_work_and_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = prepare_reclassification_case(tmp_path, monkeypatch)
+    host_directory = case["archive"] / "www.margaretthatcher.org"
+    monkeypatch.setenv(reaudit.LOCAL_ARCHIVE_ROOT_ENV, str(host_directory))
+    calls: list[str] = []
+
+    def unexpected_reclassification(*_args: object, **_kwargs: object) -> dict:
+        calls.append("candidate")
+        return {}
+
+    def unexpected_json_writer(*_args: object, **_kwargs: object) -> None:
+        calls.append("json")
+
+    def unexpected_report_writer(*_args: object, **_kwargs: object) -> None:
+        calls.append("report")
+
+    monkeypatch.setattr(
+        reaudit, "_reclassify_candidate", unexpected_reclassification
+    )
+    monkeypatch.setattr(reaudit, "write_json", unexpected_json_writer)
+    monkeypatch.setattr(reaudit, "write_report", unexpected_report_writer)
+
+    with pytest.raises(
+        reaudit.ReauditError,
+        match="must contain www.margaretthatcher.org/document",
+    ):
+        reaudit.reclassify_existing(
+            case["project"], case["source"], case["output"]
+        )
+
+    assert calls == []
+    assert not any(case["output"].iterdir())
 
 
 def test_reclassification_performs_zero_search_index_discovery_calls(

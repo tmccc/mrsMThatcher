@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v13"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v14"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -442,6 +442,11 @@ def _resolve_archive_root() -> Path:
         raise ReauditError("the configured local archive directory does not exist") from exc
     if not archive.is_dir():
         raise ReauditError(f"{LOCAL_ARCHIVE_ROOT_ENV} is not a directory")
+    if not (archive / "www.margaretthatcher.org" / "document").is_dir():
+        raise ReauditError(
+            f"{LOCAL_ARCHIVE_ROOT_ENV} must contain "
+            "www.margaretthatcher.org/document"
+        )
     return archive
 
 
@@ -4996,6 +5001,20 @@ def reclassify_existing(
 
     input_after = authoritative_hashes(project_root)
     assert_authoritative_inputs_unchanged(input_before, input_after)
+    selected_identity_results = [
+        candidate
+        for source_candidate, candidate in zip(source_records, candidates, strict=True)
+        if _candidate_requires_identity_revalidation(source_candidate)
+    ]
+    if selected_identity_results and all(
+        candidate.get("candidate_evidence_identity_reason")
+        == "candidate_file_is_missing_or_unreadable"
+        for candidate in selected_identity_results
+    ):
+        raise ReauditError(
+            "every selected candidate file was missing or unreadable; check "
+            f"{LOCAL_ARCHIVE_ROOT_ENV}"
+        )
     blocked = reassess_blocked(targets, candidates)
     changes = proposed_changes(candidates)
     summary = _build_reclassification_summary(

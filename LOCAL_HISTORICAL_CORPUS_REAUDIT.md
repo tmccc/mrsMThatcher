@@ -17,6 +17,12 @@ export MRS_HISTORICAL_REAUDIT_RUN_DIR=/operator/private/new-empty-run
 python3 historical_context_local_corpus_reaudit.py --execute
 ```
 
+`MRS_MTHATCHER_LOCAL_ARCHIVE_ROOT` names the parent directory containing
+`www.margaretthatcher.org/document`. Passing the
+`www.margaretthatcher.org` directory itself is invalid. This shape check tests
+only that relative directory and performs no archive-wide inventory or
+recursive scan, so a mirror may still be downloading.
+
 The process denies socket/DNS entry points, does not construct a cloud search
 backend, and writes only the seven private advisory outputs named by the
 runner. It records numeric-document inventories before and after the search;
@@ -52,6 +58,18 @@ particular, an old negative speaker verdict does not veto fresh rematching. An
 unchanged file remains identity-valid even when the fresh rematch rejects its
 wording or speaker; changed or missing files alone are marked stale. Unselected
 candidates do not retain positive proposals from their old semantic fields.
+Reclassification aborts without publishing any advisory output when at least
+one candidate was selected for identity revalidation and every selected result
+has the exact `candidate_file_is_missing_or_unreadable` failure reason. Partial
+availability remains advisory and non-fatal: missing candidates remain stale
+when at least one selected candidate file can be opened, and other stale
+reasons do not activate this guard. Negative and no-hit conclusions retain
+their provisional semantics.
+
+Programme v14 changes only these operational archive-root preflight and
+all-selected-files-missing failure semantics. It does not alter the approved
+v13 candidate-level evidence classifications; the approved private v13 package
+remains the evidence receipt and need not be regenerated solely for this patch.
 
 Optional historical metadata uses conservative missing-value semantics.
 Case-, spacing-, and punctuation-normalised forms such as `unknown`, `not
