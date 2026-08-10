@@ -1467,6 +1467,52 @@ def test_source_qualified_direct_metadata_forms_are_complete_and_bounded(
 
 
 @pytest.mark.parametrize(
+    "descriptor",
+    [
+        "Thatcher Archive: speaking text",
+        "Thatcher Archive – speaking text",
+        "Thatcher Archive — speaking text",
+        "Thatcher Archive - speaking text",
+    ],
+)
+def test_qualified_direct_metadata_shares_exact_source_identity(
+    descriptor: str,
+) -> None:
+    assert reaudit._parse_thatcher_archive_direct_metadata(descriptor) == (
+        "speaking text"
+    )
+    assert reaudit._explicit_metadata_source_semantics(descriptor) == "mt"
+    assert reaudit._normalised_source_identity(descriptor) == (
+        "thatcher", "archive"
+    )
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        "Thatcher Archive speaking text",
+        "Thatcher Archive-speaking text",
+        "Thatcher Archive: commentary on speaking text",
+        "Thatcher Archive: speaking text summary",
+        "Thatcher Archive: speaking text and notes",
+        "Another Archive: speaking text",
+        "Commentary on Thatcher Archive: speaking text",
+        "Notes concerning Thatcher Archive – speaking text",
+    ],
+)
+def test_qualified_direct_metadata_parser_rejects_incomplete_forms(
+    descriptor: str,
+) -> None:
+    assert reaudit._parse_thatcher_archive_direct_metadata(descriptor) is None
+    assert reaudit._explicit_metadata_source_semantics(descriptor) != "mt"
+
+
+@pytest.mark.parametrize("descriptor", ["speaking text", "partial paraphrase"])
+def test_bare_semantic_descriptor_has_no_source_identity(descriptor: str) -> None:
+    assert reaudit._normalised_source_identity(descriptor) == ()
+
+
+@pytest.mark.parametrize(
     "metadata_descriptor",
     [
         "Commentary on speaking text",
@@ -1680,27 +1726,75 @@ def test_direct_descriptor_conflicts_with_same_source_reportorial_comments() -> 
     assert reason == "numbered_source_label_metadata_polarity_conflict"
 
 
-def test_direct_pair_conflicts_with_same_source_reportorial_comments() -> None:
-    baseline, reason = reaudit._numbered_source_section_baseline(
-        "(1) Thatcher Archive: speaking text",
-        "1",
-        {
-            "numbered_entries": {
-                "1": [{
-                    "metadata_field": "source",
-                    "descriptor": "Thatcher Archive: speaking text",
-                }]
-            },
-            "editorial_comments": (
-                "The Thatcher Archive report of this speech supplied the "
-                "attribution."
-            ),
-        },
-        author_verified=True,
+@pytest.mark.parametrize(
+    "separator",
+    [
+        pytest.param(": ", id="colon"),
+        pytest.param(" – ", id="en-dash"),
+        pytest.param(" — ", id="em-dash"),
+        pytest.param(" - ", id="spaced-hyphen"),
+    ],
+)
+def test_qualified_direct_section_reportorial_conflict_fails_closed(
+    separator: str,
+) -> None:
+    quotation = "Same-source reportorial metadata conflicts with direct text."
+    descriptor = f"Thatcher Archive{separator}speaking text"
+    label = f"(1) {descriptor}"
+    body = modern_html(
+        "103522",
+        f"<p><ed-comment>{label}</ed-comment></p><p>{quotation}</p>",
+        source=label,
+        editorial_comments=(
+            "The Thatcher Archive report of this speech supplied the "
+            "attribution."
+        ),
+        leading_filler=False,
     )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
 
-    assert baseline == "unverified"
-    assert reason == "numbered_source_label_metadata_polarity_conflict"
+    assert event["archive_source_section_baseline_polarity"] == "unverified"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_label_metadata_polarity_conflict"
+    )
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+@pytest.mark.parametrize(
+    "separator",
+    [
+        pytest.param(": ", id="colon"),
+        pytest.param(" – ", id="en-dash"),
+        pytest.param(" — ", id="em-dash"),
+        pytest.param(" - ", id="spaced-hyphen"),
+    ],
+)
+def test_clean_qualified_direct_section_remains_primary_mt(separator: str) -> None:
+    quotation = "Clean qualified direct metadata remains primary evidence."
+    descriptor = f"Thatcher Archive{separator}speaking text"
+    label = f"(1) {descriptor}"
+    body = modern_html(
+        "103522",
+        f"<p><ed-comment>{label}</ed-comment></p><p>{quotation}</p>",
+        source=label,
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "mt"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_qualified_direct_mt_text"
+    )
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
 
 
 def test_101374_style_report_noun_is_same_source_secondary_evidence() -> None:
@@ -1741,14 +1835,22 @@ def test_101374_style_report_noun_is_same_source_secondary_evidence() -> None:
     "editorial_comments",
     [
         "The Evening News reported that Mrs Thatcher spoke at the meeting.",
+        "The Evening News later reported that Mrs Thatcher spoke at the meeting.",
+        (
+            "The Evening News subsequently reported that Mrs Thatcher spoke "
+            "at the meeting."
+        ),
         "Evening News report of this speech supplied the attribution.",
         "The Evening News report of this speech supplied the attribution.",
         "The Evening News detailed report on the event supplied attribution.",
+        "The Evening News morning report from Westminster supplied it.",
         "The Evening News morning edition report from Westminster supplied it.",
         (
             "According to the Evening News, its report of this speech supplied "
             "the attribution."
         ),
+        "The Evening News, reported that Mrs Thatcher spoke at the meeting.",
+        "The Evening News: detailed report on the event supplied attribution.",
     ],
 )
 def test_same_source_report_verb_and_bounded_report_nouns_are_recognised(
@@ -1765,13 +1867,15 @@ def test_same_source_report_verb_and_bounded_report_nouns_are_recognised(
         "The Daily Telegraph report of this speech supplied the attribution.",
         "A later report questioned the account.",
         "The Evening News supplied the source without further attribution.",
+        "The Evening News recently reported that Mrs Thatcher spoke.",
+        "The Evening News evening report of this speech supplied attribution.",
         (
             "The Evening News special morning newspaper edition report of "
             "the speech supplied the attribution."
         ),
     ],
 )
-def test_report_noun_requires_exact_source_attachment_within_three_words(
+def test_report_forms_require_an_exact_positive_modifier_tuple(
     editorial_comments: str,
 ) -> None:
     assert reaudit._metadata_explicitly_reports_source(
@@ -1782,10 +1886,20 @@ def test_report_noun_requires_exact_source_attachment_within_three_words(
 @pytest.mark.parametrize(
     "editorial_comments",
     [
-        "Manchester Evening News report of this speech supplied attribution.",
+        "Manchester Evening News reported that Mrs Thatcher spoke.",
         "London Evening News reported that Mrs Thatcher spoke.",
-        "Evening News and Gazette report of this speech supplied attribution.",
+        "Evening News and Gazette reported that Mrs Thatcher spoke.",
         "Evening News & Gazette reported that Mrs Thatcher spoke.",
+        "Evening News Chronicle reported that Mrs Thatcher spoke.",
+        "Evening News Weekly reported that Mrs Thatcher spoke.",
+        "Evening News Weekly report of this speech supplied attribution.",
+        "Evening News London edition reported that Mrs Thatcher spoke.",
+        "Evening News London edition report of this speech supplied attribution.",
+        "Evening News Herald detailed report on the event supplied attribution.",
+        (
+            "Evening News morning newspaper edition report of this speech "
+            "supplied attribution."
+        ),
     ],
 )
 def test_complete_source_identity_rejects_publication_name_collisions(

@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v12"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v13"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -927,6 +927,18 @@ _THATCHER_ARCHIVE_DIRECT_METADATA_TERMINALS = (
     "full speaking text",
     "full speaking text begins",
 )
+_REPORTED_SOURCE_MODIFIERS = (
+    (),
+    ("later",),
+    ("subsequently",),
+)
+_REPORT_NOUN_SOURCE_MODIFIERS = (
+    (),
+    ("its",),
+    ("detailed",),
+    ("morning",),
+    ("morning", "edition"),
+)
 _REPORTORIAL_EDITORIAL_SOURCE_FORMS = frozenset({
     "partial paraphrase",
     "partial paraphrase of speaking text",
@@ -1075,6 +1087,21 @@ def _explicit_non_direct_source_semantics(value: str) -> bool:
     ))
 
 
+def _parse_thatcher_archive_direct_metadata(value: str) -> str | None:
+    """Return the terminal from one complete qualified direct descriptor."""
+    bounded_value = " ".join(value.split()).casefold().strip()
+    terminal_pattern = "|".join(
+        re.escape(terminal)
+        for terminal in _THATCHER_ARCHIVE_DIRECT_METADATA_TERMINALS
+    )
+    match = re.fullmatch(
+        r"thatcher archive(?:\s*:\s*|\s*[–—]\s*|\s+-\s+)"
+        rf"(?P<terminal>{terminal_pattern})\.?",
+        bounded_value,
+    )
+    return match.group("terminal") if match else None
+
+
 def _numbered_editorial_label_semantics(value: str) -> str | None:
     """Recognise bounded numbered labels without widening italic markers."""
     numbered = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(value)
@@ -1138,23 +1165,18 @@ def _explicit_metadata_source_semantics(value: str) -> str | None:
         return "nonmt"
     if phrase in _DIRECT_METADATA_SOURCE_FORMS:
         return "mt"
-    bounded_value = " ".join(value.split()).casefold().strip()
-    terminal_pattern = "|".join(
-        re.escape(terminal)
-        for terminal in _THATCHER_ARCHIVE_DIRECT_METADATA_TERMINALS
-    )
-    if re.fullmatch(
-        r"thatcher archive(?:\s*:\s*|\s*[–—]\s*|\s+-\s+)"
-        rf"(?:{terminal_pattern})\.?",
-        bounded_value,
-    ):
+    if _parse_thatcher_archive_direct_metadata(value) is not None:
         return "mt"
     return None
 
 
 def _normalised_source_identity(value: str) -> tuple[str, ...]:
     """Return a complete source name using the bounded metadata delimiter."""
+    if _parse_thatcher_archive_direct_metadata(value) is not None:
+        return ("thatcher", "archive")
     source_name = re.split(r"[,;:]", value, maxsplit=1)[0]
+    if _explicit_metadata_source_semantics(source_name) is not None:
+        return ()
     tokens = tuple(re.findall(r"\w+", source_name.casefold()))
     if tokens[:1] == ("the",):
         tokens = tokens[1:]
@@ -1168,9 +1190,8 @@ def _metadata_explicitly_reports_source(
     source_tokens = _normalised_source_identity(descriptor)
     if not source_tokens:
         return False
-    disallowed_gap_tokens = {"and", "or", "&", "gazette"}
     normalised_comments = " ".join(editorial_comments.split()).casefold()
-    clauses = re.split(r"[.!?;:]+|[–—]+", normalised_comments)
+    clauses = re.split(r"[.!?;]+", normalised_comments)
     for clause in clauses:
         clause_tokens = re.findall(r"\w+|&", clause)
         if clause_tokens[:2] == ["according", "to"]:
@@ -1181,26 +1202,20 @@ def _metadata_explicitly_reports_source(
         if tuple(clause_tokens[:source_length]) != source_tokens:
             continue
         remainder = clause_tokens[source_length:]
-        for reported_index in range(min(6, len(remainder) - 1) + 1):
-            reported_gap = remainder[:reported_index]
-            if remainder[reported_index:reported_index + 1] != ["reported"]:
-                continue
-            if all(
-                token.isalpha() and token not in disallowed_gap_tokens
-                for token in reported_gap
+        for modifiers in _REPORTED_SOURCE_MODIFIERS:
+            modifier_count = len(modifiers)
+            if (
+                tuple(remainder[:modifier_count]) == modifiers
+                and remainder[modifier_count:modifier_count + 1] == ["reported"]
             ):
                 return True
-        for report_index in range(min(3, len(remainder) - 2) + 1):
-            report_gap = remainder[:report_index]
-            if remainder[report_index:report_index + 1] != ["report"]:
-                continue
-            if remainder[report_index + 1:report_index + 2] not in (
-                ["of"], ["on"], ["from"],
-            ):
-                continue
-            if all(
-                token.isalpha() and token not in disallowed_gap_tokens
-                for token in report_gap
+        for modifiers in _REPORT_NOUN_SOURCE_MODIFIERS:
+            modifier_count = len(modifiers)
+            if (
+                tuple(remainder[:modifier_count]) == modifiers
+                and remainder[modifier_count:modifier_count + 1] == ["report"]
+                and remainder[modifier_count + 1:modifier_count + 2]
+                in (["of"], ["on"], ["from"])
             ):
                 return True
     return False

@@ -130,28 +130,33 @@ Direct structured metadata uses a positive complete-form grammar: `speaking
 text`, `speech text`, `modified speaking text`, `modified speaking text
 begins`, `full speaking text`, `full speaking text begins`, `direct Thatcher
 text`, and `direct speech text`, plus the bounded `Thatcher Archive`-qualified
-speaking/modified/full forms. Embedded wording such as `commentary on speaking
-text`, `notes concerning the speaking text`, or `summary of speaking text` is
-not itself direct evidence. Non-direct structured metadata is evaluated before
-any embedded direct wording, so `partial paraphrase of speaking text` and
-`press report of direct speech text` remain non-MT. Opposite label and effective
-metadata polarities, including incompatible duplicate same-number entries, fail
-closed as `unverified`. Same-source reportorial Editorial comments contribute
-non-MT semantics to that effective polarity before conflicts or a baseline are
-selected.
+speaking/modified/full forms. Direct metadata semantics and source-identity
+extraction share one complete-form `Thatcher Archive` qualifier parser. A
+colon, en dash, em dash, or spaced ASCII hyphen therefore extracts the same
+exact `Thatcher Archive` source identity without retaining the direct terminal.
+Embedded wording such as `commentary on speaking text`, `notes concerning the
+speaking text`, or `summary of speaking text` is not itself direct evidence.
+Non-direct structured metadata is evaluated before any embedded direct wording,
+so `partial paraphrase of speaking text` and `press report of direct speech
+text` remain non-MT. Opposite label and effective metadata polarities, including
+incompatible duplicate same-number entries, fail closed as `unverified`.
+Same-source reportorial Editorial comments contribute non-MT semantics to that
+effective polarity before conflicts or a baseline are selected.
 
 A named newspaper by itself is insufficient. A named source establishes
 reportorial semantics only when the structured Editorial comments use the same
 complete normalised source identity of at least two meaningful words, treating
 an optional leading `The` as equivalent, with either the bounded `reported`
 verb form or an attached `report of`, `report on`, or `report from` noun
-construction. A report noun may follow no more than three bounded ordinary
-modifier words after the source name and supplies reportorial secondary
-evidence only. Longer publication names and joined publication names do not
-match a shorter source identity; an unrelated report or a different source
-name also does not qualify. A missing, inconsistent, or ambiguous numbered
-entry still creates a hard boundary but gives the section an `unverified`
-baseline.
+construction. Report verbs admit exactly no modifier, `later`, or
+`subsequently`; report nouns admit exactly no modifier, `its`, `detailed`,
+`morning`, or `morning edition`. These positive modifier tuples supply
+reportorial secondary evidence only. Arbitrary publication suffixes are never
+treated as report modifiers, and longer, extended, or joined publication names
+do not match a shorter numbered source identity. An unrelated report or a
+different source name also does not qualify. A missing, inconsistent, or
+ambiguous numbered entry still creates a hard boundary but gives the section an
+`unverified` baseline.
 
 A numbered `ed-comment` nested in a contribution parent is a source boundary
 only when it is the first substantive content in that parent. Whitespace,
