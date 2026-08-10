@@ -11,6 +11,7 @@ import sys
 from argparse import Namespace
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -24,6 +25,7 @@ PACK = Path(
     "mrsMThatcher-reply-replay-pack-committed-20260810T185001Z"
 )
 SYNTHETIC_API_KEY = "synthetic-calibration-key-not-valid"
+SYNTHETIC_RUNNER_COMMIT = "a" * 40
 
 
 class FakeResponse:
@@ -93,6 +95,74 @@ def cli_args(output: Path, *extra: str) -> Namespace:
     ])
 
 
+def paid_cli_args(output: Path, *extra: str) -> Namespace:
+    return cli_args(
+        output,
+        "--execute",
+        "--hard-limit-usd", "1",
+        "--expected-runner-git-commit", SYNTHETIC_RUNNER_COMMIT,
+        "--acknowledge-paid-model-calls", runner.PAID_ACKNOWLEDGEMENT,
+        *extra,
+    )
+
+
+class SyntheticReply:
+    pipeline_metadata = {"synthetic": True}
+
+    def __str__(self) -> str:
+        return "Synthetic approved reply."
+
+
+def install_synthetic_execute(
+    monkeypatch: pytest.MonkeyPatch,
+    output: Path,
+    *,
+    status: str = "approved",
+    use_transport: bool = True,
+) -> dict[str, int]:
+    counters = {"metadata": 0, "post": 0, "pipeline": 0}
+    hashes = runner.runner_source_hashes()
+
+    def provenance(expected: str | None = None, *, require_clean_checkout: bool = False) -> dict[str, Any]:
+        if require_clean_checkout and expected != SYNTHETIC_RUNNER_COMMIT:
+            raise runner.CalibrationError("runner Git commit mismatch")
+        return {
+            "runner_git_commit": SYNTHETIC_RUNNER_COMMIT,
+            "runner_git_commit_expected": expected,
+            "worktree_clean": True,
+            **hashes,
+        }
+
+    def metadata(**_kwargs: Any) -> dict[str, Any]:
+        counters["metadata"] += 1
+        assert (output / "run_identity.json").is_file()
+        return model_metadata()
+
+    def post(*_args: Any, **_kwargs: Any) -> FakeResponse:
+        counters["post"] += 1
+        return successful_response()
+
+    def pipeline(**kwargs: Any) -> SimpleNamespace:
+        counters["pipeline"] += 1
+        if use_transport:
+            assert json.loads(kwargs["transport"](**transport_arguments())) == {"ok": True}
+        reply = SyntheticReply() if status == "approved" else None
+        return SimpleNamespace(
+            status=status,
+            reason=f"synthetic-{status}",
+            reply=reply,
+            model_call_count=1 if use_transport else 0,
+            revision_count=0,
+            audit=({"synthetic": True},),
+        )
+
+    monkeypatch.setattr(runner, "execution_provenance", provenance)
+    monkeypatch.setattr(pilot, "fetch_model_metadata", metadata)
+    monkeypatch.setattr(pilot.requests, "post", post)
+    monkeypatch.setattr(runner.reply_strategy, "run_reply_pipeline", pipeline)
+    return counters
+
+
 def rewrite_pack_json(pack: Path, filename: str, transform: Any) -> None:
     path = pack / filename
     if filename.endswith(".jsonl"):
@@ -153,6 +223,29 @@ def validation_pair(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Pat
         pilot.requests.post = original_post
         pilot.PilotTransport = original_transport  # type: ignore[assignment]
     return first, second
+
+
+@pytest.fixture(scope="module")
+def completed_execute_output(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    output = tmp_path_factory.mktemp("reply-calibration-execute") / "completed"
+    patcher = pytest.MonkeyPatch()
+    counters = install_synthetic_execute(patcher, output)
+    try:
+        runner.run(
+            paid_cli_args(output),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    finally:
+        patcher.undo()
+    assert counters == {"metadata": 1, "post": 12, "pipeline": 12}
+    return output
+
+
+def copy_as_incomplete(source: Path, destination: Path) -> Path:
+    shutil.copytree(source, destination)
+    for name in runner.FINAL_OUTPUT_FILES:
+        (destination / name).unlink()
+    return destination
 
 
 def test_replay_pack_checksum_verification(pack_data: dict[str, Any], tmp_path: Path) -> None:
@@ -226,8 +319,37 @@ def test_validate_only_requires_no_xai_api_key(validation_pair: tuple[Path, Path
     assert not (validation_pair[0] / "cost_ledger.json").exists()
 
 
+def test_validate_only_contains_source_and_evidence_provenance(
+    validation_pair: tuple[Path, Path],
+) -> None:
+    manifest = json.loads((validation_pair[0] / "run_manifest.json").read_text(encoding="utf-8"))
+    for name in (
+        "runner_git_commit",
+        "worktree_clean",
+        "runner_source_sha256",
+        "prompt_profiles_source_sha256",
+        "pilot_transport_source_sha256",
+        "reply_strategy_sha256",
+        "reply_evidence_sha256",
+        "evidence_repository_fingerprint",
+        "execution_plan_sha256",
+        "current_profile_manifest_sha256",
+        "compact_profile_manifest_sha256",
+    ):
+        assert name in manifest
+    report = json.loads(
+        (validation_pair[0] / "validation_report.json").read_text(encoding="utf-8")
+    )
+    assert report["compact_no_reply_recent_reply_payload_contract_pass"] is True
+
+
 def test_execute_requires_explicit_acknowledgement(tmp_path: Path) -> None:
-    args = cli_args(tmp_path / "out", "--execute", "--hard-limit-usd", "1")
+    args = cli_args(
+        tmp_path / "out",
+        "--execute",
+        "--hard-limit-usd", "1",
+        "--expected-runner-git-commit", SYNTHETIC_RUNNER_COMMIT,
+    )
     with pytest.raises(runner.CalibrationError, match="acknowledge-paid-model-calls"):
         runner.validate_arguments(args, {"XAI_API_KEY": SYNTHETIC_API_KEY})
 
@@ -238,6 +360,7 @@ def test_execute_requires_positive_finite_hard_limit(tmp_path: Path, value: str)
         tmp_path / "out",
         "--execute",
         "--hard-limit-usd", value,
+        "--expected-runner-git-commit", SYNTHETIC_RUNNER_COMMIT,
         "--acknowledge-paid-model-calls", runner.PAID_ACKNOWLEDGEMENT,
     )
     with pytest.raises(runner.CalibrationError, match="positive --hard-limit-usd"):
@@ -249,10 +372,70 @@ def test_execute_requires_xai_api_key(tmp_path: Path) -> None:
         tmp_path / "out",
         "--execute",
         "--hard-limit-usd", "1",
+        "--expected-runner-git-commit", SYNTHETIC_RUNNER_COMMIT,
         "--acknowledge-paid-model-calls", runner.PAID_ACKNOWLEDGEMENT,
     )
     with pytest.raises(runner.CalibrationError, match="requires XAI_API_KEY"):
         runner.validate_arguments(args, {})
+
+
+def test_resume_is_refused_in_validate_only_mode(tmp_path: Path) -> None:
+    with pytest.raises(runner.CalibrationError, match="valid only with --execute"):
+        runner.validate_arguments(cli_args(tmp_path / "out", "--resume"), {})
+
+
+def test_execute_requires_expected_runner_git_commit(tmp_path: Path) -> None:
+    args = cli_args(
+        tmp_path / "out",
+        "--execute",
+        "--hard-limit-usd", "1",
+        "--acknowledge-paid-model-calls", runner.PAID_ACKNOWLEDGEMENT,
+    )
+    with pytest.raises(runner.CalibrationError, match="expected-runner-git-commit"):
+        runner.validate_arguments(args, {"XAI_API_KEY": SYNTHETIC_API_KEY})
+
+
+def test_wrong_expected_runner_commit_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "wrong-commit"
+    counters = install_synthetic_execute(monkeypatch, output)
+    args = paid_cli_args(output)
+    args.expected_runner_git_commit = "b" * 40
+    with pytest.raises(runner.CalibrationError, match="runner Git commit mismatch"):
+        runner.run(args, environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters["metadata"] == counters["post"] == 0
+
+
+def test_dirty_tracked_worktree_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_git(*arguments: str, text: bool = True) -> str | bytes:
+        if arguments[:2] == ("rev-parse", "HEAD"):
+            return SYNTHETIC_RUNNER_COMMIT
+        if arguments and arguments[0] == "status":
+            return " M tools/run_reply_prompt_calibration.py\n"
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(runner, "_git", fake_git)
+    with pytest.raises(runner.CalibrationError, match="clean tracked worktree and index"):
+        runner.execution_provenance(
+            SYNTHETIC_RUNNER_COMMIT, require_clean_checkout=True
+        )
+
+
+def test_non_empty_execute_output_is_refused_without_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "non-empty"
+    output.mkdir(mode=0o700)
+    marker = output / "marker"
+    marker.write_text("occupied", encoding="utf-8")
+    marker.chmod(0o600)
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="non-empty.*--resume"):
+        runner.run(
+            paid_cli_args(output), environ={"XAI_API_KEY": SYNTHETIC_API_KEY}
+        )
+    assert counters["metadata"] == counters["post"] == 0
 
 
 def test_endpoint_must_be_exact_xai_https_api(tmp_path: Path) -> None:
@@ -346,9 +529,15 @@ def test_blind_review_contains_no_variant_labels() -> None:
         "Response A": "historical", "Response B": "current", "Response C": "compact"
     }}
     outputs = {
-        (case["candidate_id"], "historical"): "Alpha response.",
-        (case["candidate_id"], "current"): "Beta response.",
-        (case["candidate_id"], "compact"): None,
+        (case["candidate_id"], "historical"): {
+            "status": "approved", "public_reply": "Alpha response."
+        },
+        (case["candidate_id"], "current"): {
+            "status": "approved", "public_reply": "Beta response."
+        },
+        (case["candidate_id"], "compact"): {
+            "status": "no_reply", "public_reply": None
+        },
     }
     markdown, csv_text = runner.build_blind_review([case], assignments, outputs)
     assert "Response A" in markdown and "Response B" in markdown and "Response C" in markdown
@@ -357,6 +546,25 @@ def test_blind_review_contains_no_variant_labels() -> None:
     assert "current" not in markdown.casefold()
     assert "compact" not in markdown.casefold()
     assert "historical" not in csv_text.casefold()
+
+
+def test_operational_failure_is_never_rendered_as_no_reply() -> None:
+    with pytest.raises(runner.CalibrationError, match="invalid calibration outcome"):
+        runner.render_outcome({"status": "operational_failure", "public_reply": None})
+
+
+def test_approved_reply_is_rendered_as_its_text() -> None:
+    assert runner.render_outcome({
+        "status": "approved", "public_reply": "Approved marker."
+    }) == "Approved marker."
+
+
+def test_deliberate_no_reply_alone_renders_as_no_reply() -> None:
+    assert runner.render_outcome({
+        "status": "no_reply", "public_reply": None
+    }) == "NO REPLY"
+    with pytest.raises(runner.CalibrationError, match="invalid calibration outcome"):
+        runner.render_outcome({"status": "no_reply", "public_reply": "not silence"})
 
 
 def test_blind_key_reconstructs_mapping(validation_pair: tuple[Path, Path]) -> None:
@@ -514,6 +722,261 @@ def test_raw_responses_are_private(tmp_path: Path) -> None:
     transport(**transport_arguments())
     raw = next(response_dir.iterdir())
     assert stat.S_IMODE(raw.stat().st_mode) == 0o600
+
+
+def test_run_identity_precedes_provider_and_binds_all_immutable_inputs(
+    completed_execute_output: Path,
+) -> None:
+    identity = json.loads(
+        (completed_execute_output / "run_identity.json").read_text(encoding="utf-8")
+    )
+    assert identity["schema_version"] == runner.RUN_IDENTITY_SCHEMA_VERSION
+    assert identity["runner_version"] == runner.RUNNER_VERSION
+    assert identity["replay_pack_sha256"]
+    assert identity["execution_plan_sha256"]
+    assert identity["current_profile_manifest_sha256"]
+    assert identity["compact_profile_manifest_sha256"]
+    assert identity["model"] == "grok-4.3"
+    assert identity["xai_endpoint"] == runner.DEFAULT_XAI_BASE
+    assert identity["blind_seed"] == runner.DEFAULT_BLIND_SEED
+    assert identity["hard_limit_usd"] == 1
+    assert identity["maximum_rate_limit_retries"] == 1
+    assert identity["maximum_server_error_retries"] == 1
+    assert identity["runner_git_commit_expected"] == SYNTHETIC_RUNNER_COMMIT
+    assert identity["runner_git_commit_actual"] == SYNTHETIC_RUNNER_COMMIT
+    assert identity["worktree_clean"] is True
+    for name in (
+        "reply_strategy_sha256",
+        "reply_evidence_sha256",
+        "pilot_ai_first_reply_strategy_sha256",
+        "reply_prompt_profiles_sha256",
+        "run_reply_prompt_calibration_sha256",
+        "evidence_repository_fingerprint",
+    ):
+        assert len(identity[name]) == 64
+
+
+@pytest.mark.parametrize("changed", ["blind-seed", "hard-limit"])
+def test_resume_with_changed_identity_or_hard_limit_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    changed: str,
+) -> None:
+    output = tmp_path / changed
+    shutil.copytree(completed_execute_output, output)
+    counters = install_synthetic_execute(monkeypatch, output)
+    args = paid_cli_args(output, "--resume")
+    if changed == "blind-seed":
+        args.blind_seed = "changed-seed"
+    else:
+        args.hard_limit_usd = 2
+    with pytest.raises(runner.CalibrationError, match="run identity differs"):
+        runner.run(args, environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters["metadata"] == counters["post"] == counters["pipeline"] == 0
+
+
+def test_resume_with_blocked_ledger_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "blocked")
+    ledger_path = output / "cost_ledger.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["blocked"] = True
+    ledger["blocked_reason"] = "synthetic blocker"
+    ledger_path.write_text(json.dumps(ledger, sort_keys=True) + "\n", encoding="utf-8")
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="cost ledger is blocked"):
+        runner.run(
+            paid_cli_args(output, "--resume"),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters["post"] == counters["pipeline"] == 0
+
+
+@pytest.mark.parametrize(
+    "operation_status",
+    ["sending", "prepared", "rate_limited", "server_error", "http_error", "ambiguous"],
+)
+def test_resume_refuses_every_incomplete_operation_status(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation_status: str,
+) -> None:
+    output = copy_as_incomplete(
+        completed_execute_output, tmp_path / f"incomplete-{operation_status}"
+    )
+    ledger_path = output / "cost_ledger.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["operations"][0]["status"] = operation_status
+    ledger_path.write_text(json.dumps(ledger, sort_keys=True) + "\n", encoding="utf-8")
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match=f"status {operation_status}"):
+        runner.run(
+            paid_cli_args(output, "--resume"),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters["post"] == counters["pipeline"] == 0
+
+
+def test_completed_logical_calls_resume_only_with_exact_request_hashes(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "changed-request")
+    ledger_path = output / "cost_ledger.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["operations"][0]["request_hash"] = "0" * 64
+    ledger_path.write_text(json.dumps(ledger, sort_keys=True) + "\n", encoding="utf-8")
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="response cache differs"):
+        runner.run(
+            paid_cli_args(output, "--resume"),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters["post"] == counters["pipeline"] == 0
+
+
+def test_completed_pipeline_rows_and_receipts_are_not_duplicated_on_resume(
+    completed_execute_output: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before_results = (completed_execute_output / "pipeline_results.jsonl").read_bytes()
+    before_audits = (completed_execute_output / "pipeline_audits.jsonl").read_bytes()
+    before_receipts = (completed_execute_output / "prompt_receipts.jsonl").read_bytes()
+    counters = install_synthetic_execute(monkeypatch, completed_execute_output)
+    runner.run(
+        paid_cli_args(completed_execute_output, "--resume"),
+        environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+    )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+    assert (completed_execute_output / "pipeline_results.jsonl").read_bytes() == before_results
+    assert (completed_execute_output / "pipeline_audits.jsonl").read_bytes() == before_audits
+    assert (completed_execute_output / "prompt_receipts.jsonl").read_bytes() == before_receipts
+
+
+def test_missing_result_is_reconstructed_from_exact_completed_cache(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "reconstruct")
+    result_path = output / "pipeline_results.jsonl"
+    rows = result_path.read_text(encoding="utf-8").splitlines()
+    result_path.write_text("\n".join(rows[1:]) + "\n", encoding="utf-8")
+    receipt_count = len(
+        (output / "prompt_receipts.jsonl").read_text(encoding="utf-8").splitlines()
+    )
+    counters = install_synthetic_execute(monkeypatch, output)
+    runner.run(
+        paid_cli_args(output, "--resume"),
+        environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+    )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 1}
+    results = runner.index_execution_records(result_path, label="pipeline results")
+    audits = runner.index_execution_records(output / "pipeline_audits.jsonl", label="pipeline audits")
+    assert len(results) == len(audits) == 12
+    assert len((output / "prompt_receipts.jsonl").read_text(encoding="utf-8").splitlines()) == receipt_count
+    runner.verify_output_sha256sums(output)
+
+
+def test_operational_failure_prevents_blind_review_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "operational-failure"
+    install_synthetic_execute(
+        monkeypatch, output, status="operational_failure", use_transport=False
+    )
+    with pytest.raises(runner.CalibrationError, match="non-calibration status"):
+        runner.run(
+            paid_cli_args(output), environ={"XAI_API_KEY": SYNTHETIC_API_KEY}
+        )
+    failures = runner.read_jsonl(output / "execution_failures.jsonl")
+    assert len(failures) == 1
+    assert failures[0]["status"] == "operational_failure"
+    assert not any((output / name).exists() for name in runner.FINAL_OUTPUT_FILES)
+
+
+def test_evidence_fingerprint_is_stable_and_changes_with_one_input() -> None:
+    class Passage:
+        def __init__(self, evidence_id: str, source_hash: str, model_hash: str) -> None:
+            self.evidence_id = evidence_id
+            self.source_hash = source_hash
+            self.model_hash = model_hash
+
+        def model_input_hash(self) -> str:
+            return self.model_hash
+
+    def repository(model_hash: str) -> SimpleNamespace:
+        passage = Passage("evidence-one", "source-one", model_hash)
+        return SimpleNamespace(
+            completed_packet_count=2,
+            unresolved_packet_count=1,
+            attribution_eligible_packet_count=2,
+            factual_evidence_count=1,
+            passages={passage.evidence_id: passage},
+        )
+
+    first = runner.evidence_repository_fingerprint(repository("model-one"))
+    second = runner.evidence_repository_fingerprint(repository("model-one"))
+    changed = runner.evidence_repository_fingerprint(repository("model-two"))
+    assert first == second
+    assert changed != first
+
+
+def test_final_manifest_contains_all_execution_provenance_fields(
+    completed_execute_output: Path,
+) -> None:
+    manifest = json.loads(
+        (completed_execute_output / "run_manifest.json").read_text(encoding="utf-8")
+    )
+    required = {
+        "runner_git_commit",
+        "runner_git_commit_expected",
+        "worktree_clean",
+        "runner_source_sha256",
+        "prompt_profiles_source_sha256",
+        "pilot_transport_source_sha256",
+        "reply_strategy_sha256",
+        "reply_evidence_sha256",
+        "evidence_repository_fingerprint",
+        "execution_plan_sha256",
+        "current_profile_manifest_sha256",
+        "compact_profile_manifest_sha256",
+        "provider_model_metadata_sha256",
+        "run_identity_sha256",
+        "cost_ledger_status",
+        "known_cost_usd",
+        "ambiguous_exposure_usd",
+        "completed_pipeline_executions",
+        "valid_approved_count",
+        "valid_no_reply_count",
+        "operational_failure_count",
+    }
+    assert required <= set(manifest)
+    assert manifest["completed_pipeline_executions"] == 12
+    assert manifest["valid_approved_count"] + manifest["valid_no_reply_count"] == 12
+    assert manifest["operational_failure_count"] == 0
+
+
+def test_final_output_has_exactly_twelve_unique_valid_results_and_checksums(
+    completed_execute_output: Path,
+) -> None:
+    rows = runner.read_jsonl(completed_execute_output / "pipeline_results.jsonl")
+    keys = {(row["candidate_id"], row["variant"]) for row in rows}
+    assert len(rows) == len(keys) == 12
+    assert {row["status"] for row in rows} <= runner.VALID_PIPELINE_STATUSES
+    receipts = runner.read_jsonl(completed_execute_output / "prompt_receipts.jsonl")
+    assert len(receipts) == len({row["logical_call_id"] for row in receipts})
+    assert {row["transport_status"] for row in receipts} <= {
+        "prepared_for_transport",
+        "returned_from_completed_cache",
+        "transmitted_and_completed",
+    }
+    runner.verify_output_sha256sums(completed_execute_output)
 
 
 def test_api_key_is_absent_from_all_validate_only_output(

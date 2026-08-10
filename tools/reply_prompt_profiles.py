@@ -310,6 +310,9 @@ def _compact_no_reply_review_prompts(
         "context_sections": _context_sections(context),
         "proposer_interpretation_untrusted": proposer["interpretation"],
         "proposer_no_reply_reason_untrusted": proposer["no_reply_reason"],
+        "recent_account_replies_for_repetition_check": list(
+            _compact_reviewer_recent_replies.get()
+        ),
     }
     return (
         COMPACT_NO_REPLY_REVIEW_SYSTEM_PROMPT,

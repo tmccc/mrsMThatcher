@@ -162,6 +162,17 @@ def test_compact_reviewer_receives_only_five_most_recent_replies() -> None:
     assert payload["recent_account_replies_for_style_check"] == recent[-5:]
 
 
+def test_compact_no_reply_reviewer_receives_same_last_five_recent_replies() -> None:
+    recent = [f"reply-{number}" for number in range(8)]
+    with profiles.activate_profile("compact", recent_account_replies=recent):
+        _, no_reply_user = reply_strategy._no_reply_review_prompts(context(), proposer())
+        _, final_user = reply_strategy._reviewer_prompts(context(), proposer(), [], None)
+    no_reply_payload = json.loads(no_reply_user)
+    final_payload = json.loads(final_user)
+    assert no_reply_payload["recent_account_replies_for_repetition_check"] == recent[-5:]
+    assert final_payload["recent_account_replies_for_style_check"] == recent[-5:]
+
+
 def test_compact_reviewer_recent_replies_do_not_leak_between_cases() -> None:
     with profiles.activate_profile("compact", recent_account_replies=["case-one-only"]):
         _, first_user = reply_strategy._reviewer_prompts(context(), proposer(), [], None)
@@ -175,9 +186,30 @@ def test_compact_reviewer_recent_replies_do_not_leak_between_cases() -> None:
     assert json.loads(empty_user)["recent_account_replies_for_style_check"] == []
 
 
+def test_compact_no_reply_recent_replies_do_not_leak_between_cases() -> None:
+    with profiles.activate_profile("compact", recent_account_replies=["case-one-only"]):
+        _, first_user = reply_strategy._no_reply_review_prompts(context(), proposer())
+    with profiles.activate_profile("compact", recent_account_replies=["case-two-only"]):
+        _, second_user = reply_strategy._no_reply_review_prompts(context(), proposer())
+    with profiles.activate_profile("compact"):
+        _, empty_user = reply_strategy._no_reply_review_prompts(context(), proposer())
+    assert json.loads(first_user)["recent_account_replies_for_repetition_check"] == [
+        "case-one-only"
+    ]
+    assert json.loads(second_user)["recent_account_replies_for_repetition_check"] == [
+        "case-two-only"
+    ]
+    assert "case-one-only" not in second_user
+    assert json.loads(empty_user)["recent_account_replies_for_repetition_check"] == []
+
+
 def test_current_reviewer_receives_no_additional_recent_reply_field() -> None:
     with profiles.activate_profile("current", recent_account_replies=["must-not-appear"]):
-        _, user = reply_strategy._reviewer_prompts(context(), proposer(), [], None)
-    payload = json.loads(user)
-    assert "recent_account_replies_for_style_check" not in payload
-    assert "must-not-appear" not in user
+        _, reviewer_user = reply_strategy._reviewer_prompts(context(), proposer(), [], None)
+        _, no_reply_user = reply_strategy._no_reply_review_prompts(context(), proposer())
+    reviewer_payload = json.loads(reviewer_user)
+    no_reply_payload = json.loads(no_reply_user)
+    assert "recent_account_replies_for_style_check" not in reviewer_payload
+    assert "recent_account_replies_for_repetition_check" not in no_reply_payload
+    assert "must-not-appear" not in reviewer_user
+    assert "must-not-appear" not in no_reply_user
