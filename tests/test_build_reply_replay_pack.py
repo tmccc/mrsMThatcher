@@ -198,6 +198,133 @@ def build(tmp_path: Path, **kwargs) -> tuple[dict[str, object], Path, Path, Path
     return manifest, selection, shortlist, output
 
 
+def cache_record(
+    quoted_post_id: str,
+    *,
+    text: str = "account source post",
+    image_summary: str | None = None,
+    author_id: str = "account-author",
+    post_type: str = "quote",
+) -> dict[str, object]:
+    record: dict[str, object] = {
+        "id": quoted_post_id,
+        "author_id": author_id,
+        "conversation_id": quoted_post_id,
+        "created_at": "2026-01-01T00:00:00Z",
+        "referenced_tweets": [],
+        "text": text,
+        "cached_epoch": 1,
+        "post_type": post_type,
+    }
+    if image_summary is not None:
+        record["image_summary"] = image_summary
+    return record
+
+
+def make_history(
+    tmp_path: Path,
+    records_by_snapshot: dict[int, dict[str, dict[str, object]]] | None = None,
+) -> tuple[Path, Path, str, list[str]]:
+    history = tmp_path / "history"
+    snapshot_root = tmp_path / "snapshots"
+    history.mkdir()
+    snapshot_root.mkdir()
+    relative = "etc/mrsMThatcher"
+    snapshots = [f"snapshot-{index:02d}" for index in range(32)]
+    records_by_snapshot = records_by_snapshot or {}
+    for index, snapshot in enumerate(snapshots):
+        project = snapshot_root / snapshot / relative
+        project.mkdir(parents=True)
+        dump_json(
+            project / "bot_state.json",
+            {"tweet_cache": records_by_snapshot.get(index, {})},
+        )
+    manifest = {
+        "schema_version": replay.HISTORY_SCHEMA_VERSION,
+        "tool_version": replay.HISTORY_TOOL_VERSION,
+        "extractor_git_commit": replay.SOURCE_EXTRACTOR_COMMIT,
+        "extractor_git_commit_confidence": replay.HISTORY_EXTRACTOR_COMMIT_CONFIDENCE,
+        "live_project_included": False,
+        "selected_snapshots": snapshots,
+        "arguments": {
+            "snapshot_root": str(snapshot_root.resolve()),
+            "project_relative_path": relative,
+        },
+    }
+    dump_json(history / "run_manifest.json", manifest)
+    return history, snapshot_root, relative, snapshots
+
+
+def recover_one(
+    tmp_path: Path,
+    records_by_snapshot: dict[int, dict[str, dict[str, object]]],
+    *,
+    candidate_id: str = "candidate-recovery",
+    quoted_post_id: str = "quoted-recovery",
+) -> tuple[dict[str, object], dict[str, object]]:
+    history, snapshot_root, relative, _ = make_history(tmp_path, records_by_snapshot)
+    bundle = replay.recover_quote_contexts(
+        {candidate_id: quoted_post_id},
+        history_corpus=history,
+        snapshot_root=snapshot_root,
+        snapshot_project_relative_path=relative,
+    )
+    return bundle, bundle["recoveries"][candidate_id]
+
+
+def make_missing_quote_inputs(
+    tmp_path: Path,
+    count: int = 11,
+) -> tuple[Path, Path, list[str]]:
+    selection, shortlist, _ = make_inputs(tmp_path)
+    quoted_post_ids = [f"quoted-recovery-{index}" for index in range(count)]
+
+    def make_quotes(rows):
+        for index, quoted_post_id in enumerate(quoted_post_ids):
+            rows[index]["lane"] = "quote-tweet"
+            rows[index]["quoted_post_id"] = quoted_post_id
+            rows[index]["quoted_post_text"] = None
+
+    for name in ("evaluation_eligible_candidates.jsonl", "normalised_candidates.jsonl"):
+        mutate_rows(shortlist, name, make_quotes)
+
+    def update_selection(document):
+        for index in range(count):
+            document["selected_cases"][index]["lane"] = "quote-tweet"
+
+    mutate_selection(selection, update_selection)
+    return selection, shortlist, quoted_post_ids
+
+
+def build_missing_quote_pack(
+    tmp_path: Path,
+    *,
+    count: int = 11,
+    omit_last: bool = False,
+) -> tuple[dict[str, object], Path]:
+    selection, shortlist, quoted_post_ids = make_missing_quote_inputs(tmp_path, count=count)
+    records = {
+        quoted_post_id: cache_record(
+            quoted_post_id,
+            text=f"account source post {index}",
+        )
+        for index, quoted_post_id in enumerate(quoted_post_ids)
+        if not (omit_last and index == len(quoted_post_ids) - 1)
+    }
+    history, snapshot_root, relative, _ = make_history(tmp_path, {0: records})
+    output = tmp_path / "output"
+    manifest = replay.prepare_pack(
+        selection=selection,
+        shortlist=shortlist,
+        history_corpus=history,
+        snapshot_root=snapshot_root,
+        snapshot_project_relative_path=relative,
+        output=output,
+        created_at=CREATED_AT,
+    )
+    return manifest, output
+
+
 def test_selection_json_and_csv_agreement(tmp_path: Path) -> None:
     selection, _, _ = make_inputs(tmp_path)
     rows, _, _ = replay.read_selection(selection)
@@ -778,3 +905,404 @@ def test_unsafe_or_malformed_checksum_entry_refused(tmp_path: Path, line: str) -
     path.write_text(line, encoding="utf-8")
     with pytest.raises(replay.PackError):
         replay.parse_checksum_file(path)
+
+
+def test_quote_context_ordinary_text_recovered_from_tweet_cache(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    _, recovery = recover_one(
+        tmp_path,
+        {0: {quoted_post_id: cache_record(quoted_post_id, text="Exact account post")}},
+    )
+    assert recovery["source_exact_text"] == "Exact account post"
+    assert recovery["rendered_model_text"] == "Exact account post"
+    assert recovery["rendered_quoted_post"] == {
+        "post_id": quoted_post_id,
+        "author_role": "account",
+        "text": "Exact account post",
+    }
+
+
+def test_quote_context_exact_production_media_url_transformation(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    _, recovery = recover_one(
+        tmp_path,
+        {
+            0: {
+                quoted_post_id: cache_record(
+                    quoted_post_id,
+                    text="Before https://t.co/media-token After",
+                )
+            }
+        },
+    )
+    assert recovery["source_exact_text"] == "Before https://t.co/media-token After"
+    assert recovery["rendered_model_text"] == "Before After"
+    assert recovery["text_rendering_method"] == "production_cached_text_media_url_removal"
+
+
+def test_quote_context_image_summary_recovered_from_tweet_cache(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    _, recovery = recover_one(
+        tmp_path,
+        {
+            0: {
+                quoted_post_id: cache_record(
+                    quoted_post_id,
+                    text="https://t.co/image-only",
+                    image_summary="Exact visual description",
+                    post_type="daily_meme",
+                )
+            }
+        },
+    )
+    assert recovery["source_exact_image_summary"] == "Exact visual description"
+    assert recovery["text_rendering_method"] == "production_image_meme_summary_wrapper"
+
+
+def test_quote_context_exact_production_image_summary_wrapper(tmp_path: Path) -> None:
+    rendered, method = replay.render_cached_quote_context("", "Exact visual description")
+    assert rendered == "[Image/meme summary: Exact visual description]"
+    assert method == "production_image_meme_summary_wrapper"
+
+
+def test_quote_context_repeated_identical_snapshots_corroborate(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    record = cache_record(quoted_post_id, text="Corroborated account post")
+    _, recovery = recover_one(
+        tmp_path,
+        {0: {quoted_post_id: record}, 1: {quoted_post_id: dict(record)}},
+    )
+    assert recovery["corroborating_snapshot_count"] == 2
+    assert recovery["conflict_count"] == 0
+
+
+def test_quote_context_earliest_complete_snapshot_selected(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    record = cache_record(quoted_post_id, text="Complete account post")
+    _, recovery = recover_one(
+        tmp_path,
+        {2: {quoted_post_id: record}, 5: {quoted_post_id: dict(record)}},
+    )
+    assert recovery["selected_snapshot"] == "snapshot-02"
+
+
+def test_quote_context_incomplete_earlier_complete_later_succeeds(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    _, recovery = recover_one(
+        tmp_path,
+        {
+            0: {quoted_post_id: cache_record(quoted_post_id, text="")},
+            3: {quoted_post_id: cache_record(quoted_post_id, text="Later complete post")},
+        },
+    )
+    assert recovery["selected_snapshot"] == "snapshot-03"
+    assert recovery["rendered_model_text"] == "Later complete post"
+
+
+def test_quote_context_conflicting_non_empty_text_fails(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, _ = make_history(
+        tmp_path,
+        {
+            0: {quoted_post_id: cache_record(quoted_post_id, text="First exact value")},
+            1: {quoted_post_id: cache_record(quoted_post_id, text="Second exact value")},
+        },
+    )
+    with pytest.raises(replay.PackError, match="conflicting"):
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+
+
+def test_quote_context_conflicting_non_empty_image_summary_fails(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, _ = make_history(
+        tmp_path,
+        {
+            0: {
+                quoted_post_id: cache_record(
+                    quoted_post_id, text="", image_summary="First exact summary"
+                )
+            },
+            1: {
+                quoted_post_id: cache_record(
+                    quoted_post_id, text="", image_summary="Second exact summary"
+                )
+            },
+        },
+    )
+    with pytest.raises(replay.PackError, match="conflicting"):
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+
+
+def test_quote_context_conflicting_author_identity_fails(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, _ = make_history(
+        tmp_path,
+        {
+            0: {
+                quoted_post_id: cache_record(
+                    quoted_post_id, text="Exact post", author_id="account-a"
+                )
+            },
+            1: {
+                quoted_post_id: cache_record(
+                    quoted_post_id, text="Exact post", author_id="account-b"
+                )
+            },
+        },
+    )
+    with pytest.raises(replay.PackError, match="conflicting"):
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+
+
+def test_quote_context_conflicting_post_type_fails(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, _ = make_history(
+        tmp_path,
+        {
+            0: {
+                quoted_post_id: cache_record(
+                    quoted_post_id, text="Exact post", post_type="quote"
+                )
+            },
+            1: {
+                quoted_post_id: cache_record(
+                    quoted_post_id, text="Exact post", post_type="daily_meme"
+                )
+            },
+        },
+    )
+    with pytest.raises(replay.PackError, match="conflicting"):
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+
+
+def test_quote_context_historical_conversational_output_refused(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, _ = make_history(
+        tmp_path,
+        {
+            0: {
+                quoted_post_id: cache_record(
+                    quoted_post_id,
+                    text="Historical conversational output",
+                    post_type="auto_reply",
+                )
+            }
+        },
+    )
+    with pytest.raises(replay.PackError, match="not recoverable") as error:
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+    assert error.value.candidate_fields["candidate-recovery"] == ["post_type"]
+
+
+def test_quote_context_symlinked_bot_state_refused(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, snapshots = make_history(tmp_path)
+    external = tmp_path / "external-bot-state.json"
+    dump_json(external, {"tweet_cache": {quoted_post_id: cache_record(quoted_post_id)}})
+    bot_state = snapshot_root / snapshots[0] / relative / "bot_state.json"
+    bot_state.unlink()
+    bot_state.symlink_to(external)
+    with pytest.raises(replay.PackError, match="symlinked bot_state"):
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+
+
+def test_quote_context_bot_state_outside_selected_snapshot_refused(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, snapshots = make_history(tmp_path)
+    outside = tmp_path / "outside-snapshot"
+    (outside / relative).mkdir(parents=True)
+    dump_json(
+        outside / relative / "bot_state.json",
+        {"tweet_cache": {quoted_post_id: cache_record(quoted_post_id)}},
+    )
+    shutil.rmtree(snapshot_root / snapshots[0])
+    (snapshot_root / snapshots[0]).symlink_to(outside, target_is_directory=True)
+    with pytest.raises(replay.PackError, match="symlinked selected snapshot"):
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+
+
+def test_quote_context_snapshot_absent_from_manifest_is_ignored(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, _ = make_history(tmp_path)
+    extra_project = snapshot_root / "snapshot-not-selected" / relative
+    extra_project.mkdir(parents=True)
+    dump_json(
+        extra_project / "bot_state.json",
+        {"tweet_cache": {quoted_post_id: cache_record(quoted_post_id)}},
+    )
+    with pytest.raises(replay.PackError, match="not recoverable"):
+        replay.recover_quote_contexts(
+            {"candidate-recovery": quoted_post_id},
+            history_corpus=history,
+            snapshot_root=snapshot_root,
+            snapshot_project_relative_path=relative,
+        )
+
+
+def test_quote_context_unrelated_tweet_cache_entries_ignored(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    _, recovery = recover_one(
+        tmp_path,
+        {
+            0: {
+                quoted_post_id: cache_record(quoted_post_id, text="Selected exact post"),
+                "unrelated": cache_record(
+                    "unrelated", text="Different unrelated cache value", author_id="other"
+                ),
+            }
+        },
+    )
+    assert recovery["rendered_model_text"] == "Selected exact post"
+    assert recovery["conflict_count"] == 0
+
+
+def test_quote_context_source_hashes_retained(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    bundle, recovery = recover_one(
+        tmp_path,
+        {0: {quoted_post_id: cache_record(quoted_post_id)}},
+    )
+    assert len(bundle["snapshot_bot_state_files"]) == 32
+    assert all(len(item["source_file_sha256"]) == 64 for item in bundle["snapshot_bot_state_files"])
+    occurrence = recovery["source_occurrences"][0]
+    assert len(occurrence["source_file_sha256"]) == 64
+    assert len(occurrence["cache_record_sha256"]) == 64
+    assert occurrence["source_file_size"] > 0
+
+
+def test_quote_context_recovery_jsonl_is_deterministic(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    history, snapshot_root, relative, _ = make_history(
+        tmp_path,
+        {0: {quoted_post_id: cache_record(quoted_post_id)}},
+    )
+    arguments = {
+        "history_corpus": history,
+        "snapshot_root": snapshot_root,
+        "snapshot_project_relative_path": relative,
+    }
+    first = replay.recover_quote_contexts(
+        {"candidate-recovery": quoted_post_id}, **arguments
+    )["recoveries"]
+    second = replay.recover_quote_contexts(
+        {"candidate-recovery": quoted_post_id}, **arguments
+    )["recoveries"]
+    assert replay.jsonl_bytes(first.values()) == replay.jsonl_bytes(second.values())
+
+
+def test_quote_context_recovered_context_passes_current_validator(tmp_path: Path) -> None:
+    quoted_post_id = "quoted-recovery"
+    _, recovery = recover_one(
+        tmp_path,
+        {0: {quoted_post_id: cache_record(quoted_post_id, text="Validated account post")}},
+    )
+    row = source_row(0, "quote-tweet")
+    row["quoted_post_id"] = quoted_post_id
+    row["quoted_post_text"] = None
+    context, _ = replay.build_validated_context(
+        row,
+        "quote_tweet",
+        str(row["candidate_id"]),
+        "2026-08-10",
+        quote_recovery=recovery,
+    )
+    assert replay.reply_strategy.validate_reply_context(context) == context
+
+
+def test_quote_context_historical_output_leakage_remains_absent(tmp_path: Path) -> None:
+    _, output = build_missing_quote_pack(tmp_path)
+    audit = json.loads((output / "leakage_audit.json").read_text(encoding="utf-8"))
+    assert audit["self_answer_violations"] == 0
+    assert audit["forbidden_key_violations"] == 0
+    assert audit["chronology_violations"] == 0
+
+
+def test_quote_context_missing_recovery_arguments_fail_closed(tmp_path: Path) -> None:
+    selection, shortlist, _ = make_missing_quote_inputs(tmp_path, count=1)
+    with pytest.raises(replay.PackError, match="arguments are required") as error:
+        replay.prepare_pack(
+            selection=selection,
+            shortlist=shortlist,
+            output=tmp_path / "output",
+            created_at=CREATED_AT,
+        )
+    assert error.value.candidate_fields
+
+
+def test_quote_context_all_eleven_synthetic_cases_replay_ready(tmp_path: Path) -> None:
+    manifest, output = build_missing_quote_pack(tmp_path)
+    cases = [
+        json.loads(line)
+        for line in (output / "frozen_cases.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert manifest["selected_count"] == 48
+    assert manifest["replay_ready_count"] == 48
+    assert manifest["selected_quote_tweet_count"] == 11
+    assert manifest["quote_contexts_recovered_from_snapshot_cache"] == 11
+    assert sum(case["quote_context_recovery"] is not None for case in cases) == 11
+    assert all(case["replay_ready"] for case in cases)
+
+
+def test_quote_context_one_unrecoverable_case_prevents_finalisation(tmp_path: Path) -> None:
+    with pytest.raises(replay.PackError, match="not recoverable"):
+        build_missing_quote_pack(tmp_path, omit_last=True)
+    diagnostic = json.loads(
+        (tmp_path / "output" / "diagnostic_report.json").read_text(encoding="utf-8")
+    )
+    assert diagnostic["status"] == "failed_without_frozen_pack"
+
+
+def test_quote_context_schema_and_tool_version_two(tmp_path: Path) -> None:
+    manifest, output = build_missing_quote_pack(tmp_path)
+    assert replay.SCHEMA_VERSION == 2
+    assert replay.TOOL_VERSION == "reply-replay-pack-v2"
+    assert manifest["schema_version"] == 2
+    assert manifest["tool_version"] == "reply-replay-pack-v2"
+    recovery = json.loads(
+        (output / "quote_context_recovery.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert recovery["schema_version"] == 2
+
+
+def test_quote_context_sha256sums_includes_recovery_jsonl(tmp_path: Path) -> None:
+    _, output = build_missing_quote_pack(tmp_path)
+    entries = replay.parse_checksum_file(output / "SHA256SUMS")
+    assert "quote_context_recovery.jsonl" in entries
+    assert entries["quote_context_recovery.jsonl"] == replay.sha256_file(
+        output / "quote_context_recovery.jsonl"
+    )

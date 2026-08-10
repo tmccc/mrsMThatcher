@@ -6,9 +6,11 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import html
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from collections import Counter, defaultdict
@@ -24,12 +26,18 @@ if str(WORKTREE) not in sys.path:
 import reply_strategy  # noqa: E402  (the worktree root is added deliberately)
 
 
-SCHEMA_VERSION = 1
-TOOL_VERSION = "reply-replay-pack-v1"
+SCHEMA_VERSION = 2
+TOOL_VERSION = "reply-replay-pack-v2"
 CASE_PACK_VERSION = "mrs-reply-evaluation-48-v1"
 SOURCE_TOOL_VERSION = "reply-evaluation-pool-v1"
 SOURCE_NORMALISATION_VERSION = "reply-candidate-normalisation-v1"
 SOURCE_EXTRACTOR_COMMIT = "bdb6a5b18468bbda02f2c908f8a7699601ee5d18"
+HISTORY_SCHEMA_VERSION = 2
+HISTORY_TOOL_VERSION = "reply-history-reconstruction-v2"
+HISTORY_EXTRACTOR_COMMIT_CONFIDENCE = "exact"
+HISTORY_SELECTED_SNAPSHOT_COUNT = 32
+QUOTE_CONTEXT_MAX_CHARS = 2_000
+ACCOUNT_QUOTED_POST_TYPES = frozenset({"quote", "daily_meme"})
 
 SELECTION_JSON = "mrsMThatcher-reply-evaluation-proposed-freeze-20260810.json"
 SELECTION_CSV = "mrsMThatcher-reply-evaluation-proposed-freeze-20260810-selected-48.csv"
@@ -88,6 +96,7 @@ OUTPUT_FILES = (
     "replay_plan.json",
     "case_pack_report.md",
     "leakage_audit.json",
+    "quote_context_recovery.jsonl",
     "SHA256SUMS",
 )
 ISO_UTC_RE = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
@@ -349,6 +358,460 @@ def verify_source_manifest(shortlist: Path) -> tuple[dict[str, Any], dict[str, A
     return manifest, preserved_paths
 
 
+def clean_text_for_reply_context(text: str) -> str:
+    """Apply the production reply-context text transformation exactly."""
+    text = html.unescape(text or "")
+    text = re.sub(r"https?://\S+", "", text)
+    text = " ".join(text.split())
+    return text.strip()
+
+
+def trim_context_text(text: str, max_chars: int) -> str:
+    """Apply the production bounded-context trimming semantics exactly."""
+    text = clean_text_for_reply_context(text)
+    if max_chars <= 0:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    if max_chars <= 3:
+        return text[:max_chars]
+    prefix = text[: max_chars - 3].rsplit(" ", 1)[0].rstrip(".,;:")
+    if not prefix:
+        prefix = text[: max_chars - 3]
+    return prefix + "..."
+
+
+def render_cached_quote_context(
+    exact_cached_text: str | None,
+    exact_image_summary: str | None,
+) -> tuple[str, str]:
+    """Render a cache record through production ``tweet_context_text`` semantics."""
+    cleaned = clean_text_for_reply_context(exact_cached_text or "")
+    if cleaned:
+        return (
+            trim_context_text(cleaned, QUOTE_CONTEXT_MAX_CHARS),
+            "production_cached_text_media_url_removal",
+        )
+    image_summary = clean_text_for_reply_context(exact_image_summary or "")
+    if image_summary:
+        wrapped = f"[Image/meme summary: {image_summary}]"
+        return (
+            trim_context_text(wrapped, QUOTE_CONTEXT_MAX_CHARS),
+            "production_image_meme_summary_wrapper",
+        )
+    return "", "production_no_usable_cached_context"
+
+
+def _read_regular_file_read_only(path: Path, *, label: str) -> tuple[bytes, int, str]:
+    """Read one non-symlink regular file without following the final component."""
+    try:
+        if path.is_symlink():
+            raise PackError(f"symlinked {label} refused")
+        flags = os.O_RDONLY | os.O_CLOEXEC | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+    except (OSError, RuntimeError) as exc:
+        if isinstance(exc, PackError):
+            raise
+        raise PackError(f"unable to open {label} read-only") from exc
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise PackError(f"{label} must be a regular file")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after = os.fstat(descriptor)
+    except OSError as exc:
+        raise PackError(f"unable to read {label}") from exc
+    finally:
+        os.close(descriptor)
+    if (before.st_dev, before.st_ino, before.st_size) != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+    ):
+        raise PackError(f"{label} changed while it was being read")
+    content = b"".join(chunks)
+    if len(content) != before.st_size:
+        raise PackError(f"short read from {label}")
+    return content, before.st_size, hashlib.sha256(content).hexdigest()
+
+
+def _safe_snapshot_project_relative_path(value: Path | str) -> PurePosixPath:
+    raw = str(value)
+    posix = PurePosixPath(raw)
+    windows = PureWindowsPath(raw)
+    if (
+        not raw
+        or posix.is_absolute()
+        or windows.is_absolute()
+        or ".." in posix.parts
+        or ".." in windows.parts
+        or "\\" in raw
+    ):
+        raise PackError("snapshot project relative path is unsafe")
+    return posix
+
+
+def verify_history_manifest(
+    history_corpus: Path,
+    snapshot_root: Path,
+    snapshot_project_relative_path: Path | str,
+) -> dict[str, Any]:
+    """Verify the immutable history manifest and its bounded snapshot selection."""
+    try:
+        history_corpus = history_corpus.resolve(strict=True)
+        snapshot_root_raw = snapshot_root
+        if snapshot_root_raw.is_symlink():
+            raise PackError("symlinked snapshot root refused")
+        snapshot_root = snapshot_root_raw.resolve(strict=True)
+    except OSError as exc:
+        raise PackError("history corpus or snapshot root is missing") from exc
+    if not history_corpus.is_dir() or not snapshot_root.is_dir():
+        raise PackError("history corpus and snapshot root must be directories")
+    project_relative = _safe_snapshot_project_relative_path(snapshot_project_relative_path)
+    manifest_path = history_corpus / "run_manifest.json"
+    manifest_bytes, manifest_size, manifest_sha256 = _read_regular_file_read_only(
+        manifest_path,
+        label="history run manifest",
+    )
+    try:
+        manifest = json.loads(manifest_bytes)
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise PackError("history run manifest is invalid JSON") from exc
+    if not isinstance(manifest, dict):
+        raise PackError("history run manifest root must be an object")
+    expected = {
+        "/schema_version": (manifest.get("schema_version"), HISTORY_SCHEMA_VERSION),
+        "/tool_version": (manifest.get("tool_version"), HISTORY_TOOL_VERSION),
+        "/extractor_git_commit": (manifest.get("extractor_git_commit"), SOURCE_EXTRACTOR_COMMIT),
+        "/extractor_git_commit_confidence": (
+            manifest.get("extractor_git_commit_confidence"),
+            HISTORY_EXTRACTOR_COMMIT_CONFIDENCE,
+        ),
+        "/live_project_included": (manifest.get("live_project_included"), False),
+    }
+    for path, (actual, required) in expected.items():
+        if actual != required:
+            raise PackError(f"history manifest mismatch at {path}")
+    snapshots = manifest.get("selected_snapshots")
+    if (
+        not isinstance(snapshots, list)
+        or len(snapshots) != HISTORY_SELECTED_SNAPSHOT_COUNT
+        or len(set(snapshots)) != HISTORY_SELECTED_SNAPSHOT_COUNT
+    ):
+        raise PackError("history manifest must select exactly 32 unique snapshots")
+    for snapshot in snapshots:
+        if (
+            not isinstance(snapshot, str)
+            or not snapshot
+            or Path(snapshot).name != snapshot
+            or snapshot in {".", ".."}
+        ):
+            raise PackError("history manifest contains an unsafe snapshot name")
+    arguments = manifest.get("arguments")
+    if not isinstance(arguments, dict):
+        raise PackError("history manifest arguments are invalid")
+    if arguments.get("project_relative_path") != project_relative.as_posix():
+        raise PackError("history manifest project relative path disagrees")
+    manifest_snapshot_root = arguments.get("snapshot_root")
+    if not isinstance(manifest_snapshot_root, str):
+        raise PackError("history manifest snapshot root is invalid")
+    try:
+        recorded_snapshot_root = Path(manifest_snapshot_root).resolve(strict=True)
+    except OSError as exc:
+        raise PackError("history manifest snapshot root is missing") from exc
+    if recorded_snapshot_root != snapshot_root:
+        raise PackError("history manifest snapshot root disagrees")
+    return {
+        "history_corpus": history_corpus,
+        "snapshot_root": snapshot_root,
+        "snapshot_project_relative_path": project_relative,
+        "manifest": manifest,
+        "manifest_path": manifest_path,
+        "manifest_size": manifest_size,
+        "manifest_sha256": manifest_sha256,
+        "selected_snapshots": snapshots,
+    }
+
+
+def _snapshot_bot_state_path(
+    snapshot_root: Path,
+    snapshot_name: str,
+    project_relative: PurePosixPath,
+) -> tuple[Path, Path]:
+    snapshot_candidate = snapshot_root / snapshot_name
+    try:
+        if snapshot_candidate.is_symlink():
+            raise PackError(f"symlinked selected snapshot refused: {snapshot_name}")
+        snapshot = snapshot_candidate.resolve(strict=True)
+    except OSError as exc:
+        raise PackError(f"selected snapshot is missing: {snapshot_name}") from exc
+    if not snapshot.is_dir() or not snapshot.is_relative_to(snapshot_root):
+        raise PackError(f"selected snapshot is outside snapshot root: {snapshot_name}")
+    cursor = snapshot
+    for component in (*project_relative.parts, "bot_state.json"):
+        cursor = cursor / component
+        try:
+            if cursor.is_symlink():
+                raise PackError(f"symlinked bot_state path refused: {snapshot_name}")
+            cursor.lstat()
+        except OSError as exc:
+            raise PackError(f"snapshot bot_state is missing: {snapshot_name}") from exc
+    try:
+        bot_state = cursor.resolve(strict=True)
+    except OSError as exc:
+        raise PackError(f"snapshot bot_state is missing: {snapshot_name}") from exc
+    if not bot_state.is_relative_to(snapshot):
+        raise PackError(f"snapshot bot_state is outside selected snapshot: {snapshot_name}")
+    return snapshot, bot_state
+
+
+def _optional_exact_cache_string(
+    record: Mapping[str, Any],
+    field: str,
+    candidate_ids: Sequence[str],
+) -> str | None:
+    value = record.get(field)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise PackError(
+            "tweet-cache field has an invalid type",
+            candidate_fields={candidate_id: [field] for candidate_id in candidate_ids},
+        )
+    return value
+
+
+def _non_empty_occurrence_values(
+    occurrences: Sequence[Mapping[str, Any]],
+    field: str,
+) -> set[str]:
+    return {
+        value
+        for occurrence in occurrences
+        if isinstance((value := occurrence.get(field)), str) and value != ""
+    }
+
+
+def recover_quote_contexts(
+    requirements: Mapping[str, str],
+    *,
+    history_corpus: Path,
+    snapshot_root: Path,
+    snapshot_project_relative_path: Path | str,
+) -> dict[str, Any]:
+    """Recover exact selected account-post context from manifest-bounded caches."""
+    verified = verify_history_manifest(
+        history_corpus,
+        snapshot_root,
+        snapshot_project_relative_path,
+    )
+    snapshots: list[str] = verified["selected_snapshots"]
+    by_quoted_id: dict[str, list[str]] = defaultdict(list)
+    for candidate_id, quoted_post_id in requirements.items():
+        if not isinstance(quoted_post_id, str) or not quoted_post_id:
+            raise PackError(
+                "quote-tweet recovery requires one exact quoted_post_id",
+                candidate_fields={candidate_id: ["quoted_post_id"]},
+            )
+        by_quoted_id[quoted_post_id].append(candidate_id)
+
+    occurrences: dict[str, list[dict[str, Any]]] = {
+        candidate_id: [] for candidate_id in requirements
+    }
+    opened_files: list[dict[str, Any]] = []
+    for snapshot_index, snapshot_name in enumerate(snapshots):
+        _, bot_state_path = _snapshot_bot_state_path(
+            verified["snapshot_root"],
+            snapshot_name,
+            verified["snapshot_project_relative_path"],
+        )
+        content, source_file_size, source_file_sha256 = _read_regular_file_read_only(
+            bot_state_path,
+            label=f"snapshot bot_state.json ({snapshot_name})",
+        )
+        opened_files.append(
+            {
+                "source_snapshot": snapshot_name,
+                "source_path": str(bot_state_path),
+                "source_file_size": source_file_size,
+                "source_file_sha256": source_file_sha256,
+            }
+        )
+        try:
+            state = json.loads(content)
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise PackError(f"snapshot bot_state JSON is invalid: {snapshot_name}") from exc
+        tweet_cache = state.get("tweet_cache") if isinstance(state, dict) else None
+        if not isinstance(tweet_cache, dict):
+            raise PackError(f"snapshot tweet_cache is invalid: {snapshot_name}")
+        for quoted_post_id, candidate_ids in by_quoted_id.items():
+            cache_record = tweet_cache.get(quoted_post_id)
+            if cache_record is None:
+                continue
+            if not isinstance(cache_record, dict):
+                raise PackError(
+                    "exact tweet-cache entry is not an object",
+                    candidate_fields={
+                        candidate_id: ["tweet_cache"] for candidate_id in candidate_ids
+                    },
+                )
+            cache_id = cache_record.get("id")
+            if cache_id not in (None, quoted_post_id):
+                raise PackError(
+                    "tweet-cache key and record identity disagree",
+                    candidate_fields={candidate_id: ["quoted_post_id"] for candidate_id in candidate_ids},
+                )
+            occurrence = {
+                "source_snapshot": snapshot_name,
+                "source_path": str(bot_state_path),
+                "source_file_size": source_file_size,
+                "source_file_sha256": source_file_sha256,
+                "cache_record_sha256": hashlib.sha256(
+                    stable_json(cache_record).encode("utf-8")
+                ).hexdigest(),
+                "post_type": _optional_exact_cache_string(
+                    cache_record, "post_type", candidate_ids
+                ),
+                "exact_cached_text": _optional_exact_cache_string(
+                    cache_record, "text", candidate_ids
+                ),
+                "exact_image_summary": _optional_exact_cache_string(
+                    cache_record, "image_summary", candidate_ids
+                ),
+                "author_id": _optional_exact_cache_string(
+                    cache_record, "author_id", candidate_ids
+                ),
+                "conversation_id": _optional_exact_cache_string(
+                    cache_record, "conversation_id", candidate_ids
+                ),
+                "created_at": _optional_exact_cache_string(
+                    cache_record, "created_at", candidate_ids
+                ),
+                "_snapshot_index": snapshot_index,
+            }
+            for candidate_id in candidate_ids:
+                occurrences[candidate_id].append(dict(occurrence))
+
+    recoveries: dict[str, dict[str, Any]] = {}
+    failure_fields: dict[str, list[str]] = defaultdict(list)
+    conflict_fields: dict[str, list[str]] = defaultdict(list)
+    author_ids_by_candidate: dict[str, set[str]] = {}
+    compared_fields = (
+        "author_id",
+        "post_type",
+        "conversation_id",
+        "created_at",
+        "exact_cached_text",
+        "exact_image_summary",
+    )
+    for candidate_id in sorted(requirements):
+        candidate_occurrences = occurrences[candidate_id]
+        if not candidate_occurrences:
+            failure_fields[candidate_id].extend(
+                ["exact_cached_text", "exact_image_summary"]
+            )
+            continue
+        conflicts = [
+            field
+            for field in compared_fields
+            if len(_non_empty_occurrence_values(candidate_occurrences, field)) > 1
+        ]
+        if conflicts:
+            conflict_fields[candidate_id].extend(conflicts)
+            continue
+        observed_post_types = _non_empty_occurrence_values(
+            candidate_occurrences, "post_type"
+        )
+        if not observed_post_types.issubset(ACCOUNT_QUOTED_POST_TYPES):
+            failure_fields[candidate_id].append("post_type")
+            continue
+        author_ids_by_candidate[candidate_id] = _non_empty_occurrence_values(
+            candidate_occurrences, "author_id"
+        )
+        complete: list[tuple[dict[str, Any], str, str]] = []
+        for occurrence in candidate_occurrences:
+            rendered, method = render_cached_quote_context(
+                occurrence["exact_cached_text"],
+                occurrence["exact_image_summary"],
+            )
+            if rendered:
+                complete.append((occurrence, rendered, method))
+        if not complete:
+            failure_fields[candidate_id].extend(
+                ["exact_cached_text", "exact_image_summary"]
+            )
+            continue
+        selected_occurrence, rendered_model_text, rendering_method = min(
+            complete,
+            key=lambda item: item[0]["_snapshot_index"],
+        )
+        public_occurrences = []
+        for occurrence in candidate_occurrences:
+            public_occurrence = dict(occurrence)
+            public_occurrence.pop("_snapshot_index")
+            public_occurrences.append(public_occurrence)
+        recoveries[candidate_id] = {
+            "schema_version": SCHEMA_VERSION,
+            "tool_version": TOOL_VERSION,
+            "case_pack_version": CASE_PACK_VERSION,
+            "candidate_id": candidate_id,
+            "quoted_post_id": requirements[candidate_id],
+            "recovery_status": "exact_snapshot_cache",
+            "recovery_confidence": "exact",
+            "selected_snapshot": selected_occurrence["source_snapshot"],
+            "corroborating_snapshot_count": len(candidate_occurrences),
+            "source_occurrences": public_occurrences,
+            "source_exact_text": selected_occurrence["exact_cached_text"],
+            "source_exact_image_summary": selected_occurrence["exact_image_summary"],
+            "rendered_model_text": rendered_model_text,
+            "transformation_name": "production_tweet_context_text_and_trim_context_text",
+            "text_rendering_method": rendering_method,
+            "conflict_count": 0,
+            "rendered_quoted_post": {
+                "post_id": requirements[candidate_id],
+                "author_role": "account",
+                "text": rendered_model_text,
+            },
+            "validator_result": None,
+        }
+    if conflict_fields:
+        raise PackError(
+            "conflicting non-empty quote-context cache values",
+            candidate_fields=conflict_fields,
+        )
+    if failure_fields:
+        raise PackError(
+            "quoted-post context is not recoverable from selected snapshots",
+            candidate_fields=failure_fields,
+        )
+    all_author_ids = set().union(*author_ids_by_candidate.values()) if author_ids_by_candidate else set()
+    if len(all_author_ids) > 1:
+        raise PackError(
+            "conflicting account author identity across recovered quote contexts",
+            candidate_fields={candidate_id: ["author_id"] for candidate_id in requirements},
+        )
+    return {
+        "recoveries": recoveries,
+        "history_manifest": verified["manifest"],
+        "history_manifest_path": str(verified["manifest_path"]),
+        "history_manifest_size": verified["manifest_size"],
+        "history_manifest_sha256": verified["manifest_sha256"],
+        "selected_snapshots": snapshots,
+        "snapshot_bot_state_files": opened_files,
+        "account_author_id": next(iter(all_author_ids), None),
+        "account_identity_basis": (
+            "selected_account_quote_targets_and_cross_snapshot_author_id_agreement"
+            if all_author_ids
+            else "selected_account_quote_targets_author_id_unavailable"
+        ),
+    }
+
+
 def iter_jsonl(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
     try:
         with path.open("r", encoding="utf-8") as source:
@@ -485,6 +948,7 @@ def build_validated_context(
     current_lane: str,
     candidate_id: str,
     current_date: str,
+    quote_recovery: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], str]:
     target_id = row.get("target_id")
     incoming = row.get("incoming_text")
@@ -503,8 +967,33 @@ def build_validated_context(
     quoted: dict[str, str] | None = None
     quoted_id = row.get("quoted_post_id")
     quoted_text = row.get("quoted_post_text")
-    if quoted_id not in (None, "") or quoted_text not in (None, ""):
-        if not isinstance(quoted_id, str) or not quoted_id or not isinstance(quoted_text, str) or not quoted_text:
+    if quote_recovery is not None:
+        rendered = quote_recovery.get("rendered_quoted_post")
+        if (
+            not isinstance(quoted_id, str)
+            or not quoted_id
+            or not isinstance(rendered, dict)
+            or rendered.get("post_id") != quoted_id
+            or rendered.get("author_role") != "account"
+            or not isinstance(rendered.get("text"), str)
+            or not rendered["text"]
+        ):
+            raise PackError(
+                "recovered quoted-post context is invalid",
+                candidate_fields={candidate_id: ["quoted_post_id", "quoted_post_text"]},
+            )
+        quoted = {
+            "post_id": quoted_id,
+            "author_role": "account",
+            "text": rendered["text"],
+        }
+    elif quoted_id not in (None, "") or quoted_text not in (None, ""):
+        if (
+            not isinstance(quoted_id, str)
+            or not quoted_id
+            or not isinstance(quoted_text, str)
+            or not clean_text_for_reply_context(quoted_text)
+        ):
             raise PackError(
                 "quoted-post context is incomplete",
                 candidate_fields={candidate_id: ["quoted_post_id", "quoted_post_text"]},
@@ -869,6 +1358,8 @@ def audit_case_inputs(
 
 def _baseline(row: dict[str, Any], candidate_id: str) -> dict[str, Any]:
     return {
+        "schema_version": SCHEMA_VERSION,
+        "tool_version": TOOL_VERSION,
         "candidate_id": candidate_id,
         "historical_outcome": row.get("normalised_outcome"),
         "historical_reply": row.get("actual_reply_text"),
@@ -899,6 +1390,7 @@ def construct_cases(
     *,
     current_date: str,
     recent_reply_limit: int,
+    quote_recoveries: Mapping[str, dict[str, Any]] | None = None,
 ) -> tuple[
     list[dict[str, Any]],
     list[dict[str, Any]],
@@ -915,15 +1407,29 @@ def construct_cases(
     authorised_cross_case: list[dict[str, str]] = []
     authorised_same_text: list[dict[str, str]] = []
     not_ready: dict[str, list[str]] = defaultdict(list)
+    quote_recoveries = quote_recoveries or {}
 
     for selected in selected_rows:
         candidate_id = selected["candidate_id"]
         source = normalised[candidate_id]
         try:
             current_lane = map_lane(source.get("lane"), candidate_id)
+            quote_recovery = quote_recoveries.get(candidate_id)
             validated, identity_adaptation = build_validated_context(
-                source, current_lane, candidate_id, current_date
+                source,
+                current_lane,
+                candidate_id,
+                current_date,
+                quote_recovery=quote_recovery,
             )
+            if quote_recovery is not None:
+                quote_recovery["validator_result"] = {
+                    "status": "pass",
+                    "validator": "reply_strategy.validate_reply_context",
+                    "validated_context_sha256": hashlib.sha256(
+                        stable_json(validated).encode("utf-8")
+                    ).hexdigest(),
+                }
             recent_records, recent_text = recent_replies_for_case(
                 candidate_id,
                 source.get("first_timestamp"),
@@ -949,12 +1455,16 @@ def construct_cases(
             not_ready[candidate_id].append("recent_account_replies")
 
         model_record = {
+            "schema_version": SCHEMA_VERSION,
+            "tool_version": TOOL_VERSION,
             "candidate_id": candidate_id,
             "current_pipeline_lane": current_lane,
             "validated_context": validated,
             "recent_account_replies_text": recent_text,
         }
         recent_record = {
+            "schema_version": SCHEMA_VERSION,
+            "tool_version": TOOL_VERSION,
             "candidate_id": candidate_id,
             "recent_account_replies": recent_records,
             "recent_account_replies_text": recent_text,
@@ -1019,6 +1529,16 @@ def construct_cases(
             "context_identity_adaptation": identity_adaptation,
             "recent_account_replies": recent_records,
             "recent_account_replies_text": recent_text,
+            "quote_context_recovery": (
+                {
+                    "recovery_status": quote_recovery["recovery_status"],
+                    "recovery_confidence": quote_recovery["recovery_confidence"],
+                    "selected_snapshot": quote_recovery["selected_snapshot"],
+                    "conflict_count": quote_recovery["conflict_count"],
+                }
+                if quote_recovery is not None
+                else None
+            ),
             "replay_ready": candidate_id not in not_ready,
         }
         frozen_cases.append(frozen)
@@ -1087,9 +1607,19 @@ def git_commit() -> str:
     return commit
 
 
-def private_output_directory(output: Path, selection: Path, shortlist: Path) -> None:
+def private_output_directory(
+    output: Path,
+    selection: Path,
+    shortlist: Path,
+    additional_protected_roots: Sequence[Path] = (),
+) -> None:
     output_resolved = output.resolve()
-    protected = (selection.resolve(), shortlist.resolve(), WORKTREE.resolve())
+    protected = (
+        selection.resolve(),
+        shortlist.resolve(),
+        WORKTREE.resolve(),
+        *(path.resolve() for path in additional_protected_roots),
+    )
     if any(output_resolved == root or root in output_resolved.parents for root in protected):
         raise PackError("output path is inside a protected input or worktree tree")
     if output.exists():
@@ -1141,6 +1671,8 @@ def build_report(
     prompt_era_count: int,
     recent_min: int,
     recent_max: int,
+    selected_quote_tweet_count: int,
+    recovered_quote_context_count: int,
 ) -> str:
     stratum_lines = "\n".join(f"- `{name}`: {counts_by_stratum[name]}" for name in FINAL_STRATA)
     lane_lines = "\n".join(f"- `{name}`: {lane_counts[name]}" for name in sorted(lane_counts))
@@ -1165,6 +1697,10 @@ All 48 selected cases passed the current context validator and replay-readiness 
 
 - Prompt-era count: {prompt_era_count}
 - Recent-account-reply coverage range: {recent_min}..{recent_max}
+- Selected quote-tweet cases: {selected_quote_tweet_count}
+- Snapshot-recovered quote contexts: {recovered_quote_context_count}
+- Quote-context recovery conflicts: 0
+- Quote-context recovery failures: 0
 - Leakage violations: 0
 - Model calls performed: 0
 """
@@ -1178,6 +1714,9 @@ def prepare_pack(
     created_at: str,
     recent_reply_limit: int = 20,
     calibration_per_stratum: int = 1,
+    history_corpus: Path | None = None,
+    snapshot_root: Path | None = None,
+    snapshot_project_relative_path: Path | str | None = None,
 ) -> dict[str, Any]:
     created_at = validate_created_at(created_at)
     if type(recent_reply_limit) is not int or recent_reply_limit < 0:
@@ -1189,7 +1728,17 @@ def prepare_pack(
     output = output.resolve()
     if not selection.is_dir() or not shortlist.is_dir():
         raise PackError("selection and shortlist paths must be directories")
-    private_output_directory(output, selection, shortlist)
+    additional_protected = [
+        path
+        for path in (history_corpus, snapshot_root)
+        if isinstance(path, Path)
+    ]
+    private_output_directory(
+        output,
+        selection,
+        shortlist,
+        additional_protected_roots=additional_protected,
+    )
 
     try:
         selected_rows, selection_document, selection_hashes = read_selection(selection)
@@ -1205,12 +1754,87 @@ def prepare_pack(
         selected_ids = {row["candidate_id"] for row in selected_rows}
         eligible, normalised, all_eligible = load_candidate_sources(shortlist, selected_ids)
         compare_join_rows(selected_rows, eligible, normalised)
+        selected_quote_ids = [
+            row["candidate_id"]
+            for row in selected_rows
+            if normalised[row["candidate_id"]].get("lane") == "quote-tweet"
+        ]
+        quote_contexts_present_in_source = 0
+        quote_requirements: dict[str, str] = {}
+        invalid_quote_ids: dict[str, list[str]] = {}
+        for candidate_id in selected_quote_ids:
+            source = normalised[candidate_id]
+            quoted_post_id = source.get("quoted_post_id")
+            quoted_post_text = source.get("quoted_post_text")
+            if not isinstance(quoted_post_id, str) or not quoted_post_id:
+                invalid_quote_ids[candidate_id] = ["quoted_post_id"]
+                if (
+                    not isinstance(quoted_post_text, str)
+                    or not clean_text_for_reply_context(quoted_post_text)
+                ):
+                    invalid_quote_ids[candidate_id].append("quoted_post_text")
+                continue
+            if (
+                isinstance(quoted_post_text, str)
+                and clean_text_for_reply_context(quoted_post_text)
+            ):
+                quote_contexts_present_in_source += 1
+            else:
+                quote_requirements[candidate_id] = quoted_post_id
+        if invalid_quote_ids:
+            raise PackError(
+                "quote-tweet recovery requires one exact quoted_post_id",
+                candidate_fields=invalid_quote_ids,
+            )
+
+        recovery_bundle: dict[str, Any] = {
+            "recoveries": {},
+            "history_manifest": None,
+            "history_manifest_path": None,
+            "history_manifest_size": None,
+            "history_manifest_sha256": None,
+            "selected_snapshots": [],
+            "snapshot_bot_state_files": [],
+            "account_author_id": None,
+            "account_identity_basis": None,
+        }
+        if quote_requirements:
+            missing_arguments = [
+                name
+                for name, value in (
+                    ("history_corpus", history_corpus),
+                    ("snapshot_root", snapshot_root),
+                    (
+                        "snapshot_project_relative_path",
+                        snapshot_project_relative_path,
+                    ),
+                )
+                if value is None
+            ]
+            if missing_arguments:
+                raise PackError(
+                    "quote-context recovery arguments are required",
+                    candidate_fields={
+                        candidate_id: missing_arguments for candidate_id in quote_requirements
+                    },
+                )
+            assert history_corpus is not None
+            assert snapshot_root is not None
+            assert snapshot_project_relative_path is not None
+            recovery_bundle = recover_quote_contexts(
+                quote_requirements,
+                history_corpus=history_corpus,
+                snapshot_root=snapshot_root,
+                snapshot_project_relative_path=snapshot_project_relative_path,
+            )
+        quote_recoveries = recovery_bundle["recoveries"]
         frozen, model_inputs, baselines, recent_outputs, leakage_audit = construct_cases(
             selected_rows,
             normalised,
             all_eligible,
             current_date=created_at[:10],
             recent_reply_limit=recent_reply_limit,
+            quote_recoveries=quote_recoveries,
         )
 
         frozen.sort(key=_case_sort_key)
@@ -1218,6 +1842,12 @@ def prepare_pack(
         model_inputs.sort(key=lambda row: ordering[row["candidate_id"]])
         baselines.sort(key=lambda row: ordering[row["candidate_id"]])
         recent_outputs.sort(key=lambda row: ordering[row["candidate_id"]])
+        recovery_rows = sorted(
+            quote_recoveries.values(),
+            key=lambda row: ordering[row["candidate_id"]],
+        )
+        if any(row.get("validator_result") is None for row in recovery_rows):
+            raise PackError("recovered quote context did not pass the current validator")
         calibration = [
             {
                 "schema_version": SCHEMA_VERSION,
@@ -1287,6 +1917,31 @@ def prepare_pack(
                 "normalised_rows_exactly_one": 48,
                 "source_agreement": True,
             },
+            "quote_context_recovery": {
+                "history_corpus": (
+                    str(Path(history_corpus).resolve()) if history_corpus is not None else None
+                ),
+                "history_manifest_path": recovery_bundle["history_manifest_path"],
+                "history_manifest_size": recovery_bundle["history_manifest_size"],
+                "history_manifest_sha256": recovery_bundle["history_manifest_sha256"],
+                "history_schema_version": (
+                    recovery_bundle["history_manifest"].get("schema_version")
+                    if recovery_bundle["history_manifest"] is not None
+                    else None
+                ),
+                "history_tool_version": (
+                    recovery_bundle["history_manifest"].get("tool_version")
+                    if recovery_bundle["history_manifest"] is not None
+                    else None
+                ),
+                "selected_snapshots": recovery_bundle["selected_snapshots"],
+                "snapshot_bot_state_files": recovery_bundle[
+                    "snapshot_bot_state_files"
+                ],
+                "account_author_id": recovery_bundle["account_author_id"],
+                "account_identity_basis": recovery_bundle["account_identity_basis"],
+                "result": "pass",
+            },
             "result": "pass",
         }
         current_prompt_versions = {
@@ -1305,6 +1960,17 @@ def prepare_pack(
             "arguments": {
                 "selection": str(selection),
                 "shortlist": str(shortlist),
+                "history_corpus": (
+                    str(Path(history_corpus).resolve()) if history_corpus is not None else None
+                ),
+                "snapshot_root": (
+                    str(Path(snapshot_root).resolve()) if snapshot_root is not None else None
+                ),
+                "snapshot_project_relative_path": (
+                    str(snapshot_project_relative_path)
+                    if snapshot_project_relative_path is not None
+                    else None
+                ),
                 "output": str(output),
                 "created_at": created_at,
                 "recent_reply_limit": recent_reply_limit,
@@ -1322,6 +1988,18 @@ def prepare_pack(
             "source_evaluation_pool_tool_commit": shortlist_manifest["running_tool_git_commit"],
             "selected_count": 48,
             "replay_ready_count": 48,
+            "selected_quote_tweet_count": len(selected_quote_ids),
+            "quote_contexts_present_in_source_candidates": quote_contexts_present_in_source,
+            "quote_contexts_recovered_from_snapshot_cache": len(recovery_rows),
+            "quote_context_recovery_failures": 0,
+            "quote_context_conflicts": 0,
+            "snapshots_consulted": len(recovery_bundle["selected_snapshots"]),
+            "snapshot_bot_state_files_opened": len(
+                recovery_bundle["snapshot_bot_state_files"]
+            ),
+            "snapshot_bot_state_files_hashed": len(
+                recovery_bundle["snapshot_bot_state_files"]
+            ),
             "counts_by_final_stratum": counts_by_stratum,
             "counts_by_current_lane": lane_counts,
             "historical_outcome_counts": outcome_counts,
@@ -1343,6 +2021,8 @@ def prepare_pack(
             len(prompt_eras),
             min(recent_counts),
             max(recent_counts),
+            len(selected_quote_ids),
+            len(recovery_rows),
         )
         contents = {
             "run_manifest.json": json_bytes(run_manifest),
@@ -1355,6 +2035,7 @@ def prepare_pack(
             "replay_plan.json": json_bytes(replay_plan),
             "case_pack_report.md": report.encode("utf-8"),
             "leakage_audit.json": json_bytes(leakage_audit),
+            "quote_context_recovery.jsonl": jsonl_bytes(recovery_rows),
         }
         for name in OUTPUT_FILES:
             if name != "SHA256SUMS":
@@ -1383,6 +2064,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--selection", required=True, type=Path)
     parser.add_argument("--shortlist", required=True, type=Path)
+    parser.add_argument("--history-corpus", type=Path)
+    parser.add_argument("--snapshot-root", type=Path)
+    parser.add_argument("--snapshot-project-relative-path", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--created-at", required=True)
     parser.add_argument("--recent-reply-limit", type=int, default=20)
@@ -1401,6 +2085,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             created_at=args.created_at,
             recent_reply_limit=args.recent_reply_limit,
             calibration_per_stratum=args.calibration_per_stratum,
+            history_corpus=args.history_corpus,
+            snapshot_root=args.snapshot_root,
+            snapshot_project_relative_path=args.snapshot_project_relative_path,
         )
     except PackError as exc:
         print(f"error: {exc.message}", file=sys.stderr)
