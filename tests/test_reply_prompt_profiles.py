@@ -11,13 +11,16 @@ import reply_strategy
 from tools import reply_prompt_profiles as profiles
 
 
-COMPACT_PROMPT_SHA256_AT_FBAC2478 = {
+COMPACT_PROMPT_SHA256_AT_57150B2 = {
     "proposer": "922aff370f775ff9c18e2e7a445600519f14bfba8610ee6db99f9daf99e0f8da",
-    "reviewer": "26447ccf142376a7b56cf07e8aab49f4ed68f2a2ef3fb61546a22d1a5c915696",
+    "reviewer": "d5f7eca41cdfb0d5f8047dc896d1953ea80e415268434997f8b42d417693d80c",
     "no_reply_review": "2b6677ed5766676acde2c9010ba04feda57b077e02daaabb103a319921643b67",
     "claim_auditor": "5a0ccdd28239b6eb5808870cfa6c6fe2cee0c32342f9243a9e1c8ec057ac05fe",
 }
-CURRENT_PROMPT_SHA256_AT_FBAC2478 = {
+COMPACT_REVIEWER_V3_SHA256 = (
+    "36c0577d9b0ee8c536ea638591c9ce1a0e052a9e482f80aedc16b489b3cad089"
+)
+CURRENT_PROMPT_SHA256_AT_57150B2 = {
     "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
     "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e",
     "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
@@ -58,7 +61,9 @@ def prompt_state() -> dict[str, object]:
     return {name: getattr(reply_strategy, name) for name in profiles.PATCHED_NAMES}
 
 
-def valid_reviewer_document() -> dict[str, object]:
+def valid_reviewer_document(
+    *, asserts_actor_state_or_action: bool = True
+) -> dict[str, object]:
     claim = "The council opened the library."
     return {
         "verdict": "approve",
@@ -72,7 +77,7 @@ def valid_reviewer_document() -> dict[str, object]:
             "factual_claims": [claim],
             "non_factual_basis": "none",
             "world_claim_checks": {
-                "asserts_actor_state_or_action": True,
+                "asserts_actor_state_or_action": asserts_actor_state_or_action,
                 "asserts_causal_or_predictive_relation": False,
                 "asserts_comparison_or_outcome": False,
                 "asserts_historical_date_or_quantity": False,
@@ -112,7 +117,7 @@ def test_current_activation_makes_no_function_or_constant_change() -> None:
     assert prompt_state() == before
 
 
-def test_current_profile_functions_and_hashes_match_fbac2478() -> None:
+def test_current_profile_functions_and_hashes_match_57150b2() -> None:
     assert all(
         getattr(reply_strategy, name) is function
         for name, function in profiles.production_prompt_functions().items()
@@ -120,7 +125,7 @@ def test_current_profile_functions_and_hashes_match_fbac2478() -> None:
     manifest = profiles.profile_manifest("current")
     assert {
         name: row["sha256"] for name, row in manifest["prompts"].items()
-    } == CURRENT_PROMPT_SHA256_AT_FBAC2478
+    } == CURRENT_PROMPT_SHA256_AT_57150B2
 
 
 def test_compact_activation_patches_only_permitted_functions_and_constants() -> None:
@@ -169,46 +174,49 @@ def test_compact_proposer_word_cap() -> None:
     assert row["word_count"] <= 500
 
 
-def test_compact_v2_changes_only_the_final_reviewer_prompt() -> None:
+def test_compact_v3_changes_only_the_final_reviewer_prompt_from_57150b2() -> None:
     manifest = profiles.profile_manifest("compact")
     current_hashes = {
         name: row["sha256"] for name, row in manifest["prompts"].items()
     }
     changed = {
         name
-        for name, old_hash in COMPACT_PROMPT_SHA256_AT_FBAC2478.items()
+        for name, old_hash in COMPACT_PROMPT_SHA256_AT_57150B2.items()
         if current_hashes[name] != old_hash
     }
-    assert manifest["profile_version"] == "compact-reply-profile-v2"
+    assert manifest["profile_version"] == "compact-reply-profile-v3"
     assert manifest["prompt_version_constants"] == {
         "PROPOSER_PROMPT_VERSION": "compact-proposer-v1",
-        "REVIEWER_PROMPT_VERSION": "compact-reviewer-v2",
+        "REVIEWER_PROMPT_VERSION": "compact-reviewer-v3",
         "NO_REPLY_REVIEW_PROMPT_VERSION": "compact-no-reply-review-v1",
         "CLAIM_AUDITOR_PROMPT_VERSION": "compact-claim-auditor-v1",
     }
     assert changed == {"reviewer"}
-    assert current_hashes["proposer"] == COMPACT_PROMPT_SHA256_AT_FBAC2478["proposer"]
-    assert current_hashes["no_reply_review"] == COMPACT_PROMPT_SHA256_AT_FBAC2478[
+    assert current_hashes["reviewer"] == COMPACT_REVIEWER_V3_SHA256
+    assert current_hashes["proposer"] == COMPACT_PROMPT_SHA256_AT_57150B2["proposer"]
+    assert current_hashes["no_reply_review"] == COMPACT_PROMPT_SHA256_AT_57150B2[
         "no_reply_review"
     ]
-    assert current_hashes["claim_auditor"] == COMPACT_PROMPT_SHA256_AT_FBAC2478[
+    assert current_hashes["claim_auditor"] == COMPACT_PROMPT_SHA256_AT_57150B2[
         "claim_auditor"
     ]
 
 
 def test_compact_final_reviewer_word_cap() -> None:
     row = profiles.profile_manifest("compact")["prompts"]["reviewer"]
+    assert row["word_count"] == profiles.prompt_word_count(
+        profiles.COMPACT_REVIEWER_SYSTEM_PROMPT
+    )
     assert row["word_count"] <= 430
 
 
-def test_compact_reviewer_schema_paragraph_is_bounded_and_explicit() -> None:
+def test_compact_reviewer_schema_paragraph_states_world_claim_boolean_contract() -> None:
     paragraph = (
         "Schema discipline:"
         + profiles.COMPACT_REVIEWER_SYSTEM_PROMPT.split("Schema discipline:", 1)[1]
         .split("\n\n", 1)[0]
     )
     compact = " ".join(paragraph.split())
-    assert profiles.prompt_word_count(paragraph) <= 90
     assert (
         "direct-question classification from incoming contribution, not proposed reply"
         in compact
@@ -222,16 +230,15 @@ def test_compact_reviewer_schema_paragraph_is_bounded_and_explicit() -> None:
     assert "narrowest permitted answer type" in compact
     assert "copy the complete first reply sentence exactly into direct_answer_text" in compact
     assert (
-        "each proposed_reply sentence exactly one verbatim sentence_assessment in order"
+        "Assess each reply sentence once, verbatim and in order"
         in compact
     )
-    assert (
-        "factual_claims includes every externally checkable clause verbatim and in order"
-        in compact
-    )
-    assert "unsupported included" in compact
-    assert "actual_factual_claims exactly concatenates those lists" in compact
-    assert "Evidence affects support/verdict, never permits inventory omission" in compact
+    assert "List every checkable clause, supported or not" in compact
+    assert "Empty factual_claims means all five specific world-claim flags false" in compact
+    assert "all five specific world-claim flags false and purely_non_factual=true" in compact
+    assert "otherwise at least one specific flag true" in compact
+    assert "at least one specific flag true and purely_non_factual=false" in compact
+    assert "actual_factual_claims exactly concatenates sentence lists" in compact
 
 
 def test_compact_no_reply_reviewer_word_cap() -> None:
@@ -308,12 +315,59 @@ def test_production_reviewer_rejects_incomplete_flattened_claim_inventory() -> N
         )
 
 
-def test_production_reviewer_accepts_corrected_synthetic_contract() -> None:
+def test_production_reviewer_rejects_factual_sentence_without_specific_world_claim_flag() -> None:
+    document = valid_reviewer_document(asserts_actor_state_or_action=False)
+    assessment = document["sentence_assessments"][0]
+    assert assessment["classification"] == "factual_claim"
+    assert len(assessment["factual_claims"]) == 1
+    assert not any(
+        value
+        for name, value in assessment["world_claim_checks"].items()
+        if name != "purely_non_factual"
+    )
+    assert assessment["world_claim_checks"]["purely_non_factual"] is False
+    with pytest.raises(
+        reply_strategy.NonRetryableReviewerResponseError,
+        match="^reviewer sentence world-claim checks contradict each other$",
+    ):
+        reply_strategy.validate_reviewer(
+            document,
+            maximum_claims=8,
+            proposed_reply="The council opened the library.",
+        )
+
+
+def test_production_reviewer_accepts_applicable_specific_world_claim_flag() -> None:
     document = valid_reviewer_document()
     assert reply_strategy.validate_reviewer(
         document,
         maximum_claims=8,
         proposed_reply="The council opened the library.",
+    ) == document
+
+
+def test_production_reviewer_accepts_purely_non_factual_courtesy_sentence() -> None:
+    sentence = "Thank you for writing."
+    document = copy.deepcopy(valid_reviewer_document())
+    document["actual_factual_claims"] = []
+    document["sentence_assessments"] = [{
+        "sentence_text": sentence,
+        "classification": "courtesy",
+        "factual_claims": [],
+        "non_factual_basis": "courtesy",
+        "world_claim_checks": {
+            "asserts_actor_state_or_action": False,
+            "asserts_causal_or_predictive_relation": False,
+            "asserts_comparison_or_outcome": False,
+            "asserts_historical_date_or_quantity": False,
+            "asserts_meaning_or_attribution": False,
+            "purely_non_factual": True,
+        },
+    }]
+    assert reply_strategy.validate_reviewer(
+        document,
+        maximum_claims=8,
+        proposed_reply=sentence,
     ) == document
 
 

@@ -26,11 +26,11 @@ FROZEN_REPLY_STRATEGY_SHA256 = (
     "798f0b965766827b5f2325bd167c9ebc9e7502841b3ebe7d8eeadf634831e961"
 )
 CURRENT_PROFILE_VERSION = "current-production-profile-v1"
-COMPACT_PROFILE_VERSION = "compact-reply-profile-v2"
+COMPACT_PROFILE_VERSION = "compact-reply-profile-v3"
 
 COMPACT_PROMPT_VERSIONS = MappingProxyType({
     "PROPOSER_PROMPT_VERSION": "compact-proposer-v1",
-    "REVIEWER_PROMPT_VERSION": "compact-reviewer-v2",
+    "REVIEWER_PROMPT_VERSION": "compact-reviewer-v3",
     "NO_REPLY_REVIEW_PROMPT_VERSION": "compact-no-reply-review-v1",
     "CLAIM_AUDITOR_PROMPT_VERSION": "compact-claim-auditor-v1",
 })
@@ -163,11 +163,11 @@ contribution, not proposed reply. Non-direct: use
 direct_factual_question_present=false, requested_answer_type="none",
 direct_answer_complete=false and direct_answer_text="". Direct: use the
 narrowest permitted answer type and copy the complete first reply sentence
-exactly into direct_answer_text. Give each proposed_reply sentence exactly
-one verbatim sentence_assessment in order. Its factual_claims includes every
-externally checkable clause verbatim and in order, unsupported included.
-actual_factual_claims exactly concatenates those lists. Evidence affects
-support/verdict, never permits inventory omission.
+exactly into direct_answer_text. Assess each reply sentence once, verbatim and in order. List every
+checkable clause, supported or not. Empty factual_claims means all five
+specific world-claim flags false and purely_non_factual=true; otherwise
+at least one specific flag true and purely_non_factual=false.
+actual_factual_claims exactly concatenates sentence lists.
 
 Factuality: world claims include actor or institutional states and actions,
 causes or predictions, conditions, comparisons or outcomes, history, dates,
