@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+import copy
 import json
 
 import pytest
 
 import reply_strategy
 from tools import reply_prompt_profiles as profiles
+
+
+COMPACT_PROMPT_SHA256_AT_FBAC2478 = {
+    "proposer": "922aff370f775ff9c18e2e7a445600519f14bfba8610ee6db99f9daf99e0f8da",
+    "reviewer": "26447ccf142376a7b56cf07e8aab49f4ed68f2a2ef3fb61546a22d1a5c915696",
+    "no_reply_review": "2b6677ed5766676acde2c9010ba04feda57b077e02daaabb103a319921643b67",
+    "claim_auditor": "5a0ccdd28239b6eb5808870cfa6c6fe2cee0c32342f9243a9e1c8ec057ac05fe",
+}
+CURRENT_PROMPT_SHA256_AT_FBAC2478 = {
+    "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
+    "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e",
+    "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
+    "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
+}
 
 
 def context() -> dict[str, object]:
@@ -43,6 +58,46 @@ def prompt_state() -> dict[str, object]:
     return {name: getattr(reply_strategy, name) for name in profiles.PATCHED_NAMES}
 
 
+def valid_reviewer_document() -> dict[str, object]:
+    claim = "The council opened the library."
+    return {
+        "verdict": "approve",
+        "summary": "The synthetic response satisfies the reviewer contract.",
+        "reasons": [],
+        "actual_factual_claims": [claim],
+        "unsupported_factual_claims": [],
+        "sentence_assessments": [{
+            "sentence_text": claim,
+            "classification": "factual_claim",
+            "factual_claims": [claim],
+            "non_factual_basis": "none",
+            "world_claim_checks": {
+                "asserts_actor_state_or_action": True,
+                "asserts_causal_or_predictive_relation": False,
+                "asserts_comparison_or_outcome": False,
+                "asserts_historical_date_or_quantity": False,
+                "asserts_meaning_or_attribution": False,
+                "purely_non_factual": False,
+            },
+        }],
+        "direct_factual_question_present": False,
+        "requested_answer_type": "none",
+        "direct_answer_complete": False,
+        "direct_answer_text": "",
+        "topically_relevant": True,
+        "endorses_unsupported_allegation": False,
+        "contains_unsupported_factual_claims": False,
+        "actor_action_relationship_correct": True,
+        "direction_polarity_correct": True,
+        "dates_quantities_correct": True,
+        "quotation_attribution_correct": True,
+        "original_prose_clearly_not_historical_quotation": True,
+        "mode_and_tone_match": True,
+        "suitable_for_account": True,
+        "revision_instructions": "",
+    }
+
+
 def test_current_profile_points_to_exact_production_prompt_functions() -> None:
     captured = profiles.production_prompt_functions()
     assert all(getattr(reply_strategy, name) is function for name, function in captured.items())
@@ -55,6 +110,17 @@ def test_current_activation_makes_no_function_or_constant_change() -> None:
     with profiles.activate_profile("current", recent_account_replies=["one"]):
         assert prompt_state() == before
     assert prompt_state() == before
+
+
+def test_current_profile_functions_and_hashes_match_fbac2478() -> None:
+    assert all(
+        getattr(reply_strategy, name) is function
+        for name, function in profiles.production_prompt_functions().items()
+    )
+    manifest = profiles.profile_manifest("current")
+    assert {
+        name: row["sha256"] for name, row in manifest["prompts"].items()
+    } == CURRENT_PROMPT_SHA256_AT_FBAC2478
 
 
 def test_compact_activation_patches_only_permitted_functions_and_constants() -> None:
@@ -103,9 +169,69 @@ def test_compact_proposer_word_cap() -> None:
     assert row["word_count"] <= 500
 
 
+def test_compact_v2_changes_only_the_final_reviewer_prompt() -> None:
+    manifest = profiles.profile_manifest("compact")
+    current_hashes = {
+        name: row["sha256"] for name, row in manifest["prompts"].items()
+    }
+    changed = {
+        name
+        for name, old_hash in COMPACT_PROMPT_SHA256_AT_FBAC2478.items()
+        if current_hashes[name] != old_hash
+    }
+    assert manifest["profile_version"] == "compact-reply-profile-v2"
+    assert manifest["prompt_version_constants"] == {
+        "PROPOSER_PROMPT_VERSION": "compact-proposer-v1",
+        "REVIEWER_PROMPT_VERSION": "compact-reviewer-v2",
+        "NO_REPLY_REVIEW_PROMPT_VERSION": "compact-no-reply-review-v1",
+        "CLAIM_AUDITOR_PROMPT_VERSION": "compact-claim-auditor-v1",
+    }
+    assert changed == {"reviewer"}
+    assert current_hashes["proposer"] == COMPACT_PROMPT_SHA256_AT_FBAC2478["proposer"]
+    assert current_hashes["no_reply_review"] == COMPACT_PROMPT_SHA256_AT_FBAC2478[
+        "no_reply_review"
+    ]
+    assert current_hashes["claim_auditor"] == COMPACT_PROMPT_SHA256_AT_FBAC2478[
+        "claim_auditor"
+    ]
+
+
 def test_compact_final_reviewer_word_cap() -> None:
     row = profiles.profile_manifest("compact")["prompts"]["reviewer"]
     assert row["word_count"] <= 430
+
+
+def test_compact_reviewer_schema_paragraph_is_bounded_and_explicit() -> None:
+    paragraph = (
+        "Schema discipline:"
+        + profiles.COMPACT_REVIEWER_SYSTEM_PROMPT.split("Schema discipline:", 1)[1]
+        .split("\n\n", 1)[0]
+    )
+    compact = " ".join(paragraph.split())
+    assert profiles.prompt_word_count(paragraph) <= 90
+    assert (
+        "direct-question classification from incoming contribution, not proposed reply"
+        in compact
+    )
+    assert (
+        'direct_factual_question_present=false, requested_answer_type="none", '
+        'direct_answer_complete=false and direct_answer_text=""'
+        in compact
+    )
+    assert "Non-direct:" in compact and 'direct_answer_text=""' in compact
+    assert "narrowest permitted answer type" in compact
+    assert "copy the complete first reply sentence exactly into direct_answer_text" in compact
+    assert (
+        "each proposed_reply sentence exactly one verbatim sentence_assessment in order"
+        in compact
+    )
+    assert (
+        "factual_claims includes every externally checkable clause verbatim and in order"
+        in compact
+    )
+    assert "unsupported included" in compact
+    assert "actual_factual_claims exactly concatenates those lists" in compact
+    assert "Evidence affects support/verdict, never permits inventory omission" in compact
 
 
 def test_compact_no_reply_reviewer_word_cap() -> None:
@@ -152,6 +278,43 @@ def test_strategy_and_evidence_prompt_versions_remain_unchanged() -> None:
     manifest = profiles.profile_manifest("compact")
     assert manifest["strategy_version"] == strategy_version
     assert manifest["evidence_prompt_version"] == evidence_version
+
+
+def test_production_reviewer_rejects_non_direct_answer_declaration() -> None:
+    document = copy.deepcopy(valid_reviewer_document())
+    document["direct_answer_complete"] = True
+    with pytest.raises(
+        ValueError,
+        match="reviewer non-direct contribution cannot declare a direct answer",
+    ):
+        reply_strategy.validate_reviewer(
+            document,
+            maximum_claims=8,
+            proposed_reply="The council opened the library.",
+        )
+
+
+def test_production_reviewer_rejects_incomplete_flattened_claim_inventory() -> None:
+    document = copy.deepcopy(valid_reviewer_document())
+    document["actual_factual_claims"] = []
+    with pytest.raises(
+        reply_strategy.NonRetryableReviewerResponseError,
+        match="reviewer sentence claim inventory is incomplete or out of order",
+    ):
+        reply_strategy.validate_reviewer(
+            document,
+            maximum_claims=8,
+            proposed_reply="The council opened the library.",
+        )
+
+
+def test_production_reviewer_accepts_corrected_synthetic_contract() -> None:
+    document = valid_reviewer_document()
+    assert reply_strategy.validate_reviewer(
+        document,
+        maximum_claims=8,
+        proposed_reply="The council opened the library.",
+    ) == document
 
 
 def test_compact_reviewer_receives_only_five_most_recent_replies() -> None:
