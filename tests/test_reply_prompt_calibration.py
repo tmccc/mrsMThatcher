@@ -140,6 +140,18 @@ def install_synthetic_execute(
 
     def post(*_args: Any, **_kwargs: Any) -> FakeResponse:
         counters["post"] += 1
+        metadata_path = output / "provider_model_metadata.json"
+        phase_path = output / "provider_phase_identity.json"
+        assert metadata_path.is_file()
+        assert phase_path.is_file()
+        metadata_document = json.loads(metadata_path.read_text(encoding="utf-8"))
+        phase_document = json.loads(phase_path.read_text(encoding="utf-8"))
+        assert phase_document["provider_model_metadata_sha256"] == hashlib.sha256(
+            metadata_path.read_bytes()
+        ).hexdigest()
+        assert phase_document["prompt_text_token_price"] == metadata_document[
+            "prompt_text_token_price"
+        ]
         return successful_response()
 
     def pipeline(**kwargs: Any) -> SimpleNamespace:
@@ -153,7 +165,10 @@ def install_synthetic_execute(
             reply=reply,
             model_call_count=1 if use_transport else 0,
             revision_count=0,
-            audit=({"synthetic": True},),
+            audit=(
+                {"stage": "quotation_resolution", "status": "not_resolved"},
+                {"stage": "proposer", "status": "completed"},
+            ),
         )
 
     monkeypatch.setattr(runner, "execution_provenance", provenance)
@@ -246,6 +261,66 @@ def copy_as_incomplete(source: Path, destination: Path) -> Path:
     for name in runner.FINAL_OUTPUT_FILES:
         (destination / name).unlink()
     return destination
+
+
+def copy_before_model_operations(source: Path, destination: Path) -> Path:
+    output = copy_as_incomplete(source, destination)
+    for name in ("prompt_receipts.jsonl", "pipeline_results.jsonl", "pipeline_audits.jsonl"):
+        (output / name).write_text("", encoding="utf-8")
+    raw_responses = output / "raw_responses"
+    shutil.rmtree(raw_responses)
+    raw_responses.mkdir(mode=0o700)
+    ledger_path = output / "cost_ledger.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger.update({
+        "operations": [],
+        "known_cost_in_usd_ticks": 0,
+        "known_cost_usd": 0.0,
+        "ambiguous_exposure_in_usd_ticks": 0,
+        "ambiguous_exposure_usd": 0.0,
+        "combined_exposure_usd": 0.0,
+    })
+    ledger_path.write_text(
+        json.dumps(ledger, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return output
+
+
+def synthetic_call_contract(
+    stages: list[str], audit: list[dict[str, Any]]
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]], dict[str, Any]]:
+    case = synthetic_case()
+    identity = runner.pipeline_execution_identity(
+        case,
+        "compact",
+        runner.profile_manifests(),
+        "f" * 64,
+        "grok-4.3",
+    )
+    binding = runner.pipeline_execution_binding(identity)
+    receipts: dict[str, dict[str, Any]] = {}
+    operations: list[dict[str, Any]] = []
+    for sequence, stage in enumerate(stages, 1):
+        logical_call_id = f"{binding['case_identity']}:{sequence}:{stage}"
+        request_hash = hashlib.sha256(logical_call_id.encode("utf-8")).hexdigest()
+        receipt = {
+            **identity,
+            **binding,
+            "stage": stage,
+            "call_sequence": sequence,
+            "logical_call_id": logical_call_id,
+            "request_hash": request_hash,
+        }
+        receipts[logical_call_id] = receipt
+        operations.append({
+            "logical_call_id": logical_call_id,
+            "case_id": binding["case_identity"],
+            "stage": stage,
+            "request_hash": request_hash,
+            "status": "completed",
+        })
+    return identity, receipts, {"operations": operations}
 
 
 def test_replay_pack_checksum_verification(pack_data: dict[str, Any], tmp_path: Path) -> None:
@@ -567,6 +642,101 @@ def test_deliberate_no_reply_alone_renders_as_no_reply() -> None:
         runner.render_outcome({"status": "no_reply", "public_reply": "not silence"})
 
 
+@pytest.mark.parametrize(
+    ("stages", "audit"),
+    [
+        (
+            ["proposer", "reviewer"],
+            [
+                {"stage": "quotation_resolution", "status": "not_resolved"},
+                {"stage": "proposer", "status": "completed"},
+                {"stage": "reviewer", "status": "completed"},
+            ],
+        ),
+        (
+            ["proposer", "no_reply_reviewer"],
+            [
+                {"stage": "proposer", "status": "completed"},
+                {"stage": "no_reply_reviewer", "status": "completed"},
+            ],
+        ),
+        (
+            ["proposer", "proposer", "reviewer"],
+            [
+                {"stage": "proposer", "status": "invalid_response_retry", "attempt": 1},
+                {"stage": "proposer", "status": "completed"},
+                {"stage": "reviewer", "status": "completed"},
+            ],
+        ),
+        (
+            ["proposer", "reviewer", "revision_proposer", "revision_reviewer"],
+            [
+                {"stage": "proposer", "status": "completed"},
+                {"stage": "reviewer", "status": "completed", "verdict": "revise"},
+                {"stage": "revision_proposer", "status": "completed"},
+                {"stage": "revision_reviewer", "status": "completed"},
+            ],
+        ),
+        (
+            ["proposer", "evidence", "reviewer"],
+            [
+                {"stage": "proposer", "status": "completed"},
+                {"stage": "evidence", "status": "completed"},
+                {"stage": "reviewer", "status": "completed"},
+            ],
+        ),
+    ],
+)
+def test_realistic_pipeline_audit_model_stage_sequences_pass(
+    stages: list[str], audit: list[dict[str, Any]]
+) -> None:
+    identity, receipts, ledger = synthetic_call_contract(stages, audit)
+    inventory = runner.collect_call_inventory(
+        identity, audit=audit, receipts=receipts, ledger_data=ledger
+    )
+    assert inventory["model_call_count"] == len(stages)
+    assert inventory["model_stage_sequence"] == stages
+    assert len(inventory["logical_call_ids"]) == len(stages)
+
+
+def test_audit_and_receipt_stage_order_mismatch_is_refused() -> None:
+    audit = [
+        {"stage": "proposer", "status": "completed"},
+        {"stage": "reviewer", "status": "completed"},
+    ]
+    identity, receipts, ledger = synthetic_call_contract(
+        ["proposer", "no_reply_reviewer"], audit
+    )
+    with pytest.raises(runner.CalibrationError, match="audit and receipt stages differ"):
+        runner.collect_call_inventory(
+            identity, audit=audit, receipts=receipts, ledger_data=ledger
+        )
+
+
+def test_missing_proposer_call_is_refused() -> None:
+    audit = [{"stage": "reviewer", "status": "completed"}]
+    identity, receipts, ledger = synthetic_call_contract(["reviewer"], audit)
+    with pytest.raises(runner.CalibrationError, match="first model stage is not proposer"):
+        runner.collect_call_inventory(
+            identity, audit=audit, receipts=receipts, ledger_data=ledger
+        )
+
+
+def test_duplicate_or_non_contiguous_logical_call_sequence_is_refused() -> None:
+    audit = [
+        {"stage": "proposer", "status": "completed"},
+        {"stage": "reviewer", "status": "completed"},
+    ]
+    identity, receipts, ledger = synthetic_call_contract(["proposer", "reviewer"], audit)
+    second_id, second = list(receipts.items())[1]
+    second["call_sequence"] = 3
+    with pytest.raises(runner.CalibrationError, match="not contiguous"):
+        runner.collect_call_inventory(
+            identity, audit=audit, receipts=receipts, ledger_data=ledger
+        )
+    assert second_id in receipts
+
+
 def test_blind_key_reconstructs_mapping(validation_pair: tuple[Path, Path]) -> None:
     key = json.loads((validation_pair[0] / "blind_key.json").read_text(encoding="utf-8"))
     for mapping in key["assignments"].values():
@@ -756,6 +926,33 @@ def test_run_identity_precedes_provider_and_binds_all_immutable_inputs(
         assert len(identity[name]) == 64
 
 
+def test_provider_phase_identity_binds_metadata_and_exact_prices(
+    completed_execute_output: Path,
+) -> None:
+    metadata_path = completed_execute_output / "provider_model_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    phase = json.loads(
+        (completed_execute_output / "provider_phase_identity.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert set(phase) == runner.PROVIDER_PHASE_FIELDS
+    assert phase["schema_version"] == 1
+    assert phase["provider_model_metadata_sha256"] == hashlib.sha256(
+        metadata_path.read_bytes()
+    ).hexdigest()
+    assert phase["run_identity_sha256"] == hashlib.sha256(
+        (completed_execute_output / "run_identity.json").read_bytes()
+    ).hexdigest()
+    for name in (
+        "usd_ticks_per_dollar",
+        "prompt_text_token_price",
+        "cached_prompt_text_token_price",
+        "completion_text_token_price",
+    ):
+        assert phase[name] == metadata[name]
+
+
 @pytest.mark.parametrize("changed", ["blind-seed", "hard-limit"])
 def test_resume_with_changed_identity_or_hard_limit_is_refused(
     completed_execute_output: Path,
@@ -774,6 +971,141 @@ def test_resume_with_changed_identity_or_hard_limit_is_refused(
     with pytest.raises(runner.CalibrationError, match="run identity differs"):
         runner.run(args, environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
     assert counters["metadata"] == counters["post"] == counters["pipeline"] == 0
+
+
+def test_provider_phase_exists_before_first_synthetic_model_post(
+    completed_execute_output: Path,
+) -> None:
+    assert (completed_execute_output / "provider_model_metadata.json").is_file()
+    assert (completed_execute_output / "provider_phase_identity.json").is_file()
+
+
+def test_resume_complete_provider_phase_with_zero_operations_skips_metadata_get(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_before_model_operations(completed_execute_output, tmp_path / "phase-complete")
+    counters = install_synthetic_execute(monkeypatch, output)
+    runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 12, "pipeline": 12}
+
+
+def test_resume_without_provider_files_and_zero_operations_repeats_one_get(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_before_model_operations(completed_execute_output, tmp_path / "phase-neither")
+    (output / "provider_model_metadata.json").unlink()
+    (output / "provider_phase_identity.json").unlink()
+    counters = install_synthetic_execute(monkeypatch, output)
+    runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 1, "post": 12, "pipeline": 12}
+
+
+@pytest.mark.parametrize(
+    "retained",
+    ["provider_model_metadata.json", "provider_phase_identity.json"],
+)
+def test_resume_one_incomplete_provider_file_republishes_phase(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    retained: str,
+) -> None:
+    output = copy_before_model_operations(
+        completed_execute_output, tmp_path / f"phase-only-{retained}"
+    )
+    for name in ("provider_model_metadata.json", "provider_phase_identity.json"):
+        if name != retained:
+            (output / name).unlink()
+    counters = install_synthetic_execute(monkeypatch, output)
+    runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 1, "post": 12, "pipeline": 12}
+    assert (output / "provider_model_metadata.json").is_file()
+    assert (output / "provider_phase_identity.json").is_file()
+
+
+def test_complete_provider_files_that_disagree_are_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_before_model_operations(completed_execute_output, tmp_path / "phase-disagree")
+    phase_path = output / "provider_phase_identity.json"
+    phase = json.loads(phase_path.read_text(encoding="utf-8"))
+    phase["prompt_text_token_price"] += 1
+    phase_path.write_text(json.dumps(phase, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="provider phase identity differs"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_missing_provider_phase_with_model_operations_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "phase-missing-with-calls")
+    (output / "provider_phase_identity.json").unlink()
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="mandatory after model operations"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_altered_provider_metadata_with_model_operations_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "metadata-altered-with-calls")
+    metadata_path = output / "provider_model_metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["completion_text_token_price"] += 1
+    metadata_path.write_text(json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="provider phase identity differs"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_missing_empty_ledger_is_recreated_only_before_provider_or_execution_evidence(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    safe = copy_before_model_operations(completed_execute_output, tmp_path / "ledger-safe")
+    (safe / "cost_ledger.json").unlink()
+    (safe / "provider_model_metadata.json").unlink()
+    (safe / "provider_phase_identity.json").unlink()
+    counters = install_synthetic_execute(monkeypatch, safe)
+    runner.run(paid_cli_args(safe, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 1, "post": 12, "pipeline": 12}
+
+    unsafe = copy_before_model_operations(completed_execute_output, tmp_path / "ledger-unsafe")
+    (unsafe / "cost_ledger.json").unlink()
+    counters = install_synthetic_execute(monkeypatch, unsafe)
+    with pytest.raises(runner.CalibrationError, match="cannot be recreated"):
+        runner.run(paid_cli_args(unsafe, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+    evidence = copy_before_model_operations(
+        completed_execute_output, tmp_path / "ledger-execution-evidence"
+    )
+    (evidence / "cost_ledger.json").unlink()
+    (evidence / "provider_model_metadata.json").unlink()
+    (evidence / "provider_phase_identity.json").unlink()
+    runner.write_jsonl(evidence / "prompt_receipts.jsonl", [{"existing": "receipt"}])
+    counters = install_synthetic_execute(monkeypatch, evidence)
+    with pytest.raises(runner.CalibrationError, match="cannot be recreated"):
+        runner.run(
+            paid_cli_args(evidence, "--resume"),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
 
 
 def test_resume_with_blocked_ledger_is_refused(
@@ -858,6 +1190,93 @@ def test_completed_pipeline_rows_and_receipts_are_not_duplicated_on_resume(
     assert (completed_execute_output / "prompt_receipts.jsonl").read_bytes() == before_receipts
 
 
+@pytest.mark.parametrize(
+    "last_written",
+    [
+        "blind_review.md",
+        "blind_review.csv",
+        "blind_key.json",
+        "calibration_report.md",
+        "run_manifest.json",
+    ],
+)
+def test_interrupted_finalisation_regenerates_identical_bytes_with_zero_calls(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    last_written: str,
+) -> None:
+    output = tmp_path / f"interrupted-{last_written}"
+    shutil.copytree(completed_execute_output, output)
+    final_order = list(runner.DISPOSABLE_DERIVED_FILES)
+    cutoff = final_order.index(last_written)
+    for name in final_order[cutoff + 1:]:
+        (output / name).unlink()
+    durable_before = {
+        path.relative_to(output).as_posix(): path.read_bytes()
+        for path in output.rglob("*")
+        if path.is_file() and path.name not in runner.FINAL_OUTPUT_FILES
+    }
+    counters = install_synthetic_execute(monkeypatch, output)
+    runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+    expected = {
+        path.relative_to(completed_execute_output).as_posix(): path.read_bytes()
+        for path in completed_execute_output.rglob("*")
+        if path.is_file()
+    }
+    recovered = {
+        path.relative_to(output).as_posix(): path.read_bytes()
+        for path in output.rglob("*")
+        if path.is_file()
+    }
+    assert recovered == expected
+    assert {
+        path.relative_to(output).as_posix(): path.read_bytes()
+        for path in output.rglob("*")
+        if path.is_file() and path.name not in runner.FINAL_OUTPUT_FILES
+    } == durable_before
+
+
+def test_valid_sha256sums_is_an_idempotent_zero_call_marker(
+    completed_execute_output: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = {
+        path.relative_to(completed_execute_output).as_posix(): path.read_bytes()
+        for path in completed_execute_output.rglob("*")
+        if path.is_file()
+    }
+    counters = install_synthetic_execute(monkeypatch, completed_execute_output)
+    runner.run(
+        paid_cli_args(completed_execute_output, "--resume"),
+        environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+    )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+    assert {
+        path.relative_to(completed_execute_output).as_posix(): path.read_bytes()
+        for path in completed_execute_output.rglob("*")
+        if path.is_file()
+    } == before
+
+
+def test_invalid_existing_sha256sums_is_refused_without_regeneration(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "invalid-final-marker"
+    shutil.copytree(completed_execute_output, output)
+    marker = output / "SHA256SUMS"
+    marker.write_text("invalid marker\n", encoding="utf-8")
+    before = marker.read_bytes()
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="SHA256SUMS line"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+    assert marker.read_bytes() == before
+
+
 def test_missing_result_is_reconstructed_from_exact_completed_cache(
     completed_execute_output: Path,
     tmp_path: Path,
@@ -881,6 +1300,160 @@ def test_missing_result_is_reconstructed_from_exact_completed_cache(
     assert len(results) == len(audits) == 12
     assert len((output / "prompt_receipts.jsonl").read_text(encoding="utf-8").splitlines()) == receipt_count
     runner.verify_output_sha256sums(output)
+
+
+def test_missing_audit_is_reconstructed_from_exact_completed_cache(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "reconstruct-audit")
+    audit_path = output / "pipeline_audits.jsonl"
+    rows = audit_path.read_text(encoding="utf-8").splitlines()
+    audit_path.write_text("\n".join(rows[1:]) + "\n", encoding="utf-8")
+    counters = install_synthetic_execute(monkeypatch, output)
+    runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 1}
+    assert len(runner.read_jsonl(audit_path)) == 12
+    assert len(runner.read_jsonl(output / "pipeline_results.jsonl")) == 12
+
+
+def test_result_call_counts_equal_owned_receipts_and_ledger_operations(
+    completed_execute_output: Path,
+) -> None:
+    results = runner.read_jsonl(completed_execute_output / "pipeline_results.jsonl")
+    receipts = runner.read_jsonl(completed_execute_output / "prompt_receipts.jsonl")
+    ledger = json.loads(
+        (completed_execute_output / "cost_ledger.json").read_text(encoding="utf-8")
+    )
+    for result in results:
+        case_identity = result["case_identity"]
+        assert result["model_call_count"] == len(result["logical_call_ids"])
+        assert result["model_call_count"] == sum(
+            row["case_identity"] == case_identity for row in receipts
+        )
+        assert result["model_call_count"] == sum(
+            row["case_id"] == case_identity for row in ledger["operations"]
+        )
+
+
+@pytest.mark.parametrize("missing_side", ["receipt", "ledger"])
+def test_orphan_receipt_or_ledger_operation_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing_side: str,
+) -> None:
+    output = copy_as_incomplete(
+        completed_execute_output, tmp_path / f"orphan-{missing_side}"
+    )
+    if missing_side == "receipt":
+        receipt_path = output / "prompt_receipts.jsonl"
+        runner.write_jsonl(receipt_path, runner.read_jsonl(receipt_path)[1:])
+    else:
+        ledger_path = output / "cost_ledger.json"
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        ledger["operations"] = ledger["operations"][1:]
+        runner.write_json(ledger_path, ledger)
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="has no ledger operation|has no prompt receipt"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_receipt_ledger_request_hash_mismatch_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "receipt-hash-mismatch")
+    receipt_path = output / "prompt_receipts.jsonl"
+    receipts = runner.read_jsonl(receipt_path)
+    receipts[0]["request_hash"] = "0" * 64
+    runner.write_jsonl(receipt_path, receipts)
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="request hash differs"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_operation_assigned_to_wrong_case_identity_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "wrong-operation-case")
+    ledger_path = output / "cost_ledger.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["operations"][0]["case_id"] = ledger["operations"][1]["case_id"]
+    runner.write_json(ledger_path, ledger)
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="has no ledger operation"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_pipeline_audit_sha_mismatch_is_refused(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "audit-sha-mismatch")
+    result_path = output / "pipeline_results.jsonl"
+    results = runner.read_jsonl(result_path)
+    results[0]["pipeline_audit_sha256"] = "0" * 64
+    runner.write_jsonl(result_path, results)
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="result/audit binding differs"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_extra_completed_operation_blocks_finalisation_as_orphan(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = copy_as_incomplete(completed_execute_output, tmp_path / "extra-operation")
+    receipt_path = output / "prompt_receipts.jsonl"
+    receipts = runner.read_jsonl(receipt_path)
+    extra_receipt = dict(receipts[0])
+    case_identity = extra_receipt["case_identity"]
+    extra_id = f"{case_identity}:2:reviewer"
+    extra_hash = hashlib.sha256(extra_id.encode("utf-8")).hexdigest()
+    extra_receipt.update({
+        "stage": "reviewer",
+        "call_sequence": 2,
+        "logical_call_id": extra_id,
+        "request_hash": extra_hash,
+    })
+    runner.write_jsonl(receipt_path, [*receipts, extra_receipt])
+    ledger_path = output / "cost_ledger.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    original_operation = ledger["operations"][0]
+    extra_operation = dict(original_operation)
+    extra_operation.update({
+        "logical_call_id": extra_id,
+        "case_id": case_identity,
+        "stage": "reviewer",
+        "request_hash": extra_hash,
+    })
+    ledger["operations"].append(extra_operation)
+    runner.write_json(ledger_path, ledger)
+    original_cache = output / "raw_responses" / (
+        hashlib.sha256(original_operation["logical_call_id"].encode("utf-8")).hexdigest()
+        + ".json"
+    )
+    cache = json.loads(original_cache.read_text(encoding="utf-8"))
+    cache.update({"logical_call_id": extra_id, "request_hash": extra_hash})
+    runner.write_json(
+        output / "raw_responses" / (hashlib.sha256(extra_id.encode("utf-8")).hexdigest() + ".json"),
+        cache,
+    )
+    counters = install_synthetic_execute(monkeypatch, output)
+    with pytest.raises(runner.CalibrationError, match="audit and receipt stages differ"):
+        runner.run(paid_cli_args(output, "--resume"), environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
 
 
 def test_operational_failure_prevents_blind_review_generation(
@@ -946,6 +1519,7 @@ def test_final_manifest_contains_all_execution_provenance_fields(
         "execution_plan_sha256",
         "current_profile_manifest_sha256",
         "compact_profile_manifest_sha256",
+        "provider_phase_identity_sha256",
         "provider_model_metadata_sha256",
         "run_identity_sha256",
         "cost_ledger_status",
@@ -969,6 +1543,19 @@ def test_final_output_has_exactly_twelve_unique_valid_results_and_checksums(
     keys = {(row["candidate_id"], row["variant"]) for row in rows}
     assert len(rows) == len(keys) == 12
     assert {row["status"] for row in rows} <= runner.VALID_PIPELINE_STATUSES
+    assert all(row["model_call_count"] >= 1 for row in rows)
+    assert all(row["model_call_count"] == len(row["logical_call_ids"]) for row in rows)
+    assert all(row["call_inventory_sha256"] for row in rows)
+    assert all(row["pipeline_audit_sha256"] for row in rows)
+    audits = runner.read_jsonl(completed_execute_output / "pipeline_audits.jsonl")
+    assert len(audits) == 12
+    assert {
+        (row["candidate_id"], row["variant"], row["execution_identity_sha256"])
+        for row in rows
+    } == {
+        (row["candidate_id"], row["variant"], row["execution_identity_sha256"])
+        for row in audits
+    }
     receipts = runner.read_jsonl(completed_execute_output / "prompt_receipts.jsonl")
     assert len(receipts) == len({row["logical_call_id"] for row in receipts})
     assert {row["transport_status"] for row in receipts} <= {

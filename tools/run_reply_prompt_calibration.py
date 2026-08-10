@@ -93,13 +93,50 @@ SOURCE_PATHS = {
     "prompt_profiles_source_sha256": PROJECT_ROOT / "tools/reply_prompt_profiles.py",
     "runner_source_sha256": Path(__file__).resolve(),
 }
-FINAL_OUTPUT_FILES = {
+DISPOSABLE_DERIVED_FILES = (
     "blind_review.md",
     "blind_review.csv",
     "blind_key.json",
     "calibration_report.md",
     "run_manifest.json",
     "SHA256SUMS",
+)
+FINAL_OUTPUT_FILES = set(DISPOSABLE_DERIVED_FILES)
+DURABLE_CORE_FILES = {
+    "run_identity.json",
+    "provider_phase_identity.json",
+    "provider_model_metadata.json",
+    "cost_ledger.json",
+    "pack_verification.json",
+    "profile_manifests.json",
+    "execution_plan.json",
+    "prompt_receipts.jsonl",
+    "pipeline_results.jsonl",
+    "pipeline_audits.jsonl",
+}
+PROVIDER_PHASE_FIELDS = {
+    "schema_version",
+    "runner_version",
+    "run_identity_sha256",
+    "provider_model_metadata_sha256",
+    "model",
+    "xai_endpoint",
+    "usd_ticks_per_dollar",
+    "prompt_text_token_price",
+    "cached_prompt_text_token_price",
+    "completion_text_token_price",
+}
+MODEL_AUDIT_STAGES = {
+    "proposer",
+    "revision_proposer",
+    "no_reply_reviewer",
+    "revision_no_reply_reviewer",
+    "claim_auditor",
+    "revision_claim_auditor",
+    "evidence",
+    "revision_evidence",
+    "reviewer",
+    "revision_reviewer",
 }
 VALID_PIPELINE_STATUSES = {"approved", "no_reply"}
 
@@ -503,6 +540,18 @@ def pipeline_execution_identity(
         "validated_context_sha256": value_sha256(case["context"]),
         "recent_replies_sha256": value_sha256(case["recent_replies"]),
         "model": model,
+    }
+
+
+def pipeline_execution_binding(identity: dict[str, Any]) -> dict[str, str]:
+    """Return the one execution hash and case ID shared by every durable record."""
+    execution_identity_sha256 = value_sha256(identity)
+    return {
+        "execution_identity_sha256": execution_identity_sha256,
+        "case_identity": (
+            f"{identity['candidate_id']}:{identity['variant']}:"
+            f"{execution_identity_sha256}"
+        ),
     }
 
 
@@ -1065,6 +1114,115 @@ def validate_provider_metadata(metadata: Any, *, model: str) -> dict[str, Any]:
     return metadata
 
 
+def build_provider_phase_identity(
+    *,
+    identity_sha256: str,
+    metadata_sha256: str,
+    metadata: dict[str, Any],
+    model: str,
+    xai_endpoint: str,
+) -> dict[str, Any]:
+    """Bind authenticated pricing inputs before any model operation can begin."""
+    return {
+        "schema_version": 1,
+        "runner_version": RUNNER_VERSION,
+        "run_identity_sha256": identity_sha256,
+        "provider_model_metadata_sha256": metadata_sha256,
+        "model": model,
+        "xai_endpoint": xai_endpoint,
+        "usd_ticks_per_dollar": metadata["usd_ticks_per_dollar"],
+        "prompt_text_token_price": metadata["prompt_text_token_price"],
+        "cached_prompt_text_token_price": metadata[
+            "cached_prompt_text_token_price"
+        ],
+        "completion_text_token_price": metadata[
+            "completion_text_token_price"
+        ],
+    }
+
+
+def validate_provider_phase_identity(
+    phase: Any,
+    *,
+    identity_sha256: str,
+    metadata_path: Path,
+    metadata: dict[str, Any],
+    model: str,
+    xai_endpoint: str,
+) -> dict[str, Any]:
+    """Require an exact provider phase binding to the stored metadata bytes."""
+    if not isinstance(phase, dict) or set(phase) != PROVIDER_PHASE_FIELDS:
+        raise CalibrationError("stored provider phase identity fields differ")
+    expected = build_provider_phase_identity(
+        identity_sha256=identity_sha256,
+        metadata_sha256=file_sha256(metadata_path),
+        metadata=metadata,
+        model=model,
+        xai_endpoint=xai_endpoint,
+    )
+    if phase != expected:
+        raise CalibrationError("stored provider phase identity differs")
+    return phase
+
+
+def read_and_verify_provider_phase(
+    output: Path,
+    *,
+    identity_sha256: str,
+    model: str,
+    xai_endpoint: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Re-read both authoritative provider files and verify their exact binding."""
+    metadata_path = output / "provider_model_metadata.json"
+    metadata = validate_provider_metadata(read_json(metadata_path), model=model)
+    phase = validate_provider_phase_identity(
+        read_json(output / "provider_phase_identity.json"),
+        identity_sha256=identity_sha256,
+        metadata_path=metadata_path,
+        metadata=metadata,
+        model=model,
+        xai_endpoint=xai_endpoint,
+    )
+    return metadata, phase
+
+
+def publish_provider_phase(
+    output: Path,
+    *,
+    identity_sha256: str,
+    model: str,
+    xai_endpoint: str,
+    api_key: str,
+    get: Callable[..., Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Fetch, atomically publish, then re-read the complete provider phase."""
+    metadata = validate_provider_metadata(
+        pilot.fetch_model_metadata(
+            api_key=api_key,
+            base_url=xai_endpoint,
+            model=model,
+            get=get,
+        ),
+        model=model,
+    )
+    metadata_path = output / "provider_model_metadata.json"
+    write_json(metadata_path, metadata)
+    phase = build_provider_phase_identity(
+        identity_sha256=identity_sha256,
+        metadata_sha256=file_sha256(metadata_path),
+        metadata=metadata,
+        model=model,
+        xai_endpoint=xai_endpoint,
+    )
+    write_json(output / "provider_phase_identity.json", phase)
+    return read_and_verify_provider_phase(
+        output,
+        identity_sha256=identity_sha256,
+        model=model,
+        xai_endpoint=xai_endpoint,
+    )
+
+
 def validate_resume_ledger(
     ledger_data: Any, *, model: str, hard_limit_usd: float
 ) -> dict[str, Any]:
@@ -1103,6 +1261,100 @@ def validate_resume_ledger(
                 f"with status {operation.get('status')}"
             )
     return ledger_data
+
+
+def execution_evidence_exists(output: Path) -> bool:
+    """Return whether any model-operation or pipeline evidence already exists."""
+    if any((output / name).exists() for name in FINAL_OUTPUT_FILES):
+        return True
+    for name in (
+        "prompt_receipts.jsonl",
+        "pipeline_results.jsonl",
+        "pipeline_audits.jsonl",
+        "execution_failures.jsonl",
+    ):
+        path = output / name
+        if path.exists() and read_jsonl(path):
+            return True
+    response_dir = output / "raw_responses"
+    return response_dir.exists() and any(response_dir.iterdir())
+
+
+def open_resume_ledger(
+    output: Path, *, model: str, hard_limit_usd: float
+) -> pilot.PilotLedger:
+    """Open the ledger, or recreate one empty ledger before all provider evidence."""
+    ledger_path = output / "cost_ledger.json"
+    if not ledger_path.exists():
+        if (
+            execution_evidence_exists(output)
+            or (output / "provider_model_metadata.json").exists()
+            or (output / "provider_phase_identity.json").exists()
+        ):
+            raise CalibrationError(
+                "missing cost ledger cannot be recreated after provider or execution evidence"
+            )
+        return pilot.PilotLedger(
+            ledger_path,
+            model=model,
+            hard_limit_usd=hard_limit_usd,
+            run_version=RUNNER_VERSION,
+        )
+    validate_resume_ledger(
+        read_json(ledger_path), model=model, hard_limit_usd=hard_limit_usd
+    )
+    return pilot.PilotLedger(
+        ledger_path,
+        model=model,
+        hard_limit_usd=hard_limit_usd,
+        run_version=RUNNER_VERSION,
+    )
+
+
+def resume_or_publish_provider_phase(
+    output: Path,
+    *,
+    ledger_data: dict[str, Any],
+    identity_sha256: str,
+    model: str,
+    xai_endpoint: str,
+    api_key: str,
+    get: Callable[..., Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resume authenticated pricing only while the ledger has zero operations."""
+    metadata_path = output / "provider_model_metadata.json"
+    phase_path = output / "provider_phase_identity.json"
+    metadata_exists = metadata_path.exists()
+    phase_exists = phase_path.exists()
+    has_operations = bool(ledger_data.get("operations"))
+    if has_operations:
+        if not metadata_exists or not phase_exists:
+            raise CalibrationError(
+                "provider metadata and phase identity are mandatory after model operations"
+            )
+        return read_and_verify_provider_phase(
+            output,
+            identity_sha256=identity_sha256,
+            model=model,
+            xai_endpoint=xai_endpoint,
+        )
+    if metadata_exists and phase_exists:
+        return read_and_verify_provider_phase(
+            output,
+            identity_sha256=identity_sha256,
+            model=model,
+            xai_endpoint=xai_endpoint,
+        )
+    if metadata_exists != phase_exists:
+        (metadata_path if metadata_exists else phase_path).unlink()
+    return publish_provider_phase(
+        output,
+        identity_sha256=identity_sha256,
+        model=model,
+        xai_endpoint=xai_endpoint,
+        api_key=api_key,
+        get=get,
+    )
 
 
 def verify_completed_response_caches(output: Path, ledger_data: dict[str, Any]) -> None:
@@ -1190,17 +1442,17 @@ def verify_prompt_receipt_contracts(
         )
         if any(receipt.get(key) != value for key, value in expected.items()):
             raise CalibrationError(f"prompt receipt execution identity differs for {logical_call_id}")
+        binding = pipeline_execution_binding(expected)
+        if any(receipt.get(key) != value for key, value in binding.items()):
+            raise CalibrationError(f"prompt receipt execution binding differs for {logical_call_id}")
         sequence = receipt.get("call_sequence")
         stage = receipt.get("stage")
-        case_identity = (
-            f"{candidate_id}:{variant}:{value_sha256(expected)}"
-        )
         if (
             type(sequence) is not int
             or sequence <= 0
             or not isinstance(stage, str)
             or not stage
-            or logical_call_id != f"{case_identity}:{sequence}:{stage}"
+            or logical_call_id != f"{binding['case_identity']}:{sequence}:{stage}"
             or re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("system_prompt_sha256")))
             is None
             or re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("user_prompt_sha256")))
@@ -1236,39 +1488,195 @@ def verify_receipts_against_ledger(
         raise CalibrationError("prompt receipt and cost-ledger inventories differ")
 
 
-def existing_finalised_run(
-    output: Path,
-    identity_sha256: str,
+def audit_model_stage_sequence(audit: Any) -> list[str]:
+    """Derive model attempts in audit order under run_reply_pipeline's audit contract."""
+    if not isinstance(audit, list):
+        raise CalibrationError("pipeline audit is not a list")
+    stages: list[str] = []
+    for row in audit:
+        if not isinstance(row, dict):
+            raise CalibrationError("pipeline audit row is invalid")
+        stage = row.get("stage")
+        status = row.get("status")
+        if stage not in MODEL_AUDIT_STAGES:
+            continue
+        if status in {"completed", "invalid", "invalid_response_retry"}:
+            stages.append(stage)
+        elif (
+            status == "insufficient"
+            and stage in {"evidence", "revision_evidence"}
+            and row.get("reason") != "claim_without_candidate_passage"
+        ):
+            stages.append(stage)
+    return stages
+
+
+def collect_call_inventory(
+    identity: dict[str, Any],
+    *,
+    audit: list[dict[str, Any]],
     receipts: dict[str, dict[str, Any]],
     ledger_data: dict[str, Any],
-) -> Path | None:
-    """Verify and return a successful final run, or reject partial finalisation."""
-    present = {name for name in FINAL_OUTPUT_FILES if (output / name).exists()}
-    if not present:
-        return None
-    if present != FINAL_OUTPUT_FILES:
-        raise CalibrationError("resume output contains a partially finalised run")
-    verify_receipts_against_ledger(
-        receipts, ledger_data, require_complete_inventory=True
+) -> dict[str, Any]:
+    """Bind one pipeline to exactly its completed receipt and billed operations."""
+    binding = pipeline_execution_binding(identity)
+    case_identity = binding["case_identity"]
+    matching_receipts = sorted(
+        (
+            row
+            for row in receipts.values()
+            if row.get("case_identity") == case_identity
+        ),
+        key=lambda row: int(row.get("call_sequence") or 0),
     )
-    verify_output_sha256sums(output)
-    manifest = read_json(output / "run_manifest.json")
-    if (
-        not isinstance(manifest, dict)
-        or manifest.get("mode") != "execute"
-        or manifest.get("run_identity_sha256") != identity_sha256
-        or manifest.get("completed_pipeline_executions") != 12
-        or manifest.get("operational_failure_count") != 0
-        or manifest.get("valid_approved_count", 0)
-        + manifest.get("valid_no_reply_count", 0)
-        != 12
-    ):
-        raise CalibrationError("finalised execute manifest is not a successful twelve-run result")
-    results = index_execution_records(output / "pipeline_results.jsonl", label="pipeline results")
-    audits = index_execution_records(output / "pipeline_audits.jsonl", label="pipeline audits")
-    if len(results) != 12 or set(results) != set(audits):
-        raise CalibrationError("finalised execute journals are not exactly twelve unique pairs")
-    return output
+    matching_operations = [
+        row
+        for row in ledger_data.get("operations", [])
+        if row.get("case_id") == case_identity
+    ]
+    if matching_receipts and not matching_operations:
+        raise CalibrationError(f"prompt receipt has no ledger operation for {case_identity}")
+    if matching_operations and not matching_receipts:
+        raise CalibrationError(f"ledger operation has no prompt receipt for {case_identity}")
+    if not matching_receipts:
+        raise CalibrationError(f"pipeline call inventory is empty for {case_identity}")
+    if len(matching_receipts) != len(matching_operations):
+        raise CalibrationError(f"pipeline receipt and ledger counts differ for {case_identity}")
+    operation_by_id = {
+        row.get("logical_call_id"): row for row in matching_operations
+    }
+    if len(operation_by_id) != len(matching_operations):
+        raise CalibrationError(f"pipeline ledger repeats a logical call for {case_identity}")
+    expected_sequences = list(range(1, len(matching_receipts) + 1))
+    observed_sequences = [row.get("call_sequence") for row in matching_receipts]
+    if observed_sequences != expected_sequences:
+        raise CalibrationError(f"pipeline logical call sequence is not contiguous for {case_identity}")
+    inventory: list[dict[str, Any]] = []
+    for sequence, receipt in enumerate(matching_receipts, 1):
+        stage = receipt.get("stage")
+        logical_call_id = receipt.get("logical_call_id")
+        expected_logical_call_id = f"{case_identity}:{sequence}:{stage}"
+        if logical_call_id != expected_logical_call_id:
+            raise CalibrationError(f"pipeline logical call identity differs for {case_identity}")
+        operation = operation_by_id.get(logical_call_id)
+        if operation is None:
+            raise CalibrationError(f"prompt receipt has no ledger operation: {logical_call_id}")
+        if (
+            operation.get("status") != "completed"
+            or operation.get("case_id") != case_identity
+            or operation.get("stage") != stage
+        ):
+            raise CalibrationError(f"pipeline ledger operation differs for {logical_call_id}")
+        request_hash = receipt.get("request_hash")
+        if request_hash != operation.get("request_hash"):
+            raise CalibrationError(f"prompt receipt request hash differs for {logical_call_id}")
+        inventory.append({
+            "sequence": sequence,
+            "stage": stage,
+            "logical_call_id": logical_call_id,
+            "request_hash": request_hash,
+            "prompt_receipt_sha256": value_sha256(receipt),
+            "cost_ledger_operation_sha256": value_sha256(operation),
+        })
+    if set(operation_by_id) != {row["logical_call_id"] for row in inventory}:
+        raise CalibrationError(f"ledger operation has no prompt receipt for {case_identity}")
+    model_stage_sequence = [row["stage"] for row in inventory]
+    if not model_stage_sequence or model_stage_sequence[0] != "proposer":
+        raise CalibrationError(f"pipeline first model stage is not proposer for {case_identity}")
+    audit_stages = audit_model_stage_sequence(audit)
+    if audit_stages != model_stage_sequence:
+        raise CalibrationError(f"pipeline audit and receipt stages differ for {case_identity}")
+    logical_call_ids = [row["logical_call_id"] for row in inventory]
+    return {
+        **binding,
+        "model_call_count": len(inventory),
+        "logical_call_ids": logical_call_ids,
+        "model_stage_sequence": model_stage_sequence,
+        "call_inventory": inventory,
+        "call_inventory_sha256": value_sha256(inventory),
+        "pipeline_audit_sha256": value_sha256(audit),
+    }
+
+
+def verify_pipeline_record_pair(
+    identity: dict[str, Any],
+    result: dict[str, Any],
+    audit_row: dict[str, Any],
+    *,
+    receipts: dict[str, dict[str, Any]],
+    ledger_data: dict[str, Any],
+) -> set[str]:
+    """Verify one stored result/audit pair and return its owned logical calls."""
+    audit = audit_row.get("audit")
+    if not isinstance(audit, list):
+        raise CalibrationError("pipeline audit differs from its execution contract")
+    inventory = collect_call_inventory(
+        identity, audit=audit, receipts=receipts, ledger_data=ledger_data
+    )
+    common_fields = (
+        "execution_identity_sha256",
+        "case_identity",
+        "model_call_count",
+        "logical_call_ids",
+        "model_stage_sequence",
+        "call_inventory",
+        "call_inventory_sha256",
+        "pipeline_audit_sha256",
+    )
+    for name in common_fields:
+        if result.get(name) != inventory[name] or audit_row.get(name) != inventory[name]:
+            raise CalibrationError(f"pipeline result/audit binding differs for {inventory['case_identity']}")
+    if result.get("model_call_count") != len(result.get("logical_call_ids", [])):
+        raise CalibrationError(f"pipeline model call count differs for {inventory['case_identity']}")
+    if result.get("pipeline_audit_sha256") != value_sha256(audit):
+        raise CalibrationError(f"pipeline audit SHA differs for {inventory['case_identity']}")
+    explicit_outcome(result.get("status"), result.get("public_reply"))
+    return set(inventory["logical_call_ids"])
+
+
+def verify_execution_journals(
+    *,
+    plan: dict[str, Any],
+    cases: dict[str, dict[str, Any]],
+    manifests: dict[str, dict[str, Any]],
+    pack_sha256: str,
+    model: str,
+    results: dict[tuple[str, str], dict[str, Any]],
+    audits: dict[tuple[str, str], dict[str, Any]],
+    receipts: dict[str, dict[str, Any]],
+    ledger_data: dict[str, Any],
+) -> None:
+    """Require twelve planned, fully cross-bound executions with no orphan call."""
+    planned_pairs = {
+        (row["candidate_id"], row["variant"]) for row in plan["executions"]
+    }
+    if len(planned_pairs) != 12 or set(results) != planned_pairs or set(audits) != planned_pairs:
+        raise CalibrationError("final output is not exactly twelve unique pipeline executions")
+    owned: set[str] = set()
+    for planned in plan["executions"]:
+        key = (planned["candidate_id"], planned["variant"])
+        identity = pipeline_execution_identity(
+            cases[planned["candidate_id"]],
+            planned["variant"],
+            manifests,
+            pack_sha256,
+            model,
+        )
+        calls = verify_pipeline_record_pair(
+            identity,
+            results[key],
+            audits[key],
+            receipts=receipts,
+            ledger_data=ledger_data,
+        )
+        if owned & calls:
+            raise CalibrationError("one logical call belongs to two pipeline results")
+        owned.update(calls)
+    ledger_calls = {
+        str(row.get("logical_call_id")) for row in ledger_data.get("operations", [])
+    }
+    if owned != set(receipts) or owned != ledger_calls:
+        raise CalibrationError("orphan prompt receipt or ledger operation exists")
 
 
 class PromptReceiptTransport:
@@ -1288,14 +1696,14 @@ class PromptReceiptTransport:
         self.sequence = 0
         self.identity: dict[str, Any] = {}
         self.case_identity = ""
+        self.execution_identity_sha256 = ""
         self.receipts = existing_receipts if existing_receipts is not None else {}
 
     def set_case(self, identity: dict[str, Any]) -> None:
         self.identity = dict(identity)
-        identity_hash = value_sha256(identity)
-        self.case_identity = (
-            f"{identity['candidate_id']}:{identity['variant']}:{identity_hash}"
-        )
+        binding = pipeline_execution_binding(identity)
+        self.case_identity = binding["case_identity"]
+        self.execution_identity_sha256 = binding["execution_identity_sha256"]
         self.sequence = 0
         self.delegate.set_case(self.case_identity)
 
@@ -1325,6 +1733,8 @@ class PromptReceiptTransport:
         logical_call_id = f"{self.case_identity}:{self.sequence}:{stage}"
         receipt_base = {
             **self.identity,
+            "execution_identity_sha256": self.execution_identity_sha256,
+            "case_identity": self.case_identity,
             "stage": stage,
             "call_sequence": self.sequence,
             "logical_call_id": logical_call_id,
@@ -1367,6 +1777,205 @@ class PromptReceiptTransport:
         return response
 
 
+def execute_outcomes(
+    pack_data: dict[str, Any],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Build the blinded current, compact and historical outcome mapping."""
+    outcomes = {
+        key: explicit_outcome(row.get("status"), row.get("public_reply"))
+        for key, row in result_rows.items()
+    }
+    for case in pack_data["cases"]:
+        historical = _historical_public_output(case["historical"])
+        outcomes[(case["candidate_id"], "historical")] = explicit_outcome(
+            "approved" if historical is not None else "no_reply", historical
+        )
+    return outcomes
+
+
+def execute_manifest(
+    args: argparse.Namespace,
+    pack_data: dict[str, Any],
+    provenance: dict[str, Any],
+    *,
+    output: Path,
+    identity_sha256: str,
+    ledger_data: dict[str, Any],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, Any]:
+    """Derive the final execute manifest solely from durable inputs."""
+    approved_count = sum(row["status"] == "approved" for row in result_rows.values())
+    no_reply_count = sum(row["status"] == "no_reply" for row in result_rows.values())
+    model_calls = sum(int(row["model_call_count"]) for row in result_rows.values())
+    total_http_requests = 1 + sum(
+        int(row.get("attempt_number") or 1) for row in ledger_data["operations"]
+    )
+    return {
+        "schema_version": 1,
+        "runner_version": RUNNER_VERSION,
+        "mode": "execute",
+        "model": args.model,
+        "xai_base": args.xai_base,
+        "blind_seed": args.blind_seed,
+        "pack_sha256": pack_data["pack_sha256"],
+        "pack_cases": 48,
+        "calibration_cases": 6,
+        "planned_variants": 2,
+        "planned_pipeline_executions": 12,
+        **provenance,
+        "provider_phase_identity_sha256": file_sha256(
+            output / "provider_phase_identity.json"
+        ),
+        "provider_model_metadata_sha256": file_sha256(
+            output / "provider_model_metadata.json"
+        ),
+        "run_identity_sha256": identity_sha256,
+        "cost_ledger_status": ledger_data.get("status"),
+        "known_cost_usd": ledger_data.get("known_cost_usd", 0.0),
+        "ambiguous_exposure_usd": ledger_data.get("ambiguous_exposure_usd", 0.0),
+        "completed_pipeline_executions": 12,
+        "valid_approved_count": approved_count,
+        "valid_no_reply_count": no_reply_count,
+        "operational_failure_count": 0,
+        "model_calls_performed": model_calls,
+        "http_requests_performed": total_http_requests,
+        "hard_limit_usd": args.hard_limit_usd,
+        "posting_enabled": False,
+        "search_enabled": False,
+        "tools_enabled": False,
+        "media_enabled": False,
+    }
+
+
+def execute_derived_payloads(
+    args: argparse.Namespace,
+    pack_data: dict[str, Any],
+    provenance: dict[str, Any],
+    *,
+    output: Path,
+    identity_sha256: str,
+    ledger_data: dict[str, Any],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, bytes]:
+    """Return deterministic bytes for every derived execute file except the marker."""
+    outcomes = execute_outcomes(pack_data, result_rows)
+    assignments = blind_assignments(
+        pack_data["cases"],
+        blind_seed=args.blind_seed,
+        pack_sha256=pack_data["pack_sha256"],
+    )
+    markdown, csv_text = build_blind_review(
+        pack_data["cases"], assignments, outcomes
+    )
+    manifest = execute_manifest(
+        args,
+        pack_data,
+        provenance,
+        output=output,
+        identity_sha256=identity_sha256,
+        ledger_data=ledger_data,
+        result_rows=result_rows,
+    )
+    model_calls = int(manifest["model_calls_performed"])
+    http_requests = int(manifest["http_requests_performed"])
+
+    def json_bytes(value: Any) -> bytes:
+        return (
+            json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
+            + b"\n"
+        )
+
+    return {
+        "blind_review.md": markdown.encode("utf-8"),
+        "blind_review.csv": csv_text.encode("utf-8"),
+        "blind_key.json": json_bytes({
+            "schema_version": 1,
+            "derivation": "sha256(blind-seed, pack-sha256, candidate-id, source)",
+            "assignments": assignments,
+        }),
+        "calibration_report.md": calibration_report_markdown(
+            "execute", model_calls, http_requests
+        ).encode("utf-8"),
+        "run_manifest.json": json_bytes(manifest),
+    }
+
+
+def verify_durable_execute_core(output: Path) -> None:
+    """Require every never-discardable execute artefact before final publication."""
+    missing = sorted(name for name in DURABLE_CORE_FILES if not (output / name).is_file())
+    if missing or not (output / "raw_responses").is_dir():
+        raise CalibrationError(
+            "execute durable core is incomplete: " + ", ".join(missing or ["raw_responses/"])
+        )
+    failures = output / "execution_failures.jsonl"
+    if failures.exists() and read_jsonl(failures):
+        raise CalibrationError("execute durable core contains an operational failure")
+
+
+def recover_or_verify_finalisation(
+    args: argparse.Namespace,
+    pack_data: dict[str, Any],
+    manifests: dict[str, dict[str, Any]],
+    cases: dict[str, dict[str, Any]],
+    provenance: dict[str, Any],
+    *,
+    output: Path,
+    identity_sha256: str,
+    ledger_data: dict[str, Any],
+    receipts: dict[str, dict[str, Any]],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+    audit_rows: dict[tuple[str, str], dict[str, Any]],
+    api_key: str,
+) -> Path:
+    """Strictly verify a marker, or rebuild only derived files when it is absent."""
+    verify_durable_execute_core(output)
+    verify_execution_journals(
+        plan=read_json(output / "execution_plan.json"),
+        cases=cases,
+        manifests=manifests,
+        pack_sha256=pack_data["pack_sha256"],
+        model=args.model,
+        results=result_rows,
+        audits=audit_rows,
+        receipts=receipts,
+        ledger_data=ledger_data,
+    )
+    expected = execute_derived_payloads(
+        args,
+        pack_data,
+        provenance,
+        output=output,
+        identity_sha256=identity_sha256,
+        ledger_data=ledger_data,
+        result_rows=result_rows,
+    )
+    marker = output / "SHA256SUMS"
+    if marker.exists():
+        missing = sorted(name for name in FINAL_OUTPUT_FILES if not (output / name).is_file())
+        if missing:
+            raise CalibrationError(
+                "finalised execute output is missing derived files: " + ", ".join(missing)
+            )
+        verify_output_sha256sums(output)
+        for name, payload in expected.items():
+            if (output / name).read_bytes() != payload:
+                raise CalibrationError(f"finalised execute derived file differs: {name}")
+        return output
+    for name in DISPOSABLE_DERIVED_FILES:
+        path = output / name
+        if path.exists():
+            path.unlink()
+    for name in DISPOSABLE_DERIVED_FILES[:-1]:
+        atomic_bytes(output / name, expected[name])
+    enforce_private_permissions(output)
+    assert_no_secret(output, api_key)
+    write_sha256sums(output)
+    enforce_private_permissions(output)
+    verify_output_sha256sums(output)
+    return output
+
+
 def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: str) -> Path:
     verify_current_production_objects()
     manifests = profile_manifests()
@@ -1400,40 +2009,17 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
         if read_json(output / "execution_plan.json") != plan:
             raise CalibrationError("stored execution plan differs")
         identity_sha256 = file_sha256(identity_path)
-        metadata = validate_provider_metadata(
-            read_json(output / "provider_model_metadata.json"), model=args.model
+        ledger = open_resume_ledger(
+            output, model=args.model, hard_limit_usd=args.hard_limit_usd
         )
-        ledger_data = validate_resume_ledger(
-            read_json(output / "cost_ledger.json"),
+        metadata, _provider_phase = resume_or_publish_provider_phase(
+            output,
+            ledger_data=ledger.data,
+            identity_sha256=identity_sha256,
             model=args.model,
-            hard_limit_usd=args.hard_limit_usd,
-        )
-        verify_completed_response_caches(output, ledger_data)
-        receipts = index_prompt_receipts(output / "prompt_receipts.jsonl")
-        verify_prompt_receipt_contracts(
-            receipts,
-            cases=cases,
-            manifests=manifests,
-            pack_sha256=pack_data["pack_sha256"],
-            model=args.model,
-        )
-        verify_receipts_against_ledger(
-            receipts, ledger_data, require_complete_inventory=False
-        )
-        if (output / "execution_failures.jsonl").exists() and read_jsonl(
-            output / "execution_failures.jsonl"
-        ):
-            raise CalibrationError("resume output contains a prior operational failure")
-        finalised = existing_finalised_run(
-            output, identity_sha256, receipts, ledger_data
-        )
-        if finalised is not None:
-            return finalised
-        ledger = pilot.PilotLedger(
-            output / "cost_ledger.json",
-            model=args.model,
-            hard_limit_usd=args.hard_limit_usd,
-            run_version=RUNNER_VERSION,
+            xai_endpoint=args.xai_base,
+            api_key=api_key,
+            get=http.get,
         )
     else:
         write_json(output / "pack_verification.json", public_pack_verification(pack_data))
@@ -1452,17 +2038,69 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
             hard_limit_usd=args.hard_limit_usd,
             run_version=RUNNER_VERSION,
         )
-        metadata = validate_provider_metadata(
-            pilot.fetch_model_metadata(
-                api_key=api_key,
-                base_url=args.xai_base,
-                model=args.model,
-                get=http.get,
-            ),
+        metadata, _provider_phase = publish_provider_phase(
+            output,
+            identity_sha256=identity_sha256,
             model=args.model,
+            xai_endpoint=args.xai_base,
+            api_key=api_key,
+            get=http.get,
         )
-        write_json(output / "provider_model_metadata.json", metadata)
-        receipts = {}
+
+    metadata, _provider_phase = read_and_verify_provider_phase(
+        output,
+        identity_sha256=identity_sha256,
+        model=args.model,
+        xai_endpoint=args.xai_base,
+    )
+    ledger_data = validate_resume_ledger(
+        ledger.data, model=args.model, hard_limit_usd=args.hard_limit_usd
+    )
+    verify_completed_response_caches(output, ledger_data)
+    receipts = index_prompt_receipts(output / "prompt_receipts.jsonl")
+    verify_prompt_receipt_contracts(
+        receipts,
+        cases=cases,
+        manifests=manifests,
+        pack_sha256=pack_data["pack_sha256"],
+        model=args.model,
+    )
+    verify_receipts_against_ledger(
+        receipts, ledger_data, require_complete_inventory=False
+    )
+    if (output / "execution_failures.jsonl").exists() and read_jsonl(
+        output / "execution_failures.jsonl"
+    ):
+        raise CalibrationError("resume output contains a prior operational failure")
+
+    planned_pairs = {
+        (row["candidate_id"], row["variant"]) for row in plan["executions"]
+    }
+    result_rows = index_execution_records(
+        output / "pipeline_results.jsonl", label="pipeline results"
+    )
+    audit_rows = index_execution_records(
+        output / "pipeline_audits.jsonl", label="pipeline audits"
+    )
+    if (set(result_rows) | set(audit_rows)) - planned_pairs:
+        raise CalibrationError("existing execution journal contains an unplanned identity")
+    derived_present = any((output / name).exists() for name in FINAL_OUTPUT_FILES)
+    journals_complete = set(result_rows) == planned_pairs and set(audit_rows) == planned_pairs
+    if derived_present or journals_complete:
+        return recover_or_verify_finalisation(
+            args,
+            pack_data,
+            manifests,
+            cases,
+            provenance,
+            output=output,
+            identity_sha256=identity_sha256,
+            ledger_data=ledger_data,
+            receipts=receipts,
+            result_rows=result_rows,
+            audit_rows=audit_rows,
+            api_key=api_key,
+        )
 
     raw_responses = output / "raw_responses"
     delegate = pilot.PilotTransport(
@@ -1484,18 +2122,6 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
     config = pilot.strategy_config(
         args.model, PROJECT_ROOT / "semantic_alignment_research/quote_research_full_001"
     )
-    planned_pairs = {
-        (row["candidate_id"], row["variant"]) for row in plan["executions"]
-    }
-    result_rows = index_execution_records(
-        output / "pipeline_results.jsonl", label="pipeline results"
-    )
-    audit_rows = index_execution_records(
-        output / "pipeline_audits.jsonl", label="pipeline audits"
-    )
-    if (set(result_rows) | set(audit_rows)) - planned_pairs:
-        raise CalibrationError("existing execution journal contains an unplanned identity")
-    results: dict[tuple[str, str], dict[str, Any]] = {}
     for planned in plan["executions"]:
         case = cases[planned["candidate_id"]]
         variant = planned["variant"]
@@ -1505,20 +2131,27 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
         if prior_result is not None:
             if prior_result.get("stratum") != case["stratum"]:
                 raise CalibrationError(f"pipeline result stratum differs for {key}")
-            results[key] = explicit_outcome(
-                prior_result.get("status"), prior_result.get("public_reply")
-            )
         if prior_audit is not None and (
             prior_audit.get("stratum") != case["stratum"]
             or not isinstance(prior_audit.get("audit"), list)
         ):
             raise CalibrationError(f"pipeline audit differs for {key}")
         if prior_result is not None and prior_audit is not None:
+            execution_identity = pipeline_execution_identity(
+                case, variant, manifests, pack_data["pack_sha256"], args.model
+            )
+            verify_pipeline_record_pair(
+                execution_identity,
+                prior_result,
+                prior_audit,
+                receipts=receipts,
+                ledger_data=ledger.data,
+            )
             continue
-        identity = pipeline_execution_identity(
+        execution_identity = pipeline_execution_identity(
             case, variant, manifests, pack_data["pack_sha256"], args.model
         )
-        receipt_transport.set_case(identity)
+        receipt_transport.set_case(execution_identity)
         with activate_profile(variant, recent_account_replies=case["recent_replies"]):
             result = reply_strategy.run_reply_pipeline(
                 context=case["context"],
@@ -1543,8 +2176,17 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
             raise CalibrationError(
                 f"pipeline execution ended in non-calibration status {result.status}"
             )
+        audit = list(result.audit)
+        call_binding = collect_call_inventory(
+            execution_identity,
+            audit=audit,
+            receipts=receipts,
+            ledger_data=ledger.data,
+        )
+        if result.model_call_count != call_binding["model_call_count"]:
+            raise CalibrationError(f"pipeline model call count differs for {key}")
         public_reply = str(result.reply) if result.reply is not None else None
-        outcome = explicit_outcome(result.status, public_reply)
+        explicit_outcome(result.status, public_reply)
         expected_result = {
             "candidate_id": case["candidate_id"],
             "stratum": case["stratum"],
@@ -1558,12 +2200,14 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
                 getattr(result.reply, "pipeline_metadata", None)
                 if result.reply is not None else None
             ),
+            **call_binding,
         }
         expected_audit = {
             "candidate_id": case["candidate_id"],
             "stratum": case["stratum"],
             "variant": variant,
-            "audit": list(result.audit),
+            "audit": audit,
+            **call_binding,
         }
         if prior_result is not None and prior_result != expected_result:
             raise CalibrationError(f"pipeline result differs on reconstruction for {key}")
@@ -1575,84 +2219,32 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
         if prior_audit is None:
             append_jsonl(output / "pipeline_audits.jsonl", expected_audit)
             audit_rows[key] = expected_audit
-        results[key] = outcome
 
-    for case in pack_data["cases"]:
-        historical = _historical_public_output(case["historical"])
-        results[(case["candidate_id"], "historical")] = explicit_outcome(
-            "approved" if historical is not None else "no_reply", historical
-        )
-    if set(result_rows) != planned_pairs or set(audit_rows) != planned_pairs:
-        raise CalibrationError("final output is not exactly twelve unique pipeline executions")
-    approved_count = sum(row["status"] == "approved" for row in result_rows.values())
-    no_reply_count = sum(row["status"] == "no_reply" for row in result_rows.values())
-    if approved_count + no_reply_count != 12:
-        raise CalibrationError("final output contains an invalid pipeline status")
     final_receipts = index_prompt_receipts(output / "prompt_receipts.jsonl")
+    verify_prompt_receipt_contracts(
+        final_receipts,
+        cases=cases,
+        manifests=manifests,
+        pack_sha256=pack_data["pack_sha256"],
+        model=args.model,
+    )
     verify_receipts_against_ledger(
         final_receipts, ledger.data, require_complete_inventory=True
     )
-    model_calls = sum(int(row.get("model_call_count") or 0) for row in result_rows.values())
-    assignments = blind_assignments(
-        pack_data["cases"], blind_seed=args.blind_seed, pack_sha256=pack_data["pack_sha256"]
+    return recover_or_verify_finalisation(
+        args,
+        pack_data,
+        manifests,
+        cases,
+        provenance,
+        output=output,
+        identity_sha256=identity_sha256,
+        ledger_data=ledger.data,
+        receipts=final_receipts,
+        result_rows=result_rows,
+        audit_rows=audit_rows,
+        api_key=api_key,
     )
-    markdown, csv_text = build_blind_review(pack_data["cases"], assignments, results)
-    write_text(output / "blind_review.md", markdown)
-    write_text(output / "blind_review.csv", csv_text)
-    write_json(output / "blind_key.json", {
-        "schema_version": 1,
-        "derivation": "sha256(blind-seed, pack-sha256, candidate-id, source)",
-        "assignments": assignments,
-    })
-    write_text(
-        output / "calibration_report.md",
-        calibration_report_markdown(
-            "execute",
-            model_calls,
-            1 + sum(int(row.get("attempt_number") or 1) for row in ledger.data["operations"]),
-        ),
-    )
-    total_http_requests = 1 + sum(
-        int(row.get("attempt_number") or 1) for row in ledger.data["operations"]
-    )
-    write_json(output / "run_manifest.json", {
-        "schema_version": 1,
-        "runner_version": RUNNER_VERSION,
-        "mode": "execute",
-        "model": args.model,
-        "xai_base": args.xai_base,
-        "blind_seed": args.blind_seed,
-        "pack_sha256": pack_data["pack_sha256"],
-        "pack_cases": 48,
-        "calibration_cases": 6,
-        "planned_variants": 2,
-        "planned_pipeline_executions": 12,
-        **provenance,
-        "provider_model_metadata_sha256": file_sha256(
-            output / "provider_model_metadata.json"
-        ),
-        "run_identity_sha256": identity_sha256,
-        "cost_ledger_status": ledger.data.get("status"),
-        "known_cost_usd": ledger.data.get("known_cost_usd", 0.0),
-        "ambiguous_exposure_usd": ledger.data.get("ambiguous_exposure_usd", 0.0),
-        "completed_pipeline_executions": 12,
-        "valid_approved_count": approved_count,
-        "valid_no_reply_count": no_reply_count,
-        "operational_failure_count": 0,
-        "model_calls_performed": model_calls,
-        "http_requests_performed": total_http_requests,
-        "hard_limit_usd": args.hard_limit_usd,
-        "posting_enabled": False,
-        "search_enabled": False,
-        "tools_enabled": False,
-        "media_enabled": False,
-    })
-    enforce_private_permissions(output)
-    assert_no_secret(output, api_key)
-    write_sha256sums(output)
-    enforce_private_permissions(output)
-    verify_output_sha256sums(output)
-    return output
 
 
 def build_parser() -> argparse.ArgumentParser:
