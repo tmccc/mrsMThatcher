@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v11"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v12"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -910,6 +910,23 @@ _DIRECT_EDITORIAL_SOURCE_FORMS = frozenset({
     "modified speaking text begins",
     "full speaking text begins",
 })
+_DIRECT_METADATA_SOURCE_FORMS = frozenset({
+    "speaking text",
+    "speech text",
+    "modified speaking text",
+    "modified speaking text begins",
+    "full speaking text",
+    "full speaking text begins",
+    "direct thatcher text",
+    "direct speech text",
+})
+_THATCHER_ARCHIVE_DIRECT_METADATA_TERMINALS = (
+    "speaking text",
+    "modified speaking text",
+    "modified speaking text begins",
+    "full speaking text",
+    "full speaking text begins",
+)
 _REPORTORIAL_EDITORIAL_SOURCE_FORMS = frozenset({
     "partial paraphrase",
     "partial paraphrase of speaking text",
@@ -1119,41 +1136,74 @@ def _explicit_metadata_source_semantics(value: str) -> str | None:
     phrase = _normalised_editorial_phrase(value)
     if _explicit_non_direct_source_semantics(phrase):
         return "nonmt"
-    if re.search(
-        r"\b(?:modified |full )?(?:speaking|speech) text\b|"
-        r"\bdirect thatcher text\b|"
-        r"\bdirect speech text\b",
-        phrase,
+    if phrase in _DIRECT_METADATA_SOURCE_FORMS:
+        return "mt"
+    bounded_value = " ".join(value.split()).casefold().strip()
+    terminal_pattern = "|".join(
+        re.escape(terminal)
+        for terminal in _THATCHER_ARCHIVE_DIRECT_METADATA_TERMINALS
+    )
+    if re.fullmatch(
+        r"thatcher archive(?:\s*:\s*|\s*[–—]\s*|\s+-\s+)"
+        rf"(?:{terminal_pattern})\.?",
+        bounded_value,
     ):
         return "mt"
     return None
+
+
+def _normalised_source_identity(value: str) -> tuple[str, ...]:
+    """Return a complete source name using the bounded metadata delimiter."""
+    source_name = re.split(r"[,;:]", value, maxsplit=1)[0]
+    tokens = tuple(re.findall(r"\w+", source_name.casefold()))
+    if tokens[:1] == ("the",):
+        tokens = tokens[1:]
+    return tokens if len(tokens) >= 2 else ()
 
 
 def _metadata_explicitly_reports_source(
     descriptor: str, editorial_comments: str
 ) -> bool:
     """Require a named source plus an explicit reported-account statement."""
-    source_name = re.split(r"[,;:]", descriptor, maxsplit=1)[0]
-    source_name = _normalised_editorial_phrase(source_name)
-    comments = _normalised_editorial_phrase(editorial_comments)
-    if len(source_name.split()) < 2 or source_name not in comments:
+    source_tokens = _normalised_source_identity(descriptor)
+    if not source_tokens:
         return False
-    if re.search(
-        rf"\b{re.escape(source_name)}\b(?:\s+\w+){{0,6}}\s+reported\b",
-        comments,
-    ):
-        return True
-    source_pattern = r"\s+".join(
-        re.escape(word) for word in source_name.split()
-    )
-    punctuation_preserving_comments = " ".join(
-        editorial_comments.split()
-    ).casefold()
-    return bool(re.search(
-        rf"\b{source_pattern}\b(?:\s+\w+){{0,3}}"
-        r"\s+report\s+(?:of|on|from)\b",
-        punctuation_preserving_comments,
-    ))
+    disallowed_gap_tokens = {"and", "or", "&", "gazette"}
+    normalised_comments = " ".join(editorial_comments.split()).casefold()
+    clauses = re.split(r"[.!?;:]+|[–—]+", normalised_comments)
+    for clause in clauses:
+        clause_tokens = re.findall(r"\w+|&", clause)
+        if clause_tokens[:2] == ["according", "to"]:
+            clause_tokens = clause_tokens[2:]
+        if clause_tokens[:1] == ["the"]:
+            clause_tokens = clause_tokens[1:]
+        source_length = len(source_tokens)
+        if tuple(clause_tokens[:source_length]) != source_tokens:
+            continue
+        remainder = clause_tokens[source_length:]
+        for reported_index in range(min(6, len(remainder) - 1) + 1):
+            reported_gap = remainder[:reported_index]
+            if remainder[reported_index:reported_index + 1] != ["reported"]:
+                continue
+            if all(
+                token.isalpha() and token not in disallowed_gap_tokens
+                for token in reported_gap
+            ):
+                return True
+        for report_index in range(min(3, len(remainder) - 2) + 1):
+            report_gap = remainder[:report_index]
+            if remainder[report_index:report_index + 1] != ["report"]:
+                continue
+            if remainder[report_index + 1:report_index + 2] not in (
+                ["of"], ["on"], ["from"],
+            ):
+                continue
+            if all(
+                token.isalpha() and token not in disallowed_gap_tokens
+                for token in report_gap
+            ):
+                return True
+    return False
 
 
 def _numbered_source_section_baseline(
@@ -1171,15 +1221,27 @@ def _numbered_source_section_baseline(
     label_value = label_descriptor.group(2) if label_descriptor else label
     label_phrase = _normalised_editorial_phrase(label_value)
     label_semantics = _numbered_editorial_label_semantics(label)
-    all_entry_semantics = {
-        _explicit_metadata_source_semantics(descriptor)
+    editorial_comments = str(metadata.get("editorial_comments") or "")
+    entry_evidence = [
+        (
+            descriptor,
+            _explicit_metadata_source_semantics(descriptor),
+            _metadata_explicitly_reports_source(descriptor, editorial_comments),
+        )
         for descriptor in descriptors
-    } - {None}
-    if len(all_entry_semantics) > 1 or (
+    ]
+    effective_metadata_semantics = {
+        semantics
+        for _descriptor, semantics, _reportorial in entry_evidence
+        if semantics is not None
+    }
+    if any(reportorial for _descriptor, _semantics, reportorial in entry_evidence):
+        effective_metadata_semantics.add("nonmt")
+    if len(effective_metadata_semantics) > 1 or (
         label_semantics in {"mt", "nonmt"}
         and any(
             semantics != label_semantics
-            for semantics in all_entry_semantics
+            for semantics in effective_metadata_semantics
         )
     ):
         return (
@@ -1187,16 +1249,19 @@ def _numbered_source_section_baseline(
             "numbered_source_label_metadata_polarity_conflict",
         )
     consistent = [
-        descriptor for descriptor in descriptors
-        if label_phrase in _normalised_editorial_phrase(descriptor)
-        or _normalised_editorial_phrase(descriptor) in label_phrase
+        evidence for evidence in entry_evidence
+        if label_phrase in _normalised_editorial_phrase(evidence[0])
+        or _normalised_editorial_phrase(evidence[0]) in label_phrase
     ]
     if not consistent:
         return "unverified", "numbered_source_label_metadata_inconsistent"
     entry_semantics = {
-        _explicit_metadata_source_semantics(descriptor)
-        for descriptor in consistent
-    } - {None}
+        semantics
+        for _descriptor, semantics, _reportorial in consistent
+        if semantics is not None
+    }
+    if any(reportorial for _descriptor, _semantics, reportorial in consistent):
+        entry_semantics.add("nonmt")
     if label_semantics == "mt" and entry_semantics == {"mt"}:
         if author_verified:
             reason = (
@@ -1208,12 +1273,7 @@ def _numbered_source_section_baseline(
         return "unverified", "direct_source_without_verified_thatcher_author"
     if label_semantics == "nonmt" and entry_semantics == {"nonmt"}:
         return "nonmt", "numbered_source_metadata_verified_non_direct_text"
-    if any(
-        _metadata_explicitly_reports_source(
-            descriptor, str(metadata.get("editorial_comments") or "")
-        )
-        for descriptor in consistent
-    ):
+    if any(reportorial for _descriptor, _semantics, reportorial in consistent):
         return "nonmt", "numbered_source_metadata_verified_reportorial_account"
     return "unverified", "numbered_source_metadata_semantics_ambiguous"
 

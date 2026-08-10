@@ -1395,6 +1395,7 @@ def test_bare_numbered_speaking_text_form_remains_direct() -> None:
         "Newspaper report",
         "Newspaper report of speaking text",
         "Reportorial account",
+        "Reportorial account of speaking text",
         "Report of the event",
         "Press report",
         "Press report of direct speech text",
@@ -1413,7 +1414,9 @@ def test_explicit_metadata_non_direct_semantics_outrank_direct_words(
         "Speaking text",
         "Speech text",
         "Modified speaking text",
+        "Modified speaking text begins",
         "Full speaking text",
+        "Full speaking text begins",
         "Direct Thatcher text",
         "Direct speech text",
     ],
@@ -1422,6 +1425,76 @@ def test_clean_explicit_metadata_direct_semantics_remain_direct(
     descriptor: str,
 ) -> None:
     assert reaudit._explicit_metadata_source_semantics(descriptor) == "mt"
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        "Commentary on speaking text",
+        "Notes concerning the speaking text",
+        "Summary of speaking text",
+        "Discussion of speaking text",
+        "Extract from speaking text",
+        "Copy of speaking text",
+        "Commentary on direct Thatcher text",
+        "Speaking text summary",
+        "Speaking text with commentary",
+        "Another Archive: speaking text",
+        "Newspaper report: speaking text",
+        "Notes concerning the speaking text and later additions",
+    ],
+)
+def test_ambiguous_metadata_wrappers_do_not_supply_direct_semantics(
+    descriptor: str,
+) -> None:
+    assert reaudit._explicit_metadata_source_semantics(descriptor) != "mt"
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        "Thatcher Archive: speaking text",
+        "THATCHER   ARCHIVE : MODIFIED SPEAKING TEXT.",
+        "Thatcher Archive – modified speaking text begins",
+        "Thatcher Archive—full speaking text",
+        "Thatcher Archive - full speaking text begins.",
+    ],
+)
+def test_source_qualified_direct_metadata_forms_are_complete_and_bounded(
+    descriptor: str,
+) -> None:
+    assert reaudit._explicit_metadata_source_semantics(descriptor) == "mt"
+
+
+@pytest.mark.parametrize(
+    "metadata_descriptor",
+    [
+        "Commentary on speaking text",
+        "Notes concerning the speaking text",
+        "Summary of speaking text",
+    ],
+)
+def test_direct_label_with_ambiguous_metadata_wrapper_is_unverified(
+    metadata_descriptor: str,
+) -> None:
+    quotation = "Ambiguous metadata cannot establish direct source text."
+    body = modern_html(
+        "103522",
+        '<p><ed-comment>(1) Speaking text</ed-comment></p>'
+        f"<p>{quotation}</p>",
+        source=f"(1) {metadata_descriptor}",
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "unverified"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_metadata_semantics_ambiguous"
+    )
+    assert fields["accepted_as_primary_evidence"] is False
 
 
 def test_direct_label_with_non_direct_metadata_fails_closed_on_polarity() -> None:
@@ -1561,6 +1634,75 @@ def test_conflicting_duplicate_numbered_metadata_entries_are_unverified() -> Non
     assert fields["accepted_as_primary_evidence"] is False
 
 
+def test_direct_label_conflicts_with_same_source_reportorial_comments() -> None:
+    baseline, reason = reaudit._numbered_source_section_baseline(
+        "(1) Thatcher Archive: speaking text",
+        "1",
+        {
+            "numbered_entries": {
+                "1": [{
+                    "metadata_field": "source",
+                    "descriptor": "Thatcher Archive",
+                }]
+            },
+            "editorial_comments": (
+                "The Thatcher Archive report of this speech supplied the "
+                "attribution."
+            ),
+        },
+        author_verified=True,
+    )
+
+    assert baseline == "unverified"
+    assert reason == "numbered_source_label_metadata_polarity_conflict"
+
+
+def test_direct_descriptor_conflicts_with_same_source_reportorial_comments() -> None:
+    baseline, reason = reaudit._numbered_source_section_baseline(
+        "(1) Thatcher Archive",
+        "1",
+        {
+            "numbered_entries": {
+                "1": [{
+                    "metadata_field": "source",
+                    "descriptor": "Thatcher Archive: speaking text",
+                }]
+            },
+            "editorial_comments": (
+                "The Thatcher Archive report of this speech supplied the "
+                "attribution."
+            ),
+        },
+        author_verified=True,
+    )
+
+    assert baseline == "unverified"
+    assert reason == "numbered_source_label_metadata_polarity_conflict"
+
+
+def test_direct_pair_conflicts_with_same_source_reportorial_comments() -> None:
+    baseline, reason = reaudit._numbered_source_section_baseline(
+        "(1) Thatcher Archive: speaking text",
+        "1",
+        {
+            "numbered_entries": {
+                "1": [{
+                    "metadata_field": "source",
+                    "descriptor": "Thatcher Archive: speaking text",
+                }]
+            },
+            "editorial_comments": (
+                "The Thatcher Archive report of this speech supplied the "
+                "attribution."
+            ),
+        },
+        author_verified=True,
+    )
+
+    assert baseline == "unverified"
+    assert reason == "numbered_source_label_metadata_polarity_conflict"
+
+
 def test_101374_style_report_noun_is_same_source_secondary_evidence() -> None:
     quotation = "The policy would place responsibility back with the citizen."
     body = modern_html(
@@ -1599,9 +1741,14 @@ def test_101374_style_report_noun_is_same_source_secondary_evidence() -> None:
     "editorial_comments",
     [
         "The Evening News reported that Mrs Thatcher spoke at the meeting.",
+        "Evening News report of this speech supplied the attribution.",
         "The Evening News report of this speech supplied the attribution.",
         "The Evening News detailed report on the event supplied attribution.",
         "The Evening News morning edition report from Westminster supplied it.",
+        (
+            "According to the Evening News, its report of this speech supplied "
+            "the attribution."
+        ),
     ],
 )
 def test_same_source_report_verb_and_bounded_report_nouns_are_recognised(
@@ -1630,6 +1777,77 @@ def test_report_noun_requires_exact_source_attachment_within_three_words(
     assert reaudit._metadata_explicitly_reports_source(
         "Evening News", editorial_comments
     ) is False
+
+
+@pytest.mark.parametrize(
+    "editorial_comments",
+    [
+        "Manchester Evening News report of this speech supplied attribution.",
+        "London Evening News reported that Mrs Thatcher spoke.",
+        "Evening News and Gazette report of this speech supplied attribution.",
+        "Evening News & Gazette reported that Mrs Thatcher spoke.",
+    ],
+)
+def test_complete_source_identity_rejects_publication_name_collisions(
+    editorial_comments: str,
+) -> None:
+    assert reaudit._metadata_explicitly_reports_source(
+        "Evening News", editorial_comments
+    ) is False
+
+
+def test_non_direct_label_with_same_source_reportorial_comments_remains_nonmt(
+) -> None:
+    quotation = "The newspaper account remains secondary evidence."
+    body = modern_html(
+        "101374",
+        '<p><ed-comment>(1) Newspaper report</ed-comment></p>'
+        f"<p>{quotation}</p>",
+        author="Archive transcript",
+        source="(1) Evening News, newspaper report",
+        editorial_comments=(
+            "The Evening News report of this speech supplied the attribution."
+        ),
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="101374"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "nonmt"
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+@pytest.mark.parametrize(
+    "editorial_comments",
+    [
+        "Manchester Evening News report of this speech supplied attribution.",
+        "London Evening News reported that Mrs Thatcher spoke.",
+        "Evening News and Gazette report of this speech supplied attribution.",
+    ],
+)
+def test_different_or_longer_publication_does_not_set_reportorial_baseline(
+    editorial_comments: str,
+) -> None:
+    baseline, reason = reaudit._numbered_source_section_baseline(
+        "(1) Evening News",
+        "1",
+        {
+            "numbered_entries": {
+                "1": [{
+                    "metadata_field": "source",
+                    "descriptor": "Evening News",
+                }]
+            },
+            "editorial_comments": editorial_comments,
+        },
+        author_verified=False,
+    )
+
+    assert baseline == "unverified"
+    assert reason == "numbered_source_metadata_semantics_ambiguous"
 
 
 def test_numbered_editorial_source_boundary_is_hard_for_matching() -> None:

@@ -126,19 +126,32 @@ maintained direct terminal phrase; an arbitrary prefix ending in `speaking
 text` is not direct. This does not widen ordinary italic-marker recognition. A
 non-MT baseline requires explicit partial-paraphrase, newspaper-report,
 reportorial-account, event-report, press-report, or other non-direct semantics.
-Non-direct structured metadata is evaluated before any embedded direct wording,
-so `partial paraphrase of speaking text` and `press report of direct speech
-text` remain non-MT. Opposite label and metadata polarities, including
-incompatible duplicate same-number entries, fail closed as `unverified`. A
-named newspaper by itself is insufficient; a named source establishes
-reportorial semantics only when the structured editorial comment explicitly
-uses that same complete source name of at least two words with either the
-bounded `reported` verb form or an attached `report of`, `report on`, or `report
-from` noun construction. A report noun may follow no more than three ordinary
-words after the source name and supplies reportorial secondary evidence only.
-An unrelated report or a different source name does not qualify. A missing,
-inconsistent, or ambiguous numbered entry still creates a hard boundary but
-gives the section an `unverified` baseline.
+Direct structured metadata uses a positive complete-form grammar: `speaking
+text`, `speech text`, `modified speaking text`, `modified speaking text
+begins`, `full speaking text`, `full speaking text begins`, `direct Thatcher
+text`, and `direct speech text`, plus the bounded `Thatcher Archive`-qualified
+speaking/modified/full forms. Embedded wording such as `commentary on speaking
+text`, `notes concerning the speaking text`, or `summary of speaking text` is
+not itself direct evidence. Non-direct structured metadata is evaluated before
+any embedded direct wording, so `partial paraphrase of speaking text` and
+`press report of direct speech text` remain non-MT. Opposite label and effective
+metadata polarities, including incompatible duplicate same-number entries, fail
+closed as `unverified`. Same-source reportorial Editorial comments contribute
+non-MT semantics to that effective polarity before conflicts or a baseline are
+selected.
+
+A named newspaper by itself is insufficient. A named source establishes
+reportorial semantics only when the structured Editorial comments use the same
+complete normalised source identity of at least two meaningful words, treating
+an optional leading `The` as equivalent, with either the bounded `reported`
+verb form or an attached `report of`, `report on`, or `report from` noun
+construction. A report noun may follow no more than three bounded ordinary
+modifier words after the source name and supplies reportorial secondary
+evidence only. Longer publication names and joined publication names do not
+match a shorter source identity; an unrelated report or a different source
+name also does not qualify. A missing, inconsistent, or ambiguous numbered
+entry still creates a hard boundary but gives the section an `unverified`
+baseline.
 
 A numbered `ed-comment` nested in a contribution parent is a source boundary
 only when it is the first substantive content in that parent. Whitespace,
