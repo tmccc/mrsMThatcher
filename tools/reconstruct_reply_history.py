@@ -2199,10 +2199,10 @@ class OccurrenceSpool:
         self.connection.executescript(
             """
             PRAGMA page_size=8192;
-            PRAGMA journal_mode=MEMORY;
+            PRAGMA journal_mode=DELETE;
             PRAGMA synchronous=NORMAL;
             PRAGMA temp_store=FILE;
-            PRAGMA cache_size=-32768;
+            PRAGMA cache_size=-8192;
             CREATE TABLE occurrences (
                 record_id TEXT NOT NULL,
                 source_type TEXT NOT NULL,
@@ -2389,7 +2389,7 @@ class OccurrenceSpool:
             ),
         )
         self._pending += 1
-        if self._pending >= 65536:
+        if self._pending >= 4096:
             self.connection.commit()
             self._pending = 0
 
