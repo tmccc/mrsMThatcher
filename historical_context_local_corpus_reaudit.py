@@ -54,7 +54,7 @@ from historical_context_targeted_evidence_remediation import (
 )
 
 
-PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v10"
+PROGRAMME_VERSION = "historical-context-local-corpus-reaudit-v11"
 RUN_DIRECTORY_ENV = "MRS_HISTORICAL_REAUDIT_RUN_DIR"
 MAXIMUM_DOCUMENT_BYTES = research.MAXIMUM_RESPONSE_BYTES
 MAXIMUM_CANDIDATES_PER_QUOTE = 10
@@ -1048,6 +1048,41 @@ def _maintained_editorial_marker_semantics(value: str) -> str | None:
     return None
 
 
+def _explicit_non_direct_source_semantics(value: str) -> bool:
+    phrase = _normalised_editorial_phrase(value)
+    return bool(re.search(
+        r"\bpartial paraphrase\b|\bnewspaper report\b|"
+        r"\breportorial account\b|\breport of (?:the )?event\b|"
+        r"\bpress report\b|\bnon direct source\b",
+        phrase,
+    ))
+
+
+def _numbered_editorial_label_semantics(value: str) -> str | None:
+    """Recognise bounded numbered labels without widening italic markers."""
+    numbered = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(value)
+    if numbered is None:
+        return None
+    label = numbered.group(2)
+    maintained = _maintained_editorial_marker_semantics(label)
+    if maintained in {"nonmt", "editorial_only"}:
+        return maintained
+    if _explicit_non_direct_source_semantics(label):
+        return "nonmt"
+    if maintained == "mt":
+        return "mt"
+    bounded_label = " ".join(label.split()).casefold().strip()
+    if bounded_label.endswith("."):
+        bounded_label = bounded_label[:-1].rstrip()
+    source_qualified = re.fullmatch(
+        r"thatcher archive(?:\s*:\s*|\s*[–—]\s*|\s+-\s+)"
+        r"(speaking text|modified speaking text begins|"
+        r"full speaking text begins)",
+        bounded_label,
+    )
+    return "mt" if source_qualified else None
+
+
 def _structured_editorial_metadata(body: bytes) -> dict[str, Any]:
     """Read only the Source/editorial rows in the already-opened MTF HTML."""
     soup = BeautifulSoup(body, "lxml")
@@ -1082,6 +1117,8 @@ def _structured_editorial_metadata(body: bytes) -> dict[str, Any]:
 
 def _explicit_metadata_source_semantics(value: str) -> str | None:
     phrase = _normalised_editorial_phrase(value)
+    if _explicit_non_direct_source_semantics(phrase):
+        return "nonmt"
     if re.search(
         r"\b(?:modified |full )?(?:speaking|speech) text\b|"
         r"\bdirect thatcher text\b|"
@@ -1089,13 +1126,6 @@ def _explicit_metadata_source_semantics(value: str) -> str | None:
         phrase,
     ):
         return "mt"
-    if re.search(
-        r"\bpartial paraphrase\b|\bnewspaper report\b|"
-        r"\breportorial account\b|\breport of (?:the )?event\b|"
-        r"\bpress report\b|\bnon direct source\b",
-        phrase,
-    ):
-        return "nonmt"
     return None
 
 
@@ -1108,9 +1138,21 @@ def _metadata_explicitly_reports_source(
     comments = _normalised_editorial_phrase(editorial_comments)
     if len(source_name.split()) < 2 or source_name not in comments:
         return False
-    return bool(re.search(
+    if re.search(
         rf"\b{re.escape(source_name)}\b(?:\s+\w+){{0,6}}\s+reported\b",
         comments,
+    ):
+        return True
+    source_pattern = r"\s+".join(
+        re.escape(word) for word in source_name.split()
+    )
+    punctuation_preserving_comments = " ".join(
+        editorial_comments.split()
+    ).casefold()
+    return bool(re.search(
+        rf"\b{source_pattern}\b(?:\s+\w+){{0,3}}"
+        r"\s+report\s+(?:of|on|from)\b",
+        punctuation_preserving_comments,
     ))
 
 
@@ -1128,6 +1170,22 @@ def _numbered_source_section_baseline(
     label_descriptor = _NUMBERED_EDITORIAL_SOURCE_LABEL.match(label)
     label_value = label_descriptor.group(2) if label_descriptor else label
     label_phrase = _normalised_editorial_phrase(label_value)
+    label_semantics = _numbered_editorial_label_semantics(label)
+    all_entry_semantics = {
+        _explicit_metadata_source_semantics(descriptor)
+        for descriptor in descriptors
+    } - {None}
+    if len(all_entry_semantics) > 1 or (
+        label_semantics in {"mt", "nonmt"}
+        and any(
+            semantics != label_semantics
+            for semantics in all_entry_semantics
+        )
+    ):
+        return (
+            "unverified",
+            "numbered_source_label_metadata_polarity_conflict",
+        )
     consistent = [
         descriptor for descriptor in descriptors
         if label_phrase in _normalised_editorial_phrase(descriptor)
@@ -1135,14 +1193,18 @@ def _numbered_source_section_baseline(
     ]
     if not consistent:
         return "unverified", "numbered_source_label_metadata_inconsistent"
-    label_semantics = _maintained_editorial_marker_semantics(label)
     entry_semantics = {
         _explicit_metadata_source_semantics(descriptor)
         for descriptor in consistent
     } - {None}
     if label_semantics == "mt" and entry_semantics == {"mt"}:
         if author_verified:
-            return "mt", "numbered_source_metadata_verified_direct_mt_text"
+            reason = (
+                "numbered_source_metadata_verified_direct_mt_text"
+                if _maintained_editorial_marker_semantics(label) == "mt"
+                else "numbered_source_qualified_direct_mt_text"
+            )
+            return "mt", reason
         return "unverified", "direct_source_without_verified_thatcher_author"
     if label_semantics == "nonmt" and entry_semantics == {"nonmt"}:
         return "nonmt", "numbered_source_metadata_verified_non_direct_text"

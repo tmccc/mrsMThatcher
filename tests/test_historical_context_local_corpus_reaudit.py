@@ -134,8 +134,9 @@ def semantic_fields_for_body(
     body: bytes,
     *,
     variants: list[str] | None = None,
+    document_id: str = "103384",
 ) -> tuple[dict, dict, dict]:
-    url = "https://www.margaretthatcher.org/document/103384"
+    url = f"https://www.margaretthatcher.org/document/{document_id}"
     validation = research.inspect_mtf_document(url, "text/html", body)
     assert validation["valid"] is True
     extraction = research.extract_page_text({
@@ -1236,6 +1237,399 @@ def test_numbered_editorial_sources_bind_mt_and_report_sections() -> None:
     assert {row["editorial_marker_kind"] for row in marker_events} == {
         "editorial_source_boundary", "editorial_only_marker"
     }
+
+
+@pytest.mark.parametrize(
+    ("document_id", "quotation"),
+    [
+        ("103522", "Free enterprise carries duties as well as rewards."),
+        ("103192", "Our purpose is to restore confidence and responsibility."),
+        ("103494", "The nation must live within the resources it earns."),
+    ],
+)
+def test_source_qualified_numbered_label_verifies_real_shape_mt_sections(
+    document_id: str, quotation: str,
+) -> None:
+    label = "(1) Thatcher Archive: speaking text."
+    body = modern_html(
+        document_id,
+        f"<p><ed-comment>{label}</ed-comment></p><p>{quotation}</p>",
+        source=label,
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id=document_id
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert validation["valid"] is True
+    assert validation["author"] == "Margaret Thatcher"
+    assert event["archive_source_section_baseline_polarity"] == "mt"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_qualified_direct_mt_text"
+    )
+    assert fields["archive_source_section_baseline_polarity"] == "mt"
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+    assert label not in fields["supporting_passage"]
+    assert label not in fields["surrounding_context"]
+    assert "Thatcher Archive: speaking text" not in fields[
+        "supporting_passage"
+    ]
+    assert "Thatcher Archive: speaking text" not in fields[
+        "surrounding_context"
+    ]
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "(1) Thatcher Archive: speaking text",
+        "(12) THATCHER ARCHIVE : SPEAKING TEXT.",
+        "(123) Thatcher Archive – modified speaking text begins.",
+        "(2) Thatcher Archive—full speaking text begins",
+        "(3) Thatcher Archive - speaking text.",
+    ],
+)
+def test_numbered_source_qualified_direct_label_forms_are_bounded(
+    label: str,
+) -> None:
+    assert reaudit._numbered_editorial_label_semantics(label) == "mt"
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "(1) Commentary on speaking text",
+        "(1) Not speaking text",
+        "(1) Speaking text summary",
+        "(1) Newspaper report: speaking text",
+        "(1) Partial paraphrase of speaking text",
+        "(1) Notes concerning the speaking text",
+        "(1) Another Archive: speaking text",
+    ],
+)
+def test_numbered_direct_semantics_reject_suffix_only_labels(
+    label: str,
+) -> None:
+    assert reaudit._numbered_editorial_label_semantics(label) != "mt"
+
+
+def test_source_qualified_numbered_label_requires_verified_author() -> None:
+    quotation = "This source remains unverified without Thatcher authorship."
+    label = "(1) Thatcher Archive: speaking text."
+    body = modern_html(
+        "103522",
+        f"<p><ed-comment>{label}</ed-comment></p><p>{quotation}</p>",
+        author="Archive transcript",
+        source=label,
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "unverified"
+    assert event["archive_source_section_boundary_reason"] == (
+        "direct_source_without_verified_thatcher_author"
+    )
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_arbitrary_source_prefix_ending_in_speaking_text_is_unverified() -> None:
+    quotation = "An arbitrary archive prefix cannot establish authorship."
+    label = "(1) Another Archive: speaking text."
+    body = modern_html(
+        "103522",
+        f"<p><ed-comment>{label}</ed-comment></p><p>{quotation}</p>",
+        source=label,
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "unverified"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_metadata_semantics_ambiguous"
+    )
+    assert fields["direct_primary_attribution_basis"] == ""
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_bare_numbered_speaking_text_form_remains_direct() -> None:
+    quotation = "The maintained bare source label remains supported."
+    label = "(1) Speaking text."
+    body = modern_html(
+        "103522",
+        f"<p><ed-comment>{label}</ed-comment></p><p>{quotation}</p>",
+        source=label,
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "mt"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_metadata_verified_direct_mt_text"
+    )
+    assert fields["direct_primary_attribution_basis"] == (
+        "editorial_source_section_mt_baseline"
+    )
+    assert fields["accepted_as_primary_evidence"] is True
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        "Partial paraphrase",
+        "Partial paraphrase of speaking text",
+        "Opening of press release (partial paraphrase of speaking text)",
+        "Newspaper report",
+        "Newspaper report of speaking text",
+        "Reportorial account",
+        "Report of the event",
+        "Press report",
+        "Press report of direct speech text",
+        "Non-direct source",
+    ],
+)
+def test_explicit_metadata_non_direct_semantics_outrank_direct_words(
+    descriptor: str,
+) -> None:
+    assert reaudit._explicit_metadata_source_semantics(descriptor) == "nonmt"
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        "Speaking text",
+        "Speech text",
+        "Modified speaking text",
+        "Full speaking text",
+        "Direct Thatcher text",
+        "Direct speech text",
+    ],
+)
+def test_clean_explicit_metadata_direct_semantics_remain_direct(
+    descriptor: str,
+) -> None:
+    assert reaudit._explicit_metadata_source_semantics(descriptor) == "mt"
+
+
+def test_direct_label_with_non_direct_metadata_fails_closed_on_polarity() -> None:
+    quotation = "Embedded direct words cannot override paraphrase metadata."
+    body = modern_html(
+        "103522",
+        '<p><ed-comment>(1) Speaking text</ed-comment></p>'
+        f"<p>{quotation}</p>",
+        source="(1) Partial paraphrase of speaking text",
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "unverified"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_label_metadata_polarity_conflict"
+    )
+    assert fields["reported_or_secondary_nonmt_match"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_non_direct_label_with_direct_metadata_fails_closed_on_polarity() -> None:
+    quotation = "The inverse polarity disagreement also remains unverified."
+    body = modern_html(
+        "103522",
+        '<p><ed-comment>(1) Partial paraphrase</ed-comment></p>'
+        f"<p>{quotation}</p>",
+        source="(1) Speaking text",
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "unverified"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_label_metadata_polarity_conflict"
+    )
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        "Opening of press release (partial paraphrase of speaking text)",
+        "Newspaper report of speaking text",
+        "Press report of direct speech text",
+    ],
+)
+def test_agreeing_non_direct_numbered_label_and_metadata_are_reportorial(
+    descriptor: str,
+) -> None:
+    quotation = "This occurrence belongs only to reportorial source material."
+    label = f"(1) {descriptor}"
+    body = modern_html(
+        "103522",
+        f"<p><ed-comment>{label}</ed-comment></p><p>{quotation}</p>",
+        author="Archive transcript",
+        source=label,
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "nonmt"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_metadata_verified_non_direct_text"
+    )
+    assert fields["reported_or_secondary_nonmt_match"] is True
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_archive_nonmt"
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "reason"),
+    [
+        (
+            "(1) Thatcher Archive: speaking text.",
+            "(1) Thatcher Archive: speaking text.",
+            "numbered_source_qualified_direct_mt_text",
+        ),
+        (
+            "(1) Speaking text.",
+            "(1) Speaking text.",
+            "numbered_source_metadata_verified_direct_mt_text",
+        ),
+    ],
+)
+def test_clean_numbered_direct_label_metadata_pairs_remain_mt(
+    label: str, source: str, reason: str,
+) -> None:
+    baseline, actual_reason = reaudit._numbered_source_section_baseline(
+        label,
+        "1",
+        {
+            "numbered_entries": {
+                "1": [{"metadata_field": "source", "descriptor": source[4:]}]
+            },
+            "editorial_comments": "",
+        },
+        author_verified=True,
+    )
+    assert baseline == "mt"
+    assert actual_reason == reason
+
+
+def test_conflicting_duplicate_numbered_metadata_entries_are_unverified() -> None:
+    quotation = "Duplicate metadata polarity cannot establish direct text."
+    body = modern_html(
+        "103522",
+        '<p><ed-comment>(1) Speaking text</ed-comment></p>'
+        f"<p>{quotation}</p>",
+        source=(
+            "(1) Speaking text "
+            "(1) Partial paraphrase of speaking text"
+        ),
+        leading_filler=False,
+    )
+    _validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="103522"
+    )
+    event = fields["archive_source_section_events"][0]
+
+    assert event["archive_source_section_baseline_polarity"] == "unverified"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_label_metadata_polarity_conflict"
+    )
+    assert fields["accepted_as_primary_evidence"] is False
+
+
+def test_101374_style_report_noun_is_same_source_secondary_evidence() -> None:
+    quotation = "The policy would place responsibility back with the citizen."
+    body = modern_html(
+        "101374",
+        '<p><ed-comment>(1) Evening News</ed-comment></p>'
+        f"<p>{quotation}</p>",
+        author="Archive transcript",
+        source="(1) Evening News",
+        editorial_comments=(
+            "The Evening News report of this speech is the source of the "
+            "attribution."
+        ),
+        leading_filler=False,
+    )
+    validation, _extraction, fields = semantic_fields_for_body(
+        quotation, body, document_id="101374"
+    )
+    event = fields["archive_source_section_events"][0]
+    evidence = fields["reported_or_secondary_nonmt_match_evidence"]
+
+    assert validation["valid"] is True
+    assert event["archive_source_section_baseline_polarity"] == "nonmt"
+    assert event["archive_source_section_boundary_reason"] == (
+        "numbered_source_metadata_verified_reportorial_account"
+    )
+    assert fields["archive_source_section_baseline_polarity"] == "nonmt"
+    assert quotation.rstrip(".") in evidence["supporting_passage"]
+    assert fields["speaker_author_evidence"]["verified"] is False
+    assert fields["accepted_as_primary_evidence"] is False
+    assert fields["candidate_semantic_reverification_status"] == (
+        "reverified_rejected_archive_nonmt"
+    )
+
+
+@pytest.mark.parametrize(
+    "editorial_comments",
+    [
+        "The Evening News reported that Mrs Thatcher spoke at the meeting.",
+        "The Evening News report of this speech supplied the attribution.",
+        "The Evening News detailed report on the event supplied attribution.",
+        "The Evening News morning edition report from Westminster supplied it.",
+    ],
+)
+def test_same_source_report_verb_and_bounded_report_nouns_are_recognised(
+    editorial_comments: str,
+) -> None:
+    assert reaudit._metadata_explicitly_reports_source(
+        "Evening News", editorial_comments
+    ) is True
+
+
+@pytest.mark.parametrize(
+    "editorial_comments",
+    [
+        "The Daily Telegraph report of this speech supplied the attribution.",
+        "A later report questioned the account.",
+        "The Evening News supplied the source without further attribution.",
+        (
+            "The Evening News special morning newspaper edition report of "
+            "the speech supplied the attribution."
+        ),
+    ],
+)
+def test_report_noun_requires_exact_source_attachment_within_three_words(
+    editorial_comments: str,
+) -> None:
+    assert reaudit._metadata_explicitly_reports_source(
+        "Evening News", editorial_comments
+    ) is False
 
 
 def test_numbered_editorial_source_boundary_is_hard_for_matching() -> None:

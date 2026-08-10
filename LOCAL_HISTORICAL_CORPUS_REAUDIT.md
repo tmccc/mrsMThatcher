@@ -119,13 +119,26 @@ with `(1)`, `(2)`, or another one-to-three-digit section number. Its number is
 bound only to the same numbered entry parsed from the document's structured
 `Source` or `Editorial comments` table row. A direct MT baseline requires both a
 direct form such as `speaking text` in the label and corresponding entry and an
-explicitly verified Margaret Thatcher document author. A non-MT baseline
-requires explicit partial-paraphrase, newspaper-report, reportorial-account,
-event-report, press-report, or other non-direct semantics. A named newspaper by
-itself is insufficient; a named source establishes reportorial semantics only
-when the structured editorial comment explicitly says that same source reported
-the event. A missing, inconsistent, or ambiguous numbered entry still creates a
-hard boundary but gives the section an `unverified` baseline.
+explicitly verified Margaret Thatcher document author. Numbered `ed-comment`
+labels additionally admit only the bounded source qualifier `Thatcher Archive`
+followed by a colon, en dash, em dash, or spaced hyphen and one complete
+maintained direct terminal phrase; an arbitrary prefix ending in `speaking
+text` is not direct. This does not widen ordinary italic-marker recognition. A
+non-MT baseline requires explicit partial-paraphrase, newspaper-report,
+reportorial-account, event-report, press-report, or other non-direct semantics.
+Non-direct structured metadata is evaluated before any embedded direct wording,
+so `partial paraphrase of speaking text` and `press report of direct speech
+text` remain non-MT. Opposite label and metadata polarities, including
+incompatible duplicate same-number entries, fail closed as `unverified`. A
+named newspaper by itself is insufficient; a named source establishes
+reportorial semantics only when the structured editorial comment explicitly
+uses that same complete source name of at least two words with either the
+bounded `reported` verb form or an attached `report of`, `report on`, or `report
+from` noun construction. A report noun may follow no more than three ordinary
+words after the source name and supplies reportorial secondary evidence only.
+An unrelated report or a different source name does not qualify. A missing,
+inconsistent, or ambiguous numbered entry still creates a hard boundary but
+gives the section an `unverified` baseline.
 
 A numbered `ed-comment` nested in a contribution parent is a source boundary
 only when it is the first substantive content in that parent. Whitespace,
