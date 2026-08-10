@@ -10,12 +10,17 @@ from __future__ import annotations
 
 import argparse
 import ast
+import functools
 import hashlib
 import json
 import os
+import platform
 import re
+import sqlite3
 import stat
+import subprocess
 import sys
+import tempfile
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -24,8 +29,10 @@ from typing import Any, Iterable, Iterator
 from zoneinfo import ZoneInfo
 
 
-SCHEMA_VERSION = 1
-TOOL_VERSION = "reply-history-reconstruction-v1"
+SCHEMA_VERSION = 2
+TOOL_VERSION = "reply-history-reconstruction-v2"
+HASH_BLOCK_SIZE = 1024 * 1024
+OCCURRENCE_CONTEXT_RADIUS = 1
 LOG_NAME_RE = re.compile(r"mrsMThatcher\.log(?:\.([0-9]+))?\Z")
 LOG_HEADER_RE = re.compile(
     rb"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
@@ -33,8 +40,11 @@ LOG_HEADER_RE = re.compile(
     rb"(?P<msg>.*?)(?:\r?\n)?\Z"
 )
 TIMESTAMP_PREFIX_RE = re.compile(rb"^\d{4}-\d{2}-\d{2}[ T]")
-SNAPSHOT_TIME_RE = re.compile(
+DAILY_SNAPSHOT_TIME_RE = re.compile(
     r"(?P<date>\d{4}-\d{2}-\d{2})[-_T](?P<hour>\d{2})(?P<minute>\d{2})(?:\d{2})?"
+)
+UTC_COMPACT_SNAPSHOT_TIME_RE = re.compile(
+    r"(?P<stamp>\d{8}T\d{6}Z)"
 )
 VERSION_CONSTANTS = (
     "STRATEGY_VERSION",
@@ -72,6 +82,20 @@ ROUTINE_REASON_LABELS = (
     "lane_not_due",
 )
 CONVERSATIONAL_LANES = frozenset({"mention", "hot-post", "quote-tweet"})
+OUT_OF_SCOPE_LANES = frozenset(
+    {"historical-context", "quote-image", "regular-post", "daily-meme"}
+)
+VERSION_FIELDS = (
+    ("strategy_version", "STRATEGY_VERSION"),
+    ("proposer_prompt_version", "PROPOSER_PROMPT_VERSION"),
+    ("reviewer_prompt_version", "REVIEWER_PROMPT_VERSION"),
+    ("no_reply_review_prompt_version", "NO_REPLY_REVIEW_PROMPT_VERSION"),
+    ("claim_auditor_prompt_version", "CLAIM_AUDITOR_PROMPT_VERSION"),
+)
+PROMPT_VERSION_FIELDS = tuple(field for field, _constant in VERSION_FIELDS[1:])
+GENERIC_NO_REPLY_KINDS = frozenset(
+    {"legacy_editorial_no_reply", "mention_grok_skip", "hot_post_reply_grok_skip"}
+)
 LOCAL_REJECTION_REASONS = frozenset(
     {
         "clarification_not_direct_factual_answer",
@@ -167,6 +191,20 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def sha256_file(path: Path, *, block_size: int = HASH_BLOCK_SIZE) -> str:
+    """Hash a file without retaining its contents in memory."""
+    if block_size < 1:
+        raise ValueError("block_size must be positive")
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(block_size)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def stable_id(prefix: str, *values: object) -> str:
     body = "\x1f".join(str(value) for value in values).encode("utf-8", "surrogatepass")
     return f"{prefix}-{sha256_bytes(body)}"
@@ -219,21 +257,53 @@ def validate_relative_project_path(value: str) -> Path:
     return path
 
 
+def snapshot_timestamp_metadata(name: str) -> dict[str, str | None]:
+    compact = UTC_COMPACT_SNAPSHOT_TIME_RE.search(name)
+    if compact:
+        try:
+            parsed = datetime.strptime(compact.group("stamp"), "%Y%m%dT%H%M%SZ").replace(
+                tzinfo=timezone.utc
+            )
+        except ValueError:
+            pass
+        else:
+            return {
+                "timestamp_utc": parsed.isoformat().replace("+00:00", "Z"),
+                "original_name": name,
+                "timezone_basis": "explicit UTC suffix Z",
+                "inference_method": "compact YYYYMMDDTHHMMSSZ timestamp parsed from snapshot name",
+            }
+    daily = DAILY_SNAPSHOT_TIME_RE.search(name)
+    if daily:
+        raw = f"{daily.group('date')}T{daily.group('hour')}:{daily.group('minute')}:00"
+        try:
+            parsed = datetime.fromisoformat(raw).replace(tzinfo=LONDON)
+        except ValueError:
+            pass
+        else:
+            return {
+                "timestamp_utc": parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "original_name": name,
+                "timezone_basis": "Europe/London local time",
+                "inference_method": "daily YYYY-MM-DD-HHMM timestamp parsed from snapshot name",
+            }
+    return {
+        "timestamp_utc": None,
+        "original_name": name,
+        "timezone_basis": "unavailable",
+        "inference_method": "snapshot name has no supported timestamp",
+    }
+
+
 def inferred_snapshot_time(name: str) -> tuple[str | None, str]:
-    match = SNAPSHOT_TIME_RE.search(name)
-    if not match:
-        return None, "unavailable"
-    raw = f"{match.group('date')}T{match.group('hour')}:{match.group('minute')}:00"
-    try:
-        datetime.fromisoformat(raw)
-    except ValueError:
-        return None, "unavailable"
-    return raw, "snapshot-name embedded local date and time; timezone unavailable"
+    metadata = snapshot_timestamp_metadata(name)
+    return metadata["timestamp_utc"], str(metadata["inference_method"])
 
 
 def snapshot_sort_key(name: str) -> tuple[int, str, str]:
-    inferred, _method = inferred_snapshot_time(name)
-    return (0 if inferred else 1, inferred or "", name)
+    metadata = snapshot_timestamp_metadata(name)
+    inferred = metadata["timestamp_utc"]
+    return (0 if inferred else 1, str(inferred or ""), name)
 
 
 def discover_snapshot_projects(snapshot_root: Path, relative: Path) -> tuple[list[str], dict[str, Path], list[dict[str, str]]]:
@@ -320,6 +390,57 @@ def validate_output_path(
         else:
             raise ExtractionError(f"refusing to overwrite non-empty output directory: {resolved}")
     return resolved
+
+
+def extractor_provenance(source_path: Path, worktree: Path) -> dict[str, Any]:
+    """Describe the running extractor without importing or executing source code."""
+    source = source_path.resolve(strict=True)
+    root = worktree.resolve(strict=True)
+    source_digest = sha256_file(source)
+    head: str | None = None
+    confidence = "unavailable"
+    try:
+        relative = source.relative_to(root).as_posix()
+    except ValueError:
+        relative = ""
+
+    def git_output(arguments: list[str], *, text_mode: bool) -> subprocess.CompletedProcess[Any]:
+        return subprocess.run(
+            ["git", "-C", str(root), *arguments],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=text_mode,
+        )
+
+    try:
+        head_result = git_output(["rev-parse", "HEAD"], text_mode=True)
+        observed = str(head_result.stdout or "").strip()
+        if head_result.returncode == 0 and re.fullmatch(r"[0-9a-fA-F]{40,64}", observed):
+            head = observed.lower()
+            confidence = "approximate"
+        if head and relative:
+            status_result = git_output(
+                ["status", "--porcelain", "--untracked-files=normal"], text_mode=True
+            )
+            committed_result = git_output(["show", f"HEAD:{relative}"], text_mode=False)
+            committed_bytes = committed_result.stdout if isinstance(committed_result.stdout, bytes) else b""
+            if (
+                status_result.returncode == 0
+                and not str(status_result.stdout or "").strip()
+                and committed_result.returncode == 0
+                and sha256_bytes(committed_bytes) == source_digest
+            ):
+                confidence = "exact"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {
+        "extractor_git_commit": head,
+        "extractor_git_commit_confidence": confidence,
+        "extractor_source_sha256": source_digest,
+        "python_implementation": platform.python_implementation(),
+        "python_version": platform.python_version(),
+    }
 
 
 def safe_read_bytes(path: Path, project: Path) -> bytes:
@@ -501,6 +622,10 @@ def normalise_lane(value: Any) -> str:
         return "mention"
     if "historical" in lane and "context" in lane:
         return "historical-context"
+    if lane in {"quote-image", "quote-image-post", "image-quote", "regular-post"}:
+        return "quote-image" if "quote" in lane or "image" in lane else "regular-post"
+    if lane in {"daily-meme", "meme", "meme-post"}:
+        return "daily-meme"
     return lane or "unavailable"
 
 
@@ -601,10 +726,21 @@ def structured_evidence(records: Iterable[dict[str, Any]]) -> tuple[list[dict[st
         item = make_evidence_event(kind, record, fields)
         if fields["target_id"] and fields["lane"] in CONVERSATIONAL_LANES:
             relevant.append(item)
-        elif fields["target_id"]:
+        elif fields["target_id"] and fields["lane"] in OUT_OF_SCOPE_LANES:
             # Structured regular-post, meme and historical-context evidence is
             # outside this deliberately conversational corpus.
             continue
+        elif fields["target_id"]:
+            unmatched.append(
+                {
+                    "event_kind": kind,
+                    "lane": fields["lane"],
+                    "message_class": "recognised_reply_event_unknown_lane",
+                    "reason": "recognised reply event has a missing or unsupported lane",
+                    "record_id": record["record_id"],
+                    "timestamp": record["timestamp"],
+                }
+            )
         else:
             unmatched.append(
                 {
@@ -922,8 +1058,10 @@ def epoch_timestamp(value: Any) -> str:
 def supplemental_json_evidence(
     name: str,
     data: bytes,
-    source_identity: str,
+    source_key: str,
     source_sha: str,
+    source_type: str = "snapshot",
+    source_identity: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     events: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
@@ -958,7 +1096,7 @@ def supplemental_json_evidence(
             {
                 "actual_reply_text": actual_reply,
                 "lane": lane,
-                "supplemental_source": source_identity,
+                "supplemental_source": source_key,
                 "supplemental_source_sha256": source_sha,
                 "target_id": target,
             }
@@ -970,7 +1108,10 @@ def supplemental_json_evidence(
                 "original_timestamp_text": original_timestamp,
                 "record_id": "",
                 "supplemental_evidence_id": stable_id("evidence", event_hash),
-                "supplemental_occurrence_id": stable_id("supplemental-occurrence", source_identity, index, event_hash),
+                "supplemental_occurrence_id": stable_id("supplemental-occurrence", source_key, index, event_hash),
+                "supplemental_source_identity": source_identity,
+                "supplemental_source_type": source_type,
+                "supplemental_source_sequence": index + 1,
                 "timestamp": timestamp,
                 "status": status,
                 **fields,
@@ -1054,10 +1195,329 @@ def candidate_field_values(events: list[dict[str, Any]], keys: tuple[str, ...]) 
     return values
 
 
+def event_evidence_id(event: dict[str, Any]) -> str:
+    return str(event.get("record_id") or event.get("supplemental_evidence_id") or "")
+
+
+def candidate_field_evidence(
+    events: list[dict[str, Any]], key: str
+) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in events:
+        value = item.get(key)
+        if value in (None, "", [], {}):
+            continue
+        encoded = json_text(value)
+        row = grouped.setdefault(
+            encoded,
+            {"value": value, "evidence_ids": []},
+        )
+        evidence_id = event_evidence_id(item)
+        if evidence_id and evidence_id not in row["evidence_ids"]:
+            row["evidence_ids"].append(evidence_id)
+    for row in grouped.values():
+        row["evidence_ids"].sort()
+    return [grouped[key] for key in sorted(grouped)]
+
+
+def evidence_order_relation(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    evidence_locations: dict[str, list[dict[str, Any]]],
+) -> int | None:
+    """Return physical order for equal-time evidence, or None if unknowable."""
+    left_id = event_evidence_id(left)
+    right_id = event_evidence_id(right)
+    if left_id == right_id:
+        return 0
+    left_positions = {
+        (str(row["source_type"]), str(row["source_identity"])): int(row["source_order"])
+        for row in evidence_locations.get(left_id, [])
+    }
+    right_positions = {
+        (str(row["source_type"]), str(row["source_identity"])): int(row["source_order"])
+        for row in evidence_locations.get(right_id, [])
+    }
+    directions = {
+        -1 if left_positions[source] < right_positions[source] else 1
+        for source in left_positions.keys() & right_positions.keys()
+        if left_positions[source] != right_positions[source]
+    }
+    if len(directions) == 1:
+        return next(iter(directions))
+    return None
+
+
+def compare_evidence_events(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    evidence_locations: dict[str, list[dict[str, Any]]],
+) -> int:
+    left_timestamp = str(left.get("timestamp") or "")
+    right_timestamp = str(right.get("timestamp") or "")
+    if parse_timestamp_sort(left_timestamp) != parse_timestamp_sort(right_timestamp):
+        return -1 if parse_timestamp_sort(left_timestamp) < parse_timestamp_sort(right_timestamp) else 1
+    relation = evidence_order_relation(left, right, evidence_locations)
+    if relation is not None and relation != 0:
+        return relation
+    left_fallback = (event_evidence_id(left), str(left.get("kind") or ""))
+    right_fallback = (event_evidence_id(right), str(right.get("kind") or ""))
+    return -1 if left_fallback < right_fallback else 1 if left_fallback > right_fallback else 0
+
+
+def seconds_between(earlier: str, later: str) -> float | None:
+    try:
+        first = datetime.fromisoformat(earlier.replace("Z", "+00:00"))
+        second = datetime.fromisoformat(later.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    return (second - first).total_seconds()
+
+
+def resolve_terminal_history(
+    events: list[dict[str, Any]],
+    evidence_locations: dict[str, list[dict[str, Any]]],
+) -> tuple[str, list[dict[str, Any]], dict[str, Any] | None, list[dict[str, Any]]]:
+    terminal_events = [item for item in events if event_outcome(item)]
+    terminal_events.sort(
+        key=functools.cmp_to_key(
+            lambda left, right: compare_evidence_events(left, right, evidence_locations)
+        )
+    )
+    history: list[dict[str, Any]] = []
+    for index, item in enumerate(terminal_events, start=1):
+        kind = str(item.get("kind") or "")
+        reason = str(
+            item.get("reason")
+            or item.get("no_reply_reason")
+            or item.get("failure_reason")
+            or item.get("status")
+            or ""
+        )
+        row = {
+            "attempt_index": index,
+            "order_index": index,
+            "timestamp": item.get("timestamp") or None,
+            "outcome": event_outcome(item),
+            "event_kind": kind,
+            "reason": reason or None,
+            "evidence_id": event_evidence_id(item),
+            "is_specific": kind not in GENERIC_NO_REPLY_KINDS,
+            "is_generic_wrapper": False,
+            "generic_wrapper_for_evidence_id": None,
+            "_event": item,
+        }
+        if kind in GENERIC_NO_REPLY_KINDS:
+            preceding = next(
+                (previous for previous in reversed(history) if previous["is_specific"]),
+                None,
+            )
+            if preceding is not None and preceding["outcome"] in {
+                "editorial_no_reply",
+                "deterministic_rejection",
+            }:
+                delta = seconds_between(
+                    str(preceding.get("timestamp") or ""), str(row.get("timestamp") or "")
+                )
+                ordered = delta is not None and delta > 0
+                if delta == 0:
+                    relation = evidence_order_relation(
+                        preceding["_event"], item, evidence_locations
+                    )
+                    ordered = relation == -1
+                if ordered and delta is not None and delta <= 5:
+                    row["is_generic_wrapper"] = True
+                    row["generic_wrapper_for_evidence_id"] = preceding["evidence_id"]
+                else:
+                    row["is_specific"] = True
+            else:
+                row["is_specific"] = True
+        history.append(row)
+
+    active = [row for row in history if not row["is_generic_wrapper"]]
+    conflicts: list[dict[str, Any]] = []
+    for left_index, left in enumerate(active):
+        for right in active[left_index + 1 :]:
+            if not left["is_specific"] or not right["is_specific"]:
+                continue
+            if left["outcome"] == right["outcome"] or left["timestamp"] != right["timestamp"]:
+                continue
+            relation = evidence_order_relation(left["_event"], right["_event"], evidence_locations)
+            if relation is None:
+                conflict = {
+                    "field": "outcome",
+                    "values": [left["outcome"], right["outcome"]],
+                    "evidence_ids": [left["evidence_id"], right["evidence_id"]],
+                    "basis": "contradictory specific terminal dispositions at the same unordered effective point",
+                }
+                if conflict not in conflicts:
+                    conflicts.append(conflict)
+
+    posted = [row for row in active if row["outcome"] == "posted"]
+    non_operational = [
+        row
+        for row in active
+        if row["outcome"] in {"editorial_no_reply", "deterministic_rejection"}
+    ]
+    failures = [row for row in active if row["outcome"] == "operational_failure"]
+    if posted:
+        outcome = "posted"
+        selected = posted[-1]
+    elif conflicts:
+        outcome = "unresolved"
+        selected = None
+    elif non_operational:
+        outcome = str(non_operational[-1]["outcome"])
+        selected = non_operational[-1]
+    elif failures:
+        outcome = "operational_failure"
+        selected = failures[-1]
+    else:
+        outcome = "unresolved"
+        selected = None
+    public_history = [
+        {key: value for key, value in row.items() if key != "_event"}
+        for row in history
+    ]
+    return outcome, public_history, selected, conflicts
+
+
+def source_identity_sort_key(row: dict[str, Any]) -> tuple[int, tuple[int, str, str], str]:
+    source_type = str(row.get("source_type") or "")
+    identity = str(row.get("source_identity") or "")
+    return (
+        0 if source_type == "snapshot" else 1,
+        snapshot_sort_key(identity) if source_type == "snapshot" else (0, "", identity),
+        identity,
+    )
+
+
+def version_attributions(
+    events: list[dict[str, Any]],
+    version_rows: list[dict[str, Any]],
+    evidence_locations: dict[str, list[dict[str, Any]]],
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    rows_by_source = {
+        (str(row.get("source_type") or ""), str(row.get("snapshot_name") or "")): row
+        for row in version_rows
+    }
+    all_locations = {
+        json_text(location): location
+        for item in events
+        for location in evidence_locations.get(event_evidence_id(item), [])
+    }
+    ordered_locations = sorted(all_locations.values(), key=source_identity_sort_key)
+    snapshot_locations = [row for row in ordered_locations if row.get("source_type") == "snapshot"]
+    containing_source = snapshot_locations[0] if snapshot_locations else (
+        next((row for row in ordered_locations if row.get("source_type") == "live"), None)
+    )
+    attributions: dict[str, dict[str, Any]] = {}
+    conflicts: list[dict[str, Any]] = []
+    for field, constant in VERSION_FIELDS:
+        explicit = candidate_field_evidence(events, field)
+        if len(explicit) == 1:
+            evidence_ids = explicit[0]["evidence_ids"]
+            explicit_locations = sorted(
+                {
+                    json_text(location): location
+                    for evidence_id in evidence_ids
+                    for location in evidence_locations.get(evidence_id, [])
+                }.values(),
+                key=source_identity_sort_key,
+            )
+            attributions[field] = {
+                "value": explicit[0]["value"],
+                "confidence": "exact",
+                "basis": "explicitly logged or persisted value for this field",
+                "evidence_ids": evidence_ids,
+                "source_identity": (
+                    explicit_locations[0].get("source_identity") if explicit_locations else None
+                ),
+            }
+            continue
+        if len(explicit) > 1:
+            evidence_ids = sorted(
+                {evidence_id for row in explicit for evidence_id in row["evidence_ids"]}
+            )
+            conflicting_values = []
+            for row in explicit:
+                identities = sorted(
+                    {
+                        str(location.get("source_identity"))
+                        for evidence_id in row["evidence_ids"]
+                        for location in evidence_locations.get(evidence_id, [])
+                        if location.get("source_identity")
+                    },
+                    key=snapshot_sort_key,
+                )
+                conflicting_values.append(
+                    {
+                        "value": row["value"],
+                        "evidence_ids": row["evidence_ids"],
+                        "source_identities": identities,
+                    }
+                )
+            attributions[field] = {
+                "value": None,
+                "confidence": "exact",
+                "basis": "conflicting explicit values; no exact value selected",
+                "evidence_ids": evidence_ids,
+                "source_identity": None,
+                "conflicting_values": conflicting_values,
+            }
+            conflicts.append(
+                {
+                    "field": field,
+                    "values": [row["value"] for row in explicit],
+                    "evidence_ids": evidence_ids,
+                }
+            )
+            continue
+        source_type = str(containing_source.get("source_type")) if containing_source else ""
+        identity = str(containing_source.get("source_identity")) if containing_source else ""
+        version_row = rows_by_source.get((source_type, identity)) if containing_source else None
+        constants = version_row.get("constants", {}) if version_row else {}
+        value = constants.get(constant)
+        evidence_ids = sorted(
+            {
+                event_evidence_id(item)
+                for item in events
+                if any(
+                    location.get("source_type") == source_type
+                    and location.get("source_identity") == identity
+                    for location in evidence_locations.get(event_evidence_id(item), [])
+                )
+                and event_evidence_id(item)
+            }
+        )
+        if version_row and value not in (None, ""):
+            confidence = "approximate"
+            basis = (
+                "earliest containing snapshot version row"
+                if source_type == "snapshot"
+                else "live version row for live-only evidence"
+            )
+        elif version_row:
+            confidence = "unavailable"
+            basis = "containing source version row does not expose this field"
+        else:
+            confidence = "unavailable"
+            basis = "no containing snapshot or eligible live-only source version row"
+        attributions[field] = {
+            "value": value if value not in (None, "") else None,
+            "confidence": confidence,
+            "basis": basis,
+            "evidence_ids": evidence_ids,
+            "source_identity": identity or None,
+            "snapshot_version_row_id": version_row.get("version_row_id") if version_row else None,
+        }
+    return attributions, conflicts
+
+
 def reconstruct_candidates(
     evidence: list[dict[str, Any]],
     version_rows: list[dict[str, Any]],
-    record_snapshots: dict[str, set[str]],
+    evidence_locations: dict[str, list[dict[str, Any]]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], int]:
     routine_map: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -1109,7 +1569,6 @@ def reconstruct_candidates(
             continue
         grouped[(lane, target)].append(event)
 
-    versions_by_name = {str(row["snapshot_name"]): row for row in version_rows if row.get("source_type") == "snapshot"}
     candidates: list[dict[str, Any]] = []
     ambiguity_count = 0
     field_map = {
@@ -1135,7 +1594,13 @@ def reconstruct_candidates(
         "revision_count": ("revision_count",),
     }
     for (lane, target), events in sorted(grouped.items()):
-        events.sort(key=lambda item: (parse_timestamp_sort(str(item.get("timestamp") or "")), str(item.get("record_id") or item.get("supplemental_evidence_id") or ""), str(item.get("kind") or "")))
+        events.sort(
+            key=functools.cmp_to_key(
+                lambda left, right: compare_evidence_events(
+                    left, right, evidence_locations
+                )
+            )
+        )
         source_record_ids = sorted({str(item.get("record_id")) for item in events if item.get("record_id")})
         supplemental_ids = sorted({str(item.get("supplemental_evidence_id")) for item in events if item.get("supplemental_evidence_id")})
         supplemental_occurrences = sorted(
@@ -1204,74 +1669,30 @@ def reconstruct_candidates(
             else:
                 resolved[output_field] = None
 
-        outcome_events = [(event_outcome(item), item) for item in events]
-        terminal = [(outcome, item) for outcome, item in outcome_events if outcome]
-        outcome_classes = sorted({outcome for outcome, _item in terminal if outcome})
-        if "posted" in outcome_classes:
-            # A later successful retry supersedes an earlier operational failure.
-            contradictory = [value for value in outcome_classes if value not in {"posted", "operational_failure"}]
-            outcome = "posted"
-            if contradictory:
-                conflicts.append({"field": "outcome", "values": outcome_classes, "evidence_ids": sorted({str(item.get("record_id") or item.get("supplemental_evidence_id") or "") for _value, item in terminal})})
-        elif "deterministic_rejection" in outcome_classes:
-            # Explicit local terminal reasons cannot be re-labelled editorial
-            # merely because a generic legacy no-usable-reply line also exists.
-            outcome = "deterministic_rejection"
-            if len(outcome_classes) > 1:
-                conflicts.append({"field": "outcome", "values": outcome_classes, "evidence_ids": sorted({str(item.get("record_id") or item.get("supplemental_evidence_id") or "") for _value, item in terminal})})
-        elif len(outcome_classes) == 1:
-            outcome = outcome_classes[0]
-        elif len(outcome_classes) > 1:
-            outcome = outcome_classes[-1]
-            conflicts.append({"field": "outcome", "values": outcome_classes, "evidence_ids": sorted({str(item.get("record_id") or item.get("supplemental_evidence_id") or "") for _value, item in terminal})})
-        else:
-            outcome = "unresolved"
-
-        explicit_versions = candidate_field_values(events, ("strategy_version",))
-        prompt_keys = (
-            "proposer_prompt_version",
-            "reviewer_prompt_version",
-            "no_reply_review_prompt_version",
-            "claim_auditor_prompt_version",
+        outcome, terminal_history, selected_terminal, outcome_conflicts = resolve_terminal_history(
+            events, evidence_locations
         )
-        prompt_values = {key: candidate_field_values(events, (key,)) for key in prompt_keys}
-        version_evidence: dict[str, Any]
-        strategy_version: str | None
-        version_confidence: str
-        if explicit_versions:
-            distinct = [value for value, _source in explicit_versions]
-            if len(distinct) == 1:
-                strategy_version = str(distinct[0])
-                version_confidence = "exact"
-            else:
-                strategy_version = None
-                version_confidence = "exact"
-                conflicts.append({"field": "strategy_version", "values": distinct, "evidence_ids": [source for _value, source in explicit_versions]})
-            version_evidence = {
-                "basis": "explicit log or persisted candidate versions",
-                "confidence": "exact",
-                "prompt_versions": {key: values[0][0] if len(values) == 1 else [value for value, _source in values] for key, values in prompt_values.items() if values},
-                "strategy_versions": distinct,
+        conflicts.extend(outcome_conflicts)
+        attributions, version_conflicts = version_attributions(
+            events, version_rows, evidence_locations
+        )
+        conflicts.extend(version_conflicts)
+        strategy_version = attributions["strategy_version"]["value"]
+        version_confidence = str(attributions["strategy_version"]["confidence"])
+        prompt_components = [
+            {
+                "field": field,
+                "value": attributions[field]["value"]
+                if attributions[field]["value"] is not None
+                else "unavailable",
             }
-        else:
-            containing = sorted(
-                {snapshot for record_id in source_record_ids for snapshot in record_snapshots.get(record_id, set())},
-                key=snapshot_sort_key,
-            )
-            earliest = containing[0] if containing else None
-            version_row = versions_by_name.get(earliest or "")
-            constants = version_row.get("constants", {}) if version_row else {}
-            strategy_version = constants.get("STRATEGY_VERSION")
-            version_confidence = "approximate" if version_row else "unavailable"
-            version_evidence = {
-                "basis": "earliest selected snapshot containing candidate" if version_row else "unavailable",
-                "confidence": version_confidence,
-                "snapshot": earliest,
-                "snapshot_constants": constants,
-            }
+            for field in PROMPT_VERSION_FIELDS
+        ]
+        prompt_era_id = stable_id(
+            "prompt-era", *(component["value"] for component in prompt_components)
+        )
 
         timestamps = sorted(str(item.get("timestamp") or "") for item in events if item.get("timestamp"))
-        terminal_timestamps = sorted(str(item.get("timestamp") or "") for _outcome, item in terminal if item.get("timestamp"))
         required_complete = bool(target and lane != "unavailable" and outcome != "unresolved" and resolved.get("incoming_text"))
         if outcome == "posted":
             required_complete = required_complete and bool(resolved.get("actual_reply_text") and resolved.get("reply_post_id"))
@@ -1319,8 +1740,8 @@ def reconstruct_candidates(
             )
         if any(normalise_reason(reason) in NON_TERMINAL_REASONS for reason in raw_reasons):
             notes.append("strategy-disabled execution is retained as non-terminal evidence")
-        if version_confidence == "approximate":
-            notes.append("version is inferred from the earliest selected snapshot containing the candidate; no exact deployment boundary is claimed")
+        if any(row["confidence"] == "approximate" for row in attributions.values()):
+            notes.append("one or more version fields are inferred from a containing source version row; no exact deployment boundary is claimed")
         candidate = {
             "actual_reply_text": resolved.get("actual_reply_text"),
             "author_id": resolved.get("author_id"),
@@ -1334,9 +1755,27 @@ def reconstruct_candidates(
             "lane": lane,
             "mode": resolved.get("mode"),
             "model_call_count": resolved.get("model_call_count"),
-            "no_reply_reason": resolved.get("no_reply_reason") or (next((str(item.get("reason")) for item in events if event_outcome(item) == "editorial_no_reply" and item.get("reason")), None) if outcome == "editorial_no_reply" else None),
+            "no_reply_reason": (
+                resolved.get("no_reply_reason")
+                or next(
+                    (
+                        str(item.get("reason"))
+                        for item in events
+                        if event_outcome(item) == "editorial_no_reply" and item.get("reason")
+                    ),
+                    None,
+                )
+            )
+            if outcome == "editorial_no_reply"
+            else None,
             "outcome": outcome,
-            "prompt_version_evidence": version_evidence,
+            "prompt_era_components": prompt_components,
+            "prompt_era_id": prompt_era_id,
+            "prompt_version_evidence": attributions,
+            "proposer_prompt_version": attributions["proposer_prompt_version"]["value"],
+            "reviewer_prompt_version": attributions["reviewer_prompt_version"]["value"],
+            "no_reply_review_prompt_version": attributions["no_reply_review_prompt_version"]["value"],
+            "claim_auditor_prompt_version": attributions["claim_auditor_prompt_version"]["value"],
             "quoted_post_id": resolved.get("quoted_post_id"),
             "quoted_post_text": resolved.get("quoted_post_text"),
             "raw_reasons": raw_reasons,
@@ -1350,11 +1789,14 @@ def reconstruct_candidates(
             "supplemental_evidence_ids": supplemental_ids,
             "supplemental_occurrences": supplemental_occurrences,
             "target_id": target,
-            "terminal_timestamp": terminal_timestamps[-1] if terminal_timestamps else None,
+            "terminal_attempt_history": terminal_history,
+            "terminal_timestamp": selected_terminal.get("timestamp") if selected_terminal else None,
+            "final_outcome_evidence_id": selected_terminal.get("evidence_id") if selected_terminal else None,
             "thread_id": resolved.get("thread_id"),
             "timestamp_evidence": timestamp_evidence,
             "tone": resolved.get("tone"),
             "version_confidence": version_confidence,
+            "version_attribution": attributions,
         }
         candidates.append(candidate)
     routine = sorted(routine_map.values(), key=lambda row: (row["timestamp"], row["lane"], str(row["target_id"] or ""), row["reason"], row["routine_skip_id"]))
@@ -1418,12 +1860,16 @@ def distribution(values: Iterable[int], buckets: tuple[int, ...]) -> dict[str, i
 
 
 def quality_inventory(candidates: list[dict[str, Any]]) -> dict[str, Any]:
-    posted = [
+    posted_candidates = [
         item
         for item in candidates
         if item.get("lane") in CONVERSATIONAL_LANES
         and item["outcome"] == "posted"
-        and isinstance(item.get("actual_reply_text"), str)
+    ]
+    posted = [
+        item
+        for item in posted_candidates
+        if isinstance(item.get("actual_reply_text"), str)
         and item["actual_reply_text"]
     ]
     replies = [str(item["actual_reply_text"]) for item in posted]
@@ -1491,8 +1937,20 @@ def quality_inventory(candidates: list[dict[str, Any]]) -> dict[str, Any]:
         )
 
     count_dimensions: dict[str, dict[str, int]] = {}
-    for field, missing in (("lane", "unavailable"), ("strategy_version", "unavailable"), ("mode", "unavailable"), ("tone", "unavailable")):
-        count_dimensions[field if field != "strategy_version" else "era"] = dict(sorted(Counter(str(item.get(field) or missing) for item in posted).items()))
+    for output_name, field, missing in (
+        ("lane", "lane", "unavailable"),
+        ("prompt_era", "prompt_era_id", "unavailable"),
+        ("strategy_version", "strategy_version", "unavailable"),
+        ("mode", "mode", "unavailable"),
+        ("tone", "tone", "unavailable"),
+    ):
+        count_dimensions[output_name] = dict(
+            sorted(
+                Counter(
+                    str(item.get(field) or missing) for item in posted_candidates
+                ).items()
+            )
+        )
     diagnostic = {
         phrase: sum(reply.lower().count(phrase) for reply in replies)
         for phrase in DIAGNOSTIC_PHRASES
@@ -1531,10 +1989,7 @@ def quality_inventory(candidates: list[dict[str, Any]]) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "sentence_count_distribution": dict(sorted(Counter(str(len([part for part in SENTENCE_RE.findall(reply) if part.strip()])) for reply in replies).items())),
         "tool_version": TOOL_VERSION,
-        "total_posted_candidates": sum(
-            item["outcome"] == "posted" and item.get("lane") in CONVERSATIONAL_LANES
-            for item in candidates
-        ),
+        "total_posted_candidates": len(posted_candidates),
         "total_posted_replies_with_text": len(posted),
     }
 
@@ -1619,7 +2074,8 @@ def coverage_markdown(
     outcomes = Counter(item["outcome"] for item in candidates)
     lanes = Counter(item["lane"] for item in candidates)
     statuses = Counter(item["reconstruction_status"] for item in candidates)
-    eras = Counter(str(item.get("strategy_version") or "unavailable") for item in candidates)
+    strategy_eras = Counter(str(item.get("strategy_version") or "unavailable") for item in candidates)
+    prompt_eras = Counter(str(item.get("prompt_era_id") or "unavailable") for item in candidates)
     # Source rows carry every warning with file provenance, including warnings
     # also retained on their canonical record. Count that authoritative list
     # once rather than double-counting canonical copies here.
@@ -1658,7 +2114,13 @@ def coverage_markdown(
         "## Candidates",
         "",
     ]
-    for title, counter in (("Outcome", outcomes), ("Lane", lanes), ("Reconstruction status", statuses), ("Version era", eras)):
+    for title, counter in (
+        ("Outcome", outcomes),
+        ("Lane", lanes),
+        ("Reconstruction status", statuses),
+        ("Prompt era", prompt_eras),
+        ("Strategy version", strategy_eras),
+    ):
         lines.extend([f"### {title}", ""])
         lines.extend(markdown_table([title, "Count"], sorted(counter.items())))
         lines.append("")
@@ -1721,6 +2183,266 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
     os.chmod(path, 0o600)
 
 
+class OccurrenceSpool:
+    """Disk-backed occurrence ordering and bounded context reconciliation."""
+
+    def __init__(self, parent: Path, output_name: str) -> None:
+        descriptor, raw_path = tempfile.mkstemp(
+            prefix=f".{output_name}.occurrence-spool-",
+            suffix=".sqlite3",
+            dir=str(parent),
+        )
+        os.close(descriptor)
+        os.chmod(raw_path, 0o600)
+        self.path = Path(raw_path)
+        self.connection = sqlite3.connect(str(self.path))
+        self.connection.executescript(
+            """
+            PRAGMA journal_mode=DELETE;
+            PRAGMA synchronous=FULL;
+            PRAGMA temp_store=FILE;
+            CREATE TABLE occurrences (
+                occurrence_id TEXT PRIMARY KEY,
+                record_id TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                source_order INTEGER NOT NULL,
+                source_identity TEXT NOT NULL,
+                source_path TEXT NOT NULL,
+                source_file_sequence INTEGER NOT NULL,
+                occurrence_ambiguity_id TEXT,
+                row_json TEXT NOT NULL
+            );
+            CREATE INDEX occurrences_output_order
+                ON occurrences(record_id, source_type, source_order, source_identity,
+                               source_path, source_file_sequence, occurrence_id);
+            CREATE INDEX occurrences_record ON occurrences(record_id);
+            CREATE TABLE record_sources (
+                fingerprint TEXT NOT NULL,
+                record_id TEXT NOT NULL,
+                source_stream TEXT NOT NULL,
+                PRIMARY KEY(fingerprint, record_id, source_stream)
+            );
+            CREATE INDEX record_sources_lookup
+                ON record_sources(fingerprint, source_stream, record_id);
+            CREATE TABLE context_signatures (
+                fingerprint TEXT NOT NULL,
+                signature TEXT NOT NULL,
+                token_count INTEGER NOT NULL,
+                record_id TEXT NOT NULL,
+                source_stream TEXT NOT NULL,
+                PRIMARY KEY(fingerprint, signature, record_id, source_stream)
+            );
+            CREATE INDEX context_signatures_lookup
+                ON context_signatures(fingerprint, token_count, signature, source_stream, record_id);
+            CREATE TABLE diagnostics (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            """
+        )
+        self._pending = 0
+
+    @staticmethod
+    def _signature_variants(context: dict[int, str]) -> list[tuple[int, str, str]]:
+        tokens = sorted(context.items())
+        variants: list[tuple[int, str, str]] = []
+        if len(tokens) > 1:
+            variants.append(
+                (
+                    len(tokens),
+                    json_text([[offset, fingerprint] for offset, fingerprint in tokens]),
+                    ",".join(str(offset) for offset, _fingerprint in tokens),
+                )
+            )
+        for offset, fingerprint in tokens:
+            variants.append((1, json_text([[offset, fingerprint]]), str(offset)))
+        return variants
+
+    def _external_records(self, fingerprint: str, source_stream: str) -> list[str]:
+        cursor = self.connection.execute(
+            """
+            SELECT DISTINCT record_id
+            FROM record_sources
+            WHERE fingerprint = ? AND source_stream <> ?
+            ORDER BY record_id
+            LIMIT 3
+            """,
+            (fingerprint, source_stream),
+        )
+        return [str(row[0]) for row in cursor]
+
+    def reconcile(
+        self,
+        *,
+        fingerprint: str,
+        context: dict[int, str],
+        source_stream: str,
+        new_record_id: str,
+        ambiguity_seed: tuple[object, ...],
+        unavailable_record_ids: set[str] | None = None,
+    ) -> tuple[str, str, str, str | None]:
+        external = self._external_records(fingerprint, source_stream)
+        if not external:
+            return new_record_id, "new", "no earlier source occurrence has this fingerprint", None
+        variants = self._signature_variants(context)
+        matched_ids: set[str] = set()
+        matched_offsets: set[str] = set()
+        if variants:
+            strongest = max(token_count for token_count, _signature, _offsets in variants)
+            for token_count in range(strongest, 0, -1):
+                level_ids: set[str] = set()
+                level_offsets: set[str] = set()
+                for count, signature, offsets in variants:
+                    if count != token_count:
+                        continue
+                    cursor = self.connection.execute(
+                        """
+                        SELECT DISTINCT record_id
+                        FROM context_signatures
+                        WHERE fingerprint = ? AND token_count = ? AND signature = ?
+                              AND source_stream <> ?
+                        ORDER BY record_id
+                        LIMIT 3
+                        """,
+                        (fingerprint, token_count, signature, source_stream),
+                    )
+                    found = {str(row[0]) for row in cursor}
+                    if found:
+                        level_ids.update(found)
+                        level_offsets.add(offsets)
+                if level_ids:
+                    matched_ids = level_ids
+                    matched_offsets = level_offsets
+                    break
+        if len(matched_ids) == 1:
+            record_id = next(iter(matched_ids))
+            if unavailable_record_ids and record_id in unavailable_record_ids:
+                ambiguity_id = stable_id(
+                    "occurrence-ambiguity", fingerprint, *ambiguity_seed, record_id
+                )
+                return (
+                    new_record_id,
+                    "ambiguous_unmerged",
+                    "unique external context match is already linked within this retained stream",
+                    ambiguity_id,
+                )
+            basis = (
+                "unique bounded sequence-context match using neighbour offsets "
+                + ",".join(sorted(matched_offsets))
+            )
+            return record_id, "matched_unique_context", basis, None
+        if matched_ids:
+            possible = sorted(matched_ids)
+            reason = "bounded sequence context matches more than one logical occurrence"
+        elif not context:
+            possible = external
+            reason = "fingerprint recurs but the retained occurrence has no neighbouring context"
+        else:
+            return (
+                new_record_id,
+                "distinct_context",
+                "fingerprint recurs but available bounded neighbour context does not match",
+                None,
+            )
+        ambiguity_id = stable_id(
+            "occurrence-ambiguity", fingerprint, *ambiguity_seed, *possible
+        )
+        return new_record_id, "ambiguous_unmerged", reason, ambiguity_id
+
+    def add_context(
+        self,
+        *,
+        fingerprint: str,
+        context: dict[int, str],
+        record_id: str,
+        source_stream: str,
+    ) -> None:
+        self.connection.execute(
+            "INSERT OR IGNORE INTO record_sources VALUES (?, ?, ?)",
+            (fingerprint, record_id, source_stream),
+        )
+        for token_count, signature, _offsets in self._signature_variants(context):
+            self.connection.execute(
+                "INSERT OR IGNORE INTO context_signatures VALUES (?, ?, ?, ?, ?)",
+                (fingerprint, signature, token_count, record_id, source_stream),
+            )
+
+    def add_occurrence(self, row: dict[str, Any], *, source_order: int) -> None:
+        self.connection.execute(
+            "INSERT INTO occurrences VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                row["occurrence_id"],
+                row["record_id"],
+                row["source_type"],
+                source_order,
+                row["source_identity"],
+                row["source_path"],
+                row["source_file_sequence"],
+                row.get("occurrence_ambiguity_id"),
+                json_text(row),
+            ),
+        )
+        self._pending += 1
+        if self._pending >= 4096:
+            self.connection.commit()
+            self._pending = 0
+
+    def iter_occurrences(self) -> Iterator[dict[str, Any]]:
+        self.connection.commit()
+        self._pending = 0
+        cursor = self.connection.execute(
+            """
+            SELECT row_json FROM occurrences
+            ORDER BY record_id, source_type, source_order, source_identity,
+                     source_path, source_file_sequence, occurrence_id
+            """
+        )
+        for (encoded,) in cursor:
+            yield json.loads(str(encoded))
+
+    def occurrence_ids(self, record_id: str) -> list[str]:
+        self.connection.commit()
+        cursor = self.connection.execute(
+            """
+            SELECT occurrence_id FROM occurrences
+            WHERE record_id = ?
+            ORDER BY source_type, source_order, source_identity, source_path,
+                     source_file_sequence, occurrence_id
+            """,
+            (record_id,),
+        )
+        return [str(row[0]) for row in cursor]
+
+    def ambiguity_count(self) -> int:
+        self.connection.commit()
+        row = self.connection.execute(
+            """
+            SELECT COUNT(DISTINCT occurrence_ambiguity_id)
+            FROM occurrences
+            WHERE occurrence_ambiguity_id IS NOT NULL
+            """
+        ).fetchone()
+        return int(row[0] if row else 0)
+
+    def close(self, *, remove: bool) -> None:
+        self.connection.commit()
+        self.connection.close()
+        if remove:
+            self.path.unlink()
+
+    def preserve_failure_diagnostic(self, error: BaseException | None) -> None:
+        detail = {
+            "error_type": type(error).__name__ if error is not None else "unknown",
+            "message": str(error) if error is not None else "finalisation did not complete",
+            "spool_path": str(self.path),
+        }
+        self.connection.execute(
+            "INSERT OR REPLACE INTO diagnostics VALUES (?, ?)",
+            ("failed_run", json_text(detail)),
+        )
+        self.connection.commit()
+
+
 def execute(args: argparse.Namespace) -> dict[str, Any]:
     snapshot_root = Path(args.snapshot_root).expanduser().resolve(strict=True)
     if not snapshot_root.is_dir():
@@ -1746,14 +2468,16 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     selected_projects = [available_projects[name] for name in selected]
     output = validate_output_path(Path(args.output), snapshot_root, selected_projects, live_project, worktree)
     created_at = normalise_created_at(args.created_at)
+    provenance = extractor_provenance(Path(__file__), worktree)
 
-    projects: list[tuple[str, str, Path]] = [("snapshot", name, available_projects[name]) for name in selected]
+    projects: list[tuple[str, str, Path]] = [
+        ("snapshot", name, available_projects[name]) for name in selected
+    ]
     if live_project is not None:
         projects.append(("live", "live", live_project))
     source_rows: list[dict[str, Any]] = []
     canonical: dict[str, dict[str, Any]] = {}
-    occurrence_rows: list[dict[str, Any]] = []
-    record_snapshots: dict[str, set[str]] = defaultdict(set)
+    evidence_locations_map: dict[str, dict[tuple[str, str, int], dict[str, Any]]] = defaultdict(dict)
     structured: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
     legacy_by_source_record: dict[tuple[str, str], dict[str, Any]] = {}
@@ -1761,70 +2485,140 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     supplemental_unique: dict[str, dict[str, Any]] = {}
     version_rows: list[dict[str, Any]] = []
     raw_record_occurrence_count = 0
+    spool = OccurrenceSpool(Path(tempfile.gettempdir()), output.name)
+    successful_finalisation = False
 
-    for source_type, identity, project in projects:
-        stream_pair_counts: Counter[tuple[str, str]] = Counter()
-        pair_paths: dict[tuple[str, str], set[str]] = defaultdict(set)
-        legacy_pending: dict[str, dict[str, Any]] = {}
-        constants: dict[str, str] = {}
-        version_warnings: list[dict[str, Any]] = []
-        hashes: dict[str, str | None] = {
-            name: None for name in ("reply_strategy.py", "mrsMThatcher2.py", "bot_state.json")
-        }
-        for path in source_candidates(project):
-            relative_path = path.relative_to(project).as_posix()
-            key = f"{source_type}:{identity}:{relative_path}"
-            data = safe_read_bytes(path, project)
-            digest = sha256_bytes(data)
-            byte_size = len(data)
-            if path.name in hashes:
-                hashes[path.name] = digest
-            parse_warnings: list[dict[str, Any]] = []
-            parsed: list[dict[str, Any]] = []
-            if LOG_NAME_RE.fullmatch(path.name):
-                parsed, parse_warnings = parse_log_records(data, key, stream_pair_counts)
-                raw_record_occurrence_count += len(parsed)
-                for sequence, record in enumerate(parsed, start=1):
-                    record["source_file_sequence"] = sequence
-                    record["source_identity"] = identity
-                    record["source_key"] = key
-                    record["source_path"] = relative_path
-                    record["source_type"] = source_type
-                    pair = (record["original_timestamp_text"], record["raw_record_sha256"])
-                    prior_paths = pair_paths[pair]
-                    if prior_paths and relative_path not in prior_paths:
-                        record["parse_warnings"].append(
-                            warning(
-                                "ambiguous_identical_record_across_rotation_boundary",
-                                other_source_paths=sorted(prior_paths),
-                            )
-                        )
-                    prior_paths.add(relative_path)
-                    parse_warnings.extend(
+    def retain_legacy(rows: list[dict[str, Any]], pending: dict[str, dict[str, Any]]) -> None:
+        found_legacy, not_matched_legacy = legacy_evidence(rows, pending)
+        for derived_event in found_legacy:
+            event_identity = (
+                str(derived_event.get("kind") or ""),
+                str(derived_event.get("record_id") or ""),
+            )
+            retained = legacy_by_source_record.setdefault(event_identity, derived_event)
+            if retained is derived_event:
+                continue
+            conflicts = retained.setdefault("derivation_conflicts", [])
+            for field, value in derived_event.items():
+                if value in (None, "", [], {}):
+                    continue
+                if retained.get(field) in (None, "", [], {}):
+                    retained[field] = value
+                elif retained[field] != value:
+                    conflict = {
+                        "field": field,
+                        "retained_value": retained[field],
+                        "alternate_value": value,
+                    }
+                    if conflict not in conflicts:
+                        conflicts.append(conflict)
+        legacy_unmatched.extend(not_matched_legacy)
+
+    try:
+        for project_order, (source_type, identity, project) in enumerate(projects):
+            source_stream = f"{source_type}:{identity}"
+            stream_pair_counts: Counter[tuple[str, str]] = Counter()
+            pair_paths: dict[tuple[str, str], set[str]] = defaultdict(set)
+            legacy_pending: dict[str, dict[str, Any]] = {}
+            constants: dict[str, str] = {}
+            version_warnings: list[dict[str, Any]] = []
+            hashes: dict[str, str | None] = {
+                name: None
+                for name in ("reply_strategy.py", "mrsMThatcher2.py", "bot_state.json")
+            }
+            pending_records: list[dict[str, Any]] = []
+            left_fingerprints: list[str] = []
+            stream_sequence = 0
+            linked_record_ids: set[str] = set()
+
+            def process_records(records: list[dict[str, Any]], count: int) -> None:
+                nonlocal left_fingerprints
+                processed: list[dict[str, Any]] = []
+                for index in range(count):
+                    record = records[index]
+                    context: dict[int, str] = {}
+                    for distance in range(1, OCCURRENCE_CONTEXT_RADIUS + 1):
+                        before_index = index - distance
+                        if before_index >= 0:
+                            context[-distance] = str(records[before_index]["_record_fingerprint"])
+                        elif len(left_fingerprints) >= distance - index:
+                            context[-distance] = left_fingerprints[index - distance]
+                        after_index = index + distance
+                        if after_index < len(records):
+                            context[distance] = str(records[after_index]["_record_fingerprint"])
+                    fingerprint = str(record["_record_fingerprint"])
+                    new_record_id = stable_id(
+                        "record",
+                        fingerprint,
+                        source_type,
+                        identity,
+                        record["source_stream_sequence"],
+                    )
+                    record_id, reconciliation_status, reconciliation_basis, ambiguity_id = spool.reconcile(
+                        fingerprint=fingerprint,
+                        context=context,
+                        source_stream=source_stream,
+                        new_record_id=new_record_id,
+                        ambiguity_seed=(
+                            source_type,
+                            identity,
+                            record["source_path"],
+                            record["source_file_sequence"],
+                            record["source_stream_sequence"],
+                        ),
+                        unavailable_record_ids=linked_record_ids,
+                    )
+                    linked_record_ids.add(record_id)
+                    record["record_id"] = record_id
+                    occurrence_id = stable_id(
+                        "occurrence",
+                        source_type,
+                        identity,
+                        record["source_path"],
+                        record["source_file_sequence"],
+                        record["source_stream_sequence"],
+                        fingerprint,
+                    )
+                    occurrence = {
+                        "occurrence_id": occurrence_id,
+                        "occurrence_reconciliation_status": reconciliation_status,
+                        "occurrence_reconciliation_basis": reconciliation_basis,
+                        "occurrence_ambiguity_id": ambiguity_id,
+                        "pair_ordinal": record["pair_ordinal"],
+                        "record_id": record_id,
+                        "record_fingerprint": fingerprint,
+                        "source_file_sequence": record["source_file_sequence"],
+                        "source_identity": identity,
+                        "source_path": record["source_path"],
+                        "source_stream_sequence": record["source_stream_sequence"],
+                        "source_type": source_type,
+                    }
+                    spool.add_occurrence(occurrence, source_order=project_order)
+                    spool.add_context(
+                        fingerprint=fingerprint,
+                        context=context,
+                        record_id=record_id,
+                        source_stream=source_stream,
+                    )
+                    location = {
+                        "source_type": source_type,
+                        "source_identity": identity,
+                        "source_order": record["source_stream_sequence"],
+                    }
+                    evidence_locations_map[record_id][
+                        (source_type, identity, record["source_stream_sequence"])
+                    ] = location
+                    warning_sink = record.pop("_warning_sink")
+                    warning_sink.extend(
                         {
                             **item,
-                            "record_id": record["record_id"],
-                            "source_file_sequence": sequence,
+                            "record_id": record_id,
+                            "source_file_sequence": record["source_file_sequence"],
                         }
                         for item in record["parse_warnings"]
                     )
-                    record_id = record["record_id"]
-                    occurrence_id = stable_id("occurrence", key, sequence, record_id)
-                    occurrence_rows.append(
-                        {
-                            "occurrence_id": occurrence_id,
-                            "pair_ordinal": record["pair_ordinal"],
-                            "record_id": record_id,
-                            "source_file_sequence": sequence,
-                            "source_identity": identity,
-                            "source_path": relative_path,
-                            "source_type": source_type,
-                        }
-                    )
-                    if source_type == "snapshot":
-                        record_snapshots[record_id].add(identity)
                     if record_id not in canonical:
-                        canonical[record_id] = {
+                        canonical_row = {
                             field: record[field]
                             for field in (
                                 "level",
@@ -1839,13 +2633,16 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                                 "source_metadata",
                                 "structured_event",
                                 "timestamp",
+                                "source_identity",
+                                "source_stream_sequence",
+                                "source_type",
                             )
                         }
-                        canonical[record_id]["logger"] = None
-                        canonical[record_id]["function"] = record["source_metadata"]
-                        canonical[record_id]["source_occurrence_ids"] = []
+                        canonical_row["logger"] = None
+                        canonical_row["function"] = record["source_metadata"]
+                        canonical[record_id] = canonical_row
                         found_structured, not_matched_structured = structured_evidence(
-                            [canonical[record_id]]
+                            [canonical_row]
                         )
                         structured.extend(found_structured)
                         unmatched.extend(not_matched_structured)
@@ -1858,189 +2655,332 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                             for item in record["parse_warnings"]
                             if json_text(item) not in known_warnings
                         )
-                    canonical[record_id]["source_occurrence_ids"].append(occurrence_id)
-                found_legacy, not_matched_legacy = legacy_evidence(parsed, legacy_pending)
-                for event in found_legacy:
-                    event_identity = (str(event.get("kind") or ""), str(event.get("record_id") or ""))
-                    retained = legacy_by_source_record.setdefault(event_identity, event)
-                    if retained is not event:
-                        conflicts = retained.setdefault("derivation_conflicts", [])
-                        for field, value in event.items():
-                            if value in (None, "", [], {}):
-                                continue
-                            if retained.get(field) in (None, "", [], {}):
-                                retained[field] = value
-                            elif retained[field] != value:
-                                conflict = {
-                                    "field": field,
-                                    "retained_value": retained[field],
-                                    "alternate_value": value,
-                                }
-                                if conflict not in conflicts:
-                                    conflicts.append(conflict)
-                legacy_unmatched.extend(not_matched_legacy)
-            elif path.name in {"bot_state.json", *EXPLICIT_JSON_FILES}:
-                evidence, json_warnings = supplemental_json_evidence(path.name, data, key, digest)
-                parse_warnings.extend(json_warnings)
-                for event in evidence:
-                    occurrence = {
-                        "supplemental_occurrence_id": event.pop("supplemental_occurrence_id"),
-                        "supplemental_source": event.pop("supplemental_source"),
-                        "supplemental_source_sha256": event.pop("supplemental_source_sha256"),
-                    }
-                    event_key = json_text(event)
-                    retained = supplemental_unique.setdefault(
-                        event_key, {**event, "supplemental_occurrences": []}
+                    processed.append(record)
+                    left_fingerprints.append(fingerprint)
+                    del left_fingerprints[:-OCCURRENCE_CONTEXT_RADIUS]
+                if processed:
+                    retain_legacy(processed, legacy_pending)
+
+            for path in source_candidates(project):
+                relative_path = path.relative_to(project).as_posix()
+                key = f"{source_type}:{identity}:{relative_path}"
+                data = safe_read_bytes(path, project)
+                digest = sha256_bytes(data)
+                byte_size = len(data)
+                if path.name in hashes:
+                    hashes[path.name] = digest
+                parse_warnings: list[dict[str, Any]] = []
+                parsed: list[dict[str, Any]] = []
+                first_record_timestamp: str | None = None
+                last_record_timestamp: str | None = None
+                parsed_record_count = 0
+                if LOG_NAME_RE.fullmatch(path.name):
+                    parsed, parse_warnings = parse_log_records(data, key, stream_pair_counts)
+                    parsed_record_count = len(parsed)
+                    raw_record_occurrence_count += parsed_record_count
+                    first_record_timestamp = parsed[0]["timestamp"] if parsed else None
+                    last_record_timestamp = parsed[-1]["timestamp"] if parsed else None
+                    for sequence, record in enumerate(parsed, start=1):
+                        stream_sequence += 1
+                        record["source_file_sequence"] = sequence
+                        record["source_identity"] = identity
+                        record["source_key"] = key
+                        record["source_path"] = relative_path
+                        record["source_stream_sequence"] = stream_sequence
+                        record["source_type"] = source_type
+                        record["_warning_sink"] = parse_warnings
+                        record["_record_fingerprint"] = stable_id(
+                            "record-fingerprint",
+                            record["original_timestamp_text"],
+                            record["raw_record_sha256"],
+                        )
+                        pair = (
+                            record["original_timestamp_text"],
+                            record["raw_record_sha256"],
+                        )
+                        prior_paths = pair_paths[pair]
+                        if prior_paths and relative_path not in prior_paths:
+                            record["parse_warnings"].append(
+                                warning(
+                                    "ambiguous_identical_record_across_rotation_boundary",
+                                    other_source_paths=sorted(prior_paths),
+                                )
+                            )
+                        prior_paths.add(relative_path)
+                    combined = [*pending_records, *parsed]
+                    process_count = max(0, len(combined) - OCCURRENCE_CONTEXT_RADIUS)
+                    process_records(combined, process_count)
+                    pending_records = combined[process_count:]
+                elif path.name in {"bot_state.json", *EXPLICIT_JSON_FILES}:
+                    supplemental, json_warnings = supplemental_json_evidence(
+                        path.name,
+                        data,
+                        key,
+                        digest,
+                        source_type,
+                        identity,
                     )
-                    if occurrence not in retained["supplemental_occurrences"]:
-                        retained["supplemental_occurrences"].append(occurrence)
-            elif path.name == "reply_strategy.py":
-                values, warnings_found = ast_versions(data)
-                constants.update(values)
-                version_warnings.extend(warnings_found)
-                parse_warnings.extend(warnings_found)
-            source_rows.append(
-                {
-                    "byte_size": byte_size,
-                    "first_record_timestamp": parsed[0]["timestamp"] if parsed else None,
-                    "is_log": bool(LOG_NAME_RE.fullmatch(path.name)),
-                    "last_record_timestamp": parsed[-1]["timestamp"] if parsed else None,
-                    "parsed_record_count": len(parsed),
-                    "parse_warnings": parse_warnings,
-                    "sha256": digest,
-                    "snapshot_name": identity if source_type == "snapshot" else None,
-                    "source_identity": identity,
-                    "source_path": relative_path,
-                    "source_type": source_type,
+                    parse_warnings.extend(json_warnings)
+                    for supplemental_event in supplemental:
+                        occurrence = {
+                            "supplemental_occurrence_id": supplemental_event.pop(
+                                "supplemental_occurrence_id"
+                            ),
+                            "supplemental_source": supplemental_event.pop("supplemental_source"),
+                            "supplemental_source_sha256": supplemental_event.pop(
+                                "supplemental_source_sha256"
+                            ),
+                            "source_identity": supplemental_event.pop(
+                                "supplemental_source_identity"
+                            ),
+                            "source_type": supplemental_event.pop("supplemental_source_type"),
+                            "source_order": supplemental_event.pop(
+                                "supplemental_source_sequence"
+                            ),
+                        }
+                        event_key = json_text(supplemental_event)
+                        retained = supplemental_unique.setdefault(
+                            event_key,
+                            {**supplemental_event, "supplemental_occurrences": []},
+                        )
+                        if occurrence not in retained["supplemental_occurrences"]:
+                            retained["supplemental_occurrences"].append(occurrence)
+                elif path.name == "reply_strategy.py":
+                    values, warnings_found = ast_versions(data)
+                    constants.update(values)
+                    version_warnings.extend(warnings_found)
+                    parse_warnings.extend(warnings_found)
+                source_rows.append(
+                    {
+                        "byte_size": byte_size,
+                        "first_record_timestamp": first_record_timestamp,
+                        "is_log": bool(LOG_NAME_RE.fullmatch(path.name)),
+                        "last_record_timestamp": last_record_timestamp,
+                        "parsed_record_count": parsed_record_count,
+                        "parse_warnings": parse_warnings,
+                        "sha256": digest,
+                        "snapshot_name": identity if source_type == "snapshot" else None,
+                        "source_identity": identity,
+                        "source_path": relative_path,
+                        "source_type": source_type,
+                    }
+                )
+                del data
+                del parsed
+            if pending_records:
+                process_records(pending_records, len(pending_records))
+                pending_records = []
+            timestamp_metadata = (
+                snapshot_timestamp_metadata(identity)
+                if source_type == "snapshot"
+                else {
+                    "timestamp_utc": None,
+                    "original_name": identity,
+                    "timezone_basis": "live project",
+                    "inference_method": "live project is ordered after selected snapshots",
                 }
             )
-            # Drop the complete file bytes and parsed occurrence objects before
-            # reading the next allow-listed source.
-            del data
-            del parsed
-        inferred, method = inferred_snapshot_time(identity) if source_type == "snapshot" else (None, "live project is not a snapshot")
-        version_rows.append(
-            {
-                "constants": constants,
-                "git_head": resolve_git_head(project),
-                "inferred_snapshot_ordering_timestamp": inferred,
-                "ordering_timestamp_inference": method,
-                "parse_warnings": version_warnings,
-                "sha256": hashes,
-                "snapshot_name": identity,
-                "source_type": source_type,
-            }
+            version_row_id = stable_id(
+                "version-row", source_type, identity, json_text(constants), json_text(hashes)
+            )
+            version_rows.append(
+                {
+                    "constants": constants,
+                    "git_head": resolve_git_head(project),
+                    "inferred_snapshot_ordering_timestamp": timestamp_metadata["timestamp_utc"],
+                    "ordering_timestamp_inference": timestamp_metadata["inference_method"],
+                    "parse_warnings": version_warnings,
+                    "sha256": hashes,
+                    "snapshot_name": identity,
+                    "snapshot_timestamp": timestamp_metadata,
+                    "source_type": source_type,
+                    "version_row_id": version_row_id,
+                }
+            )
+
+        canonical_rows = sorted(
+            canonical.values(),
+            key=lambda row: (
+                row["timestamp"],
+                row["raw_record_sha256"],
+                row["record_id"],
+            ),
+        )
+        source_rows.sort(
+            key=lambda row: (
+                row["source_type"],
+                snapshot_sort_key(str(row["source_identity"])),
+                source_sort_key(row["source_path"]),
+            )
+        )
+        version_rows.sort(
+            key=lambda row: (
+                row["source_type"],
+                snapshot_sort_key(str(row["snapshot_name"])),
+            )
         )
 
-    canonical_rows = sorted(canonical.values(), key=lambda row: (row["timestamp"], row["raw_record_sha256"], row["pair_ordinal"], row["record_id"]))
-    for row in canonical_rows:
-        row["source_occurrence_ids"].sort()
-        row["occurrence_count"] = len(row["source_occurrence_ids"])
-    occurrence_rows.sort(key=lambda row: (row["record_id"], row["source_type"], row["source_identity"], row["source_path"], row["source_file_sequence"]))
-    source_rows.sort(key=lambda row: (row["source_type"], snapshot_sort_key(str(row["source_identity"])), source_sort_key(row["source_path"])))
-    version_rows.sort(key=lambda row: (row["source_type"], snapshot_sort_key(str(row["snapshot_name"]))))
-
-    for event in supplemental_unique.values():
-        event["supplemental_occurrences"].sort(
-            key=lambda row: (row["supplemental_source"], row["supplemental_occurrence_id"])
+        for supplemental_event in supplemental_unique.values():
+            supplemental_event["supplemental_occurrences"].sort(
+                key=lambda row: (
+                    source_identity_sort_key(row),
+                    row["source_order"],
+                    row["supplemental_occurrence_id"],
+                )
+            )
+            evidence_id = event_evidence_id(supplemental_event)
+            for occurrence in supplemental_event["supplemental_occurrences"]:
+                location = {
+                    "source_type": occurrence["source_type"],
+                    "source_identity": occurrence["source_identity"],
+                    "source_order": occurrence["source_order"],
+                }
+                evidence_locations_map[evidence_id][
+                    (
+                        str(occurrence["source_type"]),
+                        str(occurrence["source_identity"]),
+                        int(occurrence["source_order"]),
+                    )
+                ] = location
+        evidence_locations = {
+            evidence_id: sorted(locations.values(), key=source_identity_sort_key)
+            for evidence_id, locations in evidence_locations_map.items()
+        }
+        matched_legacy_record_ids = {
+            str(event.get("record_id"))
+            for event in legacy_by_source_record.values()
+            if event.get("record_id")
+        }
+        legacy_unmatched = [
+            row
+            for row in legacy_unmatched
+            if not row.get("record_id")
+            or str(row["record_id"]) not in matched_legacy_record_ids
+        ]
+        candidates, routine, reconstruction_unmatched, ambiguity_count = reconstruct_candidates(
+            [*structured, *legacy_by_source_record.values(), *supplemental_unique.values()],
+            version_rows,
+            evidence_locations,
         )
-    matched_legacy_record_ids = {
-        str(event.get("record_id"))
-        for event in legacy_by_source_record.values()
-        if event.get("record_id")
-    }
-    legacy_unmatched = [
-        row
-        for row in legacy_unmatched
-        if not row.get("record_id") or str(row["record_id"]) not in matched_legacy_record_ids
-    ]
-    candidates, routine, reconstruction_unmatched, ambiguity_count = reconstruct_candidates(
-        [*structured, *legacy_by_source_record.values(), *supplemental_unique.values()], version_rows, record_snapshots
-    )
-    unmatched_rows = [*unmatched, *legacy_unmatched, *reconstruction_unmatched]
-    unmatched_unique = {json_text(row): row for row in unmatched_rows}
-    unmatched_rows = sorted(unmatched_unique.values(), key=lambda row: (str(row.get("timestamp") or ""), str(row.get("record_id") or ""), str(row.get("event_kind") or ""), str(row.get("reason") or "")))
+        unmatched_rows = [*unmatched, *legacy_unmatched, *reconstruction_unmatched]
+        unmatched_unique = {json_text(row): row for row in unmatched_rows}
+        unmatched_rows = sorted(
+            unmatched_unique.values(),
+            key=lambda row: (
+                str(row.get("timestamp") or ""),
+                str(row.get("record_id") or ""),
+                str(row.get("event_kind") or ""),
+                str(row.get("message_class") or ""),
+                str(row.get("reason") or ""),
+            ),
+        )
 
-    gaps = gap_report(canonical_rows)
-    inventory = quality_inventory(candidates)
-    coverage = coverage_markdown(
-        discovered,
-        selected,
-        sorted(available_projects, key=snapshot_sort_key),
-        [row for row in skipped if row["snapshot"] not in selected],
-        source_rows,
-        canonical_rows,
-        candidates,
-        routine,
-        unmatched_rows,
-        gaps,
-    )
-    source_warning_count = sum(len(row["parse_warnings"]) for row in source_rows)
-    record_warning_count = sum(len(row["parse_warnings"]) for row in canonical_rows)
-    counts = {
-        "ambiguity_count": ambiguity_count,
-        "candidate_count": len(candidates),
-        "canonical_record_count": len(canonical_rows),
-        "raw_record_occurrence_count": raw_record_occurrence_count,
-        "record_warning_count": record_warning_count,
-        "routine_skip_count": len(routine),
-        "source_file_count": len(source_rows),
-        "source_warning_count": source_warning_count,
-        "unmatched_reply_record_count": len(unmatched_rows),
-        "warning_total": source_warning_count,
-    }
-    manifest = {
-        "arguments": {
-            "created_at": args.created_at,
-            "list_snapshots": bool(args.list_snapshots),
-            "live_project": args.live_project,
-            "max_snapshots": args.max_snapshots,
-            "output": args.output,
-            "project_relative_path": args.project_relative_path,
-            "snapshot": list(args.snapshot or []),
-            "snapshot_root": args.snapshot_root,
-        },
-        "counts": counts,
-        "created_at": created_at,
-        "live_project_included": live_project is not None,
-        "output_file_inventory": list(OUTPUT_FILES),
-        "schema_version": SCHEMA_VERSION,
-        "selected_snapshots": selected,
-        "source_roots": {
-            "live_project": str(live_project) if live_project else None,
-            "snapshot_root": str(snapshot_root),
-        },
-        "tool_version": TOOL_VERSION,
-    }
+        gaps = gap_report(canonical_rows)
+        inventory = quality_inventory(candidates)
+        coverage = coverage_markdown(
+            discovered,
+            selected,
+            sorted(available_projects, key=snapshot_sort_key),
+            [row for row in skipped if row["snapshot"] not in selected],
+            source_rows,
+            canonical_rows,
+            candidates,
+            routine,
+            unmatched_rows,
+            gaps,
+        )
+        source_warning_count = sum(len(row["parse_warnings"]) for row in source_rows)
+        record_warning_count = sum(len(row["parse_warnings"]) for row in canonical_rows)
+        counts = {
+            "ambiguity_count": ambiguity_count,
+            "candidate_count": len(candidates),
+            "canonical_record_count": len(canonical_rows),
+            "occurrence_ambiguity_count": spool.ambiguity_count(),
+            "raw_record_occurrence_count": raw_record_occurrence_count,
+            "record_warning_count": record_warning_count,
+            "routine_skip_count": len(routine),
+            "source_file_count": len(source_rows),
+            "source_warning_count": source_warning_count,
+            "unmatched_reply_record_count": len(unmatched_rows),
+            "warning_total": source_warning_count,
+        }
+        manifest = {
+            "arguments": {
+                "created_at": args.created_at,
+                "list_snapshots": bool(args.list_snapshots),
+                "live_project": args.live_project,
+                "max_snapshots": args.max_snapshots,
+                "output": args.output,
+                "project_relative_path": args.project_relative_path,
+                "snapshot": list(args.snapshot or []),
+                "snapshot_root": args.snapshot_root,
+            },
+            "counts": counts,
+            "created_at": created_at,
+            "live_project_included": live_project is not None,
+            "output_file_inventory": list(OUTPUT_FILES),
+            "schema_version": SCHEMA_VERSION,
+            "selected_snapshots": selected,
+            "source_roots": {
+                "live_project": str(live_project) if live_project else None,
+                "snapshot_root": str(snapshot_root),
+            },
+            "tool_version": TOOL_VERSION,
+            **provenance,
+        }
 
-    old_umask = os.umask(0o077)
-    try:
-        create_private_output(output)
-        write_private(output / "run_manifest.json", json_text(manifest, pretty=True).encode("ascii"))
-        write_jsonl(output / "source_files.jsonl", source_rows)
-        write_jsonl(output / "snapshot_versions.jsonl", version_rows)
-        write_jsonl(output / "unique_log_records.jsonl", canonical_rows)
-        write_jsonl(output / "record_occurrences.jsonl", occurrence_rows)
-        write_jsonl(output / "conversational_candidates.jsonl", candidates)
-        write_jsonl(output / "routine_skips.jsonl", routine)
-        write_jsonl(output / "unmatched_reply_records.jsonl", unmatched_rows)
-        write_private(output / "reconstruction_gaps.json", json_text(gaps, pretty=True).encode("ascii"))
-        write_private(output / "coverage_report.md", coverage.encode("utf-8"))
-        write_private(output / "reply_quality_inventory.json", json_text(inventory, pretty=True).encode("ascii"))
-        write_private(output / "reply_quality_inventory.md", quality_markdown(inventory).encode("utf-8"))
-        checksum_lines: list[str] = []
-        for filename in OUTPUT_FILES:
-            if filename == "SHA256SUMS":
-                continue
-            checksum_lines.append(f"{sha256_bytes((output / filename).read_bytes())}  {filename}")
-        write_private(output / "SHA256SUMS", ("\n".join(checksum_lines) + "\n").encode("ascii"))
-    except Exception:
-        # Do not remove a partially written corpus: preserving it is safer and
-        # avoids a destructive operation. The next run will refuse it as non-empty.
-        raise
+        def canonical_output_rows() -> Iterator[dict[str, Any]]:
+            for canonical_row in canonical_rows:
+                row = dict(canonical_row)
+                occurrence_ids = spool.occurrence_ids(str(row["record_id"]))
+                row["source_occurrence_ids"] = occurrence_ids
+                row["occurrence_count"] = len(occurrence_ids)
+                yield row
+
+        old_umask = os.umask(0o077)
+        try:
+            create_private_output(output)
+            write_private(
+                output / "run_manifest.json",
+                json_text(manifest, pretty=True).encode("ascii"),
+            )
+            write_jsonl(output / "source_files.jsonl", source_rows)
+            write_jsonl(output / "snapshot_versions.jsonl", version_rows)
+            write_jsonl(output / "unique_log_records.jsonl", canonical_output_rows())
+            write_jsonl(output / "record_occurrences.jsonl", spool.iter_occurrences())
+            write_jsonl(output / "conversational_candidates.jsonl", candidates)
+            write_jsonl(output / "routine_skips.jsonl", routine)
+            write_jsonl(output / "unmatched_reply_records.jsonl", unmatched_rows)
+            write_private(
+                output / "reconstruction_gaps.json",
+                json_text(gaps, pretty=True).encode("ascii"),
+            )
+            write_private(output / "coverage_report.md", coverage.encode("utf-8"))
+            write_private(
+                output / "reply_quality_inventory.json",
+                json_text(inventory, pretty=True).encode("ascii"),
+            )
+            write_private(
+                output / "reply_quality_inventory.md",
+                quality_markdown(inventory).encode("utf-8"),
+            )
+            checksum_lines = [
+                f"{sha256_file(output / filename)}  {filename}"
+                for filename in OUTPUT_FILES
+                if filename != "SHA256SUMS"
+            ]
+            write_private(
+                output / "SHA256SUMS",
+                ("\n".join(checksum_lines) + "\n").encode("ascii"),
+            )
+        finally:
+            os.umask(old_umask)
+        successful_finalisation = True
+        return {"listed": False, "manifest": manifest, "output": str(output)}
     finally:
-        os.umask(old_umask)
-    return {"listed": False, "manifest": manifest, "output": str(output)}
+        if not successful_finalisation:
+            spool.preserve_failure_diagnostic(sys.exc_info()[1])
+        spool.close(remove=successful_finalisation)
 
 
 def build_parser() -> argparse.ArgumentParser:
