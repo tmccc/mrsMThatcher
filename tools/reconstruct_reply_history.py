@@ -2198,42 +2198,42 @@ class OccurrenceSpool:
         self.connection = sqlite3.connect(str(self.path))
         self.connection.executescript(
             """
-            PRAGMA journal_mode=DELETE;
-            PRAGMA synchronous=FULL;
+            PRAGMA page_size=8192;
+            PRAGMA journal_mode=MEMORY;
+            PRAGMA synchronous=NORMAL;
             PRAGMA temp_store=FILE;
+            PRAGMA cache_size=-32768;
             CREATE TABLE occurrences (
-                occurrence_id TEXT PRIMARY KEY,
                 record_id TEXT NOT NULL,
                 source_type TEXT NOT NULL,
                 source_order INTEGER NOT NULL,
                 source_identity TEXT NOT NULL,
                 source_path TEXT NOT NULL,
                 source_file_sequence INTEGER NOT NULL,
+                occurrence_id TEXT NOT NULL,
+                occurrence_reconciliation_status TEXT NOT NULL,
+                occurrence_reconciliation_basis TEXT NOT NULL,
                 occurrence_ambiguity_id TEXT,
-                row_json TEXT NOT NULL
-            );
-            CREATE INDEX occurrences_output_order
-                ON occurrences(record_id, source_type, source_order, source_identity,
-                               source_path, source_file_sequence, occurrence_id);
-            CREATE INDEX occurrences_record ON occurrences(record_id);
+                pair_ordinal INTEGER NOT NULL,
+                record_fingerprint TEXT NOT NULL,
+                source_stream_sequence INTEGER NOT NULL,
+                PRIMARY KEY(record_id, source_type, source_order, source_identity,
+                            source_path, source_file_sequence, occurrence_id)
+            ) WITHOUT ROWID;
             CREATE TABLE record_sources (
                 fingerprint TEXT NOT NULL,
                 record_id TEXT NOT NULL,
                 source_stream TEXT NOT NULL,
                 PRIMARY KEY(fingerprint, record_id, source_stream)
-            );
-            CREATE INDEX record_sources_lookup
-                ON record_sources(fingerprint, source_stream, record_id);
+            ) WITHOUT ROWID;
             CREATE TABLE context_signatures (
                 fingerprint TEXT NOT NULL,
                 signature TEXT NOT NULL,
                 token_count INTEGER NOT NULL,
                 record_id TEXT NOT NULL,
                 source_stream TEXT NOT NULL,
-                PRIMARY KEY(fingerprint, signature, record_id, source_stream)
-            );
-            CREATE INDEX context_signatures_lookup
-                ON context_signatures(fingerprint, token_count, signature, source_stream, record_id);
+                PRIMARY KEY(fingerprint, token_count, signature, record_id)
+            ) WITHOUT ROWID;
             CREATE TABLE diagnostics (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -2247,15 +2247,17 @@ class OccurrenceSpool:
         tokens = sorted(context.items())
         variants: list[tuple[int, str, str]] = []
         if len(tokens) > 1:
+            encoded = json_text([[offset, fingerprint] for offset, fingerprint in tokens])
             variants.append(
                 (
                     len(tokens),
-                    json_text([[offset, fingerprint] for offset, fingerprint in tokens]),
+                    sha256_bytes(encoded.encode("ascii")),
                     ",".join(str(offset) for offset, _fingerprint in tokens),
                 )
             )
         for offset, fingerprint in tokens:
-            variants.append((1, json_text([[offset, fingerprint]]), str(offset)))
+            encoded = json_text([[offset, fingerprint]])
+            variants.append((1, sha256_bytes(encoded.encode("ascii")), str(offset)))
         return variants
 
     def _external_records(self, fingerprint: str, source_stream: str) -> list[str]:
@@ -2369,21 +2371,25 @@ class OccurrenceSpool:
 
     def add_occurrence(self, row: dict[str, Any], *, source_order: int) -> None:
         self.connection.execute(
-            "INSERT INTO occurrences VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO occurrences VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                row["occurrence_id"],
                 row["record_id"],
                 row["source_type"],
                 source_order,
                 row["source_identity"],
                 row["source_path"],
                 row["source_file_sequence"],
+                row["occurrence_id"],
+                row["occurrence_reconciliation_status"],
+                row["occurrence_reconciliation_basis"],
                 row.get("occurrence_ambiguity_id"),
-                json_text(row),
+                row["pair_ordinal"],
+                row["record_fingerprint"],
+                row["source_stream_sequence"],
             ),
         )
         self._pending += 1
-        if self._pending >= 4096:
+        if self._pending >= 65536:
             self.connection.commit()
             self._pending = 0
 
@@ -2392,13 +2398,32 @@ class OccurrenceSpool:
         self._pending = 0
         cursor = self.connection.execute(
             """
-            SELECT row_json FROM occurrences
+            SELECT occurrence_id, occurrence_reconciliation_status,
+                   occurrence_reconciliation_basis, occurrence_ambiguity_id,
+                   pair_ordinal, record_id, record_fingerprint,
+                   source_file_sequence, source_identity, source_path,
+                   source_stream_sequence, source_type
+            FROM occurrences
             ORDER BY record_id, source_type, source_order, source_identity,
                      source_path, source_file_sequence, occurrence_id
             """
         )
-        for (encoded,) in cursor:
-            yield json.loads(str(encoded))
+        columns = (
+            "occurrence_id",
+            "occurrence_reconciliation_status",
+            "occurrence_reconciliation_basis",
+            "occurrence_ambiguity_id",
+            "pair_ordinal",
+            "record_id",
+            "record_fingerprint",
+            "source_file_sequence",
+            "source_identity",
+            "source_path",
+            "source_stream_sequence",
+            "source_type",
+        )
+        for values in cursor:
+            yield dict(zip(columns, values))
 
     def occurrence_ids(self, record_id: str) -> list[str]:
         self.connection.commit()
@@ -2516,7 +2541,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
 
     try:
         for project_order, (source_type, identity, project) in enumerate(projects):
-            source_stream = f"{source_type}:{identity}"
+            source_stream = str(project_order)
             stream_pair_counts: Counter[tuple[str, str]] = Counter()
             pair_paths: dict[tuple[str, str], set[str]] = defaultdict(set)
             legacy_pending: dict[str, dict[str, Any]] = {}
