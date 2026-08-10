@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -45,6 +44,7 @@ def run_extract(
     snapshots: list[str] | None = None,
     live: Path | None = None,
     created_at: str = CREATED_AT,
+    scratch_dir: Path | None = None,
 ) -> Path:
     output = tmp_path / output_name
     argv = [
@@ -61,6 +61,8 @@ def run_extract(
         argv.extend(["--snapshot", name])
     if live is not None:
         argv.extend(["--live-project", str(live)])
+    if scratch_dir is not None:
+        argv.extend(["--scratch-dir", str(scratch_dir)])
     tool.execute(tool.build_parser().parse_args(argv))
     return output
 
@@ -1131,6 +1133,167 @@ def test_operational_failure_is_final_when_it_is_the_only_terminal(tmp_path: Pat
     assert candidate["outcome"] == "operational_failure"
 
 
+def test_dated_rejection_and_contradictory_unplaced_editorial_are_ambiguous(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshots"
+    body = event(
+        "2026-07-10 05:30:00",
+        "reply_strategy_decision",
+        lane="mention",
+        target_id="dated-rejection-unplaced-editorial",
+        reason="exact_duplicate_reply",
+        status="no_reply",
+    ) + event(
+        "2026-99-99 05:30:01",
+        "reply_strategy_decision",
+        lane="mention",
+        target_id="dated-rejection-unplaced-editorial",
+        mode="no_reply",
+        reason="no_substantive_prompt",
+        status="no_reply",
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "deterministic_rejection"
+    assert candidate["outcome"] != "editorial_no_reply"
+    assert candidate["reconstruction_status"] == "ambiguous"
+    assert candidate["terminal_timestamp"] == "2026-07-10T04:30:00Z"
+    assert [row["chronology_status"] for row in candidate["terminal_attempt_history"]] == [
+        "placed",
+        "unplaced",
+    ]
+
+
+def test_dated_editorial_and_agreeing_unplaced_editorial_are_not_ambiguous(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshots"
+    body = b"".join(
+        event(
+            timestamp,
+            "reply_strategy_decision",
+            lane="mention",
+            target_id="agreeing-unplaced-editorial",
+            mode="no_reply",
+            reason="no_substantive_prompt",
+            status="no_reply",
+        )
+        for timestamp in ("2026-07-10 05:30:00", "2026-99-99 05:30:01")
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "editorial_no_reply"
+    assert candidate["reconstruction_status"] != "ambiguous"
+    assert candidate["terminal_timestamp"] == "2026-07-10T04:30:00Z"
+    assert candidate["terminal_attempt_history"][-1]["chronology_status"] == "unplaced"
+
+
+def test_dated_posted_and_unplaced_operational_failure_remain_posted(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshots"
+    body = event(
+        "2026-07-10 05:30:00",
+        "mention_reply_posted",
+        mention_id="posted-with-unplaced-failure",
+        lane="mention",
+        incoming_text="Question",
+        reply="Answer.",
+        reply_post_id="posted-with-unplaced-failure-post",
+    ) + event(
+        "2026-99-99 05:30:01",
+        "reply_strategy_failure",
+        lane="mention",
+        target_id="posted-with-unplaced-failure",
+        reason="context_unavailable",
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "posted"
+    assert candidate["reconstruction_status"] != "ambiguous"
+    assert candidate["terminal_timestamp"] == "2026-07-10T04:30:00Z"
+
+
+def test_unplaced_confirmed_post_only_is_posted_without_terminal_timestamp(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event(
+            "2026-99-99 05:30:00",
+            "mention_reply_posted",
+            mention_id="unplaced-posted",
+            lane="mention",
+            incoming_text="Question",
+            reply="Answer.",
+            reply_post_id="unplaced-posted-post",
+        ),
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "posted"
+    assert candidate["terminal_timestamp"] is None
+    assert candidate["terminal_attempt_history"][0]["chronology_status"] == "unplaced"
+
+
+def test_one_unplaced_rejection_establishes_outcome_with_chronology_note(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshots"
+    write_project(
+        root,
+        "snap-2026-07-10-0525",
+        event(
+            "2026-99-99 05:30:00",
+            "reply_strategy_decision",
+            lane="mention",
+            target_id="unplaced-rejection",
+            reason="exact_duplicate_reply",
+            status="no_reply",
+        ),
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "deterministic_rejection"
+    assert candidate["terminal_timestamp"] is None
+    assert any(
+        "chronologically unplaced evidence" in note
+        for note in candidate["reconstruction_notes"]
+    )
+
+
+def test_conflicting_unplaced_specific_dispositions_are_unresolved(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshots"
+    body = event(
+        "2026-99-99 05:30:00",
+        "reply_strategy_decision",
+        lane="mention",
+        target_id="conflicting-unplaced",
+        reason="exact_duplicate_reply",
+        status="no_reply",
+    ) + event(
+        "2026-99-99 05:30:01",
+        "reply_strategy_decision",
+        lane="mention",
+        target_id="conflicting-unplaced",
+        mode="no_reply",
+        reason="no_substantive_prompt",
+        status="no_reply",
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "unresolved"
+    assert candidate["reconstruction_status"] == "ambiguous"
+    assert candidate["terminal_timestamp"] is None
+    assert all(
+        row["chronology_status"] == "unplaced"
+        for row in candidate["terminal_attempt_history"]
+    )
+
+
 def test_same_time_unordered_specific_dispositions_are_ambiguous(tmp_path: Path) -> None:
     root = tmp_path / "snapshots"
     write_project(
@@ -1163,6 +1326,180 @@ def test_same_time_unordered_specific_dispositions_are_ambiguous(tmp_path: Path)
         item.get("basis", "").startswith("contradictory specific terminal")
         for item in candidate["conflict_evidence"]
     )
+
+
+def test_same_snapshot_log_domain_retains_physical_terminal_order(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    body = event(
+        "2026-07-10 05:30:00",
+        "reply_strategy_decision",
+        lane="mention",
+        target_id="same-log-domain",
+        reason="exact_duplicate_reply",
+        status="no_reply",
+    ) + event(
+        "2026-07-10 05:30:00",
+        "reply_strategy_decision",
+        lane="mention",
+        target_id="same-log-domain",
+        mode="no_reply",
+        reason="no_substantive_prompt",
+        status="no_reply",
+    )
+    write_project(root, "snap-2026-07-10-0525", body)
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    history = candidate["terminal_attempt_history"]
+    assert candidate["outcome"] == "editorial_no_reply"
+    assert [row["outcome"] for row in history] == [
+        "deterministic_rejection",
+        "editorial_no_reply",
+    ]
+    assert [row["evidence_locations"][0]["ordering_domain"] for row in history] == [
+        "log_stream",
+        "log_stream",
+    ]
+    assert [row["evidence_locations"][0]["source_order"] for row in history] == [1, 2]
+
+
+def test_log_and_bot_state_same_second_have_no_physical_order_relation() -> None:
+    left = {"kind": "reply_strategy_decision", "record_id": "log-evidence"}
+    right = {
+        "kind": "supplemental_reply_evidence",
+        "supplemental_evidence_id": "state-evidence",
+    }
+    locations = {
+        "log-evidence": [
+            {
+                "ordering_domain": "log_stream",
+                "source_identity": "snap-2026-07-10-0525",
+                "source_order": 9,
+                "source_type": "snapshot",
+            }
+        ],
+        "state-evidence": [
+            {
+                "ordering_domain": "supplemental:bot_state.json",
+                "source_identity": "snap-2026-07-10-0525",
+                "source_order": 1,
+                "source_type": "snapshot",
+            }
+        ],
+    }
+    assert tool.evidence_order_relation(left, right, locations) is None
+
+
+def test_supplemental_files_retain_separate_ordering_domains(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(root, "snap-2026-07-10-0525", b"")
+    row = {
+        "created_at": "2026-07-10T04:30:00Z",
+        "lane": "mention",
+        "proposed_reply": "Answer.",
+        "reply_post_id": "supplemental-domains-post",
+        "status": "confirmed",
+        "target_id": "supplemental-domains",
+    }
+    (source / "bot_state.json").write_text(json.dumps({"ai_reply_history": [row]}))
+    (source / "confirmed_reply_receipt.json").write_text(json.dumps(row))
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert {row["ordering_domain"] for row in candidate["supplemental_occurrences"]} == {
+        "supplemental:bot_state.json",
+        "supplemental:confirmed_reply_receipt.json",
+    }
+    assert {
+        row["ordering_domain"]
+        for row in candidate["terminal_attempt_history"][0]["evidence_locations"]
+    } == {
+        "supplemental:bot_state.json",
+        "supplemental:confirmed_reply_receipt.json",
+    }
+
+
+def test_same_second_cross_domain_specific_dispositions_are_ambiguous(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "snapshots"
+    source = write_project(
+        root,
+        "snap-2026-07-10-0525",
+        line("2026-07-10 05:29:59", "ordinary record")
+        + event(
+            "2026-07-10 05:30:00",
+            "reply_strategy_decision",
+            lane="mention",
+            target_id="cross-domain-conflict",
+            reason="exact_duplicate_reply",
+            status="no_reply",
+        ),
+    )
+    (source / "bot_state.json").write_text(
+        json.dumps(
+            {
+                "ai_reply_history": [
+                    {
+                        "created_at": "2026-07-10T04:30:00Z",
+                        "incoming_text": "Question",
+                        "lane": "mention",
+                        "proposed_reply": "Answer.",
+                        "reply_post_id": "cross-domain-conflict-post",
+                        "status": "confirmed",
+                        "target_id": "cross-domain-conflict",
+                    }
+                ]
+            }
+        )
+    )
+    candidate = jsonl(run_extract(tmp_path, root) / "conversational_candidates.jsonl")[0]
+    assert candidate["outcome"] == "posted"
+    assert candidate["reconstruction_status"] == "ambiguous"
+    assert any(
+        row.get("basis", "").startswith("contradictory specific terminal")
+        for row in candidate["conflict_evidence"]
+    )
+
+
+def test_same_second_cross_domain_generic_record_is_not_a_wrapper() -> None:
+    specific = {
+        "kind": "reply_strategy_decision",
+        "lane": "mention",
+        "reason": "exact_duplicate_reply",
+        "record_id": "a-specific",
+        "status": "no_reply",
+        "target_id": "cross-domain-wrapper",
+        "timestamp": "2026-07-10T04:30:00Z",
+    }
+    generic = {
+        "kind": "legacy_editorial_no_reply",
+        "lane": "mention",
+        "reason": "no_usable_reply_generated",
+        "record_id": "z-generic",
+        "target_id": "cross-domain-wrapper",
+        "timestamp": "2026-07-10T04:30:00Z",
+    }
+    locations = {
+        "a-specific": [
+            {
+                "ordering_domain": "supplemental:bot_state.json",
+                "source_identity": "snap-2026-07-10-0525",
+                "source_order": 1,
+                "source_type": "snapshot",
+            }
+        ],
+        "z-generic": [
+            {
+                "ordering_domain": "log_stream",
+                "source_identity": "snap-2026-07-10-0525",
+                "source_order": 2,
+                "source_type": "snapshot",
+            }
+        ],
+    }
+    outcome, history, _selected, conflicts = tool.resolve_terminal_history(
+        [specific, generic], locations
+    )
+    assert outcome == "unresolved"
+    assert history[-1]["is_generic_wrapper"] is False
+    assert conflicts
 
 
 @pytest.mark.parametrize(
@@ -1433,6 +1770,7 @@ def test_occurrence_spool_streams_once_in_deterministic_order(tmp_path: Path) ->
                 "occurrence_reconciliation_status": "new",
                 "occurrence_reconciliation_basis": "test",
                 "occurrence_ambiguity_id": None,
+                "ordering_domain": "log_stream",
                 "pair_ordinal": 1,
                 "record_id": record_id,
                 "record_fingerprint": "fingerprint",
@@ -1459,10 +1797,86 @@ def test_successful_run_removes_private_occurrence_spool(tmp_path: Path) -> None
     root = tmp_path / "snapshots"
     write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "record"))
     prefix = ".spool-output.occurrence-spool-"
-    before = set(Path(tempfile.gettempdir()).glob(prefix + "*.sqlite3"))
+    before = set(tmp_path.glob(prefix + "*"))
     run_extract(tmp_path, root, output_name="spool-output")
-    after = set(Path(tempfile.gettempdir()).glob(prefix + "*.sqlite3"))
+    after = set(tmp_path.glob(prefix + "*"))
     assert after == before
+
+
+def test_default_scratch_directory_is_output_parent(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "record"))
+    run_manifest = manifest(run_extract(tmp_path, root))
+    assert run_manifest["scratch_dir_requested"] is None
+    assert run_manifest["scratch_dir_effective"] == str(tmp_path.resolve())
+
+
+def test_explicit_valid_scratch_directory_is_used_and_recorded(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "record"))
+    run_manifest = manifest(run_extract(tmp_path, root, scratch_dir=scratch))
+    assert run_manifest["scratch_dir_requested"] == str(scratch)
+    assert run_manifest["scratch_dir_effective"] == str(scratch.resolve())
+    assert list(scratch.glob(".output.occurrence-spool-*")) == []
+
+
+def test_scratch_inside_snapshot_root_is_refused(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "record"))
+    with pytest.raises(tool.ExtractionError, match="scratch directory is inside protected"):
+        run_extract(tmp_path, root, scratch_dir=root)
+
+
+def test_scratch_inside_worktree_is_refused(tmp_path: Path) -> None:
+    root = tmp_path / "snapshots"
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "record"))
+    worktree = Path(tool.__file__).resolve().parents[1]
+    with pytest.raises(tool.ExtractionError, match="scratch directory is inside protected"):
+        run_extract(tmp_path, root, scratch_dir=worktree)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_scratch_equal_to_or_inside_output_is_refused(
+    tmp_path: Path, nested: bool
+) -> None:
+    root = tmp_path / "snapshots"
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "record"))
+    output = tmp_path / "protected-output"
+    scratch = output / "scratch" if nested else output
+    scratch.mkdir(parents=True)
+    with pytest.raises(tool.ExtractionError):
+        run_extract(
+            tmp_path,
+            root,
+            output_name=output.name,
+            scratch_dir=scratch,
+        )
+
+
+def test_controlled_failure_preserves_private_spool_and_reports_exact_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = tmp_path / "snapshots"
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    write_project(root, "snap-2026-07-10-0525", line("2026-07-10 05:30:00", "record"))
+
+    def fail_write(_path: Path, _rows: object) -> None:
+        raise OSError("controlled write failure")
+
+    monkeypatch.setattr(tool, "write_jsonl", fail_write)
+    with pytest.raises(OSError, match="controlled write failure"):
+        run_extract(tmp_path, root, scratch_dir=scratch)
+    stderr = capsys.readouterr().err.strip()
+    prefix = "ERROR: preserved occurrence spool: "
+    assert stderr.startswith(prefix)
+    spool = Path(stderr.removeprefix(prefix))
+    assert spool.parent == scratch.resolve()
+    assert spool.exists()
+    assert spool.stat().st_mode & 0o777 == 0o600
+    assert stderr == f"{prefix}{spool}"
 
 
 def test_schema_v2_manifest_includes_extractor_and_python_provenance(tmp_path: Path) -> None:

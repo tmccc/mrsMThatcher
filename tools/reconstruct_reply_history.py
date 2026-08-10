@@ -392,6 +392,31 @@ def validate_output_path(
     return resolved
 
 
+def validate_scratch_directory(
+    scratch: Path,
+    snapshot_root: Path,
+    snapshot_projects: Iterable[Path],
+    live_project: Path | None,
+    worktree: Path,
+    output: Path,
+) -> Path:
+    try:
+        resolved = scratch.expanduser().resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ExtractionError(f"scratch directory is unavailable: {scratch}") from exc
+    if not resolved.is_dir():
+        raise ExtractionError(f"scratch path is not a directory: {resolved}")
+    protected = [snapshot_root, worktree, *snapshot_projects]
+    if live_project is not None:
+        protected.append(live_project)
+    for root in protected:
+        if is_within(resolved, root.resolve(strict=True)):
+            raise ExtractionError(f"scratch directory is inside protected source tree: {root}")
+    if is_within(resolved, output):
+        raise ExtractionError(f"scratch directory is equal to or inside output directory: {output}")
+    return resolved
+
+
 def extractor_provenance(source_path: Path, worktree: Path) -> dict[str, Any]:
     """Describe the running extractor without importing or executing source code."""
     source = source_path.resolve(strict=True)
@@ -1110,6 +1135,7 @@ def supplemental_json_evidence(
                 "supplemental_evidence_id": stable_id("evidence", event_hash),
                 "supplemental_occurrence_id": stable_id("supplemental-occurrence", source_key, index, event_hash),
                 "supplemental_source_identity": source_identity,
+                "supplemental_ordering_domain": f"supplemental:{name}",
                 "supplemental_source_type": source_type,
                 "supplemental_source_sequence": index + 1,
                 "timestamp": timestamp,
@@ -1230,18 +1256,30 @@ def evidence_order_relation(
     right_id = event_evidence_id(right)
     if left_id == right_id:
         return 0
-    left_positions = {
-        (str(row["source_type"]), str(row["source_identity"])): int(row["source_order"])
-        for row in evidence_locations.get(left_id, [])
-    }
-    right_positions = {
-        (str(row["source_type"]), str(row["source_identity"])): int(row["source_order"])
-        for row in evidence_locations.get(right_id, [])
-    }
+    left_positions: dict[tuple[str, str, str], set[int]] = defaultdict(set)
+    right_positions: dict[tuple[str, str, str], set[int]] = defaultdict(set)
+    for row in evidence_locations.get(left_id, []):
+        left_positions[
+            (
+                str(row["source_type"]),
+                str(row["source_identity"]),
+                str(row["ordering_domain"]),
+            )
+        ].add(int(row["source_order"]))
+    for row in evidence_locations.get(right_id, []):
+        right_positions[
+            (
+                str(row["source_type"]),
+                str(row["source_identity"]),
+                str(row["ordering_domain"]),
+            )
+        ].add(int(row["source_order"]))
     directions = {
-        -1 if left_positions[source] < right_positions[source] else 1
+        -1 if left_order < right_order else 1
         for source in left_positions.keys() & right_positions.keys()
-        if left_positions[source] != right_positions[source]
+        for left_order in left_positions[source]
+        for right_order in right_positions[source]
+        if left_order != right_order
     }
     if len(directions) == 1:
         return next(iter(directions))
@@ -1296,6 +1334,11 @@ def resolve_terminal_history(
         )
         row = {
             "attempt_index": index,
+            "chronology_status": "placed" if item.get("timestamp") else "unplaced",
+            "evidence_locations": [
+                dict(location)
+                for location in evidence_locations.get(event_evidence_id(item), [])
+            ],
             "order_index": index,
             "timestamp": item.get("timestamp") or None,
             "outcome": event_outcome(item),
@@ -1335,43 +1378,92 @@ def resolve_terminal_history(
         history.append(row)
 
     active = [row for row in history if not row["is_generic_wrapper"]]
+    placed = [row for row in active if row["chronology_status"] == "placed"]
+    unplaced = [row for row in active if row["chronology_status"] == "unplaced"]
     conflicts: list[dict[str, Any]] = []
-    for left_index, left in enumerate(active):
-        for right in active[left_index + 1 :]:
+
+    def add_conflict(left: dict[str, Any], right: dict[str, Any], basis: str) -> None:
+        conflict = {
+            "field": "outcome",
+            "values": [left["outcome"], right["outcome"]],
+            "evidence_ids": [left["evidence_id"], right["evidence_id"]],
+            "basis": basis,
+        }
+        if conflict not in conflicts:
+            conflicts.append(conflict)
+
+    placed_conflict = False
+    for left_index, left in enumerate(placed):
+        for right in placed[left_index + 1 :]:
             if not left["is_specific"] or not right["is_specific"]:
                 continue
-            if left["outcome"] == right["outcome"] or left["timestamp"] != right["timestamp"]:
+            if (
+                left["outcome"] == right["outcome"]
+                or left["timestamp"] != right["timestamp"]
+                or "operational_failure" in {left["outcome"], right["outcome"]}
+            ):
                 continue
             relation = evidence_order_relation(left["_event"], right["_event"], evidence_locations)
             if relation is None:
-                conflict = {
-                    "field": "outcome",
-                    "values": [left["outcome"], right["outcome"]],
-                    "evidence_ids": [left["evidence_id"], right["evidence_id"]],
-                    "basis": "contradictory specific terminal dispositions at the same unordered effective point",
-                }
-                if conflict not in conflicts:
-                    conflicts.append(conflict)
+                placed_conflict = True
+                add_conflict(
+                    left,
+                    right,
+                    "contradictory specific terminal dispositions at the same unordered effective point",
+                )
 
-    posted = [row for row in active if row["outcome"] == "posted"]
-    non_operational = [
-        row
-        for row in active
+    placed_posted = [row for row in placed if row["outcome"] == "posted"]
+    unplaced_posted = [row for row in unplaced if row["outcome"] == "posted"]
+    placed_non_operational = [
+        row for row in placed
         if row["outcome"] in {"editorial_no_reply", "deterministic_rejection"}
     ]
-    failures = [row for row in active if row["outcome"] == "operational_failure"]
-    if posted:
+    unplaced_non_operational = [
+        row for row in unplaced
+        if row["is_specific"]
+        and row["outcome"] in {"editorial_no_reply", "deterministic_rejection"}
+    ]
+    placed_failures = [row for row in placed if row["outcome"] == "operational_failure"]
+    unplaced_failures = [row for row in unplaced if row["outcome"] == "operational_failure"]
+    if placed_posted or unplaced_posted:
         outcome = "posted"
-        selected = posted[-1]
-    elif conflicts:
+        selected = placed_posted[-1] if placed_posted else unplaced_posted[-1]
+    elif placed_conflict:
         outcome = "unresolved"
         selected = None
-    elif non_operational:
-        outcome = str(non_operational[-1]["outcome"])
-        selected = non_operational[-1]
-    elif failures:
+    elif placed_non_operational:
+        selected = placed_non_operational[-1]
+        outcome = str(selected["outcome"])
+        for row in unplaced_non_operational:
+            if row["outcome"] != outcome:
+                add_conflict(
+                    selected,
+                    row,
+                    "chronologically unplaced specific terminal evidence contradicts the selected dated disposition",
+                )
+    elif unplaced_non_operational:
+        unplaced_outcomes = {str(row["outcome"]) for row in unplaced_non_operational}
+        if len(unplaced_outcomes) == 1:
+            selected = unplaced_non_operational[-1]
+            outcome = str(selected["outcome"])
+        else:
+            outcome = "unresolved"
+            selected = None
+            first = unplaced_non_operational[0]
+            conflicting = next(
+                row for row in unplaced_non_operational if row["outcome"] != first["outcome"]
+            )
+            add_conflict(
+                first,
+                conflicting,
+                "conflicting specific terminal dispositions are chronologically unplaced",
+            )
+    elif placed_failures:
         outcome = "operational_failure"
-        selected = failures[-1]
+        selected = placed_failures[-1]
+    elif unplaced_failures:
+        outcome = "operational_failure"
+        selected = unplaced_failures[-1]
     else:
         outcome = "unresolved"
         selected = None
@@ -1382,13 +1474,17 @@ def resolve_terminal_history(
     return outcome, public_history, selected, conflicts
 
 
-def source_identity_sort_key(row: dict[str, Any]) -> tuple[int, tuple[int, str, str], str]:
+def source_identity_sort_key(
+    row: dict[str, Any],
+) -> tuple[int, tuple[int, str, str], str, str, int]:
     source_type = str(row.get("source_type") or "")
     identity = str(row.get("source_identity") or "")
     return (
         0 if source_type == "snapshot" else 1,
         snapshot_sort_key(identity) if source_type == "snapshot" else (0, "", identity),
         identity,
+        str(row.get("ordering_domain") or ""),
+        int(row.get("source_order") or 0),
     )
 
 
@@ -1732,7 +1828,21 @@ def reconstruct_candidates(
         if outcome == "posted" and not resolved.get("actual_reply_text"):
             notes.append("posted disposition is present but reply text is absent")
         if outcome == "unresolved":
-            notes.append("no terminal disposition is present in selected evidence")
+            if outcome_conflicts:
+                notes.append("terminal disposition is unresolved because terminal evidence conflicts")
+            else:
+                notes.append("no terminal disposition is present in selected evidence")
+        unplaced_terminal_count = sum(
+            row["chronology_status"] == "unplaced" for row in terminal_history
+        )
+        if unplaced_terminal_count:
+            notes.append(
+                f"{unplaced_terminal_count} terminal evidence event(s) lack a usable timestamp and remain chronologically unplaced"
+            )
+        if selected_terminal and selected_terminal["chronology_status"] == "unplaced":
+            notes.append(
+                "terminal disposition is established from consistent chronologically unplaced evidence; terminal_timestamp is null"
+            )
         if unknown_skip_reasons:
             notes.append(
                 "unknown candidate skip reason retained without inferring a terminal disposition: "
@@ -2207,6 +2317,7 @@ class OccurrenceSpool:
                 record_id TEXT NOT NULL,
                 source_type TEXT NOT NULL,
                 source_order INTEGER NOT NULL,
+                ordering_domain TEXT NOT NULL,
                 source_identity TEXT NOT NULL,
                 source_path TEXT NOT NULL,
                 source_file_sequence INTEGER NOT NULL,
@@ -2217,7 +2328,7 @@ class OccurrenceSpool:
                 pair_ordinal INTEGER NOT NULL,
                 record_fingerprint TEXT NOT NULL,
                 source_stream_sequence INTEGER NOT NULL,
-                PRIMARY KEY(record_id, source_type, source_order, source_identity,
+                PRIMARY KEY(record_id, source_type, source_order, ordering_domain, source_identity,
                             source_path, source_file_sequence, occurrence_id)
             ) WITHOUT ROWID;
             CREATE TABLE record_sources (
@@ -2371,11 +2482,12 @@ class OccurrenceSpool:
 
     def add_occurrence(self, row: dict[str, Any], *, source_order: int) -> None:
         self.connection.execute(
-            "INSERT INTO occurrences VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO occurrences VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 row["record_id"],
                 row["source_type"],
                 source_order,
+                row["ordering_domain"],
                 row["source_identity"],
                 row["source_path"],
                 row["source_file_sequence"],
@@ -2400,7 +2512,7 @@ class OccurrenceSpool:
             """
             SELECT occurrence_id, occurrence_reconciliation_status,
                    occurrence_reconciliation_basis, occurrence_ambiguity_id,
-                   pair_ordinal, record_id, record_fingerprint,
+                   ordering_domain, pair_ordinal, record_id, record_fingerprint,
                    source_file_sequence, source_identity, source_path,
                    source_stream_sequence, source_type
             FROM occurrences
@@ -2413,6 +2525,7 @@ class OccurrenceSpool:
             "occurrence_reconciliation_status",
             "occurrence_reconciliation_basis",
             "occurrence_ambiguity_id",
+            "ordering_domain",
             "pair_ordinal",
             "record_id",
             "record_fingerprint",
@@ -2453,7 +2566,16 @@ class OccurrenceSpool:
         self.connection.commit()
         self.connection.close()
         if remove:
-            self.path.unlink()
+            for artifact in self.artifact_paths():
+                artifact.unlink(missing_ok=True)
+
+    def artifact_paths(self) -> tuple[Path, ...]:
+        return (
+            self.path,
+            Path(str(self.path) + "-journal"),
+            Path(str(self.path) + "-wal"),
+            Path(str(self.path) + "-shm"),
+        )
 
     def preserve_failure_diagnostic(self, error: BaseException | None) -> None:
         detail = {
@@ -2492,6 +2614,15 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     worktree = Path(__file__).resolve().parents[1]
     selected_projects = [available_projects[name] for name in selected]
     output = validate_output_path(Path(args.output), snapshot_root, selected_projects, live_project, worktree)
+    scratch_requested = Path(args.scratch_dir) if args.scratch_dir else output.parent
+    scratch_dir = validate_scratch_directory(
+        scratch_requested,
+        snapshot_root,
+        selected_projects,
+        live_project,
+        worktree,
+        output,
+    )
     created_at = normalise_created_at(args.created_at)
     provenance = extractor_provenance(Path(__file__), worktree)
 
@@ -2502,7 +2633,9 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         projects.append(("live", "live", live_project))
     source_rows: list[dict[str, Any]] = []
     canonical: dict[str, dict[str, Any]] = {}
-    evidence_locations_map: dict[str, dict[tuple[str, str, int], dict[str, Any]]] = defaultdict(dict)
+    evidence_locations_map: dict[
+        str, dict[tuple[str, str, str, int], dict[str, Any]]
+    ] = defaultdict(dict)
     structured: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
     legacy_by_source_record: dict[tuple[str, str], dict[str, Any]] = {}
@@ -2510,7 +2643,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     supplemental_unique: dict[str, dict[str, Any]] = {}
     version_rows: list[dict[str, Any]] = []
     raw_record_occurrence_count = 0
-    spool = OccurrenceSpool(Path(tempfile.gettempdir()), output.name)
+    spool = OccurrenceSpool(scratch_dir, output.name)
     successful_finalisation = False
 
     def retain_legacy(rows: list[dict[str, Any]], pending: dict[str, dict[str, Any]]) -> None:
@@ -2609,6 +2742,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                         "occurrence_reconciliation_status": reconciliation_status,
                         "occurrence_reconciliation_basis": reconciliation_basis,
                         "occurrence_ambiguity_id": ambiguity_id,
+                        "ordering_domain": "log_stream",
                         "pair_ordinal": record["pair_ordinal"],
                         "record_id": record_id,
                         "record_fingerprint": fingerprint,
@@ -2626,12 +2760,13 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                         source_stream=source_stream,
                     )
                     location = {
+                        "ordering_domain": "log_stream",
                         "source_type": source_type,
                         "source_identity": identity,
                         "source_order": record["source_stream_sequence"],
                     }
                     evidence_locations_map[record_id][
-                        (source_type, identity, record["source_stream_sequence"])
+                        (source_type, identity, "log_stream", record["source_stream_sequence"])
                     ] = location
                     warning_sink = record.pop("_warning_sink")
                     warning_sink.extend(
@@ -2758,6 +2893,9 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                             "source_identity": supplemental_event.pop(
                                 "supplemental_source_identity"
                             ),
+                            "ordering_domain": supplemental_event.pop(
+                                "supplemental_ordering_domain"
+                            ),
                             "source_type": supplemental_event.pop("supplemental_source_type"),
                             "source_order": supplemental_event.pop(
                                 "supplemental_source_sequence"
@@ -2856,6 +2994,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             evidence_id = event_evidence_id(supplemental_event)
             for occurrence in supplemental_event["supplemental_occurrences"]:
                 location = {
+                    "ordering_domain": occurrence["ordering_domain"],
                     "source_type": occurrence["source_type"],
                     "source_identity": occurrence["source_identity"],
                     "source_order": occurrence["source_order"],
@@ -2864,6 +3003,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     (
                         str(occurrence["source_type"]),
                         str(occurrence["source_identity"]),
+                        str(occurrence["ordering_domain"]),
                         int(occurrence["source_order"]),
                     )
                 ] = location
@@ -2939,12 +3079,15 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 "project_relative_path": args.project_relative_path,
                 "snapshot": list(args.snapshot or []),
                 "snapshot_root": args.snapshot_root,
+                "scratch_dir": args.scratch_dir,
             },
             "counts": counts,
             "created_at": created_at,
             "live_project_included": live_project is not None,
             "output_file_inventory": list(OUTPUT_FILES),
             "schema_version": SCHEMA_VERSION,
+            "scratch_dir_effective": str(scratch_dir),
+            "scratch_dir_requested": args.scratch_dir,
             "selected_snapshots": selected,
             "source_roots": {
                 "live_project": str(live_project) if live_project else None,
@@ -3004,7 +3147,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         return {"listed": False, "manifest": manifest, "output": str(output)}
     finally:
         if not successful_finalisation:
-            spool.preserve_failure_diagnostic(sys.exc_info()[1])
+            failure = sys.exc_info()[1]
+            try:
+                spool.preserve_failure_diagnostic(failure)
+            except (OSError, sqlite3.Error):
+                pass
+            print(f"ERROR: preserved occurrence spool: {spool.path}", file=sys.stderr)
         spool.close(remove=successful_finalisation)
 
 
@@ -3014,6 +3162,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-relative-path", default="etc/mrsMThatcher")
     parser.add_argument("--live-project")
     parser.add_argument("--output")
+    parser.add_argument("--scratch-dir")
     parser.add_argument("--snapshot", action="append", default=[])
     parser.add_argument("--max-snapshots", type=int)
     parser.add_argument("--created-at")
