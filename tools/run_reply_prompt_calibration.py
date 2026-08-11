@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare or execute a blinded current-versus-compact reply calibration.
+"""Prepare or execute a blinded current-versus-compact reply comparison.
 
 Validate-only is the default and performs no HTTP request.  Paid execution is
 available only behind three explicit gates and reuses the reviewed xAI pilot
@@ -43,7 +43,7 @@ from tools.reply_prompt_profiles import (
 )
 
 
-RUNNER_VERSION = "reply-prompt-calibration-v2"
+RUNNER_VERSION = "reply-prompt-calibration-v3"
 RUN_IDENTITY_SCHEMA_VERSION = 1
 PACK_SCHEMA_VERSION = 2
 PACK_TOOL_VERSION = "reply-replay-pack-v2"
@@ -57,6 +57,7 @@ DEFAULT_MAXIMUM_SERVER_ERROR_RETRIES = 1
 PAID_ACKNOWLEDGEMENT = "YES_I_UNDERSTAND"
 MAXIMUM_REPLY_LENGTH = 270
 VARIANTS = ("current", "compact")
+CASE_SETS = ("calibration", "holdout")
 REQUIRED_STRATA = {
     "civil_challenge_or_disagreement",
     "factual_or_historical_question",
@@ -71,6 +72,7 @@ REQUIRED_PACK_FILES = {
     "historical_baselines.jsonl",
     "recent_account_replies.jsonl",
     "calibration_cases.jsonl",
+    "frozen_cases.jsonl",
     "replay_plan.json",
     "leakage_audit.json",
 }
@@ -114,6 +116,11 @@ DURABLE_CORE_FILES = {
     "pipeline_results.jsonl",
     "pipeline_audits.jsonl",
 }
+HOLDOUT_CONTEXT_FILES = {
+    "holdout_context_audit.json",
+    "holdout_context_review.md",
+    "holdout_context_clearance.csv",
+}
 PROVIDER_PHASE_FIELDS = {
     "schema_version",
     "runner_version",
@@ -139,6 +146,87 @@ MODEL_AUDIT_STAGES = {
     "revision_reviewer",
 }
 VALID_PIPELINE_STATUSES = {"approved", "no_reply"}
+CONTEXT_AUDIT_RULE_VERSION = "reply-holdout-context-audit-v1"
+CONTEXT_DEPENDENCY_FLAG_ORDER = (
+    "short_elliptical_question",
+    "unresolved_third_person_pronoun",
+    "demonstrative_reference",
+    "what_did_mean_question",
+    "source_or_attribution_question",
+    "quote_or_above_reference",
+    "missing_quoted_post_text",
+    "missing_or_empty_bounded_parent_context",
+)
+CONTEXT_AUDIT_RULES = {
+    "short_elliptical_question": {
+        "question_mark_required": True,
+        "maximum_word_count": 8,
+        "word_pattern": r"[A-Za-z0-9]+(?:['’][A-Za-z0-9]+)?",
+    },
+    "unresolved_third_person_pronoun": {
+        "pattern": (
+            r"\b(?:he|him|his|himself|she|her|hers|herself|they|them|their|"
+            r"theirs|themself|themselves|its|itself)\b"
+        ),
+    },
+    "demonstrative_reference": {
+        "pattern": r"\b(?:this|that|it|these|those)\b",
+    },
+    "what_did_mean_question": {
+        "pattern": r"\bwhat\s+(?:did|do|does)\b[^?\n]{0,160}\bmean\b",
+    },
+    "source_or_attribution_question": {
+        "pattern": (
+            r"(?:\b(?:source|citation|reference|attribution|author|authorship|"
+            r"speaker|origin|provenance)\b[^?\n]*\?|"
+            r"\b(?:who|whose)\b[^?\n]{0,160}\?|"
+            r"\bwhere\b[^?\n]{0,120}\b(?:from|published|printed|recorded)\b[^?\n]*\?|"
+            r"\b(?:when|where)\b[^?\n]{0,120}\b(?:said|written|published|delivered|"
+            r"spoken|recorded)\b[^?\n]*\?|"
+            r"\bdid\b[^?\n]{0,120}\b(?:say|write|author|deliver)\b[^?\n]*\?)"
+        ),
+    },
+    "quote_or_above_reference": {
+        "pattern": r"\b(?:the\s+quote|these\s+words|the\s+above)\b",
+    },
+    "missing_quoted_post_text": {
+        "lane": "quote_tweet",
+        "requires_nonempty_quoted_post_text": True,
+    },
+    "missing_or_empty_bounded_parent_context": {
+        "requires_dependency_warning": True,
+        "requires_no_nonempty_parent_post": True,
+        "applies_when_quoted_post_text_is_empty": True,
+    },
+}
+FROZEN_PROFILE_IDENTITIES = {
+    "current": {
+        "profile_version": "current-production-profile-v1",
+        "manifest_sha256": "edd2985d37c690c02556c518dd6e92ad39db8e379267a61b90ddb9d4650368f8",
+        "prompt_versions": {
+            "reviewer": "independent-reply-reviewer-v13",
+        },
+        "prompt_sha256": {
+            "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
+            "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e",
+            "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
+            "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
+        },
+    },
+    "compact": {
+        "profile_version": "compact-reply-profile-v4",
+        "manifest_sha256": "be7784eb3ffb0e851fda598ca71326bdd6cf95cc001803f4b7ca1d26e822b30e",
+        "prompt_versions": {
+            "reviewer": "compact-reviewer-v4",
+        },
+        "prompt_sha256": {
+            "proposer": "922aff370f775ff9c18e2e7a445600519f14bfba8610ee6db99f9daf99e0f8da",
+            "reviewer": "36c0577d9b0ee8c536ea638591c9ce1a0e052a9e482f80aedc16b489b3cad089",
+            "no_reply_review": "2b6677ed5766676acde2c9010ba04feda57b077e02daaabb103a319921643b67",
+            "claim_auditor": "5a0ccdd28239b6eb5808870cfa6c6fe2cee0c32342f9243a9e1c8ec057ac05fe",
+        },
+    },
+}
 
 
 class CalibrationError(RuntimeError):
@@ -155,6 +243,19 @@ def canonical_json_bytes(value: Any) -> bytes:
 def value_sha256(value: Any) -> str:
     """Hash one canonical JSON value."""
     return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+
+
+def candidate_ids_sha256(candidate_ids: Iterable[str]) -> str:
+    """Hash a candidate set as one canonical, sorted list."""
+    return value_sha256(sorted(candidate_ids))
+
+
+def json_document_bytes(value: Any) -> bytes:
+    """Encode one stable, human-readable JSON document."""
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8")
+        + b"\n"
+    )
 
 
 def file_sha256(path: Path) -> str:
@@ -253,6 +354,53 @@ def evidence_repository_fingerprint(repository: EvidenceRepository) -> str:
     return value_sha256(identity)
 
 
+def verify_frozen_profile_manifests(
+    manifests: dict[str, dict[str, Any]],
+) -> None:
+    """Refuse any drift in either frozen profile identity or prompt hash."""
+    if set(manifests) != set(FROZEN_PROFILE_IDENTITIES):
+        raise CalibrationError("reply prompt profile inventory differs")
+    for variant, expected in FROZEN_PROFILE_IDENTITIES.items():
+        manifest = manifests.get(variant)
+        if not isinstance(manifest, dict):
+            raise CalibrationError(f"{variant} profile manifest is invalid")
+        _require_equal(
+            f"{variant} profile version",
+            manifest.get("profile_version"),
+            expected["profile_version"],
+        )
+        _require_equal(
+            f"{variant} profile manifest SHA-256",
+            manifest.get("manifest_sha256"),
+            expected["manifest_sha256"],
+        )
+        versions = manifest.get("prompt_version_constants")
+        prompts = manifest.get("prompts")
+        if not isinstance(versions, dict) or not isinstance(prompts, dict):
+            raise CalibrationError(f"{variant} prompt profile fields are invalid")
+        _require_equal(
+            f"{variant} reviewer prompt version",
+            versions.get("REVIEWER_PROMPT_VERSION"),
+            expected["prompt_versions"]["reviewer"],
+        )
+        for prompt_name, expected_sha256 in expected["prompt_sha256"].items():
+            prompt = prompts.get(prompt_name)
+            if not isinstance(prompt, dict):
+                raise CalibrationError(
+                    f"{variant} {prompt_name} prompt profile is invalid"
+                )
+            _require_equal(
+                f"{variant} {prompt_name} prompt SHA-256",
+                prompt.get("sha256"),
+                expected_sha256,
+            )
+    _require_equal(
+        "current production prompt functions",
+        manifests["current"].get("uses_exact_production_prompt_functions"),
+        True,
+    )
+
+
 def read_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -337,8 +485,12 @@ def parse_and_verify_checksums(pack: Path) -> tuple[dict[str, str], str]:
     return checksums, hashlib.sha256(checksum_bytes).hexdigest()
 
 
-def verify_replay_pack(pack_path: Path) -> dict[str, Any]:
-    """Verify frozen provenance and return only the six joined calibration cases."""
+def verify_replay_pack(
+    pack_path: Path, *, case_set: str = "calibration"
+) -> dict[str, Any]:
+    """Verify frozen provenance and select one immutable candidate-ID case set."""
+    if case_set not in CASE_SETS:
+        raise CalibrationError(f"invalid case set: {case_set!r}")
     try:
         pack = pack_path.resolve(strict=True)
     except OSError as exc:
@@ -384,26 +536,57 @@ def verify_replay_pack(pack_path: Path) -> dict[str, Any]:
     historical_rows = read_jsonl(pack / "historical_baselines.jsonl")
     recent_rows = read_jsonl(pack / "recent_account_replies.jsonl")
     calibration_rows = read_jsonl(pack / "calibration_cases.jsonl")
+    frozen_rows = read_jsonl(pack / "frozen_cases.jsonl")
     _require_equal("model input count", len(model_rows), 48)
     _require_equal("historical baseline count", len(historical_rows), 48)
     _require_equal("recent-account-reply count", len(recent_rows), 48)
     _require_equal("calibration case count", len(calibration_rows), 6)
+    _require_equal("frozen case count", len(frozen_rows), 48)
     models = _index_unique(model_rows, "model inputs")
     historical = _index_unique(historical_rows, "historical baselines")
     recent = _index_unique(recent_rows, "recent account replies")
     calibration = _index_unique(calibration_rows, "calibration cases")
+    frozen = _index_unique(frozen_rows, "frozen cases")
     _require_equal("model/historical candidate IDs", set(models), set(historical))
     _require_equal("model/recent candidate IDs", set(models), set(recent))
+    _require_equal("model/frozen candidate IDs", set(models), set(frozen))
     if not set(calibration).issubset(models):
         raise CalibrationError("calibration cases do not join exactly to the frozen inputs")
     strata = Counter(row.get("final_stratum") for row in calibration_rows)
     if set(strata) != REQUIRED_STRATA or any(count != 1 for count in strata.values()):
         raise CalibrationError("calibration cases must contain exactly one case in each final stratum")
 
-    cases: list[dict[str, Any]] = []
-    for candidate_id, selection in sorted(calibration.items()):
-        model_row = models[candidate_id]
+    full_strata = Counter(row.get("final_stratum") for row in frozen_rows)
+    if set(full_strata) != REQUIRED_STRATA or any(
+        count != 8 for count in full_strata.values()
+    ):
+        raise CalibrationError("frozen cases must contain exactly eight cases in each final stratum")
+    for candidate_id, selection in calibration.items():
+        if selection.get("final_stratum") != frozen[candidate_id].get("final_stratum"):
+            raise CalibrationError(
+                f"calibration/frozen final stratum mismatch for {candidate_id}"
+            )
+
+    calibration_ids = set(calibration)
+    holdout_ids = set(models) - calibration_ids
+    if (
+        len(models) != 48
+        or len(calibration_ids) != 6
+        or len(holdout_ids) != 42
+        or calibration_ids & holdout_ids
+        or calibration_ids | holdout_ids != set(models)
+    ):
+        raise CalibrationError("calibration/holdout candidate-ID partition differs")
+    holdout_strata = Counter(frozen[candidate_id].get("final_stratum") for candidate_id in holdout_ids)
+    if set(holdout_strata) != REQUIRED_STRATA or any(
+        count != 7 for count in holdout_strata.values()
+    ):
+        raise CalibrationError("holdout cases must contain exactly seven cases in each final stratum")
+
+    all_cases: list[dict[str, Any]] = []
+    for candidate_id, model_row in sorted(models.items()):
         recent_row = recent[candidate_id]
+        frozen_row = frozen[candidate_id]
         context = model_row.get("validated_context")
         try:
             validated_context = reply_strategy.validate_reply_context(context)
@@ -428,13 +611,37 @@ def verify_replay_pack(pack_path: Path) -> dict[str, Any]:
             raise CalibrationError(f"recent account replies are not chronological for {candidate_id}")
         if model_row.get("current_pipeline_lane") != validated_context["lane"]:
             raise CalibrationError(f"pipeline lane mismatch for {candidate_id}")
-        cases.append({
+        if (
+            frozen_row.get("replay_ready") is not True
+            or frozen_row.get("validated_context") != validated_context
+            or frozen_row.get("current_pipeline_lane") != validated_context["lane"]
+            or frozen_row.get("recent_account_replies_text") != recent_text
+        ):
+            raise CalibrationError(f"frozen/model input mismatch for {candidate_id}")
+        final_stratum = frozen_row.get("final_stratum")
+        if final_stratum not in REQUIRED_STRATA:
+            raise CalibrationError(f"invalid final stratum for {candidate_id}")
+        all_cases.append({
             "candidate_id": candidate_id,
-            "stratum": selection["final_stratum"],
+            "stratum": final_stratum,
             "context": validated_context,
             "recent_replies": list(recent_text),
             "historical": historical[candidate_id],
+            "model_input_sha256": value_sha256(model_row),
         })
+
+    selected_ids = calibration_ids if case_set == "calibration" else holdout_ids
+    cases = [case for case in all_cases if case["candidate_id"] in selected_ids]
+    expected_case_count = 6 if case_set == "calibration" else 42
+    expected_per_stratum = 1 if case_set == "calibration" else 7
+    selected_strata = Counter(case["stratum"] for case in cases)
+    if (
+        len(cases) != expected_case_count
+        or len({case["candidate_id"] for case in cases}) != expected_case_count
+        or set(selected_strata) != REQUIRED_STRATA
+        or any(count != expected_per_stratum for count in selected_strata.values())
+    ):
+        raise CalibrationError(f"{case_set} case selection differs")
 
     strategy_hash = file_sha256(PROJECT_ROOT / "reply_strategy.py")
     _require_equal("current reply_strategy.py SHA-256", strategy_hash, FROZEN_REPLY_STRATEGY_SHA256)
@@ -445,6 +652,28 @@ def verify_replay_pack(pack_path: Path) -> dict[str, Any]:
         "manifest": manifest,
         "replay_plan": plan,
         "leakage_audit": leakage,
+        "case_set": case_set,
+        "pack_case_count": len(models),
+        "calibration_case_count": len(calibration_ids),
+        "selected_case_count": len(cases),
+        "excluded_calibration_case_count": (
+            len(calibration_ids) if case_set == "holdout" else 0
+        ),
+        "cases_per_stratum": dict(sorted(selected_strata.items())),
+        "calibration_candidate_ids": sorted(calibration_ids),
+        "holdout_candidate_ids": sorted(holdout_ids),
+        "calibration_candidate_ids_sha256": candidate_ids_sha256(calibration_ids),
+        "holdout_candidate_ids_sha256": candidate_ids_sha256(holdout_ids),
+        "selected_candidate_ids_sha256": candidate_ids_sha256(selected_ids),
+        "selected_model_inputs_sha256": value_sha256([
+            {
+                "candidate_id": case["candidate_id"],
+                "model_input_sha256": case["model_input_sha256"],
+                "recent_replies_sha256": value_sha256(case["recent_replies"]),
+            }
+            for case in cases
+        ]),
+        "all_cases": all_cases,
         "cases": cases,
         "reply_strategy_sha256": strategy_hash,
     }
@@ -513,10 +742,14 @@ def build_execution_plan(
     return {
         "schema_version": 1,
         "runner_version": RUNNER_VERSION,
+        "case_set": pack_data["case_set"],
+        "selected_candidate_ids_sha256": pack_data[
+            "selected_candidate_ids_sha256"
+        ],
         "blind_seed": blind_seed,
         "pack_sha256": pack_data["pack_sha256"],
         "planned_variants": list(VARIANTS),
-        "planned_pipeline_executions": 12,
+        "planned_pipeline_executions": len(rows),
         "order_derivation": "sha256(blind-seed, pack-sha256, candidate-id, variant)",
         "executions": rows,
     }
@@ -673,10 +906,7 @@ def atomic_bytes(path: Path, content: bytes) -> None:
 
 
 def write_json(path: Path, value: Any) -> None:
-    atomic_bytes(
-        path,
-        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8") + b"\n",
-    )
+    atomic_bytes(path, json_document_bytes(value))
 
 
 def write_text(path: Path, value: str) -> None:
@@ -707,6 +937,322 @@ def _markdown_quote(value: str) -> str:
 
 def _context_post_text(post: dict[str, Any]) -> str:
     return str(post.get("text") or "")
+
+
+def context_dependency_flags(context: dict[str, Any]) -> list[str]:
+    """Return conservative, deterministic context-review warnings."""
+    incoming = context["incoming_contribution"]
+    folded = incoming.casefold()
+    flags: list[str] = []
+    short_rule = CONTEXT_AUDIT_RULES["short_elliptical_question"]
+    word_count = len(re.findall(str(short_rule["word_pattern"]), incoming))
+    if "?" in incoming and word_count <= int(short_rule["maximum_word_count"]):
+        flags.append("short_elliptical_question")
+    for flag in (
+        "unresolved_third_person_pronoun",
+        "demonstrative_reference",
+        "what_did_mean_question",
+        "source_or_attribution_question",
+        "quote_or_above_reference",
+    ):
+        if re.search(str(CONTEXT_AUDIT_RULES[flag]["pattern"]), folded, re.IGNORECASE):
+            flags.append(flag)
+
+    quoted = context["quoted_post"]
+    quoted_text = _context_post_text(quoted) if quoted is not None else ""
+    if context["lane"] == "quote_tweet" and not quoted_text.strip():
+        flags.append("missing_quoted_post_text")
+    parent_texts = [_context_post_text(parent) for parent in context["parent_thread"]]
+    dependency_flags = set(flags) & set(CONTEXT_DEPENDENCY_FLAG_ORDER[:6])
+    if (
+        dependency_flags
+        and not quoted_text.strip()
+        and not any(text.strip() for text in parent_texts)
+    ):
+        flags.append("missing_or_empty_bounded_parent_context")
+    return [flag for flag in CONTEXT_DEPENDENCY_FLAG_ORDER if flag in flags]
+
+
+def _render_holdout_context_review(reviewed_cases: list[dict[str, Any]]) -> str:
+    """Render only the exact context permitted for manual sufficiency review."""
+    markdown = ["# Holdout context review", ""]
+    for case in reviewed_cases:
+        context = case["context"]
+        flags = context_dependency_flags(context)
+        markdown.extend([
+            f"## {case['candidate_id']}",
+            "",
+            f"Final stratum: {case['stratum']}",
+            "",
+            f"Lane: {context['lane']}",
+            "",
+            "Incoming contribution:",
+            "",
+            _markdown_quote(context["incoming_contribution"]),
+            "",
+            "Quoted-post context:",
+            "",
+        ])
+        quoted = context["quoted_post"]
+        if quoted is None:
+            markdown.extend(["(none supplied)", ""])
+        else:
+            markdown.extend([
+                f"Post ID: {quoted['post_id']}",
+                "",
+                f"Author role: {quoted['author_role']}",
+                "",
+                "Text:",
+                "",
+                _markdown_quote(_context_post_text(quoted)),
+                "",
+            ])
+        markdown.extend(["Bounded parent context:", ""])
+        if context["parent_thread"]:
+            for index, parent in enumerate(context["parent_thread"], 1):
+                markdown.extend([
+                    f"Parent post {index}:",
+                    "",
+                    f"Post ID: {parent['post_id']}",
+                    "",
+                    f"Author role: {parent['author_role']}",
+                    "",
+                    "Text:",
+                    "",
+                    _markdown_quote(_context_post_text(parent)),
+                    "",
+                ])
+        else:
+            markdown.extend(["(none supplied)", ""])
+        clarification = context["clarification_request"]
+        markdown.extend(["Clarification request:", ""])
+        if clarification is None:
+            markdown.extend(["(none supplied)", ""])
+        else:
+            markdown.extend([
+                "Original question:",
+                "",
+                _markdown_quote(clarification["original_question"]),
+                "",
+                "Correction:",
+                "",
+                _markdown_quote(clarification["correction"]),
+                "",
+            ])
+        markdown.extend([
+            "Deterministic warning flags: " + (", ".join(flags) if flags else "none"),
+            "",
+        ])
+    return "\n".join(markdown)
+
+
+CONTEXT_CLEARANCE_COLUMNS = (
+    "context_audit_sha256",
+    "candidate_id",
+    "final_stratum",
+    "decision",
+    "reviewer_note",
+)
+
+
+def render_context_clearance_csv(
+    reviewed_cases: list[dict[str, Any]],
+    context_audit_sha256: str,
+    decisions: dict[str, tuple[str, str]] | None = None,
+) -> str:
+    """Render the private clearance template or a verified normalized clearance."""
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(
+        buffer, fieldnames=CONTEXT_CLEARANCE_COLUMNS, lineterminator="\n"
+    )
+    writer.writeheader()
+    for case in reviewed_cases:
+        decision, note = (decisions or {}).get(case["candidate_id"], ("", ""))
+        writer.writerow({
+            "context_audit_sha256": context_audit_sha256,
+            "candidate_id": case["candidate_id"],
+            "final_stratum": case["stratum"],
+            "decision": decision,
+            "reviewer_note": note,
+        })
+    return buffer.getvalue()
+
+
+def build_holdout_context_artifacts(pack_data: dict[str, Any]) -> dict[str, Any]:
+    """Build the structural audit, manual review and blank clearance template."""
+    if pack_data.get("case_set") != "holdout":
+        raise CalibrationError("holdout context audit requires the holdout case set")
+    if (
+        pack_data.get("selected_case_count") != 42
+        or pack_data.get("excluded_calibration_case_count") != 6
+    ):
+        raise CalibrationError("holdout context audit requires all 42 complement cases")
+    audit_rows: list[dict[str, Any]] = []
+    reviewed_cases: list[dict[str, Any]] = []
+    warning_counts: Counter[str] = Counter()
+    for case in sorted(pack_data["cases"], key=lambda row: row["candidate_id"]):
+        context = case["context"]
+        flags = context_dependency_flags(context)
+        warning_counts.update(flags)
+        manual_review_required = (
+            case["stratum"] == "factual_or_historical_question" or bool(flags)
+        )
+        if manual_review_required:
+            reviewed_cases.append(case)
+        quoted = context["quoted_post"]
+        quoted_text = _context_post_text(quoted) if quoted is not None else ""
+        parent_texts = [
+            _context_post_text(parent) for parent in context["parent_thread"]
+        ]
+        audit_rows.append({
+            "candidate_id": case["candidate_id"],
+            "final_stratum": case["stratum"],
+            "lane": context["lane"],
+            "incoming_text_sha256": sha256_text(context["incoming_contribution"]),
+            "quoted_post_present": quoted is not None,
+            "quoted_post_text_sha256": (
+                sha256_text(quoted_text) if quoted is not None else None
+            ),
+            "parent_post_count": len(parent_texts),
+            "nonempty_parent_post_count": sum(bool(text.strip()) for text in parent_texts),
+            "parent_context_sha256": value_sha256(context["parent_thread"]),
+            "clarification_request_present": context["clarification_request"] is not None,
+            "context_dependency_flags": flags,
+            "manual_review_required": manual_review_required,
+        })
+    if len(audit_rows) != 42 or len({row["candidate_id"] for row in audit_rows}) != 42:
+        raise CalibrationError("holdout context audit inventory differs")
+    factual_ids = {
+        case["candidate_id"]
+        for case in pack_data["cases"]
+        if case["stratum"] == "factual_or_historical_question"
+    }
+    reviewed_ids = {case["candidate_id"] for case in reviewed_cases}
+    if len(factual_ids) != 7 or not factual_ids.issubset(reviewed_ids):
+        raise CalibrationError("all factual/historical holdout cases require review")
+    audit_document = {
+        "schema_version": 1,
+        "audit_rule_version": CONTEXT_AUDIT_RULE_VERSION,
+        "audit_rules": CONTEXT_AUDIT_RULES,
+        "audit_rules_sha256": value_sha256(CONTEXT_AUDIT_RULES),
+        "runner_source_sha256": file_sha256(Path(__file__).resolve()),
+        "case_set": "holdout",
+        "pack_sha256": pack_data["pack_sha256"],
+        "selected_candidate_ids_sha256": pack_data[
+            "selected_candidate_ids_sha256"
+        ],
+        "selected_model_inputs_sha256": pack_data["selected_model_inputs_sha256"],
+        "selected_case_count": 42,
+        "manual_context_review_count": len(reviewed_cases),
+        "context_warning_counts": {
+            flag: warning_counts.get(flag, 0)
+            for flag in CONTEXT_DEPENDENCY_FLAG_ORDER
+        },
+        "cases": audit_rows,
+    }
+    audit_bytes = json_document_bytes(audit_document)
+    audit_sha256 = hashlib.sha256(audit_bytes).hexdigest()
+    review_text = _render_holdout_context_review(reviewed_cases)
+    clearance_text = render_context_clearance_csv(
+        reviewed_cases, audit_sha256
+    )
+    return {
+        "audit_document": audit_document,
+        "audit_bytes": audit_bytes,
+        "context_audit_sha256": audit_sha256,
+        "reviewed_cases": reviewed_cases,
+        "review_text": review_text,
+        "clearance_template_text": clearance_text,
+        "manual_context_review_count": len(reviewed_cases),
+        "context_warning_counts": audit_document["context_warning_counts"],
+    }
+
+
+def validate_context_clearance(
+    path: Path,
+    context_artifacts: dict[str, Any],
+    *,
+    require_all_ready: bool,
+) -> dict[str, Any]:
+    """Validate one human-edited clearance against the exact current audit."""
+    if path.is_symlink() or not path.is_file():
+        raise CalibrationError("context clearance must be a regular file")
+    try:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            if reader.fieldnames != list(CONTEXT_CLEARANCE_COLUMNS):
+                raise CalibrationError("context clearance columns differ")
+            rows = list(reader)
+    except (OSError, UnicodeError, csv.Error) as exc:
+        raise CalibrationError(f"cannot read context clearance: {exc}") from exc
+
+    expected_cases = {
+        case["candidate_id"]: case
+        for case in context_artifacts["reviewed_cases"]
+    }
+    expected_audit_sha256 = context_artifacts["context_audit_sha256"]
+    decisions: dict[str, tuple[str, str]] = {}
+    for row in rows:
+        if (
+            None in row
+            or set(row) != set(CONTEXT_CLEARANCE_COLUMNS)
+            or any(value is None for value in row.values())
+        ):
+            raise CalibrationError("context clearance row fields differ")
+        candidate_id = row.get("candidate_id")
+        if candidate_id in decisions:
+            raise CalibrationError(f"context clearance repeats candidate {candidate_id}")
+        case = expected_cases.get(str(candidate_id))
+        if case is None:
+            raise CalibrationError(
+                f"context clearance has unexpected candidate {candidate_id}"
+            )
+        if row.get("context_audit_sha256") != expected_audit_sha256:
+            raise CalibrationError(
+                f"context clearance audit SHA-256 is stale for {candidate_id}"
+            )
+        if row.get("final_stratum") != case["stratum"]:
+            raise CalibrationError(
+                f"context clearance final stratum differs for {candidate_id}"
+            )
+        decision = row.get("decision")
+        if decision not in {"", "ready", "needs_recovery", "exclude"}:
+            raise CalibrationError(
+                f"context clearance decision is invalid for {candidate_id}"
+            )
+        decisions[str(candidate_id)] = (str(decision), row.get("reviewer_note") or "")
+    missing = sorted(set(expected_cases) - set(decisions))
+    if missing:
+        raise CalibrationError(
+            "context clearance is missing reviewed candidates: " + ", ".join(missing)
+        )
+    if len(rows) != len(expected_cases):
+        raise CalibrationError("context clearance candidate inventory differs")
+
+    decision_values = {decision for decision, _note in decisions.values()}
+    if "exclude" in decision_values:
+        status = "exclude"
+    elif "needs_recovery" in decision_values:
+        status = "needs_recovery"
+    elif decision_values == {"ready"}:
+        status = "ready"
+    else:
+        status = "pending"
+    if require_all_ready and status != "ready":
+        if status == "exclude":
+            raise CalibrationError("holdout context clearance contains exclude")
+        if status == "needs_recovery":
+            raise CalibrationError("holdout context clearance contains needs_recovery")
+        raise CalibrationError("holdout context clearance is pending")
+    normalized_text = render_context_clearance_csv(
+        context_artifacts["reviewed_cases"], expected_audit_sha256, decisions
+    )
+    return {
+        "status": status,
+        "paid_execution_ready": status == "ready",
+        "normalized_text": normalized_text,
+        "normalized_sha256": hashlib.sha256(normalized_text.encode("utf-8")).hexdigest(),
+    }
 
 
 def _historical_public_output(record: dict[str, Any]) -> str | None:
@@ -819,6 +1365,14 @@ def public_pack_verification(pack_data: dict[str, Any]) -> dict[str, Any]:
         "selected_count": 48,
         "replay_ready_count": 48,
         "calibration_count": 6,
+        "holdout_count": 42,
+        "calibration_holdout_overlap_count": 0,
+        "calibration_candidate_ids_sha256": pack_data[
+            "calibration_candidate_ids_sha256"
+        ],
+        "holdout_candidate_ids_sha256": pack_data[
+            "holdout_candidate_ids_sha256"
+        ],
         "calibration_strata": sorted(REQUIRED_STRATA),
         "exactly_one_calibration_case_per_stratum": True,
         "quote_contexts_recovered_from_snapshot_cache": 11,
@@ -832,8 +1386,65 @@ def public_pack_verification(pack_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def selection_manifest_fields(
+    pack_data: dict[str, Any],
+    plan: dict[str, Any],
+    *,
+    context_artifacts: dict[str, Any] | None = None,
+    clearance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return the common immutable case-set and context-gate summary."""
+    is_holdout = pack_data["case_set"] == "holdout"
+    return {
+        "case_set": pack_data["case_set"],
+        "pack_case_count": pack_data["pack_case_count"],
+        "calibration_case_count": pack_data["calibration_case_count"],
+        "selected_case_count": pack_data["selected_case_count"],
+        "selected_unique_candidate_count": len(
+            {case["candidate_id"] for case in pack_data["cases"]}
+        ),
+        "excluded_calibration_case_count": pack_data[
+            "excluded_calibration_case_count"
+        ],
+        "calibration_holdout_overlap_count": 0,
+        "cases_per_stratum": pack_data["cases_per_stratum"],
+        "planned_pipeline_executions": plan["planned_pipeline_executions"],
+        "calibration_candidate_ids_sha256": pack_data[
+            "calibration_candidate_ids_sha256"
+        ],
+        "holdout_candidate_ids_sha256": pack_data[
+            "holdout_candidate_ids_sha256"
+        ],
+        "selected_candidate_ids_sha256": pack_data[
+            "selected_candidate_ids_sha256"
+        ],
+        "context_audit_sha256": (
+            context_artifacts["context_audit_sha256"] if is_holdout else None
+        ),
+        "manual_context_review_count": (
+            context_artifacts["manual_context_review_count"] if is_holdout else 0
+        ),
+        "context_warning_counts": (
+            context_artifacts["context_warning_counts"] if is_holdout else {}
+        ),
+        "context_clearance_status": (
+            clearance["status"] if is_holdout and clearance is not None else "not_applicable"
+        ),
+        "paid_execution_ready": (
+            clearance["paid_execution_ready"]
+            if is_holdout and clearance is not None
+            else False
+        ),
+    }
+
+
 def validation_report(
-    pack_data: dict[str, Any], manifests: dict[str, dict[str, Any]]
+    pack_data: dict[str, Any],
+    manifests: dict[str, dict[str, Any]],
+    plan: dict[str, Any],
+    *,
+    context_artifacts: dict[str, Any] | None = None,
+    clearance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     compact_counts = {
         name: {
@@ -847,10 +1458,15 @@ def validation_report(
     return {
         "schema_version": 1,
         "mode": "validate-only",
+        **selection_manifest_fields(
+            pack_data,
+            plan,
+            context_artifacts=context_artifacts,
+            clearance=clearance,
+        ),
         "pack_cases": 48,
         "calibration_cases": 6,
         "planned_variants": 2,
-        "planned_pipeline_executions": 12,
         "model_calls_performed": 0,
         "http_requests_performed": 0,
         "current_profile_uses_exact_production_prompt_functions": True,
@@ -870,20 +1486,33 @@ def validation_report(
         "search_enabled": False,
         "tools_enabled": False,
         "media_enabled": False,
-    }
+}
 
 
-def calibration_report_markdown(mode: str, model_calls: int, http_requests: int) -> str:
+def calibration_report_markdown(
+    mode: str,
+    model_calls: int,
+    http_requests: int,
+    *,
+    case_set: str = "calibration",
+    selected_case_count: int = 6,
+    planned_pipeline_executions: int = 12,
+) -> str:
+    case_summary = (
+        ["Calibration cases: 6"]
+        if case_set == "calibration" and selected_case_count == 6
+        else [f"Case set: {case_set}", "", f"Selected cases: {selected_case_count}"]
+    )
     return "\n".join([
         "# Reply prompt calibration report",
         "",
         f"Mode: {mode}",
         "",
-        "Calibration cases: 6",
+        *case_summary,
         "",
         "Variants: 2",
         "",
-        "Planned pipeline executions: 12",
+        f"Planned pipeline executions: {planned_pipeline_executions}",
         "",
         f"Model calls performed: {model_calls}",
         "",
@@ -972,9 +1601,16 @@ def common_execution_provenance(
     }
 
 
-def validate_only_run(args: argparse.Namespace, pack_data: dict[str, Any]) -> Path:
+def validate_only_run(
+    args: argparse.Namespace,
+    pack_data: dict[str, Any],
+    *,
+    context_artifacts: dict[str, Any] | None = None,
+    clearance: dict[str, Any] | None = None,
+) -> Path:
     verify_current_production_objects()
     manifests = profile_manifests()
+    verify_frozen_profile_manifests(manifests)
     repository = build_repository()
     plan = build_execution_plan(pack_data, manifests, args.blind_seed)
     provenance = common_execution_provenance(
@@ -997,10 +1633,15 @@ def validate_only_run(args: argparse.Namespace, pack_data: dict[str, Any]) -> Pa
         "xai_base": args.xai_base,
         "blind_seed": args.blind_seed,
         "pack_sha256": pack_data["pack_sha256"],
+        **selection_manifest_fields(
+            pack_data,
+            plan,
+            context_artifacts=context_artifacts,
+            clearance=clearance,
+        ),
         "pack_cases": 48,
         "calibration_cases": 6,
         "planned_variants": 2,
-        "planned_pipeline_executions": 12,
         **provenance,
         "completed_pipeline_executions": 0,
         "valid_approved_count": 0,
@@ -1022,12 +1663,42 @@ def validate_only_run(args: argparse.Namespace, pack_data: dict[str, Any]) -> Pa
     write_json(output / "pack_verification.json", public_pack_verification(pack_data))
     write_json(output / "profile_manifests.json", manifests)
     write_json(output / "execution_plan.json", plan)
-    write_json(output / "validation_report.json", validation_report(pack_data, manifests))
+    write_json(
+        output / "validation_report.json",
+        validation_report(
+            pack_data,
+            manifests,
+            plan,
+            context_artifacts=context_artifacts,
+            clearance=clearance,
+        ),
+    )
     write_jsonl(output / "prompt_preview_receipts.jsonl", previews)
     write_text(output / "blind_review.md", markdown)
     write_text(output / "blind_review.csv", csv_text)
     write_json(output / "blind_key.json", blind_key)
-    write_text(output / "calibration_report.md", calibration_report_markdown("validate-only", 0, 0))
+    write_text(
+        output / "calibration_report.md",
+        calibration_report_markdown(
+            "validate-only",
+            0,
+            0,
+            case_set=pack_data["case_set"],
+            selected_case_count=pack_data["selected_case_count"],
+            planned_pipeline_executions=plan["planned_pipeline_executions"],
+        ),
+    )
+    if pack_data["case_set"] == "holdout":
+        if context_artifacts is None or clearance is None:
+            raise CalibrationError("holdout context artifacts are missing")
+        atomic_bytes(output / "holdout_context_audit.json", context_artifacts["audit_bytes"])
+        write_text(
+            output / "holdout_context_review.md", context_artifacts["review_text"]
+        )
+        write_text(
+            output / "holdout_context_clearance.csv",
+            context_artifacts["clearance_template_text"],
+        )
     enforce_private_permissions(output)
     assert_no_secret(output, None)
     write_sha256sums(output)
@@ -1057,12 +1728,33 @@ def build_run_identity(
     manifests: dict[str, dict[str, Any]],
     plan: dict[str, Any],
     provenance: dict[str, Any],
+    *,
+    context_artifacts: dict[str, Any] | None = None,
+    clearance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Bind every immutable input to a paid run before its first HTTP request."""
     return {
         "schema_version": RUN_IDENTITY_SCHEMA_VERSION,
         "runner_version": RUNNER_VERSION,
         "replay_pack_sha256": pack_data["pack_sha256"],
+        "case_set": pack_data["case_set"],
+        "selected_candidate_ids_sha256": pack_data[
+            "selected_candidate_ids_sha256"
+        ],
+        "calibration_candidate_ids_sha256": pack_data[
+            "calibration_candidate_ids_sha256"
+        ],
+        "holdout_candidate_ids_sha256": pack_data[
+            "holdout_candidate_ids_sha256"
+        ],
+        "context_audit_sha256": (
+            context_artifacts["context_audit_sha256"]
+            if context_artifacts is not None
+            else None
+        ),
+        "context_clearance_sha256": (
+            clearance["normalized_sha256"] if clearance is not None else None
+        ),
         "execution_plan_sha256": value_sha256(plan),
         "current_profile_manifest_sha256": manifests["current"]["manifest_sha256"],
         "compact_profile_manifest_sha256": manifests["compact"]["manifest_sha256"],
@@ -1646,12 +2338,21 @@ def verify_execution_journals(
     receipts: dict[str, dict[str, Any]],
     ledger_data: dict[str, Any],
 ) -> None:
-    """Require twelve planned, fully cross-bound executions with no orphan call."""
+    """Require every planned execution to be fully bound with no orphan call."""
     planned_pairs = {
         (row["candidate_id"], row["variant"]) for row in plan["executions"]
     }
-    if len(planned_pairs) != 12 or set(results) != planned_pairs or set(audits) != planned_pairs:
-        raise CalibrationError("final output is not exactly twelve unique pipeline executions")
+    expected_count = plan.get("planned_pipeline_executions")
+    if (
+        type(expected_count) is not int
+        or expected_count not in {12, 84}
+        or len(planned_pairs) != expected_count
+        or set(results) != planned_pairs
+        or set(audits) != planned_pairs
+    ):
+        raise CalibrationError(
+            "final output does not contain every unique planned pipeline execution"
+        )
     owned: set[str] = set()
     for planned in plan["executions"]:
         key = (planned["candidate_id"], planned["variant"])
@@ -1799,6 +2500,9 @@ def execute_manifest(
     pack_data: dict[str, Any],
     provenance: dict[str, Any],
     *,
+    plan: dict[str, Any],
+    context_artifacts: dict[str, Any] | None,
+    clearance: dict[str, Any] | None,
     output: Path,
     identity_sha256: str,
     ledger_data: dict[str, Any],
@@ -1819,10 +2523,15 @@ def execute_manifest(
         "xai_base": args.xai_base,
         "blind_seed": args.blind_seed,
         "pack_sha256": pack_data["pack_sha256"],
+        **selection_manifest_fields(
+            pack_data,
+            plan,
+            context_artifacts=context_artifacts,
+            clearance=clearance,
+        ),
         "pack_cases": 48,
         "calibration_cases": 6,
         "planned_variants": 2,
-        "planned_pipeline_executions": 12,
         **provenance,
         "provider_phase_identity_sha256": file_sha256(
             output / "provider_phase_identity.json"
@@ -1834,7 +2543,7 @@ def execute_manifest(
         "cost_ledger_status": ledger_data.get("status"),
         "known_cost_usd": ledger_data.get("known_cost_usd", 0.0),
         "ambiguous_exposure_usd": ledger_data.get("ambiguous_exposure_usd", 0.0),
-        "completed_pipeline_executions": 12,
+        "completed_pipeline_executions": plan["planned_pipeline_executions"],
         "valid_approved_count": approved_count,
         "valid_no_reply_count": no_reply_count,
         "operational_failure_count": 0,
@@ -1853,6 +2562,9 @@ def execute_derived_payloads(
     pack_data: dict[str, Any],
     provenance: dict[str, Any],
     *,
+    plan: dict[str, Any],
+    context_artifacts: dict[str, Any] | None,
+    clearance: dict[str, Any] | None,
     output: Path,
     identity_sha256: str,
     ledger_data: dict[str, Any],
@@ -1872,6 +2584,9 @@ def execute_derived_payloads(
         args,
         pack_data,
         provenance,
+        plan=plan,
+        context_artifacts=context_artifacts,
+        clearance=clearance,
         output=output,
         identity_sha256=identity_sha256,
         ledger_data=ledger_data,
@@ -1895,15 +2610,23 @@ def execute_derived_payloads(
             "assignments": assignments,
         }),
         "calibration_report.md": calibration_report_markdown(
-            "execute", model_calls, http_requests
+            "execute",
+            model_calls,
+            http_requests,
+            case_set=pack_data["case_set"],
+            selected_case_count=pack_data["selected_case_count"],
+            planned_pipeline_executions=plan["planned_pipeline_executions"],
         ).encode("utf-8"),
         "run_manifest.json": json_bytes(manifest),
     }
 
 
-def verify_durable_execute_core(output: Path) -> None:
+def verify_durable_execute_core(output: Path, *, case_set: str) -> None:
     """Require every never-discardable execute artefact before final publication."""
-    missing = sorted(name for name in DURABLE_CORE_FILES if not (output / name).is_file())
+    required = set(DURABLE_CORE_FILES)
+    if case_set == "holdout":
+        required.update(HOLDOUT_CONTEXT_FILES)
+    missing = sorted(name for name in required if not (output / name).is_file())
     if missing or not (output / "raw_responses").is_dir():
         raise CalibrationError(
             "execute durable core is incomplete: " + ", ".join(missing or ["raw_responses/"])
@@ -1920,6 +2643,8 @@ def recover_or_verify_finalisation(
     cases: dict[str, dict[str, Any]],
     provenance: dict[str, Any],
     *,
+    context_artifacts: dict[str, Any] | None,
+    clearance: dict[str, Any] | None,
     output: Path,
     identity_sha256: str,
     ledger_data: dict[str, Any],
@@ -1929,9 +2654,10 @@ def recover_or_verify_finalisation(
     api_key: str,
 ) -> Path:
     """Strictly verify a marker, or rebuild only derived files when it is absent."""
-    verify_durable_execute_core(output)
+    verify_durable_execute_core(output, case_set=pack_data["case_set"])
+    plan = read_json(output / "execution_plan.json")
     verify_execution_journals(
-        plan=read_json(output / "execution_plan.json"),
+        plan=plan,
         cases=cases,
         manifests=manifests,
         pack_sha256=pack_data["pack_sha256"],
@@ -1945,6 +2671,9 @@ def recover_or_verify_finalisation(
         args,
         pack_data,
         provenance,
+        plan=plan,
+        context_artifacts=context_artifacts,
+        clearance=clearance,
         output=output,
         identity_sha256=identity_sha256,
         ledger_data=ledger_data,
@@ -1976,9 +2705,27 @@ def recover_or_verify_finalisation(
     return output
 
 
-def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: str) -> Path:
+def execute_run(
+    args: argparse.Namespace,
+    pack_data: dict[str, Any],
+    api_key: str,
+    *,
+    context_artifacts: dict[str, Any] | None = None,
+    clearance: dict[str, Any] | None = None,
+) -> Path:
     verify_current_production_objects()
     manifests = profile_manifests()
+    verify_frozen_profile_manifests(manifests)
+    if pack_data["case_set"] == "holdout":
+        if (
+            context_artifacts is None
+            or clearance is None
+            or clearance.get("status") != "ready"
+            or clearance.get("paid_execution_ready") is not True
+        ):
+            raise CalibrationError("holdout execute requires exact all-ready clearance")
+    elif context_artifacts is not None or clearance is not None:
+        raise CalibrationError("calibration execute cannot use holdout context clearance")
     repository = build_repository()
     plan = build_execution_plan(pack_data, manifests, args.blind_seed)
     cases = {case["candidate_id"]: case for case in pack_data["cases"]}
@@ -1990,7 +2737,15 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
             args.expected_runner_git_commit, require_clean_checkout=True
         ),
     )
-    identity = build_run_identity(args, pack_data, manifests, plan, provenance)
+    identity = build_run_identity(
+        args,
+        pack_data,
+        manifests,
+        plan,
+        provenance,
+        context_artifacts=context_artifacts,
+        clearance=clearance,
+    )
     output = prepare_output_directory(
         args.output, pack_data["pack_path"], resume=args.resume
     )
@@ -2008,6 +2763,21 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
             raise CalibrationError("stored profile manifests differ")
         if read_json(output / "execution_plan.json") != plan:
             raise CalibrationError("stored execution plan differs")
+        if pack_data["case_set"] == "holdout":
+            assert context_artifacts is not None and clearance is not None
+            expected_context_files = {
+                "holdout_context_audit.json": context_artifacts["audit_bytes"],
+                "holdout_context_review.md": context_artifacts["review_text"].encode(
+                    "utf-8"
+                ),
+                "holdout_context_clearance.csv": clearance["normalized_text"].encode(
+                    "utf-8"
+                ),
+            }
+            for name, expected_bytes in expected_context_files.items():
+                path = output / name
+                if not path.is_file() or path.read_bytes() != expected_bytes:
+                    raise CalibrationError(f"stored holdout context artifact differs: {name}")
         identity_sha256 = file_sha256(identity_path)
         ledger = open_resume_ledger(
             output, model=args.model, hard_limit_usd=args.hard_limit_usd
@@ -2025,6 +2795,20 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
         write_json(output / "pack_verification.json", public_pack_verification(pack_data))
         write_json(output / "profile_manifests.json", manifests)
         write_json(output / "execution_plan.json", plan)
+        if pack_data["case_set"] == "holdout":
+            assert context_artifacts is not None and clearance is not None
+            atomic_bytes(
+                output / "holdout_context_audit.json",
+                context_artifacts["audit_bytes"],
+            )
+            write_text(
+                output / "holdout_context_review.md",
+                context_artifacts["review_text"],
+            )
+            write_text(
+                output / "holdout_context_clearance.csv",
+                clearance["normalized_text"],
+            )
         write_text(output / "prompt_receipts.jsonl", "")
         write_text(output / "pipeline_results.jsonl", "")
         write_text(output / "pipeline_audits.jsonl", "")
@@ -2093,6 +2877,8 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
             manifests,
             cases,
             provenance,
+            context_artifacts=context_artifacts,
+            clearance=clearance,
             output=output,
             identity_sha256=identity_sha256,
             ledger_data=ledger_data,
@@ -2237,6 +3023,8 @@ def execute_run(args: argparse.Namespace, pack_data: dict[str, Any], api_key: st
         manifests,
         cases,
         provenance,
+        context_artifacts=context_artifacts,
+        clearance=clearance,
         output=output,
         identity_sha256=identity_sha256,
         ledger_data=ledger.data,
@@ -2257,6 +3045,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.set_defaults(mode="validate-only")
     parser.add_argument("--pack", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--case-set", choices=CASE_SETS, default="calibration")
+    parser.add_argument("--context-clearance", type=Path)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--hard-limit-usd", type=float)
     parser.add_argument("--xai-base", default=DEFAULT_XAI_BASE)
@@ -2288,8 +3078,14 @@ def validate_arguments(args: argparse.Namespace, environ: dict[str, str]) -> str
         raise CalibrationError("maximum server-error retries must be from zero to four")
     if args.resume and args.mode != "execute":
         raise CalibrationError("--resume is valid only with --execute")
+    if args.context_clearance is not None and args.case_set != "holdout":
+        raise CalibrationError(
+            "--context-clearance is valid only with --case-set holdout"
+        )
     if args.mode == "validate-only":
         return None
+    if args.case_set == "holdout" and args.context_clearance is None:
+        raise CalibrationError("holdout execute requires --context-clearance")
     if (
         not isinstance(args.expected_runner_git_commit, str)
         or re.fullmatch(r"[0-9a-f]{40}", args.expected_runner_git_commit) is None
@@ -2320,11 +3116,42 @@ def run(args: argparse.Namespace, *, environ: dict[str, str] | None = None) -> P
     for module_name in FORBIDDEN_RUNTIME_MODULES:
         if module_name in sys.modules:
             raise CalibrationError(f"forbidden posting/X module is loaded: {module_name}")
-    pack_data = verify_replay_pack(args.pack)
+    pack_data = verify_replay_pack(args.pack, case_set=args.case_set)
+    context_artifacts: dict[str, Any] | None = None
+    clearance: dict[str, Any] | None = None
+    if args.case_set == "holdout":
+        context_artifacts = build_holdout_context_artifacts(pack_data)
+        if args.context_clearance is None:
+            template = context_artifacts["clearance_template_text"]
+            clearance = {
+                "status": "pending",
+                "paid_execution_ready": False,
+                "normalized_text": template,
+                "normalized_sha256": hashlib.sha256(
+                    template.encode("utf-8")
+                ).hexdigest(),
+            }
+        else:
+            clearance = validate_context_clearance(
+                args.context_clearance,
+                context_artifacts,
+                require_all_ready=args.mode == "execute",
+            )
     if args.mode == "validate-only":
-        return validate_only_run(args, pack_data)
+        return validate_only_run(
+            args,
+            pack_data,
+            context_artifacts=context_artifacts,
+            clearance=clearance,
+        )
     assert api_key is not None
-    return execute_run(args, pack_data, api_key)
+    return execute_run(
+        args,
+        pack_data,
+        api_key,
+        context_artifacts=context_artifacts,
+        clearance=clearance,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
