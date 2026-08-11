@@ -21,6 +21,7 @@ import stat
 import subprocess
 import sys
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
@@ -43,7 +44,7 @@ from tools.reply_prompt_profiles import (
 )
 
 
-RUNNER_VERSION = "reply-prompt-calibration-v3"
+RUNNER_VERSION = "reply-prompt-calibration-v4"
 RUN_IDENTITY_SCHEMA_VERSION = 1
 PACK_SCHEMA_VERSION = 2
 PACK_TOOL_VERSION = "reply-replay-pack-v2"
@@ -58,6 +59,33 @@ PAID_ACKNOWLEDGEMENT = "YES_I_UNDERSTAND"
 MAXIMUM_REPLY_LENGTH = 270
 VARIANTS = ("current", "compact")
 CASE_SETS = ("calibration", "holdout")
+HISTORY_SCHEMA_VERSION = 2
+HISTORY_TOOL_VERSION = "reply-history-reconstruction-v2"
+HISTORY_EXTRACTOR_GIT_COMMIT = "bdb6a5b18468bbda02f2c908f8a7699601ee5d18"
+HISTORY_SELECTED_SNAPSHOT_COUNT = 32
+HISTORY_CONTEXT_MESSAGE_PREFIX = "Context sent to AI reply pipeline:"
+HISTORY_REQUIRED_FILES = {
+    "run_manifest.json",
+    "unique_log_records.jsonl",
+}
+HOLDOUT_CANDIDATE_IDS_SHA256 = (
+    "753139b9eb097872d19597823e2b25cd321eecc2e77bace01c5ad6c0ba650a25"
+)
+STALE_HOLDOUT_CONTEXT_AUDIT_SHA256 = (
+    "7f7f4392136d51707959681b26898b80143438aaf11632c45cff66c40fb547d8"
+)
+REAL_CONTEXT_RECOVERY_ASSERTIONS = {
+    "candidate-675700344d79a2eda56653d1db5582563540743564a6bafe1f1e139827caa588": {
+        "record_id": (
+            "record-982b99698dc802c777b305a99af28da920cc18ef3da5818ac8b7f9b918d43158"
+        ),
+        "raw_record_sha256": (
+            "8680f04fe14f164e27fa81e101dbd7077622a53a4fda6c299dd853dc3bc6012f"
+        ),
+        "source_identity": "zfs-auto-snap_daily-2026-07-30-0525",
+        "source_stream_sequence": 53772,
+    },
+}
 REQUIRED_STRATA = {
     "civil_challenge_or_disagreement",
     "factual_or_historical_question",
@@ -120,6 +148,7 @@ HOLDOUT_CONTEXT_FILES = {
     "holdout_context_audit.json",
     "holdout_context_review.md",
     "holdout_context_clearance.csv",
+    "holdout_context_recovery.jsonl",
 }
 PROVIDER_PHASE_FIELDS = {
     "schema_version",
@@ -485,6 +514,203 @@ def parse_and_verify_checksums(pack: Path) -> tuple[dict[str, str], str]:
     return checksums, hashlib.sha256(checksum_bytes).hexdigest()
 
 
+def _require_regular_input(path: Path, label: str) -> Path:
+    """Require one existing, non-linked regular input file."""
+    try:
+        file_stat = path.lstat()
+    except OSError as exc:
+        raise CalibrationError(f"missing {label}: {exc}") from exc
+    if path.is_symlink() or not stat.S_ISREG(file_stat.st_mode):
+        raise CalibrationError(f"{label} must be a non-symlink regular file")
+    return path
+
+
+def verify_history_corpus(history_path: Path) -> dict[str, Any]:
+    """Verify the immutable reconstruction corpus and its two required payloads."""
+    if history_path.is_symlink():
+        raise CalibrationError("history corpus path must not be a symbolic link")
+    try:
+        history = history_path.resolve(strict=True)
+    except OSError as exc:
+        raise CalibrationError(f"history corpus does not exist: {history_path}") from exc
+    if not history.is_dir():
+        raise CalibrationError("history corpus path must be a directory")
+
+    checksum_path = _require_regular_input(
+        history / "SHA256SUMS", "history SHA256SUMS"
+    )
+    try:
+        checksum_bytes = checksum_path.read_bytes()
+        checksum_lines = checksum_bytes.decode("utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise CalibrationError(f"cannot read history SHA256SUMS: {exc}") from exc
+
+    checksums: dict[str, str] = {}
+    for line_number, line in enumerate(checksum_lines, 1):
+        match = re.fullmatch(r"([0-9a-f]{64}) [ *]([^\r\n]+)", line)
+        if match is None:
+            raise CalibrationError(
+                f"malformed history SHA256SUMS line {line_number}"
+            )
+        expected, name = match.groups()
+        relative = Path(name)
+        canonical_name = relative.as_posix()
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or "\\" in name
+            or canonical_name != name
+            or canonical_name in checksums
+        ):
+            raise CalibrationError(
+                f"unsafe or duplicate history SHA256SUMS path on line {line_number}"
+            )
+        checksums[canonical_name] = expected
+    missing = HISTORY_REQUIRED_FILES - set(checksums)
+    if missing:
+        raise CalibrationError(
+            f"history SHA256SUMS omits required payloads: {sorted(missing)}"
+        )
+
+    payload_paths: dict[str, Path] = {}
+    for name in sorted(checksums):
+        target = _require_regular_input(history / name, f"history payload {name}")
+        try:
+            resolved = target.resolve(strict=True)
+            resolved.relative_to(history)
+        except (OSError, ValueError) as exc:
+            raise CalibrationError(f"unsafe history payload path {name}: {exc}") from exc
+        payload_paths[name] = resolved
+
+    verified: dict[str, str] = {}
+    for name in sorted(HISTORY_REQUIRED_FILES):
+        resolved = payload_paths[name]
+        actual = file_sha256(resolved)
+        if actual != checksums[name]:
+            raise CalibrationError(f"checksum mismatch for history payload {name}")
+        verified[name] = actual
+
+    manifest = read_json(history / "run_manifest.json")
+    if not isinstance(manifest, dict):
+        raise CalibrationError("history run_manifest.json must contain an object")
+    if type(manifest.get("schema_version")) is not int:
+        raise CalibrationError("history manifest schema_version must be an integer")
+    _require_equal(
+        "history manifest schema_version",
+        manifest.get("schema_version"),
+        HISTORY_SCHEMA_VERSION,
+    )
+    _require_equal(
+        "history manifest tool_version",
+        manifest.get("tool_version"),
+        HISTORY_TOOL_VERSION,
+    )
+    _require_equal(
+        "history manifest extractor_git_commit",
+        manifest.get("extractor_git_commit"),
+        HISTORY_EXTRACTOR_GIT_COMMIT,
+    )
+    _require_equal(
+        "history manifest extractor_git_commit_confidence",
+        manifest.get("extractor_git_commit_confidence"),
+        "exact",
+    )
+    if manifest.get("live_project_included") is not False:
+        raise CalibrationError("history manifest live_project_included must be false")
+    selected_snapshots = manifest.get("selected_snapshots")
+    if (
+        not isinstance(selected_snapshots, list)
+        or len(selected_snapshots) != HISTORY_SELECTED_SNAPSHOT_COUNT
+        or any(
+            not isinstance(identity, str) or not identity
+            for identity in selected_snapshots
+        )
+        or len(set(selected_snapshots)) != HISTORY_SELECTED_SNAPSHOT_COUNT
+    ):
+        raise CalibrationError(
+            "history manifest must select exactly 32 unique snapshots"
+        )
+    return {
+        "history_path": history,
+        "history_corpus_sha256": hashlib.sha256(checksum_bytes).hexdigest(),
+        "history_manifest_sha256": verified["run_manifest.json"],
+        "unique_log_records_sha256": verified["unique_log_records.jsonl"],
+        "checksums": checksums,
+        "manifest": manifest,
+        "selected_snapshots": set(selected_snapshots),
+    }
+
+
+def _parse_utc_timestamp(value: Any, label: str) -> datetime:
+    if not isinstance(value, str) or not value:
+        raise CalibrationError(f"{label} is missing or invalid")
+    try:
+        parsed = datetime.fromisoformat(
+            value[:-1] + "+00:00" if value.endswith("Z") else value
+        )
+    except ValueError as exc:
+        raise CalibrationError(f"{label} is invalid: {value!r}") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise CalibrationError(f"{label} must include a UTC offset")
+    return parsed.astimezone(timezone.utc)
+
+
+def _whitespace_normalized(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _empty_context_recovery() -> dict[str, Any]:
+    candidate_ids: list[str] = []
+    rows: list[dict[str, Any]] = []
+    return {
+        "history_corpus_path": None,
+        "history_corpus_sha256": None,
+        "history_manifest_sha256": None,
+        "unique_log_records_sha256": None,
+        "history_corpus_verification_pass": False,
+        "context_recovery_candidate_ids": candidate_ids,
+        "context_recovery_candidate_ids_sha256": candidate_ids_sha256(candidate_ids),
+        "recovered_context_count": 0,
+        "context_recovery_failures": 0,
+        "context_recovery_conflicts": 0,
+        "context_recovery_provenance_sha256": value_sha256(rows),
+        "rows": rows,
+    }
+
+
+def context_recovery_data(pack_data: dict[str, Any]) -> dict[str, Any]:
+    recovery = pack_data.get("context_recovery")
+    return recovery if isinstance(recovery, dict) else _empty_context_recovery()
+
+
+def context_recovery_binding(pack_data: dict[str, Any]) -> dict[str, Any]:
+    """Return the non-content fields that bind recovery into durable identities."""
+    recovery = context_recovery_data(pack_data)
+    return {
+        "history_corpus_path": recovery["history_corpus_path"],
+        "history_corpus_sha256": recovery["history_corpus_sha256"],
+        "history_manifest_sha256": recovery["history_manifest_sha256"],
+        "unique_log_records_sha256": recovery["unique_log_records_sha256"],
+        "history_corpus_verification_pass": recovery[
+            "history_corpus_verification_pass"
+        ],
+        "context_recovery_candidate_ids": recovery[
+            "context_recovery_candidate_ids"
+        ],
+        "context_recovery_candidate_ids_sha256": recovery[
+            "context_recovery_candidate_ids_sha256"
+        ],
+        "recovered_context_count": recovery["recovered_context_count"],
+        "context_recovery_failures": recovery["context_recovery_failures"],
+        "context_recovery_conflicts": recovery["context_recovery_conflicts"],
+        "context_recovery_provenance_sha256": recovery[
+            "context_recovery_provenance_sha256"
+        ],
+    }
+
+
 def verify_replay_pack(
     pack_path: Path, *, case_set: str = "calibration"
 ) -> dict[str, Any]:
@@ -628,6 +854,8 @@ def verify_replay_pack(
             "recent_replies": list(recent_text),
             "historical": historical[candidate_id],
             "model_input_sha256": value_sha256(model_row),
+            "first_timestamp": frozen_row.get("first_timestamp"),
+            "terminal_timestamp": frozen_row.get("terminal_timestamp"),
         })
 
     selected_ids = calibration_ids if case_set == "calibration" else holdout_ids
@@ -677,6 +905,337 @@ def verify_replay_pack(
         "cases": cases,
         "reply_strategy_sha256": strategy_hash,
     }
+
+
+def recover_holdout_contexts(
+    pack_data: dict[str, Any],
+    history_corpus: Path | None,
+    requested_candidate_ids: Iterable[str],
+) -> dict[str, Any]:
+    """Recover exact logged pipeline contexts for an explicit holdout subset."""
+    if pack_data.get("case_set") != "holdout":
+        raise CalibrationError("context recovery requires the holdout case set")
+    requested_in_order = list(requested_candidate_ids)
+    if any(not isinstance(candidate_id, str) or not candidate_id for candidate_id in requested_in_order):
+        raise CalibrationError("context recovery candidate IDs must be non-empty strings")
+    if len(set(requested_in_order)) != len(requested_in_order):
+        raise CalibrationError("context recovery candidate IDs must not repeat")
+    requested = sorted(requested_in_order)
+    if requested and history_corpus is None:
+        raise CalibrationError(
+            "--recover-context-candidate requires --history-corpus"
+        )
+
+    history = verify_history_corpus(history_corpus) if history_corpus is not None else None
+    cases = {
+        case["candidate_id"]: case
+        for case in pack_data.get("cases", [])
+        if isinstance(case, dict) and isinstance(case.get("candidate_id"), str)
+    }
+    holdout_ids = set(pack_data.get("holdout_candidate_ids", []))
+    unknown = sorted(set(requested) - holdout_ids)
+    if unknown:
+        raise CalibrationError(
+            "context recovery candidate is not in the 42-case holdout: "
+            + ", ".join(unknown)
+        )
+    if any(candidate_id not in cases for candidate_id in requested):
+        raise CalibrationError("context recovery candidate selection differs")
+    if set(requested) & set(REAL_CONTEXT_RECOVERY_ASSERTIONS):
+        _require_equal(
+            "real holdout candidate-ID SHA-256",
+            pack_data.get("holdout_candidate_ids_sha256"),
+            HOLDOUT_CANDIDATE_IDS_SHA256,
+        )
+
+    if history is None:
+        recovery = _empty_context_recovery()
+        pack_data["context_recovery"] = recovery
+        return recovery
+
+    recovery_base = {
+        "history_corpus_path": str(history["history_path"]),
+        "history_corpus_sha256": history["history_corpus_sha256"],
+        "history_manifest_sha256": history["history_manifest_sha256"],
+        "unique_log_records_sha256": history["unique_log_records_sha256"],
+        "history_corpus_verification_pass": True,
+    }
+    if not requested:
+        recovery = {
+            **_empty_context_recovery(),
+            **recovery_base,
+        }
+        pack_data["context_recovery"] = recovery
+        return recovery
+
+    original_hashes = {
+        candidate_id: value_sha256(case["context"])
+        for candidate_id, case in cases.items()
+    }
+    matching: dict[str, list[dict[str, Any]]] = {
+        candidate_id: [] for candidate_id in requested
+    }
+    log_path = history["history_path"] / "unique_log_records.jsonl"
+    try:
+        with log_path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, 1):
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise CalibrationError(
+                        "invalid history JSONL record "
+                        f"unique_log_records.jsonl:{line_number}: {exc}"
+                    ) from exc
+                if not isinstance(record, dict):
+                    raise CalibrationError(
+                        "history JSONL record must be an object: "
+                        f"unique_log_records.jsonl:{line_number}"
+                    )
+                message = record.get("message")
+                if (
+                    record.get("function") != "log_json_debug"
+                    or record.get("source_type") != "snapshot"
+                    or record.get("parse_warnings") != []
+                    or not isinstance(message, str)
+                    or not message.startswith(HISTORY_CONTEXT_MESSAGE_PREFIX)
+                ):
+                    continue
+                payload_text = message[len(HISTORY_CONTEXT_MESSAGE_PREFIX):].strip()
+                try:
+                    logged_context = json.loads(payload_text)
+                except json.JSONDecodeError as exc:
+                    raise CalibrationError(
+                        f"invalid logged reply context on history line {line_number}: {exc}"
+                    ) from exc
+                if not isinstance(logged_context, dict):
+                    raise CalibrationError(
+                        f"logged reply context on history line {line_number} is not an object"
+                    )
+
+                for candidate_id in requested:
+                    original_context = cases[candidate_id]["context"]
+                    if (
+                        logged_context.get("target_id") != original_context["target_id"]
+                        or logged_context.get("lane") != original_context["lane"]
+                        or _whitespace_normalized(
+                            logged_context.get("incoming_contribution")
+                        )
+                        != _whitespace_normalized(
+                            original_context["incoming_contribution"]
+                        )
+                    ):
+                        continue
+                    source_identity = record.get("source_identity")
+                    if (
+                        not isinstance(source_identity, str)
+                        or source_identity not in history["selected_snapshots"]
+                    ):
+                        raise CalibrationError(
+                            "matching history context comes from an unselected snapshot "
+                            f"for {candidate_id}"
+                        )
+                    if set(logged_context) != {
+                        "target_id",
+                        "thread_id",
+                        "lane",
+                        "incoming_contribution",
+                        "quoted_post",
+                        "parent_thread",
+                        "clarification_request",
+                        "current_date",
+                    }:
+                        raise CalibrationError(
+                            f"logged reply context fields differ for {candidate_id}"
+                        )
+
+                    source_timestamp = record.get("timestamp")
+                    source_time = _parse_utc_timestamp(
+                        source_timestamp, "history context timestamp"
+                    )
+                    first_time = _parse_utc_timestamp(
+                        cases[candidate_id].get("first_timestamp"),
+                        f"first timestamp for {candidate_id}",
+                    )
+                    terminal_time = _parse_utc_timestamp(
+                        cases[candidate_id].get("terminal_timestamp"),
+                        f"terminal timestamp for {candidate_id}",
+                    )
+                    if first_time > terminal_time or not first_time <= source_time <= terminal_time:
+                        raise CalibrationError(
+                            f"history context timestamp is incompatible for {candidate_id}"
+                        )
+
+                    record_id = record.get("record_id")
+                    raw_record_sha256 = record.get("raw_record_sha256")
+                    raw_record_text = record.get("raw_record_text")
+                    source_sequence = record.get("source_stream_sequence")
+                    occurrence_count = record.get("occurrence_count")
+                    occurrence_ids = record.get("source_occurrence_ids")
+                    if (
+                        not isinstance(record_id, str)
+                        or re.fullmatch(r"record-[0-9a-f]{64}", record_id) is None
+                        or not isinstance(raw_record_sha256, str)
+                        or re.fullmatch(r"[0-9a-f]{64}", raw_record_sha256) is None
+                        or not isinstance(raw_record_text, str)
+                        or hashlib.sha256(raw_record_text.encode("utf-8")).hexdigest()
+                        != raw_record_sha256
+                        or not isinstance(source_identity, str)
+                        or type(source_sequence) is not int
+                        or source_sequence < 0
+                        or type(occurrence_count) is not int
+                        or occurrence_count <= 0
+                        or not isinstance(occurrence_ids, list)
+                        or len(occurrence_ids) != occurrence_count
+                        or any(not isinstance(value, str) or not value for value in occurrence_ids)
+                        or len(set(occurrence_ids)) != occurrence_count
+                    ):
+                        raise CalibrationError(
+                            f"matching history record metadata is invalid for {candidate_id}"
+                        )
+
+                    recovered_context = {
+                        "target_id": original_context["target_id"],
+                        "thread_id": logged_context["thread_id"],
+                        "lane": original_context["lane"],
+                        "incoming_contribution": original_context[
+                            "incoming_contribution"
+                        ],
+                        "quoted_post": logged_context["quoted_post"],
+                        "parent_thread": logged_context["parent_thread"],
+                        "clarification_request": logged_context[
+                            "clarification_request"
+                        ],
+                        "current_date": logged_context["current_date"],
+                    }
+                    try:
+                        validated = reply_strategy.validate_reply_context(
+                            recovered_context
+                        )
+                    except (TypeError, ValueError) as exc:
+                        raise CalibrationError(
+                            f"recovered context is invalid for {candidate_id}: {exc}"
+                        ) from exc
+                    matching[candidate_id].append({
+                        "context": validated,
+                        "context_sha256": value_sha256(validated),
+                        "record_id": record_id,
+                        "raw_record_sha256": raw_record_sha256,
+                        "source_identity": source_identity,
+                        "source_stream_sequence": source_sequence,
+                        "source_timestamp": source_timestamp,
+                        "source_occurrence_count": occurrence_count,
+                    })
+    except (OSError, UnicodeError) as exc:
+        raise CalibrationError(f"cannot stream unique_log_records.jsonl: {exc}") from exc
+
+    selected_matches: dict[str, dict[str, Any]] = {}
+    for candidate_id in requested:
+        rows = matching[candidate_id]
+        if not rows:
+            raise CalibrationError(
+                f"no exact logged pipeline context found for {candidate_id}"
+            )
+        distinct_contexts = {row["context_sha256"] for row in rows}
+        if len(distinct_contexts) != 1:
+            raise CalibrationError(
+                f"conflicting matching history contexts found for {candidate_id}"
+            )
+        canonical_records: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            prior = canonical_records.get(row["record_id"])
+            if prior is not None and prior != row:
+                raise CalibrationError(
+                    f"repeated canonical history record differs for {candidate_id}"
+                )
+            canonical_records[row["record_id"]] = row
+        if len(canonical_records) != 1:
+            raise CalibrationError(
+                f"multiple matching canonical history records found for {candidate_id}"
+            )
+        selected = next(iter(canonical_records.values()))
+        exact_assertions = REAL_CONTEXT_RECOVERY_ASSERTIONS.get(candidate_id)
+        if exact_assertions is not None:
+            for field, expected in exact_assertions.items():
+                _require_equal(
+                    f"authoritative recovery {field}", selected.get(field), expected
+                )
+        selected_matches[candidate_id] = selected
+
+    recovery_rows: list[dict[str, Any]] = []
+    for candidate_id in requested:
+        case = cases[candidate_id]
+        selected = selected_matches[candidate_id]
+        original_context = case["context"]
+        recovered_context = selected["context"]
+        case["context"] = recovered_context
+        parent_ids = [
+            str(parent["post_id"]) for parent in recovered_context["parent_thread"]
+        ]
+        recovery_rows.append({
+            "schema_version": 1,
+            "runner_version": RUNNER_VERSION,
+            "candidate_id": candidate_id,
+            "target_id": recovered_context["target_id"],
+            "recovery_status": "exact_logged_pipeline_context",
+            "recovery_confidence": "exact",
+            "history_manifest_sha256": history["history_manifest_sha256"],
+            "unique_log_records_sha256": history["unique_log_records_sha256"],
+            "record_id": selected["record_id"],
+            "raw_record_sha256": selected["raw_record_sha256"],
+            "source_identity": selected["source_identity"],
+            "source_stream_sequence": selected["source_stream_sequence"],
+            "source_timestamp": selected["source_timestamp"],
+            "source_occurrence_count": selected["source_occurrence_count"],
+            "original_context_sha256": original_hashes[candidate_id],
+            "recovered_context_sha256": value_sha256(recovered_context),
+            "recovered_thread_id": recovered_context["thread_id"],
+            "recovered_parent_post_ids": parent_ids,
+            "recovered_parent_post_count": len(parent_ids),
+            "validator_result": "pass",
+        })
+
+    current_hashes = {
+        candidate_id: value_sha256(case["context"])
+        for candidate_id, case in cases.items()
+    }
+    changed_unrequested = sorted(
+        candidate_id
+        for candidate_id in cases
+        if candidate_id not in requested
+        and current_hashes[candidate_id] != original_hashes[candidate_id]
+    )
+    if changed_unrequested:
+        raise CalibrationError(
+            "context recovery changed unrequested candidates: "
+            + ", ".join(changed_unrequested)
+        )
+    _require_equal(
+        "holdout candidate-ID SHA-256 after context recovery",
+        candidate_ids_sha256(cases),
+        pack_data["holdout_candidate_ids_sha256"],
+    )
+    recovered_strata = Counter(case["stratum"] for case in cases.values())
+    if (
+        len(cases) != 42
+        or set(recovered_strata) != REQUIRED_STRATA
+        or any(count != 7 for count in recovered_strata.values())
+    ):
+        raise CalibrationError("holdout identity changed during context recovery")
+
+    recovery = {
+        **recovery_base,
+        "context_recovery_candidate_ids": requested,
+        "context_recovery_candidate_ids_sha256": candidate_ids_sha256(requested),
+        "recovered_context_count": len(recovery_rows),
+        "context_recovery_failures": 0,
+        "context_recovery_conflicts": 0,
+        "context_recovery_provenance_sha256": value_sha256(recovery_rows),
+        "rows": recovery_rows,
+    }
+    pack_data["context_recovery"] = recovery
+    return recovery
 
 
 def execution_order(
@@ -739,7 +1298,7 @@ def build_execution_plan(
                 min(5, len(case["recent_replies"])) if ordered["variant"] == "compact" else 0
             ),
         })
-    return {
+    plan = {
         "schema_version": 1,
         "runner_version": RUNNER_VERSION,
         "case_set": pack_data["case_set"],
@@ -753,6 +1312,9 @@ def build_execution_plan(
         "order_derivation": "sha256(blind-seed, pack-sha256, candidate-id, variant)",
         "executions": rows,
     }
+    if pack_data["case_set"] == "holdout":
+        plan.update(context_recovery_binding(pack_data))
+    return plan
 
 
 def pipeline_execution_identity(
@@ -913,9 +1475,12 @@ def write_text(path: Path, value: str) -> None:
     atomic_bytes(path, value.encode("utf-8"))
 
 
+def jsonl_document_bytes(rows: Iterable[dict[str, Any]]) -> bytes:
+    return b"".join(canonical_json_bytes(row) + b"\n" for row in rows)
+
+
 def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
-    content = b"".join(canonical_json_bytes(row) + b"\n" for row in rows)
-    atomic_bytes(path, content)
+    atomic_bytes(path, jsonl_document_bytes(rows))
 
 
 def append_jsonl(path: Path, row: dict[str, Any]) -> None:
@@ -1090,6 +1655,8 @@ def build_holdout_context_artifacts(pack_data: dict[str, Any]) -> dict[str, Any]
     audit_rows: list[dict[str, Any]] = []
     reviewed_cases: list[dict[str, Any]] = []
     warning_counts: Counter[str] = Counter()
+    recovery = context_recovery_data(pack_data)
+    recovered_ids = set(recovery["context_recovery_candidate_ids"])
     for case in sorted(pack_data["cases"], key=lambda row: row["candidate_id"]):
         context = case["context"]
         flags = context_dependency_flags(context)
@@ -1108,6 +1675,8 @@ def build_holdout_context_artifacts(pack_data: dict[str, Any]) -> dict[str, Any]
             "candidate_id": case["candidate_id"],
             "final_stratum": case["stratum"],
             "lane": context["lane"],
+            "validated_context_sha256": value_sha256(context),
+            "context_recovered": case["candidate_id"] in recovered_ids,
             "incoming_text_sha256": sha256_text(context["incoming_contribution"]),
             "quoted_post_present": quoted is not None,
             "quoted_post_text_sha256": (
@@ -1143,6 +1712,8 @@ def build_holdout_context_artifacts(pack_data: dict[str, Any]) -> dict[str, Any]
         ],
         "selected_model_inputs_sha256": pack_data["selected_model_inputs_sha256"],
         "selected_case_count": 42,
+        "superseded_context_audit_sha256": STALE_HOLDOUT_CONTEXT_AUDIT_SHA256,
+        **context_recovery_binding(pack_data),
         "manual_context_review_count": len(reviewed_cases),
         "context_warning_counts": {
             flag: warning_counts.get(flag, 0)
@@ -1152,6 +1723,8 @@ def build_holdout_context_artifacts(pack_data: dict[str, Any]) -> dict[str, Any]
     }
     audit_bytes = json_document_bytes(audit_document)
     audit_sha256 = hashlib.sha256(audit_bytes).hexdigest()
+    if recovery["recovered_context_count"] and audit_sha256 == STALE_HOLDOUT_CONTEXT_AUDIT_SHA256:
+        raise CalibrationError("recovered context audit did not supersede the stale audit")
     review_text = _render_holdout_context_review(reviewed_cases)
     clearance_text = render_context_clearance_csv(
         reviewed_cases, audit_sha256
@@ -1163,8 +1736,13 @@ def build_holdout_context_artifacts(pack_data: dict[str, Any]) -> dict[str, Any]
         "reviewed_cases": reviewed_cases,
         "review_text": review_text,
         "clearance_template_text": clearance_text,
+        "recovery_rows": recovery["rows"],
+        "recovery_bytes": jsonl_document_bytes(recovery["rows"]),
         "manual_context_review_count": len(reviewed_cases),
         "context_warning_counts": audit_document["context_warning_counts"],
+        "old_context_audit_sha256_rejected": (
+            audit_sha256 != STALE_HOLDOUT_CONTEXT_AUDIT_SHA256
+        ),
     }
 
 
@@ -1418,8 +1996,14 @@ def selection_manifest_fields(
         "selected_candidate_ids_sha256": pack_data[
             "selected_candidate_ids_sha256"
         ],
+        **(context_recovery_binding(pack_data) if is_holdout else {}),
         "context_audit_sha256": (
             context_artifacts["context_audit_sha256"] if is_holdout else None
+        ),
+        "old_context_audit_sha256_rejected": (
+            context_artifacts["old_context_audit_sha256_rejected"]
+            if is_holdout and context_artifacts is not None
+            else False
         ),
         "manual_context_review_count": (
             context_artifacts["manual_context_review_count"] if is_holdout else 0
@@ -1699,6 +2283,10 @@ def validate_only_run(
             output / "holdout_context_clearance.csv",
             context_artifacts["clearance_template_text"],
         )
+        atomic_bytes(
+            output / "holdout_context_recovery.jsonl",
+            context_artifacts["recovery_bytes"],
+        )
     enforce_private_permissions(output)
     assert_no_secret(output, None)
     write_sha256sums(output)
@@ -1747,6 +2335,11 @@ def build_run_identity(
         "holdout_candidate_ids_sha256": pack_data[
             "holdout_candidate_ids_sha256"
         ],
+        **(
+            context_recovery_binding(pack_data)
+            if pack_data["case_set"] == "holdout"
+            else {}
+        ),
         "context_audit_sha256": (
             context_artifacts["context_audit_sha256"]
             if context_artifacts is not None
@@ -2773,6 +3366,9 @@ def execute_run(
                 "holdout_context_clearance.csv": clearance["normalized_text"].encode(
                     "utf-8"
                 ),
+                "holdout_context_recovery.jsonl": context_artifacts[
+                    "recovery_bytes"
+                ],
             }
             for name, expected_bytes in expected_context_files.items():
                 path = output / name
@@ -2808,6 +3404,10 @@ def execute_run(
             write_text(
                 output / "holdout_context_clearance.csv",
                 clearance["normalized_text"],
+            )
+            atomic_bytes(
+                output / "holdout_context_recovery.jsonl",
+                context_artifacts["recovery_bytes"],
             )
         write_text(output / "prompt_receipts.jsonl", "")
         write_text(output / "pipeline_results.jsonl", "")
@@ -3047,6 +3647,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--case-set", choices=CASE_SETS, default="calibration")
     parser.add_argument("--context-clearance", type=Path)
+    parser.add_argument("--history-corpus", type=Path)
+    parser.add_argument(
+        "--recover-context-candidate",
+        action="append",
+        default=[],
+        metavar="CANDIDATE_ID",
+    )
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--hard-limit-usd", type=float)
     parser.add_argument("--xai-base", default=DEFAULT_XAI_BASE)
@@ -3082,6 +3689,20 @@ def validate_arguments(args: argparse.Namespace, environ: dict[str, str]) -> str
         raise CalibrationError(
             "--context-clearance is valid only with --case-set holdout"
         )
+    if (
+        args.history_corpus is not None or args.recover_context_candidate
+    ) and args.case_set != "holdout":
+        raise CalibrationError(
+            "context-recovery arguments are valid only with --case-set holdout"
+        )
+    if args.recover_context_candidate and args.history_corpus is None:
+        raise CalibrationError(
+            "--recover-context-candidate requires --history-corpus"
+        )
+    if args.history_corpus is not None and output_inside(
+        args.output.resolve(strict=False), args.history_corpus.resolve(strict=False)
+    ):
+        raise CalibrationError("output must not be inside the history corpus")
     if args.mode == "validate-only":
         return None
     if args.case_set == "holdout" and args.context_clearance is None:
@@ -3120,6 +3741,11 @@ def run(args: argparse.Namespace, *, environ: dict[str, str] | None = None) -> P
     context_artifacts: dict[str, Any] | None = None
     clearance: dict[str, Any] | None = None
     if args.case_set == "holdout":
+        recover_holdout_contexts(
+            pack_data,
+            args.history_corpus,
+            args.recover_context_candidate,
+        )
         context_artifacts = build_holdout_context_artifacts(pack_data)
         if args.context_clearance is None:
             template = context_artifacts["clearance_template_text"]

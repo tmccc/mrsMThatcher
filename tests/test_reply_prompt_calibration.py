@@ -25,6 +25,16 @@ from tools import run_reply_prompt_calibration as runner
 PACK: Path
 SYNTHETIC_API_KEY = "synthetic-calibration-key-not-valid"
 SYNTHETIC_RUNNER_COMMIT = "a" * 40
+SYNTHETIC_RECOVERY_CANDIDATE_ID = (
+    "synthetic-factual_or_historical_question-1"
+)
+SYNTHETIC_HISTORY_SOURCE_IDENTITY = "synthetic-snapshot-selected-00"
+SYNTHETIC_HISTORY_TIMESTAMP = "2026-08-10T12:10:00Z"
+SYNTHETIC_RECOVERED_THREAD_ID = "synthetic-recovered-thread"
+SYNTHETIC_RECOVERED_PARENT_IDS = (
+    "synthetic-recovered-parent-1",
+    "synthetic-recovered-parent-2",
+)
 
 
 def _write_json_document(path: Path, value: Any) -> None:
@@ -135,6 +145,8 @@ def build_synthetic_pack(pack: Path) -> Path:
             "current_pipeline_lane": lane,
             "validated_context": context,
             "recent_account_replies_text": recent_text,
+            "first_timestamp": f"2026-08-10T12:{ordinal:02d}:00Z",
+            "terminal_timestamp": f"2026-08-10T12:{ordinal:02d}:05Z",
         })
         if index == 0:
             calibration_rows.append({
@@ -383,6 +395,171 @@ def rewrite_pack_json(pack: Path, filename: str, transform: Any) -> None:
     checksum_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def fresh_holdout_pack_data() -> dict[str, Any]:
+    return runner.verify_replay_pack(PACK, case_set="holdout")
+
+
+def synthetic_recovered_context(
+    pack_data: dict[str, Any],
+    **updates: Any,
+) -> dict[str, Any]:
+    case = next(
+        row
+        for row in pack_data["cases"]
+        if row["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    )
+    context = json.loads(json.dumps(case["context"], ensure_ascii=False))
+    context.update({
+        "thread_id": SYNTHETIC_RECOVERED_THREAD_ID,
+        "parent_thread": [
+            {
+                "post_id": SYNTHETIC_RECOVERED_PARENT_IDS[0],
+                "author_role": "account",
+                "text": "Synthetic bounded account context.",
+            },
+            {
+                "post_id": SYNTHETIC_RECOVERED_PARENT_IDS[1],
+                "author_role": "user",
+                "text": "Synthetic bounded user context.",
+            },
+        ],
+        **updates,
+    })
+    return context
+
+
+def synthetic_history_record(
+    pack_data: dict[str, Any],
+    *,
+    context_updates: dict[str, Any] | None = None,
+    record_updates: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    updates = dict(record_updates or {})
+    context = synthetic_recovered_context(
+        pack_data,
+        **(context_updates or {}),
+    )
+    source_sequence = updates.get("source_stream_sequence", 101)
+    message = updates.get(
+        "message",
+        runner.HISTORY_CONTEXT_MESSAGE_PREFIX
+        + " "
+        + json.dumps(context, ensure_ascii=False, sort_keys=True),
+    )
+    raw_record_text = (
+        "synthetic immutable raw record "
+        + str(source_sequence)
+        + "\n"
+        + str(message)
+    )
+    raw_record_sha256 = hashlib.sha256(
+        raw_record_text.encode("utf-8")
+    ).hexdigest()
+    record_id = "record-" + hashlib.sha256(
+        ("synthetic-record-id:" + raw_record_text).encode("utf-8")
+    ).hexdigest()
+    record = {
+        "record_id": record_id,
+        "raw_record_sha256": raw_record_sha256,
+        "raw_record_text": raw_record_text,
+        "source_identity": SYNTHETIC_HISTORY_SOURCE_IDENTITY,
+        "source_stream_sequence": source_sequence,
+        "source_type": "snapshot",
+        "timestamp": SYNTHETIC_HISTORY_TIMESTAMP,
+        "function": "log_json_debug",
+        "message": message,
+        "parse_warnings": [],
+        "occurrence_count": 2,
+        "source_occurrence_ids": [
+            "synthetic-occurrence-1",
+            "synthetic-occurrence-2",
+        ],
+    }
+    record.update(updates)
+    if "raw_record_text" in updates and "raw_record_sha256" not in updates:
+        record["raw_record_sha256"] = hashlib.sha256(
+            str(record["raw_record_text"]).encode("utf-8")
+        ).hexdigest()
+    if "raw_record_text" in updates and "record_id" not in updates:
+        record["record_id"] = "record-" + hashlib.sha256(
+            (
+                "synthetic-record-id:" + str(record["raw_record_text"])
+            ).encode("utf-8")
+        ).hexdigest()
+    return record
+
+
+def write_history_checksums(history: Path) -> None:
+    names = ("run_manifest.json", "unique_log_records.jsonl")
+    (history / "SHA256SUMS").write_text(
+        "".join(
+            f"{hashlib.sha256((history / name).read_bytes()).hexdigest()}  {name}\n"
+            for name in names
+        ),
+        encoding="utf-8",
+    )
+
+
+def build_synthetic_history_corpus(
+    history: Path,
+    pack_data: dict[str, Any],
+    *,
+    records: list[dict[str, Any]] | None = None,
+    manifest_updates: dict[str, Any] | None = None,
+) -> Path:
+    history.mkdir(mode=0o700)
+    manifest = {
+        "schema_version": runner.HISTORY_SCHEMA_VERSION,
+        "tool_version": runner.HISTORY_TOOL_VERSION,
+        "extractor_git_commit": runner.HISTORY_EXTRACTOR_GIT_COMMIT,
+        "extractor_git_commit_confidence": "exact",
+        "live_project_included": False,
+        "selected_snapshots": [
+            SYNTHETIC_HISTORY_SOURCE_IDENTITY,
+            *[
+                f"synthetic-snapshot-selected-{index:02d}"
+                for index in range(1, runner.HISTORY_SELECTED_SNAPSHOT_COUNT)
+            ],
+        ],
+    }
+    manifest.update(manifest_updates or {})
+    _write_json_document(history / "run_manifest.json", manifest)
+    _write_json_lines(
+        history / "unique_log_records.jsonl",
+        records
+        if records is not None
+        else [synthetic_history_record(pack_data)],
+    )
+    write_history_checksums(history)
+    return history
+
+
+def rewrite_history_manifest(
+    history: Path,
+    transform: Any,
+    *,
+    refresh_checksums: bool = True,
+) -> None:
+    path = history / "run_manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    transform(manifest)
+    _write_json_document(path, manifest)
+    if refresh_checksums:
+        write_history_checksums(history)
+
+
+@pytest.fixture
+def synthetic_history_corpus(tmp_path: Path) -> dict[str, Any]:
+    pack_data = fresh_holdout_pack_data()
+    record = synthetic_history_record(pack_data)
+    history = build_synthetic_history_corpus(
+        tmp_path / "synthetic-history",
+        pack_data,
+        records=[record],
+    )
+    return {"history": history, "pack_data": pack_data, "record": record}
+
+
 @pytest.fixture(scope="module")
 def pack_data() -> dict[str, Any]:
     return runner.verify_replay_pack(PACK)
@@ -449,6 +626,54 @@ def holdout_validation(tmp_path_factory: pytest.TempPathFactory) -> Path:
     finally:
         patcher.undo()
     return output
+
+
+@pytest.fixture(scope="module")
+def recovered_holdout_validation(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
+    root = tmp_path_factory.mktemp("reply-recovered-holdout-validation")
+    output = root / "output"
+    pack_data = fresh_holdout_pack_data()
+    record = synthetic_history_record(pack_data)
+    history = build_synthetic_history_corpus(
+        root / "history",
+        pack_data,
+        records=[record],
+    )
+    patcher = pytest.MonkeyPatch()
+
+    def forbidden_http(*_args: Any, **_kwargs: Any) -> Any:
+        pytest.fail("recovered validate-only must perform no HTTP request")
+
+    class ForbiddenTransport:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pytest.fail("recovered validate-only must not instantiate paid transport")
+
+    def forbidden_pipeline(**_kwargs: Any) -> Any:
+        pytest.fail("recovered validate-only must not run the reply pipeline")
+
+    patcher.setattr(pilot.requests, "get", forbidden_http)
+    patcher.setattr(pilot.requests, "post", forbidden_http)
+    patcher.setattr(pilot, "PilotTransport", ForbiddenTransport)
+    patcher.setattr(runner.reply_strategy, "run_reply_pipeline", forbidden_pipeline)
+    try:
+        runner.run(
+            cli_args(
+                output,
+                "--case-set",
+                "holdout",
+                "--validate-only",
+                "--history-corpus",
+                str(history),
+                "--recover-context-candidate",
+                SYNTHETIC_RECOVERY_CANDIDATE_ID,
+            ),
+            environ={},
+        )
+    finally:
+        patcher.undo()
+    return {"output": output, "history": history, "record": record}
 
 
 def read_clearance_rows(path: Path) -> list[dict[str, str]]:
@@ -557,6 +782,892 @@ def synthetic_call_contract(
             "status": "completed",
         })
     return identity, receipts, {"operations": operations}
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ("--history-corpus", "/synthetic/history"),
+        ("--recover-context-candidate", SYNTHETIC_RECOVERY_CANDIDATE_ID),
+        (
+            "--history-corpus",
+            "/synthetic/history",
+            "--recover-context-candidate",
+            SYNTHETIC_RECOVERY_CANDIDATE_ID,
+        ),
+    ],
+)
+def test_context_recovery_arguments_are_refused_in_calibration_mode(
+    extra: tuple[str, ...], tmp_path: Path
+) -> None:
+    args = cli_args(tmp_path / "calibration-recovery-args", *extra)
+    with pytest.raises(
+        runner.CalibrationError,
+        match="context-recovery arguments are valid only with --case-set holdout",
+    ):
+        runner.validate_arguments(args, {})
+
+
+def test_recovery_candidate_requires_history_corpus(tmp_path: Path) -> None:
+    args = cli_args(
+        tmp_path / "missing-history",
+        "--case-set",
+        "holdout",
+        "--recover-context-candidate",
+        SYNTHETIC_RECOVERY_CANDIDATE_ID,
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="--recover-context-candidate requires --history-corpus",
+    ):
+        runner.validate_arguments(args, {})
+
+
+def test_history_schema_mismatch_is_refused(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    history = synthetic_history_corpus["history"]
+    rewrite_history_manifest(
+        history,
+        lambda manifest: manifest.update(schema_version=1),
+    )
+    with pytest.raises(runner.CalibrationError, match="schema_version mismatch"):
+        runner.verify_history_corpus(history)
+
+
+def test_history_extractor_mismatch_is_refused(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    history = synthetic_history_corpus["history"]
+    rewrite_history_manifest(
+        history,
+        lambda manifest: manifest.update(extractor_git_commit="0" * 40),
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="extractor_git_commit mismatch",
+    ):
+        runner.verify_history_corpus(history)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error"),
+    [
+        ("tool_version", "synthetic-wrong-tool", "tool_version mismatch"),
+        (
+            "extractor_git_commit_confidence",
+            "inferred",
+            "extractor_git_commit_confidence mismatch",
+        ),
+        (
+            "live_project_included",
+            True,
+            "live_project_included must be false",
+        ),
+        ("selected_snapshots", ["only-one"], "exactly 32 unique snapshots"),
+    ],
+)
+def test_history_manifest_contract_is_exact(
+    field: str,
+    value: Any,
+    error: str,
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    history = synthetic_history_corpus["history"]
+    rewrite_history_manifest(
+        history,
+        lambda manifest: manifest.update({field: value}),
+    )
+    with pytest.raises(runner.CalibrationError, match=error):
+        runner.verify_history_corpus(history)
+
+
+def test_history_checksum_mismatch_is_refused(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    history = synthetic_history_corpus["history"]
+    with (history / "unique_log_records.jsonl").open("ab") as handle:
+        handle.write(b" ")
+    with pytest.raises(runner.CalibrationError, match="checksum mismatch"):
+        runner.verify_history_corpus(history)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        ("absolute", "unsafe or duplicate"),
+        ("parent", "unsafe or duplicate"),
+        ("duplicate", "unsafe or duplicate"),
+        ("malformed", "malformed history SHA256SUMS"),
+        ("missing", "omits required payloads"),
+    ],
+)
+def test_history_sha256sums_rejects_unsafe_entries(
+    mutation: str,
+    error: str,
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    history = synthetic_history_corpus["history"]
+    checksum_path = history / "SHA256SUMS"
+    lines = checksum_path.read_text(encoding="utf-8").splitlines()
+    digest = lines[0][:64]
+    if mutation == "absolute":
+        lines.insert(0, f"{digest}  /synthetic/run_manifest.json")
+    elif mutation == "parent":
+        lines.insert(0, f"{digest}  ../run_manifest.json")
+    elif mutation == "duplicate":
+        lines.append(lines[0])
+    elif mutation == "malformed":
+        lines[0] = "g" + lines[0][1:]
+    elif mutation == "missing":
+        lines = [
+            line
+            for line in lines
+            if not line.endswith("unique_log_records.jsonl")
+        ]
+    checksum_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with pytest.raises(runner.CalibrationError, match=error):
+        runner.verify_history_corpus(history)
+
+
+@pytest.mark.parametrize("kind", ["symlink", "directory"])
+def test_history_payloads_must_be_non_symlink_regular_files(
+    kind: str,
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    history = synthetic_history_corpus["history"]
+    payload = history / "unique_log_records.jsonl"
+    retained = history / "retained-records.jsonl"
+    payload.rename(retained)
+    if kind == "symlink":
+        payload.symlink_to(retained.name)
+    else:
+        payload.mkdir()
+    with pytest.raises(runner.CalibrationError, match="non-symlink regular file"):
+        runner.verify_history_corpus(history)
+
+
+def test_unique_log_records_is_streamed(
+    synthetic_history_corpus: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    history = synthetic_history_corpus["history"]
+    pack_data = synthetic_history_corpus["pack_data"]
+    original_read_text = Path.read_text
+    original_read_bytes = Path.read_bytes
+    original_read_jsonl = runner.read_jsonl
+
+    def guarded_read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path.name == "unique_log_records.jsonl":
+            pytest.fail("unique history records must not use Path.read_text")
+        return original_read_text(path, *args, **kwargs)
+
+    def guarded_read_bytes(path: Path, *args: Any, **kwargs: Any) -> bytes:
+        if path.name == "unique_log_records.jsonl":
+            pytest.fail("unique history records must not use Path.read_bytes")
+        return original_read_bytes(path, *args, **kwargs)
+
+    def guarded_read_jsonl(path: Path) -> list[dict[str, Any]]:
+        if path.name == "unique_log_records.jsonl":
+            pytest.fail("unique history records must not use the materialising reader")
+        return original_read_jsonl(path)
+
+    monkeypatch.setattr(Path, "read_text", guarded_read_text)
+    monkeypatch.setattr(Path, "read_bytes", guarded_read_bytes)
+    monkeypatch.setattr(runner, "read_jsonl", guarded_read_jsonl)
+    recovery = runner.recover_holdout_contexts(
+        pack_data,
+        history,
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    assert recovery["recovered_context_count"] == 1
+
+
+def test_exact_logged_context_is_recovered(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    history = synthetic_history_corpus["history"]
+    case = next(
+        row
+        for row in pack_data["cases"]
+        if row["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    )
+    frozen = dict(case["context"])
+    logged = synthetic_recovered_context(pack_data)
+    recovery = runner.recover_holdout_contexts(
+        pack_data,
+        history,
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    assert recovery["recovered_context_count"] == 1
+    assert case["context"]["target_id"] == frozen["target_id"]
+    assert case["context"]["lane"] == frozen["lane"]
+    assert case["context"]["incoming_contribution"] == frozen[
+        "incoming_contribution"
+    ]
+    for field in (
+        "thread_id",
+        "parent_thread",
+        "quoted_post",
+        "clarification_request",
+        "current_date",
+    ):
+        assert case["context"][field] == logged[field]
+
+
+def test_whitespace_only_incoming_difference_is_accepted(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    case = next(
+        row
+        for row in pack_data["cases"]
+        if row["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    )
+    frozen_incoming = case["context"]["incoming_contribution"]
+    whitespace_variant = " \n\t" + frozen_incoming.replace(" ", "  \n\t") + "  "
+    record = synthetic_history_record(
+        pack_data,
+        context_updates={"incoming_contribution": whitespace_variant},
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "whitespace-history",
+        pack_data,
+        records=[record],
+    )
+    runner.recover_holdout_contexts(
+        pack_data,
+        history,
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    assert case["context"]["incoming_contribution"] == frozen_incoming
+
+
+def test_substantive_incoming_difference_is_refused(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    logged = synthetic_recovered_context(pack_data)
+    record = synthetic_history_record(
+        pack_data,
+        context_updates={
+            "incoming_contribution": logged["incoming_contribution"] + " changed"
+        },
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "substantive-history",
+        pack_data,
+        records=[record],
+    )
+    with pytest.raises(runner.CalibrationError, match="no exact logged pipeline context"):
+        runner.recover_holdout_contexts(
+            pack_data,
+            history,
+            [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+        )
+
+
+@pytest.mark.parametrize(
+    "context_updates",
+    [
+        {"target_id": "synthetic-wrong-target"},
+        {"lane": "__opposite__"},
+    ],
+    ids=["target", "lane"],
+)
+def test_target_or_lane_mismatch_is_refused(
+    context_updates: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    pack_data = fresh_holdout_pack_data()
+    if context_updates.get("lane") == "__opposite__":
+        original_lane = next(
+            case["context"]["lane"]
+            for case in pack_data["cases"]
+            if case["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+        )
+        context_updates = {
+            "lane": "mention" if original_lane == "quote_tweet" else "quote_tweet"
+        }
+    record = synthetic_history_record(
+        pack_data,
+        context_updates=context_updates,
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "identity-mismatch-history",
+        pack_data,
+        records=[record],
+    )
+    with pytest.raises(runner.CalibrationError, match="no exact logged pipeline context"):
+        runner.recover_holdout_contexts(
+            pack_data,
+            history,
+            [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+        )
+
+
+def test_unselected_snapshot_source_is_refused(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    record = synthetic_history_record(
+        pack_data,
+        record_updates={"source_identity": "synthetic-unselected-snapshot"},
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "unselected-history",
+        pack_data,
+        records=[record],
+    )
+    with pytest.raises(runner.CalibrationError, match="unselected snapshot"):
+        runner.recover_holdout_contexts(
+            pack_data,
+            history,
+            [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+        )
+
+
+def test_matching_record_with_parse_warnings_is_refused(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    record = synthetic_history_record(
+        pack_data,
+        record_updates={"parse_warnings": ["synthetic warning"]},
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "warning-history",
+        pack_data,
+        records=[record],
+    )
+    with pytest.raises(runner.CalibrationError, match="no exact logged pipeline context"):
+        runner.recover_holdout_contexts(
+            pack_data,
+            history,
+            [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+        )
+
+
+def test_missing_context_record_is_refused(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    history = build_synthetic_history_corpus(
+        tmp_path / "empty-history",
+        pack_data,
+        records=[],
+    )
+    with pytest.raises(runner.CalibrationError, match="no exact logged pipeline context"):
+        runner.recover_holdout_contexts(
+            pack_data,
+            history,
+            [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+        )
+
+
+def test_conflicting_matching_contexts_are_refused(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    first = synthetic_history_record(pack_data)
+    second = synthetic_history_record(
+        pack_data,
+        context_updates={"thread_id": "synthetic-conflicting-thread"},
+        record_updates={"source_stream_sequence": 102},
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "conflicting-history",
+        pack_data,
+        records=[first, second],
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="conflicting matching history contexts",
+    ):
+        runner.recover_holdout_contexts(
+            pack_data,
+            history,
+            [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+        )
+
+
+def test_repeated_canonical_occurrences_are_corroboration(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    record = synthetic_history_record(
+        pack_data,
+        record_updates={
+            "occurrence_count": 3,
+            "source_occurrence_ids": [
+                "synthetic-occurrence-a",
+                "synthetic-occurrence-b",
+                "synthetic-occurrence-c",
+            ],
+        },
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "corroborated-history",
+        pack_data,
+        records=[record],
+    )
+    recovery = runner.recover_holdout_contexts(
+        pack_data,
+        history,
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    assert recovery["recovered_context_count"] == 1
+    assert recovery["rows"][0]["source_occurrence_count"] == 3
+
+
+def test_recovered_context_passes_reply_strategy_validation(
+    synthetic_history_corpus: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    observed: list[dict[str, Any]] = []
+    validate = runner.reply_strategy.validate_reply_context
+
+    def validating_spy(context: object) -> dict[str, Any]:
+        result = validate(context)
+        if result["thread_id"] == SYNTHETIC_RECOVERED_THREAD_ID:
+            observed.append(result)
+        return result
+
+    monkeypatch.setattr(
+        runner.reply_strategy,
+        "validate_reply_context",
+        validating_spy,
+    )
+    recovery = runner.recover_holdout_contexts(
+        pack_data,
+        synthetic_history_corpus["history"],
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    assert len(observed) == 1
+    assert recovery["rows"][0]["validator_result"] == "pass"
+
+
+def test_only_requested_candidate_context_changes(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    before = {
+        case["candidate_id"]: runner.value_sha256(case["context"])
+        for case in pack_data["cases"]
+    }
+    preserved = next(
+        dict(case["context"])
+        for case in pack_data["cases"]
+        if case["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    )
+    runner.recover_holdout_contexts(
+        pack_data,
+        synthetic_history_corpus["history"],
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    after = {
+        case["candidate_id"]: runner.value_sha256(case["context"])
+        for case in pack_data["cases"]
+    }
+    assert {
+        candidate_id
+        for candidate_id in before
+        if before[candidate_id] != after[candidate_id]
+    } == {SYNTHETIC_RECOVERY_CANDIDATE_ID}
+    recovered = next(
+        case["context"]
+        for case in pack_data["cases"]
+        if case["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    )
+    for field in ("target_id", "lane", "incoming_contribution"):
+        assert recovered[field] == preserved[field]
+
+
+def test_holdout_identity_and_strata_survive_recovery(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    candidate_ids = sorted(case["candidate_id"] for case in pack_data["cases"])
+    candidate_hash = pack_data["holdout_candidate_ids_sha256"]
+    strata = dict(pack_data["cases_per_stratum"])
+    runner.recover_holdout_contexts(
+        pack_data,
+        synthetic_history_corpus["history"],
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    plan = runner.build_execution_plan(
+        pack_data,
+        runner.profile_manifests(),
+        runner.DEFAULT_BLIND_SEED,
+    )
+    assert len(pack_data["cases"]) == 42
+    assert sorted(case["candidate_id"] for case in pack_data["cases"]) == candidate_ids
+    assert pack_data["holdout_candidate_ids_sha256"] == candidate_hash
+    assert pack_data["cases_per_stratum"] == strata
+    assert set(pack_data["cases_per_stratum"].values()) == {7}
+    assert len(plan["executions"]) == plan["planned_pipeline_executions"] == 84
+
+
+def test_recovery_changes_context_audit_and_retains_manual_review(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    original_artifacts = runner.build_holdout_context_artifacts(pack_data)
+    runner.recover_holdout_contexts(
+        pack_data,
+        synthetic_history_corpus["history"],
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    recovered_artifacts = runner.build_holdout_context_artifacts(pack_data)
+    assert recovered_artifacts["context_audit_sha256"] != original_artifacts[
+        "context_audit_sha256"
+    ]
+    audit_row = next(
+        row
+        for row in recovered_artifacts["audit_document"]["cases"]
+        if row["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    )
+    assert audit_row["context_recovered"] is True
+    assert audit_row["parent_post_count"] == 2
+    assert audit_row["manual_review_required"] is True
+    assert all(
+        parent_id in recovered_artifacts["review_text"]
+        for parent_id in SYNTHETIC_RECOVERED_PARENT_IDS
+    )
+
+
+def test_recovery_refuses_stale_clearance_and_emits_blank_template(
+    synthetic_history_corpus: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    original_artifacts = runner.build_holdout_context_artifacts(pack_data)
+    old_template = tmp_path / "old-clearance-template.csv"
+    old_template.write_text(
+        original_artifacts["clearance_template_text"],
+        encoding="utf-8",
+    )
+    stale_clearance = all_ready_clearance(
+        old_template,
+        tmp_path / "old-all-ready.csv",
+    )
+    runner.recover_holdout_contexts(
+        pack_data,
+        synthetic_history_corpus["history"],
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    recovered_artifacts = runner.build_holdout_context_artifacts(pack_data)
+    assert recovered_artifacts["audit_document"][
+        "superseded_context_audit_sha256"
+    ] == runner.STALE_HOLDOUT_CONTEXT_AUDIT_SHA256
+    assert recovered_artifacts["old_context_audit_sha256_rejected"] is True
+    with pytest.raises(runner.CalibrationError, match="audit SHA-256 is stale"):
+        runner.validate_context_clearance(
+            stale_clearance,
+            recovered_artifacts,
+            require_all_ready=True,
+        )
+    new_template = tmp_path / "new-clearance.csv"
+    new_template.write_text(
+        recovered_artifacts["clearance_template_text"],
+        encoding="utf-8",
+    )
+    rows = read_clearance_rows(new_template)
+    assert {row["context_audit_sha256"] for row in rows} == {
+        recovered_artifacts["context_audit_sha256"]
+    }
+    assert all(
+        row["decision"] == "" and row["reviewer_note"] == ""
+        for row in rows
+    )
+    for row in rows:
+        row["context_audit_sha256"] = runner.STALE_HOLDOUT_CONTEXT_AUDIT_SHA256
+        row["decision"] = "ready"
+    superseded = write_clearance_rows(
+        tmp_path / "superseded-real-audit.csv", rows
+    )
+    with pytest.raises(runner.CalibrationError, match="audit SHA-256 is stale"):
+        runner.validate_context_clearance(
+            superseded,
+            recovered_artifacts,
+            require_all_ready=True,
+        )
+
+
+def test_incompatible_history_timestamp_is_refused(tmp_path: Path) -> None:
+    pack_data = fresh_holdout_pack_data()
+    record = synthetic_history_record(
+        pack_data,
+        record_updates={"timestamp": "2026-08-10T12:09:59Z"},
+    )
+    history = build_synthetic_history_corpus(
+        tmp_path / "incompatible-time-history",
+        pack_data,
+        records=[record],
+    )
+    with pytest.raises(runner.CalibrationError, match="timestamp is incompatible"):
+        runner.recover_holdout_contexts(
+            pack_data,
+            history,
+            [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+        )
+
+
+def test_unknown_or_calibration_recovery_candidate_is_refused(
+    synthetic_history_corpus: dict[str, Any],
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    calibration_id = pack_data["calibration_candidate_ids"][0]
+    for candidate_id in ("synthetic-unknown-candidate", calibration_id):
+        with pytest.raises(runner.CalibrationError, match="not in the 42-case holdout"):
+            runner.recover_holdout_contexts(
+                fresh_holdout_pack_data(),
+                synthetic_history_corpus["history"],
+                [candidate_id],
+            )
+
+
+def test_recovery_provenance_jsonl_is_exact(
+    recovered_holdout_validation: dict[str, Any],
+) -> None:
+    output = recovered_holdout_validation["output"]
+    rows = runner.read_jsonl(output / "holdout_context_recovery.jsonl")
+    assert len(rows) == 1
+    row = rows[0]
+    assert set(row) == {
+        "schema_version",
+        "runner_version",
+        "candidate_id",
+        "target_id",
+        "recovery_status",
+        "recovery_confidence",
+        "history_manifest_sha256",
+        "unique_log_records_sha256",
+        "record_id",
+        "raw_record_sha256",
+        "source_identity",
+        "source_stream_sequence",
+        "source_timestamp",
+        "source_occurrence_count",
+        "original_context_sha256",
+        "recovered_context_sha256",
+        "recovered_thread_id",
+        "recovered_parent_post_ids",
+        "recovered_parent_post_count",
+        "validator_result",
+    }
+    source_record = recovered_holdout_validation["record"]
+    history = recovered_holdout_validation["history"]
+    assert row["schema_version"] == 1
+    assert row["runner_version"] == "reply-prompt-calibration-v4"
+    assert row["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    assert row["recovery_status"] == "exact_logged_pipeline_context"
+    assert row["recovery_confidence"] == "exact"
+    assert row["history_manifest_sha256"] == runner.file_sha256(
+        history / "run_manifest.json"
+    )
+    assert row["unique_log_records_sha256"] == runner.file_sha256(
+        history / "unique_log_records.jsonl"
+    )
+    field_map = {
+        "record_id": "record_id",
+        "raw_record_sha256": "raw_record_sha256",
+        "source_identity": "source_identity",
+        "source_stream_sequence": "source_stream_sequence",
+        "timestamp": "source_timestamp",
+        "occurrence_count": "source_occurrence_count",
+    }
+    for source_field, output_field in field_map.items():
+        assert row[output_field] == source_record[source_field]
+    assert row["recovered_thread_id"] == SYNTHETIC_RECOVERED_THREAD_ID
+    assert row["recovered_parent_post_ids"] == list(SYNTHETIC_RECOVERED_PARENT_IDS)
+    assert row["recovered_parent_post_count"] == 2
+    assert row["validator_result"] == "pass"
+    assert not (
+        set(row)
+        & {
+            "message",
+            "raw_record_text",
+            "historical_reply",
+            "generated_reply",
+            "prompt_output",
+            "model_response",
+        }
+    )
+
+
+def test_recovery_is_bound_into_execution_plan(
+    recovered_holdout_validation: dict[str, Any],
+) -> None:
+    output = recovered_holdout_validation["output"]
+    plan = json.loads((output / "execution_plan.json").read_text(encoding="utf-8"))
+    manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
+    binding_fields = set(runner.context_recovery_binding(fresh_holdout_pack_data()))
+    assert binding_fields <= set(plan)
+    assert {field: plan[field] for field in binding_fields} == {
+        field: manifest[field] for field in binding_fields
+    }
+    assert plan["recovered_context_count"] == 1
+    assert plan["context_recovery_failures"] == 0
+    assert plan["context_recovery_conflicts"] == 0
+    recovered_rows = [
+        row
+        for row in plan["executions"]
+        if row["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
+    ]
+    assert len(recovered_rows) == 2
+    assert len({row["validated_context_sha256"] for row in recovered_rows}) == 1
+
+
+def test_recovery_is_bound_into_run_identity(
+    synthetic_history_corpus: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    pack_data = synthetic_history_corpus["pack_data"]
+    history = synthetic_history_corpus["history"]
+    runner.recover_holdout_contexts(
+        pack_data,
+        history,
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    manifests = runner.profile_manifests()
+    plan = runner.build_execution_plan(
+        pack_data,
+        manifests,
+        runner.DEFAULT_BLIND_SEED,
+    )
+    artifacts = runner.build_holdout_context_artifacts(pack_data)
+    provenance = {
+        "runner_git_commit": SYNTHETIC_RUNNER_COMMIT,
+        "runner_git_commit_expected": SYNTHETIC_RUNNER_COMMIT,
+        "worktree_clean": True,
+        **runner.runner_source_hashes(),
+        "evidence_repository_fingerprint": "e" * 64,
+    }
+    args = paid_cli_args(
+        tmp_path / "recovered-identity",
+        "--case-set",
+        "holdout",
+        "--context-clearance",
+        str(tmp_path / "unused-clearance.csv"),
+        "--history-corpus",
+        str(history),
+        "--recover-context-candidate",
+        SYNTHETIC_RECOVERY_CANDIDATE_ID,
+    )
+    clearance = {"normalized_sha256": "c" * 64}
+    identity = runner.build_run_identity(
+        args,
+        pack_data,
+        manifests,
+        plan,
+        provenance,
+        context_artifacts=artifacts,
+        clearance=clearance,
+    )
+    binding = runner.context_recovery_binding(pack_data)
+    assert {field: identity[field] for field in binding} == binding
+    assert identity["context_audit_sha256"] == artifacts["context_audit_sha256"]
+    assert identity["execution_plan_sha256"] == runner.value_sha256(plan)
+
+
+@pytest.mark.parametrize(
+    "recovery_argument_mode",
+    ["none", "history-only", "candidate-only"],
+)
+def test_execute_without_identical_recovery_arguments_is_refused_before_calls(
+    recovery_argument_mode: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_pack = fresh_holdout_pack_data()
+    history = build_synthetic_history_corpus(
+        tmp_path / "execute-binding-history",
+        source_pack,
+    )
+    runner.recover_holdout_contexts(
+        source_pack,
+        history,
+        [SYNTHETIC_RECOVERY_CANDIDATE_ID],
+    )
+    artifacts = runner.build_holdout_context_artifacts(source_pack)
+    template = tmp_path / "recovered-clearance-template.csv"
+    template.write_text(artifacts["clearance_template_text"], encoding="utf-8")
+    clearance = all_ready_clearance(template, tmp_path / "recovered-ready.csv")
+    monkeypatch.setattr(
+        pilot.requests,
+        "get",
+        lambda *_args, **_kwargs: pytest.fail("unexpected provider request"),
+    )
+    monkeypatch.setattr(
+        pilot.requests,
+        "post",
+        lambda *_args, **_kwargs: pytest.fail("unexpected model request"),
+    )
+    monkeypatch.setattr(
+        runner,
+        "execute_run",
+        lambda *_args, **_kwargs: pytest.fail("invalid recovery reached execute"),
+    )
+    if recovery_argument_mode == "history-only":
+        extra = ("--history-corpus", str(history))
+        expected_error = "audit SHA-256 is stale"
+    elif recovery_argument_mode == "candidate-only":
+        extra = (
+            "--recover-context-candidate",
+            SYNTHETIC_RECOVERY_CANDIDATE_ID,
+        )
+        expected_error = "requires --history-corpus"
+    else:
+        extra = ()
+        expected_error = "audit SHA-256 is stale"
+    args = paid_cli_args(
+        tmp_path / f"execute-mismatch-{recovery_argument_mode}",
+        "--case-set",
+        "holdout",
+        "--context-clearance",
+        str(clearance),
+        *extra,
+    )
+    with pytest.raises(runner.CalibrationError, match=expected_error):
+        runner.run(args, environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+
+
+def test_recovered_validate_only_preserves_prompt_and_profile_hashes(
+    recovered_holdout_validation: dict[str, Any],
+) -> None:
+    output = recovered_holdout_validation["output"]
+    written = json.loads((output / "profile_manifests.json").read_text(encoding="utf-8"))
+    expected = runner.profile_manifests()
+    runner.verify_frozen_profile_manifests(written)
+    assert written == expected
+    assert {
+        variant: {
+            name: prompt["sha256"]
+            for name, prompt in manifest["prompts"].items()
+        }
+        for variant, manifest in written.items()
+    } == {
+        variant: {
+            name: prompt["sha256"]
+            for name, prompt in manifest["prompts"].items()
+        }
+        for variant, manifest in expected.items()
+    }
+
+
+def test_recovered_validate_only_performs_zero_model_and_http_calls(
+    recovered_holdout_validation: dict[str, Any],
+) -> None:
+    output = recovered_holdout_validation["output"]
+    manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
+    report = json.loads((output / "validation_report.json").read_text(encoding="utf-8"))
+    assert manifest["mode"] == "validate-only"
+    assert manifest["model_calls_performed"] == 0
+    assert manifest["http_requests_performed"] == 0
+    assert report["model_calls_performed"] == 0
+    assert report["http_requests_performed"] == 0
+
+
+def test_recovered_validate_only_sha256sums_verifies(
+    recovered_holdout_validation: dict[str, Any],
+) -> None:
+    output = recovered_holdout_validation["output"]
+    runner.verify_output_sha256sums(output)
+    checksum_names = {
+        line[66:]
+        for line in (output / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
+    }
+    assert "holdout_context_recovery.jsonl" in checksum_names
+    assert runner.HOLDOUT_CONTEXT_FILES <= checksum_names
 
 
 def test_replay_pack_checksum_verification(pack_data: dict[str, Any], tmp_path: Path) -> None:
@@ -795,6 +1906,8 @@ def test_all_factual_holdout_cases_require_manual_context_review(
         "candidate_id",
         "final_stratum",
         "lane",
+        "validated_context_sha256",
+        "context_recovered",
         "incoming_text_sha256",
         "quoted_post_present",
         "quoted_post_text_sha256",
