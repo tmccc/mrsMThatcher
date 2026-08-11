@@ -56,6 +56,18 @@ DEFAULT_BLIND_SEED = "mrs-reply-calibration-v1"
 DEFAULT_MAXIMUM_RATE_LIMIT_RETRIES = 1
 DEFAULT_MAXIMUM_SERVER_ERROR_RETRIES = 1
 PAID_ACKNOWLEDGEMENT = "YES_I_UNDERSTAND"
+ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT = (
+    "0b1a24a927d4e0cd044f10b7a5039ec7292e1382"
+)
+ACCOUNTING_RECOVERY_ALLOWED_CHANGED_PATHS = frozenset({
+    "tools/run_reply_prompt_calibration.py",
+    "tests/test_reply_prompt_calibration.py",
+})
+ACCOUNTING_RECOVERY_KIND = "pre_transport_model_call_ceiling_audit_accounting"
+ACCOUNTING_RECOVERY_IDENTITY_FILE = "accounting_recovery_identity.json"
+ACCOUNTING_RECOVERY_CONTEXT_PROVENANCE_FIELDS = frozenset({
+    "runner_source_sha256",
+})
 MAXIMUM_REPLY_LENGTH = 270
 VARIANTS = ("current", "compact")
 CASE_SETS = ("calibration", "holdout")
@@ -381,6 +393,110 @@ def execution_provenance(
         "runner_git_commit_expected": expected_commit,
         "worktree_clean": clean,
         **hashes,
+    }
+
+
+def committed_source_hashes(commit: str) -> dict[str, str]:
+    """Hash the execute-mode source blobs committed at one exact revision."""
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise CalibrationError("committed source revision is not one exact Git SHA")
+    hashes: dict[str, str] = {}
+    for name, path in SOURCE_PATHS.items():
+        relative = path.relative_to(PROJECT_ROOT).as_posix()
+        blob = _git("show", f"{commit}:{relative}", text=False)
+        if not isinstance(blob, bytes):
+            raise CalibrationError("local Git source query returned text unexpectedly")
+        hashes[name] = hashlib.sha256(blob).hexdigest()
+    return hashes
+
+
+def verify_accounting_recovery_checkout(
+    predecessor_commit: str,
+) -> dict[str, Any]:
+    """Verify the one committed accounting-only checkout allowed for recovery."""
+    if predecessor_commit != ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT:
+        raise CalibrationError(
+            "accounting recovery predecessor must be exactly "
+            + ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+        )
+    current_commit = str(_git("rev-parse", "HEAD")).strip()
+    if re.fullmatch(r"[0-9a-f]{40}", current_commit) is None:
+        raise CalibrationError("accounting recovery checkout Git SHA is invalid")
+    if current_commit == predecessor_commit:
+        raise CalibrationError(
+            "accounting recovery requires a descendant accounting-fix commit"
+        )
+    checkout_status = str(
+        _git("status", "--porcelain=v1", "--untracked-files=all")
+    )
+    if checkout_status.strip():
+        raise CalibrationError(
+            "accounting recovery requires a clean checkout including untracked files"
+        )
+    merge_base = str(_git("merge-base", predecessor_commit, current_commit)).strip()
+    if merge_base != predecessor_commit:
+        raise CalibrationError(
+            "accounting recovery checkout is not a descendant of the predecessor"
+        )
+    changed_bytes = _git(
+        "diff",
+        "--name-only",
+        "-z",
+        predecessor_commit,
+        current_commit,
+        "--",
+        text=False,
+    )
+    if not isinstance(changed_bytes, bytes):
+        raise CalibrationError("local Git changed-path query returned text unexpectedly")
+    try:
+        changed_paths = {
+            value.decode("utf-8") for value in changed_bytes.split(b"\0") if value
+        }
+    except UnicodeError as exc:
+        raise CalibrationError("accounting recovery changed path is not UTF-8") from exc
+    forbidden = sorted(changed_paths - ACCOUNTING_RECOVERY_ALLOWED_CHANGED_PATHS)
+    if forbidden:
+        raise CalibrationError(
+            "accounting recovery changes forbidden tracked paths: "
+            + ", ".join(forbidden)
+        )
+
+    predecessor_hashes = committed_source_hashes(predecessor_commit)
+    current_hashes = committed_source_hashes(current_commit)
+    working_hashes = runner_source_hashes()
+    for name, actual in working_hashes.items():
+        if current_hashes.get(name) != actual:
+            raise CalibrationError(
+                f"accounting recovery running source is not its committed blob: {name}"
+            )
+    protected_sources = set(SOURCE_PATHS) - {"runner_source_sha256"}
+    changed_protected = sorted(
+        name
+        for name in protected_sources
+        if predecessor_hashes.get(name) != current_hashes.get(name)
+    )
+    if changed_protected:
+        raise CalibrationError(
+            "accounting recovery changed protected execute source: "
+            + ", ".join(changed_protected)
+        )
+    if (
+        predecessor_hashes["runner_source_sha256"]
+        == current_hashes["runner_source_sha256"]
+    ):
+        raise CalibrationError(
+            "accounting recovery runner source does not contain an accounting fix"
+        )
+    return {
+        "predecessor_runner_commit": predecessor_commit,
+        "recovery_runner_commit": current_commit,
+        "predecessor_runner_source_sha256": predecessor_hashes[
+            "runner_source_sha256"
+        ],
+        "recovery_runner_source_sha256": current_hashes["runner_source_sha256"],
+        "changed_paths": sorted(changed_paths),
+        "current_source_hashes": current_hashes,
     }
 
 
@@ -1804,6 +1920,196 @@ def build_holdout_context_artifacts(pack_data: dict[str, Any]) -> dict[str, Any]
     }
 
 
+def verify_accounting_recovery_context_compatibility(
+    stored_audit: Any,
+    current_audit: Any,
+    *,
+    stored_recovery_bytes: bytes,
+    current_recovery_bytes: bytes,
+) -> dict[str, Any]:
+    """Accept only runner-bound provenance drift in the exact holdout audit."""
+    if not isinstance(stored_audit, dict) or not isinstance(current_audit, dict):
+        raise CalibrationError("accounting recovery context audit must be an object")
+    if set(stored_audit) != set(current_audit):
+        raise CalibrationError("accounting recovery context audit fields differ")
+    differences = {
+        name
+        for name in stored_audit
+        if stored_audit[name] != current_audit[name]
+    }
+    if differences != ACCOUNTING_RECOVERY_CONTEXT_PROVENANCE_FIELDS:
+        raise CalibrationError(
+            "accounting recovery context audit has a substantive difference"
+        )
+    for document in (stored_audit, current_audit):
+        runner_hash = document.get("runner_source_sha256")
+        cases = document.get("cases")
+        if (
+            re.fullmatch(r"[0-9a-f]{64}", str(runner_hash)) is None
+            or document.get("case_set") != "holdout"
+            or document.get("selected_case_count") != 42
+            or not isinstance(cases, list)
+            or len(cases) != 42
+        ):
+            raise CalibrationError(
+                "accounting recovery context audit identity is invalid"
+            )
+        candidate_ids: list[str] = []
+        manual_review_count = 0
+        strata: Counter[str] = Counter()
+        for row in cases:
+            if not isinstance(row, dict):
+                raise CalibrationError(
+                    "accounting recovery context audit case is invalid"
+                )
+            candidate_id = row.get("candidate_id")
+            final_stratum = row.get("final_stratum")
+            context_hash = row.get("validated_context_sha256")
+            manual_review_required = row.get("manual_review_required")
+            if (
+                not isinstance(candidate_id, str)
+                or not candidate_id
+                or final_stratum not in REQUIRED_STRATA
+                or re.fullmatch(r"[0-9a-f]{64}", str(context_hash)) is None
+                or type(manual_review_required) is not bool
+            ):
+                raise CalibrationError(
+                    "accounting recovery context audit case identity is invalid"
+                )
+            candidate_ids.append(candidate_id)
+            strata[str(final_stratum)] += 1
+            manual_review_count += int(manual_review_required)
+        if (
+            len(set(candidate_ids)) != 42
+            or any(count != 7 for count in strata.values())
+            or set(strata) != REQUIRED_STRATA
+            or document.get("selected_candidate_ids_sha256")
+            != candidate_ids_sha256(candidate_ids)
+            or document.get("manual_context_review_count") != manual_review_count
+            or not isinstance(document.get("context_warning_counts"), dict)
+            or not isinstance(document.get("audit_rules"), dict)
+            or document.get("audit_rules_sha256")
+            != value_sha256(document["audit_rules"])
+        ):
+            raise CalibrationError(
+                "accounting recovery context audit inventory is invalid"
+            )
+    if (
+        not isinstance(stored_recovery_bytes, bytes)
+        or not isinstance(current_recovery_bytes, bytes)
+        or stored_recovery_bytes != current_recovery_bytes
+    ):
+        raise CalibrationError(
+            "accounting recovery immutable context-recovery record differs"
+        )
+    stored_cases = stored_audit["cases"]
+    manual_ids = [
+        row["candidate_id"]
+        for row in stored_cases
+        if row["manual_review_required"] is True
+    ]
+    return {
+        "stored_context_audit_sha256": hashlib.sha256(
+            json_document_bytes(stored_audit)
+        ).hexdigest(),
+        "current_context_audit_sha256": hashlib.sha256(
+            json_document_bytes(current_audit)
+        ).hexdigest(),
+        "validated_context_count": len(stored_cases),
+        "manual_review_candidate_ids": manual_ids,
+        "manual_context_review_count": len(manual_ids),
+        "context_recovery_sha256": hashlib.sha256(stored_recovery_bytes).hexdigest(),
+    }
+
+
+def accounting_recovery_resume_active(args: argparse.Namespace) -> bool:
+    """Return whether explicit or already-published exact recovery applies."""
+    if not args.resume or args.case_set != "holdout":
+        return False
+    if getattr(args, "resume_audit_accounting_recovery_from_commit", None):
+        return True
+    output = args.output.resolve(strict=False)
+    return (output / ACCOUNTING_RECOVERY_IDENTITY_FILE).is_file()
+
+
+def load_accounting_recovery_context(
+    args: argparse.Namespace,
+    current_artifacts: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Verify predecessor clearance structurally and retain its durable bytes."""
+    output = args.output.resolve(strict=True)
+    verify_private_permissions(output)
+    stored_audit_path = output / "holdout_context_audit.json"
+    stored_review_path = output / "holdout_context_review.md"
+    stored_clearance_path = output / "holdout_context_clearance.csv"
+    stored_recovery_path = output / "holdout_context_recovery.jsonl"
+    for path in (
+        stored_audit_path,
+        stored_review_path,
+        stored_clearance_path,
+        stored_recovery_path,
+    ):
+        if not path.is_file():
+            raise CalibrationError(
+                f"accounting recovery context artefact is missing: {path.name}"
+            )
+    stored_audit = read_json(stored_audit_path)
+    stored_audit_bytes = stored_audit_path.read_bytes()
+    if stored_audit_bytes != json_document_bytes(stored_audit):
+        raise CalibrationError(
+            "accounting recovery stored context audit encoding differs"
+        )
+    stored_recovery_bytes = stored_recovery_path.read_bytes()
+    compatibility = verify_accounting_recovery_context_compatibility(
+        stored_audit,
+        current_artifacts["audit_document"],
+        stored_recovery_bytes=stored_recovery_bytes,
+        current_recovery_bytes=current_artifacts["recovery_bytes"],
+    )
+    if (
+        compatibility["validated_context_count"] != 42
+        or compatibility["manual_context_review_count"] != 25
+        or stored_review_path.read_bytes()
+        != current_artifacts["review_text"].encode("utf-8")
+    ):
+        raise CalibrationError(
+            "accounting recovery context review inventory differs"
+        )
+
+    effective_artifacts = dict(current_artifacts)
+    effective_artifacts.update({
+        "audit_document": stored_audit,
+        "audit_bytes": stored_audit_bytes,
+        "context_audit_sha256": file_sha256(stored_audit_path),
+        "recovery_bytes": stored_recovery_bytes,
+        "accounting_recovery_context_compatibility": compatibility,
+        "accounting_recovery_current_runner_source_sha256": (
+            current_artifacts["audit_document"]["runner_source_sha256"]
+        ),
+    })
+    clearance_path = args.context_clearance
+    if clearance_path is None:
+        raise CalibrationError(
+            "accounting recovery requires the predecessor context clearance"
+        )
+    clearance = validate_context_clearance(
+        clearance_path,
+        effective_artifacts,
+        require_all_ready=True,
+    )
+    if (
+        len(compatibility["manual_review_candidate_ids"]) != 25
+        or clearance.get("status") != "ready"
+        or clearance.get("paid_execution_ready") is not True
+        or stored_clearance_path.read_bytes()
+        != clearance["normalized_text"].encode("utf-8")
+    ):
+        raise CalibrationError(
+            "accounting recovery predecessor clearance differs"
+        )
+    return effective_artifacts, clearance, compatibility
+
+
 def validate_context_clearance(
     path: Path,
     context_artifacts: dict[str, Any],
@@ -2644,6 +2950,54 @@ def build_run_identity(
     }
 
 
+def verify_accounting_recovery_run_identity(
+    stored_identity: Any,
+    current_identity: dict[str, Any],
+    checkout: dict[str, Any],
+) -> dict[str, Any]:
+    """Match every original v5 input while substituting only runner provenance."""
+    if not isinstance(stored_identity, dict):
+        raise CalibrationError("stored accounting recovery run identity is invalid")
+    predecessor = ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+    if (
+        stored_identity.get("schema_version") != RUN_IDENTITY_SCHEMA_VERSION
+        or stored_identity.get("runner_version") != RUNNER_VERSION
+        or stored_identity.get("runner_git_commit_actual") != predecessor
+        or stored_identity.get("runner_git_commit_expected") != predecessor
+        or stored_identity.get("worktree_clean") is not True
+        or stored_identity.get("run_reply_prompt_calibration_sha256")
+        != checkout["predecessor_runner_source_sha256"]
+    ):
+        raise CalibrationError(
+            "stored accounting recovery run identity is not the exact predecessor v5 run"
+        )
+    if (
+        current_identity.get("runner_git_commit_actual")
+        != checkout["recovery_runner_commit"]
+        or current_identity.get("runner_git_commit_expected")
+        != checkout["recovery_runner_commit"]
+        or current_identity.get("run_reply_prompt_calibration_sha256")
+        != checkout["recovery_runner_source_sha256"]
+        or current_identity.get("worktree_clean") is not True
+    ):
+        raise CalibrationError(
+            "accounting recovery current run identity provenance differs"
+        )
+    expected_stored = dict(current_identity)
+    expected_stored.update({
+        "runner_git_commit_actual": predecessor,
+        "runner_git_commit_expected": predecessor,
+        "run_reply_prompt_calibration_sha256": checkout[
+            "predecessor_runner_source_sha256"
+        ],
+    })
+    if stored_identity != expected_stored:
+        raise CalibrationError(
+            "stored run identity differs from exact accounting recovery inputs"
+        )
+    return dict(stored_identity)
+
+
 def validate_provider_metadata(metadata: Any, *, model: str) -> dict[str, Any]:
     """Validate the exact metadata document retained after the one permitted GET."""
     required = {
@@ -3045,6 +3399,23 @@ def verify_receipts_against_ledger(
         raise CalibrationError("prompt receipt and cost-ledger inventories differ")
 
 
+def audit_row_represents_model_attempt(row: dict[str, Any]) -> bool:
+    """Classify one audit row without treating pre-transport refusal as a call."""
+    stage = row.get("stage")
+    status = row.get("status")
+    if stage not in MODEL_AUDIT_STAGES:
+        return False
+    if status in {"completed", "invalid_response_retry"}:
+        return True
+    if status == "invalid":
+        return row.get("reason") != "reply pipeline model-call ceiling reached"
+    return (
+        status == "insufficient"
+        and stage in {"evidence", "revision_evidence"}
+        and row.get("reason") != "claim_without_candidate_passage"
+    )
+
+
 def audit_model_stage_sequence(audit: Any) -> list[str]:
     """Derive model attempts in audit order under run_reply_pipeline's audit contract."""
     if not isinstance(audit, list):
@@ -3053,18 +3424,8 @@ def audit_model_stage_sequence(audit: Any) -> list[str]:
     for row in audit:
         if not isinstance(row, dict):
             raise CalibrationError("pipeline audit row is invalid")
-        stage = row.get("stage")
-        status = row.get("status")
-        if stage not in MODEL_AUDIT_STAGES:
-            continue
-        if status in {"completed", "invalid", "invalid_response_retry"}:
-            stages.append(stage)
-        elif (
-            status == "insufficient"
-            and stage in {"evidence", "revision_evidence"}
-            and row.get("reason") != "claim_without_candidate_passage"
-        ):
-            stages.append(stage)
+        if audit_row_represents_model_attempt(row):
+            stages.append(row["stage"])
     return stages
 
 
@@ -3277,6 +3638,674 @@ def verify_failure_journal_links(
         raise CalibrationError("execution failure journal inventory differs")
 
 
+ACCOUNTING_RECOVERY_IDENTITY_SCHEMA_VERSION = 1
+ACCOUNTING_RECOVERY_CANDIDATE_ID = (
+    "candidate-8110cb74038f406c2cf1f3d04842b74455baca0c592206537980df6d85b49897"
+)
+ACCOUNTING_RECOVERY_VARIANT = "compact"
+ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256 = (
+    "4506731abbee67003b0344c7d9472837269184cfcabf5fd7501b82702fad797f"
+)
+ACCOUNTING_RECOVERY_CASE_IDENTITY = (
+    f"{ACCOUNTING_RECOVERY_CANDIDATE_ID}:{ACCOUNTING_RECOVERY_VARIANT}:"
+    f"{ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256}"
+)
+ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE = (
+    "proposer",
+    "evidence",
+    "evidence",
+    "reviewer",
+    "revision_proposer",
+    "revision_evidence",
+)
+ACCOUNTING_RECOVERY_IGNORED_AUDIT_STAGE = "revision_reviewer"
+ACCOUNTING_RECOVERY_IGNORED_AUDIT_STATUS = "invalid"
+ACCOUNTING_RECOVERY_IGNORED_AUDIT_REASON = (
+    "reply pipeline model-call ceiling reached"
+)
+ACCOUNTING_RECOVERY_TERMINAL_AUDIT_ROW = {
+    "stage": ACCOUNTING_RECOVERY_IGNORED_AUDIT_STAGE,
+    "status": ACCOUNTING_RECOVERY_IGNORED_AUDIT_STATUS,
+    "reason": ACCOUNTING_RECOVERY_IGNORED_AUDIT_REASON,
+    "attempt": 1,
+}
+ACCOUNTING_RECOVERY_IDENTITY_FIELDS = frozenset({
+    "schema_version",
+    "recovery_kind",
+    "original_run_identity_sha256",
+    "predecessor_runner_commit",
+    "predecessor_runner_source_sha256",
+    "recovery_runner_commit",
+    "recovery_runner_source_sha256",
+    "execution_plan_sha256",
+    "provider_phase_identity_sha256",
+    "context_audit_sha256",
+    "candidate_id",
+    "variant",
+    "execution_identity_sha256",
+    "pre_recovery_result_count",
+    "pre_recovery_audit_count",
+    "pre_recovery_receipt_count",
+    "pre_recovery_failure_count",
+    "receipt_stage_sequence",
+    "ignored_non_call_audit_stage",
+    "ignored_non_call_audit_status",
+    "ignored_non_call_audit_reason",
+    "created_at",
+})
+ACCOUNTING_RECOVERY_SHA256_FIELDS = frozenset({
+    "original_run_identity_sha256",
+    "predecessor_runner_source_sha256",
+    "recovery_runner_source_sha256",
+    "execution_plan_sha256",
+    "provider_phase_identity_sha256",
+    "context_audit_sha256",
+    "execution_identity_sha256",
+})
+
+
+def build_accounting_recovery_identity(
+    *,
+    original_run_identity_sha256: str,
+    predecessor_runner_source_sha256: str,
+    recovery_runner_commit: str,
+    recovery_runner_source_sha256: str,
+    execution_plan_sha256: str,
+    provider_phase_identity_sha256: str,
+    context_audit_sha256: str,
+    created_at: str,
+) -> dict[str, Any]:
+    """Build the exact content-free identity for this one v5 accounting repair."""
+    identity = {
+        "schema_version": ACCOUNTING_RECOVERY_IDENTITY_SCHEMA_VERSION,
+        "recovery_kind": ACCOUNTING_RECOVERY_KIND,
+        "original_run_identity_sha256": original_run_identity_sha256,
+        "predecessor_runner_commit": ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT,
+        "predecessor_runner_source_sha256": predecessor_runner_source_sha256,
+        "recovery_runner_commit": recovery_runner_commit,
+        "recovery_runner_source_sha256": recovery_runner_source_sha256,
+        "execution_plan_sha256": execution_plan_sha256,
+        "provider_phase_identity_sha256": provider_phase_identity_sha256,
+        "context_audit_sha256": context_audit_sha256,
+        "candidate_id": ACCOUNTING_RECOVERY_CANDIDATE_ID,
+        "variant": ACCOUNTING_RECOVERY_VARIANT,
+        "execution_identity_sha256": (
+            ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+        ),
+        "pre_recovery_result_count": 79,
+        "pre_recovery_audit_count": 79,
+        "pre_recovery_receipt_count": 232,
+        "pre_recovery_failure_count": 9,
+        "receipt_stage_sequence": list(
+            ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+        ),
+        "ignored_non_call_audit_stage": (
+            ACCOUNTING_RECOVERY_IGNORED_AUDIT_STAGE
+        ),
+        "ignored_non_call_audit_status": (
+            ACCOUNTING_RECOVERY_IGNORED_AUDIT_STATUS
+        ),
+        "ignored_non_call_audit_reason": (
+            ACCOUNTING_RECOVERY_IGNORED_AUDIT_REASON
+        ),
+        "created_at": created_at,
+    }
+    return verify_accounting_recovery_identity(identity)
+
+
+def verify_accounting_recovery_identity(
+    identity: Any,
+    expected_identity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate an existing recovery identity with no extensible content fields."""
+    if not isinstance(identity, dict) or set(identity) != set(
+        ACCOUNTING_RECOVERY_IDENTITY_FIELDS
+    ):
+        raise CalibrationError("accounting recovery identity fields differ")
+    expected_fixed = {
+        "schema_version": ACCOUNTING_RECOVERY_IDENTITY_SCHEMA_VERSION,
+        "recovery_kind": ACCOUNTING_RECOVERY_KIND,
+        "predecessor_runner_commit": ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT,
+        "candidate_id": ACCOUNTING_RECOVERY_CANDIDATE_ID,
+        "variant": ACCOUNTING_RECOVERY_VARIANT,
+        "execution_identity_sha256": (
+            ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+        ),
+        "pre_recovery_result_count": 79,
+        "pre_recovery_audit_count": 79,
+        "pre_recovery_receipt_count": 232,
+        "pre_recovery_failure_count": 9,
+        "receipt_stage_sequence": list(
+            ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+        ),
+        "ignored_non_call_audit_stage": (
+            ACCOUNTING_RECOVERY_IGNORED_AUDIT_STAGE
+        ),
+        "ignored_non_call_audit_status": (
+            ACCOUNTING_RECOVERY_IGNORED_AUDIT_STATUS
+        ),
+        "ignored_non_call_audit_reason": (
+            ACCOUNTING_RECOVERY_IGNORED_AUDIT_REASON
+        ),
+    }
+    if any(identity.get(name) != value for name, value in expected_fixed.items()):
+        raise CalibrationError("accounting recovery identity differs")
+    for name in ACCOUNTING_RECOVERY_SHA256_FIELDS:
+        if re.fullmatch(r"[0-9a-f]{64}", str(identity.get(name))) is None:
+            raise CalibrationError(
+                f"accounting recovery identity {name} is invalid"
+            )
+    recovery_commit = identity.get("recovery_runner_commit")
+    if (
+        not isinstance(recovery_commit, str)
+        or re.fullmatch(r"[0-9a-f]{40}", recovery_commit) is None
+        or recovery_commit == ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+    ):
+        raise CalibrationError(
+            "accounting recovery identity recovery runner commit is invalid"
+        )
+    created_at = identity.get("created_at")
+    if not isinstance(created_at, str) or not created_at:
+        raise CalibrationError("accounting recovery identity timestamp is invalid")
+    _parse_utc_timestamp(created_at, "accounting recovery identity timestamp")
+    if expected_identity is not None:
+        verified_expected = verify_accounting_recovery_identity(expected_identity)
+        if identity != verified_expected:
+            raise CalibrationError("stored accounting recovery identity differs")
+    return dict(identity)
+
+
+def expected_accounting_recovery_identity(
+    output: Path,
+    checkout: dict[str, Any],
+    *,
+    created_at: str,
+) -> dict[str, Any]:
+    """Derive recovery identity solely from authoritative durable artefacts."""
+    plan = read_json(output / "execution_plan.json")
+    return build_accounting_recovery_identity(
+        original_run_identity_sha256=file_sha256(output / "run_identity.json"),
+        predecessor_runner_source_sha256=checkout[
+            "predecessor_runner_source_sha256"
+        ],
+        recovery_runner_commit=checkout["recovery_runner_commit"],
+        recovery_runner_source_sha256=checkout[
+            "recovery_runner_source_sha256"
+        ],
+        execution_plan_sha256=value_sha256(plan),
+        provider_phase_identity_sha256=file_sha256(
+            output / "provider_phase_identity.json"
+        ),
+        context_audit_sha256=file_sha256(
+            output / "holdout_context_audit.json"
+        ),
+        created_at=created_at,
+    )
+
+
+def verify_or_publish_accounting_recovery_identity(
+    args: argparse.Namespace,
+    output: Path,
+    checkout: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    """Verify an idempotent marker or atomically publish it exactly once."""
+    path = output / ACCOUNTING_RECOVERY_IDENTITY_FILE
+    if path.exists():
+        if not path.is_file() or path.is_symlink():
+            raise CalibrationError("accounting recovery identity path is invalid")
+        stored = verify_accounting_recovery_identity(read_json(path))
+        if path.read_bytes() != json_document_bytes(stored):
+            raise CalibrationError("accounting recovery identity encoding differs")
+        expected = expected_accounting_recovery_identity(
+            output, checkout, created_at=stored["created_at"]
+        )
+        return verify_accounting_recovery_identity(stored, expected), False
+    if (
+        getattr(args, "resume_audit_accounting_recovery_from_commit", None)
+        != ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+    ):
+        raise CalibrationError(
+            "cross-commit resume requires the exact accounting recovery option"
+        )
+    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    identity = expected_accounting_recovery_identity(
+        output, checkout, created_at=created_at
+    )
+    write_json(path, identity)
+    published = verify_accounting_recovery_identity(read_json(path), identity)
+    if path.read_bytes() != json_document_bytes(published):
+        raise CalibrationError("published accounting recovery identity differs")
+    return published, True
+
+
+def _accounting_recovery_receipts_and_operations(
+    receipts: dict[str, dict[str, Any]],
+    ledger_data: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Verify the exact completed 232-call receipt and ledger inventory."""
+    if not isinstance(receipts, dict) or len(receipts) != 232:
+        raise CalibrationError("accounting recovery receipt count differs")
+    if (
+        not isinstance(ledger_data, dict)
+        or ledger_data.get("blocked") is not False
+        or str(ledger_data.get("status") or "").startswith("blocked")
+        or ledger_data.get("ambiguous_exposure_usd") != 0
+        or ledger_data.get("ambiguous_exposure_in_usd_ticks") != 0
+        or not isinstance(ledger_data.get("operations"), list)
+    ):
+        raise CalibrationError("accounting recovery cost ledger is not clear")
+    operations: dict[str, dict[str, Any]] = {}
+    for operation in ledger_data["operations"]:
+        if not isinstance(operation, dict):
+            raise CalibrationError("accounting recovery ledger operation is invalid")
+        logical_call_id = operation.get("logical_call_id")
+        if (
+            not isinstance(logical_call_id, str)
+            or not logical_call_id
+            or logical_call_id in operations
+        ):
+            raise CalibrationError(
+                "accounting recovery ledger operation identity differs"
+            )
+        if operation.get("status") != "completed":
+            raise CalibrationError(
+                "accounting recovery ledger operation is not completed"
+            )
+        operations[logical_call_id] = operation
+    if len(operations) != 232 or set(operations) != set(receipts):
+        raise CalibrationError(
+            "accounting recovery receipt and ledger inventories differ"
+        )
+    for logical_call_id, receipt in receipts.items():
+        operation = operations[logical_call_id]
+        if (
+            not isinstance(receipt, dict)
+            or receipt.get("logical_call_id") != logical_call_id
+            or receipt.get("request_hash") != operation.get("request_hash")
+        ):
+            raise CalibrationError(
+                "accounting recovery receipt and ledger operation differ"
+            )
+    return operations
+
+
+def _accounting_recovery_owned_calls(
+    results: dict[tuple[str, str], dict[str, Any]],
+    audits: dict[tuple[str, str], dict[str, Any]],
+    failures: dict[tuple[str, str], dict[str, Any]],
+    receipts: dict[str, dict[str, Any]],
+    operations: dict[str, dict[str, Any]],
+) -> set[str]:
+    """Verify indexed journal bindings and return every journal-owned call."""
+    if not all(isinstance(rows, dict) for rows in (results, audits, failures)):
+        raise CalibrationError("accounting recovery journal index is invalid")
+    if set(results) != set(audits):
+        raise CalibrationError("accounting recovery result/audit inventories differ")
+    owned: set[str] = set()
+    for key in results:
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise CalibrationError("accounting recovery journal identity is invalid")
+        result = results[key]
+        audit_row = audits[key]
+        if not isinstance(result, dict) or not isinstance(audit_row, dict):
+            raise CalibrationError("accounting recovery journal row is invalid")
+        if (
+            (result.get("candidate_id"), result.get("variant")) != key
+            or (audit_row.get("candidate_id"), audit_row.get("variant")) != key
+            or result.get("stratum") != audit_row.get("stratum")
+            or result.get("status") not in VALID_PIPELINE_STATUSES
+        ):
+            raise CalibrationError("accounting recovery journal identity differs")
+        if any(result.get(name) != audit_row.get(name) for name in CALL_BINDING_FIELDS):
+            raise CalibrationError("accounting recovery journal binding differs")
+        audit = audit_row.get("audit")
+        logical_call_ids = result.get("logical_call_ids")
+        inventory = result.get("call_inventory")
+        model_stages = result.get("model_stage_sequence")
+        if (
+            not isinstance(audit, list)
+            or not isinstance(logical_call_ids, list)
+            or not logical_call_ids
+            or any(not isinstance(value, str) or not value for value in logical_call_ids)
+            or len(set(logical_call_ids)) != len(logical_call_ids)
+            or result.get("model_call_count") != len(logical_call_ids)
+            or not isinstance(inventory, list)
+            or len(inventory) != len(logical_call_ids)
+            or not isinstance(model_stages, list)
+            or [row.get("logical_call_id") for row in inventory]
+            != logical_call_ids
+            or [row.get("stage") for row in inventory] != model_stages
+            or result.get("call_inventory_sha256") != value_sha256(inventory)
+            or result.get("pipeline_audit_sha256") != value_sha256(audit)
+            or audit_model_stage_sequence(audit) != model_stages
+        ):
+            raise CalibrationError("accounting recovery journal call binding differs")
+        for sequence, inventory_row in enumerate(inventory, 1):
+            if not isinstance(inventory_row, dict):
+                raise CalibrationError(
+                    "accounting recovery journal call inventory row is invalid"
+                )
+            logical_call_id = logical_call_ids[sequence - 1]
+            receipt = receipts.get(logical_call_id)
+            operation = operations.get(logical_call_id)
+            if (
+                receipt is None
+                or operation is None
+                or inventory_row.get("sequence") != sequence
+                or inventory_row.get("request_hash") != receipt.get("request_hash")
+                or inventory_row.get("request_hash") != operation.get("request_hash")
+                or inventory_row.get("prompt_receipt_sha256")
+                != value_sha256(receipt)
+                or inventory_row.get("cost_ledger_operation_sha256")
+                != value_sha256(operation)
+                or receipt.get("candidate_id") != key[0]
+                or receipt.get("variant") != key[1]
+                or receipt.get("execution_identity_sha256")
+                != result.get("execution_identity_sha256")
+                or receipt.get("case_identity") != result.get("case_identity")
+                or operation.get("case_id") != result.get("case_identity")
+                or operation.get("stage") != inventory_row.get("stage")
+            ):
+                raise CalibrationError(
+                    "accounting recovery journal call inventory differs"
+                )
+        repeated = owned & set(logical_call_ids)
+        if repeated:
+            raise CalibrationError(
+                "accounting recovery logical call belongs to two results"
+            )
+        owned.update(logical_call_ids)
+    operational_keys = {
+        key for key, result in results.items()
+        if result.get("status") == "operational_failure"
+    }
+    if set(failures) != operational_keys:
+        raise CalibrationError("accounting recovery failure inventory differs")
+    for key in failures:
+        failure = failures[key]
+        if not isinstance(failure, dict) or failure != expected_execution_failure_row(
+            results[key], audits[key]
+        ):
+            raise CalibrationError("accounting recovery failure row differs")
+    return owned
+
+
+def _verify_accounting_recovery_target_calls(
+    receipts: dict[str, dict[str, Any]],
+    operations: dict[str, dict[str, Any]],
+) -> list[str]:
+    """Require the exact six completed calls owned by the interrupted case."""
+    logical_call_ids: list[str] = []
+    for sequence, stage in enumerate(
+        ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE, 1
+    ):
+        logical_call_id = (
+            f"{ACCOUNTING_RECOVERY_CASE_IDENTITY}:{sequence}:{stage}"
+        )
+        logical_call_ids.append(logical_call_id)
+        receipt = receipts.get(logical_call_id)
+        operation = operations.get(logical_call_id)
+        if receipt is None or operation is None:
+            raise CalibrationError(
+                "accounting recovery target completed call is missing"
+            )
+        if (
+            receipt.get("candidate_id") != ACCOUNTING_RECOVERY_CANDIDATE_ID
+            or receipt.get("variant") != ACCOUNTING_RECOVERY_VARIANT
+            or receipt.get("execution_identity_sha256")
+            != ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+            or receipt.get("case_identity") != ACCOUNTING_RECOVERY_CASE_IDENTITY
+            or receipt.get("call_sequence") != sequence
+            or receipt.get("stage") != stage
+            or receipt.get("transport_status")
+            not in {"transmitted_and_completed", "returned_from_completed_cache"}
+            or operation.get("case_id") != ACCOUNTING_RECOVERY_CASE_IDENTITY
+            or operation.get("stage") != stage
+            or operation.get("status") != "completed"
+        ):
+            raise CalibrationError(
+                "accounting recovery target identity or receipt stages differ"
+            )
+    return logical_call_ids
+
+
+def verify_accounting_recovery_interrupted_signature(
+    *,
+    results: dict[tuple[str, str], dict[str, Any]],
+    audits: dict[tuple[str, str], dict[str, Any]],
+    failures: dict[tuple[str, str], dict[str, Any]],
+    receipts: dict[str, dict[str, Any]],
+    ledger_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify the one exact unjournalled 80th-execution durable signature."""
+    if (len(results), len(audits), len(failures)) != (79, 79, 9):
+        raise CalibrationError(
+            "accounting recovery interrupted journal counts differ"
+        )
+    target_key = (
+        ACCOUNTING_RECOVERY_CANDIDATE_ID,
+        ACCOUNTING_RECOVERY_VARIANT,
+    )
+    if target_key in results or target_key in audits or target_key in failures:
+        raise CalibrationError(
+            "accounting recovery target is already present in a journal"
+        )
+    if any(
+        row.get("case_identity") == ACCOUNTING_RECOVERY_CASE_IDENTITY
+        or row.get("execution_identity_sha256")
+        == ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+        for rows in (results, audits, failures)
+        for row in rows.values()
+    ):
+        raise CalibrationError(
+            "accounting recovery target case identity is already journalled"
+        )
+    operations = _accounting_recovery_receipts_and_operations(
+        receipts, ledger_data
+    )
+    owned = _accounting_recovery_owned_calls(
+        results, audits, failures, receipts, operations
+    )
+    target_calls = _verify_accounting_recovery_target_calls(receipts, operations)
+    if (
+        set(receipts) - owned != set(target_calls)
+        or set(operations) - owned != set(target_calls)
+        or owned - set(receipts)
+    ):
+        raise CalibrationError(
+            "accounting recovery unexpected orphan call inventory differs"
+        )
+    return {
+        "state": "interrupted",
+        "result_count": 79,
+        "audit_count": 79,
+        "failure_count": 9,
+        "receipt_count": 232,
+        "ledger_operation_count": 232,
+        "target_logical_call_ids": target_calls,
+        "receipt_stage_sequence": list(
+            ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+        ),
+    }
+
+
+def verify_accounting_recovery_repaired_signature(
+    *,
+    results: dict[tuple[str, str], dict[str, Any]],
+    audits: dict[tuple[str, str], dict[str, Any]],
+    failures: dict[tuple[str, str], dict[str, Any]],
+    receipts: dict[str, dict[str, Any]],
+    ledger_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify the exact idempotent 80th result/audit/failure repair."""
+    if (len(results), len(audits), len(failures)) != (80, 80, 10):
+        raise CalibrationError("accounting recovery repaired journal counts differ")
+    target_key = (
+        ACCOUNTING_RECOVERY_CANDIDATE_ID,
+        ACCOUNTING_RECOVERY_VARIANT,
+    )
+    operations = _accounting_recovery_receipts_and_operations(
+        receipts, ledger_data
+    )
+    owned = _accounting_recovery_owned_calls(
+        results, audits, failures, receipts, operations
+    )
+    target_calls = _verify_accounting_recovery_target_calls(receipts, operations)
+    if owned != set(receipts) or owned != set(operations):
+        raise CalibrationError(
+            "accounting recovery repaired orphan call inventory differs"
+        )
+    result = results.get(target_key)
+    audit_row = audits.get(target_key)
+    failure = failures.get(target_key)
+    if result is None or audit_row is None or failure is None:
+        raise CalibrationError("accounting recovery repaired triplet is missing")
+    audit = audit_row.get("audit")
+    if (
+        result.get("candidate_id") != ACCOUNTING_RECOVERY_CANDIDATE_ID
+        or result.get("variant") != ACCOUNTING_RECOVERY_VARIANT
+        or result.get("execution_identity_sha256")
+        != ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+        or result.get("case_identity") != ACCOUNTING_RECOVERY_CASE_IDENTITY
+        or result.get("status") != "operational_failure"
+        or result.get("reason") != "revision_reviewer_invalid"
+        or result.get("public_reply") is not None
+        or result.get("pipeline_metadata") is not None
+        or result.get("model_call_count") != 6
+        or result.get("revision_count") != 1
+        or result.get("logical_call_ids") != target_calls
+        or result.get("model_stage_sequence")
+        != list(ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE)
+        or not isinstance(audit, list)
+        or not audit
+        or audit[-1] != ACCOUNTING_RECOVERY_TERMINAL_AUDIT_ROW
+        or audit_model_stage_sequence(audit)
+        != list(ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE)
+        or failure != expected_execution_failure_row(result, audit_row)
+    ):
+        raise CalibrationError("accounting recovery repaired triplet differs")
+    return {
+        "state": "repaired",
+        "result_count": 80,
+        "audit_count": 80,
+        "failure_count": 10,
+        "receipt_count": 232,
+        "ledger_operation_count": 232,
+        "target_logical_call_ids": target_calls,
+        "receipt_stage_sequence": list(
+            ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+        ),
+    }
+
+
+def verify_accounting_recovery_repaired_triplet(
+    *,
+    results: dict[tuple[str, str], dict[str, Any]],
+    audits: dict[tuple[str, str], dict[str, Any]],
+    failures: dict[tuple[str, str], dict[str, Any]],
+    receipts: dict[str, dict[str, Any]],
+    ledger_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Verify the repaired triplet after later executions may have progressed."""
+    operations = {
+        row.get("logical_call_id"): row
+        for row in ledger_data.get("operations", [])
+        if isinstance(row, dict)
+    }
+    if len(operations) != len(ledger_data.get("operations", [])):
+        raise CalibrationError("accounting recovery ledger inventory is invalid")
+    target_calls = _verify_accounting_recovery_target_calls(receipts, operations)
+    target_key = (
+        ACCOUNTING_RECOVERY_CANDIDATE_ID,
+        ACCOUNTING_RECOVERY_VARIANT,
+    )
+    result = results.get(target_key)
+    audit_row = audits.get(target_key)
+    failure = failures.get(target_key)
+    if result is None or audit_row is None or failure is None:
+        raise CalibrationError("accounting recovery repaired triplet is missing")
+    audit = audit_row.get("audit")
+    if (
+        result.get("execution_identity_sha256")
+        != ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+        or result.get("case_identity") != ACCOUNTING_RECOVERY_CASE_IDENTITY
+        or result.get("status") != "operational_failure"
+        or result.get("reason") != "revision_reviewer_invalid"
+        or result.get("public_reply") is not None
+        or result.get("pipeline_metadata") is not None
+        or result.get("model_call_count") != 6
+        or result.get("revision_count") != 1
+        or result.get("logical_call_ids") != target_calls
+        or result.get("model_stage_sequence")
+        != list(ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE)
+        or not isinstance(audit, list)
+        or not audit
+        or audit[-1] != ACCOUNTING_RECOVERY_TERMINAL_AUDIT_ROW
+        or audit_model_stage_sequence(audit)
+        != list(ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE)
+        or failure != expected_execution_failure_row(result, audit_row)
+    ):
+        raise CalibrationError("accounting recovery repaired triplet differs")
+    return {
+        "target_logical_call_ids": target_calls,
+        "receipt_stage_sequence": list(
+            ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+        ),
+    }
+
+
+def verify_partial_execution_journals(
+    *,
+    plan: dict[str, Any],
+    cases: dict[str, dict[str, Any]],
+    manifests: dict[str, dict[str, Any]],
+    pack_sha256: str,
+    model: str,
+    results: dict[tuple[str, str], dict[str, Any]],
+    audits: dict[tuple[str, str], dict[str, Any]],
+    failures: dict[tuple[str, str], dict[str, Any]],
+    receipts: dict[str, dict[str, Any]],
+    ledger_data: dict[str, Any],
+) -> set[str]:
+    """Fully verify every existing pair while permitting explicit orphan calls."""
+    planned_pairs = {
+        (row["candidate_id"], row["variant"]) for row in plan["executions"]
+    }
+    if set(results) != set(audits):
+        raise CalibrationError("partial result and audit journal inventories differ")
+    if (set(results) | set(failures)) - planned_pairs:
+        raise CalibrationError("partial execution journal contains an unplanned identity")
+    verify_failure_journal_links(
+        plan=plan,
+        results=results,
+        audits=audits,
+        failures=failures,
+    )
+    owned: set[str] = set()
+    for planned in plan["executions"]:
+        key = (planned["candidate_id"], planned["variant"])
+        if key not in results:
+            continue
+        identity = pipeline_execution_identity(
+            cases[planned["candidate_id"]],
+            planned["variant"],
+            manifests,
+            pack_sha256,
+            model,
+        )
+        calls = verify_pipeline_record_pair(
+            identity,
+            results[key],
+            audits[key],
+            receipts=receipts,
+            ledger_data=ledger_data,
+        )
+        if owned & calls:
+            raise CalibrationError("one logical call belongs to two partial results")
+        owned.update(calls)
+    return owned
+
+
 def verify_execution_journals(
     *,
     plan: dict[str, Any],
@@ -3348,6 +4377,7 @@ class PromptReceiptTransport:
         *,
         model: str,
         existing_receipts: dict[str, dict[str, Any]] | None = None,
+        cache_only: bool = False,
     ) -> None:
         self.delegate = delegate
         self.receipt_path = receipt_path
@@ -3357,6 +4387,8 @@ class PromptReceiptTransport:
         self.case_identity = ""
         self.execution_identity_sha256 = ""
         self.receipts = existing_receipts if existing_receipts is not None else {}
+        self.cache_only = cache_only
+        self.completed_cache_returns = 0
 
     def set_case(self, identity: dict[str, Any]) -> None:
         self.identity = dict(identity)
@@ -3414,6 +4446,16 @@ class PromptReceiptTransport:
             }:
                 raise CalibrationError(f"prompt receipt status is invalid for {logical_call_id}")
         prior = self.delegate.ledger.operation(logical_call_id, request_hash)
+        if self.cache_only and (
+            existing is None
+            or existing.get("transport_status") == "prepared_for_transport"
+            or prior is None
+            or prior.get("status") != "completed"
+        ):
+            raise CalibrationError(
+                "accounting recovery attempted a call without an exact completed cache: "
+                f"{logical_call_id}"
+            )
         try:
             response = self.delegate(**kwargs)
         except BaseException:
@@ -3422,6 +4464,8 @@ class PromptReceiptTransport:
                 append_jsonl(self.receipt_path, receipt)
                 self.receipts[logical_call_id] = receipt
             raise
+        if self.cache_only:
+            self.completed_cache_returns += 1
         if existing is None:
             receipt = {
                 **receipt_base,
@@ -3434,6 +4478,407 @@ class PromptReceiptTransport:
             append_jsonl(self.receipt_path, receipt)
             self.receipts[logical_call_id] = receipt
         return response
+
+
+class AccountingRecoveryNetworkGuard:
+    """Refuse and count every attempted request during cache reconstruction."""
+
+    def __init__(self) -> None:
+        self.requests = 0
+
+    def __call__(self, *_args: Any, **_kwargs: Any) -> Any:
+        self.requests += 1
+        raise CalibrationError(
+            "accounting recovery attempted a forbidden network request"
+        )
+
+
+def accounting_recovery_immutable_snapshot(output: Path) -> dict[str, str]:
+    """Hash every predecessor artefact that cache reconstruction must not mutate."""
+    protected = {
+        "run_identity.json",
+        "provider_phase_identity.json",
+        "provider_model_metadata.json",
+        "cost_ledger.json",
+        "pack_verification.json",
+        "profile_manifests.json",
+        "execution_plan.json",
+        "prompt_receipts.jsonl",
+        *HOLDOUT_CONTEXT_FILES,
+    }
+    snapshot: dict[str, str] = {}
+    for name in sorted(protected):
+        path = output / name
+        if not path.is_file():
+            raise CalibrationError(
+                f"accounting recovery durable file is missing: {name}"
+            )
+        snapshot[name] = file_sha256(path)
+    response_dir = output / "raw_responses"
+    if not response_dir.is_dir():
+        raise CalibrationError("accounting recovery raw response cache is missing")
+    for path in sorted(response_dir.iterdir(), key=lambda item: item.name):
+        if not path.is_file() or path.is_symlink():
+            raise CalibrationError("accounting recovery response cache inventory differs")
+        snapshot[f"raw_responses/{path.name}"] = file_sha256(path)
+    return snapshot
+
+
+def reconstruct_accounting_recovery_execution(
+    args: argparse.Namespace,
+    pack_data: dict[str, Any],
+    manifests: dict[str, dict[str, Any]],
+    repository: EvidenceRepository,
+    *,
+    output: Path,
+    metadata: dict[str, Any],
+    ledger: pilot.PilotLedger,
+    receipts: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, int]]:
+    """Replay the one interrupted pipeline exclusively from completed caches."""
+    cases = {case["candidate_id"]: case for case in pack_data["cases"]}
+    case = cases.get(ACCOUNTING_RECOVERY_CANDIDATE_ID)
+    if case is None:
+        raise CalibrationError("accounting recovery candidate identity differs")
+    execution_identity = pipeline_execution_identity(
+        case,
+        ACCOUNTING_RECOVERY_VARIANT,
+        manifests,
+        pack_data["pack_sha256"],
+        args.model,
+    )
+    binding = pipeline_execution_binding(execution_identity)
+    if (
+        binding["execution_identity_sha256"]
+        != ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+        or binding["case_identity"] != ACCOUNTING_RECOVERY_CASE_IDENTITY
+    ):
+        raise CalibrationError("accounting recovery execution identity differs")
+
+    immutable_before = accounting_recovery_immutable_snapshot(output)
+    guard = AccountingRecoveryNetworkGuard()
+    delegate = pilot.PilotTransport(
+        api_key="accounting-recovery-cache-only",
+        base_url=args.xai_base,
+        model_metadata=metadata,
+        ledger=ledger,
+        response_dir=output / "raw_responses",
+        post=guard,
+        maximum_rate_limit_retries=args.maximum_rate_limit_retries,
+        maximum_server_error_retries=args.maximum_server_error_retries,
+    )
+    receipt_transport = PromptReceiptTransport(
+        delegate,
+        output / "prompt_receipts.jsonl",
+        model=args.model,
+        existing_receipts=receipts,
+        cache_only=True,
+    )
+    receipt_transport.set_case(execution_identity)
+    config = pilot.strategy_config(
+        args.model,
+        PROJECT_ROOT / "semantic_alignment_research/quote_research_full_001",
+    )
+    with activate_profile(
+        ACCOUNTING_RECOVERY_VARIANT,
+        recent_account_replies=case["recent_replies"],
+    ):
+        result = reply_strategy.run_reply_pipeline(
+            context=case["context"],
+            config=config,
+            repository=repository,
+            transport=receipt_transport,
+            maximum_reply_length=MAXIMUM_REPLY_LENGTH,
+            recent_replies=case["recent_replies"],
+            media_context=None,
+        )
+    try:
+        audit = list(result.audit)
+    except (AttributeError, TypeError) as exc:
+        raise CalibrationError(
+            "accounting recovery reconstructed audit is malformed"
+        ) from exc
+    if guard.requests != 0:
+        raise CalibrationError("accounting recovery performed an HTTP request")
+    if receipt_transport.completed_cache_returns != len(
+        ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+    ):
+        raise CalibrationError(
+            "accounting recovery did not use all six completed caches"
+        )
+    if accounting_recovery_immutable_snapshot(output) != immutable_before:
+        raise CalibrationError(
+            "accounting recovery mutated predecessor durable state during replay"
+        )
+    if (
+        getattr(result, "status", None) != "operational_failure"
+        or getattr(result, "reason", None) != "revision_reviewer_invalid"
+        or getattr(result, "model_call_count", None) != 6
+        or getattr(result, "revision_count", None) != 1
+        or getattr(result, "reply", None) is not None
+    ):
+        raise CalibrationError("accounting recovery reconstructed result differs")
+    if not audit or audit[-1] != ACCOUNTING_RECOVERY_TERMINAL_AUDIT_ROW:
+        raise CalibrationError(
+            "accounting recovery terminal model-call ceiling audit differs"
+        )
+    call_binding = collect_call_inventory(
+        execution_identity,
+        audit=audit,
+        receipts=receipts,
+        ledger_data=ledger.data,
+    )
+    if (
+        call_binding["model_call_count"] != 6
+        or call_binding["model_stage_sequence"]
+        != list(ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE)
+    ):
+        raise CalibrationError("accounting recovery six-call inventory differs")
+    result_row = {
+        "candidate_id": case["candidate_id"],
+        "stratum": case["stratum"],
+        "variant": ACCOUNTING_RECOVERY_VARIANT,
+        "status": "operational_failure",
+        "reason": "revision_reviewer_invalid",
+        "public_reply": None,
+        "model_call_count": 6,
+        "revision_count": 1,
+        "pipeline_metadata": None,
+        **call_binding,
+    }
+    audit_row = {
+        "candidate_id": case["candidate_id"],
+        "stratum": case["stratum"],
+        "variant": ACCOUNTING_RECOVERY_VARIANT,
+        "audit": audit,
+        **call_binding,
+    }
+    failure_row = expected_execution_failure_row(result_row, audit_row)
+    return result_row, audit_row, failure_row, {
+        "completed_cache_returns": receipt_transport.completed_cache_returns,
+        "http_requests": guard.requests,
+    }
+
+
+def append_accounting_recovery_journal_triplet(
+    output: Path,
+    result_row: dict[str, Any],
+    audit_row: dict[str, Any],
+    failure_row: dict[str, Any],
+) -> None:
+    """Append and durably verify the one recovered result/audit/failure triplet."""
+    rows = {
+        "pipeline_results.jsonl": result_row,
+        "pipeline_audits.jsonl": audit_row,
+        "execution_failures.jsonl": failure_row,
+    }
+    before = {name: (output / name).read_bytes() for name in rows}
+    for name, row in rows.items():
+        append_jsonl(output / name, row)
+    for name, row in rows.items():
+        expected = before[name] + canonical_json_bytes(row) + b"\n"
+        if (output / name).read_bytes() != expected:
+            raise CalibrationError(
+                "accounting recovery journal append was not exact"
+            )
+        descriptor = os.open(output / name, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    directory = os.open(output, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def verify_accounting_recovery_plan_prefix(
+    plan: dict[str, Any],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> int:
+    """Require the exact interrupted execution and only a contiguous prefix."""
+    executions = plan.get("executions")
+    if (
+        plan.get("case_set") != "holdout"
+        or plan.get("continue_on_operational_failure") is not True
+        or plan.get("planned_pipeline_executions") != 84
+        or not isinstance(executions, list)
+        or len(executions) != 84
+    ):
+        raise CalibrationError("accounting recovery execution plan differs")
+    target = executions[79]
+    if (
+        target.get("candidate_id") != ACCOUNTING_RECOVERY_CANDIDATE_ID
+        or target.get("variant") != ACCOUNTING_RECOVERY_VARIANT
+        or target.get("execution_index") != 80
+    ):
+        raise CalibrationError(
+            "accounting recovery interrupted execution is not plan index 80"
+        )
+    completed = len(result_rows)
+    if not 79 <= completed <= 84:
+        raise CalibrationError("accounting recovery plan progress count differs")
+    expected_order = [
+        (row["candidate_id"], row["variant"])
+        for row in executions[:completed]
+    ]
+    if list(result_rows) != expected_order:
+        raise CalibrationError(
+            "accounting recovery completed executions are not the exact plan prefix"
+        )
+    return completed
+
+
+def apply_or_verify_accounting_recovery(
+    args: argparse.Namespace,
+    pack_data: dict[str, Any],
+    manifests: dict[str, dict[str, Any]],
+    repository: EvidenceRepository,
+    *,
+    output: Path,
+    checkout: dict[str, Any],
+    metadata: dict[str, Any],
+    ledger: pilot.PilotLedger,
+    plan: dict[str, Any],
+    cases: dict[str, dict[str, Any]],
+    receipts: dict[str, dict[str, Any]],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+    audit_rows: dict[tuple[str, str], dict[str, Any]],
+    failure_rows: dict[tuple[str, str], dict[str, Any]],
+) -> tuple[
+    dict[tuple[str, str], dict[str, Any]],
+    dict[tuple[str, str], dict[str, Any]],
+    dict[tuple[str, str], dict[str, Any]],
+    dict[str, Any],
+]:
+    """Apply the exact cache-only repair once, or verify later idempotent state."""
+    if (
+        ledger.data.get("blocked") is not False
+        or str(ledger.data.get("status") or "").startswith("blocked")
+        or ledger.data.get("ambiguous_exposure_usd") != 0
+        or ledger.data.get("ambiguous_exposure_in_usd_ticks") != 0
+        or any(
+            not isinstance(operation, dict)
+            or operation.get("status") != "completed"
+            for operation in ledger.data.get("operations", [])
+        )
+    ):
+        raise CalibrationError("accounting recovery cost ledger is not clear")
+    verify_partial_execution_journals(
+        plan=plan,
+        cases=cases,
+        manifests=manifests,
+        pack_sha256=pack_data["pack_sha256"],
+        model=args.model,
+        results=result_rows,
+        audits=audit_rows,
+        failures=failure_rows,
+        receipts=receipts,
+        ledger_data=ledger.data,
+    )
+    if list(audit_rows) != list(result_rows) or list(failure_rows) != [
+        key
+        for key, result in result_rows.items()
+        if result.get("status") == "operational_failure"
+    ]:
+        raise CalibrationError(
+            "accounting recovery journal row order differs from execution order"
+        )
+    completed = verify_accounting_recovery_plan_prefix(plan, result_rows)
+    recovery_path = output / ACCOUNTING_RECOVERY_IDENTITY_FILE
+    immutable_before = accounting_recovery_immutable_snapshot(output)
+
+    if completed == 79:
+        if (output / "SHA256SUMS").exists():
+            raise CalibrationError(
+                "accounting recovery interrupted output unexpectedly has SHA256SUMS"
+            )
+        verify_accounting_recovery_interrupted_signature(
+            results=result_rows,
+            audits=audit_rows,
+            failures=failure_rows,
+            receipts=receipts,
+            ledger_data=ledger.data,
+        )
+        recovery_identity, _published = (
+            verify_or_publish_accounting_recovery_identity(
+                args, output, checkout
+            )
+        )
+        result_row, audit_row, failure_row, reconstruction = (
+            reconstruct_accounting_recovery_execution(
+                args,
+                pack_data,
+                manifests,
+                repository,
+                output=output,
+                metadata=metadata,
+                ledger=ledger,
+                receipts=receipts,
+            )
+        )
+        if reconstruction != {
+            "completed_cache_returns": 6,
+            "http_requests": 0,
+        }:
+            raise CalibrationError("accounting recovery reconstruction metrics differ")
+        append_accounting_recovery_journal_triplet(
+            output, result_row, audit_row, failure_row
+        )
+        result_rows = index_execution_records(
+            output / "pipeline_results.jsonl", label="pipeline results"
+        )
+        audit_rows = index_execution_records(
+            output / "pipeline_audits.jsonl", label="pipeline audits"
+        )
+        failure_rows = index_execution_records(
+            output / "execution_failures.jsonl", label="execution failures"
+        )
+        verify_partial_execution_journals(
+            plan=plan,
+            cases=cases,
+            manifests=manifests,
+            pack_sha256=pack_data["pack_sha256"],
+            model=args.model,
+            results=result_rows,
+            audits=audit_rows,
+            failures=failure_rows,
+            receipts=receipts,
+            ledger_data=ledger.data,
+        )
+        verify_accounting_recovery_repaired_signature(
+            results=result_rows,
+            audits=audit_rows,
+            failures=failure_rows,
+            receipts=receipts,
+            ledger_data=ledger.data,
+        )
+        if verify_accounting_recovery_plan_prefix(plan, result_rows) != 80:
+            raise CalibrationError("accounting recovery post-repair plan count differs")
+    else:
+        if not recovery_path.is_file():
+            raise CalibrationError(
+                "repaired cross-commit run lacks accounting recovery identity"
+            )
+        recovery_identity, _published = (
+            verify_or_publish_accounting_recovery_identity(
+                args, output, checkout
+            )
+        )
+        verify_accounting_recovery_repaired_triplet(
+            results=result_rows,
+            audits=audit_rows,
+            failures=failure_rows,
+            receipts=receipts,
+            ledger_data=ledger.data,
+        )
+
+    if accounting_recovery_immutable_snapshot(output) != immutable_before:
+        raise CalibrationError(
+            "accounting recovery changed predecessor durable files"
+        )
+    return result_rows, audit_rows, failure_rows, recovery_identity
 
 
 def execute_outcomes(
@@ -3493,6 +4938,55 @@ def execute_manifest(
         if reliability_summary is not None
         else None
     )
+    recovery_manifest_fields: dict[str, Any] = {
+        "accounting_recovery_applied": False,
+    }
+    recovery_path = output / ACCOUNTING_RECOVERY_IDENTITY_FILE
+    if recovery_path.is_file():
+        recovery_identity = verify_accounting_recovery_identity(
+            read_json(recovery_path)
+        )
+        operations = ledger_data.get("operations", [])
+        if (
+            recovery_identity["original_run_identity_sha256"] != identity_sha256
+            or recovery_identity["execution_plan_sha256"] != value_sha256(plan)
+            or recovery_identity["provider_phase_identity_sha256"]
+            != file_sha256(output / "provider_phase_identity.json")
+            or recovery_identity["context_audit_sha256"]
+            != file_sha256(output / "holdout_context_audit.json")
+            or recovery_identity["recovery_runner_commit"]
+            != provenance["runner_git_commit"]
+            or recovery_identity["recovery_runner_source_sha256"]
+            != provenance["runner_source_sha256"]
+            or not isinstance(operations, list)
+            or len(operations) < 232
+        ):
+            raise CalibrationError(
+                "accounting recovery final manifest provenance differs"
+            )
+        new_provider_calls = sum(
+            int(operation.get("attempt_number") or 1)
+            for operation in operations[232:]
+            if isinstance(operation, dict)
+        )
+        if len(operations[232:]) != sum(
+            isinstance(operation, dict) for operation in operations[232:]
+        ):
+            raise CalibrationError(
+                "accounting recovery post-recovery operation is invalid"
+            )
+        recovery_manifest_fields = {
+            "accounting_recovery_applied": True,
+            "original_runner_git_commit": recovery_identity[
+                "predecessor_runner_commit"
+            ],
+            "accounting_recovery_runner_git_commit": recovery_identity[
+                "recovery_runner_commit"
+            ],
+            "accounting_recovery_identity_sha256": file_sha256(recovery_path),
+            "reconstructed_from_completed_cache_count": 6,
+            "new_provider_calls_after_recovery": new_provider_calls,
+        }
     manifest = {
         "schema_version": 1,
         "runner_version": RUNNER_VERSION,
@@ -3544,6 +5038,7 @@ def execute_manifest(
         "model_calls_performed": model_calls,
         "http_requests_performed": total_http_requests,
         "hard_limit_usd": args.hard_limit_usd,
+        **recovery_manifest_fields,
         "posting_enabled": False,
         "search_enabled": False,
         "tools_enabled": False,
@@ -3729,6 +5224,8 @@ def verify_holdout_blind_quality_csv(
 def verify_durable_execute_core(output: Path, *, case_set: str) -> None:
     """Require every never-discardable execute artefact before final publication."""
     required = set(DURABLE_CORE_FILES)
+    if (output / ACCOUNTING_RECOVERY_IDENTITY_FILE).exists():
+        required.add(ACCOUNTING_RECOVERY_IDENTITY_FILE)
     if case_set == "holdout":
         required.update(HOLDOUT_CONTEXT_FILES)
     missing = sorted(name for name in required if not (output / name).is_file())
@@ -3884,6 +5381,7 @@ def execute_run(
         ),
     )
     cases = {case["candidate_id"]: case for case in pack_data["cases"]}
+    recovery_active = accounting_recovery_resume_active(args)
     provenance = common_execution_provenance(
         plan=plan,
         manifests=manifests,
@@ -3904,13 +5402,42 @@ def execute_run(
     output = prepare_output_directory(
         args.output, pack_data["pack_path"], resume=args.resume
     )
+    recovery_checkout: dict[str, Any] | None = None
+    if recovery_active:
+        recovery_checkout = verify_accounting_recovery_checkout(
+            ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+        )
+        if context_artifacts is None:
+            raise CalibrationError("accounting recovery context artifacts are missing")
+        context_compatibility = context_artifacts.get(
+            "accounting_recovery_context_compatibility"
+        )
+        stored_audit = context_artifacts.get("audit_document")
+        if (
+            not isinstance(context_compatibility, dict)
+            or not isinstance(stored_audit, dict)
+            or stored_audit.get("runner_source_sha256")
+            != recovery_checkout["predecessor_runner_source_sha256"]
+            or context_artifacts.get(
+                "accounting_recovery_current_runner_source_sha256"
+            )
+            != recovery_checkout["recovery_runner_source_sha256"]
+        ):
+            raise CalibrationError(
+                "accounting recovery context provenance differs from Git sources"
+            )
     http = CountingHTTP()
     if args.resume:
         identity_path = output / "run_identity.json"
         if not identity_path.is_file():
             raise CalibrationError("resume output was not produced by this runner")
         stored_identity = read_json(identity_path)
-        if stored_identity != identity:
+        if recovery_active:
+            assert recovery_checkout is not None
+            verify_accounting_recovery_run_identity(
+                stored_identity, identity, recovery_checkout
+            )
+        elif stored_identity != identity:
             raise CalibrationError("run identity differs from current arguments or sources")
         if read_json(output / "pack_verification.json") != public_pack_verification(pack_data):
             raise CalibrationError("stored replay-pack verification differs")
@@ -3940,15 +5467,23 @@ def execute_run(
         ledger = open_resume_ledger(
             output, model=args.model, hard_limit_usd=args.hard_limit_usd
         )
-        metadata, _provider_phase = resume_or_publish_provider_phase(
-            output,
-            ledger_data=ledger.data,
-            identity_sha256=identity_sha256,
-            model=args.model,
-            xai_endpoint=args.xai_base,
-            api_key=api_key,
-            get=http.get,
-        )
+        if recovery_active:
+            metadata, _provider_phase = read_and_verify_provider_phase(
+                output,
+                identity_sha256=identity_sha256,
+                model=args.model,
+                xai_endpoint=args.xai_base,
+            )
+        else:
+            metadata, _provider_phase = resume_or_publish_provider_phase(
+                output,
+                ledger_data=ledger.data,
+                identity_sha256=identity_sha256,
+                model=args.model,
+                xai_endpoint=args.xai_base,
+                api_key=api_key,
+                get=http.get,
+            )
     else:
         write_json(output / "pack_verification.json", public_pack_verification(pack_data))
         write_json(output / "profile_manifests.json", manifests)
@@ -4049,6 +5584,33 @@ def execute_run(
             audit_rows[(candidate_id, variant)],
             receipts=receipts,
             ledger_data=ledger_data,
+        )
+    if recovery_active:
+        assert recovery_checkout is not None
+        result_rows, audit_rows, failure_rows, _recovery_identity = (
+            apply_or_verify_accounting_recovery(
+                args,
+                pack_data,
+                manifests,
+                repository,
+                output=output,
+                checkout=recovery_checkout,
+                metadata=metadata,
+                ledger=ledger,
+                plan=plan,
+                cases=cases,
+                receipts=receipts,
+                result_rows=result_rows,
+                audit_rows=audit_rows,
+                failure_rows=failure_rows,
+            )
+        )
+        if http.requests != 0:
+            raise CalibrationError(
+                "accounting recovery performed HTTP before journal repair"
+            )
+        ledger_data = validate_resume_ledger(
+            ledger.data, model=args.model, hard_limit_usd=args.hard_limit_usd
         )
     derived_present = any(
         (output / name).exists()
@@ -4304,6 +5866,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--maximum-server-error-retries", type=int, default=DEFAULT_MAXIMUM_SERVER_ERROR_RETRIES
     )
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--resume-audit-accounting-recovery-from-commit")
     parser.add_argument("--expected-runner-git-commit")
     parser.add_argument("--acknowledge-paid-model-calls")
     return parser
@@ -4322,6 +5885,32 @@ def validate_arguments(args: argparse.Namespace, environ: dict[str, str]) -> str
         raise CalibrationError("maximum rate-limit retries must be from zero to eight")
     if not 0 <= args.maximum_server_error_retries <= 4:
         raise CalibrationError("maximum server-error retries must be from zero to four")
+    recovery_predecessor = getattr(
+        args, "resume_audit_accounting_recovery_from_commit", None
+    )
+    if recovery_predecessor is not None:
+        if args.mode != "execute":
+            raise CalibrationError(
+                "--resume-audit-accounting-recovery-from-commit is valid only with --execute"
+            )
+        if not args.resume:
+            raise CalibrationError(
+                "--resume-audit-accounting-recovery-from-commit requires --resume"
+            )
+        if args.case_set != "holdout":
+            raise CalibrationError(
+                "--resume-audit-accounting-recovery-from-commit requires --case-set holdout"
+            )
+        if not args.continue_on_operational_failure:
+            raise CalibrationError(
+                "--resume-audit-accounting-recovery-from-commit requires "
+                "--continue-on-operational-failure"
+            )
+        if recovery_predecessor != ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT:
+            raise CalibrationError(
+                "--resume-audit-accounting-recovery-from-commit must name the exact "
+                "approved predecessor"
+            )
     if args.continue_on_operational_failure and args.case_set != "holdout":
         raise CalibrationError(
             "--continue-on-operational-failure is valid only with --case-set holdout"
@@ -4401,7 +5990,11 @@ def run(args: argparse.Namespace, *, environ: dict[str, str] | None = None) -> P
             args.recover_context_candidate,
         )
         context_artifacts = build_holdout_context_artifacts(pack_data)
-        if args.context_clearance is None:
+        if accounting_recovery_resume_active(args):
+            context_artifacts, clearance, _context_compatibility = (
+                load_accounting_recovery_context(args, context_artifacts)
+            )
+        elif args.context_clearance is None:
             template = context_artifacts["clearance_template_text"]
             clearance = {
                 "status": "pending",

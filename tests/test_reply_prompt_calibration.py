@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import csv
 import io
@@ -2651,6 +2652,65 @@ def test_one_changed_context_invalidates_old_clearance(
         )
 
 
+def test_accounting_only_context_provenance_difference_is_compatible(
+    holdout_pack_data: dict[str, Any],
+) -> None:
+    artifacts = runner.build_holdout_context_artifacts(holdout_pack_data)
+    current = artifacts["audit_document"]
+    stored = json.loads(json.dumps(current))
+    stored["runner_source_sha256"] = "0" * 64
+
+    compatible = runner.verify_accounting_recovery_context_compatibility(
+        stored,
+        current,
+        stored_recovery_bytes=artifacts["recovery_bytes"],
+        current_recovery_bytes=artifacts["recovery_bytes"],
+    )
+
+    assert compatible["validated_context_count"] == 42
+    assert compatible["manual_context_review_count"] == current[
+        "manual_context_review_count"
+    ]
+    assert len(compatible["manual_review_candidate_ids"]) == current[
+        "manual_context_review_count"
+    ]
+
+
+def test_substantive_context_difference_is_not_accounting_compatible(
+    holdout_pack_data: dict[str, Any],
+) -> None:
+    artifacts = runner.build_holdout_context_artifacts(holdout_pack_data)
+    current = json.loads(json.dumps(artifacts["audit_document"]))
+    stored = json.loads(json.dumps(current))
+    stored["runner_source_sha256"] = "0" * 64
+    current["cases"][0]["validated_context_sha256"] = "1" * 64
+
+    with pytest.raises(runner.CalibrationError, match="substantive difference"):
+        runner.verify_accounting_recovery_context_compatibility(
+            stored,
+            current,
+            stored_recovery_bytes=artifacts["recovery_bytes"],
+            current_recovery_bytes=artifacts["recovery_bytes"],
+        )
+
+
+def test_accounting_context_compatibility_requires_exact_recovery_bytes(
+    holdout_pack_data: dict[str, Any],
+) -> None:
+    artifacts = runner.build_holdout_context_artifacts(holdout_pack_data)
+    current = artifacts["audit_document"]
+    stored = json.loads(json.dumps(current))
+    stored["runner_source_sha256"] = "0" * 64
+
+    with pytest.raises(runner.CalibrationError, match="context-recovery record differs"):
+        runner.verify_accounting_recovery_context_compatibility(
+            stored,
+            current,
+            stored_recovery_bytes=artifacts["recovery_bytes"],
+            current_recovery_bytes=artifacts["recovery_bytes"] + b"\n",
+        )
+
+
 def test_frozen_profile_and_prompt_hashes_remain_exact() -> None:
     manifests = runner.profile_manifests()
     runner.verify_frozen_profile_manifests(manifests)
@@ -2889,6 +2949,93 @@ def test_resume_is_refused_in_validate_only_mode(tmp_path: Path) -> None:
         runner.validate_arguments(cli_args(tmp_path / "out", "--resume"), {})
 
 
+def test_accounting_recovery_option_is_refused_in_validate_only(
+    tmp_path: Path,
+) -> None:
+    args = cli_args(
+        tmp_path / "out",
+        "--case-set", "holdout",
+        "--resume",
+        "--continue-on-operational-failure",
+        "--resume-audit-accounting-recovery-from-commit",
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT,
+    )
+    with pytest.raises(runner.CalibrationError, match="valid only with --execute"):
+        runner.validate_arguments(args, {})
+
+
+def test_accounting_recovery_option_requires_resume(tmp_path: Path) -> None:
+    args = paid_cli_args(
+        tmp_path / "out",
+        "--case-set", "holdout",
+        "--context-clearance", str(tmp_path / "clearance.csv"),
+        "--continue-on-operational-failure",
+        "--resume-audit-accounting-recovery-from-commit",
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT,
+    )
+    with pytest.raises(runner.CalibrationError, match="requires --resume"):
+        runner.validate_arguments(args, {"XAI_API_KEY": SYNTHETIC_API_KEY})
+
+
+def test_accounting_recovery_option_requires_holdout(tmp_path: Path) -> None:
+    args = paid_cli_args(
+        tmp_path / "out",
+        "--resume",
+        "--continue-on-operational-failure",
+        "--resume-audit-accounting-recovery-from-commit",
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT,
+    )
+    with pytest.raises(runner.CalibrationError, match="requires --case-set holdout"):
+        runner.validate_arguments(args, {"XAI_API_KEY": SYNTHETIC_API_KEY})
+
+
+def test_accounting_recovery_option_requires_failure_continuation(
+    tmp_path: Path,
+) -> None:
+    args = paid_cli_args(
+        tmp_path / "out",
+        "--case-set", "holdout",
+        "--context-clearance", str(tmp_path / "clearance.csv"),
+        "--resume",
+        "--resume-audit-accounting-recovery-from-commit",
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT,
+    )
+    with pytest.raises(
+        runner.CalibrationError, match="requires --continue-on-operational-failure"
+    ):
+        runner.validate_arguments(args, {"XAI_API_KEY": SYNTHETIC_API_KEY})
+
+
+def test_accounting_recovery_option_rejects_wrong_predecessor(
+    tmp_path: Path,
+) -> None:
+    args = paid_cli_args(
+        tmp_path / "out",
+        "--case-set", "holdout",
+        "--context-clearance", str(tmp_path / "clearance.csv"),
+        "--resume",
+        "--continue-on-operational-failure",
+        "--resume-audit-accounting-recovery-from-commit", "f" * 40,
+    )
+    with pytest.raises(runner.CalibrationError, match="exact approved predecessor"):
+        runner.validate_arguments(args, {"XAI_API_KEY": SYNTHETIC_API_KEY})
+
+
+def test_exact_accounting_recovery_gate_is_accepted(tmp_path: Path) -> None:
+    args = paid_cli_args(
+        tmp_path / "out",
+        "--case-set", "holdout",
+        "--context-clearance", str(tmp_path / "clearance.csv"),
+        "--resume",
+        "--continue-on-operational-failure",
+        "--resume-audit-accounting-recovery-from-commit",
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT,
+    )
+    assert runner.validate_arguments(
+        args, {"XAI_API_KEY": SYNTHETIC_API_KEY}
+    ) == SYNTHETIC_API_KEY
+
+
 def test_execute_requires_expected_runner_git_commit(tmp_path: Path) -> None:
     args = cli_args(
         tmp_path / "out",
@@ -2924,6 +3071,155 @@ def test_dirty_tracked_worktree_is_refused(monkeypatch: pytest.MonkeyPatch) -> N
     with pytest.raises(runner.CalibrationError, match="clean tracked worktree and index"):
         runner.execution_provenance(
             SYNTHETIC_RUNNER_COMMIT, require_clean_checkout=True
+        )
+
+
+def install_synthetic_accounting_recovery_git(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    status: str = "",
+    merge_base: str | None = None,
+    changed_paths: tuple[str, ...] = (
+        "tools/run_reply_prompt_calibration.py",
+        "tests/test_reply_prompt_calibration.py",
+    ),
+    predecessor_source_overrides: dict[str, bytes] | None = None,
+    current_source_overrides: dict[str, bytes] | None = None,
+) -> str:
+    predecessor = runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+    current = "b" * 40
+    live_sources = {
+        path.relative_to(runner.PROJECT_ROOT).as_posix(): path.read_bytes()
+        for path in runner.SOURCE_PATHS.values()
+    }
+    predecessor_sources = dict(live_sources)
+    predecessor_sources["tools/run_reply_prompt_calibration.py"] = (
+        b"synthetic predecessor runner source\n"
+    )
+    predecessor_sources.update(predecessor_source_overrides or {})
+    current_sources = dict(live_sources)
+    current_sources.update(current_source_overrides or {})
+    changed = b"".join(path.encode("utf-8") + b"\0" for path in changed_paths)
+
+    def fake_git(*arguments: str, text: bool = True) -> str | bytes:
+        if arguments == ("rev-parse", "HEAD"):
+            return current
+        if arguments == ("status", "--porcelain=v1", "--untracked-files=all"):
+            return status
+        if arguments == ("merge-base", predecessor, current):
+            return (merge_base or predecessor) + "\n"
+        if arguments == (
+            "diff", "--name-only", "-z", predecessor, current, "--"
+        ):
+            assert text is False
+            return changed
+        if arguments[0] == "show" and len(arguments) == 2:
+            assert text is False
+            commit, relative = arguments[1].split(":", 1)
+            if commit == predecessor:
+                return predecessor_sources[relative]
+            if commit == current:
+                return current_sources[relative]
+        raise AssertionError(arguments)
+
+    monkeypatch.setattr(runner, "_git", fake_git)
+    return current
+
+
+def test_accounting_recovery_checkout_accepts_exact_accounting_only_descendant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = install_synthetic_accounting_recovery_git(monkeypatch)
+
+    compatible = runner.verify_accounting_recovery_checkout(
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+    )
+
+    assert compatible["recovery_runner_commit"] == current
+    assert set(compatible["changed_paths"]) == (
+        runner.ACCOUNTING_RECOVERY_ALLOWED_CHANGED_PATHS
+    )
+    assert compatible["predecessor_runner_source_sha256"] != compatible[
+        "recovery_runner_source_sha256"
+    ]
+
+
+def test_accounting_recovery_checkout_rejects_wrong_predecessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_synthetic_accounting_recovery_git(monkeypatch)
+    with pytest.raises(runner.CalibrationError, match="predecessor must be exactly"):
+        runner.verify_accounting_recovery_checkout("f" * 40)
+
+
+def test_accounting_recovery_checkout_rejects_untracked_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_synthetic_accounting_recovery_git(
+        monkeypatch, status="?? untracked-recovery-input\n"
+    )
+    with pytest.raises(runner.CalibrationError, match="including untracked files"):
+        runner.verify_accounting_recovery_checkout(
+            runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+        )
+
+
+def test_accounting_recovery_checkout_rejects_non_descendant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_synthetic_accounting_recovery_git(monkeypatch, merge_base="c" * 40)
+    with pytest.raises(runner.CalibrationError, match="not a descendant"):
+        runner.verify_accounting_recovery_checkout(
+            runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+        )
+
+
+def test_accounting_recovery_checkout_rejects_forbidden_diff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_synthetic_accounting_recovery_git(
+        monkeypatch,
+        changed_paths=("tools/run_reply_prompt_calibration.py", "reply_strategy.py"),
+    )
+    with pytest.raises(runner.CalibrationError, match="forbidden tracked paths"):
+        runner.verify_accounting_recovery_checkout(
+            runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+        )
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "reply_strategy.py",
+        "reply_evidence.py",
+        "tools/pilot_ai_first_reply_strategy.py",
+        "tools/reply_prompt_profiles.py",
+    ],
+)
+def test_accounting_recovery_checkout_rejects_protected_source_drift(
+    relative_path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_synthetic_accounting_recovery_git(
+        monkeypatch,
+        predecessor_source_overrides={relative_path: b"changed predecessor source\n"},
+    )
+    with pytest.raises(runner.CalibrationError, match="protected execute source"):
+        runner.verify_accounting_recovery_checkout(
+            runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+        )
+
+
+def test_accounting_recovery_checkout_rejects_uncommitted_source_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_synthetic_accounting_recovery_git(
+        monkeypatch,
+        current_source_overrides={"reply_strategy.py": b"different committed source\n"},
+    )
+    with pytest.raises(runner.CalibrationError, match="not its committed blob"):
+        runner.verify_accounting_recovery_checkout(
+            runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
         )
 
 
@@ -3073,6 +3369,120 @@ def test_deliberate_no_reply_alone_renders_as_no_reply() -> None:
     }) == "NO REPLY"
     with pytest.raises(runner.CalibrationError, match="invalid calibration outcome"):
         runner.render_outcome({"status": "no_reply", "public_reply": "not silence"})
+
+
+def test_completed_audit_row_represents_model_attempt() -> None:
+    assert runner.audit_row_represents_model_attempt({
+        "stage": "proposer",
+        "status": "completed",
+    })
+
+
+def test_invalid_response_retry_audit_row_represents_model_attempt() -> None:
+    assert runner.audit_row_represents_model_attempt({
+        "stage": "proposer",
+        "status": "invalid_response_retry",
+        "reason": "received response failed validation",
+    })
+
+
+def test_received_non_retryable_invalid_reviewer_is_model_attempt() -> None:
+    assert runner.audit_row_represents_model_attempt({
+        "stage": "reviewer",
+        "status": "invalid",
+        "reason": "received reviewer response is non-retryable",
+        "retry_suppressed": True,
+    })
+
+
+def test_received_ordinary_invalid_row_represents_model_attempt() -> None:
+    assert runner.audit_row_represents_model_attempt({
+        "stage": "reviewer",
+        "status": "invalid",
+        "reason": "received response failed validation",
+    })
+
+
+def test_successful_insufficient_evidence_row_represents_model_attempt() -> None:
+    assert runner.audit_row_represents_model_attempt({
+        "stage": "evidence",
+        "status": "insufficient",
+        "supported": False,
+    })
+
+
+def test_claim_without_candidate_passage_remains_non_call_event() -> None:
+    assert not runner.audit_row_represents_model_attempt({
+        "stage": "evidence",
+        "status": "insufficient",
+        "reason": "claim_without_candidate_passage",
+    })
+
+
+def test_model_call_ceiling_invalid_row_is_not_model_attempt() -> None:
+    assert not runner.audit_row_represents_model_attempt({
+        "stage": "revision_reviewer",
+        "status": "invalid",
+        "reason": "reply pipeline model-call ceiling reached",
+    })
+
+
+@pytest.mark.parametrize("stage", sorted(runner.MODEL_AUDIT_STAGES))
+def test_model_call_ceiling_exclusion_applies_to_every_model_stage(stage: str) -> None:
+    assert not runner.audit_row_represents_model_attempt({
+        "stage": stage,
+        "status": "invalid",
+        "reason": "reply pipeline model-call ceiling reached",
+    })
+
+
+def test_other_invalid_reason_is_not_accidentally_excluded() -> None:
+    assert runner.audit_row_represents_model_attempt({
+        "stage": "revision_reviewer",
+        "status": "invalid",
+        "reason": "received response failed validation",
+        "error": "validation error",
+    })
+
+
+def test_exact_ceiling_diagnostic_derives_same_six_audit_and_receipt_stages() -> None:
+    stages = [
+        "proposer",
+        "evidence",
+        "evidence",
+        "reviewer",
+        "revision_proposer",
+        "revision_evidence",
+    ]
+    terminal_ceiling_event = {
+        "stage": "revision_reviewer",
+        "status": "invalid",
+        "reason": "reply pipeline model-call ceiling reached",
+    }
+    audit = [
+        {"stage": "proposer", "status": "completed"},
+        {"stage": "evidence", "status": "invalid_response_retry"},
+        {"stage": "evidence", "status": "insufficient", "supported": False},
+        {"stage": "reviewer", "status": "completed"},
+        {"stage": "revision_proposer", "status": "completed"},
+        {"stage": "revision_evidence", "status": "insufficient", "supported": False},
+        terminal_ceiling_event,
+    ]
+
+    assert runner.audit_model_stage_sequence(audit) == stages
+    identity, receipts, ledger = synthetic_call_contract(stages, audit)
+    inventory = runner.collect_call_inventory(
+        identity,
+        audit=audit,
+        receipts=receipts,
+        ledger_data=ledger,
+    )
+
+    assert inventory["model_call_count"] == 6
+    assert inventory["model_stage_sequence"] == stages
+    assert [row["stage"] for row in inventory["call_inventory"]] == stages
+    assert inventory["pipeline_audit_sha256"] == runner.value_sha256(audit)
+    assert audit[-1] == terminal_ceiling_event
 
 
 @pytest.mark.parametrize(
@@ -4613,3 +5023,901 @@ def test_generated_sha256sums_verifies(validation_pair: tuple[Path, Path]) -> No
     assert "validation_report.json" in checksum_names
     assert "prompt_preview_receipts.jsonl" in checksum_names
     assert "provider_model_metadata.json" not in checksum_names
+
+
+def synthetic_accounting_recovery_identity() -> dict[str, Any]:
+    return runner.build_accounting_recovery_identity(
+        original_run_identity_sha256="1" * 64,
+        predecessor_runner_source_sha256="2" * 64,
+        recovery_runner_commit="3" * 40,
+        recovery_runner_source_sha256="4" * 64,
+        execution_plan_sha256="5" * 64,
+        provider_phase_identity_sha256="6" * 64,
+        context_audit_sha256="7" * 64,
+        created_at="2026-08-11T14:30:00+00:00",
+    )
+
+
+def synthetic_accounting_recovery_signature(
+    *, repaired: bool = False
+) -> dict[str, Any]:
+    results: dict[tuple[str, str], dict[str, Any]] = {}
+    audits: dict[tuple[str, str], dict[str, Any]] = {}
+    failures: dict[tuple[str, str], dict[str, Any]] = {}
+    receipts: dict[str, dict[str, Any]] = {}
+    operations: list[dict[str, Any]] = []
+
+    for ordinal in range(79):
+        candidate_id = f"synthetic-accounting-candidate-{ordinal:02d}"
+        variant = "current"
+        key = (candidate_id, variant)
+        execution_sha256 = hashlib.sha256(candidate_id.encode("utf-8")).hexdigest()
+        case_identity = f"{candidate_id}:{variant}:{execution_sha256}"
+        stages = (
+            ["proposer", "evidence", "reviewer"]
+            if ordinal < 68
+            else ["proposer", "reviewer"]
+        )
+        audit = [
+            {"stage": stage, "status": "completed"}
+            for stage in stages
+        ]
+        logical_call_ids: list[str] = []
+        inventory: list[dict[str, Any]] = []
+        for sequence, stage in enumerate(stages, 1):
+            logical_call_id = f"{case_identity}:{sequence}:{stage}"
+            request_hash = hashlib.sha256(
+                logical_call_id.encode("utf-8")
+            ).hexdigest()
+            receipt = {
+                "candidate_id": candidate_id,
+                "variant": variant,
+                "execution_identity_sha256": execution_sha256,
+                "case_identity": case_identity,
+                "call_sequence": sequence,
+                "stage": stage,
+                "logical_call_id": logical_call_id,
+                "request_hash": request_hash,
+                "transport_status": "transmitted_and_completed",
+            }
+            operation = {
+                "logical_call_id": logical_call_id,
+                "case_id": case_identity,
+                "stage": stage,
+                "request_hash": request_hash,
+                "status": "completed",
+            }
+            receipts[logical_call_id] = receipt
+            operations.append(operation)
+            logical_call_ids.append(logical_call_id)
+            inventory.append({
+                "sequence": sequence,
+                "stage": stage,
+                "logical_call_id": logical_call_id,
+                "request_hash": request_hash,
+                "prompt_receipt_sha256": runner.value_sha256(receipt),
+                "cost_ledger_operation_sha256": runner.value_sha256(operation),
+            })
+        binding = {
+            "execution_identity_sha256": execution_sha256,
+            "case_identity": case_identity,
+            "model_call_count": len(stages),
+            "logical_call_ids": logical_call_ids,
+            "model_stage_sequence": stages,
+            "call_inventory": inventory,
+            "call_inventory_sha256": runner.value_sha256(inventory),
+            "pipeline_audit_sha256": runner.value_sha256(audit),
+        }
+        operational_failure = ordinal < 9
+        result = {
+            "candidate_id": candidate_id,
+            "stratum": "synthetic",
+            "variant": variant,
+            "status": (
+                "operational_failure" if operational_failure else "approved"
+            ),
+            "reason": "synthetic_operational_failure" if operational_failure else None,
+            "public_reply": None,
+            "revision_count": 1 if operational_failure else 0,
+            "pipeline_metadata": None,
+            **binding,
+        }
+        audit_row = {
+            "candidate_id": candidate_id,
+            "stratum": "synthetic",
+            "variant": variant,
+            "audit": audit,
+            **binding,
+        }
+        results[key] = result
+        audits[key] = audit_row
+        if operational_failure:
+            failures[key] = runner.expected_execution_failure_row(
+                result, audit_row
+            )
+
+    target_ids: list[str] = []
+    target_inventory: list[dict[str, Any]] = []
+    for sequence, stage in enumerate(
+        runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE, 1
+    ):
+        logical_call_id = (
+            f"{runner.ACCOUNTING_RECOVERY_CASE_IDENTITY}:{sequence}:{stage}"
+        )
+        request_hash = hashlib.sha256(
+            logical_call_id.encode("utf-8")
+        ).hexdigest()
+        receipt = {
+            "candidate_id": runner.ACCOUNTING_RECOVERY_CANDIDATE_ID,
+            "variant": runner.ACCOUNTING_RECOVERY_VARIANT,
+            "execution_identity_sha256": (
+                runner.ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+            ),
+            "case_identity": runner.ACCOUNTING_RECOVERY_CASE_IDENTITY,
+            "call_sequence": sequence,
+            "stage": stage,
+            "logical_call_id": logical_call_id,
+            "request_hash": request_hash,
+            "transport_status": "transmitted_and_completed",
+        }
+        operation = {
+            "logical_call_id": logical_call_id,
+            "case_id": runner.ACCOUNTING_RECOVERY_CASE_IDENTITY,
+            "stage": stage,
+            "request_hash": request_hash,
+            "status": "completed",
+        }
+        receipts[logical_call_id] = receipt
+        operations.append(operation)
+        target_ids.append(logical_call_id)
+        target_inventory.append({
+            "sequence": sequence,
+            "stage": stage,
+            "logical_call_id": logical_call_id,
+            "request_hash": request_hash,
+            "prompt_receipt_sha256": runner.value_sha256(receipt),
+            "cost_ledger_operation_sha256": runner.value_sha256(operation),
+        })
+
+    if repaired:
+        target_audit = [
+            {"stage": "proposer", "status": "completed"},
+            {"stage": "evidence", "status": "invalid_response_retry"},
+            {"stage": "evidence", "status": "insufficient"},
+            {"stage": "reviewer", "status": "completed"},
+            {"stage": "revision_proposer", "status": "completed"},
+            {"stage": "revision_evidence", "status": "insufficient"},
+            dict(runner.ACCOUNTING_RECOVERY_TERMINAL_AUDIT_ROW),
+        ]
+        target_binding = {
+            "execution_identity_sha256": (
+                runner.ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+            ),
+            "case_identity": runner.ACCOUNTING_RECOVERY_CASE_IDENTITY,
+            "model_call_count": 6,
+            "logical_call_ids": target_ids,
+            "model_stage_sequence": list(
+                runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+            ),
+            "call_inventory": target_inventory,
+            "call_inventory_sha256": runner.value_sha256(target_inventory),
+            "pipeline_audit_sha256": runner.value_sha256(target_audit),
+        }
+        target_key = (
+            runner.ACCOUNTING_RECOVERY_CANDIDATE_ID,
+            runner.ACCOUNTING_RECOVERY_VARIANT,
+        )
+        target_result = {
+            "candidate_id": runner.ACCOUNTING_RECOVERY_CANDIDATE_ID,
+            "stratum": "synthetic",
+            "variant": runner.ACCOUNTING_RECOVERY_VARIANT,
+            "status": "operational_failure",
+            "reason": "revision_reviewer_invalid",
+            "public_reply": None,
+            "revision_count": 1,
+            "pipeline_metadata": None,
+            **target_binding,
+        }
+        target_audit_row = {
+            "candidate_id": runner.ACCOUNTING_RECOVERY_CANDIDATE_ID,
+            "stratum": "synthetic",
+            "variant": runner.ACCOUNTING_RECOVERY_VARIANT,
+            "audit": target_audit,
+            **target_binding,
+        }
+        results[target_key] = target_result
+        audits[target_key] = target_audit_row
+        failures[target_key] = runner.expected_execution_failure_row(
+            target_result, target_audit_row
+        )
+
+    assert len(receipts) == len(operations) == 232
+    return {
+        "results": results,
+        "audits": audits,
+        "failures": failures,
+        "receipts": receipts,
+        "ledger_data": {
+            "blocked": False,
+            "status": "active",
+            "ambiguous_exposure_usd": 0.0,
+            "ambiguous_exposure_in_usd_ticks": 0,
+            "operations": operations,
+        },
+    }
+
+
+def test_accounting_recovery_identity_has_exact_safe_fields() -> None:
+    identity = synthetic_accounting_recovery_identity()
+    assert set(identity) == set(runner.ACCOUNTING_RECOVERY_IDENTITY_FIELDS)
+    assert identity["receipt_stage_sequence"] == list(
+        runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+    )
+    assert not {
+        "candidate_text",
+        "reply_text",
+        "claims",
+        "prompts",
+        "provider_response",
+        "raw_response",
+    } & set(identity)
+    altered = {**identity, "prompt_text": "not permitted"}
+    with pytest.raises(runner.CalibrationError, match="identity fields differ"):
+        runner.verify_accounting_recovery_identity(altered)
+
+
+def test_existing_accounting_recovery_identity_verification_is_idempotent() -> None:
+    expected = synthetic_accounting_recovery_identity()
+    existing = copy.deepcopy(expected)
+    assert runner.verify_accounting_recovery_identity(
+        existing, expected
+    ) == expected
+    assert runner.verify_accounting_recovery_identity(
+        existing, expected
+    ) == expected
+    existing["recovery_runner_source_sha256"] = "8" * 64
+    with pytest.raises(
+        runner.CalibrationError, match="stored accounting recovery identity differs"
+    ):
+        runner.verify_accounting_recovery_identity(existing, expected)
+
+
+def test_exact_interrupted_accounting_recovery_signature_passes() -> None:
+    state = synthetic_accounting_recovery_signature()
+    verified = runner.verify_accounting_recovery_interrupted_signature(**state)
+    assert verified["state"] == "interrupted"
+    assert verified["receipt_stage_sequence"] == list(
+        runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+    )
+    assert (
+        verified["result_count"],
+        verified["audit_count"],
+        verified["failure_count"],
+        verified["receipt_count"],
+    ) == (79, 79, 9, 232)
+
+
+def test_accounting_recovery_wrong_journal_counts_are_rejected() -> None:
+    state = synthetic_accounting_recovery_signature()
+    removed = next(iter(state["results"]))
+    state["results"].pop(removed)
+    with pytest.raises(runner.CalibrationError, match="journal counts differ"):
+        runner.verify_accounting_recovery_interrupted_signature(**state)
+
+
+def test_accounting_recovery_wrong_candidate_identity_is_rejected() -> None:
+    state = synthetic_accounting_recovery_signature()
+    target_id = next(
+        logical_call_id
+        for logical_call_id in state["receipts"]
+        if logical_call_id.startswith(runner.ACCOUNTING_RECOVERY_CASE_IDENTITY)
+    )
+    state["receipts"][target_id]["candidate_id"] = "candidate-wrong"
+    with pytest.raises(runner.CalibrationError, match="target identity"):
+        runner.verify_accounting_recovery_interrupted_signature(**state)
+
+
+def test_accounting_recovery_wrong_receipt_stages_are_rejected() -> None:
+    state = synthetic_accounting_recovery_signature()
+    target_id = next(
+        logical_call_id
+        for logical_call_id in state["receipts"]
+        if logical_call_id.startswith(runner.ACCOUNTING_RECOVERY_CASE_IDENTITY)
+    )
+    state["receipts"][target_id]["stage"] = "reviewer"
+    with pytest.raises(runner.CalibrationError, match="receipt stages differ"):
+        runner.verify_accounting_recovery_interrupted_signature(**state)
+
+
+def test_accounting_recovery_missing_ledger_operation_is_rejected() -> None:
+    state = synthetic_accounting_recovery_signature()
+    state["ledger_data"]["operations"].pop()
+    with pytest.raises(runner.CalibrationError, match="inventories differ"):
+        runner.verify_accounting_recovery_interrupted_signature(**state)
+
+
+def test_accounting_recovery_noncompleted_ledger_operation_is_rejected() -> None:
+    state = synthetic_accounting_recovery_signature()
+    state["ledger_data"]["operations"][-1]["status"] = "prepared"
+    with pytest.raises(runner.CalibrationError, match="not completed"):
+        runner.verify_accounting_recovery_interrupted_signature(**state)
+
+
+def test_accounting_recovery_unexpected_orphan_call_is_rejected() -> None:
+    state = synthetic_accounting_recovery_signature()
+    key = next(
+        key for key, row in state["results"].items()
+        if row["status"] == "approved" and row["model_call_count"] == 3
+    )
+    result = state["results"][key]
+    audit = state["audits"][key]
+    orphaned = result["logical_call_ids"][-1]
+    logical_call_ids = result["logical_call_ids"][:-1]
+    inventory = result["call_inventory"][:-1]
+    model_stages = result["model_stage_sequence"][:-1]
+    audit_payload = audit["audit"][:-1]
+    for row in (result, audit):
+        row["model_call_count"] = 2
+        row["logical_call_ids"] = list(logical_call_ids)
+        row["model_stage_sequence"] = list(model_stages)
+        row["call_inventory"] = copy.deepcopy(inventory)
+        row["call_inventory_sha256"] = runner.value_sha256(inventory)
+        row["pipeline_audit_sha256"] = runner.value_sha256(audit_payload)
+    audit["audit"] = audit_payload
+    assert orphaned in state["receipts"]
+    with pytest.raises(runner.CalibrationError, match="orphan call inventory"):
+        runner.verify_accounting_recovery_interrupted_signature(**state)
+
+
+def test_exact_repaired_accounting_recovery_signature_is_idempotent() -> None:
+    state = synthetic_accounting_recovery_signature(repaired=True)
+    first = runner.verify_accounting_recovery_repaired_signature(**state)
+    second = runner.verify_accounting_recovery_repaired_signature(**state)
+    assert first == second
+    assert (
+        first["result_count"],
+        first["audit_count"],
+        first["failure_count"],
+        first["receipt_count"],
+    ) == (80, 80, 10, 232)
+
+
+def build_synthetic_cache_only_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    """Create six harmless completed caches for the exact recovery identity."""
+    output = tmp_path / "cache-only-recovery"
+    output.mkdir(mode=0o700)
+    raw_responses = output / "raw_responses"
+    raw_responses.mkdir(mode=0o700)
+    runner.write_text(output / "prompt_receipts.jsonl", "")
+
+    case = synthetic_case()
+    case["candidate_id"] = runner.ACCOUNTING_RECOVERY_CANDIDATE_ID
+    manifests = runner.profile_manifests()
+    pack_data = {
+        "cases": [case],
+        "pack_sha256": "f" * 64,
+    }
+    execution_identity = runner.pipeline_execution_identity(
+        case,
+        runner.ACCOUNTING_RECOVERY_VARIANT,
+        manifests,
+        pack_data["pack_sha256"],
+        runner.DEFAULT_MODEL,
+    )
+    original_binding = runner.pipeline_execution_binding
+
+    def exact_target_binding(identity: dict[str, Any]) -> dict[str, str]:
+        if identity.get("candidate_id") == runner.ACCOUNTING_RECOVERY_CANDIDATE_ID:
+            return {
+                "execution_identity_sha256": (
+                    runner.ACCOUNTING_RECOVERY_EXECUTION_IDENTITY_SHA256
+                ),
+                "case_identity": runner.ACCOUNTING_RECOVERY_CASE_IDENTITY,
+            }
+        return original_binding(identity)
+
+    monkeypatch.setattr(runner, "pipeline_execution_binding", exact_target_binding)
+    ledger = pilot.PilotLedger(
+        output / "cost_ledger.json",
+        model=runner.DEFAULT_MODEL,
+        hard_limit_usd=1,
+        run_version=runner.RUNNER_VERSION,
+    )
+    setup_posts = 0
+
+    def setup_post(*_args: Any, **_kwargs: Any) -> FakeResponse:
+        nonlocal setup_posts
+        setup_posts += 1
+        return successful_response()
+
+    delegate = pilot.PilotTransport(
+        api_key=SYNTHETIC_API_KEY,
+        base_url=runner.DEFAULT_XAI_BASE,
+        model_metadata=model_metadata(),
+        ledger=ledger,
+        response_dir=raw_responses,
+        post=setup_post,
+    )
+    receipt_transport = runner.PromptReceiptTransport(
+        delegate,
+        output / "prompt_receipts.jsonl",
+        model=runner.DEFAULT_MODEL,
+    )
+    receipt_transport.set_case(execution_identity)
+    for stage in runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE:
+        assert json.loads(
+            receipt_transport(**transport_arguments(stage=stage))
+        ) == {"ok": True}
+    assert setup_posts == 6
+
+    for name in (
+        "run_identity.json",
+        "provider_phase_identity.json",
+        "provider_model_metadata.json",
+        "pack_verification.json",
+        "profile_manifests.json",
+        "execution_plan.json",
+        "holdout_context_audit.json",
+    ):
+        runner.write_json(output / name, {"synthetic": name})
+    for name in (
+        "holdout_context_review.md",
+        "holdout_context_clearance.csv",
+        "holdout_context_recovery.jsonl",
+    ):
+        runner.write_text(output / name, f"synthetic {name}\n")
+
+    receipts = runner.index_prompt_receipts(output / "prompt_receipts.jsonl")
+    args = Namespace(
+        model=runner.DEFAULT_MODEL,
+        xai_base=runner.DEFAULT_XAI_BASE,
+        maximum_rate_limit_retries=1,
+        maximum_server_error_retries=1,
+    )
+    return {
+        "output": output,
+        "pack_data": pack_data,
+        "manifests": manifests,
+        "case": case,
+        "identity": execution_identity,
+        "ledger": ledger,
+        "receipts": receipts,
+        "metadata": model_metadata(),
+        "args": args,
+    }
+
+
+@pytest.fixture
+def synthetic_cache_only_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    data = build_synthetic_cache_only_recovery(tmp_path, monkeypatch)
+
+    def reconstructed_pipeline(**kwargs: Any) -> SimpleNamespace:
+        audit: list[dict[str, Any]] = []
+        for stage in runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE:
+            assert json.loads(
+                kwargs["transport"](**transport_arguments(stage=stage))
+            ) == {"ok": True}
+            audit.append({"stage": stage, "status": "completed"})
+        audit.append(dict(runner.ACCOUNTING_RECOVERY_TERMINAL_AUDIT_ROW))
+        return SimpleNamespace(
+            status="operational_failure",
+            reason="revision_reviewer_invalid",
+            reply=None,
+            model_call_count=6,
+            revision_count=1,
+            audit=audit,
+        )
+
+    monkeypatch.setattr(
+        runner.reply_strategy,
+        "run_reply_pipeline",
+        reconstructed_pipeline,
+    )
+    immutable_before = runner.accounting_recovery_immutable_snapshot(data["output"])
+    result, audit, failure, metrics = runner.reconstruct_accounting_recovery_execution(
+        data["args"],
+        data["pack_data"],
+        data["manifests"],
+        SimpleNamespace(),
+        output=data["output"],
+        metadata=data["metadata"],
+        ledger=data["ledger"],
+        receipts=data["receipts"],
+    )
+    data.update({
+        "result": result,
+        "audit": audit,
+        "failure": failure,
+        "metrics": metrics,
+        "immutable_before": immutable_before,
+    })
+    return data
+
+
+def test_accounting_reconstruction_uses_six_caches_and_zero_http(
+    synthetic_cache_only_recovery: dict[str, Any],
+) -> None:
+    data = synthetic_cache_only_recovery
+    assert data["metrics"] == {
+        "completed_cache_returns": 6,
+        "http_requests": 0,
+    }
+    assert data["result"]["status"] == "operational_failure"
+    assert data["result"]["reason"] == "revision_reviewer_invalid"
+    assert data["result"]["model_call_count"] == 6
+    assert data["result"]["revision_count"] == 1
+    assert data["audit"]["audit"][-1] == (
+        runner.ACCOUNTING_RECOVERY_TERMINAL_AUDIT_ROW
+    )
+    assert data["result"]["model_stage_sequence"] == list(
+        runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE
+    )
+    assert runner.accounting_recovery_immutable_snapshot(data["output"]) == (
+        data["immutable_before"]
+    )
+
+
+def test_cache_only_guard_refuses_missing_call_before_transport_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = build_synthetic_cache_only_recovery(tmp_path, monkeypatch)
+    forbidden_posts = 0
+
+    def forbidden_post(*_args: Any, **_kwargs: Any) -> Any:
+        nonlocal forbidden_posts
+        forbidden_posts += 1
+        pytest.fail("cache-only recovery reached model transport")
+
+    delegate = pilot.PilotTransport(
+        api_key="cache-only",
+        base_url=runner.DEFAULT_XAI_BASE,
+        model_metadata=data["metadata"],
+        ledger=data["ledger"],
+        response_dir=data["output"] / "raw_responses",
+        post=forbidden_post,
+    )
+    transport = runner.PromptReceiptTransport(
+        delegate,
+        data["output"] / "prompt_receipts.jsonl",
+        model=runner.DEFAULT_MODEL,
+        existing_receipts=data["receipts"],
+        cache_only=True,
+    )
+    transport.set_case(data["identity"])
+    before = runner.accounting_recovery_immutable_snapshot(data["output"])
+    for stage in runner.ACCOUNTING_RECOVERY_RECEIPT_STAGE_SEQUENCE:
+        transport(**transport_arguments(stage=stage))
+    with pytest.raises(runner.CalibrationError, match="without an exact completed cache"):
+        transport(**transport_arguments(stage="revision_reviewer"))
+    assert forbidden_posts == 0
+    assert transport.completed_cache_returns == 6
+    assert runner.accounting_recovery_immutable_snapshot(data["output"]) == before
+
+
+def test_recovery_triplet_appends_once_with_exact_post_counts(
+    synthetic_cache_only_recovery: dict[str, Any],
+) -> None:
+    data = synthetic_cache_only_recovery
+    state = synthetic_accounting_recovery_signature()
+    output = data["output"]
+    runner.write_jsonl(output / "pipeline_results.jsonl", state["results"].values())
+    runner.write_jsonl(output / "pipeline_audits.jsonl", state["audits"].values())
+    runner.write_jsonl(output / "execution_failures.jsonl", state["failures"].values())
+    before = {
+        name: (output / name).read_bytes()
+        for name in (
+            "pipeline_results.jsonl",
+            "pipeline_audits.jsonl",
+            "execution_failures.jsonl",
+        )
+    }
+    runner.append_accounting_recovery_journal_triplet(
+        output,
+        data["result"],
+        data["audit"],
+        data["failure"],
+    )
+    results = runner.index_execution_records(
+        output / "pipeline_results.jsonl", label="pipeline results"
+    )
+    audits = runner.index_execution_records(
+        output / "pipeline_audits.jsonl", label="pipeline audits"
+    )
+    failures = runner.index_execution_records(
+        output / "execution_failures.jsonl", label="execution failures"
+    )
+    assert (len(results), len(audits), len(failures), len(state["receipts"])) == (
+        80,
+        80,
+        10,
+        232,
+    )
+    for name, row in (
+        ("pipeline_results.jsonl", data["result"]),
+        ("pipeline_audits.jsonl", data["audit"]),
+        ("execution_failures.jsonl", data["failure"]),
+    ):
+        assert (output / name).read_bytes() == (
+            before[name] + runner.canonical_json_bytes(row) + b"\n"
+        )
+
+
+def test_ordinary_strict_resume_still_rejects_cross_commit_runner(
+    completed_execute_output: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "ordinary-cross-commit"
+    shutil.copytree(completed_execute_output, output)
+    changed_commit = "b" * 40
+    hashes = runner.runner_source_hashes()
+    hashes["runner_source_sha256"] = "9" * 64
+
+    def changed_provenance(
+        expected: str | None = None,
+        *,
+        require_clean_checkout: bool = False,
+    ) -> dict[str, Any]:
+        assert expected == changed_commit
+        assert require_clean_checkout is True
+        return {
+            "runner_git_commit": changed_commit,
+            "runner_git_commit_expected": changed_commit,
+            "worktree_clean": True,
+            **hashes,
+        }
+
+    def forbidden_http(*_args: Any, **_kwargs: Any) -> Any:
+        pytest.fail("strict cross-commit refusal reached HTTP")
+
+    monkeypatch.setattr(runner, "execution_provenance", changed_provenance)
+    monkeypatch.setattr(pilot.requests, "get", forbidden_http)
+    monkeypatch.setattr(pilot.requests, "post", forbidden_http)
+    args = paid_cli_args(output, "--resume")
+    args.expected_runner_git_commit = changed_commit
+    with pytest.raises(runner.CalibrationError, match="run identity differs"):
+        runner.run(args, environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+
+
+def test_recovery_final_manifest_records_both_commits_and_checksum(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    data = completed_holdout_operational_output
+    output = tmp_path / "recovery-manifest"
+    shutil.copytree(data["output"], output)
+    pack_data = fresh_holdout_pack_data()
+    context_artifacts = runner.build_holdout_context_artifacts(pack_data)
+    clearance = runner.validate_context_clearance(
+        data["clearance"], context_artifacts, require_all_ready=True
+    )
+    plan = runner.read_json(output / "execution_plan.json")
+    results = runner.index_execution_records(
+        output / "pipeline_results.jsonl", label="pipeline results"
+    )
+    ledger_data = runner.read_json(output / "cost_ledger.json")
+    while len(ledger_data["operations"]) < 235:
+        ledger_data["operations"].append({"attempt_number": 1})
+    prior_manifest = runner.read_json(output / "run_manifest.json")
+    provenance_fields = (
+        "runner_git_commit",
+        "runner_git_commit_expected",
+        "worktree_clean",
+        "runner_source_sha256",
+        "prompt_profiles_source_sha256",
+        "pilot_transport_source_sha256",
+        "reply_strategy_sha256",
+        "reply_evidence_sha256",
+        "evidence_repository_fingerprint",
+        "execution_plan_sha256",
+        "current_profile_manifest_sha256",
+        "compact_profile_manifest_sha256",
+    )
+    provenance = {name: prior_manifest[name] for name in provenance_fields}
+    recovery_identity = runner.build_accounting_recovery_identity(
+        original_run_identity_sha256=runner.file_sha256(
+            output / "run_identity.json"
+        ),
+        predecessor_runner_source_sha256="2" * 64,
+        recovery_runner_commit=provenance["runner_git_commit"],
+        recovery_runner_source_sha256=provenance["runner_source_sha256"],
+        execution_plan_sha256=runner.value_sha256(plan),
+        provider_phase_identity_sha256=runner.file_sha256(
+            output / "provider_phase_identity.json"
+        ),
+        context_audit_sha256=runner.file_sha256(
+            output / "holdout_context_audit.json"
+        ),
+        created_at="2026-08-11T15:00:00Z",
+    )
+    runner.write_json(
+        output / runner.ACCOUNTING_RECOVERY_IDENTITY_FILE,
+        recovery_identity,
+    )
+    args = paid_holdout_cli_args(
+        output,
+        data["clearance"],
+        data["pre_exposed_candidate_id"],
+    )
+    manifest = runner.execute_manifest(
+        args,
+        pack_data,
+        provenance,
+        plan=plan,
+        context_artifacts=context_artifacts,
+        clearance=clearance,
+        output=output,
+        identity_sha256=runner.file_sha256(output / "run_identity.json"),
+        ledger_data=ledger_data,
+        result_rows=results,
+    )
+    assert manifest["accounting_recovery_applied"] is True
+    assert manifest["original_runner_git_commit"] == (
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+    )
+    assert manifest["accounting_recovery_runner_git_commit"] == (
+        provenance["runner_git_commit"]
+    )
+    assert manifest["accounting_recovery_identity_sha256"] == runner.file_sha256(
+        output / runner.ACCOUNTING_RECOVERY_IDENTITY_FILE
+    )
+    assert manifest["reconstructed_from_completed_cache_count"] == 6
+    assert manifest["new_provider_calls_after_recovery"] == 3
+    runner.write_json(output / "run_manifest.json", manifest)
+    runner.write_sha256sums(output)
+    runner.verify_output_sha256sums(output)
+    checksum_names = {
+        line[66:]
+        for line in (output / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
+    }
+    assert runner.ACCOUNTING_RECOVERY_IDENTITY_FILE in checksum_names
+
+
+def test_all_protected_prompt_profile_and_pipeline_hashes_remain_unchanged() -> None:
+    predecessor = runner.committed_source_hashes(
+        runner.ACCOUNTING_RECOVERY_PREDECESSOR_COMMIT
+    )
+    current = runner.runner_source_hashes()
+    for name in set(runner.SOURCE_PATHS) - {"runner_source_sha256"}:
+        assert current[name] == predecessor[name]
+    manifests = runner.profile_manifests()
+    runner.verify_frozen_profile_manifests(manifests)
+    assert manifests["compact"]["profile_version"] == "compact-reply-profile-v4"
+
+
+def test_recovery_orchestrator_repairs_once_then_releases_idempotently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    interrupted = synthetic_accounting_recovery_signature()
+    repaired = synthetic_accounting_recovery_signature(repaired=True)
+    output = tmp_path / "orchestrated-recovery"
+    output.mkdir(mode=0o700)
+    runner.write_jsonl(
+        output / "pipeline_results.jsonl", interrupted["results"].values()
+    )
+    runner.write_jsonl(
+        output / "pipeline_audits.jsonl", interrupted["audits"].values()
+    )
+    runner.write_jsonl(
+        output / "execution_failures.jsonl", interrupted["failures"].values()
+    )
+    target_key = (
+        runner.ACCOUNTING_RECOVERY_CANDIDATE_ID,
+        runner.ACCOUNTING_RECOVERY_VARIANT,
+    )
+    events: list[str] = []
+
+    def verified_partial(**_kwargs: Any) -> set[str]:
+        events.append("partial_verified")
+        return set()
+
+    def exact_prefix(
+        _plan: dict[str, Any],
+        results: dict[tuple[str, str], dict[str, Any]],
+    ) -> int:
+        return len(results)
+
+    def stable_snapshot(_output: Path) -> dict[str, str]:
+        return {"protected": "unchanged"}
+
+    def publish_once(
+        _args: Namespace,
+        marker_output: Path,
+        _checkout: dict[str, Any],
+    ) -> tuple[dict[str, Any], bool]:
+        marker = marker_output / runner.ACCOUNTING_RECOVERY_IDENTITY_FILE
+        created = not marker.exists()
+        if created:
+            runner.write_json(marker, synthetic_accounting_recovery_identity())
+            events.append("identity_published")
+        else:
+            events.append("identity_verified")
+        return synthetic_accounting_recovery_identity(), created
+
+    def reconstruct_once(*_args: Any, **_kwargs: Any) -> tuple[Any, Any, Any, Any]:
+        events.append("reconstructed")
+        return (
+            copy.deepcopy(repaired["results"][target_key]),
+            copy.deepcopy(repaired["audits"][target_key]),
+            copy.deepcopy(repaired["failures"][target_key]),
+            {"completed_cache_returns": 6, "http_requests": 0},
+        )
+
+    original_repaired_verifier = (
+        runner.verify_accounting_recovery_repaired_signature
+    )
+
+    def verified_repair(**kwargs: Any) -> dict[str, Any]:
+        verified = original_repaired_verifier(**kwargs)
+        events.append("repair_verified")
+        return verified
+
+    monkeypatch.setattr(runner, "verify_partial_execution_journals", verified_partial)
+    monkeypatch.setattr(runner, "verify_accounting_recovery_plan_prefix", exact_prefix)
+    monkeypatch.setattr(
+        runner, "accounting_recovery_immutable_snapshot", stable_snapshot
+    )
+    monkeypatch.setattr(
+        runner, "verify_or_publish_accounting_recovery_identity", publish_once
+    )
+    monkeypatch.setattr(
+        runner, "reconstruct_accounting_recovery_execution", reconstruct_once
+    )
+    monkeypatch.setattr(
+        runner, "verify_accounting_recovery_repaired_signature", verified_repair
+    )
+    args = Namespace(model=runner.DEFAULT_MODEL)
+    ledger = SimpleNamespace(data=interrupted["ledger_data"])
+    common = {
+        "args": args,
+        "pack_data": {"pack_sha256": "f" * 64},
+        "manifests": {},
+        "repository": SimpleNamespace(),
+        "output": output,
+        "checkout": {},
+        "metadata": {},
+        "ledger": ledger,
+        "plan": {},
+        "cases": {},
+        "receipts": interrupted["receipts"],
+    }
+    first = runner.apply_or_verify_accounting_recovery(
+        **common,
+        result_rows=interrupted["results"],
+        audit_rows=interrupted["audits"],
+        failure_rows=interrupted["failures"],
+    )
+    events.append("remaining_released")
+    journal_bytes = {
+        name: (output / name).read_bytes()
+        for name in (
+            "pipeline_results.jsonl",
+            "pipeline_audits.jsonl",
+            "execution_failures.jsonl",
+        )
+    }
+    second = runner.apply_or_verify_accounting_recovery(
+        **common,
+        result_rows=first[0],
+        audit_rows=first[1],
+        failure_rows=first[2],
+    )
+    assert [len(first[0]), len(first[1]), len(first[2])] == [80, 80, 10]
+    assert [len(second[0]), len(second[1]), len(second[2])] == [80, 80, 10]
+    assert events.count("reconstructed") == 1
+    assert events.count("identity_published") == 1
+    assert events.count("identity_verified") == 1
+    assert events.index("identity_published") < events.index("reconstructed")
+    assert events.index("reconstructed") < events.index("repair_verified")
+    assert events.index("repair_verified") < events.index("remaining_released")
+    assert journal_bytes == {
+        name: (output / name).read_bytes() for name in journal_bytes
+    }
