@@ -26,11 +26,11 @@ FROZEN_REPLY_STRATEGY_SHA256 = (
     "798f0b965766827b5f2325bd167c9ebc9e7502841b3ebe7d8eeadf634831e961"
 )
 CURRENT_PROFILE_VERSION = "current-production-profile-v1"
-COMPACT_PROFILE_VERSION = "compact-reply-profile-v3"
+COMPACT_PROFILE_VERSION = "compact-reply-profile-v4"
 
 COMPACT_PROMPT_VERSIONS = MappingProxyType({
     "PROPOSER_PROMPT_VERSION": "compact-proposer-v1",
-    "REVIEWER_PROMPT_VERSION": "compact-reviewer-v3",
+    "REVIEWER_PROMPT_VERSION": "compact-reviewer-v4",
     "NO_REPLY_REVIEW_PROMPT_VERSION": "compact-no-reply-review-v1",
     "CLAIM_AUDITOR_PROMPT_VERSION": "compact-claim-auditor-v1",
 })
@@ -349,6 +349,27 @@ def _compact_reviewer_prompts(
         "mode": proposer["mode"],
         "tone": proposer["tone"],
         "proposed_reply": proposer["proposed_reply"],
+        "reviewer_output_contract": {
+            "required_sentence_texts_verbatim": reply_strategy.split_reply_sentences(
+                proposer["proposed_reply"]
+            ),
+            "sentence_assessments_rule": (
+                "Exactly one sentence_assessment for each required sentence, "
+                "preserving the supplied sentence text and order."
+            ),
+            "sentence_factual_claims_rule": (
+                "Each sentence factual_claims list must include every externally "
+                "checkable clause visible in that sentence, verbatim and in "
+                "reading order, whether supported or unsupported."
+            ),
+            "actual_factual_claims_rule": (
+                "Exact ordered concatenation of every "
+                "sentence_assessment.factual_claims list, preserving unsupported "
+                "claims and duplicate claim text."
+            ),
+            "unsupported_claims_remain_in_actual_factual_claims": True,
+            "evidence_must_not_filter_visible_claim_inventory": True,
+        },
         "proposer_direct_factual_question_present": proposer[
             "direct_factual_question_present"
         ],

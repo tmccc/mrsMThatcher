@@ -11,20 +11,29 @@ import reply_strategy
 from tools import reply_prompt_profiles as profiles
 
 
-COMPACT_PROMPT_SHA256_AT_57150B2 = {
+COMPACT_PROMPT_SHA256_AT_A465817 = {
     "proposer": "922aff370f775ff9c18e2e7a445600519f14bfba8610ee6db99f9daf99e0f8da",
-    "reviewer": "d5f7eca41cdfb0d5f8047dc896d1953ea80e415268434997f8b42d417693d80c",
+    "reviewer": "36c0577d9b0ee8c536ea638591c9ce1a0e052a9e482f80aedc16b489b3cad089",
     "no_reply_review": "2b6677ed5766676acde2c9010ba04feda57b077e02daaabb103a319921643b67",
     "claim_auditor": "5a0ccdd28239b6eb5808870cfa6c6fe2cee0c32342f9243a9e1c8ec057ac05fe",
 }
-COMPACT_REVIEWER_V3_SHA256 = (
-    "36c0577d9b0ee8c536ea638591c9ce1a0e052a9e482f80aedc16b489b3cad089"
+COMPACT_PROFILE_MANIFEST_SHA256_AT_A465817 = (
+    "e37f4cb4f5abf6e44e95aea77cca36e486168c596480855e84633a65ec66ea0a"
 )
-CURRENT_PROMPT_SHA256_AT_57150B2 = {
+CURRENT_PROMPT_SHA256_AT_A465817 = {
     "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
     "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e",
     "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
     "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
+}
+CURRENT_PROFILE_MANIFEST_SHA256_AT_A465817 = (
+    "edd2985d37c690c02556c518dd6e92ad39db8e379267a61b90ddb9d4650368f8"
+)
+CURRENT_PROMPT_VERSIONS_AT_A465817 = {
+    "PROPOSER_PROMPT_VERSION": "ai-first-proposer-v15",
+    "REVIEWER_PROMPT_VERSION": "independent-reply-reviewer-v13",
+    "NO_REPLY_REVIEW_PROMPT_VERSION": "independent-no-reply-review-v1",
+    "CLAIM_AUDITOR_PROMPT_VERSION": "claim-inventory-auditor-v5",
 }
 
 
@@ -59,6 +68,30 @@ def proposer() -> dict[str, object]:
 
 def prompt_state() -> dict[str, object]:
     return {name: getattr(reply_strategy, name) for name in profiles.PATCHED_NAMES}
+
+
+def expected_reviewer_output_contract(proposed_reply: str) -> dict[str, object]:
+    return {
+        "required_sentence_texts_verbatim": reply_strategy.split_reply_sentences(
+            proposed_reply
+        ),
+        "sentence_assessments_rule": (
+            "Exactly one sentence_assessment for each required sentence, "
+            "preserving the supplied sentence text and order."
+        ),
+        "sentence_factual_claims_rule": (
+            "Each sentence factual_claims list must include every externally "
+            "checkable clause visible in that sentence, verbatim and in "
+            "reading order, whether supported or unsupported."
+        ),
+        "actual_factual_claims_rule": (
+            "Exact ordered concatenation of every "
+            "sentence_assessment.factual_claims list, preserving unsupported "
+            "claims and duplicate claim text."
+        ),
+        "unsupported_claims_remain_in_actual_factual_claims": True,
+        "evidence_must_not_filter_visible_claim_inventory": True,
+    }
 
 
 def valid_reviewer_document(
@@ -117,15 +150,18 @@ def test_current_activation_makes_no_function_or_constant_change() -> None:
     assert prompt_state() == before
 
 
-def test_current_profile_functions_and_hashes_match_57150b2() -> None:
+def test_current_profile_functions_versions_and_hashes_match_a465817() -> None:
     assert all(
         getattr(reply_strategy, name) is function
         for name, function in profiles.production_prompt_functions().items()
     )
     manifest = profiles.profile_manifest("current")
+    assert manifest["profile_version"] == "current-production-profile-v1"
+    assert manifest["prompt_version_constants"] == CURRENT_PROMPT_VERSIONS_AT_A465817
     assert {
         name: row["sha256"] for name, row in manifest["prompts"].items()
-    } == CURRENT_PROMPT_SHA256_AT_57150B2
+    } == CURRENT_PROMPT_SHA256_AT_A465817
+    assert manifest["manifest_sha256"] == CURRENT_PROFILE_MANIFEST_SHA256_AT_A465817
 
 
 def test_compact_activation_patches_only_permitted_functions_and_constants() -> None:
@@ -174,32 +210,91 @@ def test_compact_proposer_word_cap() -> None:
     assert row["word_count"] <= 500
 
 
-def test_compact_v3_changes_only_the_final_reviewer_prompt_from_57150b2() -> None:
+def test_compact_v4_changes_only_profile_and_reviewer_version_metadata() -> None:
     manifest = profiles.profile_manifest("compact")
-    current_hashes = {
-        name: row["sha256"] for name, row in manifest["prompts"].items()
-    }
-    changed = {
-        name
-        for name, old_hash in COMPACT_PROMPT_SHA256_AT_57150B2.items()
-        if current_hashes[name] != old_hash
-    }
-    assert manifest["profile_version"] == "compact-reply-profile-v3"
+    assert manifest["profile_version"] == "compact-reply-profile-v4"
     assert manifest["prompt_version_constants"] == {
         "PROPOSER_PROMPT_VERSION": "compact-proposer-v1",
-        "REVIEWER_PROMPT_VERSION": "compact-reviewer-v3",
+        "REVIEWER_PROMPT_VERSION": "compact-reviewer-v4",
         "NO_REPLY_REVIEW_PROMPT_VERSION": "compact-no-reply-review-v1",
         "CLAIM_AUDITOR_PROMPT_VERSION": "compact-claim-auditor-v1",
     }
-    assert changed == {"reviewer"}
-    assert current_hashes["reviewer"] == COMPACT_REVIEWER_V3_SHA256
-    assert current_hashes["proposer"] == COMPACT_PROMPT_SHA256_AT_57150B2["proposer"]
-    assert current_hashes["no_reply_review"] == COMPACT_PROMPT_SHA256_AT_57150B2[
-        "no_reply_review"
+    assert manifest["manifest_sha256"] != COMPACT_PROFILE_MANIFEST_SHA256_AT_A465817
+
+
+def test_all_compact_system_prompts_are_byte_identical_to_a465817() -> None:
+    assert {
+        name: profiles.sha256_text(prompt)
+        for name, prompt in profiles.COMPACT_PROMPTS.items()
+    } == COMPACT_PROMPT_SHA256_AT_A465817
+
+
+def test_compact_reviewer_user_payload_has_exact_output_contract() -> None:
+    draft = proposer()
+    proposed_reply = "First “quoted” clause? Second clause — exactly!"
+    draft["proposed_reply"] = proposed_reply
+    with profiles.activate_profile("compact"):
+        _, reviewer_user = reply_strategy._reviewer_prompts(
+            context(), draft, [{"verdict": "insufficient"}], None
+        )
+    payload = json.loads(reviewer_user)
+    contract = payload["reviewer_output_contract"]
+    assert contract == expected_reviewer_output_contract(proposed_reply)
+    assert contract["required_sentence_texts_verbatim"] == [
+        "First “quoted” clause?",
+        "Second clause — exactly!",
     ]
-    assert current_hashes["claim_auditor"] == COMPACT_PROMPT_SHA256_AT_57150B2[
-        "claim_auditor"
-    ]
+    assert contract["unsupported_claims_remain_in_actual_factual_claims"] is True
+    assert contract["evidence_must_not_filter_visible_claim_inventory"] is True
+    assert contract["actual_factual_claims_rule"] == (
+        "Exact ordered concatenation of every "
+        "sentence_assessment.factual_claims list, preserving unsupported "
+        "claims and duplicate claim text."
+    )
+    assert set(contract) == {
+        "required_sentence_texts_verbatim",
+        "sentence_assessments_rule",
+        "sentence_factual_claims_rule",
+        "actual_factual_claims_rule",
+        "unsupported_claims_remain_in_actual_factual_claims",
+        "evidence_must_not_filter_visible_claim_inventory",
+    }
+    assert {
+        "historical_output",
+        "candidate_stratum",
+        "calibration_metadata",
+    }.isdisjoint(payload)
+
+
+def test_compact_initial_and_revision_reviewers_receive_same_output_contract() -> None:
+    initial_proposer = proposer()
+    initial_proposer["proposed_reply"] = "Initial first sentence. Initial second sentence."
+    revision_proposer = proposer()
+    revision_proposer["proposed_reply"] = "Revised first sentence. Revised second sentence."
+    with profiles.activate_profile("compact"):
+        _, initial_user = reply_strategy._reviewer_prompts(
+            context(), initial_proposer, [], None
+        )
+        _, revision_user = reply_strategy._reviewer_prompts(
+            context(), revision_proposer, [], None
+        )
+    initial_contract = json.loads(initial_user)["reviewer_output_contract"]
+    revision_contract = json.loads(revision_user)["reviewer_output_contract"]
+    assert initial_contract == expected_reviewer_output_contract(
+        initial_proposer["proposed_reply"]
+    )
+    assert revision_contract == expected_reviewer_output_contract(
+        revision_proposer["proposed_reply"]
+    )
+    assert {
+        key: value
+        for key, value in initial_contract.items()
+        if key != "required_sentence_texts_verbatim"
+    } == {
+        key: value
+        for key, value in revision_contract.items()
+        if key != "required_sentence_texts_verbatim"
+    }
 
 
 def test_compact_final_reviewer_word_cap() -> None:
@@ -337,13 +432,69 @@ def test_production_reviewer_rejects_factual_sentence_without_specific_world_cla
         )
 
 
-def test_production_reviewer_accepts_applicable_specific_world_claim_flag() -> None:
+def test_production_reviewer_accepts_exact_flattened_claim_inventory() -> None:
     document = valid_reviewer_document()
     assert reply_strategy.validate_reviewer(
         document,
         maximum_claims=8,
         proposed_reply="The council opened the library.",
     ) == document
+
+
+def test_production_reviewer_preserves_claim_order_across_two_sentences() -> None:
+    first_claim = "The council opened the library."
+    second_claim = "The trust restored the roof."
+    document = valid_reviewer_document()
+    first_assessment = document["sentence_assessments"][0]
+    first_assessment["sentence_text"] = first_claim
+    first_assessment["factual_claims"] = [first_claim]
+    second_assessment = copy.deepcopy(first_assessment)
+    second_assessment["sentence_text"] = second_claim
+    second_assessment["factual_claims"] = [second_claim]
+    document["sentence_assessments"] = [first_assessment, second_assessment]
+    document["actual_factual_claims"] = [first_claim, second_claim]
+    proposed_reply = f"{first_claim} {second_claim}"
+    assert reply_strategy.validate_reviewer(
+        document,
+        maximum_claims=8,
+        proposed_reply=proposed_reply,
+    ) == document
+    out_of_order = copy.deepcopy(document)
+    out_of_order["actual_factual_claims"] = [second_claim, first_claim]
+    with pytest.raises(
+        reply_strategy.NonRetryableReviewerResponseError,
+        match="reviewer sentence claim inventory is incomplete or out of order",
+    ):
+        reply_strategy.validate_reviewer(
+            out_of_order,
+            maximum_claims=8,
+            proposed_reply=proposed_reply,
+        )
+
+
+def test_production_reviewer_retains_duplicate_claim_text_across_sentences() -> None:
+    claim = "The council opened the library."
+    document = valid_reviewer_document()
+    assessment = document["sentence_assessments"][0]
+    document["sentence_assessments"] = [assessment, copy.deepcopy(assessment)]
+    document["actual_factual_claims"] = [claim, claim]
+    proposed_reply = f"{claim} {claim}"
+    assert reply_strategy.validate_reviewer(
+        document,
+        maximum_claims=8,
+        proposed_reply=proposed_reply,
+    ) == document
+    deduplicated = copy.deepcopy(document)
+    deduplicated["actual_factual_claims"] = [claim]
+    with pytest.raises(
+        reply_strategy.NonRetryableReviewerResponseError,
+        match="reviewer sentence claim inventory is incomplete or out of order",
+    ):
+        reply_strategy.validate_reviewer(
+            deduplicated,
+            maximum_claims=8,
+            proposed_reply=proposed_reply,
+        )
 
 
 def test_production_reviewer_accepts_purely_non_factual_courtesy_sentence() -> None:
@@ -420,12 +571,13 @@ def test_compact_no_reply_recent_replies_do_not_leak_between_cases() -> None:
     assert json.loads(empty_user)["recent_account_replies_for_repetition_check"] == []
 
 
-def test_current_reviewer_receives_no_additional_recent_reply_field() -> None:
+def test_current_reviewer_receives_no_compact_payload_fields() -> None:
     with profiles.activate_profile("current", recent_account_replies=["must-not-appear"]):
         _, reviewer_user = reply_strategy._reviewer_prompts(context(), proposer(), [], None)
         _, no_reply_user = reply_strategy._no_reply_review_prompts(context(), proposer())
     reviewer_payload = json.loads(reviewer_user)
     no_reply_payload = json.loads(no_reply_user)
+    assert "reviewer_output_contract" not in reviewer_payload
     assert "recent_account_replies_for_style_check" not in reviewer_payload
     assert "recent_account_replies_for_repetition_check" not in no_reply_payload
     assert "must-not-appear" not in reviewer_user
