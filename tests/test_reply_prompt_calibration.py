@@ -28,6 +28,9 @@ SYNTHETIC_RUNNER_COMMIT = "a" * 40
 SYNTHETIC_RECOVERY_CANDIDATE_ID = (
     "synthetic-factual_or_historical_question-1"
 )
+SYNTHETIC_EXCLUDED_CANDIDATE_ID = (
+    "synthetic-civil_challenge_or_disagreement-1"
+)
 SYNTHETIC_HISTORY_SOURCE_IDENTITY = "synthetic-snapshot-selected-00"
 SYNTHETIC_HISTORY_TIMESTAMP = "2026-08-10T12:10:00Z"
 SYNTHETIC_RECOVERED_THREAD_ID = "synthetic-recovered-thread"
@@ -260,9 +263,11 @@ def successful_response() -> FakeResponse:
     })
 
 
-def transport_arguments(user_prompt: str = "user") -> dict[str, Any]:
+def transport_arguments(
+    user_prompt: str = "user", *, stage: str = "proposer"
+) -> dict[str, Any]:
     return {
-        "stage": "proposer",
+        "stage": stage,
         "model": "grok-4.3",
         "system_prompt": "system",
         "user_prompt": user_prompt,
@@ -308,6 +313,7 @@ def install_synthetic_execute(
     *,
     status: str = "approved",
     use_transport: bool = True,
+    outcome_statuses: dict[tuple[str, str], str] | None = None,
 ) -> dict[str, int]:
     counters = {"metadata": 0, "post": 0, "pipeline": 0}
     hashes = runner.runner_source_hashes()
@@ -345,18 +351,41 @@ def install_synthetic_execute(
 
     def pipeline(**kwargs: Any) -> SimpleNamespace:
         counters["pipeline"] += 1
+        execution_identity = getattr(kwargs["transport"], "identity", {})
+        execution_key = (
+            execution_identity.get("candidate_id"),
+            execution_identity.get("variant"),
+        )
+        outcome_status = (outcome_statuses or {}).get(execution_key, status)
+        model_stages = (
+            [
+                "proposer",
+                "reviewer",
+                "revision_proposer",
+                "revision_claim_auditor",
+                "revision_reviewer",
+            ]
+            if outcome_status == "operational_failure"
+            else ["proposer"]
+        )
         if use_transport:
-            assert json.loads(kwargs["transport"](**transport_arguments())) == {"ok": True}
-        reply = SyntheticReply() if status == "approved" else None
+            for stage in model_stages:
+                assert json.loads(
+                    kwargs["transport"](**transport_arguments(stage=stage))
+                ) == {"ok": True}
+        reply = SyntheticReply() if outcome_status == "approved" else None
         return SimpleNamespace(
-            status=status,
-            reason=f"synthetic-{status}",
+            status=outcome_status,
+            reason=f"synthetic-{outcome_status}",
             reply=reply,
-            model_call_count=1 if use_transport else 0,
-            revision_count=0,
+            model_call_count=len(model_stages) if use_transport else 0,
+            revision_count=1 if outcome_status == "operational_failure" else 0,
             audit=(
                 {"stage": "quotation_resolution", "status": "not_resolved"},
-                {"stage": "proposer", "status": "completed"},
+                *(
+                    {"stage": stage, "status": "completed"}
+                    for stage in model_stages
+                ),
             ),
         )
 
@@ -629,6 +658,42 @@ def holdout_validation(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="module")
+def excluded_holdout_validation(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Path:
+    output = tmp_path_factory.mktemp("reply-excluded-holdout-validation") / "output"
+    patcher = pytest.MonkeyPatch()
+
+    def forbidden_call(*_args: Any, **_kwargs: Any) -> Any:
+        pytest.fail("excluded holdout validate-only must perform no calls")
+
+    class ForbiddenTransport:
+        def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+            pytest.fail("excluded validate-only must not instantiate paid transport")
+
+    patcher.setattr(pilot.requests, "get", forbidden_call)
+    patcher.setattr(pilot.requests, "post", forbidden_call)
+    patcher.setattr(pilot, "PilotTransport", ForbiddenTransport)
+    patcher.setattr(
+        runner.reply_strategy, "run_reply_pipeline", forbidden_call
+    )
+    try:
+        runner.run(
+            cli_args(
+                output,
+                "--case-set",
+                "holdout",
+                "--exclude-from-blind-quality-candidate",
+                SYNTHETIC_EXCLUDED_CANDIDATE_ID,
+            ),
+            environ={},
+        )
+    finally:
+        patcher.undo()
+    return output
+
+
+@pytest.fixture(scope="module")
 def recovered_holdout_validation(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> dict[str, Any]:
@@ -715,6 +780,87 @@ def completed_execute_output(tmp_path_factory: pytest.TempPathFactory) -> Path:
         patcher.undo()
     assert counters == {"metadata": 1, "post": 12, "pipeline": 12}
     return output
+
+
+def paid_holdout_cli_args(
+    output: Path,
+    clearance: Path,
+    pre_exposed_candidate_id: str,
+    *extra: str,
+) -> Namespace:
+    return paid_cli_args(
+        output,
+        "--case-set",
+        "holdout",
+        "--context-clearance",
+        str(clearance),
+        "--continue-on-operational-failure",
+        "--exclude-from-blind-quality-candidate",
+        pre_exposed_candidate_id,
+        *extra,
+    )
+
+
+@pytest.fixture(scope="module")
+def completed_holdout_operational_output(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
+    root = tmp_path_factory.mktemp("reply-holdout-operational-execute")
+    output = root / "completed"
+    pack_data = fresh_holdout_pack_data()
+    context_artifacts = runner.build_holdout_context_artifacts(pack_data)
+    clearance_template = root / "clearance-template.csv"
+    clearance_template.write_text(
+        context_artifacts["clearance_template_text"], encoding="utf-8"
+    )
+    clearance = all_ready_clearance(
+        clearance_template, root / "all-ready-clearance.csv"
+    )
+    plan = runner.build_execution_plan(
+        pack_data,
+        runner.profile_manifests(),
+        runner.DEFAULT_BLIND_SEED,
+    )
+    execution_keys = [
+        (row["candidate_id"], row["variant"]) for row in plan["executions"]
+    ]
+    failure_key = execution_keys[0]
+    no_reply_key = next(
+        key for key in reversed(execution_keys) if key[0] != failure_key[0]
+    )
+    pre_exposed_candidate_id = next(
+        case["candidate_id"]
+        for case in pack_data["cases"]
+        if case["candidate_id"] not in {failure_key[0], no_reply_key[0]}
+    )
+    outcome_statuses = {
+        failure_key: "operational_failure",
+        no_reply_key: "no_reply",
+    }
+    patcher = pytest.MonkeyPatch()
+    counters = install_synthetic_execute(
+        patcher,
+        output,
+        outcome_statuses=outcome_statuses,
+    )
+    try:
+        runner.run(
+            paid_holdout_cli_args(
+                output, clearance, pre_exposed_candidate_id
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    finally:
+        patcher.undo()
+    assert counters == {"metadata": 1, "post": 88, "pipeline": 84}
+    return {
+        "output": output,
+        "clearance": clearance,
+        "pre_exposed_candidate_id": pre_exposed_candidate_id,
+        "failure_key": failure_key,
+        "no_reply_key": no_reply_key,
+        "outcome_statuses": outcome_statuses,
+    }
 
 
 def copy_as_incomplete(source: Path, destination: Path) -> Path:
@@ -821,6 +967,70 @@ def test_recovery_candidate_requires_history_corpus(tmp_path: Path) -> None:
         match="--recover-context-candidate requires --history-corpus",
     ):
         runner.validate_arguments(args, {})
+
+
+def test_continue_on_operational_failure_is_refused_in_calibration_mode(
+    tmp_path: Path,
+) -> None:
+    args = cli_args(
+        tmp_path / "calibration-continuation",
+        "--continue-on-operational-failure",
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="continue-on-operational-failure.*case-set holdout",
+    ):
+        runner.validate_arguments(args, {})
+
+
+def test_continue_on_operational_failure_requires_execute_mode(
+    tmp_path: Path,
+) -> None:
+    args = cli_args(
+        tmp_path / "validate-continuation",
+        "--case-set",
+        "holdout",
+        "--continue-on-operational-failure",
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="continue-on-operational-failure.*--execute",
+    ):
+        runner.validate_arguments(args, {})
+
+
+def test_blind_quality_exclusion_is_refused_outside_holdout(
+    tmp_path: Path,
+) -> None:
+    args = cli_args(
+        tmp_path / "calibration-exclusion",
+        "--exclude-from-blind-quality-candidate",
+        SYNTHETIC_EXCLUDED_CANDIDATE_ID,
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="exclude-from-blind-quality-candidate.*case-set holdout",
+    ):
+        runner.validate_arguments(args, {})
+
+
+def test_unknown_blind_quality_exclusion_is_refused(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "unknown-exclusion"
+    args = cli_args(
+        output,
+        "--case-set",
+        "holdout",
+        "--exclude-from-blind-quality-candidate",
+        "synthetic-not-selected",
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="not a selected holdout candidate",
+    ):
+        runner.run(args, environ={})
+    assert not output.exists()
 
 
 def test_history_schema_mismatch_is_refused(
@@ -1447,7 +1657,7 @@ def test_recovery_provenance_jsonl_is_exact(
     source_record = recovered_holdout_validation["record"]
     history = recovered_holdout_validation["history"]
     assert row["schema_version"] == 1
-    assert row["runner_version"] == "reply-prompt-calibration-v4"
+    assert row["runner_version"] == "reply-prompt-calibration-v5"
     assert row["candidate_id"] == SYNTHETIC_RECOVERY_CANDIDATE_ID
     assert row["recovery_status"] == "exact_logged_pipeline_context"
     assert row["recovery_confidence"] == "exact"
@@ -2498,6 +2708,109 @@ def test_holdout_validate_output_is_private_and_checksummed(
     assert runner.HOLDOUT_CONTEXT_FILES <= checksum_names
 
 
+def test_excluded_candidate_remains_in_holdout_execution_plan(
+    excluded_holdout_validation: Path,
+) -> None:
+    plan = json.loads(
+        (excluded_holdout_validation / "execution_plan.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert plan["planned_pipeline_executions"] == 84
+    assert sum(
+        row["candidate_id"] == SYNTHETIC_EXCLUDED_CANDIDATE_ID
+        for row in plan["executions"]
+    ) == 2
+    assert plan["selected_candidate_ids_sha256"] == runner.candidate_ids_sha256(
+        case["candidate_id"] for case in fresh_holdout_pack_data()["cases"]
+    )
+    assert plan["excluded_from_blind_quality_candidate_ids"] == [
+        SYNTHETIC_EXCLUDED_CANDIDATE_ID
+    ]
+    assert plan["pre_exposed_candidate_count"] == 1
+    assert plan["initial_blind_quality_candidate_count"] == 41
+
+
+def test_excluded_candidate_is_omitted_from_blind_quality_review(
+    excluded_holdout_validation: Path,
+) -> None:
+    markdown = (excluded_holdout_validation / "blind_review.md").read_text(
+        encoding="utf-8"
+    )
+    with (excluded_holdout_validation / "blind_review.csv").open(
+        "r", encoding="utf-8", newline=""
+    ) as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+    assert SYNTHETIC_EXCLUDED_CANDIDATE_ID not in markdown
+    assert all(
+        row["candidate_id"] != SYNTHETIC_EXCLUDED_CANDIDATE_ID for row in rows
+    )
+    assert len(rows) == 41 * 3
+    assert "response_status" in (reader.fieldnames or [])
+    assert {row["response_status"] for row in rows} == {""}
+    assert (
+        "Primary quality set excludes pre-exposed candidates and candidates with "
+        "operational pipeline failures. Reliability outcomes are reported separately."
+        in markdown
+    )
+
+
+def test_validate_only_reliability_outputs_are_aggregate_and_checksummed(
+    excluded_holdout_validation: Path,
+) -> None:
+    summary_path = excluded_holdout_validation / "holdout_reliability_summary.json"
+    detail_path = excluded_holdout_validation / "holdout_reliability_failures.jsonl"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert set(summary) == runner.RELIABILITY_SUMMARY_FIELDS
+    assert summary == {
+        "selected_holdout_candidates": 42,
+        "planned_pipeline_executions": 84,
+        "completed_pipeline_executions": 0,
+        "approved_outcomes": 0,
+        "no_reply_outcomes": 0,
+        "operational_failure_outcomes": 0,
+        "candidates_with_operational_failure": 0,
+        "pre_exposed_candidate_count": 1,
+        "blind_quality_candidate_count": 41,
+    }
+    assert detail_path.read_bytes() == b""
+    manifest = json.loads(
+        (excluded_holdout_validation / "run_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert manifest["continue_on_operational_failure"] is False
+    assert manifest["pre_exposed_candidate_count"] == 1
+    assert manifest["operational_failure_count"] == 0
+    assert manifest["operational_failure_candidate_count"] == 0
+    assert manifest["blind_quality_candidate_count"] == 41
+    assert manifest["reliability_summary_sha256"] == hashlib.sha256(
+        summary_path.read_bytes()
+    ).hexdigest()
+    checksum_names = {
+        line[66:]
+        for line in (excluded_holdout_validation / "SHA256SUMS").read_text(
+            encoding="utf-8"
+        ).splitlines()
+    }
+    assert runner.HOLDOUT_RELIABILITY_FILES <= checksum_names
+    runner.verify_output_sha256sums(excluded_holdout_validation)
+
+
+def test_excluded_holdout_validate_only_performs_zero_calls(
+    excluded_holdout_validation: Path,
+) -> None:
+    report = json.loads(
+        (excluded_holdout_validation / "validation_report.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert report["model_calls_performed"] == 0
+    assert report["http_requests_performed"] == 0
+    assert report["blind_quality_candidate_count"] == 41
+
+
 def test_validate_only_performs_zero_http_requests(validation_pair: tuple[Path, Path]) -> None:
     report = json.loads((validation_pair[0] / "validation_report.json").read_text(encoding="utf-8"))
     assert report["http_requests_performed"] == 0
@@ -2741,8 +3054,11 @@ def test_blind_review_contains_no_variant_labels() -> None:
 
 
 def test_operational_failure_is_never_rendered_as_no_reply() -> None:
-    with pytest.raises(runner.CalibrationError, match="invalid calibration outcome"):
-        runner.render_outcome({"status": "operational_failure", "public_reply": None})
+    rendered = runner.render_outcome({
+        "status": "operational_failure", "public_reply": None
+    })
+    assert rendered == "PIPELINE FAILURE"
+    assert rendered != "NO REPLY"
 
 
 def test_approved_reply_is_rendered_as_its_text() -> None:
@@ -3225,6 +3541,23 @@ def test_missing_empty_ledger_is_recreated_only_before_provider_or_execution_evi
     assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
 
 
+def test_holdout_reliability_file_is_execution_evidence_for_missing_ledger(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "reliability-evidence"
+    output.mkdir()
+    runner.write_json(
+        output / "holdout_reliability_summary.json",
+        {"completed_pipeline_executions": 1},
+    )
+    assert runner.execution_evidence_exists(output) is True
+    with pytest.raises(
+        runner.CalibrationError,
+        match="missing cost ledger cannot be recreated after provider or execution evidence",
+    ):
+        runner.open_resume_ledger(output, model="grok-4.3", hard_limit_usd=1)
+
+
 def test_resume_with_blocked_ledger_is_refused(
     completed_execute_output: Path,
     tmp_path: Path,
@@ -3588,6 +3921,559 @@ def test_operational_failure_prevents_blind_review_generation(
     assert len(failures) == 1
     assert failures[0]["status"] == "operational_failure"
     assert not any((output / name).exists() for name in runner.FINAL_OUTPUT_FILES)
+
+
+def test_holdout_operational_failure_without_continuation_remains_fail_fast(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "holdout-fail-fast"
+    data = completed_holdout_operational_output
+    counters = install_synthetic_execute(
+        monkeypatch,
+        output,
+        outcome_statuses=data["outcome_statuses"],
+    )
+    args = paid_cli_args(
+        output,
+        "--case-set",
+        "holdout",
+        "--context-clearance",
+        str(data["clearance"]),
+    )
+    with pytest.raises(runner.CalibrationError, match="non-calibration status"):
+        runner.run(args, environ={"XAI_API_KEY": SYNTHETIC_API_KEY})
+    assert counters == {"metadata": 1, "post": 5, "pipeline": 1}
+    assert runner.read_jsonl(output / "pipeline_results.jsonl") == []
+    assert runner.read_jsonl(output / "pipeline_audits.jsonl") == []
+    failures = runner.read_jsonl(output / "execution_failures.jsonl")
+    assert len(failures) == 1
+    assert failures[0]["status"] == "operational_failure"
+
+
+@pytest.mark.parametrize("status", ["disabled", "unexpected_status"])
+def test_holdout_continuation_does_not_continue_unknown_pipeline_statuses(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+) -> None:
+    data = completed_holdout_operational_output
+    output = tmp_path / f"holdout-{status}"
+    outcomes = {data["failure_key"]: status}
+    counters = install_synthetic_execute(
+        monkeypatch, output, outcome_statuses=outcomes
+    )
+    with pytest.raises(runner.CalibrationError, match="non-calibration status"):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 1, "post": 1, "pipeline": 1}
+    assert runner.read_jsonl(output / "pipeline_results.jsonl") == []
+    assert runner.read_jsonl(output / "pipeline_audits.jsonl") == []
+    assert runner.read_jsonl(output / "execution_failures.jsonl")[0][
+        "status"
+    ] == status
+
+
+def test_holdout_continuation_refuses_unbound_failure_call_inventory(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = completed_holdout_operational_output
+    output = tmp_path / "holdout-unbound-failure"
+    counters = install_synthetic_execute(
+        monkeypatch,
+        output,
+        outcome_statuses={data["failure_key"]: "operational_failure"},
+        use_transport=False,
+    )
+    with pytest.raises(runner.CalibrationError, match="call inventory is empty"):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 1, "post": 0, "pipeline": 1}
+    assert runner.read_jsonl(output / "pipeline_results.jsonl") == []
+    assert runner.read_jsonl(output / "pipeline_audits.jsonl") == []
+    assert not (output / "execution_failures.jsonl").exists()
+
+
+def test_holdout_continuation_records_failure_and_completes_all_executions(
+    completed_holdout_operational_output: dict[str, Any],
+) -> None:
+    data = completed_holdout_operational_output
+    output = data["output"]
+    results = runner.read_jsonl(output / "pipeline_results.jsonl")
+    audits = runner.read_jsonl(output / "pipeline_audits.jsonl")
+    failures = runner.read_jsonl(output / "execution_failures.jsonl")
+    assert len(results) == len(audits) == 84
+    assert len({(row["candidate_id"], row["variant"]) for row in results}) == 84
+    assert len({(row["candidate_id"], row["variant"]) for row in audits}) == 84
+    assert Counter(row["status"] for row in results) == {
+        "approved": 82,
+        "no_reply": 1,
+        "operational_failure": 1,
+    }
+    assert len(failures) == 1
+    failure_result = next(
+        row for row in results if row["status"] == "operational_failure"
+    )
+    assert (failure_result["candidate_id"], failure_result["variant"]) == data[
+        "failure_key"
+    ]
+    assert failure_result["public_reply"] is None
+    assert failure_result["pipeline_metadata"] is None
+    assert results[-1]["status"] in runner.EDITORIAL_PIPELINE_STATUSES
+
+
+def test_operational_failure_result_audit_and_journal_share_exact_binding(
+    completed_holdout_operational_output: dict[str, Any],
+) -> None:
+    output = completed_holdout_operational_output["output"]
+    results = runner.index_execution_records(
+        output / "pipeline_results.jsonl", label="pipeline results"
+    )
+    audits = runner.index_execution_records(
+        output / "pipeline_audits.jsonl", label="pipeline audits"
+    )
+    failures = runner.index_execution_records(
+        output / "execution_failures.jsonl", label="execution failures"
+    )
+    key = completed_holdout_operational_output["failure_key"]
+    result = results[key]
+    audit = audits[key]
+    failure = failures[key]
+    assert result["model_call_count"] == len(result["call_inventory"]) == 5
+    assert result["revision_count"] == failure["revision_count"] == 1
+    for name in runner.CALL_BINDING_FIELDS:
+        assert result[name] == audit[name] == failure[name]
+    assert failure == runner.expected_execution_failure_row(result, audit)
+    receipts = runner.index_prompt_receipts(output / "prompt_receipts.jsonl")
+    ledger = json.loads((output / "cost_ledger.json").read_text(encoding="utf-8"))
+    operations = {
+        row["logical_call_id"]: row for row in ledger["operations"]
+    }
+    for inventory_row in result["call_inventory"]:
+        logical_call_id = inventory_row["logical_call_id"]
+        assert inventory_row["request_hash"] == receipts[logical_call_id][
+            "request_hash"
+        ] == operations[logical_call_id]["request_hash"]
+        assert inventory_row["prompt_receipt_sha256"] == runner.value_sha256(
+            receipts[logical_call_id]
+        )
+        assert inventory_row[
+            "cost_ledger_operation_sha256"
+        ] == runner.value_sha256(operations[logical_call_id])
+
+
+@pytest.mark.parametrize("changed", ["continuation", "exclusion"])
+def test_holdout_research_arguments_bind_plan_identity_manifest_and_resume(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    changed: str,
+) -> None:
+    data = completed_holdout_operational_output
+    output = data["output"]
+    plan = json.loads((output / "execution_plan.json").read_text(encoding="utf-8"))
+    identity = json.loads((output / "run_identity.json").read_text(encoding="utf-8"))
+    manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
+    exclusion_hash = runner.candidate_ids_sha256(
+        [data["pre_exposed_candidate_id"]]
+    )
+    assert plan["continue_on_operational_failure"] is True
+    assert plan["excluded_from_blind_quality_candidate_ids_sha256"] == exclusion_hash
+    assert identity["continue_on_operational_failure"] is True
+    assert identity["excluded_from_blind_quality_candidate_ids_sha256"] == exclusion_hash
+    assert manifest["continue_on_operational_failure"] is True
+    assert manifest["excluded_from_blind_quality_candidate_ids_sha256"] == exclusion_hash
+
+    copied = tmp_path / f"changed-resume-{changed}"
+    shutil.copytree(output, copied)
+    counters = install_synthetic_execute(
+        monkeypatch,
+        copied,
+        outcome_statuses=data["outcome_statuses"],
+    )
+    if changed == "continuation":
+        changed_args = paid_cli_args(
+            copied,
+            "--resume",
+            "--case-set",
+            "holdout",
+            "--context-clearance",
+            str(data["clearance"]),
+            "--exclude-from-blind-quality-candidate",
+            data["pre_exposed_candidate_id"],
+        )
+    else:
+        replacement = next(
+            row["candidate_id"]
+            for row in plan["executions"]
+            if row["candidate_id"] != data["pre_exposed_candidate_id"]
+        )
+        changed_args = paid_holdout_cli_args(
+            copied,
+            data["clearance"],
+            replacement,
+            "--resume",
+        )
+    with pytest.raises(runner.CalibrationError, match="run identity differs"):
+        runner.run(
+            changed_args, environ={"XAI_API_KEY": SYNTHETIC_API_KEY}
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_completed_operational_failure_resume_is_zero_call_and_idempotent(
+    completed_holdout_operational_output: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = completed_holdout_operational_output
+    output = data["output"]
+    journal_names = (
+        "pipeline_results.jsonl",
+        "pipeline_audits.jsonl",
+        "execution_failures.jsonl",
+        "prompt_receipts.jsonl",
+    )
+    before = {name: (output / name).read_bytes() for name in journal_names}
+    counters = install_synthetic_execute(
+        monkeypatch,
+        output,
+        outcome_statuses=data["outcome_statuses"],
+    )
+    runner.run(
+        paid_holdout_cli_args(
+            output,
+            data["clearance"],
+            data["pre_exposed_candidate_id"],
+            "--resume",
+        ),
+        environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+    )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+    assert {name: (output / name).read_bytes() for name in journal_names} == before
+
+
+def test_holdout_quality_review_omits_failure_and_pre_exposed_candidates(
+    completed_holdout_operational_output: dict[str, Any],
+) -> None:
+    data = completed_holdout_operational_output
+    output = data["output"]
+    failure_candidate_id = data["failure_key"][0]
+    with (output / "blind_review.csv").open(
+        "r", encoding="utf-8", newline=""
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+    quality_ids = {row["candidate_id"] for row in rows}
+    markdown = (output / "blind_review.md").read_text(encoding="utf-8")
+    assert failure_candidate_id not in quality_ids
+    assert data["pre_exposed_candidate_id"] not in quality_ids
+    assert failure_candidate_id not in markdown
+    assert data["pre_exposed_candidate_id"] not in markdown
+    assert "PIPELINE FAILURE" not in markdown
+    assert len(quality_ids) == 40
+    assert len(rows) == 40 * 3
+    assert {row["response_status"] for row in rows} == {"approved", "no_reply"}
+    assert all(row["response_text"] != "PIPELINE FAILURE" for row in rows)
+    unaffected = next(
+        candidate_id
+        for candidate_id in quality_ids
+        if candidate_id != data["no_reply_key"][0]
+    )
+    assert sum(row["candidate_id"] == unaffected for row in rows) == 3
+
+
+def test_holdout_manifest_and_reliability_count_statuses_separately(
+    completed_holdout_operational_output: dict[str, Any],
+) -> None:
+    output = completed_holdout_operational_output["output"]
+    manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["completed_pipeline_executions"] == 84
+    assert manifest["valid_approved_count"] == 82
+    assert manifest["valid_no_reply_count"] == 1
+    assert manifest["operational_failure_count"] == 1
+    assert manifest["operational_failure_candidate_count"] == 1
+    assert manifest["pre_exposed_candidate_count"] == 1
+    assert manifest["blind_quality_candidate_count"] == 40
+    assert (
+        manifest["valid_approved_count"] + manifest["valid_no_reply_count"]
+    ) == 83
+
+    summary_path = output / "holdout_reliability_summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert set(summary) == runner.RELIABILITY_SUMMARY_FIELDS
+    assert summary == {
+        "selected_holdout_candidates": 42,
+        "planned_pipeline_executions": 84,
+        "completed_pipeline_executions": 84,
+        "approved_outcomes": 82,
+        "no_reply_outcomes": 1,
+        "operational_failure_outcomes": 1,
+        "candidates_with_operational_failure": 1,
+        "pre_exposed_candidate_count": 1,
+        "blind_quality_candidate_count": 40,
+    }
+    assert manifest["reliability_summary_sha256"] == hashlib.sha256(
+        summary_path.read_bytes()
+    ).hexdigest()
+    details = runner.read_jsonl(output / "holdout_reliability_failures.jsonl")
+    failures = runner.read_jsonl(output / "execution_failures.jsonl")
+    assert details == failures
+    assert len(details) == 1
+    assert details[0]["call_inventory"]
+    assert details[0]["pipeline_audit_sha256"]
+    runner.verify_output_sha256sums(output)
+    checksum_names = {
+        line[66:]
+        for line in (output / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
+    }
+    assert runner.HOLDOUT_RELIABILITY_FILES <= checksum_names
+
+
+def copy_holdout_for_corrupt_resume(
+    completed: dict[str, Any], destination: Path
+) -> Path:
+    shutil.copytree(completed["output"], destination)
+    (destination / "SHA256SUMS").unlink()
+    return destination
+
+
+def test_orphan_failure_journal_is_refused(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = completed_holdout_operational_output
+    output = copy_holdout_for_corrupt_resume(data, tmp_path / "orphan-failure-row")
+    results = runner.read_jsonl(output / "pipeline_results.jsonl")
+    approved = next(row for row in results if row["status"] == "approved")
+    orphan = dict(runner.read_jsonl(output / "execution_failures.jsonl")[0])
+    orphan.update({
+        "candidate_id": approved["candidate_id"],
+        "stratum": approved["stratum"],
+        "variant": approved["variant"],
+    })
+    runner.write_jsonl(
+        output / "execution_failures.jsonl",
+        [*runner.read_jsonl(output / "execution_failures.jsonl"), orphan],
+    )
+    counters = install_synthetic_execute(
+        monkeypatch, output, outcome_statuses=data["outcome_statuses"]
+    )
+    with pytest.raises(runner.CalibrationError, match="orphan execution failure"):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+                "--resume",
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_duplicate_failure_journal_is_refused(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = completed_holdout_operational_output
+    output = copy_holdout_for_corrupt_resume(data, tmp_path / "duplicate-failure-row")
+    failures = runner.read_jsonl(output / "execution_failures.jsonl")
+    runner.write_jsonl(output / "execution_failures.jsonl", [*failures, failures[0]])
+    counters = install_synthetic_execute(
+        monkeypatch, output, outcome_statuses=data["outcome_statuses"]
+    )
+    with pytest.raises(runner.CalibrationError, match="repeats execution identity"):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+                "--resume",
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_operational_failure_result_without_failure_journal_is_refused(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = completed_holdout_operational_output
+    output = copy_holdout_for_corrupt_resume(data, tmp_path / "missing-failure-row")
+    runner.write_text(output / "execution_failures.jsonl", "")
+    counters = install_synthetic_execute(
+        monkeypatch, output, outcome_statuses=data["outcome_statuses"]
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="operational-failure result lacks an execution failure row",
+    ):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+                "--resume",
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+def test_partially_recorded_operational_failure_is_refused_without_rerun(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = completed_holdout_operational_output
+    output = copy_holdout_for_corrupt_resume(data, tmp_path / "partial-failure")
+    audits = runner.read_jsonl(output / "pipeline_audits.jsonl")
+    failure_key = data["failure_key"]
+    runner.write_jsonl(
+        output / "pipeline_audits.jsonl",
+        [
+            row
+            for row in audits
+            if (row["candidate_id"], row["variant"]) != failure_key
+        ],
+    )
+    counters = install_synthetic_execute(
+        monkeypatch, output, outcome_statuses=data["outcome_statuses"]
+    )
+    with pytest.raises(runner.CalibrationError, match="orphan execution failure row"):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+                "--resume",
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+@pytest.mark.parametrize("missing_side", ["receipt", "ledger"])
+def test_failure_calls_absent_from_receipts_or_ledger_are_refused_before_resume(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing_side: str,
+) -> None:
+    data = completed_holdout_operational_output
+    output = copy_holdout_for_corrupt_resume(
+        data, tmp_path / f"failure-{missing_side}-missing"
+    )
+    failure = runner.read_jsonl(output / "execution_failures.jsonl")[0]
+    owned = set(failure["logical_call_ids"])
+    if missing_side == "receipt":
+        runner.write_jsonl(
+            output / "prompt_receipts.jsonl",
+            [
+                row
+                for row in runner.read_jsonl(output / "prompt_receipts.jsonl")
+                if row["logical_call_id"] not in owned
+            ],
+        )
+    else:
+        ledger_path = output / "cost_ledger.json"
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        ledger["operations"] = [
+            row
+            for row in ledger["operations"]
+            if row["logical_call_id"] not in owned
+        ]
+        runner.write_json(ledger_path, ledger)
+    counters = install_synthetic_execute(
+        monkeypatch, output, outcome_statuses=data["outcome_statuses"]
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match="has no prompt receipt|has no ledger operation",
+    ):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+                "--resume",
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
+
+
+@pytest.mark.parametrize("review_format", ["csv", "markdown"])
+def test_finalisation_refuses_failure_candidate_rendered_as_no_reply(
+    completed_holdout_operational_output: dict[str, Any],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    review_format: str,
+) -> None:
+    data = completed_holdout_operational_output
+    output = tmp_path / f"failure-in-quality-{review_format}"
+    shutil.copytree(data["output"], output)
+    if review_format == "csv":
+        csv_path = output / "blind_review.csv"
+        with csv_path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            rows = list(reader)
+            fieldnames = list(reader.fieldnames or [])
+        injected = dict(rows[0])
+        injected.update({
+            "candidate_id": data["failure_key"][0],
+            "response_text": "NO REPLY",
+            "response_status": "no_reply",
+        })
+        buffer = io.StringIO(newline="")
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows([*rows, injected])
+        runner.write_text(csv_path, buffer.getvalue())
+    else:
+        markdown_path = output / "blind_review.md"
+        runner.write_text(
+            markdown_path,
+            markdown_path.read_text(encoding="utf-8")
+            + f"## {data['failure_key'][0]}\n\n### Response A\n\nNO REPLY\n",
+        )
+    runner.write_sha256sums(output)
+    counters = install_synthetic_execute(
+        monkeypatch, output, outcome_statuses=data["outcome_statuses"]
+    )
+    with pytest.raises(
+        runner.CalibrationError,
+        match=f"operational-failure candidate appears in blind_review.{review_format.replace('markdown', 'md')}",
+    ):
+        runner.run(
+            paid_holdout_cli_args(
+                output,
+                data["clearance"],
+                data["pre_exposed_candidate_id"],
+                "--resume",
+            ),
+            environ={"XAI_API_KEY": SYNTHETIC_API_KEY},
+        )
+    assert counters == {"metadata": 0, "post": 0, "pipeline": 0}
 
 
 def test_evidence_fingerprint_is_stable_and_changes_with_one_input() -> None:

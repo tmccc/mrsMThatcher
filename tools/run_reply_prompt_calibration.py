@@ -44,7 +44,7 @@ from tools.reply_prompt_profiles import (
 )
 
 
-RUNNER_VERSION = "reply-prompt-calibration-v4"
+RUNNER_VERSION = "reply-prompt-calibration-v5"
 RUN_IDENTITY_SCHEMA_VERSION = 1
 PACK_SCHEMA_VERSION = 2
 PACK_TOOL_VERSION = "reply-replay-pack-v2"
@@ -132,6 +132,10 @@ DISPOSABLE_DERIVED_FILES = (
     "SHA256SUMS",
 )
 FINAL_OUTPUT_FILES = set(DISPOSABLE_DERIVED_FILES)
+HOLDOUT_RELIABILITY_FILES = {
+    "holdout_reliability_summary.json",
+    "holdout_reliability_failures.jsonl",
+}
 DURABLE_CORE_FILES = {
     "run_identity.json",
     "provider_phase_identity.json",
@@ -174,7 +178,29 @@ MODEL_AUDIT_STAGES = {
     "reviewer",
     "revision_reviewer",
 }
-VALID_PIPELINE_STATUSES = {"approved", "no_reply"}
+EDITORIAL_PIPELINE_STATUSES = {"approved", "no_reply"}
+VALID_PIPELINE_STATUSES = {*EDITORIAL_PIPELINE_STATUSES, "operational_failure"}
+CALL_BINDING_FIELDS = (
+    "execution_identity_sha256",
+    "case_identity",
+    "model_call_count",
+    "logical_call_ids",
+    "model_stage_sequence",
+    "call_inventory",
+    "call_inventory_sha256",
+    "pipeline_audit_sha256",
+)
+RELIABILITY_SUMMARY_FIELDS = {
+    "selected_holdout_candidates",
+    "planned_pipeline_executions",
+    "completed_pipeline_executions",
+    "approved_outcomes",
+    "no_reply_outcomes",
+    "operational_failure_outcomes",
+    "candidates_with_operational_failure",
+    "pre_exposed_candidate_count",
+    "blind_quality_candidate_count",
+}
 CONTEXT_AUDIT_RULE_VERSION = "reply-holdout-context-audit-v1"
 CONTEXT_DEPENDENCY_FLAG_ORDER = (
     "short_elliptical_question",
@@ -1280,10 +1306,31 @@ def blind_assignments(
 
 
 def build_execution_plan(
-    pack_data: dict[str, Any], manifests: dict[str, dict[str, Any]], blind_seed: str
+    pack_data: dict[str, Any],
+    manifests: dict[str, dict[str, Any]],
+    blind_seed: str,
+    *,
+    continue_on_operational_failure: bool = False,
+    excluded_from_blind_quality_candidate_ids: Iterable[str] = (),
 ) -> dict[str, Any]:
     cases = pack_data["cases"]
     case_lookup = {case["candidate_id"]: case for case in cases}
+    exclusions = list(excluded_from_blind_quality_candidate_ids)
+    if any(not isinstance(candidate_id, str) or not candidate_id for candidate_id in exclusions):
+        raise CalibrationError("blind-quality exclusion candidate ID is invalid")
+    if len(exclusions) != len(set(exclusions)):
+        raise CalibrationError("blind-quality exclusion repeats a candidate ID")
+    exclusions = sorted(exclusions)
+    unknown_exclusions = sorted(set(exclusions) - set(case_lookup))
+    if unknown_exclusions:
+        raise CalibrationError(
+            "blind-quality exclusion is not a selected holdout candidate: "
+            + ", ".join(unknown_exclusions)
+        )
+    if pack_data["case_set"] != "holdout" and (
+        continue_on_operational_failure or exclusions
+    ):
+        raise CalibrationError("holdout research arguments require the holdout case set")
     order = execution_order(cases, blind_seed=blind_seed, pack_sha256=pack_data["pack_sha256"])
     rows = []
     for ordered in order:
@@ -1313,7 +1360,18 @@ def build_execution_plan(
         "executions": rows,
     }
     if pack_data["case_set"] == "holdout":
-        plan.update(context_recovery_binding(pack_data))
+        plan.update({
+            **context_recovery_binding(pack_data),
+            "continue_on_operational_failure": bool(
+                continue_on_operational_failure
+            ),
+            "excluded_from_blind_quality_candidate_ids": exclusions,
+            "excluded_from_blind_quality_candidate_ids_sha256": (
+                candidate_ids_sha256(exclusions)
+            ),
+            "pre_exposed_candidate_count": len(exclusions),
+            "initial_blind_quality_candidate_count": len(cases) - len(exclusions),
+        })
     return plan
 
 
@@ -1839,11 +1897,13 @@ def _historical_public_output(record: dict[str, Any]) -> str | None:
 
 
 def explicit_outcome(status: str, public_reply: str | None) -> dict[str, Any]:
-    """Return only one of the two outcomes permitted in a blinded review."""
+    """Return one exact research outcome without conflating failure and silence."""
     if status == "approved" and isinstance(public_reply, str) and public_reply:
         return {"status": "approved", "public_reply": public_reply}
     if status == "no_reply" and public_reply is None:
         return {"status": "no_reply", "public_reply": None}
+    if status == "operational_failure" and public_reply is None:
+        return {"status": "operational_failure", "public_reply": None}
     raise CalibrationError(f"invalid calibration outcome status: {status}")
 
 
@@ -1852,24 +1912,61 @@ def render_outcome(outcome: dict[str, Any]) -> str:
     if not isinstance(outcome, dict) or set(outcome) != {"status", "public_reply"}:
         raise CalibrationError("blind review requires an explicit valid outcome object")
     valid = explicit_outcome(outcome.get("status"), outcome.get("public_reply"))
-    return valid["public_reply"] if valid["status"] == "approved" else "NO REPLY"
+    if valid["status"] == "approved":
+        return str(valid["public_reply"])
+    if valid["status"] == "no_reply":
+        return "NO REPLY"
+    if valid["status"] == "operational_failure":
+        return "PIPELINE FAILURE"
+    raise AssertionError("explicit_outcome returned an unknown status")
 
 
 def build_blind_review(
     cases: list[dict[str, Any]],
     assignments: dict[str, dict[str, str]],
     outputs: dict[tuple[str, str], dict[str, Any]] | None,
+    *,
+    excluded_candidate_ids: Iterable[str] = (),
+    holdout_quality_review: bool = False,
 ) -> tuple[str, str]:
     """Render blinded Markdown/CSV; mappings remain exclusively in blind_key.json."""
     markdown = ["# Blinded reply prompt calibration", ""]
+    if holdout_quality_review:
+        markdown.extend([
+            (
+                "Primary quality set excludes pre-exposed candidates and candidates "
+                "with operational pipeline failures. Reliability outcomes are "
+                "reported separately."
+            ),
+            "",
+        ])
     csv_buffer = io.StringIO(newline="")
     fieldnames = [
-        "candidate_id", "final_stratum", "response_label", "response_text", *SCORING_COLUMNS
+        "candidate_id",
+        "final_stratum",
+        "response_label",
+        "response_text",
+        *(["response_status"] if holdout_quality_review else []),
+        *SCORING_COLUMNS,
     ]
     writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames, lineterminator="\n")
     writer.writeheader()
+    excluded = set(excluded_candidate_ids)
+    selected_ids = {case["candidate_id"] for case in cases}
+    if not excluded <= selected_ids:
+        raise CalibrationError("blind review exclusion is not a selected candidate")
     for case in sorted(cases, key=lambda row: row["candidate_id"]):
         candidate_id = case["candidate_id"]
+        if candidate_id in excluded:
+            continue
+        if outputs is not None and any(
+            outputs.get((candidate_id, variant), {}).get("status")
+            == "operational_failure"
+            for variant in VARIANTS
+        ):
+            raise CalibrationError(
+                "operational-failure candidate appears in blind quality review"
+            )
         context = case["context"]
         markdown.extend([
             f"## {candidate_id}",
@@ -1893,6 +1990,7 @@ def build_blind_review(
             source = assignments[candidate_id][label]
             if outputs is None:
                 rendered = ""
+                response_status = ""
             else:
                 outcome = outputs.get((candidate_id, source))
                 if outcome is None:
@@ -1900,12 +1998,22 @@ def build_blind_review(
                         f"blind review is missing outcome for {candidate_id}:{source}"
                     )
                 rendered = render_outcome(outcome)
+                response_status = str(outcome.get("status"))
+                if response_status not in EDITORIAL_PIPELINE_STATUSES:
+                    raise CalibrationError(
+                        "blind quality response status is not editorial"
+                    )
             markdown.extend([f"### {label}", "", rendered, ""])
             row = {
                 "candidate_id": candidate_id,
                 "final_stratum": case["stratum"],
                 "response_label": label,
                 "response_text": rendered,
+                **(
+                    {"response_status": response_status}
+                    if holdout_quality_review
+                    else {}
+                ),
                 **{column: "" for column in SCORING_COLUMNS},
             }
             writer.writerow(row)
@@ -1924,6 +2032,84 @@ def build_blind_review(
             "",
         ])
     return "\n".join(markdown), csv_buffer.getvalue()
+
+
+def operational_failure_candidate_ids(
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> set[str]:
+    """Return candidates whose current or compact execution failed operationally."""
+    return {
+        candidate_id
+        for (candidate_id, _variant), row in result_rows.items()
+        if row.get("status") == "operational_failure"
+    }
+
+
+def blind_quality_excluded_candidate_ids(
+    plan: dict[str, Any],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> set[str]:
+    """Combine pre-exposure and candidate-wide operational-failure exclusions."""
+    return set(plan.get("excluded_from_blind_quality_candidate_ids", [])) | (
+        operational_failure_candidate_ids(result_rows)
+    )
+
+
+def holdout_reliability_summary(
+    pack_data: dict[str, Any],
+    plan: dict[str, Any],
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, int]:
+    """Build the aggregate-only reliability document safe before unblinding."""
+    if pack_data.get("case_set") != "holdout":
+        raise CalibrationError("holdout reliability requires the holdout case set")
+    selected_ids = {case["candidate_id"] for case in pack_data["cases"]}
+    statuses = [row.get("status") for row in result_rows.values()]
+    if any(status not in VALID_PIPELINE_STATUSES for status in statuses):
+        raise CalibrationError("reliability summary contains an unknown outcome")
+    failure_ids = operational_failure_candidate_ids(result_rows)
+    quality_exclusions = blind_quality_excluded_candidate_ids(plan, result_rows)
+    if not quality_exclusions <= selected_ids:
+        raise CalibrationError("blind quality exclusion is not a selected candidate")
+    summary = {
+        "selected_holdout_candidates": len(selected_ids),
+        "planned_pipeline_executions": int(
+            plan["planned_pipeline_executions"]
+        ),
+        "completed_pipeline_executions": len(result_rows),
+        "approved_outcomes": statuses.count("approved"),
+        "no_reply_outcomes": statuses.count("no_reply"),
+        "operational_failure_outcomes": statuses.count(
+            "operational_failure"
+        ),
+        "candidates_with_operational_failure": len(failure_ids),
+        "pre_exposed_candidate_count": len(
+            plan.get("excluded_from_blind_quality_candidate_ids", [])
+        ),
+        "blind_quality_candidate_count": len(selected_ids - quality_exclusions),
+    }
+    if set(summary) != RELIABILITY_SUMMARY_FIELDS:
+        raise AssertionError("reliability summary field inventory differs")
+    return summary
+
+
+def final_output_files(case_set: str) -> set[str]:
+    """Return case-set-specific derived files, including the final marker."""
+    names = set(FINAL_OUTPUT_FILES)
+    if case_set == "holdout":
+        names.update(HOLDOUT_RELIABILITY_FILES)
+    return names
+
+
+def disposable_derived_files(case_set: str) -> tuple[str, ...]:
+    """Return derived files in deterministic publication order."""
+    if case_set != "holdout":
+        return DISPOSABLE_DERIVED_FILES
+    return (
+        *DISPOSABLE_DERIVED_FILES[:-1],
+        *sorted(HOLDOUT_RELIABILITY_FILES),
+        "SHA256SUMS",
+    )
 
 
 def public_pack_verification(pack_data: dict[str, Any]) -> dict[str, Any]:
@@ -1973,7 +2159,7 @@ def selection_manifest_fields(
 ) -> dict[str, Any]:
     """Return the common immutable case-set and context-gate summary."""
     is_holdout = pack_data["case_set"] == "holdout"
-    return {
+    fields = {
         "case_set": pack_data["case_set"],
         "pack_case_count": pack_data["pack_case_count"],
         "calibration_case_count": pack_data["calibration_case_count"],
@@ -2020,6 +2206,19 @@ def selection_manifest_fields(
             else False
         ),
     }
+    if is_holdout:
+        fields.update({
+            "continue_on_operational_failure": plan[
+                "continue_on_operational_failure"
+            ],
+            "excluded_from_blind_quality_candidate_ids_sha256": plan[
+                "excluded_from_blind_quality_candidate_ids_sha256"
+            ],
+            "pre_exposed_candidate_count": plan[
+                "pre_exposed_candidate_count"
+            ],
+        })
+    return fields
 
 
 def validation_report(
@@ -2047,6 +2246,15 @@ def validation_report(
             plan,
             context_artifacts=context_artifacts,
             clearance=clearance,
+        ),
+        **(
+            {
+                "blind_quality_candidate_count": plan[
+                    "initial_blind_quality_candidate_count"
+                ]
+            }
+            if pack_data["case_set"] == "holdout"
+            else {}
         ),
         "pack_cases": 48,
         "calibration_cases": 6,
@@ -2196,7 +2404,17 @@ def validate_only_run(
     manifests = profile_manifests()
     verify_frozen_profile_manifests(manifests)
     repository = build_repository()
-    plan = build_execution_plan(pack_data, manifests, args.blind_seed)
+    plan = build_execution_plan(
+        pack_data,
+        manifests,
+        args.blind_seed,
+        continue_on_operational_failure=getattr(
+            args, "continue_on_operational_failure", False
+        ),
+        excluded_from_blind_quality_candidate_ids=getattr(
+            args, "exclude_from_blind_quality_candidate", []
+        ),
+    )
     provenance = common_execution_provenance(
         plan=plan,
         manifests=manifests,
@@ -2207,7 +2425,23 @@ def validate_only_run(
     assignments = blind_assignments(
         pack_data["cases"], blind_seed=args.blind_seed, pack_sha256=pack_data["pack_sha256"]
     )
-    markdown, csv_text = build_blind_review(pack_data["cases"], assignments, None)
+    is_holdout = pack_data["case_set"] == "holdout"
+    quality_exclusions = blind_quality_excluded_candidate_ids(plan, {})
+    markdown, csv_text = build_blind_review(
+        pack_data["cases"],
+        assignments,
+        None,
+        excluded_candidate_ids=quality_exclusions,
+        holdout_quality_review=is_holdout,
+    )
+    reliability_summary = (
+        holdout_reliability_summary(pack_data, plan, {}) if is_holdout else None
+    )
+    reliability_summary_bytes = (
+        json_document_bytes(reliability_summary)
+        if reliability_summary is not None
+        else None
+    )
     output = prepare_output_directory(args.output, pack_data["pack_path"])
     run_manifest = {
         "schema_version": 1,
@@ -2231,6 +2465,20 @@ def validate_only_run(
         "valid_approved_count": 0,
         "valid_no_reply_count": 0,
         "operational_failure_count": 0,
+        **(
+            {
+                "operational_failure_candidate_count": 0,
+                "blind_quality_candidate_count": reliability_summary[
+                    "blind_quality_candidate_count"
+                ],
+                "reliability_summary_sha256": hashlib.sha256(
+                    reliability_summary_bytes
+                ).hexdigest(),
+            }
+            if reliability_summary is not None
+            and reliability_summary_bytes is not None
+            else {}
+        ),
         "model_calls_performed": 0,
         "http_requests_performed": 0,
         "posting_enabled": False,
@@ -2275,6 +2523,12 @@ def validate_only_run(
     if pack_data["case_set"] == "holdout":
         if context_artifacts is None or clearance is None:
             raise CalibrationError("holdout context artifacts are missing")
+        assert reliability_summary_bytes is not None
+        atomic_bytes(
+            output / "holdout_reliability_summary.json",
+            reliability_summary_bytes,
+        )
+        write_text(output / "holdout_reliability_failures.jsonl", "")
         atomic_bytes(output / "holdout_context_audit.json", context_artifacts["audit_bytes"])
         write_text(
             output / "holdout_context_review.md", context_artifacts["review_text"]
@@ -2337,6 +2591,21 @@ def build_run_identity(
         ],
         **(
             context_recovery_binding(pack_data)
+            if pack_data["case_set"] == "holdout"
+            else {}
+        ),
+        **(
+            {
+                "continue_on_operational_failure": plan[
+                    "continue_on_operational_failure"
+                ],
+                "excluded_from_blind_quality_candidate_ids_sha256": plan[
+                    "excluded_from_blind_quality_candidate_ids_sha256"
+                ],
+                "pre_exposed_candidate_count": plan[
+                    "pre_exposed_candidate_count"
+                ],
+            }
             if pack_data["case_set"] == "holdout"
             else {}
         ),
@@ -2550,7 +2819,10 @@ def validate_resume_ledger(
 
 def execution_evidence_exists(output: Path) -> bool:
     """Return whether any model-operation or pipeline evidence already exists."""
-    if any((output / name).exists() for name in FINAL_OUTPUT_FILES):
+    if any(
+        (output / name).exists()
+        for name in FINAL_OUTPUT_FILES | HOLDOUT_RELIABILITY_FILES
+    ):
         return True
     for name in (
         "prompt_receipts.jsonl",
@@ -2898,25 +3170,111 @@ def verify_pipeline_record_pair(
     inventory = collect_call_inventory(
         identity, audit=audit, receipts=receipts, ledger_data=ledger_data
     )
-    common_fields = (
-        "execution_identity_sha256",
-        "case_identity",
-        "model_call_count",
-        "logical_call_ids",
-        "model_stage_sequence",
-        "call_inventory",
-        "call_inventory_sha256",
-        "pipeline_audit_sha256",
-    )
-    for name in common_fields:
+    for name in ("candidate_id", "stratum", "variant"):
+        expected = identity[name]
+        if result.get(name) != expected or audit_row.get(name) != expected:
+            raise CalibrationError(
+                f"pipeline result/audit identity differs for {inventory['case_identity']}"
+            )
+    for name in CALL_BINDING_FIELDS:
         if result.get(name) != inventory[name] or audit_row.get(name) != inventory[name]:
             raise CalibrationError(f"pipeline result/audit binding differs for {inventory['case_identity']}")
     if result.get("model_call_count") != len(result.get("logical_call_ids", [])):
         raise CalibrationError(f"pipeline model call count differs for {inventory['case_identity']}")
     if result.get("pipeline_audit_sha256") != value_sha256(audit):
         raise CalibrationError(f"pipeline audit SHA differs for {inventory['case_identity']}")
-    explicit_outcome(result.get("status"), result.get("public_reply"))
+    outcome = explicit_outcome(result.get("status"), result.get("public_reply"))
+    revision_count = result.get("revision_count")
+    if type(revision_count) is not int or revision_count < 0:
+        raise CalibrationError(
+            f"pipeline revision count differs for {inventory['case_identity']}"
+        )
+    if (
+        outcome["status"] == "operational_failure"
+        and (
+            result.get("pipeline_metadata") is not None
+            or not isinstance(result.get("reason"), str)
+            or not result.get("reason")
+        )
+    ):
+        raise CalibrationError(
+            f"operational failure result is malformed for {inventory['case_identity']}"
+        )
     return set(inventory["logical_call_ids"])
+
+
+def expected_execution_failure_row(
+    result: dict[str, Any], audit_row: dict[str, Any]
+) -> dict[str, Any]:
+    """Derive the one exact failure-journal row from its durable result pair."""
+    if (
+        result.get("pipeline_audit_sha256")
+        != audit_row.get("pipeline_audit_sha256")
+        or result.get("pipeline_audit_sha256")
+        != value_sha256(audit_row.get("audit"))
+    ):
+        raise CalibrationError("failure result and audit provenance differ")
+    return {
+        "candidate_id": result["candidate_id"],
+        "stratum": result["stratum"],
+        "variant": result["variant"],
+        "status": "operational_failure",
+        "reason": result.get("reason"),
+        "model_call_count": result["model_call_count"],
+        "revision_count": result["revision_count"],
+        **{name: result[name] for name in CALL_BINDING_FIELDS},
+    }
+
+
+def verify_failure_journal_links(
+    *,
+    plan: dict[str, Any],
+    results: dict[tuple[str, str], dict[str, Any]],
+    audits: dict[tuple[str, str], dict[str, Any]],
+    failures: dict[tuple[str, str], dict[str, Any]],
+) -> None:
+    """Require complete, unique failure triplets and reject every orphan."""
+    planned_pairs = {
+        (row["candidate_id"], row["variant"]) for row in plan["executions"]
+    }
+    if set(failures) - planned_pairs:
+        raise CalibrationError("orphan execution failure row is unplanned")
+    operational_keys = {
+        key for key, row in results.items()
+        if row.get("status") == "operational_failure"
+    }
+    continuation_enabled = (
+        plan.get("case_set") == "holdout"
+        and plan.get("continue_on_operational_failure") is True
+    )
+    if operational_keys and not continuation_enabled:
+        raise CalibrationError(
+            "operational-failure result is not enabled by the execution plan"
+        )
+    for key in failures:
+        if key not in results or key not in audits:
+            raise CalibrationError("orphan execution failure row lacks a result/audit pair")
+        if results[key].get("status") != "operational_failure":
+            raise CalibrationError("orphan execution failure row has no failure result")
+    for key in operational_keys:
+        if key not in audits:
+            raise CalibrationError("partially recorded operational failure lacks an audit")
+        if key not in failures:
+            raise CalibrationError(
+                "operational-failure result lacks an execution failure row"
+            )
+        try:
+            expected = expected_execution_failure_row(results[key], audits[key])
+        except (KeyError, TypeError) as exc:
+            raise CalibrationError(
+                "operational-failure result/audit pair is malformed"
+            ) from exc
+        if failures[key] != expected:
+            raise CalibrationError(
+                "execution failure row differs from its result/audit pair"
+            )
+    if set(failures) != operational_keys:
+        raise CalibrationError("execution failure journal inventory differs")
 
 
 def verify_execution_journals(
@@ -2928,6 +3286,7 @@ def verify_execution_journals(
     model: str,
     results: dict[tuple[str, str], dict[str, Any]],
     audits: dict[tuple[str, str], dict[str, Any]],
+    failures: dict[tuple[str, str], dict[str, Any]],
     receipts: dict[str, dict[str, Any]],
     ledger_data: dict[str, Any],
 ) -> None:
@@ -2946,6 +3305,12 @@ def verify_execution_journals(
         raise CalibrationError(
             "final output does not contain every unique planned pipeline execution"
         )
+    verify_failure_journal_links(
+        plan=plan,
+        results=results,
+        audits=audits,
+        failures=failures,
+    )
     owned: set[str] = set()
     for planned in plan["executions"]:
         key = (planned["candidate_id"], planned["variant"])
@@ -3104,11 +3469,31 @@ def execute_manifest(
     """Derive the final execute manifest solely from durable inputs."""
     approved_count = sum(row["status"] == "approved" for row in result_rows.values())
     no_reply_count = sum(row["status"] == "no_reply" for row in result_rows.values())
+    operational_failure_count = sum(
+        row["status"] == "operational_failure" for row in result_rows.values()
+    )
+    completed_count = len(result_rows)
+    if completed_count != plan["planned_pipeline_executions"]:
+        raise CalibrationError(
+            "manifest requires every planned pipeline execution"
+        )
+    if approved_count + no_reply_count + operational_failure_count != completed_count:
+        raise CalibrationError("manifest outcome counts do not cover all executions")
     model_calls = sum(int(row["model_call_count"]) for row in result_rows.values())
     total_http_requests = 1 + sum(
         int(row.get("attempt_number") or 1) for row in ledger_data["operations"]
     )
-    return {
+    reliability_summary = (
+        holdout_reliability_summary(pack_data, plan, result_rows)
+        if pack_data["case_set"] == "holdout"
+        else None
+    )
+    reliability_summary_bytes = (
+        json_document_bytes(reliability_summary)
+        if reliability_summary is not None
+        else None
+    )
+    manifest = {
         "schema_version": 1,
         "runner_version": RUNNER_VERSION,
         "mode": "execute",
@@ -3136,10 +3521,26 @@ def execute_manifest(
         "cost_ledger_status": ledger_data.get("status"),
         "known_cost_usd": ledger_data.get("known_cost_usd", 0.0),
         "ambiguous_exposure_usd": ledger_data.get("ambiguous_exposure_usd", 0.0),
-        "completed_pipeline_executions": plan["planned_pipeline_executions"],
+        "completed_pipeline_executions": completed_count,
         "valid_approved_count": approved_count,
         "valid_no_reply_count": no_reply_count,
-        "operational_failure_count": 0,
+        "operational_failure_count": operational_failure_count,
+        **(
+            {
+                "operational_failure_candidate_count": reliability_summary[
+                    "candidates_with_operational_failure"
+                ],
+                "blind_quality_candidate_count": reliability_summary[
+                    "blind_quality_candidate_count"
+                ],
+                "reliability_summary_sha256": hashlib.sha256(
+                    reliability_summary_bytes
+                ).hexdigest(),
+            }
+            if reliability_summary is not None
+            and reliability_summary_bytes is not None
+            else {}
+        ),
         "model_calls_performed": model_calls,
         "http_requests_performed": total_http_requests,
         "hard_limit_usd": args.hard_limit_usd,
@@ -3148,6 +3549,9 @@ def execute_manifest(
         "tools_enabled": False,
         "media_enabled": False,
     }
+    if pack_data["case_set"] == "holdout" and completed_count != 84:
+        raise CalibrationError("holdout final manifest requires 84 completed executions")
+    return manifest
 
 
 def execute_derived_payloads(
@@ -3162,6 +3566,8 @@ def execute_derived_payloads(
     identity_sha256: str,
     ledger_data: dict[str, Any],
     result_rows: dict[tuple[str, str], dict[str, Any]],
+    audit_rows: dict[tuple[str, str], dict[str, Any]],
+    failure_rows: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, bytes]:
     """Return deterministic bytes for every derived execute file except the marker."""
     outcomes = execute_outcomes(pack_data, result_rows)
@@ -3170,8 +3576,14 @@ def execute_derived_payloads(
         blind_seed=args.blind_seed,
         pack_sha256=pack_data["pack_sha256"],
     )
+    is_holdout = pack_data["case_set"] == "holdout"
+    quality_exclusions = blind_quality_excluded_candidate_ids(plan, result_rows)
     markdown, csv_text = build_blind_review(
-        pack_data["cases"], assignments, outcomes
+        pack_data["cases"],
+        assignments,
+        outcomes,
+        excluded_candidate_ids=quality_exclusions,
+        holdout_quality_review=is_holdout,
     )
     manifest = execute_manifest(
         args,
@@ -3194,7 +3606,7 @@ def execute_derived_payloads(
             + b"\n"
         )
 
-    return {
+    payloads = {
         "blind_review.md": markdown.encode("utf-8"),
         "blind_review.csv": csv_text.encode("utf-8"),
         "blind_key.json": json_bytes({
@@ -3212,6 +3624,106 @@ def execute_derived_payloads(
         ).encode("utf-8"),
         "run_manifest.json": json_bytes(manifest),
     }
+    if is_holdout:
+        reliability_summary = holdout_reliability_summary(
+            pack_data, plan, result_rows
+        )
+        failure_details = [
+            failure_rows[(row["candidate_id"], row["variant"])]
+            for row in plan["executions"]
+            if (row["candidate_id"], row["variant"]) in failure_rows
+        ]
+        if len(failure_details) != reliability_summary[
+            "operational_failure_outcomes"
+        ]:
+            raise CalibrationError("reliability failure detail inventory differs")
+        payloads.update({
+            "holdout_reliability_summary.json": json_document_bytes(
+                reliability_summary
+            ),
+            "holdout_reliability_failures.jsonl": jsonl_document_bytes(
+                failure_details
+            ),
+        })
+    return payloads
+
+
+def refuse_operational_failure_in_quality_csv(
+    csv_bytes: bytes,
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> None:
+    """Refuse any failure candidate or failure rendering in a quality CSV."""
+    failure_ids = operational_failure_candidate_ids(result_rows)
+    try:
+        rows = list(csv.DictReader(io.StringIO(csv_bytes.decode("utf-8"))))
+    except (UnicodeError, csv.Error) as exc:
+        raise CalibrationError(f"blind quality CSV is invalid: {exc}") from exc
+    if any(
+        row.get("candidate_id") in failure_ids
+        or row.get("response_status") == "operational_failure"
+        or row.get("response_text") == "PIPELINE FAILURE"
+        for row in rows
+    ):
+        raise CalibrationError(
+            "operational-failure candidate appears in blind_review.csv"
+        )
+
+
+def refuse_operational_failure_in_quality_markdown(
+    markdown_bytes: bytes,
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+) -> None:
+    """Refuse a failure candidate or failure marker in quality Markdown."""
+    try:
+        markdown = markdown_bytes.decode("utf-8")
+    except UnicodeError as exc:
+        raise CalibrationError(f"blind quality Markdown is invalid: {exc}") from exc
+    failure_ids = operational_failure_candidate_ids(result_rows)
+    if re.search(r"(?m)^PIPELINE FAILURE$", markdown) or any(
+        f"## {candidate_id}\n" in markdown for candidate_id in failure_ids
+    ):
+        raise CalibrationError(
+            "operational-failure candidate appears in blind_review.md"
+        )
+
+
+def verify_holdout_blind_quality_csv(
+    csv_bytes: bytes,
+    result_rows: dict[tuple[str, str], dict[str, Any]],
+    *,
+    expected_candidate_count: int,
+) -> None:
+    """Verify the final holdout CSV contains only scoreable editorial outcomes."""
+    try:
+        reader = csv.DictReader(io.StringIO(csv_bytes.decode("utf-8")))
+        rows = list(reader)
+    except (UnicodeError, csv.Error) as exc:
+        raise CalibrationError(f"blind quality CSV is invalid: {exc}") from exc
+    expected_fields = [
+        "candidate_id",
+        "final_stratum",
+        "response_label",
+        "response_text",
+        "response_status",
+        *SCORING_COLUMNS,
+    ]
+    if reader.fieldnames != expected_fields:
+        raise CalibrationError("blind quality CSV columns differ")
+    refuse_operational_failure_in_quality_csv(csv_bytes, result_rows)
+    candidate_ids = {str(row.get("candidate_id")) for row in rows}
+    if len(rows) != expected_candidate_count * 3 or len(candidate_ids) != expected_candidate_count:
+        raise CalibrationError("blind quality CSV candidate inventory differs")
+    for row in rows:
+        status = row.get("response_status")
+        rendered = row.get("response_text")
+        if status not in EDITORIAL_PIPELINE_STATUSES:
+            raise CalibrationError("blind quality CSV contains a non-editorial status")
+        if status == "no_reply" and rendered != "NO REPLY":
+            raise CalibrationError("no_reply is not rendered as NO REPLY")
+        if status == "approved" and (
+            not rendered or rendered in {"NO REPLY", "PIPELINE FAILURE"}
+        ):
+            raise CalibrationError("approved quality response rendering differs")
 
 
 def verify_durable_execute_core(output: Path, *, case_set: str) -> None:
@@ -3224,9 +3736,6 @@ def verify_durable_execute_core(output: Path, *, case_set: str) -> None:
         raise CalibrationError(
             "execute durable core is incomplete: " + ", ".join(missing or ["raw_responses/"])
         )
-    failures = output / "execution_failures.jsonl"
-    if failures.exists() and read_jsonl(failures):
-        raise CalibrationError("execute durable core contains an operational failure")
 
 
 def recover_or_verify_finalisation(
@@ -3244,6 +3753,7 @@ def recover_or_verify_finalisation(
     receipts: dict[str, dict[str, Any]],
     result_rows: dict[tuple[str, str], dict[str, Any]],
     audit_rows: dict[tuple[str, str], dict[str, Any]],
+    failure_rows: dict[tuple[str, str], dict[str, Any]],
     api_key: str,
 ) -> Path:
     """Strictly verify a marker, or rebuild only derived files when it is absent."""
@@ -3257,6 +3767,7 @@ def recover_or_verify_finalisation(
         model=args.model,
         results=result_rows,
         audits=audit_rows,
+        failures=failure_rows,
         receipts=receipts,
         ledger_data=ledger_data,
     )
@@ -3271,24 +3782,65 @@ def recover_or_verify_finalisation(
         identity_sha256=identity_sha256,
         ledger_data=ledger_data,
         result_rows=result_rows,
+        audit_rows=audit_rows,
+        failure_rows=failure_rows,
     )
+    if pack_data["case_set"] == "holdout":
+        summary = holdout_reliability_summary(pack_data, plan, result_rows)
+        verify_holdout_blind_quality_csv(
+            expected["blind_review.csv"],
+            result_rows,
+            expected_candidate_count=summary["blind_quality_candidate_count"],
+        )
+        refuse_operational_failure_in_quality_markdown(
+            expected["blind_review.md"], result_rows
+        )
     marker = output / "SHA256SUMS"
+    expected_final_files = final_output_files(pack_data["case_set"])
     if marker.exists():
-        missing = sorted(name for name in FINAL_OUTPUT_FILES if not (output / name).is_file())
+        missing = sorted(
+            name for name in expected_final_files if not (output / name).is_file()
+        )
         if missing:
             raise CalibrationError(
                 "finalised execute output is missing derived files: " + ", ".join(missing)
             )
         verify_output_sha256sums(output)
+        if pack_data["case_set"] == "holdout":
+            summary = holdout_reliability_summary(pack_data, plan, result_rows)
+            verify_holdout_blind_quality_csv(
+                (output / "blind_review.csv").read_bytes(),
+                result_rows,
+                expected_candidate_count=summary[
+                    "blind_quality_candidate_count"
+                ],
+            )
+            refuse_operational_failure_in_quality_markdown(
+                (output / "blind_review.md").read_bytes(), result_rows
+            )
         for name, payload in expected.items():
             if (output / name).read_bytes() != payload:
                 raise CalibrationError(f"finalised execute derived file differs: {name}")
         return output
-    for name in DISPOSABLE_DERIVED_FILES:
+    existing_quality_csv = output / "blind_review.csv"
+    if pack_data["case_set"] == "holdout" and existing_quality_csv.is_file():
+        refuse_operational_failure_in_quality_csv(
+            existing_quality_csv.read_bytes(), result_rows
+        )
+    existing_quality_markdown = output / "blind_review.md"
+    if (
+        pack_data["case_set"] == "holdout"
+        and existing_quality_markdown.is_file()
+    ):
+        refuse_operational_failure_in_quality_markdown(
+            existing_quality_markdown.read_bytes(), result_rows
+        )
+    derived_files = disposable_derived_files(pack_data["case_set"])
+    for name in derived_files:
         path = output / name
         if path.exists():
             path.unlink()
-    for name in DISPOSABLE_DERIVED_FILES[:-1]:
+    for name in derived_files[:-1]:
         atomic_bytes(output / name, expected[name])
     enforce_private_permissions(output)
     assert_no_secret(output, api_key)
@@ -3320,7 +3872,17 @@ def execute_run(
     elif context_artifacts is not None or clearance is not None:
         raise CalibrationError("calibration execute cannot use holdout context clearance")
     repository = build_repository()
-    plan = build_execution_plan(pack_data, manifests, args.blind_seed)
+    plan = build_execution_plan(
+        pack_data,
+        manifests,
+        args.blind_seed,
+        continue_on_operational_failure=getattr(
+            args, "continue_on_operational_failure", False
+        ),
+        excluded_from_blind_quality_candidate_ids=getattr(
+            args, "exclude_from_blind_quality_candidate", []
+        ),
+    )
     cases = {case["candidate_id"]: case for case in pack_data["cases"]}
     provenance = common_execution_provenance(
         plan=plan,
@@ -3452,10 +4014,6 @@ def execute_run(
     verify_receipts_against_ledger(
         receipts, ledger_data, require_complete_inventory=False
     )
-    if (output / "execution_failures.jsonl").exists() and read_jsonl(
-        output / "execution_failures.jsonl"
-    ):
-        raise CalibrationError("resume output contains a prior operational failure")
 
     planned_pairs = {
         (row["candidate_id"], row["variant"]) for row in plan["executions"]
@@ -3466,9 +4024,36 @@ def execute_run(
     audit_rows = index_execution_records(
         output / "pipeline_audits.jsonl", label="pipeline audits"
     )
-    if (set(result_rows) | set(audit_rows)) - planned_pairs:
+    failure_rows = index_execution_records(
+        output / "execution_failures.jsonl", label="execution failures"
+    )
+    if (set(result_rows) | set(audit_rows) | set(failure_rows)) - planned_pairs:
         raise CalibrationError("existing execution journal contains an unplanned identity")
-    derived_present = any((output / name).exists() for name in FINAL_OUTPUT_FILES)
+    verify_failure_journal_links(
+        plan=plan,
+        results=result_rows,
+        audits=audit_rows,
+        failures=failure_rows,
+    )
+    for candidate_id, variant in failure_rows:
+        failure_identity = pipeline_execution_identity(
+            cases[candidate_id],
+            variant,
+            manifests,
+            pack_data["pack_sha256"],
+            args.model,
+        )
+        verify_pipeline_record_pair(
+            failure_identity,
+            result_rows[(candidate_id, variant)],
+            audit_rows[(candidate_id, variant)],
+            receipts=receipts,
+            ledger_data=ledger_data,
+        )
+    derived_present = any(
+        (output / name).exists()
+        for name in final_output_files(pack_data["case_set"])
+    )
     journals_complete = set(result_rows) == planned_pairs and set(audit_rows) == planned_pairs
     if derived_present or journals_complete:
         return recover_or_verify_finalisation(
@@ -3485,6 +4070,7 @@ def execute_run(
             receipts=receipts,
             result_rows=result_rows,
             audit_rows=audit_rows,
+            failure_rows=failure_rows,
             api_key=api_key,
         )
 
@@ -3514,6 +4100,7 @@ def execute_run(
         key = (case["candidate_id"], variant)
         prior_result = result_rows.get(key)
         prior_audit = audit_rows.get(key)
+        prior_failure = failure_rows.get(key)
         if prior_result is not None:
             if prior_result.get("stratum") != case["stratum"]:
                 raise CalibrationError(f"pipeline result stratum differs for {key}")
@@ -3533,6 +4120,16 @@ def execute_run(
                 receipts=receipts,
                 ledger_data=ledger.data,
             )
+            if prior_result.get("status") == "operational_failure":
+                expected_failure = expected_execution_failure_row(
+                    prior_result, prior_audit
+                )
+                if prior_failure != expected_failure:
+                    raise CalibrationError(
+                        f"execution failure differs on resume for {key}"
+                    )
+            elif prior_failure is not None:
+                raise CalibrationError(f"orphan execution failure row for {key}")
             continue
         execution_identity = pipeline_execution_identity(
             case, variant, manifests, pack_data["pack_sha256"], args.model
@@ -3548,43 +4145,64 @@ def execute_run(
                 recent_replies=case["recent_replies"],
                 media_context=None,
             )
-        if result.status not in VALID_PIPELINE_STATUSES:
+        status = getattr(result, "status", None)
+        try:
+            audit = list(result.audit)
+        except (AttributeError, TypeError) as exc:
+            raise CalibrationError(f"pipeline audit is malformed for {key}") from exc
+        continuation_enabled = (
+            status == "operational_failure"
+            and pack_data["case_set"] == "holdout"
+            and plan.get("continue_on_operational_failure") is True
+        )
+        if status not in EDITORIAL_PIPELINE_STATUSES and not continuation_enabled:
             append_jsonl(output / "execution_failures.jsonl", {
                 "candidate_id": case["candidate_id"],
                 "stratum": case["stratum"],
                 "variant": variant,
-                "status": result.status,
-                "reason": result.reason,
-                "model_call_count": result.model_call_count,
-                "revision_count": result.revision_count,
-                "audit": list(result.audit),
+                "status": status,
+                "reason": getattr(result, "reason", None),
+                "model_call_count": getattr(result, "model_call_count", None),
+                "revision_count": getattr(result, "revision_count", None),
+                "audit": audit,
             })
             raise CalibrationError(
-                f"pipeline execution ended in non-calibration status {result.status}"
+                f"pipeline execution ended in non-calibration status {status}"
             )
-        audit = list(result.audit)
         call_binding = collect_call_inventory(
             execution_identity,
             audit=audit,
             receipts=receipts,
             ledger_data=ledger.data,
         )
-        if result.model_call_count != call_binding["model_call_count"]:
+        if (
+            type(getattr(result, "model_call_count", None)) is not int
+            or result.model_call_count != call_binding["model_call_count"]
+        ):
             raise CalibrationError(f"pipeline model call count differs for {key}")
-        public_reply = str(result.reply) if result.reply is not None else None
-        explicit_outcome(result.status, public_reply)
+        revision_count = getattr(result, "revision_count", None)
+        reason = getattr(result, "reason", None)
+        if type(revision_count) is not int or revision_count < 0:
+            raise CalibrationError(f"pipeline revision count differs for {key}")
+        if continuation_enabled and (
+            not isinstance(reason, str) or not reason
+        ):
+            raise CalibrationError(f"operational failure reason differs for {key}")
+        reply = getattr(result, "reply", None)
+        public_reply = str(reply) if reply is not None else None
+        explicit_outcome(status, public_reply)
         expected_result = {
             "candidate_id": case["candidate_id"],
             "stratum": case["stratum"],
             "variant": variant,
-            "status": result.status,
-            "reason": result.reason,
+            "status": status,
+            "reason": reason,
             "public_reply": public_reply,
             "model_call_count": result.model_call_count,
-            "revision_count": result.revision_count,
+            "revision_count": revision_count,
             "pipeline_metadata": (
-                getattr(result.reply, "pipeline_metadata", None)
-                if result.reply is not None else None
+                getattr(reply, "pipeline_metadata", None)
+                if reply is not None else None
             ),
             **call_binding,
         }
@@ -3599,12 +4217,22 @@ def execute_run(
             raise CalibrationError(f"pipeline result differs on reconstruction for {key}")
         if prior_audit is not None and prior_audit != expected_audit:
             raise CalibrationError(f"pipeline audit differs on reconstruction for {key}")
+        expected_failure = (
+            expected_execution_failure_row(expected_result, expected_audit)
+            if status == "operational_failure"
+            else None
+        )
+        if prior_failure is not None:
+            raise CalibrationError(f"partially recorded execution failure for {key}")
         if prior_result is None:
             append_jsonl(output / "pipeline_results.jsonl", expected_result)
             result_rows[key] = expected_result
         if prior_audit is None:
             append_jsonl(output / "pipeline_audits.jsonl", expected_audit)
             audit_rows[key] = expected_audit
+        if expected_failure is not None:
+            append_jsonl(output / "execution_failures.jsonl", expected_failure)
+            failure_rows[key] = expected_failure
 
     final_receipts = index_prompt_receipts(output / "prompt_receipts.jsonl")
     verify_prompt_receipt_contracts(
@@ -3631,6 +4259,7 @@ def execute_run(
         receipts=final_receipts,
         result_rows=result_rows,
         audit_rows=audit_rows,
+        failure_rows=failure_rows,
         api_key=api_key,
     )
 
@@ -3650,6 +4279,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--history-corpus", type=Path)
     parser.add_argument(
         "--recover-context-candidate",
+        action="append",
+        default=[],
+        metavar="CANDIDATE_ID",
+    )
+    parser.add_argument(
+        "--continue-on-operational-failure",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--exclude-from-blind-quality-candidate",
         action="append",
         default=[],
         metavar="CANDIDATE_ID",
@@ -3683,6 +4322,21 @@ def validate_arguments(args: argparse.Namespace, environ: dict[str, str]) -> str
         raise CalibrationError("maximum rate-limit retries must be from zero to eight")
     if not 0 <= args.maximum_server_error_retries <= 4:
         raise CalibrationError("maximum server-error retries must be from zero to four")
+    if args.continue_on_operational_failure and args.case_set != "holdout":
+        raise CalibrationError(
+            "--continue-on-operational-failure is valid only with --case-set holdout"
+        )
+    if args.continue_on_operational_failure and args.mode != "execute":
+        raise CalibrationError(
+            "--continue-on-operational-failure is valid only with --execute"
+        )
+    if (
+        args.exclude_from_blind_quality_candidate
+        and args.case_set != "holdout"
+    ):
+        raise CalibrationError(
+            "--exclude-from-blind-quality-candidate is valid only with --case-set holdout"
+        )
     if args.resume and args.mode != "execute":
         raise CalibrationError("--resume is valid only with --execute")
     if args.context_clearance is not None and args.case_set != "holdout":
