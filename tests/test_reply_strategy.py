@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any, Callable
 import pytest
 from jsonschema import validate as validate_json_schema
 
+import reply_strategy as reply_strategy_module
 from reply_evidence import EvidencePassage, EvidenceRepository
 from reply_strategy import (
     AIReply,
@@ -21,6 +23,8 @@ from reply_strategy import (
     PROPOSER_PROMPT_VERSION,
     REVIEWER_PROMPT_VERSION,
     STRATEGY_VERSION,
+    VALIDATION_RETRY_PROTOCOL_VERSION,
+    _build_validation_retry_user_prompt,
     _claim_auditor_prompts,
     _no_reply_review_prompts,
     _proposer_prompts,
@@ -462,6 +466,8 @@ def run_pipeline(
     *,
     context: dict[str, object] | None = None,
     config: dict[str, object] | None = None,
+    recent_replies: list[str] | None = None,
+    media_context: dict[str, object] | None = None,
 ) -> tuple[object, ScriptedTransport]:
     transport = ScriptedTransport(responses)
     result = run_reply_pipeline(
@@ -470,10 +476,74 @@ def run_pipeline(
         repository=repository,  # type: ignore[arg-type]
         transport=transport,
         maximum_reply_length=500,
-        recent_replies=[],
+        recent_replies=recent_replies or [],
+        media_context=media_context,
         creation_time="2026-07-20T12:00:00Z",
     )
     return result, transport
+
+
+VALIDATION_CORRECTION_FIELDS = {
+    "protocol_version",
+    "stage",
+    "attempt_number",
+    "previous_response_rejected",
+    "validator_error_type",
+    "validator_error",
+    "validator_error_sha256",
+    "required_action",
+}
+VALIDATION_REQUIRED_ACTION = (
+    "Return a complete replacement JSON object satisfying the supplied "
+    "response schema and correct the stated validation failure. Do not "
+    "discuss the correction or return partial fields."
+)
+
+
+def text_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def retry_audit_row(result: object, stage: str) -> dict[str, object]:
+    rows = [
+        row
+        for row in result.audit  # type: ignore[attr-defined]
+        if row.get("stage") == stage and row.get("status") == "invalid_response_retry"
+    ]
+    assert len(rows) == 1
+    return rows[0]
+
+
+def assert_retry_envelope(
+    original_user_prompt: str,
+    corrective_user_prompt: str,
+    *,
+    stage: str,
+    attempt_number: int,
+    validator_exception: BaseException,
+) -> dict[str, object]:
+    original_payload = json.loads(original_user_prompt)
+    corrective_payload = json.loads(corrective_user_prompt)
+    assert isinstance(original_payload, dict)
+    assert isinstance(corrective_payload, dict)
+    assert "validation_correction" not in original_payload
+    correction = corrective_payload.pop("validation_correction")
+    assert corrective_payload == original_payload
+    assert isinstance(correction, dict)
+    assert set(correction) == VALIDATION_CORRECTION_FIELDS
+    error = str(validator_exception)
+    assert correction == {
+        "protocol_version": VALIDATION_RETRY_PROTOCOL_VERSION,
+        "stage": stage,
+        "attempt_number": attempt_number,
+        "previous_response_rejected": True,
+        "validator_error_type": type(validator_exception).__name__,
+        "validator_error": error,
+        "validator_error_sha256": text_sha256(error),
+        "required_action": VALIDATION_REQUIRED_ACTION,
+    }
+    assert corrective_user_prompt.count('"validation_correction"') == 1
+    return correction
 
 
 def test_source_schemas_are_strict_and_provider_compatible() -> None:
@@ -509,6 +579,7 @@ def test_configuration_is_explicit_and_fail_closed() -> None:
     assert validate_strategy_config(strategy_config()) == []
     assert validate_strategy_config(strategy_config(fail_closed=False))
     assert validate_strategy_config(strategy_config(maximum_revisions=2))
+    assert validate_strategy_config(strategy_config(maximum_invalid_response_retries=2))
     assert validate_strategy_config(strategy_config(maximum_model_calls=9))
     assert validate_strategy_config(strategy_config(maximum_model_calls=7))
     assert validate_strategy_config(strategy_config(proposer_timeout_seconds=121))
@@ -517,9 +588,51 @@ def test_configuration_is_explicit_and_fail_closed() -> None:
 
 
 def test_conversational_engagement_prompt_versions_are_current() -> None:
+    assert STRATEGY_VERSION == "ai-first-reply-v3"
+    assert DRAFT_SCHEMA_VERSION == 9
     assert PROPOSER_PROMPT_VERSION == "ai-first-proposer-v15"
+    assert EVIDENCE_PROMPT_VERSION == "claim-evidence-entailment-v6"
     assert REVIEWER_PROMPT_VERSION == "independent-reply-reviewer-v13"
     assert NO_REPLY_REVIEW_PROMPT_VERSION == "independent-no-reply-review-v1"
+    assert CLAIM_AUDITOR_PROMPT_VERSION == "claim-inventory-auditor-v5"
+    assert VALIDATION_RETRY_PROTOCOL_VERSION == "validator-guided-retry-v1"
+
+
+def test_production_system_prompt_hashes_and_operational_limits_are_frozen() -> None:
+    context = reply_context("A wholly synthetic civil contribution.")
+    proposal = proposer(
+        mode="courtesy",
+        reply="Thank you for the thoughtful contribution.",
+        claims=[],
+    )
+    no_reply_proposal = proposer(mode="no_reply")
+    prompt_systems = {
+        "proposer": _proposer_prompts(
+            context,
+            [],
+            resolved_quotation=None,
+            revision=None,
+        )[0],
+        "reviewer": _reviewer_prompts(context, proposal, [], None)[0],
+        "no_reply_review": _no_reply_review_prompts(
+            context,
+            no_reply_proposal,
+        )[0],
+        "claim_auditor": _claim_auditor_prompts(
+            "A wholly synthetic claim-free sentence."
+        )[0],
+    }
+
+    assert {name: text_sha256(prompt) for name, prompt in prompt_systems.items()} == {
+        "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
+        "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e",
+        "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
+        "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
+    }
+    config = strategy_config()
+    assert config["maximum_invalid_response_retries"] == 1
+    assert config["maximum_model_calls"] == 6
+    assert config["maximum_revisions"] == 1
 
 
 def test_no_reply_review_prompt_is_independent_and_cannot_write_the_reply() -> None:
@@ -819,6 +932,355 @@ def test_repeated_require_reply_after_revision_limit_is_operational_failure(
     ]
 
 
+def test_first_proposer_attempt_is_byte_identical_and_has_no_correction(
+    repository: FakeRepository,
+) -> None:
+    context = reply_context("A wholly synthetic civil observation.")
+    reply = "Thank you for the thoughtful observation."
+    proposal = proposer(mode="courtesy", reply=reply, claims=[])
+    expected_system, expected_user = _proposer_prompts(
+        context,
+        [reply],
+        resolved_quotation=None,
+        revision=None,
+    )
+
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": proposal},
+        context=context,
+        recent_replies=[reply],
+    )
+
+    assert result.status == "no_reply"
+    assert result.reason == "exact_duplicate_reply"
+    assert result.model_call_count == 1
+    assert len(transport.calls) == 1
+    assert transport.calls[0] == {
+        "stage": "proposer",
+        "model": "proposer-model",
+        "system_prompt": expected_system,
+        "user_prompt": expected_user,
+        "response_schema": proposer_schema(500, 6),
+        "timeout_seconds": 30,
+        "max_output_tokens": 900,
+        "media_context": None,
+    }
+    assert transport.calls[0]["system_prompt"].encode("utf-8") == expected_system.encode("utf-8")
+    assert transport.calls[0]["user_prompt"].encode("utf-8") == expected_user.encode("utf-8")
+    assert "validation_correction" not in json.loads(transport.calls[0]["user_prompt"])
+
+
+def test_first_reviewer_attempt_is_byte_identical_to_current_prompt(
+    repository: FakeRepository,
+) -> None:
+    context = reply_context("Thank you for the entirely synthetic note.")
+    proposal = proposer(
+        mode="courtesy",
+        reply="Thank you for the entirely synthetic note.",
+        claims=[],
+    )
+    expected_system, expected_user = _reviewer_prompts(
+        context,
+        proposal,
+        [],
+        None,
+    )
+
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposal,
+            "reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=context,
+    )
+
+    assert isinstance(result.reply, AIReply)
+    reviewer_call = transport.calls[1]
+    assert reviewer_call == {
+        "stage": "reviewer",
+        "model": "reviewer-model",
+        "system_prompt": expected_system,
+        "user_prompt": expected_user,
+        "response_schema": reviewer_schema(6),
+        "timeout_seconds": 30,
+        "max_output_tokens": 900,
+        "media_context": None,
+    }
+    assert reviewer_call["system_prompt"].encode("utf-8") == expected_system.encode("utf-8")
+    assert reviewer_call["user_prompt"].encode("utf-8") == expected_user.encode("utf-8")
+    assert "validation_correction" not in json.loads(reviewer_call["user_prompt"])
+
+
+def test_malformed_json_retry_uses_one_fixed_size_corrective_envelope(
+    repository: FakeRepository,
+) -> None:
+    context = reply_context("A wholly synthetic retry contribution.")
+    reply = "Thank you for the synthetic retry contribution."
+    proposal = proposer(mode="courtesy", reply=reply, claims=[])
+    malformed_response = "{RAW_INVALID_MODEL_OUTPUT_MUST_NOT_BE_COPIED"
+    media = {"synthetic_media_id": "offline-fixture-only"}
+    with pytest.raises(json.JSONDecodeError) as caught:
+        json.loads(malformed_response)
+    validator_exception = caught.value
+    expected_system, expected_user = _proposer_prompts(
+        context,
+        [reply],
+        resolved_quotation=None,
+        revision=None,
+    )
+
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": [malformed_response, proposal]},
+        context=context,
+        recent_replies=[reply],
+        media_context=media,
+    )
+
+    assert result.reason == "exact_duplicate_reply"
+    assert result.model_call_count == 2
+    assert len(transport.calls) == 2
+    first_call, retry_call = transport.calls
+    assert first_call["system_prompt"] == expected_system
+    assert first_call["user_prompt"] == expected_user
+    assert first_call["user_prompt"] != retry_call["user_prompt"]
+    assert first_call["system_prompt"].encode("utf-8") == retry_call["system_prompt"].encode("utf-8")
+    assert first_call["response_schema"] == retry_call["response_schema"]
+    assert first_call["media_context"] == retry_call["media_context"] == media
+    assert {
+        key: value for key, value in first_call.items() if key != "user_prompt"
+    } == {
+        key: value for key, value in retry_call.items() if key != "user_prompt"
+    }
+    assert_retry_envelope(
+        first_call["user_prompt"],
+        retry_call["user_prompt"],
+        stage="proposer",
+        attempt_number=2,
+        validator_exception=validator_exception,
+    )
+    retry_payload = json.loads(retry_call["user_prompt"])
+    assert set(retry_payload) == set(json.loads(first_call["user_prompt"])) | {
+        "validation_correction"
+    }
+    assert "response_schema" not in retry_payload
+    assert malformed_response not in retry_call["user_prompt"]
+    assert "RAW_INVALID_MODEL_OUTPUT_MUST_NOT_BE_COPIED" not in retry_call["user_prompt"]
+    first_identity = text_sha256(first_call["system_prompt"] + "\n" + first_call["user_prompt"])
+    retry_identity = text_sha256(retry_call["system_prompt"] + "\n" + retry_call["user_prompt"])
+    assert first_identity != retry_identity
+
+    retry_row = retry_audit_row(result, "proposer")
+    assert retry_row["validation_retry_protocol_version"] == VALIDATION_RETRY_PROTOCOL_VERSION
+    assert retry_row["validator_error_type"] == "JSONDecodeError"
+    assert retry_row["validator_error"] == str(validator_exception)
+    assert retry_row["validator_error_sha256"] == text_sha256(str(validator_exception))
+    assert retry_row["original_user_prompt_sha256"] == text_sha256(first_call["user_prompt"])
+    assert retry_row["corrective_user_prompt_sha256"] == text_sha256(retry_call["user_prompt"])
+    assert retry_row["original_user_prompt_sha256"] != retry_row["corrective_user_prompt_sha256"]
+    assert retry_row["corrective_retry_applied"] is True
+    serialised_audit = json.dumps(result.audit, sort_keys=True)
+    assert malformed_response not in serialised_audit
+    assert "RAW_INVALID_MODEL_OUTPUT_MUST_NOT_BE_COPIED" not in serialised_audit
+    assert expected_user not in serialised_audit
+    assert retry_call["user_prompt"] not in serialised_audit
+
+
+def test_ordinary_validator_value_error_gets_exactly_one_corrective_retry(
+    repository: FakeRepository,
+) -> None:
+    context = reply_context("A synthetic validator-error contribution.")
+    reply = "Thank you for the synthetic validator test."
+    valid_proposal = proposer(mode="courtesy", reply=reply, claims=[])
+    raw_response_marker = "RAW_RESPONSE_FIELD_MUST_NOT_ESCAPE"
+    invalid_proposal = copy.deepcopy(valid_proposal)
+    invalid_proposal["mode"] = raw_response_marker
+    with pytest.raises(ValueError) as caught:
+        validate_proposer(
+            invalid_proposal,
+            maximum_reply_length=500,
+            maximum_claims=6,
+        )
+
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": [invalid_proposal, valid_proposal]},
+        context=context,
+        recent_replies=[reply],
+    )
+
+    assert result.reason == "exact_duplicate_reply"
+    assert result.model_call_count == 2
+    assert len(transport.calls) == 2
+    assert_retry_envelope(
+        transport.calls[0]["user_prompt"],
+        transport.calls[1]["user_prompt"],
+        stage="proposer",
+        attempt_number=2,
+        validator_exception=caught.value,
+    )
+    retry_row = retry_audit_row(result, "proposer")
+    assert retry_row["validator_error_type"] == "ValueError"
+    assert retry_row["validator_error"] == str(caught.value)
+    assert retry_row["validator_error_sha256"] == text_sha256(str(caught.value))
+    assert retry_row["corrective_retry_applied"] is True
+    assert raw_response_marker not in transport.calls[1]["user_prompt"]
+    assert raw_response_marker not in json.dumps(result.audit, sort_keys=True)
+
+
+def test_retry_envelope_helper_rebuilds_from_the_immutable_original() -> None:
+    original_payload = {
+        "alpha": ["synthetic", {"nested": True}],
+        "number": 7,
+        "unicode": "café",
+    }
+    original_prompt = json.dumps(original_payload, ensure_ascii=False, sort_keys=True)
+    first_error = ValueError("first synthetic validation failure")
+    second_error = TypeError("second synthetic validation failure")
+
+    second_prompt, second_metadata = _build_validation_retry_user_prompt(
+        original_prompt,
+        "evidence",
+        2,
+        first_error,
+    )
+    third_prompt, third_metadata = _build_validation_retry_user_prompt(
+        original_prompt,
+        "evidence",
+        3,
+        second_error,
+    )
+
+    assert_retry_envelope(
+        original_prompt,
+        second_prompt,
+        stage="evidence",
+        attempt_number=2,
+        validator_exception=first_error,
+    )
+    assert_retry_envelope(
+        original_prompt,
+        third_prompt,
+        stage="evidence",
+        attempt_number=3,
+        validator_exception=second_error,
+    )
+    assert str(first_error) not in third_prompt
+    assert str(second_error) not in second_prompt
+    assert second_prompt.count('"validation_correction"') == 1
+    assert third_prompt.count('"validation_correction"') == 1
+    for prompt, metadata, error in (
+        (second_prompt, second_metadata, first_error),
+        (third_prompt, third_metadata, second_error),
+    ):
+        assert metadata["validation_retry_protocol_version"] == VALIDATION_RETRY_PROTOCOL_VERSION
+        assert metadata["validator_error_type"] == type(error).__name__
+        assert metadata["validator_error"] == str(error)
+        assert metadata["validator_error_sha256"] == text_sha256(str(error))
+        assert metadata["original_user_prompt_sha256"] == text_sha256(original_prompt)
+        assert metadata["corrective_user_prompt_sha256"] == text_sha256(prompt)
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "proposer",
+        "revision_proposer",
+        "evidence",
+        "revision_evidence",
+        "claim_auditor",
+        "revision_claim_auditor",
+        "reviewer",
+        "revision_reviewer",
+        "no_reply_reviewer",
+        "revision_no_reply_reviewer",
+    ],
+)
+def test_retry_envelope_preserves_every_pipeline_stage_name(stage: str) -> None:
+    original_prompt = json.dumps({"synthetic": "payload"}, sort_keys=True)
+    validator_exception = ValueError("synthetic validation failure")
+
+    corrective_prompt, _metadata = _build_validation_retry_user_prompt(
+        original_prompt,
+        stage,
+        2,
+        validator_exception,
+    )
+
+    correction = assert_retry_envelope(
+        original_prompt,
+        corrective_prompt,
+        stage=stage,
+        attempt_number=2,
+        validator_exception=validator_exception,
+    )
+    assert correction["stage"] == stage
+
+
+def test_hypothetical_multiple_retries_never_accumulate_correction_history(
+    repository: FakeRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        reply_strategy_module,
+        "validate_strategy_config",
+        lambda _config: [],
+    )
+    context = reply_context("A synthetic hypothetical retry contribution.")
+    reply = "Thank you for the hypothetical retry test."
+    malformed_one = "{"
+    malformed_two = '{"field":'
+    with pytest.raises(json.JSONDecodeError) as first_caught:
+        json.loads(malformed_one)
+    with pytest.raises(json.JSONDecodeError) as second_caught:
+        json.loads(malformed_two)
+
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": [
+                malformed_one,
+                malformed_two,
+                proposer(mode="courtesy", reply=reply, claims=[]),
+            ],
+        },
+        context=context,
+        config=strategy_config(maximum_invalid_response_retries=2),
+        recent_replies=[reply],
+    )
+
+    assert result.reason == "exact_duplicate_reply"
+    assert result.model_call_count == 3
+    assert len(transport.calls) == 3
+    original_prompt = transport.calls[0]["user_prompt"]
+    assert_retry_envelope(
+        original_prompt,
+        transport.calls[1]["user_prompt"],
+        stage="proposer",
+        attempt_number=2,
+        validator_exception=first_caught.value,
+    )
+    assert_retry_envelope(
+        original_prompt,
+        transport.calls[2]["user_prompt"],
+        stage="proposer",
+        attempt_number=3,
+        validator_exception=second_caught.value,
+    )
+    assert str(first_caught.value) not in transport.calls[2]["user_prompt"]
+    retry_rows = [
+        row for row in result.audit if row.get("status") == "invalid_response_retry"
+    ]
+    assert len(retry_rows) == 2
+    assert all(
+        row["validation_retry_protocol_version"] == VALIDATION_RETRY_PROTOCOL_VERSION
+        and row["corrective_retry_applied"] is True
+        for row in retry_rows
+    )
+
+
 def test_invalid_no_reply_reviewer_output_retries_only_within_existing_limits(
     repository: FakeRepository,
 ) -> None:
@@ -841,6 +1303,13 @@ def test_invalid_no_reply_reviewer_output_retries_only_within_existing_limits(
     assert [row["status"] for row in result.audit[-2:]] == [
         "invalid_response_retry", "invalid",
     ]
+    retry_payload = json.loads(transport.calls[2]["user_prompt"])
+    assert retry_payload["validation_correction"]["stage"] == "no_reply_reviewer"
+    retry_row = retry_audit_row(result, "no_reply_reviewer")
+    assert retry_row["validation_retry_protocol_version"] == VALIDATION_RETRY_PROTOCOL_VERSION
+    assert retry_row["corrective_retry_applied"] is True
+    assert result.audit[-1]["validation_retry_protocol_version"] == VALIDATION_RETRY_PROTOCOL_VERSION
+    assert result.audit[-1]["corrective_retry_applied"] is True
     assert outcome_telemetry(result)["reviewer_verdict"] == "invalid"
 
 
@@ -867,6 +1336,10 @@ def test_one_invalid_proposer_response_is_retried_then_accepted(
         "completed",
         "completed",
     ]
+    assert json.loads(transport.calls[1]["user_prompt"])["validation_correction"][
+        "stage"
+    ] == "proposer"
+    assert retry_audit_row(result, "proposer")["corrective_retry_applied"] is True
 
 
 def test_second_invalid_proposer_response_fails_closed(
@@ -886,6 +1359,14 @@ def test_second_invalid_proposer_response_fails_closed(
         "not_resolved",
         "invalid_response_retry",
         "invalid",
+    ]
+    assert result.audit[-1]["validation_retry_protocol_version"] == VALIDATION_RETRY_PROTOCOL_VERSION
+    assert result.audit[-1]["corrective_retry_applied"] is True
+    assert text_sha256(transport.calls[0]["user_prompt"]) == result.audit[-1][
+        "original_user_prompt_sha256"
+    ]
+    assert text_sha256(transport.calls[1]["user_prompt"]) == result.audit[-1][
+        "corrective_user_prompt_sha256"
     ]
     assert outcome_telemetry(result) == {
         "proposer_mode": "not_run",
@@ -913,6 +1394,127 @@ def test_invalid_response_retry_remains_bounded_by_global_call_limit(
     assert result.model_call_count == 1
     assert len(transport.calls) == 1
     assert result.audit[-1]["reason"] == "reply pipeline model-call ceiling reached"
+    assert result.audit[-1]["corrective_retry_applied"] is False
+    assert not any(
+        row.get("corrective_retry_applied") is True for row in result.audit
+    )
+
+
+@pytest.mark.parametrize(
+    ("validator_message", "private_marker"),
+    [
+        pytest.param("", None, id="empty"),
+        pytest.param(
+            "NUL_VALIDATOR_MESSAGE_MUST_NOT_ESCAPE\x00tail",
+            "NUL_VALIDATOR_MESSAGE_MUST_NOT_ESCAPE",
+            id="nul",
+        ),
+        pytest.param(
+            "OVERSIZED_VALIDATOR_MESSAGE_MUST_NOT_ESCAPE" + ("x" * 501),
+            "OVERSIZED_VALIDATOR_MESSAGE_MUST_NOT_ESCAPE",
+            id="oversized",
+        ),
+        pytest.param(chr(0xD800), None, id="not-utf8-encodable"),
+    ],
+)
+def test_unsafe_validator_error_fails_closed_without_a_retry(
+    repository: FakeRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    validator_message: str,
+    private_marker: str | None,
+) -> None:
+    def unsafe_validator(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise ValueError(validator_message)
+
+    monkeypatch.setattr(reply_strategy_module, "validate_proposer", unsafe_validator)
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": proposer(mode="no_reply")},
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "proposer_invalid"
+    assert result.model_call_count == 1
+    assert len(transport.calls) == 1
+    assert not any(row.get("status") == "invalid_response_retry" for row in result.audit)
+    final_row = result.audit[-1]
+    assert final_row["status"] == "invalid"
+    assert final_row["reason"] == "validation_error_not_safe_for_retry"
+    assert final_row["validator_error_type"] == "ValueError"
+    assert final_row["corrective_retry_applied"] is False
+    assert len(str(final_row["reason"])) < 100
+    if private_marker is not None:
+        assert private_marker not in json.dumps(result.audit, sort_keys=True)
+
+
+@pytest.mark.parametrize(
+    ("original_user_prompt", "private_marker"),
+    [
+        pytest.param(
+            "{INVALID_ORIGINAL_PROMPT_MUST_NOT_ESCAPE",
+            "INVALID_ORIGINAL_PROMPT_MUST_NOT_ESCAPE",
+            id="invalid-json",
+        ),
+        pytest.param(
+            json.dumps(["NON_OBJECT_PROMPT_MUST_NOT_ESCAPE"]),
+            "NON_OBJECT_PROMPT_MUST_NOT_ESCAPE",
+            id="non-object",
+        ),
+        pytest.param(
+            json.dumps({
+                "safe_synthetic_field": True,
+                "validation_correction": {
+                    "RESERVED_VALUE_MUST_NOT_ESCAPE": True,
+                },
+            }),
+            "RESERVED_VALUE_MUST_NOT_ESCAPE",
+            id="reserved-key-collision",
+        ),
+        pytest.param(
+            json.dumps({
+                "SURROGATE_PROMPT_MUST_NOT_ESCAPE": chr(0xD800),
+            }),
+            "SURROGATE_PROMPT_MUST_NOT_ESCAPE",
+            id="corrective-prompt-not-utf8-encodable",
+        ),
+    ],
+)
+def test_retry_prompt_shape_failure_is_bounded_and_leak_free(
+    repository: FakeRepository,
+    monkeypatch: pytest.MonkeyPatch,
+    original_user_prompt: str,
+    private_marker: str,
+) -> None:
+    monkeypatch.setattr(
+        reply_strategy_module,
+        "_proposer_prompts",
+        lambda *_args, **_kwargs: ("synthetic-system-prompt", original_user_prompt),
+    )
+    raw_invalid_response = "{RAW_RESPONSE_MUST_NOT_ESCAPE"
+
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": raw_invalid_response},
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "proposer_invalid"
+    assert result.model_call_count == 1
+    assert len(transport.calls) == 1
+    assert transport.calls[0]["user_prompt"] == original_user_prompt
+    assert not any(row.get("status") == "invalid_response_retry" for row in result.audit)
+    final_row = result.audit[-1]
+    assert final_row["status"] == "invalid"
+    assert final_row["reason"] == "validation_retry_prompt_construction_failed"
+    assert final_row["corrective_retry_applied"] is False
+    assert isinstance(final_row["reason"], str)
+    assert 0 < len(final_row["reason"]) < 200
+    serialised_audit = json.dumps(result.audit, sort_keys=True)
+    assert private_marker not in serialised_audit
+    assert raw_invalid_response not in serialised_audit
+    assert original_user_prompt not in serialised_audit
 
 
 def test_one_invalid_evidence_response_is_retried_before_review(
@@ -942,10 +1544,12 @@ def test_one_invalid_evidence_response_is_retried_before_review(
         "evidence",
         "reviewer",
     ]
-    assert any(
-        row["stage"] == "evidence" and row["status"] == "invalid_response_retry"
-        for row in result.audit
-    )
+    retry_row = retry_audit_row(result, "evidence")
+    assert retry_row["corrective_retry_applied"] is True
+    evidence_calls = [call for call in transport.calls if call["stage"] == "evidence"]
+    assert json.loads(evidence_calls[1]["user_prompt"])["validation_correction"][
+        "stage"
+    ] == "evidence"
 
 
 def test_one_invalid_reviewer_response_is_retried_before_approval(
@@ -969,10 +1573,39 @@ def test_one_invalid_reviewer_response_is_retried_before_approval(
         "reviewer",
         "reviewer",
     ]
-    assert any(
-        row["stage"] == "reviewer" and row["status"] == "invalid_response_retry"
-        for row in result.audit
+    retry_row = retry_audit_row(result, "reviewer")
+    assert retry_row["corrective_retry_applied"] is True
+    reviewer_calls = [call for call in transport.calls if call["stage"] == "reviewer"]
+    assert json.loads(reviewer_calls[1]["user_prompt"])["validation_correction"][
+        "stage"
+    ] == "reviewer"
+
+
+def test_one_invalid_claim_auditor_response_is_corrected_at_the_same_stage(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply="Principle should be valued above convenience.",
+                claims=[],
+            ),
+            "claim_auditor": ["", claim_auditor()],
+            "reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=reply_context("A wholly synthetic question of principle."),
     )
+
+    assert isinstance(result.reply, AIReply)
+    claim_auditor_calls = [
+        call for call in transport.calls if call["stage"] == "claim_auditor"
+    ]
+    assert len(claim_auditor_calls) == 2
+    retry_payload = json.loads(claim_auditor_calls[1]["user_prompt"])
+    assert retry_payload["validation_correction"]["stage"] == "claim_auditor"
+    assert retry_audit_row(result, "claim_auditor")["corrective_retry_applied"] is True
 
 
 @pytest.mark.parametrize(
@@ -2950,6 +3583,44 @@ def test_substantive_reviewer_contradiction_is_not_retried(
         "proposer", "claim_auditor", "reviewer",
     ]
     assert result.audit[-1]["retry_suppressed"] is True
+    assert result.audit[-1]["corrective_retry_applied"] is False
+    reviewer_call = transport.calls[-1]
+    assert "validation_correction" not in json.loads(reviewer_call["user_prompt"])
+
+
+def test_reviewer_approval_with_failed_safety_finding_is_not_retried(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "Thank you for the wholly synthetic contribution."
+    unsafe_approval = reviewer(
+        direct_question=False,
+        answers_first=False,
+        topically_relevant=False,
+    )
+
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="courtesy",
+                reply=reply_text,
+                claims=[],
+            ),
+            "reviewer": unsafe_approval,
+        },
+        context=reply_context("A wholly synthetic civil contribution."),
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "reviewer_invalid"
+    reviewer_calls = [call for call in transport.calls if call["stage"] == "reviewer"]
+    assert len(reviewer_calls) == 1
+    assert result.audit[-1]["retry_suppressed"] is True
+    assert result.audit[-1]["corrective_retry_applied"] is False
+    assert "validation_correction" not in json.loads(
+        reviewer_calls[0]["user_prompt"]
+    )
 
 
 def test_substantive_claim_auditor_contradiction_is_not_retried(
@@ -2981,6 +3652,9 @@ def test_substantive_claim_auditor_contradiction_is_not_retried(
         "proposer", "claim_auditor",
     ]
     assert result.audit[-1]["retry_suppressed"] is True
+    assert result.audit[-1]["corrective_retry_applied"] is False
+    claim_auditor_call = transport.calls[-1]
+    assert "validation_correction" not in json.loads(claim_auditor_call["user_prompt"])
 
 
 def test_revision_cannot_launder_a_previously_identified_world_claim(

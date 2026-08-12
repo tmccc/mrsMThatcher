@@ -33,7 +33,13 @@ EVIDENCE_PROMPT_VERSION = "claim-evidence-entailment-v6"
 REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v13"
 NO_REPLY_REVIEW_PROMPT_VERSION = "independent-no-reply-review-v1"
 CLAIM_AUDITOR_PROMPT_VERSION = "claim-inventory-auditor-v5"
+VALIDATION_RETRY_PROTOCOL_VERSION = "validator-guided-retry-v1"
 LEGACY_DRAFT_AUDIT_SCHEMA_VERSION = 1
+
+_VALIDATION_RETRY_REQUIRED_ACTION = (
+    "Return a complete replacement JSON object satisfying the supplied response schema and "
+    "correct the stated validation failure. Do not discuss the correction or return partial fields."
+)
 
 MODES = {
     "direct_factual_answer",
@@ -144,6 +150,10 @@ class NonRetryableReviewerResponseError(ValueError):
     """A received reviewer response contains a substantive safety conflict."""
 
 
+class _ValidationRetryPromptError(ReplyPipelineError):
+    """A bounded corrective retry prompt could not be constructed safely."""
+
+
 class AIReply(str):
     """A reviewer-approved reply carrying its immutable draft record."""
 
@@ -185,6 +195,89 @@ def utc_now() -> str:
 def text_hash(text: str) -> str:
     """Return the SHA-256 digest of exact UTF-8 text."""
     return hashlib.sha256(str(text).encode("utf-8")).hexdigest()
+
+
+def _build_validation_retry_user_prompt(
+    original_user_prompt: str,
+    stage: str,
+    attempt_number: int,
+    validator_exception: BaseException,
+) -> tuple[str, dict[str, object]]:
+    """Build one fixed-size correction envelope from the immutable original prompt."""
+    validator_error = str(validator_exception)
+    validator_error_type = type(validator_exception).__name__
+    if (
+        not validator_error
+        or "\x00" in validator_error
+        or len(validator_error) > 500
+    ):
+        raise _ValidationRetryPromptError(
+            "validation_error_not_safe_for_retry"
+        )
+    try:
+        validator_error_sha256 = hashlib.sha256(
+            validator_error.encode("utf-8")
+        ).hexdigest()
+    except UnicodeEncodeError:
+        raise _ValidationRetryPromptError(
+            "validation_error_not_safe_for_retry"
+        ) from None
+
+    def reject_non_json_constant(_value: str) -> None:
+        raise ValueError("non-JSON numeric constant")
+
+    try:
+        payload = json.loads(
+            original_user_prompt,
+            parse_constant=reject_non_json_constant,
+        )
+    except (json.JSONDecodeError, TypeError, ValueError):
+        raise _ValidationRetryPromptError(
+            "validation_retry_prompt_construction_failed"
+        ) from None
+    if not isinstance(payload, dict) or "validation_correction" in payload:
+        raise _ValidationRetryPromptError(
+            "validation_retry_prompt_construction_failed"
+        )
+
+    payload["validation_correction"] = {
+        "protocol_version": VALIDATION_RETRY_PROTOCOL_VERSION,
+        "stage": stage,
+        "attempt_number": attempt_number,
+        "previous_response_rejected": True,
+        "validator_error_type": validator_error_type,
+        "validator_error": validator_error,
+        "validator_error_sha256": validator_error_sha256,
+        "required_action": _VALIDATION_RETRY_REQUIRED_ACTION,
+    }
+    try:
+        corrective_user_prompt = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        original_user_prompt_sha256 = hashlib.sha256(
+            original_user_prompt.encode("utf-8")
+        ).hexdigest()
+        corrective_user_prompt_sha256 = hashlib.sha256(
+            corrective_user_prompt.encode("utf-8")
+        ).hexdigest()
+    except (TypeError, ValueError, UnicodeEncodeError):
+        raise _ValidationRetryPromptError(
+            "validation_retry_prompt_construction_failed"
+        ) from None
+    if original_user_prompt_sha256 == corrective_user_prompt_sha256:
+        raise _ValidationRetryPromptError(
+            "validation_retry_prompt_construction_failed"
+        )
+    return corrective_user_prompt, {
+        "validation_retry_protocol_version": VALIDATION_RETRY_PROTOCOL_VERSION,
+        "validator_error_type": validator_error_type,
+        "validator_error": validator_error,
+        "validator_error_sha256": validator_error_sha256,
+        "original_user_prompt_sha256": original_user_prompt_sha256,
+        "corrective_user_prompt_sha256": corrective_user_prompt_sha256,
+    }
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
@@ -2313,27 +2406,49 @@ def run_reply_pipeline(
     ) -> Any | None:
         """Retry one fully received invalid model response, then fail closed."""
         maximum_retries = config["maximum_invalid_response_retries"]
+        original_user_prompt = user_prompt
+        current_user_prompt = original_user_prompt
+        pending_retry_audit: dict[str, object] | None = None
+        pending_retry_origin_attempt: int | None = None
         for attempt in range(maximum_retries + 1):
             try:
                 raw = call(
                     stage,
                     model=model,
                     system_prompt=system_prompt,
-                    user_prompt=user_prompt,
+                    user_prompt=current_user_prompt,
                     schema=schema,
                     timeout=timeout,
                     max_output_tokens=max_output_tokens,
                     include_media=include_media,
                 )
-                return validator(raw)
             except ModelCallLimitError as exc:
-                audit.append({
+                row: dict[str, object] = {
                     "stage": stage,
                     "status": "invalid",
                     "attempt": attempt + 1,
                     "reason": str(exc),
-                })
+                    "corrective_retry_applied": False,
+                }
+                if pending_retry_audit is not None:
+                    row.update(pending_retry_audit)
+                    row["corrective_retry_applied"] = False
+                audit.append(row)
                 return None
+
+            if pending_retry_audit is not None:
+                audit.append({
+                    "stage": stage,
+                    "status": "invalid_response_retry",
+                    "attempt": pending_retry_origin_attempt,
+                    "reason": pending_retry_audit["validator_error"],
+                    "next_attempt": attempt + 1,
+                    **pending_retry_audit,
+                    "corrective_retry_applied": True,
+                })
+
+            try:
+                return validator(raw)
             except NonRetryableReviewerResponseError as exc:
                 audit.append({
                     "stage": stage,
@@ -2341,24 +2456,91 @@ def run_reply_pipeline(
                     "attempt": attempt + 1,
                     "reason": str(exc),
                     "retry_suppressed": True,
+                    "corrective_retry_applied": False,
                 })
                 return None
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
-                if attempt >= maximum_retries:
+                validator_error = str(exc)
+                validator_error_type = type(exc).__name__
+                try:
+                    validator_error_sha256 = hashlib.sha256(
+                        validator_error.encode("utf-8")
+                    ).hexdigest()
+                except UnicodeEncodeError:
                     audit.append({
                         "stage": stage,
                         "status": "invalid",
                         "attempt": attempt + 1,
-                        "reason": str(exc),
+                        "reason": "validation_error_not_safe_for_retry",
+                        "validator_error_type": validator_error_type,
+                        "corrective_retry_applied": False,
                     })
                     return None
-                audit.append({
-                    "stage": stage,
-                    "status": "invalid_response_retry",
-                    "attempt": attempt + 1,
-                    "reason": str(exc),
-                    "next_attempt": attempt + 2,
-                })
+                if (
+                    not validator_error
+                    or "\x00" in validator_error
+                    or len(validator_error) > 500
+                ):
+                    audit.append({
+                        "stage": stage,
+                        "status": "invalid",
+                        "attempt": attempt + 1,
+                        "reason": "validation_error_not_safe_for_retry",
+                        "validator_error_type": validator_error_type,
+                        "validator_error_sha256": validator_error_sha256,
+                        "corrective_retry_applied": False,
+                    })
+                    return None
+                if attempt >= maximum_retries:
+                    row = {
+                        "stage": stage,
+                        "status": "invalid",
+                        "attempt": attempt + 1,
+                        "reason": validator_error,
+                        "validator_error_type": validator_error_type,
+                        "validator_error": validator_error,
+                        "validator_error_sha256": validator_error_sha256,
+                        "corrective_retry_applied": pending_retry_audit is not None,
+                    }
+                    if pending_retry_audit is not None:
+                        row.update({
+                            "validation_retry_protocol_version": (
+                                VALIDATION_RETRY_PROTOCOL_VERSION
+                            ),
+                            "original_user_prompt_sha256": pending_retry_audit[
+                                "original_user_prompt_sha256"
+                            ],
+                            "corrective_user_prompt_sha256": pending_retry_audit[
+                                "corrective_user_prompt_sha256"
+                            ],
+                        })
+                    audit.append(row)
+                    return None
+                try:
+                    current_user_prompt, pending_retry_audit = (
+                        _build_validation_retry_user_prompt(
+                            original_user_prompt,
+                            stage,
+                            attempt + 2,
+                            exc,
+                        )
+                    )
+                except _ValidationRetryPromptError as prompt_exc:
+                    reason = str(prompt_exc)
+                    row = {
+                        "stage": stage,
+                        "status": "invalid",
+                        "attempt": attempt + 1,
+                        "reason": reason,
+                        "validator_error_type": validator_error_type,
+                        "validator_error_sha256": validator_error_sha256,
+                        "corrective_retry_applied": False,
+                    }
+                    if reason != "validation_error_not_safe_for_retry":
+                        row["validator_error"] = validator_error
+                    audit.append(row)
+                    return None
+                pending_retry_origin_attempt = attempt + 1
         return None
 
     revision_request: dict[str, Any] | None = None
