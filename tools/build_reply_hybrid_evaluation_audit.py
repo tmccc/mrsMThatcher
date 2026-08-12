@@ -40,13 +40,13 @@ from historical_context_packet_corrections import apply_packet_corrections
 from historical_context_source_roles import public_sources, validate_and_attach_audit
 
 
-TOOL_VERSION = "reply-hybrid-evaluation-audit-v1"
+TOOL_VERSION = "reply-hybrid-evaluation-audit-v2"
 SCHEMA_VERSION = 1
 NORMALISATION_VERSION = "reply-candidate-normalisation-v1"
 NEAR_DUPLICATE_VERSION = "sequence-matcher-autojunk-false-v1"
 NEAR_DUPLICATE_THRESHOLD = 0.92
 CONTEXT_AUDIT_RULE_VERSION = "reply-holdout-context-audit-v1-extended"
-SEMANTIC_INVENTORY_VERSION = "fresh-reply-semantic-inventory-v1"
+LEXICAL_HINT_VERSION = "fresh-reply-lexical-navigation-hints-v2"
 CURRENT_PROFILE_COMMIT = "f07957e8b2388d8258821cb21b25f2a43681cbbd"
 HYBRID_PROFILE_COMMIT = "0b7cd1da11d7c9ff5b3051c3d6fc4a70ae45176d"
 HISTORICAL_SOURCE_COMMITS = {
@@ -190,6 +190,8 @@ OUTPUT_FILENAMES = (
     "context_audit_summary.json",
     "manual_context_review.md",
     "manual_context_clearance.csv",
+    "manual_semantic_review.md",
+    "manual_semantic_classification.csv",
     "strata_inventory.json",
     "sampling_readiness.json",
     "no_cost_audit_report.md",
@@ -3017,118 +3019,153 @@ def candidate_contamination(
     )
 
 
-def deduplicate_fresh_candidates(
+def cluster_fresh_candidates(
     candidates: Sequence[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
-    """Keep one time-first representative per exact fresh normalised contribution."""
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Attach deterministic exact-text cluster metadata without removing candidates.
+
+    Repeated target identities or complete prospective identities are upstream source
+    integrity defects, not text clusters.  When lexical normalisation is empty, the
+    diagnostic comparison falls back to exact case-folded cleaned text so unrelated
+    emoji-, symbol-, and handle-only contributions do not collapse into one bucket.
+    """
     ordered = sorted(
-        candidates,
-        key=lambda row: (str(row["candidate_timestamp"]), str(row["target_id"])),
+        (dict(candidate) for candidate in candidates),
+        key=lambda row: (
+            str(row["candidate_timestamp"]),
+            str(row["target_id"]),
+            str(row["candidate_id"]),
+        ),
     )
-    groups: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+    candidate_ids: set[str] = set()
+    target_ids: set[str] = set()
+    prospective_identities: set[str] = set()
+    groups: defaultdict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for candidate in ordered:
-        normalised = normalise_incoming(str(candidate["incoming_contribution"]))
-        groups[normalised].append(candidate)
-    kept: list[dict[str, Any]] = []
-    excluded: list[dict[str, Any]] = []
-    group_receipts: list[dict[str, Any]] = []
-    for normalised, members in sorted(
-        groups.items(), key=lambda item: (text_sha256(item[0]), item[0])
+        candidate_id = str(candidate["candidate_id"])
+        target_id = str(candidate["target_id"])
+        prospective_identity = str(
+            candidate.get("prospective_candidate_identity_sha256") or ""
+        )
+        if candidate_id in candidate_ids:
+            raise AuditError(f"fresh candidate ID occurs more than once: {candidate_id}")
+        if target_id in target_ids:
+            raise AuditError(f"fresh target identity occurs more than once: {target_id}")
+        if prospective_identity and prospective_identity in prospective_identities:
+            raise AuditError(
+                "complete prospective candidate identity occurs more than once: "
+                f"{prospective_identity}"
+            )
+        candidate_ids.add(candidate_id)
+        target_ids.add(target_id)
+        if prospective_identity:
+            prospective_identities.add(prospective_identity)
+
+        incoming = str(candidate["incoming_contribution"])
+        normalised = normalise_incoming(incoming)
+        if normalised:
+            representation_kind = "normalised_lexical_text"
+            exact_representation = normalised
+        else:
+            representation_kind = "casefolded_clean_text"
+            exact_representation = clean_context_text(incoming).casefold()
+        groups[(representation_kind, exact_representation)].append(candidate)
+
+    cluster_receipts: list[dict[str, Any]] = []
+    for (representation_kind, exact_representation), members in sorted(
+        groups.items(),
+        key=lambda item: (
+            item[0][0],
+            text_sha256(item[0][1]),
+            item[0][1],
+        ),
     ):
-        representative = members[0]
-        kept.append(representative)
-        if len(members) == 1:
-            continue
-        member_ids = [str(row["candidate_id"]) for row in members]
-        group_receipts.append(
+        cluster_id = "fresh-exact-text-cluster-" + value_sha256(
             {
-                "normalised_incoming_sha256": text_sha256(normalised),
-                "representative_candidate_id": representative["candidate_id"],
-                "representative_target_id": representative["target_id"],
-                "member_candidate_ids": member_ids,
-                "member_count": len(members),
-                "pairwise_exact_match_count": len(members) * (len(members) - 1) // 2,
-                "selection_rule": "earliest_candidate_timestamp_then_target_id",
+                "exact_representation_kind": representation_kind,
+                "exact_representation": exact_representation,
             }
         )
-        for duplicate in members[1:]:
-            excluded.append(
-                {
-                    "candidate_id": duplicate["candidate_id"],
-                    "target_id": duplicate["target_id"],
-                    "lane": duplicate["lane"],
-                    "candidate_timestamp": duplicate["candidate_timestamp"],
-                    "historical_outcome": duplicate.get("historical_outcome"),
-                    "source_record_fingerprint": duplicate.get(
-                        "source_record_fingerprint"
-                    ),
-                    "context_audit_record_sha256": duplicate.get(
-                        "context_audit_record_sha256"
-                    ),
-                    "exclusion_reasons": [
-                        {
-                            "reason": "fresh_exact_normalised_incoming_duplicate",
-                            "matched_fresh_candidate_id": representative["candidate_id"],
-                            "matched_fresh_target_id": representative["target_id"],
-                            "normalised_incoming_sha256": text_sha256(normalised),
-                            "similarity": 1.0,
-                            "selection_rule": (
-                                "earliest_candidate_timestamp_then_target_id"
-                            ),
-                        }
-                    ],
-                }
-            )
-    return (
-        sorted(kept, key=lambda row: (row["candidate_timestamp"], row["target_id"])),
-        sorted(
-            excluded,
-            key=lambda row: (row["candidate_timestamp"], row["target_id"]),
-        ),
-        {
-            "algorithm": "fresh-exact-normalised-dedup-v1",
-            "normalisation_version": NORMALISATION_VERSION,
-            "representative_rule": "earliest_candidate_timestamp_then_target_id",
-            "duplicate_group_count": len(group_receipts),
-            "excluded_candidate_count": len(excluded),
-            "pairwise_exact_match_count": sum(
-                row["pairwise_exact_match_count"] for row in group_receipts
-            ),
-            "groups": group_receipts,
-        },
+        cluster_size = len(members)
+        for rank, member in enumerate(members, 1):
+            member["fresh_exact_text_cluster_id"] = cluster_id
+            member["fresh_exact_text_cluster_size"] = cluster_size
+            member["fresh_exact_text_cluster_rank"] = rank
+        if cluster_size < 2:
+            continue
+        representative = members[0]
+        cluster_receipts.append(
+            {
+                "fresh_exact_text_cluster_id": cluster_id,
+                "exact_representation_kind": representation_kind,
+                "exact_representation_sha256": text_sha256(exact_representation),
+                "normalised_incoming_sha256": text_sha256(
+                    normalise_incoming(
+                        str(representative["incoming_contribution"])
+                    )
+                ),
+                "representative_candidate_id": representative["candidate_id"],
+                "representative_target_id": representative["target_id"],
+                "member_candidate_ids": [
+                    str(member["candidate_id"]) for member in members
+                ],
+                "member_target_ids": [str(member["target_id"]) for member in members],
+                "cluster_size": cluster_size,
+                "pairwise_exact_match_count": cluster_size * (cluster_size - 1) // 2,
+            }
+        )
+
+    clustered_candidate_count = sum(
+        receipt["cluster_size"] for receipt in cluster_receipts
     )
+    pairwise_match_count = sum(
+        receipt["pairwise_exact_match_count"] for receipt in cluster_receipts
+    )
+    return ordered, {
+        "algorithm": "fresh-exact-text-clustering-v1",
+        "normalisation_version": NORMALISATION_VERSION,
+        "empty_normalisation_representation": "casefolded_clean_text",
+        "representative_rule": (
+            "earliest_candidate_timestamp_then_target_id_then_candidate_id"
+        ),
+        "candidate_cluster_assignment_count": len(ordered),
+        "fresh_exact_text_cluster_count": len(cluster_receipts),
+        "fresh_exact_text_clustered_candidate_count": clustered_candidate_count,
+        "fresh_exact_text_pairwise_match_count": pairwise_match_count,
+        "fresh_candidates_removed_for_text_duplication": 0,
+        "clusters": cluster_receipts,
+    }
 
 
 def semantic_inventory(incoming: str, context: dict[str, Any]) -> dict[str, Any]:
-    """Assign transparent provisional contribution-only coverage tags and one stratum."""
+    """Return non-binding lexical navigation hints and pending semantic fields."""
     folded = clean_context_text(incoming).casefold()
-    tags: list[str] = []
-    courtesy = bool(
-        re.search(
-            r"\b(?:thank(?:s| you)?|grateful|appreciate|well done|congratulations|"
-            r"best wishes|good luck|lovely|welcome)\b",
-            folded,
-        )
-    ) and not bool(re.search(r"\b(?:because|since|therefore|however|but)\b", folded))
-    if courtesy:
-        tags.append("genuine_social_courtesy")
+    hints: list[str] = []
+    if re.search(
+        r"\b(?:thank(?:s| you)?|grateful|appreciate|well done|congratulations|"
+        r"congrats|best wishes|good luck|lovely|welcome|hello|hi|good morning|"
+        r"good evening|miss(?:ing|ed)?|love|sympathy|sorry|remember|remembrance|"
+        r"celebrat(?:e|ing|ion)|happy birthday|support)\b",
+        folded,
+    ):
+        hints.append("possible_social_cue")
     if re.search(r"\b(?:agree|right|indeed|exactly|true)\b", folded) and re.search(
         r"\b(?:because|since|principle|reason|therefore|liberty|responsibility)\b",
         folded,
     ):
-        tags.append("substantive_agreement_with_reason_or_principle")
+        hints.append("possible_substantive_agreement")
     if re.search(
         r"\b(?:disagree|wrong|however|but|nonsense|challenge|critic|why should|"
         r"not true|false)\b",
         folded,
     ):
-        tags.append("civil_challenge_criticism_or_disagreement")
+        hints.append("possible_civil_challenge")
     if re.search(
         r"\b(?:like|unlike|analogy|distinction|distinguish|recommend|should|ought|"
         r"instead|rather than)\b",
         folded,
     ):
-        tags.append("analogy_distinction_or_recommendation")
+        hints.append("possible_analogy_or_recommendation")
     factual_question = "?" in folded and bool(
         re.search(
             r"\b(?:who|what|when|where|which|how many|how much|did|was|were|"
@@ -3137,7 +3174,7 @@ def semantic_inventory(incoming: str, context: dict[str, Any]) -> dict[str, Any]
         )
     )
     if factual_question:
-        tags.append("direct_factual_or_historical_question")
+        hints.append("possible_factual_question")
     sensitive = bool(
         re.search(
             r"\b(?:killed|murder|criminal|traitor|terrorist|rape|abuse|corrupt|"
@@ -3150,33 +3187,33 @@ def semantic_inventory(incoming: str, context: dict[str, Any]) -> dict[str, Any]
         and re.search(r"\b(?:criminal|corrupt|killed|stole|fraud|traitor|terrorist)\b", folded)
     )
     if sensitive or allegation:
-        tags.append("unsupported_allegation_or_sensitive_factual_correction_context")
+        hints.append("possible_sensitive_or_allegation_context")
     wit = bool(re.search(r"\b(?:joke|funny|irony|ironic|pun|haha|lol|wit)\b", folded))
-    if wit and not sensitive:
-        tags.append("safe_contribution_specific_wit_opportunity")
-    if sensitive and allegation:
-        tags.append("justified_safety_no_reply")
-    if not tags:
-        tags.append("other_safe_conversational_contribution")
-    if "justified_safety_no_reply" in tags:
-        primary = "justified_safety_no_reply"
-    elif "genuine_social_courtesy" in tags:
-        primary = "genuine_social_courtesy"
-    elif "direct_factual_or_historical_question" in tags:
-        primary = "factual_or_historical_question"
-    elif "civil_challenge_criticism_or_disagreement" in tags:
-        primary = "civil_challenge_or_disagreement"
-    elif "safe_contribution_specific_wit_opportunity" in tags:
-        primary = "safe_wit_opportunity"
-    elif "other_safe_conversational_contribution" in tags:
-        primary = "other_safe_conversational_contribution"
-    else:
-        primary = "formulaic_substantive_posted"
+    if wit:
+        hints.append("possible_wit_cue")
+    ordered_hints = [
+        hint
+        for hint in (
+            "possible_social_cue",
+            "possible_substantive_agreement",
+            "possible_civil_challenge",
+            "possible_analogy_or_recommendation",
+            "possible_factual_question",
+            "possible_sensitive_or_allegation_context",
+            "possible_wit_cue",
+        )
+        if hint in hints
+    ]
     return {
-        "semantic_tags": [tag for tag in SEMANTIC_TAGS if tag in tags],
-        "proposed_primary_stratum": primary,
-        "classification_version": SEMANTIC_INVENTORY_VERSION,
-        "classification_inputs": "incoming contribution only; bounded context is retained for review",
+        "lexical_coverage_hints": ordered_hints,
+        "lexical_primary_hint": ordered_hints[0] if ordered_hints else None,
+        "lexical_hint_version": LEXICAL_HINT_VERSION,
+        "accepted_semantic_tags": None,
+        "accepted_primary_stratum": None,
+        "semantic_adjudication_status": "pending_manual_receipt",
+        "lexical_hint_inputs": (
+            "incoming contribution only; hints are non-binding navigation aids"
+        ),
         "historical_outcome_used": False,
         "profile_outputs_used": False,
     }
@@ -3208,7 +3245,10 @@ def render_manual_context_review(rows: Sequence[dict[str, Any]]) -> str:
             [
                 f"## {row['candidate_id']}",
                 "",
-                f"Proposed primary stratum: {row['proposed_primary_stratum']}",
+                (
+                    "Non-binding lexical primary hint: "
+                    + str(row.get("lexical_primary_hint") or "none")
+                ),
                 "",
                 f"Lane: {context['lane']}",
                 "",
@@ -3339,6 +3379,206 @@ def render_manual_clearance_csv(
             }
         )
     return output.getvalue()
+
+
+_SEMANTIC_REVIEW_DECISION_FIELDS = (
+    "accepted_semantic_tags",
+    "accepted_primary_stratum",
+    "genuine_social_courtesy_decision",
+    "safe_wit_opportunity_decision",
+    "justified_safety_no_reply_decision",
+    "controlled_reason_code",
+    "reviewer_note",
+    "adjudicator_identity",
+    "decision_time_utc",
+    "receipt_sha256",
+)
+_SEMANTIC_REVIEW_ALLOWED_FIELDS = frozenset(
+    {
+        "candidate_id",
+        "source_record_fingerprint",
+        "context_audit_record_sha256",
+        "context_clearance_status",
+        "replay_context",
+        "semantic_inventory",
+        "lexical_coverage_hints",
+        "lexical_primary_hint",
+        "lexical_hint_version",
+        *_SEMANTIC_REVIEW_DECISION_FIELDS,
+    }
+)
+
+
+def _validate_semantic_review_rows(rows: Sequence[dict[str, Any]]) -> None:
+    """Reject non-whitelisted data and duplicate IDs in blinded semantic rows."""
+    seen: set[str] = set()
+    required = {
+        "candidate_id",
+        "source_record_fingerprint",
+        "context_audit_record_sha256",
+        "context_clearance_status",
+        "replay_context",
+    }
+    for row in rows:
+        unexpected = set(row) - _SEMANTIC_REVIEW_ALLOWED_FIELDS
+        missing = required - set(row)
+        if unexpected:
+            raise AuditError(
+                "manual semantic row contains a blinded forbidden field: "
+                + ", ".join(sorted(unexpected))
+            )
+        if missing:
+            raise AuditError(
+                "manual semantic row is missing required fields: "
+                + ", ".join(sorted(missing))
+            )
+        candidate_id = str(row["candidate_id"])
+        if candidate_id in seen:
+            raise AuditError(
+                f"manual semantic queue repeats candidate ID: {candidate_id}"
+            )
+        seen.add(candidate_id)
+
+
+def _semantic_review_lexical_fields(
+    row: dict[str, Any],
+) -> tuple[list[str], str | None, str]:
+    """Extract only explicitly non-binding lexical fields from a review row."""
+    inventory = row.get("semantic_inventory")
+    if inventory is None:
+        inventory = row
+    if not isinstance(inventory, dict):
+        raise AuditError("manual semantic row has malformed lexical inventory")
+    hints = inventory.get("lexical_coverage_hints") or []
+    if not isinstance(hints, list) or not all(isinstance(hint, str) for hint in hints):
+        raise AuditError("manual semantic row has malformed lexical hints")
+    primary = inventory.get("lexical_primary_hint")
+    if primary is not None and not isinstance(primary, str):
+        raise AuditError("manual semantic row has malformed lexical primary hint")
+    version = inventory.get("lexical_hint_version") or LEXICAL_HINT_VERSION
+    if not isinstance(version, str):
+        raise AuditError("manual semantic row has malformed lexical hint version")
+    return list(hints), primary, version
+
+
+def render_manual_semantic_review(rows: Sequence[dict[str, Any]]) -> str:
+    """Render every eligible candidate in a blinded pre-output semantic queue."""
+    _validate_semantic_review_rows(rows)
+    lines = [
+        "# Fresh reply candidate manual semantic review",
+        "",
+        (
+            "This blinded queue contains only candidate contribution, replay context, "
+            "context-clearance provenance, and non-binding lexical navigation hints."
+        ),
+        "",
+        (
+            "Lexical hints cannot establish semantic membership or absence. Leave final "
+            "classification pending until context is cleared and a separate receipt is made."
+        ),
+        "",
+    ]
+    for row in sorted(rows, key=lambda item: str(item["candidate_id"])):
+        hints, primary, version = _semantic_review_lexical_fields(row)
+        context = row["replay_context"]
+        if not isinstance(context, dict):
+            raise AuditError("manual semantic row has malformed replay context")
+        lines.extend(
+            [
+                f"## {row['candidate_id']}",
+                "",
+                f"Context-clearance status: `{row['context_clearance_status']}`",
+                "",
+                f"Source-record fingerprint: `{row['source_record_fingerprint']}`",
+                "",
+                f"Context-audit record SHA-256: `{row['context_audit_record_sha256']}`",
+                "",
+                f"Lexical hint version (non-binding): `{version}`",
+                "",
+                (
+                    "Lexical coverage hints (non-binding): "
+                    + (", ".join(hints) if hints else "none")
+                ),
+                "",
+                f"Lexical primary hint (non-binding): {primary or 'none'}",
+                "",
+                "Incoming contribution:",
+                "",
+                _markdown_quote(str(context.get("incoming_contribution") or "")),
+                "",
+                "Replay context (cleared or pending as stated above):",
+                "",
+                "```json",
+                json.dumps(context, ensure_ascii=False, sort_keys=True, indent=2),
+                "```",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_manual_semantic_classification_csv(
+    rows: Sequence[dict[str, Any]],
+) -> str:
+    """Render a semantic-receipt template with every manual field blank."""
+    _validate_semantic_review_rows(rows)
+    fieldnames = (
+        "candidate_id",
+        "source_record_fingerprint",
+        "context_audit_record_sha256",
+        "context_clearance_status",
+        *_SEMANTIC_REVIEW_DECISION_FIELDS,
+    )
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fieldnames, lineterminator="\n")
+    writer.writeheader()
+    for row in sorted(rows, key=lambda item: str(item["candidate_id"])):
+        writer.writerow(
+            {
+                "candidate_id": row["candidate_id"],
+                "source_record_fingerprint": row["source_record_fingerprint"],
+                "context_audit_record_sha256": row[
+                    "context_audit_record_sha256"
+                ],
+                "context_clearance_status": row["context_clearance_status"],
+                **{field: "" for field in _SEMANTIC_REVIEW_DECISION_FIELDS},
+            }
+        )
+    return output.getvalue()
+
+
+def build_sampling_readiness(
+    eligible_count: int,
+    manual_context_decisions_pending: int,
+    unrecoverable_context_candidates: int,
+) -> dict[str, Any]:
+    """Return the fail-closed readiness receipt before semantic adjudication."""
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "sampling_readiness_version": "fresh-reply-sampling-readiness-v2",
+        "final_paid_sample_selected": False,
+        "final_replay_pack_built": False,
+        "eligible_candidate_count": eligible_count,
+        "semantic_coverage_status": "unadjudicated",
+        "manual_context_decisions_pending": manual_context_decisions_pending,
+        "manual_semantic_decisions_pending": eligible_count,
+        "unrecoverable_context_candidates": unrecoverable_context_candidates,
+        "accepted_counts_by_semantic_tag": None,
+        "accepted_counts_by_primary_stratum": None,
+        "thin_or_empty_important_strata": None,
+        "ready_to_freeze_sample": False,
+        "blockers": [
+            (
+                f"{manual_context_decisions_pending} context-clearance decisions "
+                "remain blank"
+            ),
+            f"{eligible_count} semantic-classification decisions remain blank",
+        ],
+        "instruction": (
+            "semantic adjudication and context clearance must be completed before a "
+            "later reviewed phase may freeze any sample"
+        ),
+    }
 
 
 def audit_manifest_control_fields() -> dict[str, Any]:
@@ -3514,13 +3754,34 @@ def _build_report(
         (
             f"The immutable later-period reconstruction found {counts['logged_post_cutoff_targets']} "
             f"logged targets, {counts['valid_external_candidates']} valid external candidates before "
-            f"contamination/context exclusions, and {counts['eligible_candidates']} clean eligible "
-            "candidates. No final paid sample was selected."
+            f"contamination/context exclusions, {counts['pre_cluster_eligible_candidates']} "
+            f"pre-cluster eligible candidates, and {counts['eligible_candidates']} retained clean "
+            "eligible candidates. No final paid sample was selected."
         ),
         "",
         f"Development cutoff: `{boundary['development_cutoff']}`.",
         "",
         "Admission rule: `candidate_timestamp > development_cutoff`.",
+        "",
+        "## Fresh exact-text clusters",
+        "",
+        (
+            f"- Multi-member clusters: {summary['fresh_exact_text_cluster_count']}"
+        ),
+        (
+            "- Candidates in multi-member clusters: "
+            f"{summary['fresh_exact_text_clustered_candidate_count']}"
+        ),
+        (
+            "- Pairwise exact-text matches: "
+            f"{summary['fresh_exact_text_pairwise_match_count']}"
+        ),
+        "- Candidates removed for fresh text duplication: 0",
+        "",
+        (
+            "Exact-text clusters are provenance and sampling-diversity metadata. "
+            "Every distinct prospective target remains eligible."
+        ),
         "",
         "## Exclusions",
         "",
@@ -3540,6 +3801,24 @@ def _build_report(
             "",
             "Manual decisions remain blank. Context-dependent candidates were recovered where "
             "possible and queued; they were not automatically rejected.",
+            "",
+            "## Semantic coverage",
+            "",
+            "Semantic coverage remains `unadjudicated`.",
+            "",
+            (
+                f"- Blank semantic-classification decisions: "
+                f"{summary['manual_semantic_decisions_pending']}"
+            ),
+            "- Accepted counts by semantic tag: not yet adjudicated",
+            "- Accepted counts by primary stratum: not yet adjudicated",
+            "- Thin or empty important strata: not calculated before manual receipts",
+            "- Ready to freeze sample: false",
+            "",
+            (
+                "Lexical hints are non-binding navigation aids. A zero lexical-hint count "
+                "does not establish that courtesy, wit, or any other semantic stratum is absent."
+            ),
             "",
             "## Source limitations",
             "",
@@ -3699,8 +3978,6 @@ def build_audit(
     manual_rows: list[dict[str, Any]] = []
     historical_counts: Counter[str] = Counter()
     lane_counts: Counter[str] = Counter()
-    semantic_tag_counts: Counter[str] = Counter()
-    stratum_counts: Counter[str] = Counter()
 
     for raw_candidate in sorted(
         considerations,
@@ -3898,9 +4175,7 @@ def build_audit(
             )
             continue
 
-        manual_required = bool(context_audit["context_dependency_flags"]) or (
-            "direct_factual_or_historical_question" in semantic["semantic_tags"]
-        )
+        manual_required = bool(context_audit["context_dependency_flags"])
         context_audit["manual_context_review_required"] = manual_required
         context_audit["automatic_context_clearance"] = not manual_required
         _refresh_context_audit_hash(context_audit)
@@ -3976,15 +4251,11 @@ def build_audit(
         eligible.append(item)
         lane_counts[context["lane"]] += 1
         historical_counts[str(history.get("outcome") or "unknown")] += 1
-        stratum_counts[semantic["proposed_primary_stratum"]] += 1
-        semantic_tag_counts.update(semantic["semantic_tags"])
         if manual_required:
             manual_rows.append(
                 {
                     "candidate_id": candidate_id,
-                    "proposed_primary_stratum": semantic[
-                        "proposed_primary_stratum"
-                    ],
+                    "lexical_primary_hint": semantic["lexical_primary_hint"],
                     "replay_context": context,
                     "recent_account_replies": context_audit[
                         "recent_account_replies"
@@ -4001,10 +4272,8 @@ def build_audit(
         else:
             automatic_count += 1
 
-    eligible, fresh_duplicate_exclusions, fresh_deduplication = (
-        deduplicate_fresh_candidates(eligible)
-    )
-    excluded.extend(fresh_duplicate_exclusions)
+    pre_cluster_eligible_count = len(eligible)
+    eligible, fresh_text_clustering = cluster_fresh_candidates(eligible)
     eligible_ids = {str(row["candidate_id"]) for row in eligible}
     manual_rows = [
         row for row in manual_rows if str(row["candidate_id"]) in eligible_ids
@@ -4016,14 +4285,15 @@ def build_audit(
     historical_counts = Counter(
         str(row.get("historical_outcome") or "unknown") for row in eligible
     )
-    stratum_counts = Counter(
-        str(row["semantic_inventory"]["proposed_primary_stratum"])
+    lexical_primary_hint_counts = Counter(
+        str(row["semantic_inventory"]["lexical_primary_hint"])
         for row in eligible
+        if row["semantic_inventory"]["lexical_primary_hint"] is not None
     )
-    semantic_tag_counts = Counter(
-        tag
+    lexical_hint_counts = Counter(
+        hint
         for row in eligible
-        for tag in row["semantic_inventory"]["semantic_tags"]
+        for hint in row["semantic_inventory"]["lexical_coverage_hints"]
     )
 
     considered_target_ids = {str(row["target_id"]) for row in considerations}
@@ -4058,7 +4328,6 @@ def build_audit(
         for reason in (
             "exact_normalised_incoming_duplicate",
             "exact_context_payload_duplicate",
-            "fresh_exact_normalised_incoming_duplicate",
         )
     )
     near_duplicate_count = sum(
@@ -4122,7 +4391,19 @@ def build_audit(
             "conflicting_shared_record_count": 0,
             "account_author_id_sha256": text_sha256(account_author_id),
         },
-        "fresh_candidate_deduplication": fresh_deduplication,
+        "fresh_exact_text_clustering": fresh_text_clustering,
+        "fresh_exact_text_cluster_count": fresh_text_clustering[
+            "fresh_exact_text_cluster_count"
+        ],
+        "fresh_exact_text_clustered_candidate_count": fresh_text_clustering[
+            "fresh_exact_text_clustered_candidate_count"
+        ],
+        "fresh_exact_text_pairwise_match_count": fresh_text_clustering[
+            "fresh_exact_text_pairwise_match_count"
+        ],
+        "fresh_candidates_removed_for_text_duplication": 0,
+        "pre_cluster_eligible_count": pre_cluster_eligible_count,
+        "retained_eligible_count": len(eligible),
         "fresh_history_reconstruction": {
             "path": str(history_corpus),
             "sha256sums_sha256": file_sha256(history_corpus / "SHA256SUMS"),
@@ -4148,6 +4429,7 @@ def build_audit(
             "unique_post_cutoff_targets"
         ],
         "valid_external_candidates": valid_external_count,
+        "pre_cluster_eligible_candidates": pre_cluster_eligible_count,
         "eligible_candidates": len(eligible),
         "excluded_unique_candidates": len(excluded),
         "context_audited_external_candidates": len(context_audits),
@@ -4197,11 +4479,32 @@ def build_audit(
         "exclusion_counts_by_reason": reason_counts,
         "exact_duplicate_exclusion_count": exact_duplicate_count,
         "near_duplicate_exclusion_count": near_duplicate_count,
-        "fresh_candidate_deduplication": fresh_deduplication,
+        "fresh_exact_text_clustering": fresh_text_clustering,
+        "fresh_exact_text_cluster_count": fresh_text_clustering[
+            "fresh_exact_text_cluster_count"
+        ],
+        "fresh_exact_text_clustered_candidate_count": fresh_text_clustering[
+            "fresh_exact_text_clustered_candidate_count"
+        ],
+        "fresh_exact_text_pairwise_match_count": fresh_text_clustering[
+            "fresh_exact_text_pairwise_match_count"
+        ],
+        "fresh_candidates_removed_for_text_duplication": 0,
+        "semantic_coverage_status": "unadjudicated",
+        "manual_context_decisions_pending": len(manual_rows),
+        "manual_semantic_decisions_pending": len(eligible),
+        "accepted_counts_by_semantic_tag": None,
+        "accepted_counts_by_primary_stratum": None,
+        "thin_or_empty_important_strata": None,
+        "ready_to_freeze_sample": False,
+        "lexical_hint_counts_non_binding": dict(sorted(lexical_hint_counts.items())),
+        "lexical_primary_hint_counts_non_binding": dict(
+            sorted(lexical_primary_hint_counts.items())
+        ),
     }
     strata_inventory = {
         "schema_version": SCHEMA_VERSION,
-        "classification_version": SEMANTIC_INVENTORY_VERSION,
+        "lexical_hint_version": LEXICAL_HINT_VERSION,
         "normalisation_version": NORMALISATION_VERSION,
         "near_duplicate_algorithm": NEAR_DUPLICATE_VERSION,
         "near_duplicate_threshold": NEAR_DUPLICATE_THRESHOLD,
@@ -4209,11 +4512,20 @@ def build_audit(
         "historical_outcome_used_for_classification": False,
         "profile_outputs_generated_or_inspected": False,
         "eligible_count": len(eligible),
+        "semantic_coverage_status": "unadjudicated",
+        "manual_context_decisions_pending": len(manual_rows),
+        "manual_semantic_decisions_pending": len(eligible),
         "counts_by_lane": dict(sorted(lane_counts.items())),
         "counts_by_historical_status": dict(sorted(historical_counts.items())),
-        "counts_by_semantic_tag": dict(sorted(semantic_tag_counts.items())),
-        "counts_by_proposed_primary_stratum": dict(sorted(stratum_counts.items())),
-        "fresh_candidate_deduplication": fresh_deduplication,
+        "lexical_hint_counts_non_binding": dict(sorted(lexical_hint_counts.items())),
+        "lexical_primary_hint_counts_non_binding": dict(
+            sorted(lexical_primary_hint_counts.items())
+        ),
+        "accepted_counts_by_semantic_tag": None,
+        "accepted_counts_by_primary_stratum": None,
+        "thin_or_empty_important_strata": None,
+        "ready_to_freeze_sample": False,
+        "fresh_exact_text_clustering": fresh_text_clustering,
         "continuity_strata": [
             "formulaic_substantive_posted",
             "civil_challenge_or_disagreement",
@@ -4223,37 +4535,20 @@ def build_audit(
             "justified_safety_no_reply",
         ],
     }
-    thin_strata = [
-        stratum
-        for stratum in strata_inventory["continuity_strata"]
-        if stratum_counts.get(stratum, 0) == 0
+    sampling_readiness = build_sampling_readiness(
+        len(eligible), len(manual_rows), unrecoverable_count
+    )
+    semantic_review_rows = [
+        {
+            "candidate_id": row["candidate_id"],
+            "source_record_fingerprint": row["source_record_fingerprint"],
+            "context_audit_record_sha256": row["context_audit_record_sha256"],
+            "context_clearance_status": row["context_clearance_status"],
+            "replay_context": row["replay_context"],
+            "semantic_inventory": row["semantic_inventory"],
+        }
+        for row in eligible
     ]
-    sampling_readiness = {
-        "schema_version": SCHEMA_VERSION,
-        "sampling_readiness_version": "fresh-reply-sampling-readiness-v1",
-        "final_paid_sample_selected": False,
-        "final_replay_pack_built": False,
-        "eligible_candidate_count": len(eligible),
-        "manual_context_decisions_pending": len(manual_rows),
-        "unrecoverable_context_candidates": unrecoverable_count,
-        "thin_or_empty_important_strata": thin_strata,
-        "ready_to_freeze_sample": not manual_rows and not thin_strata,
-        "blockers": [
-            *(
-                [f"{len(manual_rows)} manual context-clearance decisions remain blank"]
-                if manual_rows
-                else []
-            ),
-            *(
-                ["one or more continuity strata contain no clean fresh candidate: " + ", ".join(thin_strata)]
-                if thin_strata
-                else []
-            ),
-        ],
-        "instruction": (
-            "counts and blockers only; a later reviewed phase must freeze any sample"
-        ),
-    }
 
     _write_json(output / "source_inventory.json", source_inventory)
     _write_json(output / "profile_identity_verification.json", profile_verification)
@@ -4270,6 +4565,14 @@ def build_audit(
     _write_text(
         output / "manual_context_clearance.csv",
         render_manual_clearance_csv(manual_rows, context_audit_sha256),
+    )
+    _write_text(
+        output / "manual_semantic_review.md",
+        render_manual_semantic_review(semantic_review_rows),
+    )
+    _write_text(
+        output / "manual_semantic_classification.csv",
+        render_manual_semantic_classification_csv(semantic_review_rows),
     )
     _write_json(output / "strata_inventory.json", strata_inventory)
     _write_json(output / "sampling_readiness.json", sampling_readiness)
@@ -4348,10 +4651,22 @@ def build_audit(
         "candidate_counts": candidate_counts,
         "automatic_context_clearance_count": automatic_count,
         "manual_context_review_count": len(manual_rows),
+        "manual_semantic_decisions_pending": len(eligible),
+        "semantic_coverage_status": "unadjudicated",
         "unrecoverable_context_count": unrecoverable_count,
         "exclusion_counts_by_reason": reason_counts,
         "exact_duplicate_exclusion_count": exact_duplicate_count,
         "near_duplicate_exclusion_count": near_duplicate_count,
+        "fresh_exact_text_cluster_count": fresh_text_clustering[
+            "fresh_exact_text_cluster_count"
+        ],
+        "fresh_exact_text_clustered_candidate_count": fresh_text_clustering[
+            "fresh_exact_text_clustered_candidate_count"
+        ],
+        "fresh_exact_text_pairwise_match_count": fresh_text_clustering[
+            "fresh_exact_text_pairwise_match_count"
+        ],
+        "fresh_candidates_removed_for_text_duplication": 0,
         "output_directory": str(output),
         "runtime_output_directory_recorded_in_content": True,
         "byte_identical_rebuild_scope": (

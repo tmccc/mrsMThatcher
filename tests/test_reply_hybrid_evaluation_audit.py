@@ -141,6 +141,45 @@ def _synthetic_review_row(**changes: object) -> dict[str, object]:
     return row
 
 
+def _synthetic_semantic_review_row(**changes: object) -> dict[str, object]:
+    """Build one invented eligible row for blinded semantic review."""
+    incoming = "Would the fictional archive rule apply here?"
+    row: dict[str, object] = {
+        "candidate_id": "candidate-synthetic-semantic-review",
+        "source_record_fingerprint": "a" * 64,
+        "context_audit_record_sha256": "d" * 64,
+        "context_clearance_status": "automatic_clearance",
+        "replay_context": {
+            "lane": "mention",
+            "incoming_contribution": incoming,
+            "thread_id": "thread-synthetic-semantic-review",
+            "quoted_post": {
+                "post_id": "quoted-synthetic-semantic-review",
+                "author_role": "user",
+                "text": "Synthetic quoted context for semantic review.",
+            },
+            "parent_thread": [
+                {
+                    "post_id": "parent-synthetic-semantic-review",
+                    "author_role": "user",
+                    "text": "Synthetic parent context for semantic review.",
+                }
+            ],
+            "clarification_request": None,
+        },
+        "semantic_inventory": {
+            "lexical_coverage_hints": ["possible_factual_question"],
+            "lexical_primary_hint": "possible_factual_question",
+            "lexical_hint_version": "synthetic-lexical-hints-v1",
+            "accepted_semantic_tags": None,
+            "accepted_primary_stratum": None,
+            "semantic_adjudication_status": "pending_manual_receipt",
+        },
+    }
+    row.update(changes)
+    return row
+
+
 def test_verify_profile_source_accepts_exact_identity_and_hashes() -> None:
     """Exact synthetic versions and prompt hashes must verify."""
     source, expected = _synthetic_profile()
@@ -647,6 +686,40 @@ def test_conflicting_source_records_fail_closed() -> None:
         audit.resolve_cache_records(records)
 
 
+def test_repeated_immutable_occurrences_of_one_target_are_source_deduplicated(
+    tmp_path: Path,
+) -> None:
+    """The same retained log row in two snapshots yields one prospective target."""
+    line = (
+        "2031-02-03 04:05:06 INFO mrsMThatcher - "
+        "Considering mention id=123456 author_id=654321 "
+        "text='Repeated immutable source occurrence.'\n"
+    )
+    snapshot_projects = []
+    for index in (1, 2):
+        project = tmp_path / f"snapshot-{index}"
+        project.mkdir()
+        (project / "mrsMThatcher.log").write_text(line, encoding="utf-8")
+        snapshot_projects.append(
+            ({"snapshot_name": f"snapshot-{index}"}, project)
+        )
+
+    candidates, counts, _sources, malformed = audit.reconstruct_considerations(
+        snapshot_projects,
+        "2030-01-01T00:00:00Z",
+    )
+
+    assert malformed == []
+    assert counts["raw_post_cutoff_consideration_occurrences"] == 2
+    assert counts["deduplicated_post_cutoff_consideration_records"] == 1
+    assert counts["unique_post_cutoff_targets"] == 1
+    assert counts["candidate_source_conflicts"] == 0
+    assert len(candidates) == 1
+    assert candidates[0]["target_id"] == "123456"
+    assert candidates[0]["consideration_record_count"] == 1
+    assert len(candidates[0]["consideration_records"][0]["source_locations"]) == 2
+
+
 def test_context_temporal_audit_rejects_future_parent_and_recent_reply() -> None:
     """Parent and recent-account context must be strictly prior to the candidate."""
     records = [
@@ -749,6 +822,7 @@ def test_manual_review_hides_historical_and_profile_information() -> None:
     assert "Would the fictional archive rule apply here?" in rendered
     assert "Synthetic quoted material." in rendered
     assert "Synthetic parent material." in rendered
+    assert "Proposed primary stratum" not in rendered
     for forbidden in (
         "A hidden historical answer.",
         "A hidden current answer.",
@@ -816,6 +890,186 @@ def test_manual_clearance_decisions_are_blank() -> None:
     assert parsed[0]["manual_decision"] == ""
     assert parsed[0]["reviewer_note"] == ""
     assert parsed[0]["context_audit_sha256"] == "c" * 64
+
+
+def test_every_eligible_candidate_appears_once_in_semantic_review_outputs() -> None:
+    """The blinded semantic queue covers all retained candidates exactly once."""
+    rows = [
+        _synthetic_semantic_review_row(
+            candidate_id="candidate-synthetic-cleared",
+            source_record_fingerprint="a" * 64,
+            context_audit_record_sha256="1" * 64,
+            context_clearance_status="automatic_clearance",
+        ),
+        _synthetic_semantic_review_row(
+            candidate_id="candidate-synthetic-pending",
+            source_record_fingerprint="b" * 64,
+            context_audit_record_sha256="2" * 64,
+            context_clearance_status="pending_manual_review",
+            replay_context={
+                "lane": "quote_tweet",
+                "incoming_contribution": "Good morning from a fictional archive.",
+                "thread_id": "thread-synthetic-pending",
+                "quoted_post": None,
+                "parent_thread": [],
+                "clarification_request": None,
+            },
+        ),
+        _synthetic_semantic_review_row(
+            candidate_id="candidate-synthetic-third",
+            source_record_fingerprint="c" * 64,
+            context_audit_record_sha256="3" * 64,
+        ),
+    ]
+
+    document = audit.render_manual_semantic_review(list(reversed(rows)))
+    rendered_csv = audit.render_manual_semantic_classification_csv(rows)
+    parsed = list(csv.DictReader(io.StringIO(rendered_csv)))
+
+    for row in rows:
+        candidate_id = str(row["candidate_id"])
+        assert document.count(candidate_id) == 1
+    assert [row["candidate_id"] for row in parsed] == sorted(
+        str(row["candidate_id"]) for row in rows
+    )
+    assert len(parsed) == len(rows)
+    assert len({row["candidate_id"] for row in parsed}) == len(rows)
+    pending = next(
+        row
+        for row in parsed
+        if row["candidate_id"] == "candidate-synthetic-pending"
+    )
+    assert pending["context_clearance_status"] == "pending_manual_review"
+    assert pending["accepted_semantic_tags"] == ""
+    assert pending["accepted_primary_stratum"] == ""
+    assert pending["receipt_sha256"] == ""
+    assert "automatic_clearance" in document
+    assert "pending_manual_review" in document
+    assert "Would the fictional archive rule apply here?" in document
+    assert "Synthetic quoted context for semantic review." in document
+    assert "Synthetic parent context for semantic review." in document
+    assert "a" * 64 in document
+    assert "1" * 64 in document
+    assert "possible_factual_question" in document
+    assert "non-binding" in document.casefold()
+
+
+def test_semantic_review_csv_decision_and_receipt_fields_are_blank() -> None:
+    """Generated semantic templates must not manufacture any human receipt data."""
+    rows = [
+        _synthetic_semantic_review_row(
+            semantic_inventory={
+                "lexical_coverage_hints": ["possible_social_cue"],
+                "lexical_primary_hint": "possible_social_cue",
+                "lexical_hint_version": "synthetic-lexical-hints-v1",
+                "accepted_semantic_tags": ["genuine_social_courtesy"],
+                "accepted_primary_stratum": "genuine_social_courtesy",
+                "semantic_adjudication_status": "synthetic-illegal-predecision",
+            },
+            accepted_semantic_tags="synthetic-illegal-tag",
+            accepted_primary_stratum="synthetic-illegal-stratum",
+            genuine_social_courtesy_decision="yes",
+            safe_wit_opportunity_decision="yes",
+            justified_safety_no_reply_decision="yes",
+            controlled_reason_code="synthetic-illegal-code",
+            reviewer_note="synthetic-illegal-note",
+            adjudicator_identity="synthetic-illegal-reviewer",
+            decision_time_utc="2031-02-03T04:05:06Z",
+            receipt_sha256="f" * 64,
+        )
+    ]
+
+    rendered = audit.render_manual_semantic_classification_csv(rows)
+    parsed = list(csv.DictReader(io.StringIO(rendered)))
+
+    assert parsed[0]["candidate_id"] == rows[0]["candidate_id"]
+    assert parsed[0]["source_record_fingerprint"] == "a" * 64
+    assert parsed[0]["context_audit_record_sha256"] == "d" * 64
+    assert parsed[0]["context_clearance_status"] == "automatic_clearance"
+    assert tuple(parsed[0]) == (
+        "candidate_id",
+        "source_record_fingerprint",
+        "context_audit_record_sha256",
+        "context_clearance_status",
+        "accepted_semantic_tags",
+        "accepted_primary_stratum",
+        "genuine_social_courtesy_decision",
+        "safe_wit_opportunity_decision",
+        "justified_safety_no_reply_decision",
+        "controlled_reason_code",
+        "reviewer_note",
+        "adjudicator_identity",
+        "decision_time_utc",
+        "receipt_sha256",
+    )
+    for field in (
+        "accepted_semantic_tags",
+        "accepted_primary_stratum",
+        "genuine_social_courtesy_decision",
+        "safe_wit_opportunity_decision",
+        "justified_safety_no_reply_decision",
+        "controlled_reason_code",
+        "reviewer_note",
+        "adjudicator_identity",
+        "decision_time_utc",
+        "receipt_sha256",
+    ):
+        assert parsed[0][field] == ""
+
+
+@pytest.mark.parametrize(
+    "forbidden_key,sentinel",
+    [
+        ("historical_outcome", "SENTINEL-HISTORICAL-OUTCOME"),
+        ("historical_public_reply", "SENTINEL-HISTORICAL-REPLY"),
+        ("profile_identity", "SENTINEL-PROFILE-LABEL"),
+        ("generated_profile_output", "SENTINEL-GENERATED-OUTPUT"),
+        ("old_score", "SENTINEL-OLD-SCORE"),
+        ("cost", "SENTINEL-COST"),
+        ("retries", "SENTINEL-RETRIES"),
+        ("reliability_results", "SENTINEL-RELIABILITY"),
+        ("expected_winner", "SENTINEL-WINNER"),
+    ],
+)
+def test_semantic_review_rejects_blinded_historical_or_execution_fields(
+    forbidden_key: str,
+    sentinel: str,
+) -> None:
+    """Semantic adjudicators must never receive outcomes, outputs, or judgements."""
+    clean = _synthetic_semantic_review_row()
+    document = audit.render_manual_semantic_review([clean])
+    rendered_csv = audit.render_manual_semantic_classification_csv([clean])
+    assert sentinel not in document
+    assert sentinel not in rendered_csv
+
+    contaminated = dict(clean)
+    contaminated[forbidden_key] = sentinel
+    with pytest.raises(Exception, match="forbidden field"):
+        audit.render_manual_semantic_review([contaminated])
+    with pytest.raises(Exception, match="forbidden field"):
+        audit.render_manual_semantic_classification_csv([contaminated])
+
+
+def test_semantic_review_rendering_is_byte_deterministic() -> None:
+    """Repeated semantic-queue payload builds are byte-identical."""
+    rows = [
+        _synthetic_semantic_review_row(
+            candidate_id=f"candidate-synthetic-{suffix}",
+            source_record_fingerprint=character * 64,
+        )
+        for suffix, character in (("zeta", "f"), ("alpha", "a"))
+    ]
+
+    first = (
+        audit.render_manual_semantic_review(rows),
+        audit.render_manual_semantic_classification_csv(rows),
+    )
+    second = (
+        audit.render_manual_semantic_review(list(reversed(rows))),
+        audit.render_manual_semantic_classification_csv(list(reversed(rows))),
+    )
+
+    assert first == second
 
 
 def test_read_jsonl_strict_rejects_malformed_input(tmp_path: Path) -> None:
@@ -985,6 +1239,40 @@ def test_checksum_generation_and_independent_verification(tmp_path: Path) -> Non
         audit.verify_sha256sums(output)
 
 
+def test_semantic_review_outputs_are_checksummed_and_private(tmp_path: Path) -> None:
+    """Both persistent semantic-review artefacts are listed and written mode 0600."""
+    assert "manual_semantic_review.md" in audit.OUTPUT_FILENAMES
+    assert "manual_semantic_classification.csv" in audit.OUTPUT_FILENAMES
+    output = tmp_path / "audit"
+    output.mkdir(mode=0o700)
+    row = _synthetic_semantic_review_row()
+    audit._write_text(
+        output / "manual_semantic_review.md",
+        audit.render_manual_semantic_review([row]),
+    )
+    audit._write_text(
+        output / "manual_semantic_classification.csv",
+        audit.render_manual_semantic_classification_csv([row]),
+    )
+
+    sums = audit.write_sha256sums(output)
+
+    assert set(sums) == {
+        "manual_semantic_review.md",
+        "manual_semantic_classification.csv",
+    }
+    assert audit.verify_sha256sums(output) == sums
+    assert {
+        path.name: path.stat().st_mode & 0o777
+        for path in output.iterdir()
+        if path.is_file()
+    } == {
+        "SHA256SUMS": 0o600,
+        "manual_semantic_classification.csv": 0o600,
+        "manual_semantic_review.md": 0o600,
+    }
+
+
 def test_output_writers_apply_private_file_permissions(tmp_path: Path) -> None:
     """Every audit output writer, including checksums, must create mode 0600 files."""
     output = tmp_path / "audit"
@@ -1007,21 +1295,187 @@ def test_output_writers_apply_private_file_permissions(tmp_path: Path) -> None:
     }
 
 
-def test_semantic_inventory_uses_explicit_other_safe_fallback() -> None:
-    """An unclassified safe contribution must retain the explicit fallback tag."""
+def test_sampling_readiness_is_blocked_by_unadjudicated_semantics() -> None:
+    """Lexical hits cannot populate strata or make the sample ready to freeze."""
+    result = audit.build_sampling_readiness(
+        eligible_count=7,
+        manual_context_decisions_pending=2,
+        unrecoverable_context_candidates=0,
+    )
+
+    assert result["semantic_coverage_status"] == "unadjudicated"
+    assert result["manual_context_decisions_pending"] == 2
+    assert result["manual_semantic_decisions_pending"] == 7
+    assert result["accepted_counts_by_semantic_tag"] is None
+    assert result["accepted_counts_by_primary_stratum"] is None
+    assert result["thin_or_empty_important_strata"] is None
+    assert result["ready_to_freeze_sample"] is False
+    assert any(
+        "2" in blocker and "context-clearance" in blocker
+        for blocker in result["blockers"]
+    )
+    assert any(
+        "7" in blocker and "semantic-classification" in blocker
+        for blocker in result["blockers"]
+    )
+    assert not any(
+        word in " ".join(result["blockers"]).casefold()
+        for word in ("courtesy absent", "wit absent", "empty stratum")
+    )
+
+
+def test_no_cost_report_describes_semantic_coverage_as_unadjudicated() -> None:
+    """The report must not turn zero lexical hits into absent semantic strata."""
+    summary = {
+        "candidate_counts": {
+            "logged_post_cutoff_targets": 9,
+            "valid_external_candidates": 8,
+            "pre_cluster_eligible_candidates": 7,
+            "eligible_candidates": 7,
+        },
+        "exclusion_counts_by_reason": {"synthetic_exclusion": 1},
+        "automatic_context_clearance_count": 5,
+        "manual_context_review_count": 2,
+        "unrecoverable_context_count": 0,
+        "semantic_coverage_status": "unadjudicated",
+        "manual_semantic_decisions_pending": 7,
+        "accepted_counts_by_semantic_tag": None,
+        "accepted_counts_by_primary_stratum": None,
+        "thin_or_empty_important_strata": None,
+        "fresh_exact_text_cluster_count": 1,
+        "fresh_exact_text_clustered_candidate_count": 3,
+        "fresh_exact_text_pairwise_match_count": 3,
+    }
+    boundary = {"development_cutoff": "2030-01-01T00:00:00Z"}
+    source_inventory = {
+        "first_snapshot_containing_fresh": "snapshot-synthetic-first",
+        "latest_complete_snapshot": "snapshot-synthetic-last",
+    }
+
+    rendered = audit._build_report(summary, boundary, source_inventory)
+    folded = rendered.casefold()
+
+    assert "semantic coverage" in folded
+    assert "unadjudicated" in folded
+    assert "7" in rendered
+    assert "semantic" in folded and "pending" in folded
+    assert "no social" not in folded
+    assert "no courtesy" not in folded
+    assert "no wit" not in folded
+    assert "courtesy stratum is absent" not in folded
+    assert "wit stratum is absent" not in folded
+
+
+def test_semantic_inventory_keeps_lexical_hints_unadjudicated() -> None:
+    """Lexical navigation hints must never become accepted semantic decisions."""
     result = audit.semantic_inventory(
         "Azure lanterns remain beside quiet fictional windows.",
         {"lane": "mention"},
     )
 
-    assert result["semantic_tags"] == ["other_safe_conversational_contribution"]
-    assert result["proposed_primary_stratum"] == "other_safe_conversational_contribution"
+    assert all(
+        hint.startswith("possible_") for hint in result["lexical_coverage_hints"]
+    )
+    assert result["lexical_primary_hint"] in {
+        None,
+        *result["lexical_coverage_hints"],
+    }
+    assert result["lexical_hint_version"]
+    assert result["accepted_semantic_tags"] is None
+    assert result["accepted_primary_stratum"] is None
+    assert result["semantic_adjudication_status"] == "pending_manual_receipt"
+    assert "semantic_tags" not in result
+    assert "proposed_primary_stratum" not in result
     assert result["historical_outcome_used"] is False
     assert result["profile_outputs_used"] is False
 
 
-def test_fresh_exact_normalised_dedup_is_time_first_and_deterministic() -> None:
-    """Fresh exact duplicates keep one earliest time/target representative with proof."""
+def test_missed_affection_is_pending_and_can_receive_a_social_hint() -> None:
+    """A simple expression of affection cannot prove the social subset absent."""
+    result = audit.semantic_inventory("I miss her", {"lane": "mention"})
+
+    assert "possible_social_cue" in result["lexical_coverage_hints"]
+    assert result["accepted_semantic_tags"] is None
+    assert result["accepted_primary_stratum"] is None
+    assert result["semantic_adjudication_status"] == "pending_manual_receipt"
+
+
+@pytest.mark.parametrize(
+    "incoming",
+    [
+        "Good morning",
+        "We remember her today with affection.",
+    ],
+)
+def test_greeting_and_remembrance_remain_pending_semantic_review(
+    incoming: str,
+) -> None:
+    """Greeting and remembrance cues remain unaccepted until blinded review."""
+    result = audit.semantic_inventory(incoming, {"lane": "mention"})
+
+    assert "possible_social_cue" in result["lexical_coverage_hints"]
+    assert result["accepted_semantic_tags"] is None
+    assert result["accepted_primary_stratum"] is None
+    assert result["semantic_adjudication_status"] == "pending_manual_receipt"
+
+
+def test_dry_contrast_without_wit_keywords_remains_unadjudicated() -> None:
+    """Missing joke vocabulary cannot establish that no safe wit opportunity exists."""
+    incoming = "The grand promise met the rather small ledger."
+    assert not {
+        "joke",
+        "funny",
+        "irony",
+        "pun",
+        "haha",
+        "lol",
+        "wit",
+    }.intersection(audit.normalise_incoming(incoming).split())
+
+    result = audit.semantic_inventory(incoming, {"lane": "mention"})
+
+    assert result["accepted_semantic_tags"] is None
+    assert result["accepted_primary_stratum"] is None
+    assert result["semantic_adjudication_status"] == "pending_manual_receipt"
+
+
+def test_sensitive_factual_question_is_not_automatically_safety_no_reply() -> None:
+    """Sensitive or allegation vocabulary is only a non-binding navigation cue."""
+    result = audit.semantic_inventory(
+        "Did the fictional minister commit fraud in the archive?",
+        {"lane": "mention"},
+    )
+
+    assert "possible_factual_question" in result["lexical_coverage_hints"]
+    assert (
+        "possible_sensitive_or_allegation_context"
+        in result["lexical_coverage_hints"]
+    )
+    assert result["accepted_semantic_tags"] is None
+    assert result["accepted_primary_stratum"] is None
+    assert result["semantic_adjudication_status"] == "pending_manual_receipt"
+
+
+@pytest.mark.parametrize(
+    "incoming",
+    [
+        "This resembles a bridge: each side bears its share.",
+        "I agree because responsibility belongs with the decision.",
+    ],
+)
+def test_analogy_or_reasoned_agreement_is_not_automatically_formulaic(
+    incoming: str,
+) -> None:
+    """Contributor text alone cannot prove a posted historical baseline formulaic."""
+    result = audit.semantic_inventory(incoming, {"lane": "mention"})
+
+    assert result["accepted_semantic_tags"] is None
+    assert result["accepted_primary_stratum"] is None
+    assert result["semantic_adjudication_status"] == "pending_manual_receipt"
+
+
+def test_fresh_exact_text_clusters_retain_distinct_targets_deterministically() -> None:
+    """Same text in distinct target contexts remains eligible with stable clustering."""
     candidates = [
         _synthetic_candidate(
             candidate_id="candidate-synthetic-later",
@@ -1029,17 +1483,21 @@ def test_fresh_exact_normalised_dedup_is_time_first_and_deterministic() -> None:
             candidate_timestamp="2031-02-03T04:05:09Z",
             incoming_contribution="SYNTHETIC_CASE—ALPHA!",
             lane="mention",
-            historical_outcome="editorial_no_reply",
+            thread_id="thread-synthetic-zeta",
+            quoted_post_id="quoted-synthetic-zeta",
+            prospective_candidate_identity_sha256="1" * 64,
             source_record_fingerprint="1" * 64,
             context_audit_record_sha256="2" * 64,
         ),
         _synthetic_candidate(
-            candidate_id="candidate-synthetic-tie-zeta",
-            target_id="target-synthetic-zeta",
+            candidate_id="candidate-synthetic-tie-beta",
+            target_id="target-synthetic-beta",
             candidate_timestamp="2031-02-03T04:05:07Z",
             incoming_contribution=" synthetic case alpha ",
             lane="quote_tweet",
-            historical_outcome="posted",
+            thread_id="thread-synthetic-beta",
+            quoted_post_id="quoted-synthetic-beta",
+            prospective_candidate_identity_sha256="3" * 64,
             source_record_fingerprint="3" * 64,
             context_audit_record_sha256="4" * 64,
         ),
@@ -1048,8 +1506,10 @@ def test_fresh_exact_normalised_dedup_is_time_first_and_deterministic() -> None:
             target_id="target-synthetic-alpha",
             candidate_timestamp="2031-02-03T04:05:07Z",
             incoming_contribution="Synthetic_case, alpha",
-            lane="mention",
-            historical_outcome="local_rejection",
+            lane="hot_post_reply",
+            thread_id="thread-synthetic-alpha",
+            quoted_post_id="quoted-synthetic-alpha",
+            prospective_candidate_identity_sha256="5" * 64,
             source_record_fingerprint="5" * 64,
             context_audit_record_sha256="6" * 64,
         ),
@@ -1059,53 +1519,151 @@ def test_fresh_exact_normalised_dedup_is_time_first_and_deterministic() -> None:
             candidate_timestamp="2031-02-03T04:05:08Z",
             incoming_contribution="A wholly distinct violet geometry statement.",
             lane="mention",
+            thread_id="thread-synthetic-unique",
+            quoted_post_id=None,
+            prospective_candidate_identity_sha256="7" * 64,
         ),
     ]
 
-    first = audit.deduplicate_fresh_candidates(candidates)
-    second = audit.deduplicate_fresh_candidates(list(reversed(candidates)))
+    first = audit.cluster_fresh_candidates(json.loads(json.dumps(candidates)))
+    second = audit.cluster_fresh_candidates(
+        json.loads(json.dumps(list(reversed(candidates))))
+    )
 
     assert first == second
-    kept, excluded, receipt = first
-    assert [row["candidate_id"] for row in kept] == [
+    clustered, receipt = first
+    assert [row["candidate_id"] for row in clustered] == [
         "candidate-synthetic-representative",
+        "candidate-synthetic-tie-beta",
         "candidate-synthetic-unique",
-    ]
-    assert [row["candidate_id"] for row in excluded] == [
-        "candidate-synthetic-tie-zeta",
         "candidate-synthetic-later",
     ]
-    assert receipt["algorithm"] == "fresh-exact-normalised-dedup-v1"
-    assert receipt["representative_rule"] == "earliest_candidate_timestamp_then_target_id"
-    assert receipt["duplicate_group_count"] == 1
-    assert receipt["excluded_candidate_count"] == 2
-    assert receipt["pairwise_exact_match_count"] == 3
-    assert receipt["groups"] == [
-        {
-            "normalised_incoming_sha256": _sha256_text("synthetic case alpha"),
-            "representative_candidate_id": "candidate-synthetic-representative",
-            "representative_target_id": "target-synthetic-alpha",
-            "member_candidate_ids": [
-                "candidate-synthetic-representative",
-                "candidate-synthetic-tie-zeta",
-                "candidate-synthetic-later",
-            ],
-            "member_count": 3,
-            "pairwise_exact_match_count": 3,
-            "selection_rule": "earliest_candidate_timestamp_then_target_id",
-        }
+    assert len(clustered) == len(candidates)
+    assert len({row["candidate_id"] for row in clustered}) == len(candidates)
+
+    matching = [
+        row
+        for row in clustered
+        if audit.normalise_incoming(str(row["incoming_contribution"]))
+        == "synthetic case alpha"
     ]
-    for row in excluded:
-        assert row["exclusion_reasons"] == [
-            {
-                "reason": "fresh_exact_normalised_incoming_duplicate",
-                "matched_fresh_candidate_id": "candidate-synthetic-representative",
-                "matched_fresh_target_id": "target-synthetic-alpha",
-                "normalised_incoming_sha256": _sha256_text("synthetic case alpha"),
-                "similarity": 1.0,
-                "selection_rule": "earliest_candidate_timestamp_then_target_id",
-            }
-        ]
+    assert [row["fresh_exact_text_cluster_rank"] for row in matching] == [1, 2, 3]
+    assert {row["fresh_exact_text_cluster_size"] for row in matching} == {3}
+    assert len({row["fresh_exact_text_cluster_id"] for row in matching}) == 1
+    unique = next(
+        row for row in clustered if row["candidate_id"] == "candidate-synthetic-unique"
+    )
+    assert unique["fresh_exact_text_cluster_size"] == 1
+    assert unique["fresh_exact_text_cluster_rank"] == 1
+
+    assert receipt["fresh_exact_text_cluster_count"] == 1
+    assert receipt["fresh_exact_text_clustered_candidate_count"] == 3
+    assert receipt["fresh_exact_text_pairwise_match_count"] == 3
+    assert receipt["fresh_candidates_removed_for_text_duplication"] == 0
+    assert receipt["candidate_cluster_assignment_count"] == len(candidates)
+    assert len(receipt["clusters"]) == 1
+    cluster = receipt["clusters"][0]
+    assert cluster["normalised_incoming_sha256"] == _sha256_text(
+        "synthetic case alpha"
+    )
+    assert cluster["exact_representation_kind"] == "normalised_lexical_text"
+    assert cluster["representative_candidate_id"] == (
+        "candidate-synthetic-representative"
+    )
+    assert cluster["representative_target_id"] == "target-synthetic-alpha"
+    assert cluster["member_candidate_ids"] == [
+        "candidate-synthetic-representative",
+        "candidate-synthetic-tie-beta",
+        "candidate-synthetic-later",
+    ]
+    assert cluster["member_target_ids"] == [
+        "target-synthetic-alpha",
+        "target-synthetic-beta",
+        "target-synthetic-zeta",
+    ]
+    assert cluster["cluster_size"] == 3
+    assert cluster["pairwise_exact_match_count"] == 3
+
+
+def test_fresh_text_clustering_never_generates_duplicate_exclusions() -> None:
+    """Fresh exact-text similarity is metadata and never an exclusion reason."""
+    candidates = [
+        _synthetic_candidate(
+            candidate_id=f"candidate-synthetic-{suffix}",
+            target_id=f"target-synthetic-{suffix}",
+            prospective_candidate_identity_sha256=character * 64,
+            incoming_contribution="Identical synthetic wording.",
+        )
+        for suffix, character in (("alpha", "a"), ("beta", "b"))
+    ]
+
+    clustered, receipt = audit.cluster_fresh_candidates(candidates)
+
+    assert len(clustered) == 2
+    assert receipt["fresh_candidates_removed_for_text_duplication"] == 0
+    assert "fresh_exact_normalised_incoming_duplicate" not in _reason_codes(clustered)
+    assert "fresh_exact_normalised_incoming_duplicate" not in TOOL_PATH.read_text(
+        encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize(
+    "duplicate_field",
+    ["target_id", "prospective_candidate_identity_sha256"],
+)
+def test_fresh_text_clustering_refuses_duplicate_prospective_identity(
+    duplicate_field: str,
+) -> None:
+    """Complete candidate or target identity collisions are integrity defects."""
+    first = _synthetic_candidate(
+        candidate_id="candidate-synthetic-alpha",
+        target_id="target-synthetic-alpha",
+        prospective_candidate_identity_sha256="a" * 64,
+    )
+    second = _synthetic_candidate(
+        candidate_id="candidate-synthetic-beta",
+        target_id="target-synthetic-beta",
+        prospective_candidate_identity_sha256="b" * 64,
+    )
+    second[duplicate_field] = first[duplicate_field]
+
+    with pytest.raises(Exception):
+        audit.cluster_fresh_candidates([first, second])
+
+
+def test_empty_lexical_normalisation_never_removes_distinct_contributions() -> None:
+    """Emoji-, symbol-, and handle-only targets survive empty lexical forms."""
+    inputs = [
+        ("emoji", "😀"),
+        ("symbol", "!!!"),
+        ("handle", "@synthetic_account"),
+    ]
+    candidates = [
+        _synthetic_candidate(
+            candidate_id=f"candidate-synthetic-{kind}",
+            target_id=f"target-synthetic-{kind}",
+            prospective_candidate_identity_sha256=character * 64,
+            candidate_timestamp=f"2031-02-03T04:05:0{index}Z",
+            incoming_contribution=incoming,
+        )
+        for index, ((kind, incoming), character) in enumerate(
+            zip(inputs, ("a", "b", "c"), strict=True), 1
+        )
+    ]
+    assert audit.normalise_incoming("😀") == ""
+    assert audit.normalise_incoming("!!!") == ""
+
+    clustered, receipt = audit.cluster_fresh_candidates(candidates)
+
+    assert {row["candidate_id"] for row in clustered} == {
+        "candidate-synthetic-emoji",
+        "candidate-synthetic-symbol",
+        "candidate-synthetic-handle",
+    }
+    assert all(row["fresh_exact_text_cluster_size"] == 1 for row in clustered)
+    assert len({row["fresh_exact_text_cluster_id"] for row in clustered}) == 3
+    assert receipt["fresh_exact_text_cluster_count"] == 0
+    assert receipt["fresh_candidates_removed_for_text_duplication"] == 0
 
 
 def test_quote_resolver_uses_exact_audited_public_source_selection() -> None:
@@ -1219,10 +1777,15 @@ def test_added_public_callables_have_docstrings() -> None:
         "normalise_incoming",
         "near_duplicate_ratio",
         "candidate_contamination",
+        "cluster_fresh_candidates",
+        "semantic_inventory",
         "context_dependency_flags",
         "context_temporal_violations",
         "render_manual_context_review",
         "render_manual_clearance_csv",
+        "render_manual_semantic_review",
+        "render_manual_semantic_classification_csv",
+        "build_sampling_readiness",
         "ensure_safe_source_path",
         "prepare_output_directory",
         "write_sha256sums",
