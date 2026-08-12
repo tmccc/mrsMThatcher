@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import inspect
 import json
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
@@ -26,6 +28,7 @@ from reply_strategy import (
     VALIDATION_RETRY_PROTOCOL_VERSION,
     _build_validation_retry_user_prompt,
     _claim_auditor_prompts,
+    _evidence_prompts,
     _no_reply_review_prompts,
     _proposer_prompts,
     _reviewer_prompts,
@@ -504,6 +507,15 @@ def text_sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def prompt_word_count(value: str) -> int:
+    """Count prompt words consistently with the frozen hybrid-prompt budget."""
+    return len(re.findall(r"[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*", value))
+
+
+def source_sha256(*objects: object) -> str:
+    return text_sha256("".join(inspect.getsource(item) for item in objects))
+
+
 def retry_audit_row(result: object, stage: str) -> dict[str, object]:
     rows = [
         row
@@ -590,15 +602,15 @@ def test_configuration_is_explicit_and_fail_closed() -> None:
 def test_conversational_engagement_prompt_versions_are_current() -> None:
     assert STRATEGY_VERSION == "ai-first-reply-v3"
     assert DRAFT_SCHEMA_VERSION == 9
-    assert PROPOSER_PROMPT_VERSION == "ai-first-proposer-v15"
+    assert PROPOSER_PROMPT_VERSION == "ai-first-proposer-v16"
     assert EVIDENCE_PROMPT_VERSION == "claim-evidence-entailment-v6"
-    assert REVIEWER_PROMPT_VERSION == "independent-reply-reviewer-v13"
+    assert REVIEWER_PROMPT_VERSION == "independent-reply-reviewer-v14"
     assert NO_REPLY_REVIEW_PROMPT_VERSION == "independent-no-reply-review-v1"
     assert CLAIM_AUDITOR_PROMPT_VERSION == "claim-inventory-auditor-v5"
     assert VALIDATION_RETRY_PROTOCOL_VERSION == "validator-guided-retry-v1"
 
 
-def test_production_system_prompt_hashes_and_operational_limits_are_frozen() -> None:
+def test_hybrid_and_production_system_prompt_hashes_are_pinned() -> None:
     context = reply_context("A wholly synthetic civil contribution.")
     proposal = proposer(
         mode="courtesy",
@@ -614,6 +626,7 @@ def test_production_system_prompt_hashes_and_operational_limits_are_frozen() -> 
             revision=None,
         )[0],
         "reviewer": _reviewer_prompts(context, proposal, [], None)[0],
+        "evidence": _evidence_prompts([], {})[0],
         "no_reply_review": _no_reply_review_prompts(
             context,
             no_reply_proposal,
@@ -623,16 +636,111 @@ def test_production_system_prompt_hashes_and_operational_limits_are_frozen() -> 
         )[0],
     }
 
-    assert {name: text_sha256(prompt) for name, prompt in prompt_systems.items()} == {
-        "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
-        "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e",
+    prompt_hashes = {
+        name: text_sha256(prompt) for name, prompt in prompt_systems.items()
+    }
+    assert prompt_hashes["proposer"] != (
+        "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72"
+    )
+    assert prompt_hashes["reviewer"] != (
+        "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e"
+    )
+    assert prompt_hashes == {
+        "proposer": "7f69a8bb30296247a049a34a27625885cd5f30813f0eda92f99beb85fbf9cb10",
+        "reviewer": "cfb992e2479f11902e0ff22820d4862a76225037c325ee593179eff625226144",
+        "evidence": "d9d7c86a4f3b6d1cde7f7287919d84d20ba0f4eeb9b9c31a5b2e7b3a7bb3c44b",
         "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
         "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
     }
+
+
+def test_hybrid_system_prompts_meet_the_word_budget() -> None:
+    context = reply_context("A wholly synthetic civil contribution.")
+    proposal = proposer(
+        mode="courtesy",
+        reply="Thank you for the thoughtful contribution.",
+        claims=[],
+    )
+    proposer_system = _proposer_prompts(
+        context,
+        [],
+        resolved_quotation=None,
+        revision=None,
+    )[0]
+    reviewer_system = _reviewer_prompts(context, proposal, [], None)[0]
+    base_counts = {"proposer": 1192, "reviewer": 849}
+    hybrid_counts = {
+        "proposer": prompt_word_count(proposer_system),
+        "reviewer": prompt_word_count(reviewer_system),
+    }
+
+    assert hybrid_counts == {"proposer": 1043, "reviewer": 760}
+    assert sum(base_counts.values()) == 2041
+    assert sum(hybrid_counts.values()) == 1803
+    assert hybrid_counts["proposer"] <= 1050
+    assert hybrid_counts["reviewer"] <= 760
+    assert sum(hybrid_counts.values()) <= 1810
+    assert hybrid_counts["proposer"] <= base_counts["proposer"]
+    assert hybrid_counts["reviewer"] <= base_counts["reviewer"]
+
+
+def test_operational_schema_validator_and_retry_implementation_are_frozen() -> None:
     config = strategy_config()
-    assert config["maximum_invalid_response_retries"] == 1
-    assert config["maximum_model_calls"] == 6
-    assert config["maximum_revisions"] == 1
+    assert {
+        key: config[key]
+        for key in (
+            "maximum_model_calls",
+            "maximum_invalid_response_retries",
+            "maximum_revisions",
+            "proposer_timeout_seconds",
+            "evidence_timeout_seconds",
+            "reviewer_timeout_seconds",
+            "proposer_max_output_tokens",
+            "evidence_max_output_tokens",
+            "reviewer_max_output_tokens",
+            "maximum_claims",
+            "maximum_evidence_packets_per_claim",
+            "maximum_evidence_passages_per_claim",
+            "maximum_reply_sentences",
+        )
+    } == {
+        "maximum_model_calls": 6,
+        "maximum_invalid_response_retries": 1,
+        "maximum_revisions": 1,
+        "proposer_timeout_seconds": 30,
+        "evidence_timeout_seconds": 30,
+        "reviewer_timeout_seconds": 30,
+        "proposer_max_output_tokens": 900,
+        "evidence_max_output_tokens": 1800,
+        "reviewer_max_output_tokens": 900,
+        "maximum_claims": 6,
+        "maximum_evidence_packets_per_claim": 6,
+        "maximum_evidence_passages_per_claim": 24,
+        "maximum_reply_sentences": 2,
+    }
+    assert source_sha256(
+        reply_strategy_module.claim_schema,
+        reply_strategy_module.proposer_schema,
+        reply_strategy_module.evidence_schema,
+        reply_strategy_module.world_claim_checks_schema,
+        reply_strategy_module.claim_auditor_schema,
+        reply_strategy_module.reviewer_schema,
+        reply_strategy_module.no_reply_review_schema,
+    ) == "b34c9b2e36c68b00fca99e653f0699ed5485a6e78f5a45fc0bb58ebb8c1e1c63"
+    assert source_sha256(
+        reply_strategy_module.validate_strategy_config,
+        reply_strategy_module.validate_reply_context,
+        reply_strategy_module.validate_proposer,
+        reply_strategy_module.validate_evidence_response,
+        reply_strategy_module.validate_claim_auditor,
+        reply_strategy_module.validate_reviewer,
+        reply_strategy_module.validate_no_reply_review,
+        reply_strategy_module.validate_persisted_draft,
+    ) == "5c702fd69bb1ef5c742b14568d6b36e7339b39841247266a130e42eadc663d3f"
+    assert source_sha256(
+        reply_strategy_module._build_validation_retry_user_prompt,
+        reply_strategy_module.run_reply_pipeline,
+    ) == "ec4712520c86cae089021de8b18f0f1e913b5c8f25f50e57ff113609d82a42c1"
 
 
 def test_no_reply_review_prompt_is_independent_and_cannot_write_the_reply() -> None:
@@ -652,24 +760,129 @@ def test_no_reply_review_prompt_is_independent_and_cannot_write_the_reply() -> N
     assert "serious unsupported accusations" in system
 
 
-def test_proposer_prompt_defaults_to_safe_relevant_engagement() -> None:
-    system, _ = _proposer_prompts(
-        reply_context("A civil and relevant contribution."),
+def test_hybrid_prompt_user_payload_shapes_are_unchanged() -> None:
+    context = reply_context("A wholly synthetic civil contribution.")
+    proposal = proposer(
+        mode="courtesy",
+        reply="Thank you for the thoughtful contribution.",
+        claims=[],
+    )
+    _, proposer_user = _proposer_prompts(
+        context,
         [],
         resolved_quotation=None,
         revision=None,
     )
+    _, reviewer_user = _reviewer_prompts(context, proposal, [], None)
+    proposer_payload = json.loads(proposer_user)
+    reviewer_payload = json.loads(reviewer_user)
+    context_keys = {
+        "incoming_contribution_to_answer",
+        "quoted_post_context_only",
+        "bounded_parent_thread_context_only",
+        "clarification_request_if_any",
+    }
 
-    assert "exists to engage civil, relevant people, not merely to answer factual questions" in system
-    assert "need not contain a question, disagreement, challenge, new factual claim or new subject matter" in system
-    assert "Relevant agreement, support, appreciation, admiration, nostalgia, sadness, thanks" in system
-    assert "a friendly comparison, a concise reaction or a thoughtful related observation" in system
-    assert "A quote-tweet is a first-class contribution" in system
-    assert "Use courtesy for acknowledgement, warmth, appreciation or thanks" in system
-    assert "Use opinion_or_principle when adding a directly related value judgement" in system
-    assert "underlying political, moral or policy theme using claim-free normative language" in system
-    assert "absence of a question or new matter is never sufficient by itself for no_reply" in system
-    assert "Prefer no_reply to an unrelated platitude." not in system
+    assert set(proposer_payload) == {
+        "context_sections",
+        "target",
+        "current_date",
+        "resolved_quotation_for_factual_use",
+        "recent_account_replies_to_avoid_repeating",
+    }
+    assert set(reviewer_payload) == {
+        "context_sections",
+        "mode",
+        "tone",
+        "proposed_reply",
+        "proposer_direct_factual_question_present",
+        "proposer_requested_answer_type",
+        "proposer_direct_answer_text",
+        "proposer_listed_factual_claims_untrusted",
+        "exact_thatcher_wording_used",
+        "exact_thatcher_wording",
+        "evidence_package",
+        "resolved_quotation_for_independent_check",
+    }
+    assert set(proposer_payload["context_sections"]) == context_keys
+    assert set(reviewer_payload["context_sections"]) == context_keys
+    assert "validation_correction" not in proposer_payload
+    assert "validation_correction" not in reviewer_payload
+
+
+def test_proposer_prompt_has_one_coherent_conservative_hybrid_policy() -> None:
+    system, _ = _proposer_prompts(
+        reply_context("A wholly synthetic civil and relevant contribution."),
+        ["A wholly synthetic recent reply."],
+        resolved_quotation=None,
+        revision=None,
+    )
+
+    assert system.count("Priority order:") == 1
+    assert (
+        "Priority order: 1. factual and safety correctness; 2. direct relevance; "
+        "3. specificity and added value; 4. brevity."
+    ) in system
+    assert system.count("Specificity:") == 1
+    assert system.count("Added value:") == 1
+    assert system.casefold().count("stock acknowledgement") == 1
+    assert "Civil, intelligible, relevant and safe contributions normally receive replies" in system
+    assert "No question, disagreement, new factual claim, new subject or @mention is required" in system
+    assert "absence alone never warrants no_reply" in system
+    assert "Quote-tweets remain first-class engagement" in system
+
+    assert (
+        "Use courtesy only for essentially social thanks, praise, affection, sympathy, "
+        "remembrance, greetings, simple support or celebration"
+    ) in system
+    assert "short natural courtesy, even generic, is acceptable" in system
+    assert "without manufactured politics or added-value elaboration" in system
+    assert (
+        "Argument, analogy, distinction, criticism, recommendation, policy observation, "
+        "political observation, moral proposition and reasoned agreement normally use "
+        "opinion_or_principle, not mere ceremonial courtesy"
+    ) in system
+
+    assert "Specificity: not sensible beneath several unrelated contributions" in system
+    assert "Added value: more than paraphrase, thanks or acknowledgement" in system
+    assert "sharp distinction" in system
+    assert "particular recommendation or standard" in system
+    assert "pointed rhetorical question or contribution-derived dry turn" in system
+    assert "no factual assertion is required" in system
+    assert "Outside social courtesy, avoid stock acknowledgements" in system
+    for phrase in (
+        "well noted",
+        "well made",
+        "point taken",
+        "thank you for sharing",
+        "an important reminder",
+    ):
+        assert f"'{phrase}'" in system
+    assert "examples are illustrative, not a permanent phrase blacklist" in system
+    assert "interchangeable or empty wording, not ordinary reused words, is defective" in system
+    assert "Do not reuse conspicuous sentence frames from recent replies" in system
+
+    assert "natural, contribution-specific, claim-free dry or wry line" in system
+    assert "particular word, contrast, irony or implication in the contribution" in system
+    assert "Do not force humour" in system
+    assert (
+        "Do not use wit for grief, distress, abuse, serious unsupported allegations or "
+        "sensitive factual correction"
+    ) in system
+
+    for safeguard in (
+        "spam or advertising",
+        "incoherence or unintelligibility",
+        "abuse or harassment",
+        "clear bad-faith bait",
+        "repetition demonstrated by the bounded thread",
+        "dangerous amplification of serious unsupported accusations or conspiracy claims",
+        "wholly unrelated material",
+        "inability to produce a safe, relevant and original response",
+    ):
+        assert safeguard in system
+    assert "Do not weaken or broaden these safeguards" in system
+    assert "disagreement alone is not bait" in system
 
 
 def test_proposer_revision_prefers_claim_free_social_engagement() -> None:
@@ -680,28 +893,102 @@ def test_proposer_revision_prefers_claim_free_social_engagement() -> None:
         revision={"review_findings": "Remove the unsupported prediction."},
     )
 
-    assert "claim-free acknowledgement, value judgement or directly relevant explicit recommendation" in system
-    assert "rather than automatically choosing no_reply" in system
+    assert "safe, honest, claim-free revision engaging its particular theme" in system
+    assert "over automatically choosing no_reply" in system
+    assert "Follow the social-versus-substantive mode rule" in system
 
 
-def test_reviewer_prompt_accepts_safe_social_engagement_without_weakening_safeguards() -> None:
+def test_reviewer_prompt_applies_social_substantive_quality_and_wit_policy() -> None:
     system, _ = _reviewer_prompts(
-        reply_context("I miss her."),
+        reply_context("A wholly synthetic expression of affection and remembrance."),
         proposer(mode="courtesy", reply="That affection still speaks warmly.", claims=[]),
         [],
         None,
     )
 
-    assert "Absence of a question, challenge or new factual matter is not a defect" in system
-    assert "concise, topically relevant courtesy response is suitable account behaviour" in system
-    assert "acknowledgement of agreement, support, admiration, nostalgia, thanks or a friendly comparison" in system
-    assert "claim-free extension of a thoughtful related observation" in system
-    assert "Quote-tweets are first-class engagement" in system
-    assert "Do not confuse brevity with an unrelated platitude" in system
-    assert "prefer revise into claim-free normative language rather than reject" in system
-    assert "dangerous amplification of unsupported accusations" in system
-    assert "Classify causal, comparative, predictive and habitual political generalisations as checkable" in system
-    assert "endorses an unsupported allegation, lacks evidence" in system
+    assert system.count("Specificity:") == 1
+    assert system.count("Added value:") == 1
+    assert system.casefold().count("stock acknowledgement") == 1
+    assert (
+        "Courtesy suits essentially social praise, affection, remembrance, gratitude, "
+        "sympathy, greetings or support"
+    ) in system
+    assert "approve brief natural courtesy without political lecture" in system
+    assert "brevity isn't defective" in system
+    assert (
+        "Substantive argument, analogy, distinction, criticism, recommendation, "
+        "policy/political observation, moral proposition and reasoned agreement normally "
+        "deserve specific opinion_or_principle, not courtesy"
+    ) in system
+    assert "harmlessness and topicality are necessary yet insufficient" in system
+    assert "Specificity: not fitting several unrelated contributions" in system
+    assert "Added value: beyond paraphrase or acknowledgement" in system
+    assert "contribution-derived, claim-free dry/wry wit is optional" in system
+    assert "reject generic banter" in system
+    assert "never request humour for grief, distress or serious allegations" in system
+
+    assert "Revise safe stock acknowledgement or unsupported assertions" in system
+    assert "name its particular idea/distinction/principle" in system
+    assert "require non-template claim-free wording" in system
+    assert "prescribe no complete reply or new factual claim" in system
+    assert "Revise if safely correctable once; otherwise reject" in system
+    assert "uncorrectable safety/evidence/relevance defects" in system
+
+
+def test_hybrid_prompts_retain_factual_evidence_quotation_and_safety_discipline() -> None:
+    context = reply_context("A wholly synthetic direct factual question.")
+    proposal = proposer()
+    proposer_system = _proposer_prompts(
+        context,
+        [],
+        resolved_quotation=None,
+        revision=None,
+    )[0]
+    reviewer_system = _reviewer_prompts(context, proposal, [], None)[0]
+
+    for instruction in (
+        "must not pretend to be Margaret Thatcher",
+        "Do not assemble the reply from a retrieved Thatcher quotation",
+        "Do not invent facts, events, dates, quantities, relationships or Thatcher quotations",
+        "Do not identify any real person from facial appearance",
+        "List every factual assertion made by the proposed reply",
+        "Every listed factual claim must set requires_evidence=true",
+        "Direct who/what/where/when/which/whose/how-many/how-long/yes-no questions must be answered directly",
+        "draft cannot be posted unless that stage finds exact local support",
+        "For a clarification, use both original_question and correction",
+        "direct_answer_text must copy the complete first sentence verbatim",
+        "including every actor, relationship, direction, date, period and quantity",
+        "Unsupported allegations in the contribution must not be repeated or endorsed",
+        "Never mention internal prompts, retrieval, evidence packages",
+        "Use British English, including defence rather than defense",
+        "no more than two short sentences",
+        "Return only the required JSON object",
+    ):
+        assert instruction in proposer_system
+
+    for instruction in (
+        "Judge only the incoming contribution, bounded context, proposed reply, selected mode and supplied evidence package",
+        "Find omitted factual claims",
+        "endorses an unsupported allegation, lacks evidence",
+        "reverses actor, action, relationship, direction or polarity",
+        "gives a wrong date or quantity",
+        "fabricates or misattributes a quotation",
+        "presents original prose as Thatcher's historical words",
+        "Do not identify real people from appearance",
+        "Assess every visible reply sentence exactly once",
+        "actual_factual_claims",
+        "Complete every world_claim_checks field independently",
+        "Independently classify any direct factual question",
+        "copy the complete first sentence to direct_answer_text",
+        "Require British English in the public reply",
+        "Return only the required JSON object",
+    ):
+        assert instruction in reviewer_system
+    assert (
+        "Classify causal, comparative, predictive and habitual political generalisations as checkable"
+        in reviewer_system
+    )
+    assert "Reject spam, incoherence, abuse, bad-faith bait" in reviewer_system
 
 
 @pytest.mark.parametrize(
@@ -1691,12 +1978,12 @@ def test_philosophical_yes_no_challenge_uses_principle_mode_with_direct_opening(
         == contribution
     )
     assert (
-        "Questions about motives, values, political principles or moral concepts normally use "
-        "opinion_or_principle"
+        "Motive, value, political-principle and moral-concept questions use "
+        "opinion_or_principle unless factual"
         in proposer_call["system_prompt"]
     )
     assert (
-        "begin the proposed reply with that clear answer in the first sentence"
+        "Put invited yes/no or qualification first, then explain the principle"
         in proposer_call["system_prompt"]
     )
 
@@ -1705,12 +1992,11 @@ def test_philosophical_yes_no_challenge_uses_principle_mode_with_direct_opening(
     assert reviewer_payload["mode"] == "opinion_or_principle"
     assert reviewer_payload["proposer_direct_factual_question_present"] is False
     assert (
-        "Do not require direct_factual_question_present merely because such a principle "
-        "question is interrogative"
+        "interrogative form alone isn't direct_factual_question_present"
         in reviewer_call["system_prompt"]
     )
     assert (
-        "require the proposed reply to begin with that clear answer in the first sentence"
+        "Put invited yes/no first; revise evasion"
         in reviewer_call["system_prompt"]
     )
 
@@ -3912,14 +4198,7 @@ def test_real_source_grounded_berlin_answer_can_pass_the_complete_pipeline(
     assert "Relevant factual questions about political history" in transport.calls[0]["system_prompt"]
     assert "draft cannot be posted unless that stage finds exact local support" in transport.calls[0]["system_prompt"]
     assert "least-specific factual wording" in transport.calls[0]["system_prompt"]
-    assert "prefer a clearly rhetorical quip or question" in transport.calls[0]["system_prompt"]
     assert "Never omit a genuine claim merely to avoid evidence review" in transport.calls[0]["system_prompt"]
-    assert "civil challenge to a clear political or moral principle is likewise in scope" in transport.calls[0]["system_prompt"]
-    assert "names and addresses the specific disputed principle" in transport.calls[0]["system_prompt"]
-    system_prompt = transport.calls[0]["system_prompt"]
-    assert "repeated argument" in system_prompt
-    assert "bounded thread" in system_prompt
-    assert "already answered" in system_prompt
     assert "A normative wrapper does not hide a factual premise" in transport.calls[0]["system_prompt"]
     assert "defence rather than defense" in transport.calls[0]["system_prompt"]
     assert "ordinary paraphrases" in transport.calls[1]["system_prompt"]
