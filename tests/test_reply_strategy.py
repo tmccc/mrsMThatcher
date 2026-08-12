@@ -645,9 +645,12 @@ def test_hybrid_and_production_system_prompt_hashes_are_pinned() -> None:
     assert prompt_hashes["reviewer"] != (
         "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e"
     )
+    assert prompt_hashes["reviewer"] != (
+        "cfb992e2479f11902e0ff22820d4862a76225037c325ee593179eff625226144"
+    )
     assert prompt_hashes == {
         "proposer": "7f69a8bb30296247a049a34a27625885cd5f30813f0eda92f99beb85fbf9cb10",
-        "reviewer": "cfb992e2479f11902e0ff22820d4862a76225037c325ee593179eff625226144",
+        "reviewer": "b8e632c41bfba03f792a6a4b93bd16c2fd38a2410429a80268cbe0c93c43127d",
         "evidence": "d9d7c86a4f3b6d1cde7f7287919d84d20ba0f4eeb9b9c31a5b2e7b3a7bb3c44b",
         "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
         "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
@@ -910,27 +913,30 @@ def test_reviewer_prompt_applies_social_substantive_quality_and_wit_policy() -> 
     assert system.count("Added value:") == 1
     assert system.casefold().count("stock acknowledgement") == 1
     assert (
-        "Courtesy suits essentially social praise, affection, remembrance, gratitude, "
-        "sympathy, greetings or support"
+        "Social praise, affection, remembrance, gratitude, sympathy, greetings, simple "
+        "support or celebration may receive natural courtesy without political lectures; "
+        "accept brevity"
     ) in system
-    assert "approve brief natural courtesy without political lecture" in system
-    assert "brevity isn't defective" in system
     assert (
-        "Substantive argument, analogy, distinction, criticism, recommendation, "
-        "policy/political observation, moral proposition and reasoned agreement normally "
-        "deserve specific opinion_or_principle, not courtesy"
+        "Arguments, analogies, distinctions, criticisms, recommendations, political/policy "
+        "observations, moral propositions and reasoned agreement normally require specific "
+        "opinion_or_principle"
     ) in system
-    assert "harmlessness and topicality are necessary yet insufficient" in system
+    assert "topicality and harmlessness are insufficient" in system
     assert "Specificity: not fitting several unrelated contributions" in system
     assert "Added value: beyond paraphrase or acknowledgement" in system
-    assert "contribution-derived, claim-free dry/wry wit is optional" in system
-    assert "reject generic banter" in system
-    assert "never request humour for grief, distress or serious allegations" in system
+    assert "Contribution-derived, claim-free dry/wry wit is optional, never forced" in system
+    assert (
+        "never request it for grief, distress, abuse, serious unsupported allegations or "
+        "sensitive factual correction"
+    ) in system
 
-    assert "Revise safe stock acknowledgement or unsupported assertions" in system
-    assert "name its particular idea/distinction/principle" in system
-    assert "require non-template claim-free wording" in system
-    assert "prescribe no complete reply or new factual claim" in system
+    assert (
+        "Outside social courtesy, revise safely correctable stock acknowledgement, generic "
+        "banter or unsupported assertion: require wording tied to its idea, distinction or "
+        "principle, but no complete reply or new factual claim"
+    ) in system
+    assert "reject generic banter" not in system.casefold()
     assert "Revise if safely correctable once; otherwise reject" in system
     assert "uncorrectable safety/evidence/relevance defects" in system
 
