@@ -1,0 +1,75 @@
+{
+  "all_36_primary_population": true,
+  "candidate_count": 36,
+  "candidate_ids_sha256": "836b5120ecfb450a2c0f5a17cb75f4ba63ae5eb872f882efc6db64ef74f23859",
+  "deployment_authorised": false,
+  "deployment_blocked_pending_social_supplement": true,
+  "development_cutoff": "2026-08-10T05:16:15Z",
+  "hard_cost_limit_usd": 1.5,
+  "input": {
+    "directory": "/disks/disk1/research/mrsMThatcher-reply-hybrid-evaluation-audit-data-20260812T144330Z",
+    "members": {
+      "context_audit.jsonl": "aeb7ce0c54bfc9a9158b161fc502b717ca39e3dc041254491e881f466f93bf37",
+      "context_audit_summary.json": "9b552b1062e238d165220c774c63360c381fa5ddd855aae0358d9f1f7e6cfb6e",
+      "fresh_candidate_inventory.jsonl": "32b6807162dd02a12481b9a19c0ad3fd71e8a2b68065d787437cd6cdcb3c6de4",
+      "freshness_boundary.json": "786192da342fc029c5008d46ce5a0361f9d1826dbff67ed2b814442d28ab0659",
+      "profile_identity_verification.json": "91b834b767e543369fbd042ed1293578fd4c02e9f706bf605621d4a5d9766d7d",
+      "run_manifest.json": "4abce54ab315b375b7f31a93e0f7e0f90f7b1776185cf13be09d1e61eb6265a5",
+      "source_inventory.json": "3adf4967e7f3f09e0a6699ff8dd34f2e75fefaa8538184a65f04c9560ab92dec"
+    },
+    "sha256sums_sha256": "f52684112d6edff957d6894c0c8ad6ecb52656ea0d5f6bd55acd2ff5e9c7b7fc"
+  },
+  "model": "grok-4.3",
+  "no_case_replacement": true,
+  "planned_pipeline_executions": 72,
+  "profiles": {
+    "conservative_hybrid": {
+      "commit": "0b7cd1da11d7c9ff5b3051c3d6fc4a70ae45176d",
+      "prompt_sha256": {
+        "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
+        "evidence": "d9d7c86a4f3b6d1cde7f7287919d84d20ba0f4eeb9b9c31a5b2e7b3a7bb3c44b",
+        "no_reply_reviewer": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
+        "proposer": "7f69a8bb30296247a049a34a27625885cd5f30813f0eda92f99beb85fbf9cb10",
+        "reviewer": "b8e632c41bfba03f792a6a4b93bd16c2fd38a2410429a80268cbe0c93c43127d"
+      },
+      "versions": {
+        "CLAIM_AUDITOR_PROMPT_VERSION": "claim-inventory-auditor-v5",
+        "DRAFT_SCHEMA_VERSION": 9,
+        "EVIDENCE_PROMPT_VERSION": "claim-evidence-entailment-v6",
+        "NO_REPLY_REVIEW_PROMPT_VERSION": "independent-no-reply-review-v1",
+        "PROPOSER_PROMPT_VERSION": "ai-first-proposer-v16",
+        "REVIEWER_PROMPT_VERSION": "independent-reply-reviewer-v14",
+        "STRATEGY_VERSION": "ai-first-reply-v3",
+        "VALIDATION_RETRY_PROTOCOL_VERSION": "validator-guided-retry-v1"
+      }
+    },
+    "hardened_current": {
+      "commit": "f07957e8b2388d8258821cb21b25f2a43681cbbd",
+      "prompt_sha256": {
+        "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
+        "evidence": "d9d7c86a4f3b6d1cde7f7287919d84d20ba0f4eeb9b9c31a5b2e7b3a7bb3c44b",
+        "no_reply_reviewer": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
+        "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
+        "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e"
+      },
+      "versions": {
+        "CLAIM_AUDITOR_PROMPT_VERSION": "claim-inventory-auditor-v5",
+        "DRAFT_SCHEMA_VERSION": 9,
+        "EVIDENCE_PROMPT_VERSION": "claim-evidence-entailment-v6",
+        "NO_REPLY_REVIEW_PROMPT_VERSION": "independent-no-reply-review-v1",
+        "PROPOSER_PROMPT_VERSION": "ai-first-proposer-v15",
+        "REVIEWER_PROMPT_VERSION": "independent-reply-reviewer-v13",
+        "STRATEGY_VERSION": "ai-first-reply-v3",
+        "VALIDATION_RETRY_PROTOCOL_VERSION": "validator-guided-retry-v1"
+      }
+    }
+  },
+  "research_base_commit": "42e5f67e42a9f653a23f32060caf7087837e4f7b",
+  "schema_version": 1,
+  "screening_only": true,
+  "social_candidate_ids": [
+    "candidate-2d6c8f80e105f5a17afc45e41fd76b9e96fb717d30f4ed1be2f0db7f8aa2a2b8",
+    "candidate-d7588c23e1a73d0cebaf6e4f0550c8550602eb9ff0d0aaed287e07df88588f17"
+  ],
+  "social_supplement_still_required": true
+}
