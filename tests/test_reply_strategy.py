@@ -175,6 +175,12 @@ class ScriptedTransport:
             response = copy.deepcopy(response)
             payload = json.loads(kwargs["user_prompt"])
             proposed_reply = str(payload["proposed_reply"])
+            if (
+                payload["mode"] == "courtesy"
+                and response.get("principal_contribution_act") == "social"
+                and response.get("natural_social_courtesy") is False
+            ):
+                response["natural_social_courtesy"] = True
             sentences = split_reply_sentences(proposed_reply)
             if response.get("actual_factual_claims") == ["__PROPOSER_CLAIMS__"]:
                 response["actual_factual_claims"] = [
@@ -340,6 +346,13 @@ def reviewer(
         factual_claims = ["__PROPOSER_CLAIMS__"] if direct_question else []
     value: dict[str, object] = {
         "verdict": verdict,
+        "principal_contribution_act": (
+            "factual_question" if direct_question else "social"
+        ),
+        "specific_to_contribution": True,
+        "adds_value_beyond_acknowledgement": direct_question,
+        "natural_social_courtesy": False,
+        "implicitly_endorses_unsupported_premise": False,
         "summary": "Independent review completed.",
         "reasons": [] if verdict == "approve" else ["The draft is unsafe or unsuitable."],
         "actual_factual_claims": factual_claims,
@@ -380,9 +393,22 @@ def reviewer(
 
 def no_reply_review(
     verdict: str = "confirm_no_reply",
+    *,
+    principal_contribution_act: str | None = None,
+    safe_claim_free_reply_possible: bool | None = None,
 ) -> dict[str, object]:
     return {
         "verdict": verdict,
+        "principal_contribution_act": principal_contribution_act or (
+            "unsafe_or_unintelligible"
+            if verdict == "confirm_no_reply"
+            else "substantive"
+        ),
+        "safe_claim_free_reply_possible": (
+            verdict == "require_reply"
+            if safe_claim_free_reply_possible is None
+            else safe_claim_free_reply_possible
+        ),
         "reasons": [
             "Silence is warranted."
             if verdict == "confirm_no_reply"
@@ -413,6 +439,43 @@ def claim_auditor(factual_claims: list[str] | None = None) -> dict[str, object]:
                 "purely_non_factual": not bool(claims),
             },
         }],
+    }
+
+
+CLAIM_CLEANUP_INITIAL_REPLY = "A nation prospers when courage governs policy."
+CLAIM_CLEANUP_REJECTED_REVISION = "A country advances when resolve guides policy."
+CLAIM_CLEANUP_CORRECTED_REPLY = "Resolve should guide policy."
+
+
+def claim_cleanup_responses(corrective_response: object) -> dict[str, object]:
+    """Return a complete scripted path through the bounded cleanup retry."""
+    return {
+        "proposer": proposer(
+            mode="opinion_or_principle",
+            reply=CLAIM_CLEANUP_INITIAL_REPLY,
+            claims=[],
+        ),
+        "claim_auditor": claim_auditor([CLAIM_CLEANUP_INITIAL_REPLY]),
+        "revision_proposer": [
+            proposer(
+                mode="opinion_or_principle",
+                reply=CLAIM_CLEANUP_REJECTED_REVISION,
+                claims=[],
+            ),
+            corrective_response,
+        ],
+        "revision_claim_auditor": claim_auditor([
+            CLAIM_CLEANUP_REJECTED_REVISION
+        ]),
+        "revision_reviewer": reviewer(
+            direct_question=False,
+            answers_first=False,
+            factual_claims=[],
+            principal_contribution_act="substantive",
+            specific_to_contribution=True,
+            adds_value_beyond_acknowledgement=True,
+            natural_social_courtesy=False,
+        ),
     }
 
 
@@ -563,6 +626,221 @@ def test_source_schemas_are_strict_and_provider_compatible() -> None:
     assert no_reply_review_schema()["additionalProperties"] is False
 
 
+def test_no_reply_review_schema_has_exact_adequacy_fields() -> None:
+    schema = no_reply_review_schema()
+    assert set(schema["properties"]) == {
+        "verdict",
+        "principal_contribution_act",
+        "safe_claim_free_reply_possible",
+        "reasons",
+        "revision_instructions",
+    }
+    assert set(schema["required"]) == set(schema["properties"])
+
+
+def test_no_reply_review_rejects_invalid_act_and_contradictory_possibility() -> None:
+    invalid_act = no_reply_review()
+    invalid_act["principal_contribution_act"] = "proposer_mode"
+    with pytest.raises(ValueError, match="principal contribution act"):
+        validate_no_reply_review(invalid_act)
+
+    confirm_but_safe = no_reply_review(
+        safe_claim_free_reply_possible=True,
+    )
+    with pytest.raises(ValueError, match="confirm_no_reply requires"):
+        validate_no_reply_review(confirm_but_safe)
+
+    require_but_unsafe = no_reply_review(
+        "require_reply",
+        safe_claim_free_reply_possible=False,
+    )
+    with pytest.raises(ValueError, match="require_reply requires"):
+        validate_no_reply_review(require_but_unsafe)
+
+
+def test_contradictory_no_reply_review_gets_validator_guided_correction(
+    repository: FakeRepository,
+) -> None:
+    contradictory = no_reply_review(safe_claim_free_reply_possible=True)
+    with pytest.raises(ValueError) as caught:
+        validate_no_reply_review(contradictory)
+
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="no_reply"),
+            "no_reply_reviewer": [contradictory, no_reply_review()],
+        },
+    )
+
+    assert result.status == "no_reply"
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "no_reply_reviewer",
+        "no_reply_reviewer",
+    ]
+    assert_retry_envelope(
+        transport.calls[1]["user_prompt"],
+        transport.calls[2]["user_prompt"],
+        stage="no_reply_reviewer",
+        attempt_number=2,
+        validator_exception=caught.value,
+    )
+    completed = result.audit[-1]
+    assert completed["principal_contribution_act"] == "unsafe_or_unintelligible"
+    assert completed["safe_claim_free_reply_possible"] is False
+
+
+def test_reviewer_schema_has_exact_adequacy_fields() -> None:
+    schema = reviewer_schema(6)
+    assert set(schema["properties"]) == {
+        "verdict",
+        "principal_contribution_act",
+        "specific_to_contribution",
+        "adds_value_beyond_acknowledgement",
+        "natural_social_courtesy",
+        "implicitly_endorses_unsupported_premise",
+        "summary",
+        "reasons",
+        "actual_factual_claims",
+        "unsupported_factual_claims",
+        "sentence_assessments",
+        "direct_factual_question_present",
+        "requested_answer_type",
+        "direct_answer_complete",
+        "direct_answer_text",
+        "topically_relevant",
+        "endorses_unsupported_allegation",
+        "contains_unsupported_factual_claims",
+        "actor_action_relationship_correct",
+        "direction_polarity_correct",
+        "dates_quantities_correct",
+        "quotation_attribution_correct",
+        "original_prose_clearly_not_historical_quotation",
+        "mode_and_tone_match",
+        "suitable_for_account",
+        "revision_instructions",
+    }
+    assert set(schema["required"]) == set(schema["properties"])
+
+
+def test_reviewer_adequacy_consistency_rules_for_approval() -> None:
+    courtesy_for_substantive = reviewer(
+        direct_question=False,
+        answers_first=False,
+        principal_contribution_act="substantive",
+        natural_social_courtesy=True,
+    )
+    with pytest.raises(ValueError, match="courtesy approval"):
+        validate_reviewer(
+            courtesy_for_substantive,
+            maximum_claims=6,
+            proposer_mode="courtesy",
+        )
+
+    generic_non_social = reviewer(
+        direct_question=False,
+        answers_first=False,
+        principal_contribution_act="substantive",
+        specific_to_contribution=False,
+        adds_value_beyond_acknowledgement=False,
+    )
+    with pytest.raises(ValueError, match="specific added value"):
+        validate_reviewer(
+            generic_non_social,
+            maximum_claims=6,
+            proposer_mode="opinion_or_principle",
+        )
+
+    implicit_endorsement = reviewer(
+        direct_question=False,
+        answers_first=False,
+        implicitly_endorses_unsupported_premise=True,
+    )
+    with pytest.raises(ValueError, match="implicitly endorse"):
+        validate_reviewer(
+            implicit_endorsement,
+            maximum_claims=6,
+            proposer_mode="opinion_or_principle",
+        )
+
+    social_courtesy = reviewer(
+        direct_question=False,
+        answers_first=False,
+        principal_contribution_act="social",
+        specific_to_contribution=False,
+        adds_value_beyond_acknowledgement=False,
+        natural_social_courtesy=True,
+    )
+    assert validate_reviewer(
+        social_courtesy,
+        maximum_claims=6,
+        proposer_mode="courtesy",
+    ) == social_courtesy
+
+
+def test_contradictory_reviewer_output_gets_validator_guided_correction(
+    repository: FakeRepository,
+) -> None:
+    contradictory = reviewer(
+        direct_question=False,
+        answers_first=False,
+        principal_contribution_act="substantive",
+        natural_social_courtesy=False,
+    )
+    with pytest.raises(ValueError) as caught:
+        validate_reviewer(
+            contradictory,
+            maximum_claims=6,
+            proposer_mode="courtesy",
+        )
+
+    corrected = reviewer(
+        direct_question=False,
+        answers_first=False,
+        principal_contribution_act="social",
+        natural_social_courtesy=True,
+    )
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="courtesy",
+                reply="Thank you for saying so.",
+                claims=[],
+            ),
+            "reviewer": [contradictory, corrected],
+        },
+        context=reply_context("Thank you."),
+    )
+
+    assert result.status == "approved"
+    assert_retry_envelope(
+        transport.calls[1]["user_prompt"],
+        transport.calls[2]["user_prompt"],
+        stage="reviewer",
+        attempt_number=2,
+        validator_exception=caught.value,
+    )
+    completed = result.audit[-1]
+    assert {
+        key: completed[key]
+        for key in (
+            "principal_contribution_act",
+            "specific_to_contribution",
+            "adds_value_beyond_acknowledgement",
+            "natural_social_courtesy",
+            "implicitly_endorses_unsupported_premise",
+        )
+    } == {
+        "principal_contribution_act": "social",
+        "specific_to_contribution": True,
+        "adds_value_beyond_acknowledgement": False,
+        "natural_social_courtesy": True,
+        "implicitly_endorses_unsupported_premise": False,
+    }
+
+
 def test_claim_auditor_must_cover_the_exact_reply_without_internal_conflict() -> None:
     reply = "Conviction matters. Evidence decides the factual issue."
     incomplete = claim_auditor()
@@ -592,8 +870,8 @@ def test_conversational_engagement_prompt_versions_are_current() -> None:
     assert DRAFT_SCHEMA_VERSION == 9
     assert PROPOSER_PROMPT_VERSION == "ai-first-proposer-v15"
     assert EVIDENCE_PROMPT_VERSION == "claim-evidence-entailment-v6"
-    assert REVIEWER_PROMPT_VERSION == "independent-reply-reviewer-v13"
-    assert NO_REPLY_REVIEW_PROMPT_VERSION == "independent-no-reply-review-v1"
+    assert REVIEWER_PROMPT_VERSION == "independent-reply-reviewer-v14-adequacy-development"
+    assert NO_REPLY_REVIEW_PROMPT_VERSION == "independent-no-reply-review-v2-adequacy-development"
     assert CLAIM_AUDITOR_PROMPT_VERSION == "claim-inventory-auditor-v5"
     assert VALIDATION_RETRY_PROTOCOL_VERSION == "validator-guided-retry-v1"
 
@@ -625,8 +903,8 @@ def test_production_system_prompt_hashes_and_operational_limits_are_frozen() -> 
 
     assert {name: text_sha256(prompt) for name, prompt in prompt_systems.items()} == {
         "proposer": "06b00d02ce6c0182b9ec2e9ca52a22e9ca03f9b40ef45a3dc9f198ca30351f72",
-        "reviewer": "778e9d6c325bdfb3d5f9b0a83814dd0f16acc355bd43d8c6fb817b7fb96d349e",
-        "no_reply_review": "db578711a2f5ea36d7e4bc78e4997188e410407f57545680fe5498a4ee0e5b1d",
+        "reviewer": "eceffb0ede95d11f1ca8078ef685c962c90642e561e37315e65af953b82022fd",
+        "no_reply_review": "ef30faba8bcf145d536ee6bff001e985ca8f295b57935cfd2822441d9b98ff2a",
         "claim_auditor": "53aa8015b1ea90719d05578c2b2ba20fc9ddc939d23e5287255c44ded24f6e03",
     }
     config = strategy_config()
@@ -780,6 +1058,8 @@ def test_no_reply_is_confirmed_by_independent_reviewer(repository: FakeRepositor
         "stage": "no_reply_reviewer",
         "status": "completed",
         "verdict": "confirm_no_reply",
+        "principal_contribution_act": "unsafe_or_unintelligible",
+        "safe_claim_free_reply_possible": False,
     }
     terminal_snapshot = {
         "reply": str(result.reply) if result.reply is not None else None,
@@ -2500,7 +2780,11 @@ def test_reviewer_local_validation_enforces_item_length_limits(
     review[field] = [entry]
 
     with pytest.raises(ValueError, match=error):
-        validate_reviewer(review, maximum_claims=6)
+        validate_reviewer(
+            review,
+            maximum_claims=6,
+            proposer_mode="opinion_or_principle",
+        )
 
 
 def test_terminal_reviewer_rejection_may_include_unused_revision_advice() -> None:
@@ -2512,7 +2796,11 @@ def test_terminal_reviewer_rejection_may_include_unused_revision_advice() -> Non
         revision_instructions="A safer draft would need to address the contribution.",
     )
 
-    assert validate_reviewer(review, maximum_claims=6)["verdict"] == "reject"
+    assert validate_reviewer(
+        review,
+        maximum_claims=6,
+        proposer_mode="opinion_or_principle",
+    )["verdict"] == "reject"
 
 
 def test_reviewer_approval_cannot_include_revision_instructions() -> None:
@@ -2520,7 +2808,11 @@ def test_reviewer_approval_cannot_include_revision_instructions() -> None:
     review["revision_instructions"] = "Change it."
 
     with pytest.raises(ValueError, match="approval cannot include"):
-        validate_reviewer(review, maximum_claims=6)
+        validate_reviewer(
+            review,
+            maximum_claims=6,
+            proposer_mode="opinion_or_principle",
+        )
 
 
 def test_reviewer_catches_factual_sentence_omitted_by_proposer(repository: FakeRepository) -> None:
@@ -3489,6 +3781,163 @@ def test_claim_auditor_forces_hidden_world_claims_into_revision(
     ]
 
 
+def test_claim_cleanup_corrective_retry_removes_clause_then_reaches_review(
+    repository: FakeRepository,
+) -> None:
+    context = reply_context("Policy requires judgement rather than slogans.")
+    corrected = proposer(
+        mode="opinion_or_principle",
+        reply=CLAIM_CLEANUP_CORRECTED_REPLY,
+        claims=[],
+    )
+    result, transport = run_pipeline(
+        repository,
+        claim_cleanup_responses(corrected),
+        context=context,
+    )
+
+    assert isinstance(result.reply, AIReply)
+    assert str(result.reply) == CLAIM_CLEANUP_CORRECTED_REPLY
+    assert result.model_call_count == 6
+    assert result.revision_count == 1
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "claim_auditor",
+        "revision_proposer",
+        "revision_claim_auditor",
+        "revision_proposer",
+        "revision_reviewer",
+    ]
+    assert len([
+        call
+        for call in transport.calls
+        if call["stage"] in {"claim_auditor", "revision_claim_auditor"}
+    ]) == 2
+
+    original_revision_prompt = transport.calls[2]["user_prompt"]
+    corrective_prompt = transport.calls[4]["user_prompt"]
+    cleanup_error = ValueError(
+        "Remaining factual clauses: "
+        + json.dumps(
+            [CLAIM_CLEANUP_REJECTED_REVISION],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+    correction = assert_retry_envelope(
+        original_revision_prompt,
+        corrective_prompt,
+        stage="revision_proposer",
+        attempt_number=2,
+        validator_exception=cleanup_error,
+    )
+    assert correction["validator_error"] == str(cleanup_error)
+    assert "validation_correction" not in json.loads(original_revision_prompt)
+    assert [
+        row["stage"]
+        for row in result.audit
+        if row["stage"].startswith("claim_cleanup_corrective_retry_")
+    ] == [
+        "claim_cleanup_corrective_retry_requested",
+        "claim_cleanup_corrective_retry_completed",
+    ]
+    assert validate_persisted_draft(
+        result.reply.draft_record,
+        context=context,
+        config=strategy_config(),
+        repository=repository,  # type: ignore[arg-type]
+        maximum_reply_length=500,
+        recent_replies=[],
+    ) == result.reply.draft_record
+
+
+def test_claim_cleanup_unchanged_corrective_wording_fails_closed(
+    repository: FakeRepository,
+) -> None:
+    unchanged = proposer(
+        mode="opinion_or_principle",
+        reply=CLAIM_CLEANUP_REJECTED_REVISION,
+        claims=[],
+    )
+    result, transport = run_pipeline(
+        repository,
+        claim_cleanup_responses(unchanged),
+    )
+
+    assert result.reply is None
+    assert result.status == "no_reply"
+    assert result.reason == "claim_cleanup_retry_failed"
+    assert result.revision_count == 1
+    assert len(transport.calls) == 5
+    assert result.audit[-1]["stage"] == "claim_cleanup_corrective_retry_failed"
+    assert "reply_unchanged" in result.audit[-1]["conditions"]
+
+
+def test_claim_cleanup_corrective_factual_claims_fail_closed(
+    repository: FakeRepository,
+) -> None:
+    factual_correction = "Resolve should guide policy and institutions follow it."
+    corrected = proposer(
+        mode="opinion_or_principle",
+        reply=factual_correction,
+        claims=[claim(factual_correction)],
+    )
+    result, _transport = run_pipeline(
+        repository,
+        claim_cleanup_responses(corrected),
+    )
+
+    assert result.reply is None
+    assert result.status == "no_reply"
+    assert result.reason == "claim_cleanup_retry_failed"
+    assert "factual_claims_not_empty" in result.audit[-1]["conditions"]
+
+
+def test_malformed_claim_cleanup_corrective_output_is_operational_failure(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        claim_cleanup_responses("{malformed"),
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "claim_cleanup_corrective_retry_invalid"
+    assert len(transport.calls) == 5
+    assert result.audit[-1]["stage"] == "claim_cleanup_corrective_retry_failed"
+    assert result.audit[-1]["reason"] == "invalid_response"
+
+
+def test_claim_cleanup_retry_respects_exhausted_six_call_ceiling(
+    repository: FakeRepository,
+) -> None:
+    corrected = proposer(
+        mode="opinion_or_principle",
+        reply=CLAIM_CLEANUP_CORRECTED_REPLY,
+        claims=[],
+    )
+    responses = claim_cleanup_responses(corrected)
+    responses["proposer"] = ["", responses["proposer"]]
+    rejected, corrective = responses["revision_proposer"]  # type: ignore[misc]
+    responses["revision_proposer"] = ["", rejected, corrective]
+
+    result, transport = run_pipeline(repository, responses)
+
+    assert result.reply is None
+    assert result.status == "no_reply"
+    assert result.reason == "claim_auditor_detected_unresolved_factual_claim"
+    assert result.model_call_count == 6
+    assert result.revision_count == 1
+    assert len(transport.calls) == 6
+    assert result.audit[-1] == {
+        "stage": "claim_cleanup_corrective_retry_failed",
+        "status": "failed",
+        "reason": "reply pipeline model-call ceiling reached",
+        "remaining_clause_count": 1,
+    }
+
+
 def test_non_factual_sentence_basis_must_match_its_classification() -> None:
     review = reviewer(direct_question=False, answers_first=False, factual_claims=[])
     review["sentence_assessments"][0]["non_factual_basis"] = "none"
@@ -3497,6 +3946,7 @@ def test_non_factual_sentence_basis_must_match_its_classification() -> None:
         validate_reviewer(
             review,
             maximum_claims=6,
+            proposer_mode="opinion_or_principle",
             proposed_reply="A principle should be defended.",
         )
 
@@ -3511,6 +3961,7 @@ def test_reviewer_world_claim_checks_must_match_sentence_classification() -> Non
         validate_reviewer(
             review,
             maximum_claims=6,
+            proposer_mode="opinion_or_principle",
             proposed_reply="One course serves the country better.",
         )
 
@@ -3533,6 +3984,7 @@ def test_reviewer_meaning_claim_has_an_explicit_world_claim_category() -> None:
     validated = validate_reviewer(
         review,
         maximum_claims=6,
+        proposer_mode="direct_factual_answer",
         proposed_reply=reply_text,
     )
 
@@ -3705,6 +4157,7 @@ def test_reviewer_must_account_for_every_exact_sentence_and_factual_clause() -> 
         validate_reviewer(
             review,
             maximum_claims=6,
+            proposer_mode="opinion_or_principle",
             proposed_reply="Resolve matters. Evidence decides the factual issue.",
         )
     review["sentence_assessments"][0] = {
@@ -3725,6 +4178,7 @@ def test_reviewer_must_account_for_every_exact_sentence_and_factual_clause() -> 
         validate_reviewer(
             review,
             maximum_claims=6,
+            proposer_mode="opinion_or_principle",
             proposed_reply="Resolve matters. Evidence decides the factual issue.",
         )
 

@@ -30,8 +30,8 @@ STRATEGY_VERSION = "ai-first-reply-v3"
 DRAFT_SCHEMA_VERSION = 9
 PROPOSER_PROMPT_VERSION = "ai-first-proposer-v15"
 EVIDENCE_PROMPT_VERSION = "claim-evidence-entailment-v6"
-REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v13"
-NO_REPLY_REVIEW_PROMPT_VERSION = "independent-no-reply-review-v1"
+REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v14-adequacy-development"
+NO_REPLY_REVIEW_PROMPT_VERSION = "independent-no-reply-review-v2-adequacy-development"
 CLAIM_AUDITOR_PROMPT_VERSION = "claim-inventory-auditor-v5"
 VALIDATION_RETRY_PROTOCOL_VERSION = "validator-guided-retry-v1"
 LEGACY_DRAFT_AUDIT_SCHEMA_VERSION = 1
@@ -56,6 +56,14 @@ CONFIDENCE_LEVELS = {"low": 1, "medium": 2, "high": 3}
 EVIDENCE_VERDICTS = {"supports", "contradicts", "insufficient"}
 REVIEWER_VERDICTS = {"approve", "reject", "revise"}
 NO_REPLY_REVIEW_VERDICTS = {"confirm_no_reply", "require_reply"}
+CONTRIBUTION_ACTS = frozenset({
+    "social",
+    "substantive",
+    "factual_question",
+    "unsafe_or_unintelligible",
+    "unrelated_or_spam",
+    "other",
+})
 LANES = {"mention", "hot_post_reply", "quote_tweet"}
 ANSWER_TYPES = {
     "none",
@@ -469,6 +477,14 @@ def reviewer_schema(maximum_claims: int) -> dict[str, Any]:
     )
     properties = {
         "verdict": {"type": "string", "enum": sorted(REVIEWER_VERDICTS)},
+        "principal_contribution_act": {
+            "type": "string",
+            "enum": sorted(CONTRIBUTION_ACTS),
+        },
+        "specific_to_contribution": {"type": "boolean"},
+        "adds_value_beyond_acknowledgement": {"type": "boolean"},
+        "natural_social_courtesy": {"type": "boolean"},
+        "implicitly_endorses_unsupported_premise": {"type": "boolean"},
         "summary": {"type": "string", "maxLength": 800},
         "reasons": {"type": "array", "items": {"type": "string", "maxLength": 300}, "maxItems": 12},
         "actual_factual_claims": {"type": "array", "items": {"type": "string", "maxLength": 500}, "maxItems": maximum_claims},
@@ -505,6 +521,11 @@ def no_reply_review_schema() -> dict[str, Any]:
             "type": "string",
             "enum": sorted(NO_REPLY_REVIEW_VERDICTS),
         },
+        "principal_contribution_act": {
+            "type": "string",
+            "enum": sorted(CONTRIBUTION_ACTS),
+        },
+        "safe_claim_free_reply_possible": {"type": "boolean"},
         "reasons": {
             "type": "array",
             "items": {"type": "string", "minLength": 1, "maxLength": 300},
@@ -978,12 +999,16 @@ def validate_reviewer(
     value: object,
     *,
     maximum_claims: int,
+    proposer_mode: str,
     proposed_reply: str | None = None,
 ) -> dict[str, Any]:
     """Validate an independent reviewer response and its internal consistency."""
     item = _parse_object(value, "reviewer")
     expected = {
-        "verdict", "summary", "reasons", "actual_factual_claims",
+        "verdict", "principal_contribution_act", "specific_to_contribution",
+        "adds_value_beyond_acknowledgement", "natural_social_courtesy",
+        "implicitly_endorses_unsupported_premise", "summary", "reasons",
+        "actual_factual_claims",
         "unsupported_factual_claims", "sentence_assessments",
         "direct_factual_question_present", "requested_answer_type",
         "direct_answer_complete", "direct_answer_text", "topically_relevant",
@@ -996,6 +1021,10 @@ def validate_reviewer(
     _validate_exact_keys(item, expected, "reviewer")
     if item.get("verdict") not in REVIEWER_VERDICTS:
         raise ValueError("reviewer verdict is invalid")
+    if item.get("principal_contribution_act") not in CONTRIBUTION_ACTS:
+        raise ValueError("reviewer principal contribution act is invalid")
+    if proposer_mode not in MODES - {"no_reply"}:
+        raise ValueError("reviewer proposer mode is invalid")
     for field, maximum in (("summary", 800), ("revision_instructions", 800)):
         if not isinstance(item.get(field), str) or len(item[field]) > maximum:
             raise ValueError(f"reviewer {field} is invalid")
@@ -1116,7 +1145,8 @@ def validate_reviewer(
     boolean_fields = expected - {
         "verdict", "summary", "reasons", "actual_factual_claims",
         "unsupported_factual_claims", "sentence_assessments",
-        "requested_answer_type", "direct_answer_text", "revision_instructions",
+        "principal_contribution_act", "requested_answer_type",
+        "direct_answer_text", "revision_instructions",
     }
     if any(type(item.get(field)) is not bool for field in boolean_fields):
         raise ValueError("reviewer boolean fields are invalid")
@@ -1128,6 +1158,25 @@ def validate_reviewer(
         raise ValueError("reviewer revision requires instructions")
     if item["verdict"] == "approve" and item["revision_instructions"]:
         raise ValueError("reviewer approval cannot include revision instructions")
+    if item["verdict"] == "approve":
+        contribution_act = item["principal_contribution_act"]
+        if item["implicitly_endorses_unsupported_premise"]:
+            raise ValueError("reviewer approval cannot implicitly endorse an unsupported premise")
+        if proposer_mode == "courtesy" and (
+            contribution_act != "social"
+            or item["natural_social_courtesy"] is not True
+        ):
+            raise ValueError("reviewer courtesy approval contradicts the contribution act")
+        if contribution_act != "social" and (
+            item["specific_to_contribution"] is not True
+            or item["adds_value_beyond_acknowledgement"] is not True
+            or item["natural_social_courtesy"] is not False
+        ):
+            raise ValueError("reviewer non-social approval lacks specific added value")
+        if item["natural_social_courtesy"] and (
+            contribution_act != "social" or proposer_mode != "courtesy"
+        ):
+            raise ValueError("reviewer natural social courtesy classification is contradictory")
     if item["verdict"] == "approve" and not reviewer_checks_approve(item):
         raise NonRetryableReviewerResponseError(
             "reviewer approve verdict contradicts its safety findings"
@@ -1140,11 +1189,19 @@ def validate_no_reply_review(value: object) -> dict[str, Any]:
     item = _parse_object(value, "no-reply reviewer")
     _validate_exact_keys(
         item,
-        {"verdict", "reasons", "revision_instructions"},
+        {
+            "verdict", "principal_contribution_act",
+            "safe_claim_free_reply_possible", "reasons",
+            "revision_instructions",
+        },
         "no-reply reviewer",
     )
     if item.get("verdict") not in NO_REPLY_REVIEW_VERDICTS:
         raise ValueError("no-reply reviewer verdict is invalid")
+    if item.get("principal_contribution_act") not in CONTRIBUTION_ACTS:
+        raise ValueError("no-reply reviewer principal contribution act is invalid")
+    if type(item.get("safe_claim_free_reply_possible")) is not bool:
+        raise ValueError("no-reply reviewer safe reply possibility is invalid")
     reasons = item.get("reasons")
     if (
         not isinstance(reasons, list)
@@ -1164,6 +1221,10 @@ def validate_no_reply_review(value: object) -> dict[str, Any]:
         raise ValueError("require_reply needs revision instructions")
     if item["verdict"] == "confirm_no_reply" and instructions:
         raise ValueError("confirm_no_reply cannot include revision instructions")
+    if item["verdict"] == "confirm_no_reply" and item["safe_claim_free_reply_possible"]:
+        raise ValueError("confirm_no_reply requires safe_claim_free_reply_possible=false")
+    if item["verdict"] == "require_reply" and not item["safe_claim_free_reply_possible"]:
+        raise ValueError("require_reply requires safe_claim_free_reply_possible=true")
     return item
 
 
@@ -1582,20 +1643,19 @@ def _no_reply_review_prompts(
     """Build a bounded independent review of a proposer's no-reply choice."""
     system = (
         "You are an independent no-reply reviewer for a Margaret Thatcher quotation account on X. "
-        "You did not make the proposal and must decide only whether silence is warranted. The incoming "
-        "contribution has priority over quoted and parent context. Confirm no_reply for spam or advertising, "
-        "incoherence or unintelligibility, abuse or harassment, clear bad-faith bait, repetition explicitly "
-        "shown in the bounded thread, serious unsupported accusations or conspiracy claims whose engagement "
-        "would dangerously amplify them, wholly unrelated material, or when no safe and genuinely relevant "
-        "response is possible. Do not weaken those safeguards. Absence of a question, disagreement, challenge "
-        "or new factual matter is not sufficient by itself to confirm silence. Civil, intelligible and relevant "
-        "agreement, support, appreciation, nostalgia, thanks, a friendly comparison or a thoughtful related "
-        "observation normally warrants a brief natural response. An unsupported claim must not be repeated or "
-        "endorsed, but require a reply when a safe claim-free acknowledgement, recommendation or value judgement "
-        "can address the underlying theme without amplification. Use confirm_no_reply only when silence is "
-        "warranted; use require_reply when the single revision proposer should produce a safe, relevant response. "
-        "You must not write the public reply. For require_reply, give concise revision instructions to the separate "
-        "proposer. Return only the required JSON object."
+        "You did not make the proposal. Classify the contributor's principal conversational act independently, "
+        "giving the incoming contribution priority over quoted and parent context, then decide whether any safe, "
+        "relevant, claim-free response is possible. Ordinary political disagreement, policy criticism, analogy or "
+        "hyperbole can be answerable without accepting its factual premise. A safe response may acknowledge a "
+        "genuinely social contribution or express a directly relevant recommendation or value judgement without "
+        "repeating or endorsing an unsupported claim. Reserve silence for spam or advertising, incoherence or "
+        "unintelligibility, abuse or harassment, clear bad-faith bait, repetition shown in the bounded thread, "
+        "dangerous amplification of serious unsupported accusations or conspiracy claims, wholly unrelated material, "
+        "or another case where safe engagement genuinely is not possible. Absence of a question, disagreement, "
+        "challenge or new factual matter is not sufficient for silence. confirm_no_reply requires "
+        "safe_claim_free_reply_possible=false; require_reply requires safe_claim_free_reply_possible=true. You must "
+        "not write the public reply. For require_reply, give concise revision instructions to the separate proposer; "
+        "for confirm_no_reply, leave revision_instructions empty. Return only the required JSON object."
     )
     payload = {
         "context_sections": {
@@ -1688,6 +1748,13 @@ def _reviewer_prompts(
         "require direct_factual_question_present merely because such a principle question is interrogative. When its "
         "wording invites a yes, no or qualified direct answer, require the proposed reply to begin with that clear "
         "answer in the first sentence and request revision if it evades the question. "
+        "Classify principal_contribution_act from the contributor's principal conversational act, not from the "
+        "proposer's selected mode. Set specific_to_contribution=true only when the reply would not sensibly fit several "
+        "unrelated contributions; set adds_value_beyond_acknowledgement=true only when it does more than thank, "
+        "acknowledge or paraphrase; and set natural_social_courtesy=true only when the contribution is genuinely social "
+        "and the reply is a natural courtesy response. Set implicitly_endorses_unsupported_premise=true when praise, "
+        "agreement or approving acknowledgement validates an unsupported factual premise even without repeating it "
+        "verbatim. "
         "Absence of a question, challenge or new factual matter is not a defect. A concise, topically relevant "
         "courtesy response is suitable account behaviour, and a natural acknowledgement of agreement, support, "
         "admiration, nostalgia, thanks or a friendly comparison can be approved. A claim-free extension of a "
@@ -2546,6 +2613,7 @@ def run_reply_pipeline(
     revision_request: dict[str, Any] | None = None
     while True:
         claim_auditor_result: dict[str, Any] | None = None
+        claim_cleanup_corrected = False
         proposer_stage = "revision_proposer" if revisions else "proposer"
         proposer_system, proposer_user = _proposer_prompts(
             clean_context,
@@ -2626,6 +2694,12 @@ def run_reply_pipeline(
                 "stage": no_reply_reviewer_stage,
                 "status": "completed",
                 "verdict": no_reply_review["verdict"],
+                "principal_contribution_act": no_reply_review[
+                    "principal_contribution_act"
+                ],
+                "safe_claim_free_reply_possible": no_reply_review[
+                    "safe_claim_free_reply_possible"
+                ],
             })
             if no_reply_review["verdict"] == "confirm_no_reply":
                 return PipelineResult(
@@ -2740,28 +2814,179 @@ def run_reply_pipeline(
                     if claim_text not in reviewer_claim_constraints:
                         reviewer_claim_constraints.append(claim_text)
                 if revisions >= config["maximum_revisions"]:
-                    return PipelineResult(
-                        None,
-                        "no_reply",
-                        "claim_auditor_detected_unresolved_factual_claim",
-                        call_count,
-                        revisions,
-                        tuple(audit),
+                    cleanup_error = ValueError(
+                        "Remaining factual clauses: "
+                        + json.dumps(
+                            auditor_claims,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        )
                     )
-                revision_request = {
-                    "previous_reply": proposer["proposed_reply"],
-                    "claim_auditor_actual_factual_claims": auditor_claims,
-                    "reviewer_reasons": [
-                        "A fresh claim audit found factual clauses omitted by the proposer."
-                    ],
-                    "reviewer_revision_instructions": (
-                        "Either remove every listed factual clause completely or declare each remaining exact "
-                        "clause in factual_claims so it can receive claim-specific evidence."
-                    ),
-                    "evidence_status": [],
-                }
-                revisions += 1
-                continue
+                    try:
+                        corrective_user, corrective_receipt = (
+                            _build_validation_retry_user_prompt(
+                                proposer_user,
+                                "revision_proposer",
+                                2,
+                                cleanup_error,
+                            )
+                        )
+                    except _ValidationRetryPromptError as exc:
+                        audit.append({
+                            "stage": "claim_cleanup_corrective_retry_failed",
+                            "status": "failed",
+                            "reason": str(exc),
+                            "remaining_clause_count": len(auditor_claims),
+                        })
+                        return PipelineResult(
+                            None,
+                            "no_reply",
+                            "claim_auditor_detected_unresolved_factual_claim",
+                            call_count,
+                            revisions,
+                            tuple(audit),
+                        )
+                    audit.append({
+                        "stage": "claim_cleanup_corrective_retry_requested",
+                        "status": "requested",
+                        "attempt": 2,
+                        "remaining_clauses": list(auditor_claims),
+                        **corrective_receipt,
+                    })
+                    try:
+                        corrective_raw = call(
+                            "revision_proposer",
+                            model=config["proposer_model"],
+                            system_prompt=proposer_system,
+                            user_prompt=corrective_user,
+                            schema=proposer_schema(
+                                maximum_reply_length,
+                                config["maximum_claims"],
+                            ),
+                            timeout=config["proposer_timeout_seconds"],
+                            max_output_tokens=config["proposer_max_output_tokens"],
+                            include_media=True,
+                        )
+                    except ModelCallLimitError as exc:
+                        audit.append({
+                            "stage": "claim_cleanup_corrective_retry_failed",
+                            "status": "failed",
+                            "reason": str(exc),
+                            "remaining_clause_count": len(auditor_claims),
+                        })
+                        return PipelineResult(
+                            None,
+                            "no_reply",
+                            "claim_auditor_detected_unresolved_factual_claim",
+                            call_count,
+                            revisions,
+                            tuple(audit),
+                        )
+                    try:
+                        corrective_proposer = validate_proposer(
+                            corrective_raw,
+                            maximum_reply_length=maximum_reply_length,
+                            maximum_claims=config["maximum_claims"],
+                        )
+                    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                        audit.append({
+                            "stage": "claim_cleanup_corrective_retry_failed",
+                            "status": "failed",
+                            "reason": "invalid_response",
+                            "validator_error_type": type(exc).__name__,
+                            "validator_error": str(exc),
+                        })
+                        return PipelineResult(
+                            None,
+                            "operational_failure",
+                            "claim_cleanup_corrective_retry_invalid",
+                            call_count,
+                            revisions,
+                            tuple(audit),
+                        )
+                    rejected_reply = " ".join(proposer["proposed_reply"].split())
+                    corrected_reply = " ".join(
+                        corrective_proposer["proposed_reply"].split()
+                    )
+                    retained_clauses = [
+                        clause
+                        for clause in auditor_claims
+                        if " ".join(clause.split()) in corrected_reply
+                    ]
+                    cleanup_failures = []
+                    if corrective_proposer["mode"] not in CLAIM_AUDITED_MODES:
+                        cleanup_failures.append("invalid_mode")
+                    if corrective_proposer["factual_claims"]:
+                        cleanup_failures.append("factual_claims_not_empty")
+                    if corrected_reply == rejected_reply:
+                        cleanup_failures.append("reply_unchanged")
+                    if retained_clauses:
+                        cleanup_failures.append("remaining_clause_retained")
+                    if cleanup_failures:
+                        audit.append({
+                            "stage": "claim_cleanup_corrective_retry_failed",
+                            "status": "failed",
+                            "reason": "claim_cleanup_retry_failed",
+                            "conditions": cleanup_failures,
+                            "retained_clauses": retained_clauses,
+                        })
+                        return PipelineResult(
+                            None,
+                            "no_reply",
+                            "claim_cleanup_retry_failed",
+                            call_count,
+                            revisions,
+                            tuple(audit),
+                        )
+                    proposer = corrective_proposer
+                    claim_cleanup_corrected = True
+                    audit.append({
+                        "stage": "claim_cleanup_corrective_retry_completed",
+                        "status": "completed",
+                        "attempt": 2,
+                        "mode": proposer["mode"],
+                        "factual_claim_count": 0,
+                        "remaining_clause_count": len(auditor_claims),
+                    })
+                    corrective_hard_error = deterministic_reply_error(
+                        proposer,
+                        repository,
+                        recent_replies=recent,
+                        maximum_reply_length=maximum_reply_length,
+                        maximum_sentences=config["maximum_reply_sentences"],
+                    )
+                    if corrective_hard_error:
+                        audit.append({
+                            "stage": "revision_proposer",
+                            "status": "rejected",
+                            "attempt": 2,
+                            "reason": corrective_hard_error,
+                        })
+                        return PipelineResult(
+                            None,
+                            "no_reply",
+                            corrective_hard_error,
+                            call_count,
+                            revisions,
+                            tuple(audit),
+                        )
+                    claims = proposer["factual_claims"]
+                    claim_auditor_result = None
+                else:
+                    revision_request = {
+                        "previous_reply": proposer["proposed_reply"],
+                        "claim_auditor_actual_factual_claims": auditor_claims,
+                        "reviewer_reasons": [
+                            "A fresh claim audit found factual clauses omitted by the proposer."
+                        ],
+                        "reviewer_revision_instructions": (
+                            "Either remove every listed factual clause completely or declare each remaining exact "
+                            "clause in factual_claims so it can receive claim-specific evidence."
+                        ),
+                        "evidence_status": [],
+                    }
+                    revisions += 1
+                    continue
         evidence: list[dict[str, Any]] = []
         retrieved_count = 0
         if claims:
@@ -2914,6 +3139,7 @@ def run_reply_pipeline(
             validator=lambda raw: validate_reviewer(
                 raw,
                 maximum_claims=config["maximum_claims"],
+                proposer_mode=proposer["mode"],
                 proposed_reply=proposer["proposed_reply"],
             ),
         )
@@ -2974,10 +3200,36 @@ def run_reply_pipeline(
             }
             revisions += 1
             continue
-        audit.append({"stage": reviewer_stage, "status": "completed", "verdict": reviewer["verdict"]})
+        audit.append({
+            "stage": reviewer_stage,
+            "status": "completed",
+            "verdict": reviewer["verdict"],
+            "principal_contribution_act": reviewer["principal_contribution_act"],
+            "specific_to_contribution": reviewer["specific_to_contribution"],
+            "adds_value_beyond_acknowledgement": reviewer[
+                "adds_value_beyond_acknowledgement"
+            ],
+            "natural_social_courtesy": reviewer["natural_social_courtesy"],
+            "implicitly_endorses_unsupported_premise": reviewer[
+                "implicitly_endorses_unsupported_premise"
+            ],
+        })
 
         explicit_approval = reviewer["verdict"] == "approve" and reviewer_checks_approve(reviewer)
         if explicit_approval and evidence_supported:
+            persisted_claim_auditor = claim_auditor_result
+            if claim_cleanup_corrected:
+                persisted_claim_auditor = {
+                    "actual_factual_claims": reviewer["actual_factual_claims"],
+                    "sentence_assessments": [
+                        {
+                            "sentence_text": assessment["sentence_text"],
+                            "factual_claims": assessment["factual_claims"],
+                            "world_claim_checks": assessment["world_claim_checks"],
+                        }
+                        for assessment in reviewer["sentence_assessments"]
+                    ],
+                }
             draft = build_draft_record(
                 context=clean_context,
                 proposer=proposer,
@@ -2989,7 +3241,7 @@ def run_reply_pipeline(
                 revision_count=revisions,
                 creation_time=creation_time or utc_now(),
                 retrieved_count=retrieved_count,
-                claim_auditor=claim_auditor_result,
+                claim_auditor=persisted_claim_auditor,
             )
             metadata = {
                 "strategy_version": STRATEGY_VERSION,
@@ -3001,7 +3253,7 @@ def run_reply_pipeline(
                 "reviewer_verdict": "approve",
                 "model_call_count": call_count,
                 "revision_count": revisions,
-                "claim_auditor_ran": claim_auditor_result is not None,
+                "claim_auditor_ran": persisted_claim_auditor is not None,
                 **evidence_telemetry(draft, repository),
             }
             reply = AIReply(proposer["proposed_reply"], draft, metadata)
