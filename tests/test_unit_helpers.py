@@ -13977,6 +13977,63 @@ def test_quote_lookup_saved_repeated_cursor_is_durably_cleared_across_reload(
     assert bot.load_state()["quote_lookup_pagination_tokens"] == {}
 
 
+def test_quote_lookup_invalid_saved_cursor_then_repeated_head_token_saves_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    state_path = tmp_path / "bot_state.json"
+    state = bot.default_state()
+    state["quote_lookup_pagination_tokens"] = {"900": "A"}
+    requests: list[str | None] = []
+    events: list[tuple[str, dict]] = []
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        requests.append(token)
+        if token == "A":
+            raise invalid_pagination_cursor_error()
+        return {
+            "data": [{"id": "101", "author_id": "200"}],
+            "meta": {"next_token": "A"},
+        }
+
+    monkeypatch.setattr(bot, "STATE_FILE", state_path)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    bot.save_state(state, durable=True)
+    original_save_state = bot.save_state
+    durable_save_count = 0
+
+    def save_once(current: dict, *, durable: bool = False) -> None:
+        nonlocal durable_save_count
+        durable_save_count += 1
+        if durable_save_count > 1:
+            pytest.fail("repeated-token handling attempted a second durable save")
+        assert durable is True
+        original_save_state(current, durable=durable)
+
+    monkeypatch.setattr(bot, "save_state", save_once)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+    caplog.set_level(logging.WARNING)
+
+    result = bot.get_quote_tweets_for_post("900", state)
+
+    assert requests == ["A", None]
+    assert [item["id"] for item in result] == ["101"]
+    assert state["quote_lookup_pagination_tokens"] == {}
+    assert bot.load_state()["quote_lookup_pagination_tokens"] == {}
+    assert durable_save_count == 1
+    assert [name for name, _fields in events] == [
+        "quote_pagination_repeated_token"
+    ]
+    assert sum("Quote pagination stopped" in row.message for row in caplog.records) == 1
+
+
 def test_quote_lookup_repeated_token_after_several_pages_preserves_all_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

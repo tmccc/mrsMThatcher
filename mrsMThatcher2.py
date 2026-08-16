@@ -20944,7 +20944,7 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         pages_completed: int,
         results_retained: int,
     ) -> None:
-        if state is not None and saved_pagination_token:
+        if state is not None and post_id in pagination_tokens:
             pagination_tokens.pop(post_id, None)
             state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
             save_state(state, durable=True)
