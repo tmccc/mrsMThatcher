@@ -1863,6 +1863,32 @@ def save_resume_time(
 
     latest_state = dict(report.get("latest_state") or {})
     latest_config = dict(report.get("latest_config") or {})
+    runtime_state_status = str(
+        (report.get("runtime_state_status") or {}).get("status") or ""
+    )
+    runtime_config_status = str(
+        (report.get("runtime_config_status") or {}).get("status") or ""
+    )
+    if (
+        preserve_existing_context
+        and runtime_state_status
+        and runtime_state_status != "available"
+    ):
+        retained_state = report.get("historical_retained_state") or old.get(
+            "last_known_latest_state"
+        )
+        if isinstance(retained_state, dict):
+            latest_state = dict(retained_state)
+    if (
+        preserve_existing_context
+        and runtime_config_status
+        and runtime_config_status != "available"
+    ):
+        retained_config = report.get("historical_retained_config") or old.get(
+            "last_known_latest_config"
+        )
+        if isinstance(retained_config, dict):
+            latest_config = dict(retained_config)
 
     # Persist clean context only; _carried_forward/_filled_from_previous are
     # rendering annotations for this run, not durable bot facts.
@@ -5422,6 +5448,27 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         lane = _normalise_lane(event.get("lane"))
         mode = str(event.get("mode") or "")
         generated_by_lane[lane][mode if mode in valid_modes else "strategy metadata unavailable"] += 1
+    final_reply_kinds = {
+        "factual",
+        "clarification",
+        "opinion_or_principle",
+        "light_humour",
+        "courtesy",
+        "unknown",
+        "no_reply",
+    }
+
+    def final_reply_kind_counts(rows: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+        counts = Counter()
+        for event in rows:
+            value = event.get("final_reply_kind")
+            counts[
+                value
+                if isinstance(value, str) and value in final_reply_kinds
+                else "metadata unavailable"
+            ] += 1
+        return dict(sorted(counts.items()))
+
     outcome_status_counts = Counter()
     for event in outcomes:
         status = str(event.get("status") or "confirmed")
@@ -5578,6 +5625,8 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "generated_mode_counts_by_lane": {
             lane: dict(sorted(counts.items())) for lane, counts in sorted(generated_by_lane.items())
         },
+        "final_reply_kind_counts": final_reply_kind_counts(observations),
+        "generated_final_reply_kind_counts": final_reply_kind_counts(decisions),
         "outcome_status_counts": dict(sorted(outcome_status_counts.items())),
         "humour_tone_counts": humour_counts,
         "confidence_counts": confidence_counts,
@@ -6590,6 +6639,7 @@ def analyse(
                     target_id=event_obj.get("target_id") or "",
                     reply_post_id=event_obj.get("reply_post_id") or "",
                     mode=event_obj.get("mode"),
+                    final_reply_kind=event_obj.get("final_reply_kind"),
                     humour_tone=event_obj.get("humour_tone"),
                     tone=event_obj.get("humour_tone"),
                     **evidence_fields,
@@ -6621,8 +6671,7 @@ def analyse(
                 decision_status = str(event_obj.get("status") or "")
                 final_reply_kind = event_obj.get("final_reply_kind")
                 effective_mode = (
-                    final_reply_kind
-                    or event_obj.get("mode")
+                    event_obj.get("mode")
                     or ("no_reply" if decision_status == "no_reply" else None)
                 )
                 add_event(
@@ -6634,7 +6683,7 @@ def analyse(
                     status=decision_status or "unavailable",
                     mode=effective_mode,
                     proposer_mode=event_obj.get("proposer_mode") or event_obj.get("mode"),
-                    final_reply_kind=final_reply_kind or effective_mode,
+                    final_reply_kind=final_reply_kind,
                     reply_requirement=event_obj.get("reply_requirement"),
                     route_source=event_obj.get("route_source"),
                     claim_risk_categories=(
@@ -6780,8 +6829,8 @@ def analyse(
                     target_id=event_obj.get("target_id") or "",
                     reply_post_id=event_obj.get("reply_post_id") or "",
                     strategy_version=event_obj.get("strategy_version") or "unavailable",
-                    mode=event_obj.get("final_reply_kind") or event_obj.get("mode"),
-                    final_reply_kind=event_obj.get("final_reply_kind") or event_obj.get("mode"),
+                    mode=event_obj.get("mode"),
+                    final_reply_kind=event_obj.get("final_reply_kind"),
                     reply_requirement=event_obj.get("reply_requirement"),
                     route_source=event_obj.get("route_source"),
                     claim_risk_categories=(
@@ -10618,8 +10667,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"{strategy.get('deliberately_declined_count', 0)} deliberately declined.**"
     )
     out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))
+    out.append(
+        "Generated final reply kinds: "
+        + compact_counts(strategy.get("generated_final_reply_kind_counts") or {})
+    )
     out.append("Public outcomes: " + compact_counts(strategy.get("outcome_status_counts") or {}))
     out.append("Published/terminal modes: " + compact_counts(strategy.get("mode_counts") or {}))
+    out.append(
+        "Published/terminal final reply kinds: "
+        + compact_counts(strategy.get("final_reply_kind_counts") or {})
+    )
     for lane, counts in (strategy.get("mode_counts_by_lane") or {}).items():
         if counts:
             out.append(f"{lane}: {compact_counts(counts)}")

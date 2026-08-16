@@ -13933,6 +13933,12 @@ def test_quote_lookup_repeated_saved_token_is_one_bounded_partial_warning(
     [
         ({"A": "A"}, ["101"], ["A"]),
         ({"A": "B", "B": "A"}, ["101", "102"], ["A", "B"]),
+        ({"A": "B", "B": "B"}, ["101", "102"], ["A", "B"]),
+        (
+            {"A": "B", "B": "C", "C": "B"},
+            ["101", "102", "103"],
+            ["A", "B", "C"],
+        ),
     ],
 )
 def test_quote_lookup_saved_repeated_cursor_is_durably_cleared_across_reload(

@@ -1145,6 +1145,72 @@ def test_digest_resume_state_never_falls_back_as_current_runtime_state(tmp_path)
     assert "MAX_AUTO_REPLIES_PER_DAY=999" not in rendered
 
 
+def test_unavailable_runtime_reads_retain_historical_snapshots_across_runs(tmp_path):
+    resume_path = tmp_path / "digest-resume.json"
+    log_path = tmp_path / "bot.log"
+    original_state = {
+        "time": "2026-07-25 08:00:00",
+        "daily_reply_count": 7,
+    }
+    original_config = {"MAX_AUTO_REPLIES_PER_DAY": 48}
+    resume_path.write_text(
+        json.dumps(
+            {
+                "last_log_entry_time": "2026-07-25 08:00:00",
+                "last_known_latest_state": original_state,
+                "last_known_latest_config": original_config,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    for offset in (0, 1):
+        records = [record(offset, "INFO", "worker", "still running")]
+        report = digest.analyse(records)
+        digest.apply_saved_context(report, resume_path)
+        report["latest_state"] = {}
+        report["latest_config"] = {}
+        report["runtime_state_status"] = {"status": "absent"}
+        report["runtime_config_status"] = {
+            "status": "malformed: JSONDecodeError"
+        }
+
+        digest.save_resume_time(
+            resume_path,
+            records[-1].ts,
+            records,
+            report,
+            [log_path],
+        )
+        saved = digest.read_resume_data(resume_path)
+        assert saved["last_known_latest_state"] == original_state
+        assert saved["last_known_latest_config"] == original_config
+
+    empty_override = tmp_path / "mrsMThatcher.local.json"
+    empty_override.write_text("{}", encoding="utf-8")
+    current_config, _path, _timestamp, config_status = (
+        digest.load_current_runtime_config(tmp_path)
+    )
+    records = [record(2, "INFO", "worker", "runtime reads recovered")]
+    report = digest.analyse(records)
+    digest.apply_saved_context(report, resume_path)
+    report["latest_state"] = {"daily_reply_count": 2}
+    report["latest_config"] = current_config or {}
+    report["runtime_state_status"] = {"status": "available"}
+    report["runtime_config_status"] = {"status": config_status}
+
+    digest.save_resume_time(
+        resume_path,
+        records[-1].ts,
+        records,
+        report,
+        [log_path],
+    )
+    saved = digest.read_resume_data(resume_path)
+    assert saved["last_known_latest_state"] == {"daily_reply_count": 2}
+    assert saved["last_known_latest_config"] == {}
+
+
 def test_current_runtime_config_is_allow_listed_and_validated(tmp_path):
     config_path = tmp_path / "mrsMThatcher.local.json"
     config_path.write_text(
@@ -1683,6 +1749,59 @@ def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
     assert decision["used_fact_count"] == "unknown"
     assert decision["evidence_reference_count"] is None
     assert decision["grounded"] is None
+
+
+def test_nonfactual_pipeline_mode_and_unknown_reply_kind_stay_independent():
+    common = {
+        "strategy_version": "tested-reply-pipeline-20260816",
+        "lane": "mention",
+        "target_id": "100",
+        "mode": "opinion_or_principle",
+        "final_reply_kind": "unknown",
+        "tone": "unknown",
+        "reply_requirement": "general",
+        "route_source": "xai_gate",
+    }
+    decision = {
+        "event": "ai_reply_pipeline_decision",
+        "status": "approved",
+        **common,
+    }
+    outcome = {
+        "event": "ai_reply_pipeline_outcome",
+        "status": "confirmed",
+        "reply_post_id": "900",
+        **common,
+    }
+
+    report = digest.analyse(
+        [
+            record(0, "INFO", "log_event", "EVENT " + json.dumps(decision)),
+            record(1, "INFO", "log_event", "EVENT " + json.dumps(outcome)),
+        ]
+    )
+    events = report["events"]
+    strategy = report["reply_strategy"]
+    parsed_decision = next(
+        event for event in events if event["kind"] == "reply_strategy_decision"
+    )
+    parsed_outcome = next(
+        event for event in events if event["kind"] == "reply_strategy_outcome"
+    )
+
+    assert parsed_decision["mode"] == "opinion_or_principle"
+    assert parsed_decision["final_reply_kind"] == "unknown"
+    assert parsed_outcome["mode"] == "opinion_or_principle"
+    assert parsed_outcome["final_reply_kind"] == "unknown"
+    assert strategy["generated_mode_counts"]["opinion_or_principle"] == 1
+    assert strategy["mode_counts"]["opinion_or_principle"] == 1
+    assert strategy["generated_mode_counts"]["strategy metadata unavailable"] == 0
+    assert strategy["mode_counts"]["strategy metadata unavailable"] == 0
+    assert strategy["generated_final_reply_kind_counts"] == {"unknown": 1}
+    assert strategy["final_reply_kind_counts"] == {"unknown": 1}
+    rendered = digest.render_markdown(report)
+    assert "Generated final reply kinds: unknown=1" in rendered
+    assert "Published/terminal final reply kinds: unknown=1" in rendered
 
 
 def test_provider_cost_unknown_zero_nonzero_and_lower_bound_average():

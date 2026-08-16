@@ -157,6 +157,34 @@ def test_external_evidence_accepts_exact_ignored_observation_not_shadow(
     assert errors == []
     assert warnings == []
 
+    _fixture_git(repository, "add", "-f", "--", relative)
+    _records, errors, _warnings = ledger_tool._external_evidence_checks(
+        {"external_evidence": [record], "defects": []},
+        repository_root=repository,
+    )
+
+    assert any("is tracked by Git" in error for error in errors)
+
+    nonignored_relative = "local/evidence.json"
+    nonignored = repository / nonignored_relative
+    nonignored.parent.mkdir()
+    nonignored.write_bytes(b"exact non-ignored evidence\n")
+    nonignored_record = {
+        "id": "EXT-NONIGNORED",
+        "repository_relative_path": nonignored_relative,
+        "observed_absolute_path": str(nonignored),
+        "sha256": hashlib.sha256(nonignored.read_bytes()).hexdigest(),
+    }
+    _records, errors, _warnings = ledger_tool._external_evidence_checks(
+        {"external_evidence": [nonignored_record], "defects": []},
+        repository_root=repository,
+    )
+
+    assert any(
+        "in-worktree external evidence is not ignored" in error
+        for error in errors
+    )
+
     outside = tmp_path / "external-evidence.json"
     outside.write_bytes(observed.read_bytes())
     shadowed = copy.deepcopy(record)
