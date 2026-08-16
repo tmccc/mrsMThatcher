@@ -793,6 +793,44 @@ def test_pipeline_failure_wrapper_resolves_after_same_target_terminal_no_reply()
     assert "Traceback" in raw_errors
 
 
+def test_later_terminal_pipeline_failure_does_not_resolve_pipeline_incident():
+    target_id = "2086177789732958385"
+    records = [
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_failure",'
+            '"status":"operational_failure","lane":"mention",'
+            f'"target_id":"{target_id}","reason":"writer_invalid"}}',
+        ),
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_mentions",
+            traceback(
+                "Failed to ask Grok for reply",
+                "APIError: writer returned an invalid reply",
+            ),
+        ),
+        record(
+            10,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_decision",'
+            '"status":"no_reply","lane":"mention",'
+            f'"target_id":"{target_id}","mode":"no_reply",'
+            '"reason":"revision_limit_reached"}',
+        ),
+    ]
+
+    health = digest.analyse(records)["error_health"]
+
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["target_id"] == target_id
+
+
 @pytest.mark.parametrize("duplicate_reason", ["exact_duplicate_reply", "near_duplicate_reply"])
 def test_pipeline_failure_wrapper_resolves_after_terminal_duplicate_decision(
     duplicate_reason: str,
@@ -1099,6 +1137,10 @@ def test_digest_resume_state_never_falls_back_as_current_runtime_state(tmp_path)
     }
     rendered = digest.render_markdown(report)
     assert "Current bot runtime state: **unavailable**" in rendered
+    assert "## Historical retained diagnostic snapshots" in rendered
+    assert "for historical diagnosis only" in rendered
+    assert '"daily_reply_count": 999' in rendered
+    assert '"MAX_AUTO_REPLIES_PER_DAY": "999"' in rendered
     assert "daily_reply_count       = 999" not in rendered
     assert "MAX_AUTO_REPLIES_PER_DAY=999" not in rendered
 
@@ -1126,6 +1168,116 @@ def test_current_runtime_config_is_allow_listed_and_validated(tmp_path):
     assert config["MAX_REPLIES_PER_AUTHOR_PER_DAY"] == 6
     assert config["MAX_QUOTE_REPLIES_PER_DAY"] == 12
     assert "OPENAI_API_KEY" not in config
+
+
+@pytest.mark.parametrize(
+    ("runtime_status", "state", "headline_text", "body_text"),
+    [
+        (
+            "absent",
+            None,
+            "current API cooldown state unavailable",
+            "Current bot runtime state: **unavailable**",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "xai_api_cooldown_until_epoch": int(BASE.timestamp()) + 60,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "xAI cooldown active now",
+            f"xai_api_cooldown_until  = {int(BASE.timestamp()) + 60}  2026-07-25 09:01:00  active",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "xai_api_cooldown_until_epoch": int(BASE.timestamp()) - 60,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "xAI cooldown occurred, now expired",
+            f"xai_api_cooldown_until  = {int(BASE.timestamp()) - 60}  2026-07-25 08:59:00  expired",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "xai_api_cooldown_until_epoch": 0,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "no API cooldown",
+            "xai_api_cooldown_until  = 0  none  cleared",
+        ),
+    ],
+)
+def test_current_cooldown_headline_and_body_use_generation_time(
+    runtime_status,
+    state,
+    headline_text,
+    body_text,
+    tmp_path,
+):
+    generation_epoch = int(BASE.timestamp())
+    report = digest.analyse([], generation_time=BASE)
+    report["generation_epoch"] = generation_epoch
+    report["runtime_state_status"] = {
+        "status": runtime_status,
+        "path": str(tmp_path / "bot_state.json"),
+    }
+    # Deliberately use a state-file timestamp on the opposite side of the
+    # cooldown to prove that current health is evaluated at generation time.
+    state_file_time = BASE - timedelta(days=30)
+    if state and state.get("xai_api_cooldown_until_epoch", 0) < generation_epoch:
+        state_file_time = BASE + timedelta(days=30)
+    report["latest_state"] = (
+        digest.summarize_latest_state(
+            state,
+            state_file_time,
+            source="bot_state.json",
+            source_path=tmp_path / "bot_state.json",
+        )
+        if state is not None
+        else {}
+    )
+
+    digest.refresh_derived(report)
+    rendered = digest.render_markdown(report)
+
+    assert headline_text in report["summary"]["headline"]
+    assert headline_text in rendered
+    assert body_text in rendered
+
+
+@pytest.mark.parametrize("contents", [None, {}, {"MAX_AUTO_REPLIES_PER_DAY": 48}])
+def test_local_config_is_described_as_on_disk_not_effective_live(
+    contents,
+    tmp_path,
+):
+    config_path = tmp_path / "mrsMThatcher.local.json"
+    if contents is not None:
+        config_path.write_text(json.dumps(contents), encoding="utf-8")
+    config, path, timestamp, status = digest.load_current_runtime_config(tmp_path)
+    report = digest.analyse([])
+    report["latest_config"] = config or {}
+    report["runtime_config_status"] = {
+        "status": status,
+        "path": str(path),
+        "time": digest.dt_text(timestamp) if timestamp else None,
+    }
+    rendered = digest.render_markdown(report)
+
+    assert "## On-disk local configuration overrides" in rendered
+    assert "Current production configuration" not in rendered
+    if contents is None:
+        assert "On-disk local overrides: **unavailable**" in rendered
+        assert "Effective live configuration is not established" in rendered
+    else:
+        assert "read-only file observation does not establish" in rendered
+        assert "effective in a live process" in rendered
 
 
 def test_reply_accounting_reconciles_terminal_local_rejections_and_timeout_wrapper():
@@ -1357,6 +1509,33 @@ def test_x_429_and_cooldown_are_one_resolved_incident_after_later_success():
     )
 
 
+def test_success_before_later_429_does_not_resolve_that_incident():
+    records = [
+        record(0, "INFO", "get_mentions", "Fetched 0 mentions"),
+        record(
+            60,
+            "ERROR",
+            "x_request",
+            'X bearer API error 429: {"status":429}',
+        ),
+        record(
+            61,
+            "ERROR",
+            "record_api_error",
+            "Entering API cooldown after 429 until 2026-07-25 09:02:00",
+        ),
+    ]
+
+    health = digest.analyse(
+        records,
+        generation_time=BASE + timedelta(minutes=10),
+    )["error_health"]
+
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["category"] == "x_api_rate_limit"
+
+
 def test_active_x_429_cooldown_remains_one_current_incident():
     records = [
         record(
@@ -1475,7 +1654,7 @@ def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
         "strategy_version": "tested-reply-pipeline-20260816",
         "lane": "mention",
         "target_id": "100",
-        "mode": "factual",
+        "mode": "direct_factual_answer",
         "final_reply_kind": "factual",
         "tone": "unknown",
         "reply_requirement": "supported_factual",

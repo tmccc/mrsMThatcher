@@ -4231,12 +4231,16 @@ def test_per_author_cap_applies_to_quote_tweet_path(
     prior_count: int,
     expected_posts: int,
 ) -> None:
+    fixed_epoch = 2_000_000_000
+    london_date = datetime.fromtimestamp(
+        fixed_epoch, ZoneInfo("Europe/London")
+    ).strftime("%Y-%m-%d")
     base_dir = prepare_base_dir(
         tmp_path,
         state={
             "recent_own_post_ids": ["900"],
             "last_reply_epoch": 0,
-            "daily_reply_date": datetime.now().strftime("%Y-%m-%d"),
+            "daily_reply_date": london_date,
             "daily_reply_count": prior_count,
             "daily_replied_author_ids": ["310"] if prior_count else [],
             "daily_replied_author_counts": {"310": prior_count} if prior_count else {},
@@ -4244,7 +4248,12 @@ def test_per_author_cap_applies_to_quote_tweet_path(
         local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False},
     )
 
-    result = run_cycle(base_dir, fake_server)
+    result = run_bot_command(
+        base_dir,
+        fake_server,
+        "--test-cycle",
+        extra_env={"MRS_FAKE_NOW_EPOCH": str(fixed_epoch)},
+    )
 
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(fake_server.posts) == expected_posts
@@ -4274,18 +4283,26 @@ def test_grok_skip_does_not_post(tmp_path: Path, fake_server: FakeApiServer) -> 
 
 @pytest.mark.parametrize("fake_server", ["per_author_cap.json"], indirect=True)
 def test_per_author_cap_skips_seventh_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
-    today = datetime.now().strftime("%Y-%m-%d")
+    fixed_epoch = 2_000_000_000
+    london_date = datetime.fromtimestamp(
+        fixed_epoch, ZoneInfo("Europe/London")
+    ).strftime("%Y-%m-%d")
     base_dir = prepare_base_dir(
         tmp_path,
         state={
-            "daily_reply_date": today,
+            "daily_reply_date": london_date,
             "daily_reply_count": 6,
             "daily_replied_author_ids": ["240"],
             "daily_replied_author_counts": {"240": 6},
             "last_reply_epoch": 0,
         },
     )
-    result = run_cycle(base_dir, fake_server)
+    result = run_bot_command(
+        base_dir,
+        fake_server,
+        "--test-cycle",
+        extra_env={"MRS_FAKE_NOW_EPOCH": str(fixed_epoch)},
+    )
 
     assert result.returncode == 0, result.stderr + result.stdout
     assert fake_server.posts == []
@@ -4464,13 +4481,25 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("fake_server", ["daily_cap.json"], indirect=True)
 def test_daily_cap_skips_before_fetching_mentions(tmp_path: Path, fake_server: FakeApiServer) -> None:
-    today = datetime.now().strftime("%Y-%m-%d")
+    fixed_epoch = 2_000_000_000
+    london_date = datetime.fromtimestamp(
+        fixed_epoch, ZoneInfo("Europe/London")
+    ).strftime("%Y-%m-%d")
     base_dir = prepare_base_dir(
         tmp_path,
         local_config={"MAX_AUTO_REPLIES_PER_DAY": 48},
-        state={"daily_reply_date": today, "daily_reply_count": 48, "last_reply_epoch": 0},
+        state={
+            "daily_reply_date": london_date,
+            "daily_reply_count": 48,
+            "last_reply_epoch": 0,
+        },
     )
-    result = run_cycle(base_dir, fake_server)
+    result = run_bot_command(
+        base_dir,
+        fake_server,
+        "--test-cycle",
+        extra_env={"MRS_FAKE_NOW_EPOCH": str(fixed_epoch)},
+    )
 
     assert result.returncode == 0, result.stderr + result.stdout
     assert fake_server.posts == []
@@ -5661,7 +5690,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     )
     ops_digest = run_digest(ops_base)
     assert ops_digest.returncode == 0, ops_digest.stderr
-    assert "API cooldown occurred" in ops_digest.stdout
+    assert "current API cooldown state unavailable" in ops_digest.stdout
     assert "API cooldowns entered" in ops_digest.stdout
     assert "API health" in ops_digest.stdout
     assert "unknown" in ops_digest.stdout
@@ -5905,6 +5934,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         {
             "daily_reply_count": 0,
             "api_cooldown_until_epoch": 0,
+            "x_write_api_cooldown_until_epoch": 0,
             "xai_api_cooldown_until_epoch": 4102444800,
             "xai_api_cooldown_reason": "too many xai API errors in the last hour",
             "quote_api_cooldown_until_epoch": 0,
@@ -5937,12 +5967,15 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
             "daily_reply_count": 0,
             "api_cooldown_until_epoch": 1,
             "api_cooldown_reason": "old cooldown",
+            "x_write_api_cooldown_until_epoch": 0,
+            "xai_api_cooldown_until_epoch": 0,
+            "quote_api_cooldown_until_epoch": 0,
         },
     )
     stale_digest = run_digest(stale_base)
     assert stale_digest.returncode == 0, stale_digest.stderr
-    assert "no API cooldown" in stale_digest.stdout
-    assert "API cooldown occurred" not in stale_digest.stdout
+    assert "X read API cooldown occurred, now expired" in stale_digest.stdout
+    assert "no API cooldown" not in stale_digest.stdout
     assert "x_read_api_cooldown_until = 1" in stale_digest.stdout
     assert "x_read_api_cooldown_reason = old cooldown" in stale_digest.stdout
     assert "expired" in stale_digest.stdout
@@ -5975,7 +6008,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     (cleared_base / "test.log").write_text(
         "\n".join(
             [
-                "2026-07-03 11:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"api_cooldown_reason\": \"\", \"quote_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_reason\": \"\", \"x_write_api_cooldown_until_epoch\": 0, \"x_write_api_cooldown_reason\": \"\"}",
+                "2026-07-03 11:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"api_cooldown_reason\": \"\", \"quote_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_reason\": \"\", \"x_write_api_cooldown_until_epoch\": 0, \"x_write_api_cooldown_reason\": \"\", \"xai_api_cooldown_until_epoch\": 0, \"xai_api_cooldown_reason\": \"\"}",
             ]
         )
         + "\n",
@@ -5991,6 +6024,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
             "quote_api_cooldown_reason": "",
             "x_write_api_cooldown_until_epoch": 0,
             "x_write_api_cooldown_reason": "",
+            "xai_api_cooldown_until_epoch": 0,
+            "xai_api_cooldown_reason": "",
         },
     )
     cleared_digest = run_digest(cleared_base, state_file=cleared_state_file)
@@ -5998,9 +6033,16 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "x_read_api_cooldown_until = 0  none" in cleared_digest.stdout
     assert "x_write_api_cooldown_until = 0  none" in cleared_digest.stdout
     assert "quote_api_cooldown_until = 0  none" in cleared_digest.stdout
-    assert "2026-07-03 05:55:42" not in cleared_digest.stdout
-    assert "old cooldown" not in cleared_digest.stdout
-    assert "old write cooldown" not in cleared_digest.stdout
+    assert "no API cooldown" in cleared_digest.stdout
+    current_state_section, historical_section = cleared_digest.stdout.split(
+        "## Historical retained diagnostic snapshots", 1
+    )
+    assert "2026-07-03 05:55:42" not in current_state_section
+    assert "old cooldown" not in current_state_section
+    assert "old write cooldown" not in current_state_section
+    assert "2026-07-03 05:55:42" in historical_section
+    assert "old cooldown" in historical_section
+    assert "old write cooldown" in historical_section
 
 
 def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_path: Path) -> None:

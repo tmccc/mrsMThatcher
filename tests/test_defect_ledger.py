@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -125,6 +126,47 @@ def test_real_ledger_is_valid_and_markdown_summary_is_synchronized() -> None:
     assert report.schema_backend == "built-in-draft2020-subset"
     assert report.ok, "\n".join(report.errors)
     assert dict(report.status_counts)
+
+
+def test_external_evidence_accepts_exact_ignored_observation_not_shadow(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    _fixture_git(repository, "init", "--quiet")
+    (repository / ".gitignore").write_text(
+        "production_deployments/\n",
+        encoding="utf-8",
+    )
+    relative = "production_deployments/run/evidence.json"
+    observed = repository / relative
+    observed.parent.mkdir(parents=True)
+    observed.write_bytes(b"exact ignored deployment evidence\n")
+    record = {
+        "id": "EXT-TEST",
+        "repository_relative_path": relative,
+        "observed_absolute_path": str(observed),
+        "sha256": hashlib.sha256(observed.read_bytes()).hexdigest(),
+    }
+
+    _records, errors, warnings = ledger_tool._external_evidence_checks(
+        {"external_evidence": [record], "defects": []},
+        repository_root=repository,
+    )
+
+    assert errors == []
+    assert warnings == []
+
+    outside = tmp_path / "external-evidence.json"
+    outside.write_bytes(observed.read_bytes())
+    shadowed = copy.deepcopy(record)
+    shadowed["observed_absolute_path"] = str(outside)
+    _records, errors, _warnings = ledger_tool._external_evidence_checks(
+        {"external_evidence": [shadowed], "defects": []},
+        repository_root=repository,
+    )
+
+    assert any("resolves to a different file" in error for error in errors)
 
 
 def test_release_assurance_findings_and_json_defect_boundaries_are_explicit() -> None:
