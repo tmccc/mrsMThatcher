@@ -300,6 +300,11 @@ drafts use schema version 2 and are revalidated against their contribution,
 context, models, prompts and source hashes before reuse or receipt reconciliation.
 V1 drafts are never migrated or posted.
 
+Production conversational replies are limited to 48 automatic replies per
+day and 6 replies per author per day. The quote-tweet lane also retains its
+separate 12-reply daily ceiling; that lane-specific limit is not the global
+conversational-reply limit.
+
 Audit legacy V1 drafts without credentials, posting, or network access:
 
 ```bash

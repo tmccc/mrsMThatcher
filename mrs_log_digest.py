@@ -1861,14 +1861,8 @@ def save_resume_time(
     """Save resume time."""
     old = read_resume_data(state_file) if preserve_existing_context else {}
 
-    latest_state = merge_context(
-        report.get("latest_state") or {},
-        old.get("last_known_latest_state") or {},
-    )
-    latest_config = merge_context(
-        report.get("latest_config") or {},
-        old.get("last_known_latest_config") or {},
-    )
+    latest_state = dict(report.get("latest_state") or {})
+    latest_config = dict(report.get("latest_config") or {})
 
     # Persist clean context only; _carried_forward/_filled_from_previous are
     # rendering annotations for this run, not durable bot facts.
@@ -2488,6 +2482,101 @@ def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[s
     return None, None, None
 
 
+def load_current_runtime_state(
+    project_dir: Path,
+) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
+    """Read and minimally validate the production runtime state at generation time."""
+    path = project_dir / "bot_state.json"
+    if not path.exists():
+        return None, path, None, "absent"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("state root is not a JSON object")
+        if not any(
+            key in data
+            for key in (
+                "daily_reply_count",
+                "last_main_post_id",
+                "last_seen_mention_id",
+                "next_reply_lane_priority",
+            )
+        ):
+            raise ValueError("state has no recognised runtime fields")
+        for key in ("daily_reply_count", "daily_quote_reply_count"):
+            if key in data and (
+                type(data[key]) is not int or data[key] < 0
+            ):
+                raise ValueError(f"{key} is not a non-negative integer")
+        mtime = datetime.fromtimestamp(path.stat().st_mtime)
+        return data, path, mtime, "available"
+    except Exception as exc:
+        return None, path, None, f"malformed: {type(exc).__name__}: {exc}"
+
+
+CURRENT_CONFIG_REPORT_KEYS = {
+    "MAX_AUTO_REPLIES_PER_DAY",
+    "MAX_REPLIES_PER_AUTHOR_PER_DAY",
+    "MAX_QUOTE_REPLIES_PER_DAY",
+    "MIN_SECONDS_BETWEEN_REPLIES",
+    "REPLY_CHECK_EVERY_SECONDS",
+    "MAX_MENTIONS_PER_CHECK",
+    "MENTIONS_MAX_PAGES_PER_CHECK",
+    "QUOTE_CHECK_EVERY_SECONDS",
+    "QUOTE_LOOKUP_API_MAX_RESULTS",
+    "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
+    "QUOTE_CHECK_SPACING_RETRY_SECONDS",
+    "ENABLE_HOT_POST_REPLY_CHECKS",
+    "MAX_HOT_POST_REPLIES_PER_CHECK",
+    "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
+    "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
+    "ENABLE_DAILY_MEME_POSTS",
+    "MEME_TRIGGER_AFTER_HOUR",
+    "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS",
+    "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
+    "MEME_FALLBACK_HOUR",
+    "MEME_FALLBACK_MINUTE",
+    "MEME_MIN_SECONDS_AFTER_QUOTE_POST",
+    "MEME_SCHEDULE_VERSION",
+    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
+    "POST_SLEEP_MIN",
+    "POST_SLEEP_MAX",
+}
+
+
+def load_current_runtime_config(
+    project_dir: Path,
+) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
+    """Read the allow-listed ignored production configuration source."""
+    path = project_dir / "mrsMThatcher.local.json"
+    if not path.exists():
+        return None, path, None, "absent"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("config root is not a JSON object")
+        for key in (
+            "MAX_AUTO_REPLIES_PER_DAY",
+            "MAX_REPLIES_PER_AUTHOR_PER_DAY",
+            "MAX_QUOTE_REPLIES_PER_DAY",
+        ):
+            if key in data and (type(data[key]) is not int or data[key] <= 0):
+                raise ValueError(f"{key} is not a positive integer")
+        config = {
+            key: value
+            for key, value in data.items()
+            if key in CURRENT_CONFIG_REPORT_KEYS
+        }
+        config["_config_source"] = "mrsMThatcher.local.json"
+        config["_config_source_path"] = str(path)
+        config["_config_source_time"] = dt_text(
+            datetime.fromtimestamp(path.stat().st_mtime)
+        )
+        return config, path, datetime.fromtimestamp(path.stat().st_mtime), "available"
+    except Exception as exc:
+        return None, path, None, f"malformed: {type(exc).__name__}: {exc}"
+
+
 def state_context_is_within_window(state: Dict[str, Any], window_end: Optional[datetime]) -> bool:
     """Return whether state context is within window."""
     if window_end is None:
@@ -2508,6 +2597,9 @@ INTERNAL_CONTEXT_KEYS = {
     "_partial",
     "_state_source",
     "_state_source_path",
+    "_config_source",
+    "_config_source_path",
+    "_config_source_time",
 }
 
 
@@ -3128,6 +3220,17 @@ def classify_operational_error(message: str) -> str:
         and any(marker in lowered for marker in ("xai", "grok", "api.x.ai"))
     ):
         return "xai_provider_timeout"
+    if (
+        re.search(r"\bx(?: bearer)? api error 429\b", lowered)
+        or "entering api cooldown after 429" in lowered
+    ):
+        return "x_api_rate_limit"
+    if (
+        "paginationcursorprotocolerror" in lowered
+        and "quote tweets" in lowered
+        and "repeated pagination token" in lowered
+    ):
+        return "quote_pagination_protocol_anomaly"
     if is_deleted_or_inaccessible_tweet_403(text):
         return "deleted_or_inaccessible_tweet"
     if any(
@@ -3344,6 +3447,8 @@ def summarise_operational_error_health(
         "remote_write_transaction_barrier",
         "instance_lock_conflict",
         "x_api_transient_failure",
+        "x_api_rate_limit",
+        "quote_pagination_protocol_anomaly",
         "xai_provider_timeout",
     }
     ambiguity_times = [
@@ -3447,19 +3552,19 @@ def summarise_operational_error_health(
                 ) or _terminal_local_rejection_outcome(
                     event.get("no_reply_reason")
                 )
-                if event.get("mode") == "no_reply":
-                    candidates.append(
-                        (
-                            ts,
-                            "later terminal no-reply decision observed for "
-                            f"{lane} target {target_id}",
-                        )
-                    )
-                elif terminal_local_outcome is not None:
+                if terminal_local_outcome is not None:
                     candidates.append(
                         (
                             ts,
                             "later terminal local decision observed for "
+                            f"{lane} target {target_id}",
+                        )
+                    )
+                elif event.get("mode") == "no_reply":
+                    candidates.append(
+                        (
+                            ts,
+                            "later terminal no-reply decision observed for "
                             f"{lane} target {target_id}",
                         )
                     )
@@ -3533,6 +3638,11 @@ def summarise_operational_error_health(
                 "mention_reply_posted",
                 "hot_post_reply_posted",
                 "quote_tweet_reply_posted",
+            )
+        elif category == "quote_pagination_protocol_anomaly":
+            recovery_kinds = (
+                "quote_lane_activity_succeeded",
+                "quote_pagination_repeated_token",
             )
         elif category == "process_crash":
             candidates.extend(
@@ -3636,6 +3746,40 @@ def summarise_operational_error_health(
         if pipeline_identity is not None:
             resolved, resolution_reason, resolution_time = pipeline_recovered_after(
                 pipeline_identity, last_time
+            )
+            status = "historical_resolved" if resolved else "current_unresolved"
+        elif category == "x_api_rate_limit":
+            cooldown_deadlines: List[datetime] = []
+            for item in ordered:
+                raw = str(
+                    item.get("_raw_message") or item.get("message") or ""
+                )
+                match = re.search(
+                    r"Entering API cooldown after 429 until "
+                    r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})",
+                    raw,
+                )
+                if match:
+                    try:
+                        cooldown_deadlines.append(parse_dt(match.group(1)))
+                    except ValueError:
+                        pass
+            cooldown_deadline = max(cooldown_deadlines, default=None)
+            later_x_successes = [
+                ts
+                for ts in event_times.get("x_activity_succeeded", [])
+                if cooldown_deadline is not None and ts > cooldown_deadline
+            ]
+            resolved = bool(
+                cooldown_deadline is not None
+                and cooldown_deadline < datetime.now()
+                and later_x_successes
+            )
+            resolution_time = min(later_x_successes) if resolved else None
+            resolution_reason = (
+                "cooldown deadline passed and later successful X activity was observed"
+                if resolved
+                else ""
             )
             status = "historical_resolved" if resolved else "current_unresolved"
         elif transient_observation:
@@ -3860,6 +4004,18 @@ def format_usd_ticks(ticks: int, *, divisor: int = 1) -> str:
         / Decimal(USD_TICKS_PER_DOLLAR)
     )
     return f"US${amount.quantize(USD_DISPLAY_QUANTUM, rounding=ROUND_HALF_UP)}"
+
+
+def format_reported_cost(row: Dict[str, Any]) -> str:
+    """Render known provider cost without treating missing reports as zero."""
+    costed = row.get("costed_successful_calls")
+    if type(costed) is not int:
+        successful = int(row.get("successful_usage_records", 0) or 0)
+        uncosted = int(row.get("uncosted_successful_calls", 0) or 0)
+        costed = max(0, successful - uncosted)
+    if costed <= 0:
+        return "unknown"
+    return format_usd_ticks(int(row.get("known_cost_in_usd_ticks", 0) or 0))
 
 
 def xai_usage_stage_from_msg(msg: str) -> str:
@@ -4163,6 +4319,11 @@ def xai_reply_cost_summary(
             (local_rejection or {}).get("reason")
         )
         outcome_status = str((outcome or {}).get("status") or "")
+        decision_terminal_failure = _is_terminal_pipeline_failure(
+            (decision or {}).get("reason")
+            or (decision or {}).get("no_reply_reason"),
+            (decision or {}).get("status"),
+        )
         if outcome_status in {"confirmed", "posted"}:
             disposition = "published"
         elif outcome is not None and (
@@ -4171,9 +4332,16 @@ def xai_reply_cost_summary(
             disposition = "posting_failed"
         elif terminal_local_outcome is not None:
             disposition = terminal_local_outcome
-        elif decision is not None and decision.get("mode") == "no_reply":
+        elif (
+            decision is not None
+            and (
+                decision.get("mode") == "no_reply"
+                or decision.get("status") == "no_reply"
+            )
+            and not decision_terminal_failure
+        ):
             disposition = "deliberately_declined"
-        elif failure is not None:
+        elif decision_terminal_failure or failure is not None:
             disposition = "pipeline_failed"
         elif decision is not None:
             disposition = "approved_not_confirmed_in_window"
@@ -4307,6 +4475,7 @@ def xai_reply_cost_summary(
                     for item in stage_usage
                 ),
                 "known_cost_in_usd_ticks": sum(reported_costs),
+                "costed_successful_calls": len(reported_costs),
                 "uncosted_successful_calls": len(stage_usage)
                 - len(reported_costs),
             }
@@ -4343,6 +4512,7 @@ def xai_reply_cost_summary(
                 int_usage_value(item.get("total_tokens")) for item in provider_usage
             ),
             "known_cost_in_usd_ticks": sum(reported_costs),
+            "costed_successful_calls": len(reported_costs),
             "uncosted_successful_calls": len(provider_usage) - len(reported_costs),
         })
 
@@ -4361,6 +4531,9 @@ def xai_reply_cost_summary(
                 "total_tokens": sum(item["total_tokens"] for item in rows),
                 "known_cost_in_usd_ticks": sum(
                     item["known_cost_in_usd_ticks"] for item in rows
+                ),
+                "costed_successful_calls": sum(
+                    item["costed_successful_calls"] for item in rows
                 ),
                 "uncosted_successful_calls": sum(
                     item["uncosted_successful_calls"] for item in rows
@@ -4413,6 +4586,14 @@ def xai_reply_cost_summary(
             item.get("call_start_matched") is not True for item in usage_events
         ),
         "known_cost_in_usd_ticks": total_known_ticks,
+        "known_cost_per_costed_call": (
+            {
+                "ticks": total_known_ticks,
+                "divisor": totals["costed_call_count"],
+            }
+            if totals["costed_call_count"]
+            else None
+        ),
         "per_reviewed_candidate": (
             {"ticks": total_known_ticks, "divisor": len(candidates)}
             if coverage_complete and candidates
@@ -4891,6 +5072,19 @@ def _terminal_local_rejection_outcome(reason: Any) -> Optional[str]:
     }.get(normalised)
 
 
+def _is_terminal_pipeline_failure(reason: Any, status: Any = None) -> bool:
+    """Identify old pipeline terminal failures logged as decision records."""
+    normalised = str(reason or "").strip().lower()
+    return (
+        str(status or "").strip().lower() == "operational_failure"
+        or normalised
+        in {
+            "claim_auditor_detected_unresolved_factual_claim",
+            "revision_limit_reached",
+        }
+    )
+
+
 def _no_reply_category(value: Any) -> str:
     reason = " ".join(str(value or "").lower().replace("-", "_").split())
     if not reason:
@@ -4912,10 +5106,26 @@ def _no_reply_category(value: Any) -> str:
 
 def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Aggregate safe tested-pipeline stage telemetry across evaluations."""
+    tested_version = "tested-reply-pipeline-20260816"
     rows = [
         event for event in events
         if event.get("kind") == "reply_pipeline_stage_summary"
+        and event.get("strategy_version") == tested_version
     ]
+    decisions = [
+        event for event in events
+        if event.get("kind") == "reply_strategy_decision"
+        and event.get("strategy_version") == tested_version
+    ]
+
+    def identity(row: Dict[str, Any], index: int) -> Tuple[str, str]:
+        lane = _normalise_lane(row.get("lane"))
+        target = str(row.get("target_id") or "")
+        return (lane, target) if target else (lane, f"missing:{index}:{row.get('time')}")
+
+    decision_ids = {identity(row, index) for index, row in enumerate(decisions)}
+    stage_ids = {identity(row, index) for index, row in enumerate(rows)}
+    complete_ids = decision_ids & stage_ids
 
     def value_counts(field: str) -> Dict[str, int]:
         return dict(sorted(Counter(
@@ -4952,6 +5162,9 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
     }
     return {
         "evaluation_count": len(rows),
+        "tested_pipeline_decision_count": len(decision_ids),
+        "complete_stage_telemetry_count": len(complete_ids),
+        "partial_or_legacy_telemetry_count": len(decision_ids - complete_ids),
         "provider_call_counts": dict(sorted(provider_calls.items())),
         "schema_invalid_call_count": sum(invalid_stages.values()),
         "schema_invalid_stage_counts": dict(sorted(invalid_stages.items())),
@@ -5038,7 +5251,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         lane = _normalise_lane(event.get("lane"))
         target = str(event.get("target_id") or "")
         decision_id = f"{lane}:{target}" if target else f"missing:{index}"
-        decision_by_id.setdefault(decision_id, event)
+        decision_by_id[decision_id] = event
     decisions = list(decision_by_id.values())
     terminal_local_rejections: Dict[Tuple[str, str], str] = {}
     terminal_local_rejection_reasons: Dict[Tuple[str, str], str] = {}
@@ -5095,6 +5308,24 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         event for event in outcomes
         if str(event.get("status") or "confirmed") in {"confirmed", "posted"}
     ]
+    published_identities = {
+        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
+        for event in published_outcomes
+        if event.get("target_id")
+    }
+    pipeline_failures.extend(
+        event
+        for event in decisions
+        if _is_terminal_pipeline_failure(
+            event.get("reason") or event.get("no_reply_reason"),
+            event.get("status"),
+        )
+        and (
+            _normalise_lane(event.get("lane")),
+            str(event.get("target_id") or ""),
+        )
+        not in published_identities
+    )
 
     posted: list[tuple[str, str]] = []
     for event in events:
@@ -5118,7 +5349,13 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         identity = (lane, target)
         if identity in outcome_targets:
             continue
-        if event.get("mode") == "no_reply" or identity in terminal_local_rejections:
+        if (
+            event.get("mode") == "no_reply"
+            and not _is_terminal_pipeline_failure(
+                event.get("reason") or event.get("no_reply_reason"),
+                event.get("status"),
+            )
+        ) or identity in terminal_local_rejections:
             observations.append(event)
             observed_decision_ids.add(id(event))
     targeted_decisions: Dict[tuple[str, str], list[Dict[str, Any]]] = {}
@@ -5148,7 +5385,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         observations.append({"kind": "reply_strategy_unavailable", "lane": lane, "target_id": target})
 
     modes = Counter({key: 0 for key in (
-        "direct_factual_answer", "opinion_or_principle", "light_humour", "courtesy",
+        "direct_factual_answer", "factual", "clarification", "opinion_or_principle", "light_humour", "courtesy",
         "historical_correction", "historical_context", "researched_principle", "principle_reply", "wry_reply",
         "playful_reply", "deadpan_reply", "warm_reply", "no_reply", "strategy metadata unavailable",
     )})
@@ -5183,6 +5420,10 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             outcome_status_counts[status or "unavailable"] += 1
     outcome_status_counts["terminal_no_reply"] += sum(
         event.get("mode") == "no_reply"
+        and not _is_terminal_pipeline_failure(
+            event.get("reason") or event.get("no_reply_reason"),
+            event.get("status"),
+        )
         and (
             _normalise_lane(event.get("lane")),
             str(event.get("target_id") or ""),
@@ -5197,6 +5438,18 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     outcome_status_counts["terminal_clarification_mode_rejection"] += sum(
         outcome == "terminal_clarification_mode_rejection"
         for outcome in terminal_local_rejections.values()
+    )
+    outcome_status_counts["pipeline_failed"] += sum(
+        _is_terminal_pipeline_failure(
+            event.get("reason") or event.get("no_reply_reason"),
+            event.get("status"),
+        )
+        and (
+            _normalise_lane(event.get("lane")),
+            str(event.get("target_id") or ""),
+        )
+        not in published_identities
+        for event in decisions
     )
     retrieved = [int(event["retrieved_count"]) for event in observations if type(event.get("retrieved_count")) is int]
     generated_retrieved = [
@@ -5225,7 +5478,12 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     no_reply_targets = {
         (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
         for event in decisions
-        if event.get("mode") == "no_reply" and event.get("target_id")
+        if event.get("mode") == "no_reply"
+        and event.get("target_id")
+        and not _is_terminal_pipeline_failure(
+            event.get("reason") or event.get("no_reply_reason"),
+            event.get("status"),
+        )
     }
     terminal_local_targets = set(terminal_local_rejections)
     for (lane, target), outcome in terminal_local_rejections.items():
@@ -5268,7 +5526,10 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                 repetition_controls["no_acceptable_reply"] += 1
             (routine_reasons if reason in routine else rejection_reasons)[reason] += 1
     for event in decisions:
-        if event.get("mode") == "no_reply":
+        if event.get("mode") == "no_reply" and not _is_terminal_pipeline_failure(
+            event.get("reason") or event.get("no_reply_reason"),
+            event.get("status"),
+        ):
             target = (
                 _normalise_lane(event.get("lane")),
                 str(event.get("target_id") or ""),
@@ -5281,16 +5542,18 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             no_reply_categories[category] += 1
             if category == "duplicate_response_rejection":
                 repetition_controls["exact_duplicate_rejected"] += 1
-    tone_values = ("firm", "dry", "wry", "warm", "neutral", "light", "playful", "deadpan", "none", "unavailable")
+    tone_values = ("firm", "dry", "wry", "warm", "neutral", "light", "playful", "deadpan", "none", "unknown", "unavailable")
     humour_counts = _count_optional(observations, "humour_tone", tone_values)
-    confidence_counts = _count_optional(observations, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
+    confidence_values = ("high", "medium", "low", "none", "local_trusted_facts_supplied", "unavailable")
+    confidence_counts = _count_optional(observations, "evidence_confidence", confidence_values)
     generated_humour_counts = _count_optional(decisions, "humour_tone", tone_values)
-    generated_confidence_counts = _count_optional(decisions, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
+    generated_confidence_counts = _count_optional(decisions, "evidence_confidence", confidence_values)
     # Preserve the established sparse outcome-status result shape.
     # New terminal categories are present only when actually observed.
     for zero_only_key in (
         "terminal_repetition_rejection",
         "terminal_clarification_mode_rejection",
+        "pipeline_failed",
     ):
         if not outcome_status_counts.get(zero_only_key):
             outcome_status_counts.pop(zero_only_key, None)
@@ -5347,6 +5610,10 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "conversational_candidate_count": len(decisions),
         "deliberately_declined_count": sum(
             event.get("mode") == "no_reply"
+            and not _is_terminal_pipeline_failure(
+                event.get("reason") or event.get("no_reply_reason"),
+                event.get("status"),
+            )
             and (
                 _normalise_lane(event.get("lane")),
                 str(event.get("target_id") or ""),
@@ -5688,22 +5955,42 @@ def analyse(
         confidence = event_obj.get("evidence_confidence")
         if not isinstance(confidence, str) or not confidence:
             confidence = "none" if factual_claim is False else "unavailable"
-        retrieved_count = event_obj.get("retrieved_count")
-        if type(retrieved_count) is not int or retrieved_count < 0:
-            retrieved_count = None
-        reference_count = event_obj.get("evidence_reference_count")
-        if type(reference_count) is not int or reference_count < 0:
-            reference_count = (
-                len(evidence_ids) if isinstance(evidence_ids, list) else None
+        supplied_ids = event_obj.get("trusted_fact_ids_supplied")
+        has_explicit_supply = isinstance(supplied_ids, list)
+        if not has_explicit_supply:
+            supplied_ids = list(evidence_ids) if isinstance(evidence_ids, list) else None
+        supplied_count = event_obj.get("trusted_facts_supplied_count")
+        if type(supplied_count) is not int or supplied_count < 0:
+            supplied_count = event_obj.get("retrieved_count")
+        if type(supplied_count) is not int or supplied_count < 0:
+            supplied_count = (
+                len(supplied_ids)
+                if has_explicit_supply and isinstance(supplied_ids, list)
+                else None
             )
+
+        has_explicit_use = "used_fact_count" in event_obj
+        used_count = event_obj.get("used_fact_count")
+        if not has_explicit_use:
+            used_count = event_obj.get("evidence_reference_count")
+            if type(used_count) is not int or used_count < 0:
+                used_count = len(evidence_ids) if isinstance(evidence_ids, list) else None
+        elif not (type(used_count) is int and used_count >= 0):
+            used_count = "unknown"
+        used_ids = event_obj.get("used_fact_ids") if has_explicit_use else evidence_ids
+        reference_count = used_count if type(used_count) is int else None
         return {
             "evidence_confidence": confidence,
-            "retrieved_count": retrieved_count,
+            "retrieved_count": supplied_count,
             "evidence_reference_count": reference_count,
+            "trusted_facts_supplied_count": supplied_count,
+            "trusted_fact_ids_supplied": supplied_ids,
+            "used_fact_count": used_count,
+            "used_fact_ids": used_ids,
             "factual_claim": factual_claim,
             "grounded": (
-                len(evidence_ids) > 0
-                if isinstance(evidence_ids, list)
+                used_count > 0
+                if type(used_count) is int
                 else None
             ),
         }
@@ -6317,17 +6604,35 @@ def analyse(
                     evidence_ids=evidence_ids,
                     factual_claim_count=factual_claim_count,
                 )
+                decision_status = str(event_obj.get("status") or "")
+                final_reply_kind = event_obj.get("final_reply_kind")
+                effective_mode = (
+                    final_reply_kind
+                    or event_obj.get("mode")
+                    or ("no_reply" if decision_status == "no_reply" else None)
+                )
                 add_event(
                     "reply_strategy_decision",
                     r.ts,
                     lane=event_obj.get("lane") or "unavailable",
                     target_id=event_obj.get("target_id") or "",
                     strategy_version=event_obj.get("strategy_version") or "unavailable",
-                    mode=event_obj.get("mode"),
+                    status=decision_status or "unavailable",
+                    mode=effective_mode,
+                    proposer_mode=event_obj.get("proposer_mode") or event_obj.get("mode"),
+                    final_reply_kind=final_reply_kind or effective_mode,
+                    reply_requirement=event_obj.get("reply_requirement"),
+                    route_source=event_obj.get("route_source"),
+                    claim_risk_categories=(
+                        [str(value) for value in event_obj.get("claim_risk_categories") if str(value)]
+                        if isinstance(event_obj.get("claim_risk_categories"), list)
+                        else []
+                    ),
                     humour_tone=event_obj.get("tone"),
                     tone=event_obj.get("tone"),
                     **evidence_fields,
                     no_reply_reason=event_obj.get("reason"),
+                    reason=event_obj.get("reason"),
                     reviewer_verdict=event_obj.get("reviewer_verdict"),
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
@@ -6372,6 +6677,16 @@ def analyse(
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
                     provider_call_counts=provider_call_counts,
+                    reply_requirement=event_obj.get("reply_requirement"),
+                    route_source=event_obj.get("route_source"),
+                    trusted_facts_supplied_count=event_obj.get(
+                        "trusted_facts_supplied_count"
+                    ),
+                    trusted_fact_ids_supplied=(
+                        [str(value) for value in event_obj.get("trusted_fact_ids_supplied") if str(value)]
+                        if isinstance(event_obj.get("trusted_fact_ids_supplied"), list)
+                        else []
+                    ),
                     schema_invalid_stages=(
                         [str(value) for value in schema_invalid_stages if str(value)]
                         if isinstance(schema_invalid_stages, list)
@@ -6451,7 +6766,15 @@ def analyse(
                     target_id=event_obj.get("target_id") or "",
                     reply_post_id=event_obj.get("reply_post_id") or "",
                     strategy_version=event_obj.get("strategy_version") or "unavailable",
-                    mode=event_obj.get("mode"),
+                    mode=event_obj.get("final_reply_kind") or event_obj.get("mode"),
+                    final_reply_kind=event_obj.get("final_reply_kind") or event_obj.get("mode"),
+                    reply_requirement=event_obj.get("reply_requirement"),
+                    route_source=event_obj.get("route_source"),
+                    claim_risk_categories=(
+                        [str(value) for value in event_obj.get("claim_risk_categories") if str(value)]
+                        if isinstance(event_obj.get("claim_risk_categories"), list)
+                        else []
+                    ),
                     humour_tone=event_obj.get("tone"),
                     tone=event_obj.get("tone"),
                     **evidence_fields,
@@ -6460,6 +6783,16 @@ def analyse(
                     revision_count=event_obj.get("revision_count"),
                     failure_reason=event_obj.get("failure_reason") or "",
                 )
+            elif event_obj and event_obj.get("event") == "quote_pagination_repeated_token":
+                add_event(
+                    "quote_pagination_repeated_token",
+                    r.ts,
+                    post_id=event_obj.get("post_id") or "",
+                    token_fingerprint=event_obj.get("token_fingerprint") or "",
+                    pages_completed=event_obj.get("pages_completed"),
+                    results_retained=event_obj.get("results_retained"),
+                )
+                stats["quote_pagination_repeated_token"] += 1
             elif event_obj and event_obj.get("event") == "candidate_skipped":
                 add_event(
                     "candidate_skipped", r.ts,
@@ -6467,6 +6800,22 @@ def analyse(
                     target_id=event_obj.get("id") or "",
                     reason=event_obj.get("reason") or "other",
                 )
+            continue
+
+        quote_success = re.match(
+            r"Fetched \d+ quote tweet\(s\) for post_id=(\d+)$",
+            msg,
+        )
+        if quote_success:
+            add_event(
+                "quote_lane_activity_succeeded",
+                r.ts,
+                post_id=quote_success.group(1),
+            )
+            add_event("x_activity_succeeded", r.ts, activity="quote_lookup")
+            continue
+        if re.match(r"Fetched \d+ mentions$", msg):
+            add_event("x_activity_succeeded", r.ts, activity="mention_lookup")
             continue
 
         if "Wrote confirmed regular-post receipt pending local reconciliation" in msg:
@@ -7686,6 +8035,9 @@ def analyse(
         headline.append("no API cooldown")
 
     max_auto = int_or_none(configs.get("MAX_AUTO_REPLIES_PER_DAY"))
+    max_per_author = int_or_none(
+        configs.get("MAX_REPLIES_PER_AUTHOR_PER_DAY")
+    )
     max_quote = int_or_none(configs.get("MAX_QUOTE_REPLIES_PER_DAY"))
     used_auto = int_or_none(latest_state_summary.get("daily_reply_count"))
     used_quote = int_or_none(latest_state_summary.get("daily_quote_reply_count"))
@@ -7693,6 +8045,7 @@ def analyse(
         "reply_budget": {
             "auto_used": used_auto,
             "auto_limit": max_auto,
+            "per_author_limit": max_per_author,
             "auto_remaining": (max_auto - used_auto) if max_auto is not None and used_auto is not None else None,
             "quote_used": used_quote,
             "quote_limit": max_quote,
@@ -8068,6 +8421,9 @@ def refresh_derived(report: Dict[str, Any]) -> None:
             st[reason_key] = ""
 
     max_auto = int_or_none(configs.get("MAX_AUTO_REPLIES_PER_DAY"))
+    max_per_author = int_or_none(
+        configs.get("MAX_REPLIES_PER_AUTHOR_PER_DAY")
+    )
     max_quote = int_or_none(configs.get("MAX_QUOTE_REPLIES_PER_DAY"))
     used_auto = int_or_none(st.get("daily_reply_count"))
     used_quote = int_or_none(st.get("daily_quote_reply_count"))
@@ -8076,11 +8432,21 @@ def refresh_derived(report: Dict[str, Any]) -> None:
         "reply_budget": {
             "auto_used": used_auto,
             "auto_limit": max_auto,
+            "per_author_limit": max_per_author,
             "auto_remaining": (max_auto - used_auto) if max_auto is not None and used_auto is not None else None,
             "quote_used": used_quote,
             "quote_limit": max_quote,
             "quote_remaining": (max_quote - used_quote) if max_quote is not None and used_quote is not None else None,
-            "has_any_budget_input": any(x is not None for x in (used_auto, max_auto, used_quote, max_quote)),
+            "has_any_budget_input": any(
+                x is not None
+                for x in (
+                    used_auto,
+                    max_auto,
+                    max_per_author,
+                    used_quote,
+                    max_quote,
+                )
+            ),
             "state_carried_forward": bool(st.get("_carried_forward")),
             "config_carried_forward": bool(configs.get("_carried_forward")),
             "config_carried_from_log_backscan": bool(configs.get("_carried_from_log_backscan")),
@@ -8125,25 +8491,23 @@ def apply_saved_context(
     *,
     window_end: Optional[datetime] = None,
 ) -> None:
-    """Fill missing latest_state/latest_config from the previous digest run.
-
-    v4 merges field-by-field. That means a current state snapshot can be
-    combined with a carried-forward config snapshot, so the reply budget section
-    can still show e.g. "5 / 12" even in windows with no startup Config line.
-    """
+    """Load digest-cursor history without presenting it as current bot state."""
     old = read_resume_data(state_file)
-    previous_state = old.get("last_known_latest_state") or {}
-    if previous_state and not state_context_is_within_window(previous_state, window_end):
-        previous_state = {}
-
-    report["latest_state"] = merge_context(
-        report.get("latest_state") or {},
-        previous_state,
-    )
-    report["latest_config"] = merge_context(
-        report.get("latest_config") or {},
-        old.get("last_known_latest_config") or {},
-    )
+    report["digest_resume_context"] = {
+        "available": bool(old),
+        "last_log_entry_time": old.get("last_log_entry_time"),
+        "updated_at": old.get("updated_at"),
+    }
+    previous_state = old.get("last_known_latest_state")
+    if isinstance(previous_state, dict) and previous_state:
+        report["historical_retained_state"] = strip_internal_context_markers(
+            previous_state
+        )
+    previous_config = old.get("last_known_latest_config")
+    if isinstance(previous_config, dict) and previous_config:
+        report["historical_retained_config"] = strip_internal_context_markers(
+            previous_config
+        )
     generated_spacing = report.get("generated_image_spacing")
     if isinstance(generated_spacing, dict) and not generated_spacing.get("latest"):
         previous_spacing = old.get("last_known_generated_image_spacing")
@@ -8429,6 +8793,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("```")
         out.append("")
 
+    if not st:
+        runtime_state_status = report.get("runtime_state_status") or {}
+        out.append("## Latest state")
+        out.append(
+            "Current bot runtime state: **unavailable** "
+            f"(`{runtime_state_status.get('status') or 'not read'}`; "
+            f"source `{runtime_state_status.get('path') or 'unavailable'}`)."
+        )
+        out.append(
+            "No digest resume snapshot or historical log snapshot is used as current state."
+        )
+        out.append("")
+
     safety = report.get("remote_write_safety") or {}
     if safety:
         out.append("## Remote-write safety")
@@ -8685,6 +9062,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("## Reply budget")
         out.append("```text")
         au, al, ar = budget.get("auto_used"), budget.get("auto_limit"), budget.get("auto_remaining")
+        per_author_limit = budget.get("per_author_limit")
         qu, ql, qr = budget.get("quote_used"), budget.get("quote_limit"), budget.get("quote_remaining")
         source_bits = []
         if budget.get("state_carried_forward"):
@@ -8725,6 +9103,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
         else:
             if au is not None or al is not None:
                 out.append(f"auto replies used  = {au if au is not None else '?'} / {al if al is not None else '?'}  remaining={ar if ar is not None else '?'}")
+            if per_author_limit is not None:
+                out.append(f"per-author reply cap = {per_author_limit}")
             if qu is not None or ql is not None:
                 out.append(f"quote replies used = {qu if qu is not None else '?'} / {ql if ql is not None else '?'}  remaining={qr if qr is not None else '?'}")
         out.append("```")
@@ -8803,14 +9183,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 )
                 or 0
             )
-            cost_label = (
-                "Provider-reported cost"
-                if coverage_complete
-                else "Known provider-reported cost (lower bound)"
+            costed_calls = int(totals.get("costed_call_count", 0) or 0)
+            known_cost_text = (
+                format_usd_ticks(known_ticks) if costed_calls else "unknown"
             )
             out.append(
-                f"**{cost_label}: {format_usd_ticks(known_ticks)} "
-                f"({known_ticks:,} ticks) across "
+                f"**Provider-reported known cost lower bound: {known_cost_text} "
+                f"({known_ticks:,} reported ticks) across "
                 f"{successful_provider_calls} successful logged calls.**"
             )
             out.append(
@@ -8831,6 +9210,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
                         for item in provider_rows
                     )
                     + "."
+                )
+            known_call_average = cost_summary.get("known_cost_per_costed_call")
+            if known_call_average:
+                out.append(
+                    "Mean reported cost across cost-reported successful calls "
+                    "(unknown-cost calls excluded): "
+                    f"**{format_usd_ticks(int(known_call_average['ticks']), divisor=int(known_call_average['divisor']))}**."
                 )
             if coverage_complete:
                 per_candidate = cost_summary.get("per_reviewed_candidate")
@@ -8888,14 +9274,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                                 item.get("candidate_count", 0),
                                 item.get("observed_successful_calls", 0),
                                 item.get("total_tokens", 0),
-                                format_usd_ticks(
-                                    int(
-                                        item.get(
-                                            "known_cost_in_usd_ticks", 0
-                                        )
-                                        or 0
-                                    )
-                                ),
+                                format_reported_cost(item),
                             ]
                         )
                     )
@@ -8928,14 +9307,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                                 item.get("successful_usage_records", 0),
                                 item.get("call_starts_without_usage", 0),
                                 item.get("total_tokens", 0),
-                                format_usd_ticks(
-                                    int(
-                                        item.get(
-                                            "known_cost_in_usd_ticks", 0
-                                        )
-                                        or 0
-                                    )
-                                ),
+                                format_reported_cost(item),
                             ]
                         )
                     )
@@ -8978,14 +9350,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                                 item.get("call_coverage", ""),
                                 stage_text,
                                 item.get("total_tokens", 0),
-                                format_usd_ticks(
-                                    int(
-                                        item.get(
-                                            "known_cost_in_usd_ticks", 0
-                                        )
-                                        or 0
-                                    )
-                                ),
+                                format_reported_cost(item),
                             ]
                         )
                     )
@@ -9024,7 +9389,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("completion_tokens", 0),
                     item.get("total_tokens", 0),
                     item.get("num_sources_used", 0),
-                    item_cost if item_cost is not None else "unavailable",
+                    item_cost if item_cost is not None else "unknown",
                     item.get("image_tokens", 0),
                     item.get("provider", "unavailable"),
                     item.get("stage", "unavailable"),
@@ -9032,7 +9397,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     (
                         format_usd_ticks(item_cost)
                         if item_cost is not None
-                        else "unavailable"
+                        else "unknown"
                     ),
                 ]))
             out.append("")
@@ -9048,8 +9413,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"completion_tokens    = {totals.get('completion_tokens', 0)}")
             out.append(f"total_tokens         = {totals.get('total_tokens', 0)}")
             out.append(f"sources_used         = {totals.get('sources_used', 0)}")
-            out.append(f"cost_in_usd_ticks    = {totals.get('cost_in_usd_ticks', 0)}")
-            out.append(f"known_cost_usd       = {format_usd_ticks(int(totals.get('cost_in_usd_ticks', 0) or 0))}")
+            out.append(
+                "known_cost_ticks_lower_bound = "
+                f"{totals.get('cost_in_usd_ticks', 0) if costed_calls else 'unknown'}"
+            )
+            out.append(f"known_cost_usd_lower_bound = {known_cost_text}")
             out.append(f"costed_calls         = {totals.get('costed_call_count', 0)}")
             out.append(f"uncosted_calls       = {totals.get('uncosted_successful_call_count', 0)}")
             out.append("```")
@@ -10120,13 +10488,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"factual decisions generated: **{strategy.get('generated_factual_claim_count', 0)}**."
     )
     out.append(
-        f"Evidence packet retrieval for generated decisions average/max/none: **"
+        f"Trusted facts supplied to generated decisions average/max/none: **"
         f"{round(strategy['generated_average_retrieved_packet_count'], 2) if strategy.get('generated_average_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_maximum_retrieved_packet_count') if strategy.get('generated_maximum_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_no_retrieved_packets_count', 0)}**."
     )
     out.append(
-        f"AI-first evidence references generated average/max/none: **"
+        f"Facts actually referenced/used by generated decisions, when known, average/max/none: **"
         f"{round(strategy['generated_average_evidence_reference_count'], 2) if strategy.get('generated_average_evidence_reference_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_maximum_evidence_reference_count') if strategy.get('generated_maximum_evidence_reference_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_no_evidence_references_count', 0)}**."
@@ -10143,13 +10511,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"factual grounding rejections: **{strategy.get('factual_rejected_insufficient_grounding_count', 0)}**."
     )
     out.append(
-        f"Evidence packet retrieval for published/terminal decisions average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
+        f"Trusted facts supplied to published/terminal decisions average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('maximum_retrieved_packet_count') if strategy.get('maximum_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('no_retrieved_packets_count', 0)}** "
         f"(metadata unavailable: {strategy.get('retrieved_packet_metadata_unavailable_count', 0)})."
     )
     out.append(
-        f"AI-first evidence references published/terminal average/max/none: **"
+        f"Facts actually referenced/used by published/terminal decisions, when known, average/max/none: **"
         f"{round(strategy['average_evidence_reference_count'], 2) if strategy.get('average_evidence_reference_count') is not None else 'unavailable'} / "
         f"{strategy.get('maximum_evidence_reference_count') if strategy.get('maximum_evidence_reference_count') is not None else 'unavailable'} / "
         f"{strategy.get('no_evidence_references_count', 0)}** "
@@ -10180,10 +10548,21 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append("")
 
     pipeline_stages = report.get("reply_pipeline_stages") or {}
-    if pipeline_stages.get("evaluation_count"):
+    if (
+        pipeline_stages.get("tested_pipeline_decision_count")
+        or pipeline_stages.get("evaluation_count")
+    ):
         out.append("## Tested reply-pipeline stages")
         out.append(
-            f"Evaluations: **{pipeline_stages.get('evaluation_count', 0)}**; "
+            f"Tested-pipeline decisions observed: **"
+            f"{pipeline_stages.get('tested_pipeline_decision_count', 0)}**; "
+            f"decisions with complete stage telemetry: **"
+            f"{pipeline_stages.get('complete_stage_telemetry_count', 0)}**; "
+            f"decisions with partial/legacy telemetry: **"
+            f"{pipeline_stages.get('partial_or_legacy_telemetry_count', 0)}**."
+        )
+        out.append(
+            f"Stage-summary events available: **{pipeline_stages.get('evaluation_count', 0)}**; "
             f"provider calls: **{compact_counts(pipeline_stages.get('provider_call_counts') or {})}**; "
             f"schema-invalid calls: **{pipeline_stages.get('schema_invalid_call_count', 0)}**."
         )
@@ -10232,6 +10611,43 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"{compact_counts(pipeline_stages.get('duplicate_repair_outcome_counts') or {})}; "
             f"final validation: {compact_counts(pipeline_stages.get('final_validation_counts') or {})}."
         )
+        out.append("")
+
+    bounded_protocol_warnings = [
+        event
+        for event in (report.get("events") or [])
+        if event.get("kind") == "quote_pagination_repeated_token"
+    ]
+    if bounded_protocol_warnings:
+        out.append("## Bounded protocol warnings")
+        out.append(
+            "Repeated quote-pagination tokens ended their individual traversal "
+            "as bounded partial successes; they are warnings, not operational failures."
+        )
+        out.append(
+            md_table_row(
+                [
+                    "time",
+                    "post ID",
+                    "token fingerprint",
+                    "pages completed",
+                    "results retained",
+                ]
+            )
+        )
+        out.append(md_table_row(["---"] * 5))
+        for event in bounded_protocol_warnings:
+            out.append(
+                md_table_row(
+                    [
+                        event.get("time", ""),
+                        event.get("post_id", ""),
+                        event.get("token_fingerprint", ""),
+                        event.get("pages_completed", ""),
+                        event.get("results_retained", ""),
+                    ]
+                )
+            )
         out.append("")
 
     stats = report["summary"].get("stats", {})
@@ -10447,12 +10863,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section(
         "reply_strategy_decision",
         "Reply strategy decisions",
-        ["time", "lane", "strategy_version", "mode", "tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "no_reply_reason"],
+        ["time", "lane", "strategy_version", "mode", "reply_requirement", "route_source", "tone", "evidence_confidence", "trusted_facts_supplied_count", "used_fact_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "no_reply_reason"],
     )
     section(
         "reply_strategy_outcome",
         "Reply strategy outcomes",
-        ["time", "status", "lane", "target_id", "reply_post_id", "strategy_version", "mode", "tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "failure_reason"],
+        ["time", "status", "lane", "target_id", "reply_post_id", "strategy_version", "mode", "reply_requirement", "route_source", "tone", "evidence_confidence", "trusted_facts_supplied_count", "used_fact_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "failure_reason"],
     )
     section(
         "reply_strategy_failure",
@@ -11041,7 +11457,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     cfg = report.get("latest_config") or {}
     if cfg:
-        out.append("## Latest config seen")
+        out.append("## Current production configuration")
+        if cfg.get("_config_source") == "mrsMThatcher.local.json":
+            out.append(
+                f"Configuration source: `{cfg.get('_config_source_path')}`; "
+                f"file timestamp: `{cfg.get('_config_source_time')}`."
+            )
         if cfg.get("_carried_forward"):
             out.append("Config source: carried forward from previous digest state.")
         elif cfg.get("_carried_from_log_backscan"):
@@ -11056,7 +11477,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         elif cfg.get("_filled_from_previous"):
             out.append("Config source: current window plus missing values from previous digest state.")
         keep = [
-            "MAX_AUTO_REPLIES_PER_DAY", "MAX_QUOTE_REPLIES_PER_DAY", "MIN_SECONDS_BETWEEN_REPLIES",
+            "MAX_AUTO_REPLIES_PER_DAY", "MAX_REPLIES_PER_AUTHOR_PER_DAY", "MAX_QUOTE_REPLIES_PER_DAY", "MIN_SECONDS_BETWEEN_REPLIES",
             "REPLY_CHECK_EVERY_SECONDS", "MAX_MENTIONS_PER_CHECK", "MENTIONS_MAX_PAGES_PER_CHECK",
             "QUOTE_CHECK_EVERY_SECONDS", "QUOTE_LOOKUP_API_MAX_RESULTS", "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
             "QUOTE_CHECK_SPACING_RETRY_SECONDS", "ENABLE_HOT_POST_REPLY_CHECKS",
@@ -11076,6 +11497,18 @@ def render_markdown(report: Dict[str, Any]) -> str:
             if k in cfg:
                 out.append(f"{k}={cfg[k]}")
         out.append("```")
+        out.append("")
+    else:
+        runtime_config_status = report.get("runtime_config_status") or {}
+        out.append("## Current production configuration")
+        out.append(
+            "Current production configuration: **unavailable** "
+            f"(`{runtime_config_status.get('status') or 'not read'}`; "
+            f"source `{runtime_config_status.get('path') or 'unavailable'}`)."
+        )
+        out.append(
+            "No digest resume snapshot or historical startup log is used as current configuration."
+        )
         out.append("")
 
     return "\n".join(out)
@@ -11365,18 +11798,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     veto_section = report.setdefault("quote_image_semantic_veto_shadow", {"events": [], "summary": {}})
     veto_section["runtime_summary"] = quote_image_semantic_veto_shadow_snapshot(project_dir)
 
-    authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
-    if (
-        authoritative_state is not None
-        and (report_window_end is None or authoritative_state_ts is None or authoritative_state_ts <= report_window_end)
-    ):
-        report["latest_state"] = summarize_latest_state(
-            authoritative_state,
-            authoritative_state_ts,
-            source="bot_state.json",
-            source_path=authoritative_state_path,
-        )
-
     # v5: if this incremental window has no startup Config lines, scan earlier
     # records in the same log files for the most recent Config values before
     # the window. This avoids "5 / ?" budget output after quiet windows, even
@@ -11394,8 +11815,42 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
 
     if not args.no_state and not args.reset_state:
         apply_saved_context(report, state_file, window_end=report_window_end)
-    else:
-        refresh_derived(report)
+
+    historical_state = report.get("latest_state")
+    if isinstance(historical_state, dict) and historical_state:
+        report["historical_log_state_snapshot"] = dict(historical_state)
+    historical_config = report.get("latest_config")
+    if isinstance(historical_config, dict) and historical_config:
+        report["historical_log_config_snapshot"] = dict(historical_config)
+
+    runtime_state, runtime_state_path, runtime_state_ts, runtime_state_status = (
+        load_current_runtime_state(project_dir)
+    )
+    report["runtime_state_status"] = {
+        "status": runtime_state_status,
+        "path": str(runtime_state_path),
+    }
+    report["latest_state"] = (
+        summarize_latest_state(
+            runtime_state,
+            runtime_state_ts,
+            source="bot_state.json",
+            source_path=runtime_state_path,
+        )
+        if runtime_state is not None
+        else {}
+    )
+
+    runtime_config, runtime_config_path, runtime_config_ts, runtime_config_status = (
+        load_current_runtime_config(project_dir)
+    )
+    report["runtime_config_status"] = {
+        "status": runtime_config_status,
+        "path": str(runtime_config_path),
+        "time": dt_text(runtime_config_ts) if runtime_config_ts else None,
+    }
+    report["latest_config"] = runtime_config or {}
+    refresh_derived(report)
 
     if not records:
         report["saved_last_log_entry_time"] = dt_text(since) if since else None

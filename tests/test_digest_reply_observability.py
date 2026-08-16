@@ -571,7 +571,7 @@ def test_ai_first_events_report_native_modes_tones_and_reviewer_separately():
     rendered = digest.render_markdown(report)
     assert "ai-first-reply-v2" in rendered
     assert "direct_factual_answer" in rendered
-    assert "AI-first evidence references" in rendered
+    assert "Facts actually referenced/used" in rendered
     assert "Generated tones:" in rendered
     assert "Published/terminal tones:" in rendered
     assert "humour tones" not in rendered
@@ -1044,7 +1044,7 @@ def test_conversational_ai_cost_is_attributed_by_candidate_outcome_and_stage():
     assert by_stage["reviewer"]["known_cost_in_usd_ticks"] == 40_000_000
 
     rendered = digest.render_markdown(report)
-    assert "Provider-reported cost: US$0.04500000" in rendered
+    assert "Provider-reported known cost lower bound: US$0.04500000" in rendered
     assert "Mean provider cost per AI-reviewed candidate: **US$0.01500000**" in rendered
     assert "Effective provider cost per published conversational reply" in rendered
     assert "posting failed" in rendered
@@ -1167,7 +1167,7 @@ def test_exact_duplicate_terminal_accounting_reconciles_headline_and_costs():
         for counts in strategy["mode_counts_by_lane"].values()
     ) == 21
     assert sum(strategy["humour_tone_counts"].values()) == 21
-    assert strategy["grounding_metadata_unavailable_count"] == 21
+    assert strategy["grounding_metadata_unavailable_count"] == 0
     assert strategy["factual_claim_metadata_unavailable_count"] == 0
     assert strategy["no_retrieved_packets_count"] == 21
     assert strategy["retrieved_packet_metadata_unavailable_count"] == 0
@@ -1190,6 +1190,7 @@ def test_exact_duplicate_terminal_accounting_reconciles_headline_and_costs():
         "observed_successful_calls": 2,
         "total_tokens": 239,
         "known_cost_in_usd_ticks": 41_000_000,
+        "costed_successful_calls": 2,
         "uncosted_successful_calls": 0,
     }
     assert all(
@@ -1266,9 +1267,9 @@ def test_conversational_ai_missing_usage_and_cost_are_not_reported_as_zero():
     assert stages["reviewer"]["uncosted_successful_calls"] == 1
 
     rendered = digest.render_markdown(report)
-    assert "Known provider-reported cost (lower bound): US$0.00100000" in rendered
+    assert "Provider-reported known cost lower bound: US$0.00100000" in rendered
     assert "Exact per-candidate and effective-per-published-reply averages are unavailable" in rendered
-    assert "| unavailable | 0 | xAI | reviewer | grok-4.3 | unavailable |" in rendered
+    assert "| unknown | 0 | xAI | reviewer | grok-4.3 | unknown |" in rendered
 
 
 def test_conversational_usage_without_matching_call_start_is_incomplete():
@@ -1314,7 +1315,7 @@ def test_conversational_usage_without_matching_call_start_is_incomplete():
     )
     rendered = digest.render_markdown(report)
     assert "successful_usage_without_call_start" in rendered
-    assert "Known provider-reported cost (lower bound)" in rendered
+    assert "Provider-reported known cost lower bound" in rendered
 
 
 def test_xai_stage_and_usd_helpers_are_deterministic():

@@ -288,8 +288,8 @@ REPLY_EVALUATION_MAX_RECORDS = 25_000
 ENABLE_AUTO_REPLIES = True
 
 REPLY_CHECK_EVERY_SECONDS = 900
-MAX_AUTO_REPLIES_PER_DAY = 24
-MAX_REPLIES_PER_AUTHOR_PER_DAY = 3
+MAX_AUTO_REPLIES_PER_DAY = 48
+MAX_REPLIES_PER_AUTHOR_PER_DAY = 6
 CLARIFICATION_REPLY_WINDOW_SECONDS = 24 * 60 * 60
 MAX_MENTIONS_PER_CHECK = 5
 MENTIONS_MAX_PAGES_PER_CHECK = 3
@@ -5641,19 +5641,23 @@ def x_paginated_get(
     max_pages: int,
     label: str,
     on_invalid_cursor=None,
+    on_repeated_cursor=None,
 ) -> dict:
     """
     Read bounded pages from an X API collection endpoint.
 
     A cursor-specific HTTP 400 gets one recovery from the original collection
     head. The caller clears its durable saved cursor before that retry. Other
-    client errors remain fail-closed. A repeated token is rejected before it
-    can be requested twice or persisted as a continuation.
+    client errors remain fail-closed. By default a repeated token is rejected
+    before it can be requested twice or persisted as a continuation. A caller
+    may instead supply ``on_repeated_cursor`` to retain the bounded partial
+    result and stop normally.
     """
     base_params = dict(params)
     recovered_invalid_cursor = False
     cursor_state_invalidated = False
     requested_tokens: set[str] = set()
+    repeated_token_detected = False
 
     def invalidate_cursor_state() -> None:
         nonlocal cursor_state_invalidated
@@ -5672,18 +5676,26 @@ def x_paginated_get(
         restart_from_head = False
 
         for page in range(1, max(1, int(max_pages)) + 1):
-            pages_fetched = page
             page_params = dict(base_params)
             if next_token:
                 page_params["pagination_token"] = next_token
             request_token = str(page_params.get("pagination_token") or "")
             if request_token:
                 if request_token in requested_tokens:
-                    invalidate_cursor_state()
-                    raise PaginationCursorProtocolError(
-                        f"X {label} repeated pagination token before request",
-                        service="x",
+                    if on_repeated_cursor is None:
+                        invalidate_cursor_state()
+                        raise PaginationCursorProtocolError(
+                            f"X {label} repeated pagination token before request",
+                            service="x",
+                        )
+                    on_repeated_cursor(
+                        request_token,
+                        pages_fetched,
+                        len(combined["data"]),
                     )
+                    repeated_token_detected = True
+                    next_token = ""
+                    break
                 requested_tokens.add(request_token)
 
             try:
@@ -5723,6 +5735,7 @@ def x_paginated_get(
                 raise ApiError(f"X {label} returned malformed paginated response media", service="x")
             if not isinstance(meta, dict):
                 raise ApiError(f"X {label} returned malformed paginated response meta", service="x")
+            pages_fetched = page
             combined["data"].extend(page_data)
 
             for user in users:
@@ -5745,11 +5758,20 @@ def x_paginated_get(
                 bool(next_token),
             )
             if next_token and next_token in requested_tokens:
-                invalidate_cursor_state()
-                raise PaginationCursorProtocolError(
-                    f"X {label} returned a repeated pagination token",
-                    service="x",
+                if on_repeated_cursor is None:
+                    invalidate_cursor_state()
+                    raise PaginationCursorProtocolError(
+                        f"X {label} returned a repeated pagination token",
+                        service="x",
+                    )
+                on_repeated_cursor(
+                    next_token,
+                    pages_fetched,
+                    len(combined["data"]),
                 )
+                repeated_token_detected = True
+                next_token = ""
+                break
             if not next_token:
                 break
 
@@ -5766,9 +5788,10 @@ def x_paginated_get(
         combined["includes"] = includes
     combined["_pagination"] = {
         "pages_fetched": pages_fetched,
-        "truncated": bool(next_token),
+        "truncated": bool(next_token) or repeated_token_detected,
         "next_token": next_token or None,
         "invalid_cursor_recovered": recovered_invalid_cursor,
+        "repeated_token_detected": repeated_token_detected,
     }
     if next_token:
         log.warning(
@@ -18376,9 +18399,15 @@ def pending_ai_reply(
         "strategy_version": validated["strategy_version"],
         "mode": validated["mode"],
         "tone": validated["tone"],
+        "final_reply_kind": validated.get(
+            "final_reply_kind", validated.get("mode", "opinion_or_principle")
+        ),
+        "reply_requirement": validated.get("reply_requirement"),
+        "route_source": validated.get("route_source"),
+        "claim_risk_categories": validated.get("claim_risk_categories", []),
         "confidence": "approved",
         "factual_claim_count": len(validated["factual_claims"]),
-        "evidence_ids": validated["evidence_ids"],
+        "evidence_ids": validated.get("evidence_ids"),
         "reviewer_verdict": validated["reviewer_verdict"],
         "model_call_count": validated["model_call_count"],
         "revision_count": validated["revision_count"],
@@ -18399,13 +18428,27 @@ def ai_reply_evidence_telemetry(reply: object) -> dict[str, object]:
     if isinstance(metadata, dict) and all(
         field in metadata for field in telemetry_fields
     ):
-        return {field: metadata[field] for field in telemetry_fields}
+        return {
+            field: metadata.get(field)
+            for field in (
+                *telemetry_fields,
+                "trusted_facts_supplied_count",
+                "trusted_fact_ids_supplied",
+                "used_fact_count",
+                "used_fact_ids",
+            )
+            if field in metadata
+        }
     draft = getattr(reply, "draft_record", reply)
     if not isinstance(draft, dict):
         return {
             "evidence_confidence": "unavailable",
             "retrieved_count": None,
             "evidence_reference_count": None,
+            "trusted_facts_supplied_count": None,
+            "trusted_fact_ids_supplied": None,
+            "used_fact_count": "unknown",
+            "used_fact_ids": None,
         }
     try:
         return current_ai_reply_evidence_telemetry(draft)
@@ -18414,6 +18457,10 @@ def ai_reply_evidence_telemetry(reply: object) -> dict[str, object]:
             "evidence_confidence": "unavailable",
             "retrieved_count": None,
             "evidence_reference_count": None,
+            "trusted_facts_supplied_count": None,
+            "trusted_fact_ids_supplied": None,
+            "used_fact_count": "unknown",
+            "used_fact_ids": None,
         }
 
 
@@ -18442,6 +18489,10 @@ def log_ai_reply_dry_run(*, context: dict[str, object], reply: str, lane: str, t
         ).hexdigest(),
         strategy_version=metadata.get("strategy_version"),
         mode=metadata.get("mode"),
+        final_reply_kind=metadata.get("final_reply_kind"),
+        reply_requirement=metadata.get("reply_requirement"),
+        route_source=metadata.get("route_source"),
+        claim_risk_categories=metadata.get("claim_risk_categories", []),
         tone=metadata.get("tone"),
         factual_claim_count=metadata.get("factual_claim_count"),
         evidence_ids=metadata.get("evidence_ids", []),
@@ -18474,6 +18525,10 @@ def log_ai_reply_posting_outcome(
         reply_post_id="",
         strategy_version=metadata.get("strategy_version"),
         mode=metadata.get("mode"),
+        final_reply_kind=metadata.get("final_reply_kind"),
+        reply_requirement=metadata.get("reply_requirement"),
+        route_source=metadata.get("route_source"),
+        claim_risk_categories=metadata.get("claim_risk_categories", []),
         tone=metadata.get("tone"),
         factual_claim_count=metadata.get("factual_claim_count"),
         evidence_ids=metadata.get("evidence_ids", []),
@@ -18695,6 +18750,7 @@ def generate_ai_first_reply(
             recent_replies=recent_replies,
             media_context=media_context,
         )
+        pipeline_stage_telemetry = stage_telemetry(result.audit)
         log_event(
             "ai_reply_pipeline_stage_summary",
             lane=lane,
@@ -18704,7 +18760,7 @@ def generate_ai_first_reply(
             terminal_reason=result.reason,
             model_call_count=result.model_call_count,
             revision_count=result.revision_count,
-            **stage_telemetry(result.audit),
+            **pipeline_stage_telemetry,
         )
         if result.reply is None:
             log.info(
@@ -18722,13 +18778,29 @@ def generate_ai_first_reply(
                 status=result.status,
                 strategy_version=STRATEGY_VERSION,
                 mode="no_reply",
+                final_reply_kind="no_reply",
+                reply_requirement=pipeline_stage_telemetry.get("reply_requirement"),
+                route_source=pipeline_stage_telemetry.get("route_source"),
+                claim_risk_categories=pipeline_stage_telemetry.get(
+                    "claim_risk_categories", []
+                ),
                 proposer_mode="not_applicable",
-                tone="none",
+                tone="unknown",
                 factual_claim_count=0,
-                evidence_ids=[],
+                evidence_ids=None,
                 evidence_confidence="none",
-                retrieved_count=None,
+                retrieved_count=pipeline_stage_telemetry.get(
+                    "trusted_facts_supplied_count", 0
+                ),
                 evidence_reference_count=0,
+                trusted_facts_supplied_count=pipeline_stage_telemetry.get(
+                    "trusted_facts_supplied_count", 0
+                ),
+                trusted_fact_ids_supplied=pipeline_stage_telemetry.get(
+                    "trusted_fact_ids_supplied", []
+                ),
+                used_fact_count=0,
+                used_fact_ids=[],
                 reviewer_verdict="pipeline_no_reply",
                 terminal_stage=result.reason,
                 claim_auditor_status="recorded_in_pipeline_audit",
@@ -18749,6 +18821,10 @@ def generate_ai_first_reply(
             status="approved",
             strategy_version=metadata["strategy_version"],
             mode=metadata["mode"],
+            final_reply_kind=metadata.get("final_reply_kind"),
+            reply_requirement=metadata.get("reply_requirement"),
+            route_source=metadata.get("route_source"),
+            claim_risk_categories=metadata.get("claim_risk_categories", []),
             tone=metadata["tone"],
             factual_claim_count=metadata["factual_claim_count"],
             evidence_ids=metadata["evidence_ids"],
@@ -19629,6 +19705,14 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
             reply_post_id=reply_post_id,
             strategy_version=ai_reply_draft.get("strategy_version"),
             mode=ai_reply_draft.get("mode"),
+            final_reply_kind=ai_reply_draft.get(
+                "final_reply_kind", ai_reply_draft.get("mode")
+            ),
+            reply_requirement=ai_reply_draft.get("reply_requirement"),
+            route_source=ai_reply_draft.get("route_source"),
+            claim_risk_categories=ai_reply_draft.get(
+                "claim_risk_categories", []
+            ),
             tone=ai_reply_draft.get("tone"),
             factual_claim_count=len(ai_reply_draft.get("factual_claims", [])),
             evidence_ids=ai_reply_draft.get("evidence_ids", []),
@@ -20855,7 +20939,11 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
 
     if pagination_tokens.get(post_id):
         params["pagination_token"] = pagination_tokens[post_id]
-        log.info("Quote lookup for post_id=%s resuming with pagination_token=%s", post_id, pagination_tokens[post_id])
+        log.info(
+            "Quote lookup for post_id=%s resuming with pagination_token_fingerprint=%s",
+            post_id,
+            hashlib.sha256(pagination_tokens[post_id].encode("utf-8")).hexdigest()[:16],
+        )
 
     def clear_invalid_quote_lookup_cursor() -> None:
         if state is None:
@@ -20864,6 +20952,30 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
         save_state(state, durable=True)
 
+    def retain_partial_quote_lookup(
+        repeated_token: str,
+        pages_completed: int,
+        results_retained: int,
+    ) -> None:
+        token_fingerprint = hashlib.sha256(
+            repeated_token.encode("utf-8")
+        ).hexdigest()[:16]
+        log.warning(
+            "Quote pagination stopped after repeated token post_id=%s "
+            "token_fingerprint=%s pages_completed=%d results_retained=%d",
+            post_id,
+            token_fingerprint,
+            pages_completed,
+            results_retained,
+        )
+        log_event(
+            "quote_pagination_repeated_token",
+            post_id=post_id,
+            token_fingerprint=token_fingerprint,
+            pages_completed=pages_completed,
+            results_retained=results_retained,
+        )
+
     result = x_paginated_get(
         x_quote_lookup_request,
         f"/2/tweets/{post_id}/quote_tweets",
@@ -20871,6 +20983,7 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         max_pages=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
         label=f"quote tweets for {post_id}",
         on_invalid_cursor=clear_invalid_quote_lookup_cursor,
+        on_repeated_cursor=retain_partial_quote_lookup,
     )
     pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
     if state is not None:

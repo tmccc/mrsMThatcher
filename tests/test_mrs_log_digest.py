@@ -1030,6 +1030,104 @@ def test_carried_forward_state_without_timestamp_has_unknown_age():
     assert "snapshot auto replies used  = 7 / 12" in rendered
 
 
+def test_current_runtime_state_fresh_absent_and_malformed(tmp_path):
+    state_path = tmp_path / "bot_state.json"
+
+    state, path, timestamp, status = digest.load_current_runtime_state(tmp_path)
+    assert state is None
+    assert path == state_path
+    assert timestamp is None
+    assert status == "absent"
+
+    state_path.write_text("not json", encoding="utf-8")
+    state, _path, timestamp, status = digest.load_current_runtime_state(tmp_path)
+    assert state is None
+    assert timestamp is None
+    assert status.startswith("malformed:")
+
+    state_path.write_text(
+        json.dumps(
+            {
+                "daily_reply_count": 4,
+                "daily_quote_reply_count": 2,
+                "daily_reply_date": "2026-08-16",
+            }
+        ),
+        encoding="utf-8",
+    )
+    state, _path, timestamp, status = digest.load_current_runtime_state(tmp_path)
+    assert status == "available"
+    assert state["daily_reply_count"] == 4
+    assert timestamp is not None
+
+
+def test_digest_resume_state_never_falls_back_as_current_runtime_state(tmp_path):
+    resume_path = tmp_path / "digest-resume.json"
+    resume_path.write_text(
+        json.dumps(
+            {
+                "last_log_entry_time": "2026-08-07 12:00:00",
+                "last_known_latest_state": {
+                    "time": "2026-08-07 12:00:00",
+                    "daily_reply_count": 999,
+                    "next_reply_lane_priority": "quote",
+                },
+                "last_known_latest_config": {
+                    "MAX_AUTO_REPLIES_PER_DAY": "999"
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = digest.analyse([])
+    report["latest_state"] = {}
+    report["latest_config"] = {}
+
+    digest.apply_saved_context(report, resume_path)
+
+    assert report["latest_state"] == {}
+    assert report["latest_config"] == {}
+    assert report["historical_retained_state"]["daily_reply_count"] == 999
+    assert report["historical_retained_config"]["MAX_AUTO_REPLIES_PER_DAY"] == "999"
+    report["runtime_state_status"] = {
+        "status": "absent",
+        "path": str(tmp_path / "bot_state.json"),
+    }
+    report["runtime_config_status"] = {
+        "status": "absent",
+        "path": str(tmp_path / "mrsMThatcher.local.json"),
+    }
+    rendered = digest.render_markdown(report)
+    assert "Current bot runtime state: **unavailable**" in rendered
+    assert "daily_reply_count       = 999" not in rendered
+    assert "MAX_AUTO_REPLIES_PER_DAY=999" not in rendered
+
+
+def test_current_runtime_config_is_allow_listed_and_validated(tmp_path):
+    config_path = tmp_path / "mrsMThatcher.local.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "MAX_AUTO_REPLIES_PER_DAY": 48,
+                "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
+                "MAX_QUOTE_REPLIES_PER_DAY": 12,
+                "OPENAI_API_KEY": "must-not-appear",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config, path, timestamp, status = digest.load_current_runtime_config(tmp_path)
+
+    assert status == "available"
+    assert path == config_path
+    assert timestamp is not None
+    assert config["MAX_AUTO_REPLIES_PER_DAY"] == 48
+    assert config["MAX_REPLIES_PER_AUTHOR_PER_DAY"] == 6
+    assert config["MAX_QUOTE_REPLIES_PER_DAY"] == 12
+    assert "OPENAI_API_KEY" not in config
+
+
 def test_reply_accounting_reconciles_terminal_local_rejections_and_timeout_wrapper():
     def event_row(offset: int, payload: dict) -> digest.Record:
         return record(
@@ -1225,6 +1323,311 @@ def test_lone_x_transient_failure_is_observed_without_claiming_resolution():
     rendered = digest.render_markdown(report)
     assert "Provider recovery is unverified" in rendered
     assert "historically resolved incidents" in rendered
+
+
+def test_x_429_and_cooldown_are_one_resolved_incident_after_later_success():
+    records = [
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_quote_tweets",
+            traceback(
+                "Failed to fetch quote tweets for post 900",
+                'ApiError: X bearer API error 429: {"status":429}',
+            ),
+        ),
+        record(
+            1,
+            "ERROR",
+            "record_api_error",
+            "Entering API cooldown after 429 until 2026-07-25 09:01:00",
+        ),
+        record(120, "INFO", "get_mentions", "Fetched 0 mentions"),
+    ]
+
+    health = digest.analyse(records)["error_health"]
+
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "x_api_rate_limit"
+    assert incident["record_count"] == 2
+    assert incident["resolution_reason"] == (
+        "cooldown deadline passed and later successful X activity was observed"
+    )
+
+
+def test_active_x_429_cooldown_remains_one_current_incident():
+    records = [
+        record(
+            0,
+            "ERROR",
+            "x_request",
+            'X bearer API error 429: {"status":429}',
+        ),
+        record(
+            1,
+            "ERROR",
+            "record_api_error",
+            "Entering API cooldown after 429 until 2099-07-25 09:01:00",
+        ),
+    ]
+
+    health = digest.analyse(records)["error_health"]
+
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["category"] == "x_api_rate_limit"
+    assert health["current_incidents"][0]["record_count"] == 2
+
+
+def test_repeated_quote_token_event_is_warning_not_failure():
+    payload = {
+        "event": "quote_pagination_repeated_token",
+        "post_id": "900",
+        "token_fingerprint": "abc123",
+        "pages_completed": 2,
+        "results_retained": 7,
+    }
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "INFO",
+                "log_event",
+                "EVENT " + json.dumps(payload, separators=(",", ":")),
+            )
+        ]
+    )
+
+    assert report["error_health"]["current_independent_incident_count"] == 0
+    assert report["events"][0]["kind"] == "quote_pagination_repeated_token"
+    rendered = digest.render_markdown(report)
+    assert "## Bounded protocol warnings" in rendered
+    assert "warnings, not operational failures" in rendered
+
+
+def test_prefixed_quote_pagination_traceback_stays_visible_but_resolves():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "ERROR",
+                "maybe_reply_to_quote_tweets",
+                traceback(
+                    "Failed to fetch quote tweets for post 900",
+                    "PaginationCursorProtocolError: X quote tweets for 900 "
+                    "returned a repeated pagination token",
+                ),
+            ),
+            record(
+                60,
+                "INFO",
+                "get_quote_tweets_for_post",
+                "Fetched 0 quote tweet(s) for post_id=901",
+            ),
+        ]
+    )
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "quote_pagination_protocol_anomaly"
+    assert incident["traceback_count"] == 1
+    assert "PaginationCursorProtocolError" in report["errors_and_warnings"][0]["message"]
+
+
+def test_tested_pipeline_coverage_counts_decisions_and_stage_telemetry():
+    version = "tested-reply-pipeline-20260816"
+    events = [
+        {
+            "kind": "reply_strategy_decision",
+            "strategy_version": version,
+            "lane": "mention",
+            "target_id": str(index),
+        }
+        for index in range(10)
+    ]
+    events.extend(
+        {
+            "kind": "reply_pipeline_stage_summary",
+            "strategy_version": version,
+            "lane": "mention",
+            "target_id": str(index),
+            "provider_call_counts": {"xAI": 1, "OpenAI": 1},
+        }
+        for index in range(3)
+    )
+
+    summary = digest.reply_pipeline_stage_summary(events)
+
+    assert summary["tested_pipeline_decision_count"] == 10
+    assert summary["complete_stage_telemetry_count"] == 3
+    assert summary["partial_or_legacy_telemetry_count"] == 7
+    assert summary["evaluation_count"] == 3
+
+
+def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
+    payload = {
+        "event": "ai_reply_pipeline_decision",
+        "status": "approved",
+        "strategy_version": "tested-reply-pipeline-20260816",
+        "lane": "mention",
+        "target_id": "100",
+        "mode": "factual",
+        "final_reply_kind": "factual",
+        "tone": "unknown",
+        "reply_requirement": "supported_factual",
+        "route_source": "supported_authentication_route",
+        "trusted_facts_supplied_count": 2,
+        "trusted_fact_ids_supplied": ["fact-1", "fact-2"],
+        "used_fact_count": "unknown",
+        "used_fact_ids": None,
+        "claim_risk_categories": ["quotation_or_source"],
+        "model_call_count": 5,
+    }
+
+    report = digest.analyse(
+        [record(0, "INFO", "log_event", "EVENT " + json.dumps(payload))]
+    )
+    decision = next(
+        event
+        for event in report["events"]
+        if event["kind"] == "reply_strategy_decision"
+    )
+
+    assert decision["final_reply_kind"] == "factual"
+    assert decision["tone"] == "unknown"
+    assert decision["trusted_facts_supplied_count"] == 2
+    assert decision["trusted_fact_ids_supplied"] == ["fact-1", "fact-2"]
+    assert decision["used_fact_count"] == "unknown"
+    assert decision["evidence_reference_count"] is None
+    assert decision["grounded"] is None
+
+
+def test_provider_cost_unknown_zero_nonzero_and_lower_bound_average():
+    usage = [
+        {
+            "provider": "OpenAI",
+            "stage": "review",
+            "lane": "mention",
+            "context_id": "1",
+            "cost_in_usd_ticks": None,
+        },
+        {
+            "provider": "xAI",
+            "stage": "gate",
+            "lane": "mention",
+            "context_id": "2",
+            "cost_in_usd_ticks": 0,
+        },
+        {
+            "provider": "xAI",
+            "stage": "gate",
+            "lane": "mention",
+            "context_id": "3",
+            "cost_in_usd_ticks": 10,
+        },
+    ]
+    reply_events = [
+        {
+            "kind": "reply_strategy_decision",
+            "lane": "mention",
+            "target_id": str(index),
+            "model_call_count": 1,
+        }
+        for index in range(1, 4)
+    ]
+
+    totals = digest.xai_usage_totals(usage)
+    summary = digest.xai_reply_cost_summary(usage, reply_events)
+
+    assert totals["cost_in_usd_ticks"] == 10
+    assert totals["costed_call_count"] == 2
+    assert totals["uncosted_successful_call_count"] == 1
+    assert summary["known_cost_in_usd_ticks"] == 10
+    assert summary["known_cost_per_costed_call"] == {"ticks": 10, "divisor": 2}
+    openai = next(row for row in summary["providers"] if row["provider"] == "OpenAI")
+    known_zero = next(
+        row for row in summary["candidates"] if row["context_id"] == "2"
+    )
+    assert digest.format_reported_cost(openai) == "unknown"
+    assert digest.format_reported_cost(known_zero) == digest.format_usd_ticks(0)
+
+
+@pytest.mark.parametrize(
+    ("terminal_event", "expected"),
+    [
+        ({"status": "no_reply", "reason": "claim_auditor_detected_unresolved_factual_claim"}, "pipeline_failed"),
+        ({"status": "no_reply", "reason": "revision_limit_reached"}, "pipeline_failed"),
+        ({"status": "no_reply", "reason": "editorial_no_reply", "mode": "no_reply"}, "deliberately_declined"),
+    ],
+)
+def test_terminal_outcome_overrides_provisional_approval(terminal_event, expected):
+    base = {
+        "kind": "reply_strategy_decision",
+        "lane": "mention",
+        "target_id": "100",
+        "model_call_count": 1,
+        "status": "approved",
+        "mode": "opinion_or_principle",
+        "time": "2026-07-25 09:00:00",
+    }
+    terminal = {
+        **base,
+        **terminal_event,
+        "time": "2026-07-25 09:01:00",
+    }
+
+    result = digest.xai_reply_cost_summary([], [base, terminal])
+
+    assert result["candidates"][0]["outcome"] == expected
+
+
+def test_published_confirmation_overrides_terminal_pipeline_failure():
+    events = [
+        {
+            "kind": "reply_strategy_decision",
+            "lane": "mention",
+            "target_id": "100",
+            "model_call_count": 1,
+            "status": "no_reply",
+            "reason": "revision_limit_reached",
+        },
+        {
+            "kind": "reply_strategy_outcome",
+            "lane": "mention",
+            "target_id": "100",
+            "status": "confirmed",
+            "reply_post_id": "900",
+            "model_call_count": 1,
+        },
+    ]
+
+    result = digest.xai_reply_cost_summary([], events)
+
+    assert result["candidates"][0]["outcome"] == "published"
+
+
+def test_genuinely_approved_without_terminal_evidence_remains_unresolved():
+    result = digest.xai_reply_cost_summary(
+        [],
+        [
+            {
+                "kind": "reply_strategy_decision",
+                "lane": "mention",
+                "target_id": "100",
+                "model_call_count": 1,
+                "status": "approved",
+                "mode": "opinion_or_principle",
+            }
+        ],
+    )
+
+    assert result["candidates"][0]["outcome"] == (
+        "approved_not_confirmed_in_window"
+    )
 
 
 def test_conversational_strategy_reply_count_is_pluralised():

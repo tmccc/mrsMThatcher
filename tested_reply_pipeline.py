@@ -616,6 +616,10 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
         "duplicate_repair_called": False,
         "duplicate_repair_outcome": None,
         "final_validation": None,
+        "trusted_facts_supplied_count": 0,
+        "trusted_fact_ids_supplied": [],
+        "reply_requirement": None,
+        "route_source": None,
     }
 
     claim_categories: set[str] = set()
@@ -630,6 +634,20 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
             telemetry["deterministic_suppressed"] = row.get("suppressed") is True
             reason = row.get("reason")
             telemetry["deterministic_reason"] = str(reason) if reason else None
+        elif stage == "pipeline_inputs":
+            count = row.get("trusted_facts_supplied_count")
+            telemetry["trusted_facts_supplied_count"] = (
+                count if type(count) is int and count >= 0 else 0
+            )
+            supplied_ids = row.get("trusted_fact_ids_supplied")
+            telemetry["trusted_fact_ids_supplied"] = (
+                sorted({str(value) for value in supplied_ids if str(value)})
+                if isinstance(supplied_ids, list)
+                else []
+            )
+        elif stage == "routing_outcome":
+            telemetry["reply_requirement"] = row.get("reply_requirement")
+            telemetry["route_source"] = row.get("route_source")
         elif stage == "xai_gate_decision" and row.get("decision") in {"reply", "no_reply"}:
             telemetry["xai_gate_decision"] = row["decision"]
         elif stage == "reply_necessity_resolution":
@@ -685,6 +703,38 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
     telemetry["schema_invalid_stages"] = sorted(set(telemetry["schema_invalid_stages"]))
     telemetry["claim_risk_categories"] = sorted(claim_categories)
     return telemetry
+
+
+_COURTESY_CUES: Final[tuple[str, ...]] = (
+    "thank you",
+    "thanks",
+    "well said",
+    "quite right",
+    "hear hear",
+    "bravo",
+    "good point",
+    "nicely put",
+    "👏",
+    "👍",
+    "❤",
+    "🙏",
+)
+
+
+def classify_reply_kind(
+    context: dict[str, Any],
+    reply_requirement: str | None,
+    proposed_reply: str,
+) -> str:
+    """Classify approved prose conservatively without another model call."""
+    if reply_requirement == "supported_factual":
+        return "factual"
+    if proposed_reply.rstrip().endswith("?"):
+        return "clarification"
+    incoming = str(context.get("incoming_contribution") or "").casefold()
+    if any(cue in incoming for cue in _COURTESY_CUES):
+        return "courtesy"
+    return "opinion_or_principle"
 
 
 def default_config() -> dict[str, Any]:
@@ -944,7 +994,16 @@ def run_reply_pipeline(
         "trusted_facts": trusted_facts,
         "media_context": media,
     }
-    audit: list[dict[str, Any]] = []
+    trusted_fact_ids = sorted({
+        str(item.get("evidence_id"))
+        for item in trusted_facts
+        if item.get("evidence_id")
+    })
+    audit: list[dict[str, Any]] = [{
+        "stage": "pipeline_inputs",
+        "trusted_facts_supplied_count": len(trusted_facts),
+        "trusted_fact_ids_supplied": trusted_fact_ids,
+    }]
     call_count = 0
 
     def invoke(
@@ -987,6 +1046,11 @@ def run_reply_pipeline(
     policies = policy_result(clean_context)
     audit.append({"stage": "A_B_C", **policies})
     if policies["suppressed"]:
+        audit.append({
+            "stage": "routing_outcome",
+            "reply_requirement": None,
+            "route_source": "deterministic_suppression",
+        })
         return PipelineResult(None, "no_reply", str(policies["reason"]), call_count, 0, tuple(audit))
 
     gate = invoke(
@@ -1062,7 +1126,18 @@ def run_reply_pipeline(
                 provisional, route_source = False, "unsupported_authentication_suppression"
 
     if not provisional:
+        audit.append({
+            "stage": "routing_outcome",
+            "reply_requirement": reply_requirement,
+            "route_source": route_source,
+        })
         return PipelineResult(None, "no_reply", route_source, call_count, 0, tuple(audit))
+
+    audit.append({
+        "stage": "routing_outcome",
+        "reply_requirement": reply_requirement,
+        "route_source": route_source,
+    })
 
     writer_payload = {
         "context": model["context"], "recent_replies": recent, "trusted_facts": trusted_facts,
@@ -1157,8 +1232,13 @@ def run_reply_pipeline(
     if final_rejection:
         return PipelineResult(None, "no_reply", f"final_validation:{final_rejection}", call_count, revisions, tuple(audit))
 
-    factual_claims = detect_claim_risk(candidate, reply_requirement)["matched_text"]
-    evidence_ids = [str(item.get("evidence_id")) for item in trusted_facts if item.get("evidence_id")]
+    final_risk = detect_claim_risk(candidate, reply_requirement)
+    factual_claims = final_risk["matched_text"]
+    final_reply_kind = classify_reply_kind(
+        clean_context,
+        reply_requirement,
+        candidate,
+    )
     draft = {
         "schema_version": DRAFT_SCHEMA_VERSION,
         "strategy_version": STRATEGY_VERSION,
@@ -1167,19 +1247,30 @@ def run_reply_pipeline(
         "contribution_hash": hashlib.sha256(clean_context["incoming_contribution"].encode("utf-8")).hexdigest(),
         "context_hash": _hash_value(clean_context), "trusted_facts_hash": _hash_value(trusted_facts),
         "proposed_reply": candidate,
-        "mode": "direct_factual_answer" if reply_requirement == "supported_factual" else "opinion_or_principle",
-        "tone": "neutral", "factual_claims": factual_claims, "evidence_ids": evidence_ids,
+        "mode": final_reply_kind,
+        "final_reply_kind": final_reply_kind,
+        "tone": "unknown", "factual_claims": factual_claims, "evidence_ids": None,
+        "trusted_facts_supplied_count": len(trusted_facts),
+        "trusted_fact_ids_supplied": trusted_fact_ids,
+        "used_fact_count": "unknown", "used_fact_ids": None,
+        "claim_risk_categories": final_risk["categories"],
         "reviewer_verdict": "approve", "model_call_count": call_count,
         "revision_count": revisions, "reply_requirement": reply_requirement,
         "route_source": route_source, "creation_time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     draft["approval_hash"] = _hash_value(draft)
     metadata = {
-        "strategy_version": STRATEGY_VERSION, "mode": draft["mode"], "tone": "neutral",
-        "factual_claim_count": len(factual_claims), "evidence_ids": evidence_ids,
+        "strategy_version": STRATEGY_VERSION, "mode": draft["mode"],
+        "final_reply_kind": final_reply_kind, "tone": "unknown",
+        "factual_claim_count": len(factual_claims), "evidence_ids": None,
+        "reply_requirement": reply_requirement, "route_source": route_source,
+        "trusted_facts_supplied_count": len(trusted_facts),
+        "trusted_fact_ids_supplied": trusted_fact_ids,
+        "used_fact_count": "unknown", "used_fact_ids": None,
+        "claim_risk_categories": final_risk["categories"],
         "reviewer_verdict": "approve", "model_call_count": call_count,
-        "revision_count": revisions, "evidence_confidence": "local_trusted_facts" if trusted_facts else "none",
-        "retrieved_count": len(trusted_facts), "evidence_reference_count": len(evidence_ids),
+        "revision_count": revisions, "evidence_confidence": "local_trusted_facts_supplied" if trusted_facts else "none",
+        "retrieved_count": len(trusted_facts), "evidence_reference_count": None,
     }
     reply = AIReply(candidate, copy.deepcopy(draft), metadata)
     return PipelineResult(reply, "approved", "pipeline_approved", call_count, revisions, tuple(audit))
@@ -1223,10 +1314,32 @@ def validate_persisted_draft(
 
 def evidence_telemetry(record: dict[str, Any]) -> dict[str, object]:
     """Return bounded local-evidence counts for normal production telemetry."""
-    ids = record.get("evidence_ids") if isinstance(record, dict) else []
-    count = len(ids) if isinstance(ids, list) else 0
+    supplied_ids = (
+        record.get("trusted_fact_ids_supplied")
+        if isinstance(record, dict)
+        else []
+    )
+    if not isinstance(supplied_ids, list):
+        legacy_ids = record.get("evidence_ids") if isinstance(record, dict) else []
+        supplied_ids = legacy_ids if isinstance(legacy_ids, list) else []
+    supplied_count = (
+        record.get("trusted_facts_supplied_count")
+        if isinstance(record, dict)
+        else None
+    )
+    if type(supplied_count) is not int or supplied_count < 0:
+        supplied_count = len(supplied_ids)
+    new_usage_telemetry = isinstance(record, dict) and "used_fact_count" in record
+    used_fact_count = record.get("used_fact_count") if new_usage_telemetry else len(supplied_ids)
+    used_fact_ids = record.get("used_fact_ids") if new_usage_telemetry else list(supplied_ids)
     return {
-        "evidence_confidence": "local_trusted_facts" if count else "none",
-        "retrieved_count": count,
-        "evidence_reference_count": count,
+        "evidence_confidence": "local_trusted_facts_supplied" if supplied_count else "none",
+        "retrieved_count": supplied_count,
+        "evidence_reference_count": (
+            used_fact_count if type(used_fact_count) is int else None
+        ),
+        "trusted_facts_supplied_count": supplied_count,
+        "trusted_fact_ids_supplied": list(supplied_ids),
+        "used_fact_count": used_fact_count,
+        "used_fact_ids": used_fact_ids,
     }

@@ -193,6 +193,48 @@ def test_positive_social_and_brief_agreement_receive_warm_reply(text: str) -> No
     result = run(text, transport)
     assert result.status == "approved"
     assert str(result.reply) == "Thank you — that is kind of you."
+    assert result.reply.pipeline_metadata["final_reply_kind"] == "courtesy"
+    assert result.reply.pipeline_metadata["tone"] == "unknown"
+
+
+@pytest.mark.parametrize(
+    ("text", "writer", "facts", "expected_kind"),
+    [
+        ("Could you say which point you mean?", "Which part did you have in mind?", False, "clarification"),
+        ("Did Margaret Thatcher really say this?", "The local transcript records those exact words.", True, "factual"),
+        ("Liberty also requires institutions.", "Liberty endures only when institutions remain answerable.", False, "opinion_or_principle"),
+    ],
+)
+def test_reply_kind_metadata_is_small_and_deterministic(
+    text: str,
+    writer: str,
+    facts: bool,
+    expected_kind: str,
+) -> None:
+    result = run(text, Transport(writer=writer), facts=facts)
+
+    assert result.status == "approved"
+    assert result.reply.pipeline_metadata["final_reply_kind"] == expected_kind
+    assert result.reply.pipeline_metadata["mode"] == expected_kind
+    assert result.reply.pipeline_metadata["tone"] == "unknown"
+
+
+def test_supplied_trusted_facts_are_not_reported_as_used_facts() -> None:
+    result = run(
+        "Did Margaret Thatcher really say this?",
+        Transport(writer="The local transcript records those exact words."),
+        facts=True,
+    )
+
+    metadata = result.reply.pipeline_metadata
+    assert metadata["trusted_facts_supplied_count"] == 1
+    assert metadata["trusted_fact_ids_supplied"] == ["fact-1"]
+    assert metadata["used_fact_count"] == "unknown"
+    assert metadata["used_fact_ids"] is None
+    assert metadata["evidence_reference_count"] is None
+    telemetry = pipeline.stage_telemetry(result.audit)
+    assert telemetry["trusted_facts_supplied_count"] == 1
+    assert telemetry["trusted_fact_ids_supplied"] == ["fact-1"]
 
 
 def test_literal_bare_mention_is_deterministically_suppressed_without_calls() -> None:
@@ -457,3 +499,34 @@ def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch)
     assert summary["reply_necessity_outcome"] == "confirm_no_reply"
     assert summary["terminal_reason"] == "reply_necessity_review"
     assert private_marker not in json.dumps(summary, sort_keys=True)
+    decision = events[1][1]
+    assert decision["final_reply_kind"] == "no_reply"
+    assert decision["tone"] == "unknown"
+    assert decision["used_fact_count"] == 0
+    assert decision["trusted_facts_supplied_count"] == 0
+
+
+def test_production_decision_logs_routing_kind_and_unknown_fact_use(monkeypatch) -> None:
+    import copy
+    import mrsMThatcher2 as bot
+
+    config = copy.deepcopy(pipeline.default_config())
+    config["enabled"] = True
+    result = run("Thank you!", Transport())
+    events = []
+    monkeypatch.setattr(bot, "tested_reply_pipeline", config)
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(pipeline, "run_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
+
+    assert bot.generate_ai_first_reply(context("Thank you!")) == result.reply
+
+    decision = events[-1][1]
+    assert decision["final_reply_kind"] == "courtesy"
+    assert decision["reply_requirement"] == "general"
+    assert decision["route_source"] == "xai_gate"
+    assert decision["tone"] == "unknown"
+    assert decision["trusted_facts_supplied_count"] == 0
+    assert decision["trusted_fact_ids_supplied"] == []
+    assert decision["used_fact_count"] == "unknown"
+    assert decision["used_fact_ids"] is None

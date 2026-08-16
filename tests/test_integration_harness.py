@@ -254,8 +254,8 @@ def prepare_base_dir(
         "QUOTE_REPLY_DELAY_SECONDS": 0,
         "STATE_BACKUP_COUNT": 0,
         "MAX_MENTIONS_PER_CHECK": 10,
-        "MAX_AUTO_REPLIES_PER_DAY": 24,
-        "MAX_REPLIES_PER_AUTHOR_PER_DAY": 3,
+        "MAX_AUTO_REPLIES_PER_DAY": 48,
+        "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
         "ai_first_reply_strategy": {
             "enabled": True,
             "strategy_version": "ai-first-reply-v3",
@@ -4223,7 +4223,7 @@ def test_quote_tweet_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
     assert "910" in state["replied_to_quote_post_ids"]
 
 
-@pytest.mark.parametrize(("prior_count", "expected_posts"), [(0, 1), (1, 1), (2, 1), (3, 0)])
+@pytest.mark.parametrize(("prior_count", "expected_posts"), [(0, 1), (1, 1), (5, 1), (6, 0)])
 @pytest.mark.parametrize("fake_server", ["quote_tweet_reply.json"], indirect=True)
 def test_per_author_cap_applies_to_quote_tweet_path(
     tmp_path: Path,
@@ -4249,11 +4249,11 @@ def test_per_author_cap_applies_to_quote_tweet_path(
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(fake_server.posts) == expected_posts
     state = read_json(base_dir / "bot_state.json")
-    if prior_count < 3:
+    if prior_count < 6:
         assert state["daily_replied_author_counts"]["310"] == prior_count + 1
     else:
         assert fake_server.xai_requests == []
-        assert state["daily_replied_author_counts"]["310"] == 3
+        assert state["daily_replied_author_counts"]["310"] == 6
         assert state["tweet_cache"]["910"]["post_type"] == "author_cap_quote_context"
         assert state["tweet_cache"]["910"]["referenced_tweets"] == [{"type": "quoted", "id": "900"}]
         assert state["tweet_cache"]["900"]["text"]
@@ -4273,15 +4273,15 @@ def test_grok_skip_does_not_post(tmp_path: Path, fake_server: FakeApiServer) -> 
 
 
 @pytest.mark.parametrize("fake_server", ["per_author_cap.json"], indirect=True)
-def test_per_author_cap_skips_fourth_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
+def test_per_author_cap_skips_seventh_reply(tmp_path: Path, fake_server: FakeApiServer) -> None:
     today = datetime.now().strftime("%Y-%m-%d")
     base_dir = prepare_base_dir(
         tmp_path,
         state={
             "daily_reply_date": today,
-            "daily_reply_count": 3,
+            "daily_reply_count": 6,
             "daily_replied_author_ids": ["240"],
-            "daily_replied_author_counts": {"240": 3},
+            "daily_replied_author_counts": {"240": 6},
             "last_reply_epoch": 0,
         },
     )
@@ -4467,8 +4467,8 @@ def test_daily_cap_skips_before_fetching_mentions(tmp_path: Path, fake_server: F
     today = datetime.now().strftime("%Y-%m-%d")
     base_dir = prepare_base_dir(
         tmp_path,
-        local_config={"MAX_AUTO_REPLIES_PER_DAY": 1},
-        state={"daily_reply_date": today, "daily_reply_count": 1, "last_reply_epoch": 0},
+        local_config={"MAX_AUTO_REPLIES_PER_DAY": 48},
+        state={"daily_reply_date": today, "daily_reply_count": 48, "last_reply_epoch": 0},
     )
     result = run_cycle(base_dir, fake_server)
 
@@ -5716,9 +5716,10 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "403 restriction summary" in classified_digest.stdout
     assert "503/5xx summary" in classified_digest.stdout
     assert "SELFTEST FAIL: X_CONSUMER_KEY set" in classified_digest.stdout
-    assert "MENTIONS_MAX_PAGES_PER_CHECK=3" in classified_digest.stdout
-    assert "QUOTE_LOOKUP_MAX_PAGES_PER_POST=3" in classified_digest.stdout
-    assert "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=3" in classified_digest.stdout
+    assert "MAX_MENTIONS_PER_CHECK=10" in classified_digest.stdout
+    assert "MENTIONS_MAX_PAGES_PER_CHECK=3" not in classified_digest.stdout
+    assert "QUOTE_LOOKUP_MAX_PAGES_PER_POST=3" not in classified_digest.stdout
+    assert "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=3" not in classified_digest.stdout
 
     main_post_recovery_base = prepare_base_dir(tmp_path / "digest-main-post-recovery")
     (main_post_recovery_base / "test.log").write_text(
@@ -5765,8 +5766,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "Quote cycle resets" in main_post_recovery_digest.stdout
     assert "t09.jpg" in main_post_recovery_digest.stdout
     assert "7.25" in main_post_recovery_digest.stdout
-    assert "MAX_QUOTE_IMAGE_PAIR_ATTEMPTS=25" in main_post_recovery_digest.stdout
-    assert "IMAGE_STRONG_MISMATCH_PENALTY=-10000.0" in main_post_recovery_digest.stdout
+    assert "MAX_QUOTE_IMAGE_PAIR_ATTEMPTS=25" not in main_post_recovery_digest.stdout
+    assert "IMAGE_STRONG_MISMATCH_PENALTY=-10000.0" not in main_post_recovery_digest.stdout
     assert "2 operational error(s)" not in main_post_recovery_digest.stdout
 
     regular_image_usage_base = prepare_base_dir(tmp_path / "digest-regular-image-usage")
@@ -5899,6 +5900,16 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         "\"quote_api_cooldown_until_epoch\": 0}\n",
         encoding="utf-8",
     )
+    write_json(
+        xai_cooldown_base / "bot_state.json",
+        {
+            "daily_reply_count": 0,
+            "api_cooldown_until_epoch": 0,
+            "xai_api_cooldown_until_epoch": 4102444800,
+            "xai_api_cooldown_reason": "too many xai API errors in the last hour",
+            "quote_api_cooldown_until_epoch": 0,
+        },
+    )
     xai_cooldown_digest = run_digest(xai_cooldown_base)
     assert xai_cooldown_digest.returncode == 0, xai_cooldown_digest.stderr
     assert "xAI cooldown active now" in xai_cooldown_digest.stdout
@@ -5919,6 +5930,14 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         )
         + "\n",
         encoding="utf-8",
+    )
+    write_json(
+        stale_base / "bot_state.json",
+        {
+            "daily_reply_count": 0,
+            "api_cooldown_until_epoch": 1,
+            "api_cooldown_reason": "old cooldown",
+        },
     )
     stale_digest = run_digest(stale_base)
     assert stale_digest.returncode == 0, stale_digest.stderr
@@ -5962,6 +5981,18 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         + "\n",
         encoding="utf-8",
     )
+    write_json(
+        cleared_base / "bot_state.json",
+        {
+            "daily_reply_count": 0,
+            "api_cooldown_until_epoch": 0,
+            "api_cooldown_reason": "",
+            "quote_api_cooldown_until_epoch": 0,
+            "quote_api_cooldown_reason": "",
+            "x_write_api_cooldown_until_epoch": 0,
+            "x_write_api_cooldown_reason": "",
+        },
+    )
     cleared_digest = run_digest(cleared_base, state_file=cleared_state_file)
     assert cleared_digest.returncode == 0, cleared_digest.stderr
     assert "x_read_api_cooldown_until = 0  none" in cleared_digest.stdout
@@ -5982,6 +6013,10 @@ def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_pat
             + json.dumps({"posted_meme_filenames": meme_names}),
         ],
     )
+    write_json(
+        present_base / "bot_state.json",
+        {"daily_reply_count": 1, "posted_meme_filenames": meme_names},
+    )
     present_digest = run_digest(present_base)
     assert present_digest.returncode == 0, present_digest.stderr
     assert "posted_meme_count       = 20" in present_digest.stdout
@@ -5992,6 +6027,10 @@ def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_pat
         [
             '2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: {"posted_meme_filenames": []}',
         ],
+    )
+    write_json(
+        empty_base / "bot_state.json",
+        {"daily_reply_count": 1, "posted_meme_filenames": []},
     )
     empty_digest = run_digest(empty_base)
     assert empty_digest.returncode == 0, empty_digest.stderr
@@ -6004,6 +6043,7 @@ def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_pat
             '2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: {"daily_reply_count": 1}',
         ],
     )
+    write_json(absent_base / "bot_state.json", {"daily_reply_count": 1})
     absent_digest = run_digest(absent_base)
     assert absent_digest.returncode == 0, absent_digest.stderr
     assert "posted_meme_count       = unknown (not present in latest snapshot)" in absent_digest.stdout
@@ -6030,7 +6070,7 @@ def test_digest_can_use_bot_state_for_authoritative_current_state_metrics(tmp_pa
     assert "posted_meme_count       = unknown" not in digest.stdout
 
 
-def test_digest_latest_state_ignores_authoritative_state_after_window_end(tmp_path: Path) -> None:
+def test_digest_latest_state_uses_current_runtime_state_even_after_log_window_end(tmp_path: Path) -> None:
     base = tmp_path / "digest-latest-state-window-boundary"
     window_end = "2026-07-08 06:39:38"
     future_state_ts = datetime(2026, 7, 8, 6, 39, 45).timestamp()
@@ -6070,14 +6110,13 @@ def test_digest_latest_state_ignores_authoritative_state_after_window_end(tmp_pa
     assert "0 mention replies" in digest.stdout
     assert "1 quote-tweet reply" in digest.stdout
     assert "A mention reply." not in digest.stdout
-    assert "State timestamp: `2026-07-08 05:39:35`" in digest.stdout
-    assert "daily_reply_count       = 1" in digest.stdout
+    assert "State timestamp: `2026-07-08 06:39:45` (authoritative current state" in digest.stdout
+    assert "daily_reply_count       = 2" in digest.stdout
     assert "daily_quote_reply_count = 1" in digest.stdout
-    assert "daily_reply_count       = 2" not in digest.stdout
-    assert "last_seen_mention_id    = 1000" not in digest.stdout
+    assert "last_seen_mention_id    = 1000" in digest.stdout
 
 
-def test_digest_without_until_uses_last_record_as_latest_state_boundary(tmp_path: Path) -> None:
+def test_digest_without_until_still_uses_current_runtime_state(tmp_path: Path) -> None:
     base = tmp_path / "digest-latest-state-implicit-window-boundary"
     future_state_ts = datetime(2026, 7, 8, 6, 39, 45).timestamp()
     write_digest_log(
@@ -6105,13 +6144,10 @@ def test_digest_without_until_uses_last_record_as_latest_state_boundary(tmp_path
         "Observed event window: `2026-07-08 05:39:35` → `2026-07-08 06:39:38`"
         in digest.stdout
     )
-    assert "State timestamp: `2026-07-08 05:39:35`" in digest.stdout
-    assert "daily_reply_count       = 1" in digest.stdout
+    assert "State timestamp: `2026-07-08 06:39:45` (authoritative current state" in digest.stdout
+    assert "daily_reply_count       = 2" in digest.stdout
     assert "daily_quote_reply_count = 1" in digest.stdout
-    assert "last_seen_mention_id    = 800" in digest.stdout
-    assert "daily_reply_count       = 2" not in digest.stdout
-    assert "last_seen_mention_id    = 1000" not in digest.stdout
-    assert "authoritative current state" not in digest.stdout
+    assert "last_seen_mention_id    = 1000" in digest.stdout
 
 
 def test_digest_authoritative_state_at_window_end_is_eligible(tmp_path: Path) -> None:
@@ -6143,7 +6179,7 @@ def test_digest_authoritative_state_at_window_end_is_eligible(tmp_path: Path) ->
     assert "last_seen_mention_id    = 1000" in digest.stdout
 
 
-def test_digest_saved_state_backfill_ignores_future_state_snapshot(tmp_path: Path) -> None:
+def test_digest_resume_state_never_overrides_current_runtime_state(tmp_path: Path) -> None:
     base = tmp_path / "digest-saved-state-window-boundary"
     state_file = tmp_path / "digest-state.json"
     window_end = "2026-07-08 06:39:38"
@@ -6180,23 +6216,13 @@ def test_digest_saved_state_backfill_ignores_future_state_snapshot(tmp_path: Pat
 
     digest = run_digest(base, state_file=state_file, until=window_end)
     assert digest.returncode == 0, digest.stderr
-    assert "## Latest state (stale carried-forward snapshot)" in digest.stdout
-    assert (
-        "State timestamp: `2026-07-08 05:39:35` "
-        "(carried forward from previous digest state; "
-        "stale snapshot age at window end: 1 hour 3 seconds)"
-    ) in digest.stdout
-    assert (
-        "Historical snapshot values only; the counters and schedules below "
-        "are not current."
-    ) in digest.stdout
-    assert "snapshot_daily_reply_count       = 1" in digest.stdout
-    assert "snapshot_daily_quote_reply_count = 1" in digest.stdout
-    assert "snapshot_last_seen_mention_id    = 800" in digest.stdout
-    assert "snapshot_daily_reply_count       = 2" not in digest.stdout
-    assert "snapshot_last_seen_mention_id    = 1000" not in digest.stdout
-    assert "\ndaily_reply_count       = 2" not in digest.stdout
-    assert "\nlast_seen_mention_id    = 1000" not in digest.stdout
+    assert "## Latest state (stale carried-forward snapshot)" not in digest.stdout
+    assert "State timestamp: `2026-07-08 06:39:45` (authoritative current state" in digest.stdout
+    assert "daily_reply_count       = 2" in digest.stdout
+    assert "daily_quote_reply_count = 1" in digest.stdout
+    assert "last_seen_mention_id    = 1000" in digest.stdout
+    assert "snapshot_daily_reply_count" not in digest.stdout
+    assert "snapshot_last_seen_mention_id" not in digest.stdout
 
 
 def test_digest_saved_state_backfill_rejects_future_saved_state_snapshot(tmp_path: Path) -> None:
@@ -6581,7 +6607,7 @@ def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:
     assert "completion_tokens    = 38" in digest.stdout
     assert "total_tokens         = 2423" in digest.stdout
     assert "sources_used         = 2" in digest.stdout
-    assert "cost_in_usd_ticks    = 44487000" in digest.stdout
+    assert "known_cost_ticks_lower_bound = 44487000" in digest.stdout
     assert "0 mention replies" in digest.stdout
 
 
@@ -6593,8 +6619,8 @@ def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
     assert "## Reply strategy decisions" in digest.stdout
-    assert "| time | lane | strategy_version | mode | tone | evidence_confidence | retrieved_count | evidence_reference_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | no_reply_reason |" in digest.stdout
-    assert "| 2026-07-14 12:00:00 | unavailable |  | historical_context | dry | medium | 1 |  | True | True |  |  |  |  |" in digest.stdout
+    assert "| time | lane | strategy_version | mode | reply_requirement | route_source | tone | evidence_confidence | trusted_facts_supplied_count | used_fact_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | no_reply_reason |" in digest.stdout
+    assert "| 2026-07-14 12:00:00 | unavailable |  | historical_context |  |  | dry | medium |  |  | True | True |  |  |  |  |" in digest.stdout
 
 
 def test_digest_markdown_distinguishes_principle_and_editorial_no_reply_categories(

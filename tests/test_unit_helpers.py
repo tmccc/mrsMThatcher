@@ -12988,13 +12988,13 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert bot.MAX_REPLIES_PER_AUTHOR_PER_DAY == 3
+    assert bot.MAX_REPLIES_PER_AUTHOR_PER_DAY == 6
     clock = [2_000_000_000]
     state = bot.default_state()
     state["daily_reply_date"] = datetime.fromtimestamp(clock[0]).strftime("%Y-%m-%d")
-    state["daily_reply_count"] = 3
+    state["daily_reply_count"] = 6
     state["daily_replied_author_ids"] = ["200"]
-    state["daily_replied_author_counts"] = {"200": 3}
+    state["daily_replied_author_counts"] = {"200": 6}
     state["tweet_cache"] = {
         "100": {
             "id": "100",
@@ -13036,8 +13036,8 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
-    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 3)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
     monkeypatch.setattr(bot, "now_epoch", lambda: clock[0])
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(clock[0]))
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
@@ -13752,6 +13752,126 @@ def test_paginated_get_rejects_repeated_continuation_token_a_to_b_to_a() -> None
         ("request", "B"),
         ("clear", None),
     ]
+
+
+def test_quote_lookup_repeated_saved_token_is_one_bounded_partial_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    repeated_token = "sensitive-immediate-token"
+    state = bot.default_state()
+    state["quote_lookup_pagination_tokens"] = {"900": repeated_token}
+    requests: list[str | None] = []
+    events: list[tuple[str, dict]] = []
+
+    def request(_path: str, params: dict) -> dict:
+        requests.append(params.get("pagination_token"))
+        return {
+            "data": [{"id": "100", "author_id": "200"}],
+            "meta": {"next_token": repeated_token},
+        }
+
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+    caplog.set_level(logging.WARNING)
+
+    result = bot.get_quote_tweets_for_post("900", state)
+
+    assert [item["id"] for item in result] == ["100"]
+    assert requests == [repeated_token]
+    assert state["quote_lookup_pagination_tokens"] == {}
+    assert [name for name, _fields in events] == [
+        "quote_pagination_repeated_token"
+    ]
+    fields = events[0][1]
+    assert fields == {
+        "post_id": "900",
+        "token_fingerprint": hashlib.sha256(
+            repeated_token.encode("utf-8")
+        ).hexdigest()[:16],
+        "pages_completed": 1,
+        "results_retained": 1,
+    }
+    assert sum("Quote pagination stopped" in row.message for row in caplog.records) == 1
+    assert not any(row.levelno >= logging.ERROR for row in caplog.records)
+    assert "Traceback" not in caplog.text
+    assert repeated_token not in caplog.text
+
+
+def test_quote_lookup_repeated_token_after_several_pages_preserves_all_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    next_tokens = {None: "A", "A": "B", "B": "A"}
+    requests: list[str | None] = []
+    events: list[tuple[str, dict]] = []
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        requests.append(token)
+        return {
+            "data": [{"id": str(100 + len(requests)), "author_id": "200"}],
+            "meta": {"next_token": next_tokens[token]},
+        }
+
+    monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 6)
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+
+    result = bot.get_quote_tweets_for_post("900")
+
+    assert [item["id"] for item in result] == ["101", "102", "103"]
+    assert requests == [None, "A", "B"]
+    assert len(events) == 1
+    assert events[0][0] == "quote_pagination_repeated_token"
+    assert events[0][1]["pages_completed"] == 3
+    assert events[0][1]["results_retained"] == 3
+
+
+@pytest.mark.parametrize(
+    ("responses", "expected_requests"),
+    [
+        (
+            [
+                {"data": [{"id": "100"}], "meta": {"next_token": "A"}},
+                {"data": [{"id": "101"}], "meta": {}},
+            ],
+            [None, "A"],
+        ),
+        ([{"data": [{"id": "100"}], "meta": {}}], [None]),
+    ],
+)
+def test_quote_lookup_normal_or_missing_next_token_finishes_without_warning(
+    responses: list[dict],
+    expected_requests: list[str | None],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remaining = list(responses)
+    requests: list[str | None] = []
+    events: list[str] = []
+
+    def request(_path: str, params: dict) -> dict:
+        requests.append(params.get("pagination_token"))
+        return remaining.pop(0)
+
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    monkeypatch.setattr(bot, "log_event", lambda name, **_fields: events.append(name))
+
+    result = bot.get_quote_tweets_for_post("900")
+
+    assert [item["id"] for item in result] == ["100"] + (
+        ["101"] if len(responses) == 2 else []
+    )
+    assert requests == expected_requests
+    assert events == []
 
 
 def test_mentions_invalid_saved_cursor_clears_state_and_preserves_since_id(
@@ -16461,7 +16581,8 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
         {
             "ENABLE_AUTO_REPLIES": True,
             "MIN_SECONDS_BETWEEN_REPLIES": 1800,
-            "MAX_AUTO_REPLIES_PER_DAY": 24,
+            "MAX_AUTO_REPLIES_PER_DAY": 48,
+            "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
             "MAX_QUOTE_REPLIES_PER_DAY": 12,
             "POST_SLEEP_MIN": 7200,
             "POST_SLEEP_MAX": 9000,
@@ -16470,6 +16591,7 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
             "ENABLE_AUTO_REPLIES": False,
             "MIN_SECONDS_BETWEEN_REPLIES": 1,
             "MAX_AUTO_REPLIES_PER_DAY": 2,
+            "MAX_REPLIES_PER_AUTHOR_PER_DAY": 1,
             "MAX_QUOTE_REPLIES_PER_DAY": 1,
             "POST_SLEEP_MIN": 100,
             "POST_SLEEP_MAX": 200,
@@ -16478,7 +16600,8 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
 
     assert bot.ENABLE_AUTO_REPLIES is True
     assert bot.MIN_SECONDS_BETWEEN_REPLIES == 1800
-    assert bot.MAX_AUTO_REPLIES_PER_DAY == 24
+    assert bot.MAX_AUTO_REPLIES_PER_DAY == 48
+    assert bot.MAX_REPLIES_PER_AUTHOR_PER_DAY == 6
     assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
     assert bot.POST_SLEEP_MIN == 7200
     assert bot.POST_SLEEP_MAX == 9000
@@ -16486,6 +16609,12 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
 
 def test_default_minimum_reply_spacing_is_30_minutes() -> None:
     assert bot.MIN_SECONDS_BETWEEN_REPLIES == 1800
+
+
+def test_default_reply_caps_are_48_global_6_per_author_and_12_quote() -> None:
+    assert bot.MAX_AUTO_REPLIES_PER_DAY == 48
+    assert bot.MAX_REPLIES_PER_AUTHOR_PER_DAY == 6
+    assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
 
 
 def test_local_config_can_enable_generated_image_pool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

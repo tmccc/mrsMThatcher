@@ -75,7 +75,8 @@
     "record_best_allowed_alternative": true,
     "maximum_shadow_history": 10000
   },
-  "MAX_AUTO_REPLIES_PER_DAY": 24,
+  "MAX_AUTO_REPLIES_PER_DAY": 48,
+  "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
   "MAX_QUOTE_REPLIES_PER_DAY": 12,
   "MIN_SECONDS_BETWEEN_REPLIES": 1800,
   "QUOTE_CHECK_EVERY_SECONDS": 3600,
