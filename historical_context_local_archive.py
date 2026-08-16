@@ -147,6 +147,7 @@ class LocalArchiveInventory:
     total_bytes: int
 
     def as_dict(self) -> dict[str, Any]:
+        """Return the stable inventory as a serialisable policy record."""
         return {
             "policy_version": LOCAL_ARCHIVE_POLICY_VERSION,
             "sha256": self.sha256,
@@ -159,6 +160,7 @@ class LocalArchiveMirror:
     """Map allowlisted public URLs to bounded regular files beneath one root."""
 
     def __init__(self, root: Path | str, *, maximum_bytes: int) -> None:
+        """Validate and bind one absolute local archive root and byte limit."""
         supplied = Path(root)
         if not supplied.is_absolute():
             raise LocalArchiveError("local archive root must be absolute")
@@ -175,6 +177,7 @@ class LocalArchiveMirror:
 
     @property
     def root_identity_sha256(self) -> str:
+        """Return a non-disclosing digest of the resolved archive root path."""
         return _sha256_bytes(os.fsencode(str(self.root)))
 
     def _path_candidates_for(self, value: str) -> list[tuple[str, Path, str]]:
@@ -355,6 +358,7 @@ class LocalArchiveMirror:
         )
 
     def configuration(self) -> dict[str, Any]:
+        """Return the public-safe mirror configuration and current inventory."""
         inventory = self.inventory()
         return {
             "enabled": True,
@@ -384,6 +388,7 @@ class LocalMTFDocumentIndex:
         *,
         maximum_results: int = 50,
     ) -> None:
+        """Build a bounded in-memory index over the mirror's MTF documents."""
         self.mirror = mirror
         self.maximum_results = int(maximum_results)
         if self.maximum_results <= 0:

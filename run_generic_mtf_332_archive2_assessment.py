@@ -39,10 +39,12 @@ MAXIMUM_DOCUMENT_BYTES = 5 * 1024 * 1024
 
 
 def sha256_bytes(value: bytes) -> str:
+    """Return the lowercase SHA-256 digest of exact bytes."""
     return hashlib.sha256(value).hexdigest()
 
 
 def stable_bytes(path: Path) -> bytes:
+    """Read a file only if its identity and size remain stable throughout."""
     before = path.stat()
     value = path.read_bytes()
     after = path.stat()
@@ -58,6 +60,7 @@ def stable_bytes(path: Path) -> bytes:
 
 
 def verify_sha256(path: Path, expected: str) -> bytes:
+    """Return stable file bytes after verifying the reviewed digest."""
     value = stable_bytes(path)
     actual = sha256_bytes(value)
     if actual != expected:
@@ -78,6 +81,7 @@ def prohibit_network() -> None:
 
 
 def load_old_runner(preserved_run_dir: Path) -> ModuleType:
+    """Load the hash-bound preserved assessment implementation as a module."""
     old_runner = preserved_run_dir / OLD_RUNNER_NAME
     verify_sha256(old_runner, EXPECTED_HASHES["old_runner"])
     specification = importlib.util.spec_from_file_location(
@@ -93,6 +97,7 @@ def load_old_runner(preserved_run_dir: Path) -> ModuleType:
 
 
 def preserved_targets(preserved_run_dir: Path) -> list[dict[str, Any]]:
+    """Return the exact 332 targets from the preserved assessment artefact."""
     value = json.loads(
         verify_sha256(
             preserved_run_dir / OLD_ASSESSMENT_NAME,
@@ -168,6 +173,7 @@ def target_inventory(
     www_root: Path,
     targets: Iterable[dict[str, Any]],
 ) -> dict[str, Any]:
+    """Inventory local representations for every document used by the targets."""
     records: list[dict[str, Any]] = []
     document_ids = sorted({
         number
@@ -204,6 +210,7 @@ def target_inventory(
 
 
 def atomic_json(path: Path, value: Any) -> None:
+    """Durably replace one private JSON output using an exclusive temporary file."""
     encoded = (
         json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     ).encode("utf-8")
@@ -230,6 +237,7 @@ def atomic_json(path: Path, value: Any) -> None:
 
 
 def validate_output(path: Path) -> dict[str, Any]:
+    """Validate and return the preserved runner's complete 332-case output."""
     output = json.loads(stable_bytes(path))
     summary = output.get("summary")
     if (
@@ -255,6 +263,7 @@ def execute(
     preserved_run_dir: Path,
     project_root: Path,
 ) -> dict[str, Any]:
+    """Run the network-denied assessment and return its validation receipt."""
     prohibit_network()
     preserved_run_dir = preserved_run_dir.resolve(strict=True)
     if preserved_run_dir.is_symlink() or not preserved_run_dir.is_dir():
@@ -333,6 +342,7 @@ def execute(
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line parser for the inert-by-default wrapper."""
     value = argparse.ArgumentParser(
         description="Preserved 332-case local MTF remediation assessment"
     )
@@ -356,6 +366,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Validate command-line authority, execute when requested, and report status."""
     args = parser().parse_args()
     if not args.execute:
         print("NOT STARTED: pass --execute to run the 332-case assessment")

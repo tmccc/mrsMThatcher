@@ -385,10 +385,12 @@ def canonical_json_bytes(value: Any) -> bytes:
 
 
 def sha256_bytes(value: bytes) -> str:
+    """Return the lowercase SHA-256 digest of exact bytes."""
     return hashlib.sha256(value).hexdigest()
 
 
 def file_sha256(path: Path) -> str:
+    """Return a streaming SHA-256 digest for one file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -397,6 +399,7 @@ def file_sha256(path: Path) -> str:
 
 
 def read_json(path: Path) -> Any:
+    """Decode one UTF-8 JSON document from disk."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -530,6 +533,7 @@ def write_json(run_dir: Path, filename: str, value: Any) -> None:
 
 
 def write_report(run_dir: Path, value: str) -> None:
+    """Write the private Markdown report exactly once and durably."""
     path = _guarded_output_path(run_dir, "corpus_reaudit_report.md")
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -596,6 +600,7 @@ def authoritative_hashes(project_root: Path) -> dict[str, str]:
 def assert_authoritative_inputs_unchanged(
     before: Mapping[str, str], after: Mapping[str, str]
 ) -> None:
+    """Raise when any hash-bound authoritative input changed during the run."""
     if dict(before) != dict(after):
         changed = sorted(set(before) | set(after))
         changed = [name for name in changed if before.get(name) != after.get(name)]
@@ -605,6 +610,7 @@ def assert_authoritative_inputs_unchanged(
 
 
 def inventory_document(inventory: Any, *, phase: str, timestamp: str) -> dict[str, Any]:
+    """Return a public-safe archive inventory record for one run phase."""
     return {
         "schema_version": 1,
         "record_kind": "local_mtf_numeric_document_inventory",
@@ -619,6 +625,7 @@ def inventory_document(inventory: Any, *, phase: str, timestamp: str) -> dict[st
 
 
 def inventory_is_stable(before: Mapping[str, Any], after: Mapping[str, Any]) -> bool:
+    """Return whether the material archive inventory fields are unchanged."""
     return all(
         before.get(key) == after.get(key)
         for key in ("document_count", "total_bytes", "inventory_sha256")
@@ -3210,6 +3217,7 @@ def _source_row_is_bound_to_current_occurrence(
 
 
 def current_values(target: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract the canonical packet and source-role values for comparison."""
     packet = target["current_packet"]
     role = target["current_source_role"]
     packet_document_id = _document_id_from_value(packet.get("stable_locator"))
@@ -4157,6 +4165,7 @@ def _candidate_sort_key(candidate: Mapping[str, Any]) -> tuple[Any, ...]:
 def reassess_blocked(
     targets: Sequence[Mapping[str, Any]], candidates: Sequence[Mapping[str, Any]]
 ) -> list[dict[str, Any]]:
+    """Reassess blocked quotations against newly verified local candidates."""
     by_quote: dict[str, list[Mapping[str, Any]]] = {}
     for candidate in candidates:
         by_quote.setdefault(str(candidate["quote_id"]), []).append(candidate)
@@ -4241,6 +4250,7 @@ def reassess_blocked(
 
 
 def proposed_changes(candidates: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Return sorted advisory changes while omitting explicit no-change rows."""
     output = []
     for candidate in candidates:
         categories = list(candidate.get("proposed_change_category") or [])
@@ -4284,6 +4294,7 @@ def build_summary(
     input_hashes_stable: bool,
     completed_at: str,
 ) -> dict[str, Any]:
+    """Build the complete advisory summary and reproducibility receipt."""
     stable = inventory_is_stable(before, after)
     categories = lambda row, value: value in set(row.get("proposed_change_category", []))
     useful = lambda row: bool(
@@ -4365,6 +4376,7 @@ def build_summary(
 
 
 def render_report(summary: Mapping[str, Any]) -> str:
+    """Render the local corpus re-audit summary as Markdown."""
     before = summary["archive_inventory_before"]
     after = summary["archive_inventory_after"]
     unblock_ids = summary["proposed_unblock_quote_ids"]
@@ -4409,6 +4421,7 @@ def render_report(summary: Mapping[str, Any]) -> str:
 
 
 def assert_no_private_path_disclosure(values: Sequence[Any], *private_paths: Path) -> None:
+    """Reject generated outputs containing any supplied private absolute path."""
     encoded = "\n".join(
         value if isinstance(value, str) else canonical_json_bytes(value).decode("utf-8")
         for value in values
@@ -4895,6 +4908,7 @@ def _archive_attribution_summary_counters(
 
 
 def render_reclassification_report(summary: Mapping[str, Any]) -> str:
+    """Render the existing-package reclassification summary as Markdown."""
     return "\n".join((
         "# Existing-package historical-context reclassification",
         "",
@@ -5090,6 +5104,7 @@ def reclassify_existing(
 
 
 def execute(project_root: Path) -> dict[str, Any]:
+    """Run the local-only corpus re-audit and write its advisory package."""
     project_root = resolve_project_root(project_root)
     archive_root, run_dir = resolve_private_inputs(project_root)
     started_at = utc_now()
@@ -5180,6 +5195,7 @@ def execute(project_root: Path) -> dict[str, Any]:
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
+    """Build the inert-by-default command-line parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -5202,6 +5218,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Validate command-line authority and execute the selected local mode."""
     args = build_argument_parser().parse_args(argv)
     if args.reclassify_existing is not None and args.output_dir is None:
         print(

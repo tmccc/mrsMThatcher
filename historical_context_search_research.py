@@ -1354,6 +1354,7 @@ class GoogleCustomSearchBackend:
         session: requests.Session | None = None,
         timeout: tuple[float, float] = (10.0, 30.0),
     ) -> None:
+        """Configure a credential-bound Google Custom Search client."""
         if not api_key or not engine_id:
             raise SearchBackendNotConfigured("Google Custom Search key and engine ID are required")
         self._api_key = api_key
@@ -1419,6 +1420,7 @@ class GcloudADCAccessTokenProvider:
         command_runner: Callable[..., Any] = subprocess.run,
         cache_seconds: float = 40 * 60,
     ) -> None:
+        """Configure the local ADC command and in-memory token lifetime."""
         self._command_runner = command_runner
         self._cache_seconds = cache_seconds
         self._token = ""
@@ -1477,6 +1479,7 @@ class GoogleDiscoveryEngineResourceClient:
         session: requests.Session | None = None,
         timeout: tuple[float, float] = (10.0, 30.0),
     ) -> None:
+        """Configure read-only Discovery Engine resource enumeration."""
         self.project_id = project_id
         self.location = location
         self.collection = collection
@@ -1489,6 +1492,7 @@ class GoogleDiscoveryEngineResourceClient:
 
     @property
     def parent(self) -> str:
+        """Return the fully qualified Discovery Engine collection parent."""
         return (
             f"projects/{self.project_id}/locations/{self.location}/collections/"
             f"{self.collection}"
@@ -1623,6 +1627,7 @@ class GoogleDiscoveryEngineBackend:
         session: requests.Session | None = None,
         timeout: tuple[float, float] = (10.0, 30.0),
     ) -> None:
+        """Configure non-generative Discovery Engine search and its identity."""
         if descriptor is None:
             descriptor = DiscoveryEngineDescriptor(
                 project_id=DISCOVERY_PROJECT_ID,
@@ -1837,6 +1842,7 @@ class BraveWebSearchBackend:
         session: requests.Session | None = None,
         timeout: tuple[float, float] = (10.0, 30.0),
     ) -> None:
+        """Configure an ordinary Brave Web Search API client."""
         if not api_key:
             raise SearchBackendNotConfigured("Brave Search API key is required")
         self._api_key = api_key
@@ -2173,6 +2179,7 @@ class ResearchCache:
     """Ignored, hash-keyed search and page cache."""
 
     def __init__(self, root: Path = DEFAULT_CACHE) -> None:
+        """Bind hash-keyed cache directories beneath the supplied root."""
         self.root = root
         self.search_dir = root / "search"
         self.page_dir = root / "pages"
@@ -2606,6 +2613,7 @@ class SafeFetcher:
         test_only_allow_unpinned_session: bool = False,
         local_archive: LocalArchiveMirror | None = None,
     ) -> None:
+        """Configure bounded fetching, cache use, URL validation and pacing."""
         self.cache = cache
         self.budget = budget
         if session is not None and not test_only_allow_unpinned_session:
@@ -4121,6 +4129,7 @@ class SearchResearchRunner:
         codex_reviews: Mapping[str, Mapping[str, Any]] | None = None,
         local_archive_index: LocalMTFDocumentIndex | None = None,
     ) -> None:
+        """Bind validated inputs and resumable state for bounded research."""
         validate_query_manifest(manifest)
         validate_resume_state(state, manifest)
         self.manifest = dict(manifest)
