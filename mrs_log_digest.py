@@ -3864,6 +3864,12 @@ def format_usd_ticks(ticks: int, *, divisor: int = 1) -> str:
 
 def xai_usage_stage_from_msg(msg: str) -> str:
     """Return the provider pipeline stage recorded on a usage line."""
+    tested = re.match(
+        r"^Tested reply stage=([^\s]+)\s+provider=(?:xAI|OpenAI)\s+usage=",
+        msg,
+    )
+    if tested:
+        return tested.group(1)
     match = re.match(r"^xAI reply stage=([^\s]+)\s+usage=", msg)
     if match:
         return match.group(1)
@@ -3872,8 +3878,34 @@ def xai_usage_stage_from_msg(msg: str) -> str:
     return "unavailable"
 
 
+def provider_usage_provider_from_msg(msg: str) -> str:
+    """Return the provider named by a legacy or tested-pipeline usage line."""
+    tested = re.match(
+        r"^Tested reply stage=[^\s]+\s+provider=(xAI|OpenAI)\s+usage=",
+        msg,
+    )
+    if tested:
+        return tested.group(1)
+    if msg.startswith("xAI reply stage=") or "xAI usage=" in msg:
+        return "xAI"
+    return "unavailable"
+
+
 def parse_xai_call_start(msg: str) -> Optional[Dict[str, str]]:
     """Parse a structured provider call-start line."""
+    tested = re.match(
+        r"^Calling tested reply pipeline stage=([^\s]+)\s+"
+        r"provider=(xAI|OpenAI)\s+model=([^\s]+)\s+"
+        r"reasoning_effort=([^\s]+)",
+        msg,
+    )
+    if tested:
+        return {
+            "stage": tested.group(1),
+            "provider": tested.group(2),
+            "model": tested.group(3),
+            "reasoning_effort": tested.group(4),
+        }
     match = re.match(
         r"^Calling AI-first reply stage=([^\s]+)\s+model=([^\s]+)",
         msg,
@@ -3885,8 +3917,14 @@ def parse_xai_call_start(msg: str) -> Optional[Dict[str, str]]:
 
 def parse_xai_usage_from_msg(msg: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """Parse legacy and AI-first xAI usage messages."""
+    tested = re.match(
+        r"^Tested reply stage=[^\s]+\s+provider=(?:xAI|OpenAI)\s+usage=(.+)$",
+        msg,
+    )
     marker = "xAI usage="
-    if marker in msg:
+    if tested:
+        raw = tested.group(1).strip()
+    elif marker in msg:
         raw = msg.split(marker, 1)[1].strip()
     elif msg.startswith("xAI reply stage=") and " usage=" in msg:
         raw = msg.split(" usage=", 1)[1].strip()
@@ -3935,7 +3973,7 @@ def normalise_active_xai_call_attempt(value: Any) -> Optional[Dict[str, Any]]:
     model = str(value.get("model") or "").strip()
     if not stage or not model:
         return None
-    return {
+    result = {
         "time": str(value.get("time") or ""),
         "lane": normalise_reply_lane(value.get("lane")),
         "context_id": str(value.get("context_id") or ""),
@@ -3944,6 +3982,11 @@ def normalise_active_xai_call_attempt(value: Any) -> Optional[Dict[str, Any]]:
         "model": model,
         "usage_observed": False,
     }
+    if value.get("provider") in {"xAI", "OpenAI"}:
+        result["provider"] = str(value["provider"])
+    if value.get("reasoning_effort"):
+        result["reasoning_effort"] = str(value["reasoning_effort"])
+    return result
 
 
 def summarize_xai_usage_event(
@@ -3952,9 +3995,10 @@ def summarize_xai_usage_event(
     context: Dict[str, Any],
     *,
     model: str = "",
+    provider: str = "xAI",
     call_start_matched: bool = False,
 ) -> Dict[str, Any]:
-    """Summarise xAI usage event."""
+    """Summarise one legacy or tested-pipeline provider usage event."""
     prompt_details = usage.get("prompt_tokens_details")
     if not isinstance(prompt_details, dict):
         prompt_details = {}
@@ -3967,6 +4011,7 @@ def summarize_xai_usage_event(
         "context_id": context.get("context_id", ""),
         "author_id": context.get("author_id", ""),
         "stage": xai_usage_stage_from_msg(record.msg),
+        "provider": provider if provider in {"xAI", "OpenAI"} else "unavailable",
         "model": model,
         "call_start_matched": bool(call_start_matched),
         "prompt_tokens": int_usage_value(usage.get("prompt_tokens")),
@@ -3983,15 +4028,20 @@ def summarize_xai_usage_event(
 
 
 def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
-    """Return the xAI usage totals."""
+    """Return backward-compatible totals for all conversational providers."""
     reported_costs = [
         value
         for item in events
         if (value := optional_int_usage_value(item.get("cost_in_usd_ticks")))
         is not None
     ]
+    provider_counts = Counter(
+        str(item.get("provider") or "xAI") for item in events
+    )
     return {
-        "successful_xai_calls": len(events),
+        "successful_provider_calls": len(events),
+        "successful_xai_calls": provider_counts["xAI"],
+        "successful_openai_calls": provider_counts["OpenAI"],
         "prompt_tokens": sum(int_usage_value(item.get("prompt_tokens")) for item in events),
         "cached_tokens": sum(int_usage_value(item.get("cached_tokens")) for item in events),
         "image_tokens": sum(int_usage_value(item.get("image_tokens")) for item in events),
@@ -4182,6 +4232,9 @@ def xai_reply_cost_summary(
         stage_counts = Counter(
             str(item.get("stage") or "unavailable") for item in calls
         )
+        provider_counts = Counter(
+            str(item.get("provider") or "xAI") for item in calls
+        )
         candidates.append(
             {
                 "lane": lane,
@@ -4194,6 +4247,7 @@ def xai_reply_cost_summary(
                 "pipeline_execution_event_count": execution_event_count,
                 "call_coverage": call_coverage,
                 "stages": dict(sorted(stage_counts.items())),
+                "providers": dict(sorted(provider_counts.items())),
                 "total_tokens": sum(
                     int_usage_value(item.get("total_tokens")) for item in calls
                 ),
@@ -4206,20 +4260,25 @@ def xai_reply_cost_summary(
 
     stage_keys = sorted(
         {
-            str(item.get("stage") or "unavailable")
+            (
+                str(item.get("provider") or "xAI"),
+                str(item.get("stage") or "unavailable"),
+            )
             for item in usage_events + attempts
         }
     )
     stages: List[Dict[str, Any]] = []
-    for stage in stage_keys:
+    for provider, stage in stage_keys:
         stage_usage = [
             item
             for item in usage_events
-            if str(item.get("stage") or "unavailable") == stage
+            if str(item.get("provider") or "xAI") == provider
+            and str(item.get("stage") or "unavailable") == stage
         ]
         stage_attempts = [
             item
             for item in attempts
+            if str(item.get("provider") or "xAI") == provider
             if str(item.get("stage") or "unavailable") == stage
         ]
         reported_costs = [
@@ -4234,6 +4293,7 @@ def xai_reply_cost_summary(
         ]
         stages.append(
             {
+                "provider": provider,
                 "stage": stage,
                 "started_calls": len(stage_attempts),
                 "successful_usage_records": len(stage_usage),
@@ -4251,6 +4311,40 @@ def xai_reply_cost_summary(
                 - len(reported_costs),
             }
         )
+
+    providers: List[Dict[str, Any]] = []
+    provider_names = sorted(
+        {str(item.get("provider") or "xAI") for item in usage_events + attempts}
+    )
+    for provider in provider_names:
+        provider_usage = [
+            item for item in usage_events
+            if str(item.get("provider") or "xAI") == provider
+        ]
+        provider_attempts = [
+            item for item in attempts
+            if str(item.get("provider") or "xAI") == provider
+        ]
+        reported_costs = [
+            value
+            for item in provider_usage
+            if (
+                value := optional_int_usage_value(item.get("cost_in_usd_ticks"))
+            ) is not None
+        ]
+        providers.append({
+            "provider": provider,
+            "started_calls": len(provider_attempts),
+            "successful_usage_records": len(provider_usage),
+            "call_starts_without_usage": sum(
+                item.get("usage_observed") is not True for item in provider_attempts
+            ),
+            "total_tokens": sum(
+                int_usage_value(item.get("total_tokens")) for item in provider_usage
+            ),
+            "known_cost_in_usd_ticks": sum(reported_costs),
+            "uncosted_successful_calls": len(provider_usage) - len(reported_costs),
+        })
 
     outcome_rows: List[Dict[str, Any]] = []
     for disposition in sorted(
@@ -4331,6 +4425,7 @@ def xai_reply_cost_summary(
         ),
         "candidates": candidates,
         "outcomes": outcome_rows,
+        "providers": providers,
         "stages": stages,
     }
 
@@ -4813,6 +4908,126 @@ def _no_reply_category(value: Any) -> str:
     if any(term in reason for term in ("repet", "low value", "not useful", "declin")):
         return "low_value_or_repetitive_engagement"
     return "other_editorial_decline"
+
+
+def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Aggregate safe tested-pipeline stage telemetry across evaluations."""
+    rows = [
+        event for event in events
+        if event.get("kind") == "reply_pipeline_stage_summary"
+    ]
+
+    def value_counts(field: str) -> Dict[str, int]:
+        return dict(sorted(Counter(
+            str(row[field]) for row in rows if row.get(field) not in {None, ""}
+        ).items()))
+
+    def list_counts(field: str) -> Dict[str, int]:
+        return dict(sorted(Counter(
+            str(value)
+            for row in rows
+            for value in (row.get(field) if isinstance(row.get(field), list) else [])
+            if str(value)
+        ).items()))
+
+    provider_calls: Counter = Counter()
+    invalid_stages: Counter = Counter()
+    claim_audit_outcomes: Counter = Counter()
+    for row in rows:
+        counts = row.get("provider_call_counts")
+        if isinstance(counts, dict):
+            for provider in ("xAI", "OpenAI"):
+                count = counts.get(provider)
+                if type(count) is int and count >= 0:
+                    provider_calls[provider] += count
+        for stage in row.get("schema_invalid_stages") or []:
+            invalid_stages[str(stage)] += 1
+        for item in row.get("claim_audit_outcomes") or []:
+            if isinstance(item, dict) and item.get("outcome"):
+                claim_audit_outcomes[str(item["outcome"])] += 1
+
+    reply_required = {
+        "require_claim_free_reply",
+        "require_supported_factual_reply",
+    }
+    return {
+        "evaluation_count": len(rows),
+        "provider_call_counts": dict(sorted(provider_calls.items())),
+        "schema_invalid_call_count": sum(invalid_stages.values()),
+        "schema_invalid_stage_counts": dict(sorted(invalid_stages.items())),
+        "deterministic_suppression_count": sum(
+            row.get("deterministic_suppressed") is True for row in rows
+        ),
+        "deterministic_suppression_reason_counts": value_counts("deterministic_reason"),
+        "gate_decision_counts": value_counts("xai_gate_decision"),
+        "reply_necessity_review_count": sum(
+            row.get("reply_necessity_outcome") not in {None, ""} for row in rows
+        ),
+        "reply_necessity_outcome_counts": value_counts("reply_necessity_outcome"),
+        "reply_necessity_overturn_count": sum(
+            row.get("xai_gate_decision") == "no_reply"
+            and row.get("reply_necessity_outcome") in reply_required
+            for row in rows
+        ),
+        "reply_necessity_invalid_call_count": sum(
+            int(row.get("reply_necessity_invalid_calls") or 0) for row in rows
+        ),
+        "group_hostility_candidate_count": sum(
+            row.get("group_hostility_candidate") is True for row in rows
+        ),
+        "group_hostility_review_count": sum(
+            row.get("group_hostility_outcome") not in {None, ""} for row in rows
+        ),
+        "group_hostility_outcome_counts": value_counts("group_hostility_outcome"),
+        "group_hostility_suppression_count": sum(
+            row.get("group_hostility_outcome") == "suppress_group_hostility"
+            for row in rows
+        ),
+        "allegation_conspiracy_candidate_count": sum(
+            row.get("allegation_conspiracy_candidate") is True for row in rows
+        ),
+        "allegation_conspiracy_review_count": sum(
+            row.get("allegation_conspiracy_outcome") not in {None, ""} for row in rows
+        ),
+        "allegation_conspiracy_category_counts": list_counts(
+            "allegation_conspiracy_categories"
+        ),
+        "allegation_conspiracy_outcome_counts": value_counts(
+            "allegation_conspiracy_outcome"
+        ),
+        "allegation_conspiracy_suppression_count": sum(
+            row.get("allegation_conspiracy_outcome") == "confirm_no_reply"
+            for row in rows
+        ),
+        "allegation_conspiracy_invalid_call_count": sum(
+            int(row.get("allegation_conspiracy_invalid_calls") or 0)
+            for row in rows
+        ),
+        "attribution_route_counts": value_counts("attribution_route"),
+        "authentication_review_count": sum(
+            row.get("authentication_outcome") not in {None, ""} for row in rows
+        ),
+        "authentication_outcome_counts": value_counts("authentication_outcome"),
+        "claim_risk_evaluation_count": sum(
+            bool(row.get("claim_risk_categories")) for row in rows
+        ),
+        "claim_risk_category_counts": list_counts("claim_risk_categories"),
+        "claim_audit_outcome_counts": dict(sorted(claim_audit_outcomes.items())),
+        "claim_cleanup_count": sum(row.get("claim_cleanup_called") is True for row in rows),
+        "exact_duplicate_count": sum(
+            row.get("exact_duplicate_detected") is True for row in rows
+        ),
+        "near_duplicate_candidate_count": sum(
+            type(row.get("near_duplicate_count")) is int
+            and row.get("near_duplicate_count", 0) > 0
+            for row in rows
+        ),
+        "duplicate_repair_count": sum(
+            row.get("duplicate_repair_called") is True for row in rows
+        ),
+        "duplicate_repair_outcome_counts": value_counts("duplicate_repair_outcome"),
+        "final_validation_counts": value_counts("final_validation"),
+    }
 
 
 def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -5698,23 +5913,29 @@ def analyse(
             active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
         call_start = (
             parse_xai_call_start(msg)
-            if r.src == "xai_structured_reply_call"
+            if r.src in {
+                "xai_structured_reply_call",
+                "tested_pipeline_structured_call",
+            }
             else None
         )
         if call_start is not None:
             active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
             context = active_xai_context or unknown_xai_usage_context()
-            xai_call_attempts.append(
-                {
-                    "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
-                    "lane": context.get("lane", "unknown"),
-                    "context_id": context.get("context_id", ""),
-                    "author_id": context.get("author_id", ""),
-                    "stage": call_start["stage"],
-                    "model": call_start["model"],
-                    "usage_observed": False,
-                }
-            )
+            attempt_row = {
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "lane": context.get("lane", "unknown"),
+                "context_id": context.get("context_id", ""),
+                "author_id": context.get("author_id", ""),
+                "stage": call_start["stage"],
+                "model": call_start["model"],
+                "usage_observed": False,
+            }
+            if call_start.get("provider") in {"xAI", "OpenAI"}:
+                attempt_row["provider"] = call_start["provider"]
+            if call_start.get("reasoning_effort"):
+                attempt_row["reasoning_effort"] = call_start["reasoning_effort"]
+            xai_call_attempts.append(attempt_row)
             active_xai_call_attempt_index = len(xai_call_attempts) - 1
 
         usage, usage_error = parse_xai_usage_from_msg(msg)
@@ -5722,10 +5943,12 @@ def analyse(
             model = ""
             call_start_matched = False
             usage_stage = xai_usage_stage_from_msg(msg)
+            usage_provider = provider_usage_provider_from_msg(msg)
             if active_xai_call_attempt_index is not None:
                 attempt = xai_call_attempts[active_xai_call_attempt_index]
                 if (
                     attempt.get("stage") == usage_stage
+                    and str(attempt.get("provider") or "xAI") == usage_provider
                     and normalise_reply_lane(attempt.get("lane"))
                     == normalise_reply_lane(
                         (active_xai_context or {}).get("lane")
@@ -5748,10 +5971,15 @@ def analyse(
                     usage,
                     active_xai_context or unknown_xai_usage_context(),
                     model=model,
+                    provider=usage_provider,
                     call_start_matched=call_start_matched,
                 )
             )
-            stats["xai_usage_successes"] += 1
+            stats["provider_usage_successes"] += 1
+            if usage_provider == "xAI":
+                stats["xai_usage_successes"] += 1
+            elif usage_provider == "OpenAI":
+                stats["openai_usage_successes"] += 1
         elif usage_error is not None:
             xai_usage_parse_errors.append({
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
@@ -6103,6 +6331,97 @@ def analyse(
                     reviewer_verdict=event_obj.get("reviewer_verdict"),
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_stage_summary":
+                raw_provider_counts = event_obj.get("provider_call_counts")
+                provider_call_counts = {
+                    provider: count
+                    for provider in ("xAI", "OpenAI")
+                    if isinstance(raw_provider_counts, dict)
+                    and type(count := raw_provider_counts.get(provider)) is int
+                    and count >= 0
+                }
+                schema_invalid_stages = event_obj.get("schema_invalid_stages")
+                allegation_categories = event_obj.get(
+                    "allegation_conspiracy_categories"
+                )
+                claim_risk_categories = event_obj.get("claim_risk_categories")
+                raw_claim_outcomes = event_obj.get("claim_audit_outcomes")
+                claim_audit_outcomes = [
+                    {
+                        "stage": str(item.get("stage") or ""),
+                        "outcome": str(item.get("outcome") or ""),
+                    }
+                    for item in (
+                        raw_claim_outcomes
+                        if isinstance(raw_claim_outcomes, list)
+                        else []
+                    )
+                    if isinstance(item, dict)
+                    and item.get("stage")
+                    and item.get("outcome")
+                ]
+                add_event(
+                    "reply_pipeline_stage_summary",
+                    r.ts,
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("target_id") or "",
+                    strategy_version=event_obj.get("strategy_version") or "unavailable",
+                    status=event_obj.get("status") or "unavailable",
+                    terminal_reason=event_obj.get("terminal_reason") or "",
+                    model_call_count=event_obj.get("model_call_count"),
+                    revision_count=event_obj.get("revision_count"),
+                    provider_call_counts=provider_call_counts,
+                    schema_invalid_stages=(
+                        [str(value) for value in schema_invalid_stages if str(value)]
+                        if isinstance(schema_invalid_stages, list)
+                        else []
+                    ),
+                    deterministic_suppressed=event_obj.get("deterministic_suppressed"),
+                    deterministic_reason=event_obj.get("deterministic_reason"),
+                    xai_gate_decision=event_obj.get("xai_gate_decision"),
+                    reply_necessity_outcome=event_obj.get("reply_necessity_outcome"),
+                    reply_necessity_invalid_calls=(
+                        event_obj.get("reply_necessity_invalid_calls")
+                        if type(event_obj.get("reply_necessity_invalid_calls")) is int
+                        and event_obj.get("reply_necessity_invalid_calls") >= 0
+                        else 0
+                    ),
+                    group_hostility_candidate=event_obj.get("group_hostility_candidate"),
+                    group_hostility_outcome=event_obj.get("group_hostility_outcome"),
+                    allegation_conspiracy_candidate=event_obj.get("allegation_conspiracy_candidate"),
+                    allegation_conspiracy_categories=(
+                        [str(value) for value in allegation_categories if str(value)]
+                        if isinstance(allegation_categories, list)
+                        else []
+                    ),
+                    allegation_conspiracy_outcome=event_obj.get("allegation_conspiracy_outcome"),
+                    allegation_conspiracy_invalid_calls=(
+                        event_obj.get("allegation_conspiracy_invalid_calls")
+                        if type(event_obj.get("allegation_conspiracy_invalid_calls")) is int
+                        and event_obj.get("allegation_conspiracy_invalid_calls") >= 0
+                        else 0
+                    ),
+                    attribution_route=event_obj.get("attribution_route"),
+                    attribution_reply_requirement=event_obj.get("attribution_reply_requirement"),
+                    authentication_outcome=event_obj.get("authentication_outcome"),
+                    claim_risk_categories=(
+                        [str(value) for value in claim_risk_categories if str(value)]
+                        if isinstance(claim_risk_categories, list)
+                        else []
+                    ),
+                    claim_audit_outcomes=claim_audit_outcomes,
+                    claim_cleanup_called=event_obj.get("claim_cleanup_called"),
+                    exact_duplicate_detected=event_obj.get("exact_duplicate_detected"),
+                    near_duplicate_count=(
+                        event_obj.get("near_duplicate_count")
+                        if type(event_obj.get("near_duplicate_count")) is int
+                        and event_obj.get("near_duplicate_count") >= 0
+                        else None
+                    ),
+                    duplicate_repair_called=event_obj.get("duplicate_repair_called"),
+                    duplicate_repair_outcome=event_obj.get("duplicate_repair_outcome"),
+                    final_validation=event_obj.get("final_validation"),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_failure":
                 add_event(
@@ -7500,6 +7819,18 @@ def analyse(
 
     context_quality = historical_context_quality_summary(events)
     strategy_quality = reply_strategy_summary(events)
+    pipeline_stage_quality = reply_pipeline_stage_summary(events)
+    provider_usage = {
+        "events": xai_usage_events,
+        "totals": xai_usage_totals(xai_usage_events),
+        "call_attempts": xai_call_attempts,
+        "cost_summary": xai_reply_cost_summary(
+            xai_usage_events,
+            events,
+            xai_call_attempts,
+        ),
+        "parse_errors": xai_usage_parse_errors,
+    }
     headline = [
         item for item in headline
         if not item.endswith("Grok skip") and not item.endswith("Grok skips")
@@ -7640,6 +7971,7 @@ def analyse(
         },
         "historical_context_quality": context_quality,
         "reply_strategy": strategy_quality,
+        "reply_pipeline_stages": pipeline_stage_quality,
         "semantic_veto_load_lifecycle": semantic_veto_load_lifecycle(records),
         "reply_media_context": reply_media_context,
         "asset_health": asset_health,
@@ -7673,17 +8005,9 @@ def analyse(
             "latest": latest_generated_image_spacing,
             "events": generated_image_spacing_events,
         },
-        "xai_usage": {
-            "events": xai_usage_events,
-            "totals": xai_usage_totals(xai_usage_events),
-            "call_attempts": xai_call_attempts,
-            "cost_summary": xai_reply_cost_summary(
-                xai_usage_events,
-                events,
-                xai_call_attempts,
-            ),
-            "parse_errors": xai_usage_parse_errors,
-        },
+        "provider_usage": provider_usage,
+        # Retained as a compatibility alias for existing JSON consumers.
+        "xai_usage": provider_usage,
         "resume_context": {
             "active_xai_context": active_xai_context,
             "active_xai_call_attempt": (
@@ -8455,12 +8779,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("```")
         out.append("")
 
-    xai_usage = report.get("xai_usage") or {}
+    xai_usage = report.get("provider_usage") or report.get("xai_usage") or {}
     xai_events = xai_usage.get("events") or []
     xai_call_attempts = xai_usage.get("call_attempts") or []
     xai_parse_errors = xai_usage.get("parse_errors") or []
     if xai_events or xai_call_attempts or xai_parse_errors:
-        out.append("## xAI usage and conversational reply cost")
+        out.append("## xAI usage, OpenAI usage, and conversational reply cost")
         if xai_events or xai_call_attempts:
             totals = xai_usage.get("totals") or {}
             cost_summary = xai_usage.get("cost_summary") or {}
@@ -8472,6 +8796,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 or 0
             )
             coverage_complete = cost_summary.get("coverage_complete") is True
+            successful_provider_calls = int(
+                totals.get(
+                    "successful_provider_calls",
+                    totals.get("successful_xai_calls", 0),
+                )
+                or 0
+            )
             cost_label = (
                 "Provider-reported cost"
                 if coverage_complete
@@ -8480,16 +8811,27 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(
                 f"**{cost_label}: {format_usd_ticks(known_ticks)} "
                 f"({known_ticks:,} ticks) across "
-                f"{totals.get('successful_xai_calls', 0)} successful logged calls.**"
+                f"{successful_provider_calls} successful logged calls.**"
             )
             out.append(
                 f"Cost-record coverage: **{totals.get('costed_call_count', 0)} / "
-                f"{totals.get('successful_xai_calls', 0)} successful calls**; "
+                f"{successful_provider_calls} successful calls**; "
                 f"AI-reviewed candidates observed: "
                 f"**{cost_summary.get('candidate_count', 0)}**; "
                 f"published conversational replies: "
                 f"**{cost_summary.get('published_candidate_count', 0)}**."
             )
+            provider_rows = cost_summary.get("providers") or []
+            if provider_rows:
+                out.append(
+                    "Successful calls by provider: "
+                    + ", ".join(
+                        f"{item.get('provider', 'unavailable')}="
+                        f"{item.get('successful_usage_records', 0)}"
+                        for item in provider_rows
+                    )
+                    + "."
+                )
             if coverage_complete:
                 per_candidate = cost_summary.get("per_reviewed_candidate")
                 effective = cost_summary.get("effective_per_published_reply")
@@ -8565,6 +8907,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 out.append(
                     md_table_row(
                         [
+                            "provider",
                             "stage",
                             "calls started",
                             "successful usage",
@@ -8574,11 +8917,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
                         ]
                     )
                 )
-                out.append(md_table_row(["---"] * 6))
+                out.append(md_table_row(["---"] * 7))
                 for item in stage_rows:
                     out.append(
                         md_table_row(
                             [
+                                item.get("provider", ""),
                                 item.get("stage", ""),
                                 item.get("started_calls", 0),
                                 item.get("successful_usage_records", 0),
@@ -8660,11 +9004,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 "sources",
                 "cost_ticks",
                 "image",
+                "provider",
                 "stage",
                 "model",
                 "cost_usd",
             ]))
-            out.append(md_table_row(["---"] * 14))
+            out.append(md_table_row(["---"] * 15))
             for item in xai_events:
                 item_cost = optional_int_usage_value(
                     item.get("cost_in_usd_ticks")
@@ -8681,6 +9026,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("num_sources_used", 0),
                     item_cost if item_cost is not None else "unavailable",
                     item.get("image_tokens", 0),
+                    item.get("provider", "unavailable"),
                     item.get("stage", "unavailable"),
                     item.get("model", ""),
                     (
@@ -8692,7 +9038,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("")
             out.append("Totals:")
             out.append("```text")
+            out.append(f"successful_provider_calls = {successful_provider_calls}")
             out.append(f"successful_xai_calls = {totals.get('successful_xai_calls', 0)}")
+            out.append(f"successful_openai_calls = {totals.get('successful_openai_calls', 0)}")
             out.append(f"prompt_tokens        = {totals.get('prompt_tokens', 0)}")
             out.append(f"cached_tokens        = {totals.get('cached_tokens', 0)}")
             out.append(f"image_tokens         = {totals.get('image_tokens', 0)}")
@@ -9831,6 +10179,61 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row([reason, count]))
     out.append("")
 
+    pipeline_stages = report.get("reply_pipeline_stages") or {}
+    if pipeline_stages.get("evaluation_count"):
+        out.append("## Tested reply-pipeline stages")
+        out.append(
+            f"Evaluations: **{pipeline_stages.get('evaluation_count', 0)}**; "
+            f"provider calls: **{compact_counts(pipeline_stages.get('provider_call_counts') or {})}**; "
+            f"schema-invalid calls: **{pipeline_stages.get('schema_invalid_call_count', 0)}**."
+        )
+        out.append(
+            "Gate decisions: "
+            + compact_counts(pipeline_stages.get("gate_decision_counts") or {})
+            + "; reply-necessity outcomes: "
+            + compact_counts(
+                pipeline_stages.get("reply_necessity_outcome_counts") or {}
+            )
+            + f"; gate overturns: {pipeline_stages.get('reply_necessity_overturn_count', 0)}."
+        )
+        out.append(
+            f"Group-hostility candidates/reviews/suppressions: **"
+            f"{pipeline_stages.get('group_hostility_candidate_count', 0)} / "
+            f"{pipeline_stages.get('group_hostility_review_count', 0)} / "
+            f"{pipeline_stages.get('group_hostility_suppression_count', 0)}**; "
+            f"outcomes: {compact_counts(pipeline_stages.get('group_hostility_outcome_counts') or {})}."
+        )
+        out.append(
+            f"Allegation/conspiracy candidates/reviews/suppressions: **"
+            f"{pipeline_stages.get('allegation_conspiracy_candidate_count', 0)} / "
+            f"{pipeline_stages.get('allegation_conspiracy_review_count', 0)} / "
+            f"{pipeline_stages.get('allegation_conspiracy_suppression_count', 0)}**; "
+            f"outcomes: {compact_counts(pipeline_stages.get('allegation_conspiracy_outcome_counts') or {})}."
+        )
+        out.append(
+            "Attribution routes: "
+            + compact_counts(pipeline_stages.get("attribution_route_counts") or {})
+            + "; authentication outcomes: "
+            + compact_counts(
+                pipeline_stages.get("authentication_outcome_counts") or {}
+            )
+            + "."
+        )
+        out.append(
+            f"Claim-risk evaluations/cleanups: **"
+            f"{pipeline_stages.get('claim_risk_evaluation_count', 0)} / "
+            f"{pipeline_stages.get('claim_cleanup_count', 0)}**; audit outcomes: "
+            f"{compact_counts(pipeline_stages.get('claim_audit_outcome_counts') or {})}."
+        )
+        out.append(
+            f"Exact duplicates/repairs: **"
+            f"{pipeline_stages.get('exact_duplicate_count', 0)} / "
+            f"{pipeline_stages.get('duplicate_repair_count', 0)}**; repair outcomes: "
+            f"{compact_counts(pipeline_stages.get('duplicate_repair_outcome_counts') or {})}; "
+            f"final validation: {compact_counts(pipeline_stages.get('final_validation_counts') or {})}."
+        )
+        out.append("")
+
     stats = report["summary"].get("stats", {})
     routine = report["summary"].get("routine_skip_counts", {})
     out.append("## Counts")
@@ -10021,6 +10424,25 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "daily_meme_failure",
         "Daily meme failures by stage",
         ["time", "stage", "post_id", "error_type", "reason"],
+    )
+    section(
+        "reply_pipeline_stage_summary",
+        "Tested reply-pipeline evaluation detail",
+        [
+            "time",
+            "lane",
+            "target_id",
+            "status",
+            "terminal_reason",
+            "xai_gate_decision",
+            "reply_necessity_outcome",
+            "group_hostility_outcome",
+            "allegation_conspiracy_outcome",
+            "attribution_route",
+            "claim_risk_categories",
+            "duplicate_repair_outcome",
+            "final_validation",
+        ],
     )
     section(
         "reply_strategy_decision",

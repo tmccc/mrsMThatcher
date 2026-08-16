@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -90,6 +91,69 @@ def enabled_config() -> dict:
     return value
 
 
+def test_stage_telemetry_is_allow_listed_and_text_free() -> None:
+    private_marker = "PRIVATE MATCHED TEXT MUST NOT BE LOGGED"
+    telemetry = pipeline.stage_telemetry((
+        {"stage": "A_B_C", "suppressed": False, "reason": None, "text": private_marker},
+        {"stage": "candidate_backed_engagement", "provider": "xAI", "schema_valid": True},
+        {"stage": "xai_gate_decision", "decision": "no_reply", "candidate": private_marker},
+        {"stage": "reply_necessity_1", "provider": "OpenAI", "schema_valid": True},
+        {"stage": "reply_necessity_2", "provider": "OpenAI", "schema_valid": False, "error": "ValueError"},
+        {"stage": "reply_necessity_3", "provider": "OpenAI", "schema_valid": True},
+        {
+            "stage": "reply_necessity_resolution",
+            "call_outcomes": ["require_claim_free_reply", None, "require_claim_free_reply"],
+            "majority_outcome": "require_claim_free_reply",
+            "invalid_or_refused_calls": 1,
+        },
+        {
+            "stage": "allegation_conspiracy_detector",
+            "candidate": True,
+            "categories": ["corruption_or_fraud"],
+            "matched_text": private_marker,
+        },
+        {
+            "stage": "allegation_conspiracy_resolution",
+            "majority_outcome": "confirm_no_reply",
+            "invalid_or_refused_calls": 0,
+            "free_form_reason": private_marker,
+        },
+        {"stage": "attribution_route_v2", "route_class": "none", "reply_requirement": None},
+        {
+            "stage": "narrow_claim_audit_risk",
+            "risky": True,
+            "categories": ["private_motive"],
+            "matched_text": [private_marker],
+        },
+        {"stage": "narrow_claim_audit", "provider": "xAI", "schema_valid": True},
+        {"stage": "narrow_claim_audit_outcome", "outcome": "rewrite_claim_free"},
+        {"stage": "bounded_claim_cleanup", "provider": "OpenAI", "schema_valid": True},
+        {"stage": "exact_duplicate_check", "exact_duplicate": True, "near_duplicate_count": 2},
+        {"stage": "exact_duplicate_repair", "provider": "OpenAI", "schema_valid": True},
+        {"stage": "exact_duplicate_repair_outcome", "outcome": "repaired"},
+        {"stage": "final_deterministic_validation", "rejection": None},
+    ))
+
+    assert telemetry["provider_call_counts"] == {"xAI": 2, "OpenAI": 5}
+    assert telemetry["schema_invalid_stages"] == ["reply_necessity_2"]
+    assert telemetry["reply_necessity_outcome"] == "require_claim_free_reply"
+    assert telemetry["reply_necessity_invalid_calls"] == 1
+    assert telemetry["allegation_conspiracy_candidate"] is True
+    assert telemetry["allegation_conspiracy_categories"] == ["corruption_or_fraud"]
+    assert telemetry["allegation_conspiracy_outcome"] == "confirm_no_reply"
+    assert telemetry["claim_risk_categories"] == ["private_motive"]
+    assert telemetry["claim_audit_outcomes"] == [{
+        "stage": "narrow_claim_audit_outcome",
+        "outcome": "rewrite_claim_free",
+    }]
+    assert telemetry["claim_cleanup_called"] is True
+    assert telemetry["exact_duplicate_detected"] is True
+    assert telemetry["duplicate_repair_called"] is True
+    assert telemetry["duplicate_repair_outcome"] == "repaired"
+    assert telemetry["final_validation"] == "passed"
+    assert private_marker not in json.dumps(telemetry, sort_keys=True)
+
+
 def run(text: str, transport: Transport, *, facts: bool = False, recent=None):
     return pipeline.run_reply_pipeline(
         context=context(text),
@@ -129,6 +193,21 @@ def test_positive_social_and_brief_agreement_receive_warm_reply(text: str) -> No
     result = run(text, transport)
     assert result.status == "approved"
     assert str(result.reply) == "Thank you — that is kind of you."
+
+
+def test_literal_bare_mention_is_deterministically_suppressed_without_calls() -> None:
+    transport = Transport()
+    result = run("@MrsMThatcher", transport)
+
+    assert result.status == "no_reply"
+    assert result.reason == (
+        "incoming contribution has no lexical content beyond handle(s) and/or URL(s)"
+    )
+    assert result.model_call_count == 0
+    assert transport.calls == []
+    telemetry = pipeline.stage_telemetry(result.audit)
+    assert telemetry["deterministic_suppressed"] is True
+    assert telemetry["deterministic_reason"] == result.reason
 
 
 def test_gate_no_reply_is_reviewed_three_times_and_can_be_overturned() -> None:
@@ -330,3 +409,51 @@ def test_http_adapter_preserves_provider_payload_isolation(monkeypatch) -> None:
     assert request["max_completion_tokens"] == 300
     assert request["store"] is False
     assert "tools" not in request and "search" not in request
+
+
+def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch) -> None:
+    import copy
+    import mrsMThatcher2 as bot
+
+    private_marker = "PRIVATE PIPELINE TEXT MUST NOT BE LOGGED"
+    config = copy.deepcopy(pipeline.default_config())
+    config["enabled"] = True
+    events = []
+    result = pipeline.PipelineResult(
+        None,
+        "no_reply",
+        "reply_necessity_review",
+        4,
+        0,
+        (
+            {"stage": "A_B_C", "suppressed": False, "reason": None},
+            {"stage": "candidate_backed_engagement", "provider": "xAI", "schema_valid": True},
+            {"stage": "xai_gate_decision", "decision": "no_reply", "reply": private_marker},
+            {"stage": "reply_necessity_1", "provider": "OpenAI", "schema_valid": True},
+            {"stage": "reply_necessity_2", "provider": "OpenAI", "schema_valid": True},
+            {"stage": "reply_necessity_3", "provider": "OpenAI", "schema_valid": True},
+            {
+                "stage": "reply_necessity_resolution",
+                "majority_outcome": "confirm_no_reply",
+                "invalid_or_refused_calls": 0,
+                "reason": private_marker,
+            },
+        ),
+    )
+    monkeypatch.setattr(bot, "tested_reply_pipeline", config)
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(pipeline, "run_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
+
+    assert bot.generate_ai_first_reply(context("A visible contribution.")) is None
+
+    assert [name for name, _values in events] == [
+        "ai_reply_pipeline_stage_summary",
+        "ai_reply_pipeline_decision",
+    ]
+    summary = events[0][1]
+    assert summary["provider_call_counts"] == {"xAI": 1, "OpenAI": 3}
+    assert summary["xai_gate_decision"] == "no_reply"
+    assert summary["reply_necessity_outcome"] == "confirm_no_reply"
+    assert summary["terminal_reason"] == "reply_necessity_review"
+    assert private_marker not in json.dumps(summary, sort_keys=True)

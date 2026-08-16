@@ -645,7 +645,9 @@ def test_ai_first_usage_log_format_is_counted_with_pending_context():
 
     assert report["summary"]["stats"]["xai_usage_successes"] == 1
     assert report["xai_usage"]["totals"] == {
+        "successful_provider_calls": 1,
         "successful_xai_calls": 1,
+        "successful_openai_calls": 0,
         "prompt_tokens": 1779,
         "cached_tokens": 192,
         "image_tokens": 0,
@@ -661,6 +663,143 @@ def test_ai_first_usage_log_format_is_counted_with_pending_context():
     assert report["xai_usage"]["events"][0]["context_id"] == "123"
     assert report["xai_usage"]["events"][0]["stage"] == "proposer"
     assert report["xai_usage"]["events"][0]["model"] == "grok-4-1-fast-reasoning"
+
+
+def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
+    base = datetime(2026, 8, 16, 11)
+    rows = [
+        (0, "maybe_reply_to_mentions", "Considering mention id=700 author_id=800 text='fixture'"),
+        (
+            1,
+            "tested_pipeline_structured_call",
+            "Calling tested reply pipeline stage=candidate_backed_engagement "
+            "provider=xAI model=grok-4.3 reasoning_effort=low",
+        ),
+        (
+            2,
+            "tested_pipeline_structured_call",
+            "Tested reply stage=candidate_backed_engagement provider=xAI "
+            "usage={'prompt_tokens': 100, 'completion_tokens': 10, "
+            "'total_tokens': 110, 'cost_in_usd_ticks': 20000000}",
+        ),
+        (
+            3,
+            "tested_pipeline_structured_call",
+            "Calling tested reply pipeline stage=writer_v3_initial "
+            "provider=OpenAI model=gpt-5.6-sol reasoning_effort=medium",
+        ),
+        (
+            4,
+            "tested_pipeline_structured_call",
+            "Tested reply stage=writer_v3_initial provider=OpenAI "
+            "usage={'prompt_tokens': 200, 'completion_tokens': 20, "
+            "'total_tokens': 220, 'completion_tokens_details': "
+            "{'reasoning_tokens': 5}}",
+        ),
+        (
+            5,
+            "log_event",
+            "EVENT " + json.dumps({
+                "event": "ai_reply_pipeline_stage_summary",
+                "lane": "mention",
+                "target_id": "700",
+                "strategy_version": "tested-reply-pipeline-20260816",
+                "status": "approved",
+                "terminal_reason": "pipeline_approved",
+                "model_call_count": 2,
+                "revision_count": 0,
+                "provider_call_counts": {"xAI": 1, "OpenAI": 1},
+                "schema_invalid_stages": [],
+                "deterministic_suppressed": False,
+                "deterministic_reason": None,
+                "xai_gate_decision": "reply",
+                "reply_necessity_outcome": None,
+                "reply_necessity_invalid_calls": 0,
+                "group_hostility_candidate": False,
+                "group_hostility_outcome": None,
+                "allegation_conspiracy_candidate": True,
+                "allegation_conspiracy_categories": ["corruption_or_fraud"],
+                "allegation_conspiracy_outcome": "require_claim_free_reply",
+                "allegation_conspiracy_invalid_calls": 0,
+                "attribution_route": "none",
+                "attribution_reply_requirement": None,
+                "authentication_outcome": None,
+                "claim_risk_categories": ["private_motive"],
+                "claim_audit_outcomes": [
+                    {"stage": "narrow_claim_audit_outcome", "outcome": "pass"}
+                ],
+                "claim_cleanup_called": False,
+                "exact_duplicate_detected": False,
+                "near_duplicate_count": 1,
+                "duplicate_repair_called": False,
+                "duplicate_repair_outcome": None,
+                "final_validation": "passed",
+            }, sort_keys=True),
+        ),
+        (
+            6,
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+            '"target_id":"700","status":"approved","mode":"opinion_or_principle",'
+            '"model_call_count":2}',
+        ),
+        (
+            7,
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_outcome","lane":"mention",'
+            '"target_id":"700","reply_post_id":"701","status":"confirmed",'
+            '"mode":"opinion_or_principle","model_call_count":2}',
+        ),
+    ]
+    records = [
+        digest.Record(
+            base + timedelta(seconds=offset),
+            "INFO",
+            source,
+            index,
+            message,
+            "mrsMThatcher.log",
+            index,
+        )
+        for index, (offset, source, message) in enumerate(rows, 1)
+    ]
+
+    report = digest.analyse(records)
+    usage = report["provider_usage"]
+    totals = usage["totals"]
+    cost = usage["cost_summary"]
+    stages = {(row["provider"], row["stage"]): row for row in cost["stages"]}
+
+    assert usage == report["xai_usage"]
+    assert totals["successful_provider_calls"] == 2
+    assert totals["successful_xai_calls"] == 1
+    assert totals["successful_openai_calls"] == 1
+    assert totals["total_tokens"] == 330
+    assert report["summary"]["stats"]["provider_usage_successes"] == 2
+    assert report["summary"]["stats"]["xai_usage_successes"] == 1
+    assert report["summary"]["stats"]["openai_usage_successes"] == 1
+    assert cost["unattributed_successful_call_count"] == 0
+    assert cost["unmatched_successful_call_count"] == 0
+    assert cost["candidates"][0]["call_coverage"] == "complete"
+    assert stages[("xAI", "candidate_backed_engagement")]["successful_usage_records"] == 1
+    assert stages[("OpenAI", "writer_v3_initial")]["successful_usage_records"] == 1
+    assert cost["coverage_complete"] is False
+    assert cost["coverage_reasons"] == ["successful responses lack provider cost"]
+
+    stage_summary = report["reply_pipeline_stages"]
+    assert stage_summary["evaluation_count"] == 1
+    assert stage_summary["provider_call_counts"] == {"OpenAI": 1, "xAI": 1}
+    assert stage_summary["allegation_conspiracy_candidate_count"] == 1
+    assert stage_summary["allegation_conspiracy_review_count"] == 1
+    assert stage_summary["claim_risk_category_counts"] == {"private_motive": 1}
+    assert stage_summary["near_duplicate_candidate_count"] == 1
+    assert stage_summary["final_validation_counts"] == {"passed": 1}
+
+    rendered = digest.render_markdown(report)
+    assert "## xAI usage, OpenAI usage, and conversational reply cost" in rendered
+    assert "Successful calls by provider: OpenAI=1, xAI=1." in rendered
+    assert "## Tested reply-pipeline stages" in rendered
+    assert "Allegation/conspiracy candidates/reviews/suppressions" in rendered
 
 
 def test_ai_first_event_without_strategy_version_is_not_mislabelled_v2():
@@ -1129,7 +1268,7 @@ def test_conversational_ai_missing_usage_and_cost_are_not_reported_as_zero():
     rendered = digest.render_markdown(report)
     assert "Known provider-reported cost (lower bound): US$0.00100000" in rendered
     assert "Exact per-candidate and effective-per-published-reply averages are unavailable" in rendered
-    assert "| unavailable | 0 | reviewer | grok-4.3 | unavailable |" in rendered
+    assert "| unavailable | 0 | xAI | reviewer | grok-4.3 | unavailable |" in rendered
 
 
 def test_conversational_usage_without_matching_call_start_is_incomplete():

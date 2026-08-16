@@ -18681,7 +18681,7 @@ def generate_ai_first_reply(
 ) -> str | None:
     """Run the sole conversational reply strategy and return only approved prose."""
     if tested_reply_pipeline.get("enabled") is True:
-        from tested_reply_pipeline import STRATEGY_VERSION, run_reply_pipeline
+        from tested_reply_pipeline import STRATEGY_VERSION, run_reply_pipeline, stage_telemetry
 
         lane = str(context.get("lane") or "")
         target_id = str(context.get("target_id") or "")
@@ -18694,6 +18694,17 @@ def generate_ai_first_reply(
             maximum_reply_length=MAX_REPLY_CHARS,
             recent_replies=recent_replies,
             media_context=media_context,
+        )
+        log_event(
+            "ai_reply_pipeline_stage_summary",
+            lane=lane,
+            target_id=target_id,
+            strategy_version=STRATEGY_VERSION,
+            status=result.status,
+            terminal_reason=result.reason,
+            model_call_count=result.model_call_count,
+            revision_count=result.revision_count,
+            **stage_telemetry(result.audit),
         )
         if result.reply is None:
             log.info(

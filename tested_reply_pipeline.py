@@ -291,6 +291,10 @@ def policy_result(context: dict[str, Any]) -> dict[str, Any]:
     for key, predicate in POLICIES.items():
         row[key], row[f"{key}_reason"] = predicate(context)
     row["suppressed"] = any(row[key] for key in "ABC")
+    row["reason"] = next(
+        (row[f"{key}_reason"] for key in "ABC" if row[key]),
+        None,
+    )
     return row
 
 
@@ -582,6 +586,105 @@ class PipelineResult:
 
 
 ModelTransport = Callable[..., object]
+
+
+def stage_telemetry(audit: object) -> dict[str, Any]:
+    """Return allow-listed aggregate telemetry without model text or reasoning."""
+    rows = [row for row in audit if isinstance(row, dict)] if isinstance(audit, (list, tuple)) else []
+    telemetry: dict[str, Any] = {
+        "provider_call_counts": {"xAI": 0, "OpenAI": 0},
+        "schema_invalid_stages": [],
+        "deterministic_suppressed": None,
+        "deterministic_reason": None,
+        "xai_gate_decision": None,
+        "reply_necessity_outcome": None,
+        "reply_necessity_invalid_calls": 0,
+        "group_hostility_candidate": None,
+        "group_hostility_outcome": None,
+        "allegation_conspiracy_candidate": None,
+        "allegation_conspiracy_categories": [],
+        "allegation_conspiracy_outcome": None,
+        "allegation_conspiracy_invalid_calls": 0,
+        "attribution_route": None,
+        "attribution_reply_requirement": None,
+        "authentication_outcome": None,
+        "claim_risk_categories": [],
+        "claim_audit_outcomes": [],
+        "claim_cleanup_called": False,
+        "exact_duplicate_detected": None,
+        "near_duplicate_count": None,
+        "duplicate_repair_called": False,
+        "duplicate_repair_outcome": None,
+        "final_validation": None,
+    }
+
+    claim_categories: set[str] = set()
+    for row in rows:
+        stage = str(row.get("stage") or "")
+        provider = row.get("provider")
+        if provider in telemetry["provider_call_counts"]:
+            telemetry["provider_call_counts"][provider] += 1
+            if row.get("schema_valid") is False:
+                telemetry["schema_invalid_stages"].append(stage)
+        if stage == "A_B_C":
+            telemetry["deterministic_suppressed"] = row.get("suppressed") is True
+            reason = row.get("reason")
+            telemetry["deterministic_reason"] = str(reason) if reason else None
+        elif stage == "xai_gate_decision" and row.get("decision") in {"reply", "no_reply"}:
+            telemetry["xai_gate_decision"] = row["decision"]
+        elif stage == "reply_necessity_resolution":
+            telemetry["reply_necessity_outcome"] = row.get("majority_outcome")
+            telemetry["reply_necessity_invalid_calls"] = int(row.get("invalid_or_refused_calls") or 0)
+        elif stage == "group_hostility_detector":
+            telemetry["group_hostility_candidate"] = row.get("candidate") is True
+        elif stage == "group_hostility_outcome":
+            telemetry["group_hostility_outcome"] = row.get("outcome")
+        elif stage == "allegation_conspiracy_detector":
+            telemetry["allegation_conspiracy_candidate"] = row.get("candidate") is True
+            categories = row.get("categories")
+            if isinstance(categories, list):
+                telemetry["allegation_conspiracy_categories"] = sorted(
+                    {str(value) for value in categories if str(value)}
+                )
+        elif stage == "allegation_conspiracy_resolution":
+            telemetry["allegation_conspiracy_outcome"] = row.get("majority_outcome")
+            telemetry["allegation_conspiracy_invalid_calls"] = int(row.get("invalid_or_refused_calls") or 0)
+        elif stage == "attribution_route_v2":
+            telemetry["attribution_route"] = row.get("route_class")
+            telemetry["attribution_reply_requirement"] = row.get("reply_requirement")
+        elif stage == "authentication_resolution":
+            telemetry["authentication_outcome"] = row.get("majority_outcome")
+        elif stage.endswith("_risk"):
+            categories = row.get("categories")
+            if isinstance(categories, list):
+                claim_categories.update(str(value) for value in categories if str(value))
+        elif stage.endswith("_outcome") and stage in {
+            "narrow_claim_audit_outcome",
+            "cleanup_claim_audit_outcome",
+            "diversity_claim_audit_outcome",
+        }:
+            outcome = row.get("outcome")
+            if outcome:
+                telemetry["claim_audit_outcomes"].append(
+                    {"stage": stage, "outcome": str(outcome)}
+                )
+        elif stage == "exact_duplicate_check":
+            telemetry["exact_duplicate_detected"] = row.get("exact_duplicate") is True
+            count = row.get("near_duplicate_count")
+            telemetry["near_duplicate_count"] = count if type(count) is int and count >= 0 else None
+        elif stage == "exact_duplicate_repair_outcome":
+            telemetry["duplicate_repair_outcome"] = row.get("outcome")
+        elif stage == "final_deterministic_validation":
+            telemetry["final_validation"] = "rejected" if row.get("rejection") else "passed"
+
+        if stage == "bounded_claim_cleanup":
+            telemetry["claim_cleanup_called"] = True
+        elif stage == "exact_duplicate_repair":
+            telemetry["duplicate_repair_called"] = True
+
+    telemetry["schema_invalid_stages"] = sorted(set(telemetry["schema_invalid_stages"]))
+    telemetry["claim_risk_categories"] = sorted(claim_categories)
+    return telemetry
 
 
 def default_config() -> dict[str, Any]:
