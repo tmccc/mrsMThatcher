@@ -432,6 +432,9 @@ ai_first_reply_strategy = {
     "maximum_reply_sentences": 2,
     "fail_closed": True,
 }
+from tested_reply_pipeline import default_config as tested_reply_pipeline_default_config
+
+tested_reply_pipeline = tested_reply_pipeline_default_config()
 quote_image_semantic_veto = {
     "enabled": False,
     "mode": "shadow",
@@ -679,13 +682,16 @@ def descriptor_owns_exclusive_flock(
 
 def test_mode_excludes_live_remote_writes() -> bool:
     """Return whether test mode uses only explicitly local fake endpoints."""
+    endpoints = [X_BASE, X_UPLOAD_BASE, XAI_BASE]
+    if tested_reply_pipeline.get("enabled") is True:
+        endpoints.append(OPENAI_BASE)
     return (
         TEST_MODE
         and os.getenv("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST")
         != LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE
         and all(
             endpoint_is_loopback(value)
-            for value in (X_BASE, X_UPLOAD_BASE, XAI_BASE)
+            for value in endpoints
         )
     )
 
@@ -1307,6 +1313,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "STATE_BACKUP_COUNT",
     "historical_context_reply",
     "ai_first_reply_strategy",
+    "tested_reply_pipeline",
     "quote_image_semantic_veto",
 }
 
@@ -1537,6 +1544,21 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         globals().get("ai_first_reply_strategy"),
     )
     errors.extend(validate_strategy_config(strategy_config))
+
+    from tested_reply_pipeline import validate_strategy_config as validate_tested_reply_pipeline_config
+
+    tested_config = values.get(
+        "tested_reply_pipeline",
+        globals().get("tested_reply_pipeline"),
+    )
+    errors.extend(validate_tested_reply_pipeline_config(tested_config))
+    if (
+        isinstance(strategy_config, dict)
+        and strategy_config.get("enabled") is True
+        and isinstance(tested_config, dict)
+        and tested_config.get("enabled") is True
+    ):
+        errors.append("ai_first_reply_strategy and tested_reply_pipeline cannot both be enabled")
 
     veto_config = values.get("quote_image_semantic_veto", globals().get("quote_image_semantic_veto"))
     veto_keys = {
@@ -1875,6 +1897,21 @@ if SOURCE_DEFAULT_CONFIG_ERRORS:
     raise RuntimeError("Invalid source default config: " + "; ".join(SOURCE_DEFAULT_CONFIG_ERRORS))
 
 
+def conversational_reply_pipeline_enabled() -> bool:
+    """Return whether exactly one reviewed conversational pipeline is active."""
+    return (
+        tested_reply_pipeline.get("enabled") is True
+        or ai_first_reply_strategy.get("enabled") is True
+    )
+
+
+def active_reply_evidence_config() -> dict:
+    """Return the enabled pipeline's local evidence settings."""
+    if tested_reply_pipeline.get("enabled") is True:
+        return tested_reply_pipeline
+    return ai_first_reply_strategy
+
+
 def reply_evidence_repository():
     """Load claim evidence on first use and cache a fail-closed load failure."""
     global _REPLY_EVIDENCE_REPOSITORY, _REPLY_EVIDENCE_LOAD_ERROR
@@ -1885,7 +1922,7 @@ def reply_evidence_repository():
 
     from reply_evidence import EvidenceRepository
 
-    research_path = Path(str(ai_first_reply_strategy["research_corpus_path"]))
+    research_path = Path(str(active_reply_evidence_config()["research_corpus_path"]))
     if not research_path.is_absolute():
         research_path = BASE_DIR / research_path
     factual_evidence_path = BASE_DIR / "reply_factual_evidence.json"
@@ -3103,6 +3140,7 @@ ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 MY_USER_ID = os.getenv("X_MY_USER_ID", "")
 MY_USERNAME = os.getenv("X_MY_USERNAME", "MrsMThatcher").strip().lstrip("@")
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # Optional. If set, quote lookup uses Bearer auth. If not set, the script
 # falls back to OAuth1, as used by the other X v2 calls.
@@ -3115,6 +3153,7 @@ log.debug("  X_ACCESS_TOKEN=%s", redact_secret(ACCESS_TOKEN))
 log.debug("  X_ACCESS_SECRET=%s", redact_secret(ACCESS_SECRET))
 log.debug("  X_MY_USER_ID=%s", MY_USER_ID or "<missing>")
 log.debug("  XAI_API_KEY=%s", redact_secret(XAI_API_KEY))
+log.debug("  OPENAI_API_KEY=%s", redact_secret(OPENAI_API_KEY))
 log.debug("  X_BEARER_TOKEN=%s", redact_secret(X_BEARER_TOKEN))
 
 def validate_production_credentials() -> None:
@@ -3126,6 +3165,8 @@ def validate_production_credentials() -> None:
         )
     if ENABLE_AUTO_REPLIES and not XAI_API_KEY:
         raise RuntimeError("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set")
+    if ENABLE_AUTO_REPLIES and tested_reply_pipeline.get("enabled") and not OPENAI_API_KEY:
+        raise RuntimeError("tested_reply_pipeline is enabled, but OPENAI_API_KEY is not set")
 
 AUTH = OAuth1(
     CONSUMER_KEY,
@@ -3207,6 +3248,7 @@ X_UPLOAD_BASE = normalise_base_url(
     require_origin=True,
 )
 XAI_BASE = normalise_base_url(os.getenv("XAI_API_BASE_URL", "https://api.x.ai/v1"))
+OPENAI_BASE = normalise_base_url(os.getenv("OPENAI_API_BASE_URL", "https://api.openai.com/v1"))
 LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE = "I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X"
 
 
@@ -4675,7 +4717,7 @@ def clarification_reply_context(
     current: int,
 ) -> dict | None:
     """Return bounded repair metadata only for a direct follow-up to our confirmed reply."""
-    if not ai_first_reply_strategy.get("enabled") or clarification_thread_is_terminal(state, candidate):
+    if not conversational_reply_pipeline_enabled() or clarification_thread_is_terminal(state, candidate):
         return None
     author_id = str(candidate.get("author_id") or "")
     if not author_id or author_used_clarification_recently(state, author_id, current=current):
@@ -18032,10 +18074,6 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
     low = text.lower().strip()
     log.debug("Spam check for text=%r", text)
 
-    if len(low) < 4:
-        log.info("Ignoring post: too short")
-        return True
-
     for pattern in SPAMMY_PATTERNS:
         if re.search(pattern, low):
             log.info("Ignoring post: matched spam pattern %s", pattern)
@@ -18216,6 +18254,51 @@ def pending_ai_reply_draft_key(target_id: object, candidate_source: object) -> s
     return f"{str(candidate_source or 'mention')}:{str(target_id)}"
 
 
+def validate_current_ai_reply_draft(
+    draft: object,
+    *,
+    context: dict[str, object],
+    recent_replies: list[str] | None = None,
+) -> dict:
+    """Validate either a legacy V3 draft or a tested-pipeline draft."""
+    from tested_reply_pipeline import STRATEGY_VERSION as TESTED_STRATEGY_VERSION
+
+    if isinstance(draft, dict) and draft.get("strategy_version") == TESTED_STRATEGY_VERSION:
+        from tested_reply_pipeline import validate_persisted_draft
+
+        return validate_persisted_draft(
+            draft,
+            context=context,
+            config=tested_reply_pipeline,
+            repository=reply_evidence_repository(),
+            maximum_reply_length=MAX_REPLY_CHARS,
+            recent_replies=recent_replies,
+        )
+    from reply_strategy import validate_persisted_draft
+
+    return validate_persisted_draft(
+        draft,
+        context=context,
+        config=ai_first_reply_strategy,
+        repository=reply_evidence_repository(),
+        maximum_reply_length=MAX_REPLY_CHARS,
+        recent_replies=recent_replies,
+    )
+
+
+def current_ai_reply_evidence_telemetry(draft: dict) -> dict[str, object]:
+    """Return telemetry for either supported durable draft schema."""
+    from tested_reply_pipeline import STRATEGY_VERSION as TESTED_STRATEGY_VERSION
+
+    if draft.get("strategy_version") == TESTED_STRATEGY_VERSION:
+        from tested_reply_pipeline import evidence_telemetry
+
+        return evidence_telemetry(draft)
+    from reply_strategy import evidence_telemetry
+
+    return evidence_telemetry(draft, reply_evidence_repository())
+
+
 def store_pending_ai_reply(
     state: dict,
     target_id: str,
@@ -18225,18 +18308,12 @@ def store_pending_ai_reply(
     context: dict[str, object],
 ) -> bool:
     """Store a reviewer-approved V3 draft after complete local revalidation."""
-    from reply_strategy import AIReply, validate_persisted_draft
+    from reply_strategy import AIReply
 
     if not isinstance(reply, AIReply):
         return False
     try:
-        validated = validate_persisted_draft(
-            reply.draft_record,
-            context=context,
-            config=ai_first_reply_strategy,
-            repository=reply_evidence_repository(),
-            maximum_reply_length=MAX_REPLY_CHARS,
-        )
+        validated = validate_current_ai_reply_draft(reply.draft_record, context=context)
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         log.warning(
             "Refusing invalid V3 pending AI reply draft target_id=%s source=%s reason=%s",
@@ -18269,20 +18346,16 @@ def pending_ai_reply(
     recent_replies: list[str] | None = None,
 ) -> str | None:
     """Return a locally revalidated reviewer-approved V3 draft."""
-    from reply_strategy import AIReply, validate_persisted_draft
+    from reply_strategy import AIReply
 
     drafts = state.get("pending_ai_reply_drafts", {})
     if not isinstance(drafts, dict):
         return None
     record = drafts.get(pending_ai_reply_draft_key(target_id, candidate_source))
     try:
-        repository = reply_evidence_repository()
-        validated = validate_persisted_draft(
+        validated = validate_current_ai_reply_draft(
             record,
             context=context,
-            config=ai_first_reply_strategy,
-            repository=repository,
-            maximum_reply_length=MAX_REPLY_CHARS,
             recent_replies=recent_replies,
         )
     except ReplyEvidenceUnavailable:
@@ -18299,8 +18372,6 @@ def pending_ai_reply(
             if not drafts:
                 state.pop("pending_ai_reply_drafts", None)
         return None
-    from reply_strategy import evidence_telemetry
-
     metadata = {
         "strategy_version": validated["strategy_version"],
         "mode": validated["mode"],
@@ -18311,15 +18382,13 @@ def pending_ai_reply(
         "reviewer_verdict": validated["reviewer_verdict"],
         "model_call_count": validated["model_call_count"],
         "revision_count": validated["revision_count"],
-        **evidence_telemetry(validated, repository),
+        **current_ai_reply_evidence_telemetry(validated),
     }
     return AIReply(validated["proposed_reply"], copy.deepcopy(validated), metadata)
 
 
 def ai_reply_evidence_telemetry(reply: object) -> dict[str, object]:
     """Return audit metrics from an already-validated AI reply draft."""
-
-    from reply_strategy import evidence_telemetry
 
     metadata = getattr(reply, "pipeline_metadata", None)
     telemetry_fields = (
@@ -18339,7 +18408,7 @@ def ai_reply_evidence_telemetry(reply: object) -> dict[str, object]:
             "evidence_reference_count": None,
         }
     try:
-        return evidence_telemetry(draft, reply_evidence_repository())
+        return current_ai_reply_evidence_telemetry(draft)
     except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return {
             "evidence_confidence": "unavailable",
@@ -18502,6 +18571,107 @@ def xai_structured_reply_call(
     return content
 
 
+def tested_pipeline_structured_call(
+    *,
+    provider: str,
+    stage: str,
+    model: str,
+    system_prompt: str,
+    payload: dict,
+    response_schema: dict,
+    timeout_seconds: int,
+    max_output_tokens: int,
+    reasoning_effort: str,
+) -> object:
+    """Call one tested-pipeline stage with bounded transient retries."""
+    if provider not in {"xAI", "OpenAI"}:
+        raise ValueError("unsupported tested-pipeline provider")
+    is_xai = provider == "xAI"
+    request = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": json.dumps(payload, ensure_ascii=False, sort_keys=True),
+            },
+        ],
+        "reasoning_effort": reasoning_effort,
+        "temperature": 1,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "mrs_tested_" + re.sub(r"[^a-z0-9_]+", "_", stage.lower())[:48],
+                "strict": True,
+                "schema": response_schema,
+            },
+        },
+    }
+    if is_xai:
+        request["max_tokens"] = max_output_tokens
+    else:
+        request["max_completion_tokens"] = max_output_tokens
+        request["store"] = False
+    base = XAI_BASE if is_xai else OPENAI_BASE
+    api_key = XAI_API_KEY if is_xai else OPENAI_API_KEY
+    log.info(
+        "Calling tested reply pipeline stage=%s provider=%s model=%s reasoning_effort=%s",
+        stage,
+        provider,
+        model,
+        reasoning_effort,
+    )
+    require_remote_operation_unpaused(f"{provider} tested reply stage {stage}")
+    for attempt in (1, 2):
+        try:
+            response = requests.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=request,
+                timeout=timeout_seconds,
+            )
+        except requests.Timeout as exc:
+            if attempt == 1:
+                log.warning("Tested reply stage=%s timed out; retrying once", stage)
+                continue
+            raise ApiError(str(exc), service="xai") from exc
+        except requests.RequestException as exc:
+            raise ApiError(str(exc), service="xai") from exc
+        if response.status_code == 429 or response.status_code >= 500:
+            if attempt == 1:
+                log.warning(
+                    "Tested reply stage=%s provider=%s returned HTTP %s; retrying once",
+                    stage,
+                    provider,
+                    response.status_code,
+                )
+                sleep(1)
+                continue
+        if response.status_code >= 400:
+            raise ApiError(
+                f"{provider} tested reply stage {stage} error {response.status_code}: {response.text[:500]}",
+                service="xai",
+                status_code=response.status_code,
+            )
+        try:
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+        except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+            raise ApiError(
+                f"{provider} tested reply stage {stage} response shape is invalid",
+                service="xai",
+            ) from exc
+        if not isinstance(content, (str, dict)):
+            raise ApiError(
+                f"{provider} tested reply stage {stage} content is not structured JSON",
+                service="xai",
+            )
+        if data.get("usage"):
+            log.info("Tested reply stage=%s provider=%s usage=%s", stage, provider, data["usage"])
+        return content
+    raise AssertionError("unreachable tested-pipeline retry state")
+
+
 def generate_ai_first_reply(
     context: dict[str, object],
     media_context: dict | None = None,
@@ -18510,6 +18680,76 @@ def generate_ai_first_reply(
     evaluation_outcome: dict | None = None,
 ) -> str | None:
     """Run the sole conversational reply strategy and return only approved prose."""
+    if tested_reply_pipeline.get("enabled") is True:
+        from tested_reply_pipeline import STRATEGY_VERSION, run_reply_pipeline
+
+        lane = str(context.get("lane") or "")
+        target_id = str(context.get("target_id") or "")
+        log.info("Running tested reply pipeline lane=%s target_id=%s", lane, target_id)
+        result = run_reply_pipeline(
+            context=context,
+            config=tested_reply_pipeline,
+            repository=reply_evidence_repository(),
+            transport=tested_pipeline_structured_call,
+            maximum_reply_length=MAX_REPLY_CHARS,
+            recent_replies=recent_replies,
+            media_context=media_context,
+        )
+        if result.reply is None:
+            log.info(
+                "Tested reply pipeline ended status=%s lane=%s target_id=%s reason=%s calls=%d",
+                result.status,
+                lane,
+                target_id,
+                result.reason,
+                result.model_call_count,
+            )
+            log_event(
+                "ai_reply_pipeline_decision",
+                lane=lane,
+                target_id=target_id,
+                status=result.status,
+                strategy_version=STRATEGY_VERSION,
+                mode="no_reply",
+                proposer_mode="not_applicable",
+                tone="none",
+                factual_claim_count=0,
+                evidence_ids=[],
+                evidence_confidence="none",
+                retrieved_count=None,
+                evidence_reference_count=0,
+                reviewer_verdict="pipeline_no_reply",
+                terminal_stage=result.reason,
+                claim_auditor_status="recorded_in_pipeline_audit",
+                evidence_status="local_only",
+                reason=result.reason,
+                model_call_count=result.model_call_count,
+                revision_count=result.revision_count,
+            )
+            if evaluation_outcome is not None:
+                evaluation_outcome.update({"status": result.status, "reason": result.reason})
+            return None
+        metadata = result.reply.pipeline_metadata
+        telemetry = ai_reply_evidence_telemetry(result.reply)
+        log_event(
+            "ai_reply_pipeline_decision",
+            lane=lane,
+            target_id=target_id,
+            status="approved",
+            strategy_version=metadata["strategy_version"],
+            mode=metadata["mode"],
+            tone=metadata["tone"],
+            factual_claim_count=metadata["factual_claim_count"],
+            evidence_ids=metadata["evidence_ids"],
+            **telemetry,
+            reviewer_verdict=metadata["reviewer_verdict"],
+            model_call_count=metadata["model_call_count"],
+            revision_count=metadata["revision_count"],
+        )
+        if evaluation_outcome is not None:
+            evaluation_outcome.update({"status": "approved", "reason": result.reason})
+        return result.reply
+
     from reply_strategy import STRATEGY_VERSION, outcome_telemetry, run_reply_pipeline
 
     lane = str(context.get("lane") or "")
@@ -18636,20 +18876,12 @@ def record_terminal_reply_evaluation(
 
 def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
     """Return whether a receipt carries a currently valid approved V3 draft."""
-    from reply_strategy import validate_persisted_draft
-
     context = data.get("reply_context")
     draft = data.get("ai_reply_draft")
     if not isinstance(context, dict) or not isinstance(draft, dict):
         return False
     try:
-        validated = validate_persisted_draft(
-            draft,
-            context=context,
-            config=ai_first_reply_strategy,
-            repository=reply_evidence_repository(),
-            maximum_reply_length=MAX_REPLY_CHARS,
-        )
+        validated = validate_current_ai_reply_draft(draft, context=context)
     except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return False
     return validated["proposed_reply"] == text
@@ -19828,8 +20060,8 @@ def maybe_reply_to_mentions(state: dict) -> str:
         log.info("Auto replies disabled")
         return NORMAL_CHECK_STATUS_DISABLED
 
-    if ai_first_reply_strategy.get("enabled") is not True:
-        log.info("AI-first reply strategy disabled; skipping mention/hot-post checks")
+    if not conversational_reply_pipeline_enabled():
+        log.info("Conversational reply pipeline disabled; skipping mention/hot-post checks")
         return NORMAL_CHECK_STATUS_DISABLED
 
     if lane_paused("disable_replies", "disable_normal_replies"):
@@ -20826,8 +21058,8 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         log.info("Auto replies disabled; skipping quote-tweet checks")
         return QUOTE_CHECK_STATUS_DISABLED
 
-    if ai_first_reply_strategy.get("enabled") is not True:
-        log.info("AI-first reply strategy disabled; skipping quote-tweet checks")
+    if not conversational_reply_pipeline_enabled():
+        log.info("Conversational reply pipeline disabled; skipping quote-tweet checks")
         return QUOTE_CHECK_STATUS_DISABLED
 
     if lane_paused("disable_replies", "disable_quote_replies"):
@@ -22018,6 +22250,8 @@ def run_self_test() -> int:
     require("X_MY_USER_ID set", bool(MY_USER_ID))
     if ENABLE_AUTO_REPLIES:
         require("XAI_API_KEY set when auto replies enabled", bool(XAI_API_KEY))
+        if tested_reply_pipeline.get("enabled"):
+            require("OPENAI_API_KEY set when tested reply pipeline enabled", bool(OPENAI_API_KEY))
     _self_test_warn("X_BEARER_TOKEN set", bool(X_BEARER_TOKEN), "needed/preferred for quote/hot search")
 
     require("MAX_AUTO_REPLIES_PER_DAY positive", int(MAX_AUTO_REPLIES_PER_DAY) > 0, str(MAX_AUTO_REPLIES_PER_DAY))
@@ -22056,6 +22290,7 @@ def run_test_cycle() -> int:
     log.info("X base=%s", X_BASE)
     log.info("X upload base=%s", X_UPLOAD_BASE)
     log.info("xAI base=%s", XAI_BASE)
+    log.info("OpenAI base=%s", OPENAI_BASE)
 
     state = load_runtime_state()
 
