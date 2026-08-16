@@ -293,6 +293,9 @@ MAX_REPLIES_PER_AUTHOR_PER_DAY = 6
 CLARIFICATION_REPLY_WINDOW_SECONDS = 24 * 60 * 60
 MAX_MENTIONS_PER_CHECK = 5
 MENTIONS_MAX_PAGES_PER_CHECK = 3
+AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
+AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
+AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
 
 # Optional hot-post reply lane. This reuses the same watched post ID file
 # as the quote-tweet lane, but looks for ordinary replies in that post
@@ -1261,6 +1264,9 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "MAX_QUOTE_REPLIES_PER_DAY",
     "MAX_REPLIES_PER_AUTHOR_PER_DAY",
     "MAX_MENTIONS_PER_CHECK",
+    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
     "MIN_SECONDS_BETWEEN_REPLIES",
     "MAX_HOT_POST_REPLIES_PER_CHECK",
     "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
@@ -1334,6 +1340,9 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "MAX_QUOTE_REPLIES_PER_DAY",
     "MAX_REPLIES_PER_AUTHOR_PER_DAY",
     "MAX_MENTIONS_PER_CHECK",
+    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
     "MIN_SECONDS_BETWEEN_REPLIES",
     "MAX_HOT_POST_REPLIES_PER_CHECK",
     "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
@@ -1366,6 +1375,9 @@ LOCAL_CONFIG_POSITIVE_INT_KEYS = {
     "MAX_QUOTE_REPLIES_PER_DAY",
     "MAX_REPLIES_PER_AUTHOR_PER_DAY",
     "MAX_MENTIONS_PER_CHECK",
+    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
     "MAX_HOT_POST_REPLIES_PER_CHECK",
     "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
     "MAX_QUOTE_POSTS_PER_CHECK",
@@ -1596,6 +1608,9 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         "MAX_AUTO_REPLIES_PER_DAY",
         "MAX_QUOTE_REPLIES_PER_DAY",
         "MAX_REPLIES_PER_AUTHOR_PER_DAY",
+        "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+        "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+        "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
         "MAX_HOT_POST_REPLIES_PER_CHECK",
         "QUOTE_POST_LOOKBACK_MAIN_POSTS",
         "RECENT_OWN_POST_IDS_MAX",
@@ -3737,6 +3752,9 @@ def default_state() -> dict:
     return {
         "last_seen_mention_id": None,
         "mention_pagination": {},
+        "mention_backlog": {},
+        "mention_pending_candidates": {},
+        "author_evaluation_quarantines": {},
         "replied_to_ids": [],
         "dry_run_seen_mention_ids": [],
         "skipped_hot_reply_ids": [],
@@ -3990,6 +4008,140 @@ def prune_reply_evaluation_records(
         )
 
 
+def prune_author_evaluation_quarantines(
+    state: dict,
+    *,
+    current_epoch: int | None = None,
+) -> bool:
+    """Expire quarantines and discard author strike records outside the window."""
+    records = state.get("author_evaluation_quarantines")
+    if not isinstance(records, dict):
+        state["author_evaluation_quarantines"] = {}
+        return True
+    current = now_epoch() if current_epoch is None else int(current_epoch)
+    cutoff = current - AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS
+    retained: dict[str, dict[str, object]] = {}
+    changed = False
+    for author_id, raw_record in records.items():
+        if not isinstance(raw_record, dict):
+            changed = True
+            continue
+        recent = [
+            int(epoch)
+            for epoch in raw_record.get("recent_no_reply_epochs", [])
+            if type(epoch) is int and cutoff < epoch <= current
+        ]
+        recent.sort()
+        until = int(raw_record.get("quarantine_until_epoch", 0) or 0)
+        updated = int(raw_record.get("last_updated_epoch", 0) or 0)
+        if until and until <= current:
+            log_event(
+                "author_evaluation_quarantine_expired",
+                author_id=str(author_id),
+                quarantine_until_epoch=until,
+                expired_epoch=current,
+            )
+            until = 0
+            recent = []
+            updated = current
+            changed = True
+        if until > current or recent:
+            record = {
+                "recent_no_reply_epochs": recent,
+                "quarantine_until_epoch": until,
+                "last_updated_epoch": updated,
+            }
+            retained[str(author_id)] = record
+            if record != raw_record or str(author_id) != author_id:
+                changed = True
+        else:
+            changed = True
+    if retained != records:
+        state["author_evaluation_quarantines"] = retained
+        changed = True
+    return changed
+
+
+def active_author_evaluation_quarantine(
+    state: dict,
+    author_id: str,
+    *,
+    current_epoch: int | None = None,
+) -> dict | None:
+    """Return an active mention-lane author quarantine, expiring old state first."""
+    current = now_epoch() if current_epoch is None else int(current_epoch)
+    prune_author_evaluation_quarantines(state, current_epoch=current)
+    records = state.get("author_evaluation_quarantines", {})
+    record = records.get(str(author_id)) if isinstance(records, dict) else None
+    if (
+        isinstance(record, dict)
+        and int(record.get("quarantine_until_epoch", 0) or 0) > current
+    ):
+        return record
+    return None
+
+
+def record_qualifying_author_no_reply(
+    state: dict,
+    author_id: str,
+    *,
+    current_epoch: int | None = None,
+) -> bool:
+    """Add one confirmed policy-silence strike and start quarantine at threshold."""
+    author_id = str(author_id)
+    if not author_id or not author_id.isdigit():
+        return False
+    current = now_epoch() if current_epoch is None else int(current_epoch)
+    prune_author_evaluation_quarantines(state, current_epoch=current)
+    records = state.get("author_evaluation_quarantines", {})
+    if not isinstance(records, dict):
+        records = {}
+    records = dict(records)
+    existing = records.get(author_id, {})
+    if not isinstance(existing, dict):
+        existing = {}
+    cutoff = current - AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS
+    recent = [
+        int(epoch)
+        for epoch in existing.get("recent_no_reply_epochs", [])
+        if type(epoch) is int and cutoff < epoch <= current
+    ]
+    recent.append(current)
+    recent.sort()
+    until = int(existing.get("quarantine_until_epoch", 0) or 0)
+    started = False
+    if until <= current and len(recent) >= AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD:
+        until = current + AUTHOR_NO_REPLY_QUARANTINE_SECONDS
+        started = True
+        log_event(
+            "author_evaluation_quarantine_started",
+            author_id=author_id,
+            strike_count=len(recent),
+            threshold=AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
+            window_seconds=AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
+            quarantine_seconds=AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
+            quarantine_until_epoch=until,
+        )
+    records[author_id] = {
+        "recent_no_reply_epochs": recent,
+        "quarantine_until_epoch": until,
+        "last_updated_epoch": current,
+    }
+    state["author_evaluation_quarantines"] = records
+    return started
+
+
+def clear_author_evaluation_quarantine_history(state: dict, author_id: str) -> bool:
+    """Clear prior strikes when a mention receives a fully approved reply."""
+    records = state.get("author_evaluation_quarantines")
+    if not isinstance(records, dict) or str(author_id) not in records:
+        return False
+    records = dict(records)
+    records.pop(str(author_id), None)
+    state["author_evaluation_quarantines"] = records
+    return True
+
+
 def normalise_tweet_cache_entry(tweet_id: object, entry: dict, *, path: Path) -> dict[str, object] | None:
     """Normalise tweet cache entry."""
     cached_epoch = normalise_state_epoch(entry.get("cached_epoch", 0), key=f"tweet_cache.{tweet_id}.cached_epoch", path=path)
@@ -4102,6 +4254,124 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
         )
         return None
     return candidate
+
+
+def normalise_mention_backlog(value: object, *, path: Path) -> dict | None:
+    """Validate the durable state for one incomplete mention traversal."""
+    if not isinstance(value, dict):
+        log.error("State candidate %s has invalid mention_backlog type %s; ignoring", path, type(value).__name__)
+        return None
+    if not value:
+        return {}
+    expected = {
+        "since_id",
+        "next_token",
+        "highest_mention_id",
+        "pages_completed",
+        "started_epoch",
+        "seen_tokens",
+        "announced",
+    }
+    if set(value) != expected:
+        log.error("State candidate %s has invalid mention_backlog fields; ignoring", path)
+        return None
+    since_id = value.get("since_id")
+    next_token = value.get("next_token")
+    highest_id = value.get("highest_mention_id")
+    pages = value.get("pages_completed")
+    started = value.get("started_epoch")
+    seen_tokens = value.get("seen_tokens")
+    announced = value.get("announced")
+    if not isinstance(since_id, str) or (since_id and not since_id.isdigit()):
+        return None
+    if (
+        not isinstance(next_token, str)
+        or next_token != next_token.strip()
+        or any(character.isspace() for character in next_token)
+    ):
+        return None
+    if not isinstance(highest_id, str) or (highest_id and not highest_id.isdigit()):
+        return None
+    if type(pages) is not int or pages < 0:
+        return None
+    if type(started) is not int or started < 0 or started > MAX_REASONABLE_STATE_EPOCH:
+        return None
+    if (
+        not isinstance(seen_tokens, list)
+        or any(
+            not isinstance(token, str)
+            or not token
+            or token != token.strip()
+            or any(character.isspace() for character in token)
+            for token in seen_tokens
+        )
+        or len(seen_tokens) > 10_000
+        or len(set(seen_tokens)) != len(seen_tokens)
+    ):
+        return None
+    if type(announced) is not bool:
+        return None
+    return {
+        "since_id": since_id,
+        "next_token": next_token,
+        "highest_mention_id": highest_id,
+        "pages_completed": pages,
+        "started_epoch": started,
+        "seen_tokens": list(seen_tokens),
+        "announced": announced,
+    }
+
+
+def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dict | None:
+    """Validate compact per-author no-reply strike and quarantine records."""
+    if not isinstance(value, dict):
+        log.error(
+            "State candidate %s has invalid author_evaluation_quarantines type %s; ignoring",
+            path,
+            type(value).__name__,
+        )
+        return None
+    result: dict[str, dict[str, object]] = {}
+    for raw_author_id, raw_record in value.items():
+        author_id = str(raw_author_id)
+        if not author_id.isdigit() or not isinstance(raw_record, dict):
+            return None
+        if set(raw_record) != {
+            "recent_no_reply_epochs",
+            "quarantine_until_epoch",
+            "last_updated_epoch",
+        }:
+            return None
+        timestamps = raw_record.get("recent_no_reply_epochs")
+        until = raw_record.get("quarantine_until_epoch")
+        updated = raw_record.get("last_updated_epoch")
+        if (
+            not isinstance(timestamps, list)
+            or any(
+                type(timestamp) is not int
+                or timestamp < 0
+                or timestamp > MAX_REASONABLE_STATE_EPOCH
+                for timestamp in timestamps
+            )
+            or len(timestamps) > max(100, AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD * 4)
+            or timestamps != sorted(timestamps)
+        ):
+            return None
+        if (
+            type(until) is not int
+            or until < 0
+            or until > MAX_REASONABLE_STATE_EPOCH
+            or type(updated) is not int
+            or updated < 0
+            or updated > MAX_REASONABLE_STATE_EPOCH
+        ):
+            return None
+        result[author_id] = {
+            "recent_no_reply_epochs": list(timestamps),
+            "quarantine_until_epoch": until,
+            "last_updated_epoch": updated,
+        }
+    return result
 
 
 def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
@@ -4233,6 +4503,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "pending_ai_reply_drafts",
         "reply_evaluation_records",
         "clarification_reply_records",
+        "mention_pending_candidates",
     }
     optional_scalar_keys = {
         "daily_reply_date",
@@ -4329,6 +4600,19 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         if value is None:
             return None
         normalised["mention_pagination"] = value
+    if "mention_backlog" in state:
+        value = normalise_mention_backlog(state["mention_backlog"], path=path)
+        if value is None:
+            return None
+        normalised["mention_backlog"] = value
+    if "author_evaluation_quarantines" in state:
+        value = normalise_author_evaluation_quarantines(
+            state["author_evaluation_quarantines"],
+            path=path,
+        )
+        if value is None:
+            return None
+        normalised["author_evaluation_quarantines"] = value
     for key in int_keys:
         if key not in state:
             continue
@@ -4354,6 +4638,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         return None
 
     prune_reply_evaluation_records(normalised)
+    prune_author_evaluation_quarantines(normalised)
 
     return normalised
 
@@ -5642,6 +5927,9 @@ def x_paginated_get(
     label: str,
     on_invalid_cursor=None,
     on_repeated_cursor=None,
+    on_page=None,
+    initial_requested_tokens: set[str] | None = None,
+    retry_invalid_cursor_from_head: bool = True,
 ) -> dict:
     """
     Read bounded pages from an X API collection endpoint.
@@ -5656,7 +5944,7 @@ def x_paginated_get(
     base_params = dict(params)
     recovered_invalid_cursor = False
     cursor_state_invalidated = False
-    requested_tokens: set[str] = set()
+    requested_tokens: set[str] = set(initial_requested_tokens or set())
     repeated_token_detected = False
 
     def invalidate_cursor_state() -> None:
@@ -5707,6 +5995,8 @@ def x_paginated_get(
                     and api_error_is_invalid_pagination_cursor(exc)
                 ):
                     invalidate_cursor_state()
+                    if not retry_invalid_cursor_from_head:
+                        raise
                     recovered_invalid_cursor = True
                     base_params.pop("pagination_token", None)
                     restart_from_head = True
@@ -5772,6 +6062,14 @@ def x_paginated_get(
                 repeated_token_detected = True
                 next_token = ""
                 break
+            if on_page is not None:
+                on_page(
+                    page_data,
+                    includes,
+                    next_token,
+                    request_token,
+                    pages_fetched,
+                )
             if not next_token:
                 break
 
@@ -5794,7 +6092,8 @@ def x_paginated_get(
         "repeated_token_detected": repeated_token_detected,
     }
     if next_token:
-        log.warning(
+        pagination_log = log.info if label == "mentions" else log.warning
+        pagination_log(
             "Pagination truncated for %s after %d page(s); more results remain",
             label,
             pages_fetched,
@@ -6435,93 +6734,318 @@ def reply_target_is_directly_eligible(tweet: dict) -> bool:
     return False
 
 
-def get_mentions(state: dict) -> list[dict]:
-    """Fetch a bounded page set of direct mention candidates."""
-    base_since_id = str(state.get("last_seen_mention_id") or "")
-    log.info(
-        "Fetching mentions. last_seen_mention_id=%s max_results=%s",
-        base_since_id or None,
-        MAX_MENTIONS_PER_CHECK,
+def pending_mention_candidates(state: dict) -> list[dict]:
+    """Return the durable fetched-candidate queue, deduplicated by status ID."""
+    pending = state.get("mention_pending_candidates", {})
+    if not isinstance(pending, dict):
+        state["mention_pending_candidates"] = {}
+        return []
+    return valid_tweets_sorted_by_id(
+        [candidate for candidate in pending.values() if isinstance(candidate, dict)],
+        context="durable pending mention",
     )
 
-    params = {
-        "max_results": MAX_MENTIONS_PER_CHECK,
-        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities",
-        "expansions": "author_id,attachments.media_keys",
-        "media.fields": "media_key,type,url,preview_image_url",
-    }
 
-    if base_since_id:
-        params["since_id"] = base_since_id
+def remove_pending_mention_candidate(state: dict, mention_id: str) -> bool:
+    """Remove one completely handled mention from the durable fetched queue."""
+    pending = state.get("mention_pending_candidates")
+    if not isinstance(pending, dict) or str(mention_id) not in pending:
+        return False
+    pending = dict(pending)
+    pending.pop(str(mention_id), None)
+    state["mention_pending_candidates"] = pending
+    return True
 
-    mention_pagination = state.get("mention_pagination", {})
-    if not isinstance(mention_pagination, dict):
-        mention_pagination = {}
-    resume_token = ""
-    if str(mention_pagination.get("base_since_id", "")) == base_since_id:
-        resume_token = str(mention_pagination.get("next_token", "") or "")
-    if resume_token:
-        params["pagination_token"] = resume_token
-        log.info("Resuming mention pagination from saved cursor")
 
-    def clear_invalid_mention_cursor() -> None:
+def get_mentions(state: dict) -> list[dict]:
+    """Fetch, durably queue and resume bounded pages of direct mentions.
+
+    A fetched page is saved before its cursor or completed-range watermark is
+    committed.  The durable pending queue therefore owns candidates until the
+    reply loop records each one as handled, including across process restarts.
+    """
+    queued = pending_mention_candidates(state)
+    if queued:
+        log.info("Using %d durably queued mention candidate(s) before further pagination", len(queued))
+        return queued
+
+    current = now_epoch()
+    remaining_pages = max(1, int(MENTIONS_MAX_PAGES_PER_CHECK))
+    reset_logged = False
+
+    def reset_backlog(reason: str, *, token: str = "") -> None:
+        nonlocal reset_logged
+        backlog = state.get("mention_backlog", {})
+        saved_since_id = (
+            str(backlog.get("since_id", ""))
+            if isinstance(backlog, dict)
+            else str(state.get("last_seen_mention_id") or "")
+        )
+        pages_completed = (
+            int(backlog.get("pages_completed", 0) or 0)
+            if isinstance(backlog, dict)
+            else 0
+        )
+        state["mention_backlog"] = {}
         state["mention_pagination"] = {}
         save_state(state, durable=True)
-
-    result = x_paginated_get(
-        lambda path, page_params: x_request("GET", path, params=page_params),
-        f"/2/users/{MY_USER_ID}/mentions",
-        params,
-        max_pages=MENTIONS_MAX_PAGES_PER_CHECK,
-        label="mentions",
-        on_invalid_cursor=clear_invalid_mention_cursor,
-    )
-
-    mentions = result.get("data", [])
-    attach_media_to_tweets(mentions, result.get("includes", {}))
-    pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
-    truncated = bool(pagination.get("truncated"))
-    log.info("Fetched %d mentions", len(mentions))
-    log_json_debug("Mentions returned", mentions)
-    if truncated:
-        log.warning("Mention pagination was truncated; mention watermark will not advance this cycle")
-        next_token = str(pagination.get("next_token") or "")
-        if not next_token:
-            raise ApiError(
-                "X mentions marked pagination truncated without a continuation token",
-                service="x",
+        if not reset_logged:
+            log.warning(
+                "Mention backlog continuation was reset reason=%s; watermark remains unchanged",
+                reason,
             )
-        continuation = {
-            "base_since_id": base_since_id,
-            "next_token": next_token,
+            log_event(
+                "mention_backlog_reset",
+                reason=reason,
+                since_id=saved_since_id or None,
+                pages_completed=pages_completed,
+                token_fingerprint=(
+                    hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+                    if token
+                    else None
+                ),
+            )
+            reset_logged = True
+
+    while remaining_pages > 0:
+        watermark = str(state.get("last_seen_mention_id") or "")
+        backlog = state.get("mention_backlog", {})
+        if not isinstance(backlog, dict):
+            backlog = {}
+
+        # Migrate the exact legacy cursor retained by schema-v3/v4 reply
+        # receipts into the richer traversal record on first use.
+        legacy = state.get("mention_pagination", {})
+        if not backlog and isinstance(legacy, dict):
+            legacy_base = str(legacy.get("base_since_id", ""))
+            legacy_token = str(legacy.get("next_token", "") or "")
+            if legacy_token and legacy_base == watermark:
+                backlog = {
+                    "since_id": watermark,
+                    "next_token": legacy_token,
+                    "highest_mention_id": watermark,
+                    "pages_completed": 0,
+                    "started_epoch": current,
+                    "seen_tokens": [],
+                    "announced": True,
+                }
+                state["mention_backlog"] = backlog
+                save_state(state, durable=True)
+
+        if backlog and str(backlog.get("since_id", "")) != watermark:
+            reset_backlog("since_id_mismatch")
+            backlog = {}
+
+        if not backlog:
+            backlog = {
+                "since_id": watermark,
+                "next_token": "",
+                "highest_mention_id": watermark,
+                "pages_completed": 0,
+                "started_epoch": current,
+                "seen_tokens": [],
+                "announced": False,
+            }
+            state["mention_backlog"] = backlog
+            state["mention_pagination"] = {}
+            save_state(state, durable=True)
+
+        base_since_id = str(backlog["since_id"])
+        resume_token = str(backlog.get("next_token", "") or "")
+        prior_seen_tokens = {
+            str(token)
+            for token in backlog.get("seen_tokens", [])
+            if isinstance(token, str) and token
         }
-        state["mention_pagination"] = continuation
-        save_state(state)
-        for mention in mentions:
-            mention["_pagination_truncated"] = True
-            mention["_mention_pagination"] = copy.deepcopy(continuation)
-    elif mention_pagination:
-        state["mention_pagination"] = {}
-        save_state(state)
+        prior_pages_completed = int(backlog.get("pages_completed", 0) or 0)
+        was_announced = bool(backlog.get("announced"))
+        log.info(
+            "Fetching mentions. since_id=%s resume=%s max_results=%s remaining_pages=%s",
+            base_since_id or None,
+            bool(resume_token),
+            MAX_MENTIONS_PER_CHECK,
+            remaining_pages,
+        )
 
-    if mentions:
-        for mention in mentions:
-            mention_id = mention.get("id")
-            if parse_tweet_id(mention_id, context="mention") is None:
-                continue
+        params = {
+            "max_results": MAX_MENTIONS_PER_CHECK,
+            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities",
+            "expansions": "author_id,attachments.media_keys",
+            "media.fields": "media_key,type,url,preview_image_url",
+        }
+        if base_since_id:
+            params["since_id"] = base_since_id
+        if resume_token:
+            params["pagination_token"] = resume_token
+            log.info("Resuming mention backlog from saved continuation token")
 
-            cache_tweet(
-                state,
-                tweet_id=str(mention_id),
-                text=mention.get("text", ""),
-                author_id=str(mention.get("author_id", "")),
-                conversation_id=str(mention.get("conversation_id", mention_id)),
-                referenced_tweets=mention.get("referenced_tweets", []),
-                created_at=mention.get("created_at"),
+        traversal_completed = False
+        traversal_added = 0
+        completion_highest = str(backlog.get("highest_mention_id", "") or "")
+        completion_pages = prior_pages_completed
+
+        def persist_page(
+            page_data: list[dict],
+            includes: dict,
+            next_token: str,
+            request_token: str,
+            _pages_this_call: int,
+        ) -> None:
+            nonlocal traversal_completed, traversal_added, completion_highest, completion_pages
+            attach_media_to_tweets(page_data, includes)
+            pending = state.get("mention_pending_candidates", {})
+            if not isinstance(pending, dict):
+                pending = {}
+            pending = dict(pending)
+            valid_page = valid_tweets_sorted_by_id(page_data, context="mention page")
+            highest = str(
+                state.get("mention_backlog", {}).get("highest_mention_id", "")
+                if isinstance(state.get("mention_backlog"), dict)
+                else ""
             )
+            replied_ids = {
+                str(value) for value in state.get("replied_to_ids", [])
+            }
+            for mention in valid_page:
+                mention_id = str(mention["id"])
+                if (
+                    mention_id not in replied_ids
+                    and terminal_reply_evaluation(state, mention_id) is None
+                ):
+                    pending.setdefault(mention_id, copy.deepcopy(mention))
+                traversal_added += 1
+                if not highest or int(mention_id) > int(highest):
+                    highest = mention_id
+                cache_tweet(
+                    state,
+                    tweet_id=mention_id,
+                    text=mention.get("text", ""),
+                    author_id=str(mention.get("author_id", "")),
+                    conversation_id=str(mention.get("conversation_id", mention_id)),
+                    referenced_tweets=mention.get("referenced_tweets", []),
+                    created_at=mention.get("created_at"),
+                )
+            state["mention_pending_candidates"] = pending
+            active = state.get("mention_backlog", {})
+            if not isinstance(active, dict) or not active:
+                raise RuntimeError("Mention backlog disappeared while persisting a fetched page")
+            active = copy.deepcopy(active)
+            seen_tokens = list(active.get("seen_tokens", []))
+            if request_token and request_token not in seen_tokens:
+                seen_tokens.append(request_token)
+            active["seen_tokens"] = seen_tokens
+            active["highest_mention_id"] = highest
+            active["pages_completed"] = int(active.get("pages_completed", 0) or 0) + 1
+            active["next_token"] = str(next_token or "")
+            completion_highest = highest
+            completion_pages = int(active["pages_completed"])
+            if next_token:
+                state["mention_backlog"] = active
+                state["mention_pagination"] = {
+                    "base_since_id": str(active["since_id"]),
+                    "next_token": str(next_token),
+                }
+                save_state(state, durable=True)
+                if active.get("announced"):
+                    log_event(
+                        "mention_backlog_progress",
+                        since_id=active["since_id"] or None,
+                        pages_completed=active["pages_completed"],
+                        highest_mention_id=highest or None,
+                        continuation_token_present=True,
+                    )
+                return
 
-        save_state(state)
+            if highest:
+                update_last_seen_mention_id(state, highest)
+            state["mention_backlog"] = {}
+            state["mention_pagination"] = {}
+            save_state(state, durable=True)
+            traversal_completed = True
+            if active.get("announced"):
+                log_event(
+                    "mention_backlog_completed",
+                    since_id=active["since_id"] or None,
+                    pages_completed=active["pages_completed"],
+                    highest_mention_id=highest or None,
+                    backlog_age_seconds=max(0, current - int(active["started_epoch"])),
+                )
 
+        def invalid_cursor() -> None:
+            reset_backlog("invalid_continuation_token", token=resume_token)
+
+        def repeated_cursor(token: str, _pages: int, _results: int) -> None:
+            reset_backlog("repeated_continuation_token", token=token)
+
+        try:
+            result = x_paginated_get(
+                lambda path, page_params: x_request("GET", path, params=page_params),
+                f"/2/users/{MY_USER_ID}/mentions",
+                params,
+                max_pages=remaining_pages,
+                label="mentions",
+                on_invalid_cursor=invalid_cursor,
+                on_repeated_cursor=repeated_cursor,
+                on_page=persist_page,
+                initial_requested_tokens=prior_seen_tokens,
+                retry_invalid_cursor_from_head=False,
+            )
+        except ApiError as exc:
+            if resume_token and api_error_is_invalid_pagination_cursor(exc):
+                break
+            raise
+
+        pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination"), dict) else {}
+        pages_fetched = int(pagination.get("pages_fetched", 0) or 0)
+        remaining_pages = max(0, remaining_pages - pages_fetched)
+        if pagination.get("repeated_token_detected"):
+            break
+        if pagination.get("truncated"):
+            active = state.get("mention_backlog", {})
+            next_token = str(pagination.get("next_token") or "")
+            if not next_token or not isinstance(active, dict) or not active:
+                reset_backlog("missing_continuation_token", token=next_token)
+                break
+            if not active.get("announced"):
+                active = copy.deepcopy(active)
+                active["announced"] = True
+                state["mention_backlog"] = active
+                save_state(state, durable=True)
+                log_event(
+                    "mention_backlog_started",
+                    since_id=active["since_id"] or None,
+                    pages_completed=active["pages_completed"],
+                    highest_mention_id=active.get("highest_mention_id") or None,
+                    continuation_token_present=True,
+                    backlog_started_epoch=active["started_epoch"],
+                )
+            elif not was_announced or int(active.get("pages_completed", 0) or 0) == prior_pages_completed:
+                log_event(
+                    "mention_backlog_progress",
+                    since_id=active["since_id"] or None,
+                    pages_completed=active["pages_completed"],
+                    highest_mention_id=active.get("highest_mention_id") or None,
+                    continuation_token_present=True,
+                )
+            break
+
+        if not traversal_completed or pages_fetched == 0:
+            break
+        # Only completion of a previously truncated traversal starts a new
+        # range in the same check.  An ordinary completed traversal is already
+        # the current range; immediately repeating it would refetch the same
+        # leading page before its candidates have been retired.
+        if (
+            not resume_token
+            or traversal_added == 0
+            or not completion_highest
+            or completion_pages <= 0
+        ):
+            break
+
+    mentions = pending_mention_candidates(state)
+    log.info("Fetched and durably queued %d mention candidate(s)", len(mentions))
+    log_json_debug("Mentions returned", mentions)
     return mentions
 
 
@@ -18727,6 +19251,42 @@ def tested_pipeline_structured_call(
     raise AssertionError("unreachable tested-pipeline retry state")
 
 
+def tested_pipeline_no_reply_qualifies_for_author_quarantine(
+    *,
+    status: str,
+    reason: str,
+    telemetry: dict,
+) -> bool:
+    """Identify complete policy-silence outcomes, excluding fail-closed errors."""
+    if status != "no_reply":
+        return False
+    invalid_stages = {
+        str(stage) for stage in telemetry.get("schema_invalid_stages", [])
+    }
+    if telemetry.get("deterministic_suppressed") is True:
+        deterministic_reason = str(telemetry.get("deterministic_reason") or "")
+        return "abusive epithet" in deterministic_reason
+    if (
+        reason == "reply_necessity_review"
+        and telemetry.get("reply_necessity_outcome") == "confirm_no_reply"
+        and int(telemetry.get("reply_necessity_invalid_calls") or 0) <= 1
+    ):
+        return True
+    if (
+        reason == "group_hostility_suppression"
+        and telemetry.get("group_hostility_outcome") == "suppress_group_hostility"
+        and "focused_group_review" not in invalid_stages
+    ):
+        return True
+    if (
+        reason == "allegation_review_suppression"
+        and telemetry.get("allegation_conspiracy_outcome") == "confirm_no_reply"
+        and int(telemetry.get("allegation_conspiracy_invalid_calls") or 0) <= 1
+    ):
+        return True
+    return False
+
+
 def generate_ai_first_reply(
     context: dict[str, object],
     media_context: dict | None = None,
@@ -18810,7 +19370,18 @@ def generate_ai_first_reply(
                 revision_count=result.revision_count,
             )
             if evaluation_outcome is not None:
-                evaluation_outcome.update({"status": result.status, "reason": result.reason})
+                evaluation_outcome.update(
+                    {
+                        "status": result.status,
+                        "reason": result.reason,
+                        "qualifying_author_no_reply": tested_pipeline_no_reply_qualifies_for_author_quarantine(
+                            status=result.status,
+                            reason=result.reason,
+                            telemetry=pipeline_stage_telemetry,
+                        ),
+                        "model_call_count": result.model_call_count,
+                    }
+                )
             return None
         metadata = result.reply.pipeline_metadata
         telemetry = ai_reply_evidence_telemetry(result.reply)
@@ -18834,7 +19405,14 @@ def generate_ai_first_reply(
             revision_count=metadata["revision_count"],
         )
         if evaluation_outcome is not None:
-            evaluation_outcome.update({"status": "approved", "reason": result.reason})
+            evaluation_outcome.update(
+                {
+                    "status": "approved",
+                    "reason": result.reason,
+                    "qualifying_author_no_reply": False,
+                    "model_call_count": result.model_call_count,
+                }
+            )
         return result.reply
 
     from reply_strategy import STRATEGY_VERSION, outcome_telemetry, run_reply_pipeline
@@ -19648,6 +20226,8 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         state["last_reply_epoch"] = reply_epoch
 
     if candidate_source == "mention":
+        remove_pending_mention_candidate(state, target_id)
+        clear_author_evaluation_quarantine_history(state, author_id)
         if mention_pagination_to_preserve is not None:
             state["mention_pagination"] = mention_pagination_to_preserve
             log.info(
@@ -19775,7 +20355,12 @@ def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
 
 
 def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
-    """Advance the mention watermark unless pagination was incomplete."""
+    """Retire a durably queued mention, with legacy watermark compatibility."""
+    if candidate.get("_source", "mention") == "mention" and remove_pending_mention_candidate(
+        state,
+        str(candidate.get("id", "")),
+    ):
+        return
     if candidate.get("_pagination_truncated"):
         log.warning(
             "Not advancing mention watermark for %s because mention pagination was truncated",
@@ -20136,7 +20721,12 @@ def post_conversational_reply_with_durable_identity(
     return response, receipt
 
 
-def maybe_reply_to_mentions(state: dict) -> str:
+def maybe_reply_to_mentions(
+    state: dict,
+    *,
+    _fresh_mention_ai_evaluations: int = 0,
+    _skip_hot_post_fetch: bool = False,
+) -> str:
     """Process eligible mention and hot-post candidates under all reply limits."""
     log.info("Starting mention reply check")
     # A confirmed reply receipt and its transport journal are a recoverable
@@ -20192,6 +20782,8 @@ def maybe_reply_to_mentions(state: dict) -> str:
         return NORMAL_CHECK_STATUS_SKIPPED_CAP
 
     current = now_epoch()
+    if prune_author_evaluation_quarantines(state, current_epoch=current):
+        save_state(state)
 
     seconds_since_last_reply = current - int(state.get("last_reply_epoch", 0))
     log.debug(
@@ -20204,6 +20796,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
         log.info("Skipping mention check: minimum interval between replies not reached")
         return NORMAL_CHECK_STATUS_SKIPPED_SPACING
 
+    started_with_pending_mentions = bool(pending_mention_candidates(state))
     try:
         mentions = get_mentions(state)
     except ApiError as e:
@@ -20216,17 +20809,20 @@ def maybe_reply_to_mentions(state: dict) -> str:
         save_state(state)
         return NORMAL_CHECK_STATUS_API_ERROR
 
-    try:
-        hot_post_replies = get_hot_post_reply_candidates(state)
-    except ApiError as e:
-        log.exception("Failed to get optional hot-post reply candidates; continuing with mentions")
-        record_api_error(state, e, "x", scope="quote")
-        save_state(state)
+    if _skip_hot_post_fetch:
         hot_post_replies = []
-    except Exception:
-        log.exception("Unexpected failure getting optional hot-post reply candidates; continuing with mentions")
-        save_state(state)
-        hot_post_replies = []
+    else:
+        try:
+            hot_post_replies = get_hot_post_reply_candidates(state)
+        except ApiError as e:
+            log.exception("Failed to get optional hot-post reply candidates; continuing with mentions")
+            record_api_error(state, e, "x", scope="quote")
+            save_state(state)
+            hot_post_replies = []
+        except Exception:
+            log.exception("Unexpected failure getting optional hot-post reply candidates; continuing with mentions")
+            save_state(state)
+            hot_post_replies = []
 
     mentions = dedupe_reply_candidates(mentions, hot_post_replies)
 
@@ -20241,6 +20837,8 @@ def maybe_reply_to_mentions(state: dict) -> str:
 
     log.debug("replied_to_ids count=%d", len(replied_to_ids))
     log.debug("dry_run_seen_ids count=%d", len(dry_run_seen_ids))
+
+    fresh_mention_ai_evaluations = int(_fresh_mention_ai_evaluations)
 
     for mention in mentions:
         mention_id = str(mention["id"])
@@ -20361,6 +20959,43 @@ def maybe_reply_to_mentions(state: dict) -> str:
             save_state(state, durable=True)
             continue
 
+        if candidate_source == "mention":
+            quarantine = active_author_evaluation_quarantine(
+                state,
+                author_id,
+                current_epoch=current,
+            )
+            if quarantine is not None:
+                reason = "author_evaluation_quarantine"
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=mention_id,
+                    lane="mention",
+                    reason=reason,
+                )
+                log_event(
+                    "author_evaluation_quarantine_skip",
+                    author_id=author_id,
+                    target_id=mention_id,
+                    quarantine_until_epoch=quarantine.get(
+                        "quarantine_until_epoch"
+                    ),
+                    provider_calls_avoided=4,
+                    xai_calls_avoided=1,
+                    openai_calls_avoided=3,
+                )
+                maybe_mark_hot_post_reply_skipped(state, mention, reason=reason)
+                log_event(
+                    "candidate_skipped",
+                    lane=candidate_log_source,
+                    id=mention_id,
+                    reason=reason,
+                    author_id=author_id,
+                )
+                mark_mention_seen_if_applicable(state, mention)
+                save_state(state, durable=True)
+                continue
+
         clarification = clarification_reply_context(state, mention, current=current)
         author_cap_reached = daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY
         if author_cap_reached:
@@ -20447,9 +21082,27 @@ def maybe_reply_to_mentions(state: dict) -> str:
             context=reply_context,
             recent_replies=recent_auto_reply_texts(state),
         )
-        evaluation_outcome: dict[str, str] = {}
+        evaluation_outcome: dict[str, object] = {}
         try:
             if reply_text is None:
+                if (
+                    candidate_source == "mention"
+                    and fresh_mention_ai_evaluations >= MAX_MENTIONS_PER_CHECK
+                ):
+                    log.info(
+                        "Deferring mention %s: fresh AI evaluation budget exhausted (%s)",
+                        mention_id,
+                        MAX_MENTIONS_PER_CHECK,
+                    )
+                    log_event(
+                        "mention_candidate_deferred",
+                        target_id=mention_id,
+                        author_id=author_id,
+                        reason="fresh_ai_evaluation_budget_exhausted",
+                    )
+                    continue
+                if candidate_source == "mention":
+                    fresh_mention_ai_evaluations += 1
                 reply_text = generate_ai_first_reply(
                     reply_context,
                     media_context,
@@ -20481,6 +21134,15 @@ def maybe_reply_to_mentions(state: dict) -> str:
                     lane=str(candidate_source),
                     reason=evaluation_outcome.get("reason", "model_selected_no_reply"),
                 )
+                if (
+                    candidate_source == "mention"
+                    and evaluation_outcome.get("qualifying_author_no_reply") is True
+                ):
+                    record_qualifying_author_no_reply(
+                        state,
+                        author_id,
+                        current_epoch=current,
+                    )
             log.info("No usable reply generated for %s %s", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="no_usable_reply_generated")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="no_usable_reply_generated")
@@ -20519,6 +21181,8 @@ def maybe_reply_to_mentions(state: dict) -> str:
             mark_mention_seen_if_applicable(state, mention)
             save_state(state, durable=True)
             continue
+        if candidate_source == "mention":
+            clear_author_evaluation_quarantine_history(state, author_id)
 
         log.info("Generated reply to mention %s: %r", mention_id, reply_text)
 
@@ -20614,8 +21278,15 @@ def maybe_reply_to_mentions(state: dict) -> str:
             "reply_context": copy.deepcopy(reply_context),
             "ai_reply_draft": copy.deepcopy(reply_text.draft_record),
         }
-        if candidate_source == "mention" and mention.get("_pagination_truncated"):
-            mention_pagination = mention.get("_mention_pagination")
+        if candidate_source == "mention":
+            mention_pagination = (
+                mention.get("_mention_pagination")
+                if mention.get("_pagination_truncated")
+                else state.get("mention_pagination")
+            )
+        else:
+            mention_pagination = None
+        if candidate_source == "mention" and mention_pagination:
             if not mention_pagination_provenance_is_valid(mention_pagination):
                 raise RuntimeError(
                     "Refusing to post a reply from a truncated mention batch "
@@ -20787,6 +21458,20 @@ def maybe_reply_to_mentions(state: dict) -> str:
         return NORMAL_CHECK_STATUS_POSTED
 
     save_state(state)
+    if (
+        started_with_pending_mentions
+        and not pending_mention_candidates(state)
+        and state.get("mention_backlog")
+        and fresh_mention_ai_evaluations < MAX_MENTIONS_PER_CHECK
+    ):
+        log.info(
+            "Durable pending mention queue drained; resuming backlog within the same check"
+        )
+        return maybe_reply_to_mentions(
+            state,
+            _fresh_mention_ai_evaluations=fresh_mention_ai_evaluations,
+            _skip_hot_post_fetch=True,
+        )
     log.info("Mention reply check finished with no reply generated/posted")
     return NORMAL_CHECK_STATUS_CHECKED
 
@@ -21964,6 +22649,12 @@ def main() -> None:
     log.info("Config: MAX_REPLIES_PER_AUTHOR_PER_DAY=%s", MAX_REPLIES_PER_AUTHOR_PER_DAY)
     log.info("Config: MAX_MENTIONS_PER_CHECK=%s", MAX_MENTIONS_PER_CHECK)
     log.info("Config: MENTIONS_MAX_PAGES_PER_CHECK=%s", MENTIONS_MAX_PAGES_PER_CHECK)
+    log.info(
+        "Config: author no-reply quarantine threshold=%s window_seconds=%s quarantine_seconds=%s",
+        AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD,
+        AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
+        AUTHOR_NO_REPLY_QUARANTINE_SECONDS,
+    )
     log.info("Config: MIN_SECONDS_BETWEEN_REPLIES=%s", MIN_SECONDS_BETWEEN_REPLIES)
     log.info("Config: ALWAYS_FETCH_PARENT_FOR_CONTEXT=%s", ALWAYS_FETCH_PARENT_FOR_CONTEXT)
     log.info("Config: SKIP_REPLIES_TO_OWN_AUTO_REPLIES=%s", SKIP_REPLIES_TO_OWN_AUTO_REPLIES)
@@ -22020,6 +22711,29 @@ def main() -> None:
     lines_used = load_quote_used_hashes(quote_lines_for_history)
     images_used = load_image_used_basenames(current_image_paths())
     state = load_runtime_state()
+    active_backlog = state.get("mention_backlog", {})
+    active_quarantines = state.get("author_evaluation_quarantines", {})
+    log.info(
+        "Mention backlog state loaded active=%s pages_completed=%s highest_mention_id=%s continuation_token_present=%s pending_candidates=%s",
+        bool(active_backlog),
+        active_backlog.get("pages_completed", 0) if isinstance(active_backlog, dict) else 0,
+        active_backlog.get("highest_mention_id") if isinstance(active_backlog, dict) else None,
+        bool(active_backlog.get("next_token")) if isinstance(active_backlog, dict) else False,
+        len(state.get("mention_pending_candidates", {})) if isinstance(state.get("mention_pending_candidates"), dict) else 0,
+    )
+    log.info(
+        "Author evaluation quarantine state loaded active=%s",
+        sum(
+            1
+            for record in (
+                active_quarantines.values()
+                if isinstance(active_quarantines, dict)
+                else []
+            )
+            if isinstance(record, dict)
+            and int(record.get("quarantine_until_epoch", 0) or 0) > now_epoch()
+        ),
+    )
     startup_current = now_epoch()
     reconcile_startup_main_post_receipts(
         lines_used,

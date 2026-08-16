@@ -2831,7 +2831,7 @@ def test_normal_reply_flips_priority_to_quote(tmp_path: Path) -> None:
         server.stop()
 
 
-def test_transient_parent_fetch_failure_does_not_advance_mention_watermark(tmp_path: Path) -> None:
+def test_transient_parent_fetch_failure_keeps_candidate_after_traversal_completes(tmp_path: Path) -> None:
     server = FakeApiServer(
         {
             "mentions": [
@@ -2855,7 +2855,8 @@ def test_transient_parent_fetch_failure_does_not_advance_mention_watermark(tmp_p
         assert len(server.posts) == 0
         assert server.path_counts.get("/v1/chat/completions", 0) == 0
         state = read_json(base_dir / "bot_state.json")
-        assert state.get("last_seen_mention_id") is None
+        assert state["last_seen_mention_id"] == "100"
+        assert set(state["mention_pending_candidates"]) == {"100"}
         assert state["x_error_epochs"]
     finally:
         server.stop()
@@ -2894,7 +2895,8 @@ def test_missing_parent_404_does_not_block_later_mentions_or_trip_breaker(tmp_pa
         assert fake_server_post_replies(server) == ["100"]
         assert state["x_error_epochs"] == []
         assert state["api_cooldown_until_epoch"] == 0
-        assert state["last_seen_mention_id"] == "100"
+        assert state["last_seen_mention_id"] == "101"
+        assert set(state["mention_pending_candidates"]) == {"101"}
     finally:
         server.stop()
 
@@ -3881,7 +3883,7 @@ def test_successful_truncated_mention_reply_preserves_cursor_until_tail_is_drain
         assert second.returncode == 0, second.stderr + second.stdout
         assert fake_server_post_replies(server) == ["200", "150"]
         state = read_json(base_dir / "bot_state.json")
-        assert state["last_seen_mention_id"] == "150"
+        assert state["last_seen_mention_id"] == "204"
         assert state["mention_pagination"] == {}
         mention_requests = [
             request
@@ -4823,7 +4825,8 @@ def test_made_with_ai_network_failure_does_not_retry_ambiguous_post(tmp_path: Pa
         assert server.path_counts["/2/tweets"] == 1
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
-        assert state.get("last_seen_mention_id") is None
+        assert state["last_seen_mention_id"] == "100"
+        assert set(state["mention_pending_candidates"]) == {"100"}
         assert state["x_write_error_epochs"]
         assert state["x_error_epochs"] == []
     finally:
@@ -5441,7 +5444,8 @@ def test_malformed_xai_success_responses(tmp_path: Path, scenario_update: dict, 
         assert result.returncode == 0, result.stderr + result.stdout
         state = read_json(base_dir / "bot_state.json")
         assert bool(state["xai_error_epochs"]) is expect_xai_error
-        assert state.get("last_seen_mention_id") is None
+        assert state["last_seen_mention_id"] == "100"
+        assert set(state["mention_pending_candidates"]) == {"100"}
         assert state.get("reply_evaluation_records", {}) == {}
         assert bool(server.posts) is expect_post
         if expect_post:

@@ -14137,13 +14137,12 @@ def test_mentions_invalid_saved_cursor_clears_state_and_preserves_since_id(
 
     assert requests[0]["pagination_token"] == "expired-token"
     assert requests[0]["since_id"] == "99"
-    assert "pagination_token" not in requests[1]
-    assert requests[1]["since_id"] == "99"
+    assert len(requests) == 1
     assert state["mention_pagination"] == {}
-    assert saved_cursors[0] == {}
+    assert {} in saved_cursors
 
 
-def test_mentions_invalid_cursor_stays_cleared_when_head_retry_fails(
+def test_mentions_invalid_cursor_stays_cleared_and_defers_head_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = bot.default_state()
@@ -14175,14 +14174,12 @@ def test_mentions_invalid_cursor_stays_cleared_when_head_retry_fails(
         ),
     )
 
-    with pytest.raises(bot.ApiError, match="temporary upstream failure"):
-        bot.get_mentions(state)
+    assert bot.get_mentions(state) == []
 
     assert requests[0]["pagination_token"] == "expired-token"
-    assert "pagination_token" not in requests[1]
-    assert requests[1]["since_id"] == "99"
+    assert len(requests) == 1
     assert state["mention_pagination"] == {}
-    assert saved_cursors == [{}]
+    assert {} in saved_cursors
 
 
 def test_hot_post_invalid_saved_cursor_clears_state_and_preserves_query(

@@ -2437,6 +2437,21 @@ def summarize_latest_state(
     source_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Summarise latest state."""
+    observed_epoch = int(datetime.now().timestamp())
+    backlog = latest_state.get("mention_backlog")
+    if not isinstance(backlog, dict):
+        backlog = {}
+    quarantine_records = latest_state.get("author_evaluation_quarantines")
+    if not isinstance(quarantine_records, dict):
+        quarantine_records = {}
+    active_quarantine_author_ids = sorted(
+        str(author_id)
+        for author_id, record in quarantine_records.items()
+        if isinstance(record, dict)
+        and type(record.get("quarantine_until_epoch")) is int
+        and record["quarantine_until_epoch"] > observed_epoch
+    )
+    backlog_started_epoch = backlog.get("started_epoch")
     summary = {
         "time": latest_state_ts.strftime("%Y-%m-%d %H:%M:%S") if latest_state_ts else None,
         "_state_source": source,
@@ -2445,6 +2460,22 @@ def summarize_latest_state(
         "daily_quote_reply_date": latest_state.get("daily_quote_reply_date"),
         "daily_quote_reply_count": latest_state.get("daily_quote_reply_count"),
         "last_seen_mention_id": latest_state.get("last_seen_mention_id"),
+        "mention_backlog_active": bool(backlog),
+        "mention_backlog_age_seconds": (
+            max(0, observed_epoch - backlog_started_epoch)
+            if type(backlog_started_epoch) is int and backlog_started_epoch > 0
+            else None
+        ),
+        "mention_backlog_pages_completed": backlog.get("pages_completed", 0),
+        "mention_backlog_highest_mention_id": backlog.get("highest_mention_id"),
+        "mention_backlog_continuation_token_present": bool(backlog.get("next_token")),
+        "mention_pending_candidate_count": (
+            len(latest_state.get("mention_pending_candidates", {}))
+            if isinstance(latest_state.get("mention_pending_candidates"), dict)
+            else UNKNOWN_INVALID_STATE_FIELD
+        ),
+        "active_author_evaluation_quarantine_count": len(active_quarantine_author_ids),
+        "active_author_evaluation_quarantine_author_ids": active_quarantine_author_ids,
         "last_main_post_id": latest_state.get("last_main_post_id"),
         "last_reply_epoch": latest_state.get("last_reply_epoch"),
         "last_reply_human": epoch_to_human(latest_state.get("last_reply_epoch")),
@@ -2552,6 +2583,9 @@ CURRENT_CONFIG_REPORT_KEYS = {
     "REPLY_CHECK_EVERY_SECONDS",
     "MAX_MENTIONS_PER_CHECK",
     "MENTIONS_MAX_PAGES_PER_CHECK",
+    "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+    "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+    "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
     "QUOTE_CHECK_EVERY_SECONDS",
     "QUOTE_LOOKUP_API_MAX_RESULTS",
     "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
@@ -6482,6 +6516,48 @@ def analyse(
                     reply_post_id=event_obj.get("reply_post_id") or "",
                 )
                 stats["repair_reply_completed"] += 1
+            elif event_obj and event_obj.get("event") in {
+                "mention_backlog_started",
+                "mention_backlog_progress",
+                "mention_backlog_completed",
+                "mention_backlog_reset",
+            }:
+                kind = str(event_obj["event"])
+                add_event(
+                    kind,
+                    r.ts,
+                    since_id=event_obj.get("since_id"),
+                    pages_completed=event_obj.get("pages_completed"),
+                    highest_mention_id=event_obj.get("highest_mention_id"),
+                    continuation_token_present=event_obj.get(
+                        "continuation_token_present"
+                    ),
+                    backlog_age_seconds=event_obj.get("backlog_age_seconds"),
+                    reason=event_obj.get("reason") or "",
+                )
+                stats[kind] += 1
+            elif event_obj and event_obj.get("event") in {
+                "author_evaluation_quarantine_started",
+                "author_evaluation_quarantine_skip",
+                "author_evaluation_quarantine_expired",
+            }:
+                kind = str(event_obj["event"])
+                add_event(
+                    kind,
+                    r.ts,
+                    author_id=event_obj.get("author_id") or "",
+                    target_id=event_obj.get("target_id") or "",
+                    strike_count=event_obj.get("strike_count"),
+                    quarantine_until_epoch=event_obj.get(
+                        "quarantine_until_epoch"
+                    ),
+                    provider_calls_avoided=event_obj.get(
+                        "provider_calls_avoided"
+                    ),
+                    xai_calls_avoided=event_obj.get("xai_calls_avoided"),
+                    openai_calls_avoided=event_obj.get("openai_calls_avoided"),
+                )
+                stats[kind] += 1
             elif event_obj and event_obj.get("event") == "historical_context_reply":
                 status = str(event_obj.get("status") or "unknown")
                 confidence_dimensions = event_obj.get("confidence_dimensions")
@@ -8310,6 +8386,29 @@ def analyse(
         and not item.startswith(cooldown_claim_prefixes)
     ]
 
+    mention_control_kinds = {
+        "mention_backlog_started",
+        "mention_backlog_progress",
+        "mention_backlog_completed",
+        "mention_backlog_reset",
+        "author_evaluation_quarantine_started",
+        "author_evaluation_quarantine_skip",
+        "author_evaluation_quarantine_expired",
+    }
+    mention_control_events = [
+        item for item in events if item.get("kind") in mention_control_kinds
+    ]
+    mention_control_counts = Counter(
+        str(item.get("kind")) for item in mention_control_events
+    )
+    provider_calls_avoided = sum(
+        int(item["provider_calls_avoided"])
+        for item in mention_control_events
+        if item.get("kind") == "author_evaluation_quarantine_skip"
+        and type(item.get("provider_calls_avoided")) is int
+        and item["provider_calls_avoided"] >= 0
+    )
+
     return {
         "summary": {
             "record_count": len(records),
@@ -8325,6 +8424,11 @@ def analyse(
         "latest_config": configs,
         "latest_state": latest_state_summary,
         "derived": derived,
+        "mention_backlog_and_quarantine": {
+            "events": mention_control_events,
+            "event_counts": dict(sorted(mention_control_counts.items())),
+            "provider_calls_avoided": provider_calls_avoided,
+        },
         "api_health": {
             "errors": api_errors,
             "handled_restrictions": handled_api_restrictions,
@@ -8916,6 +9020,34 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"{state_label_prefix}quote_api_cooldown_reason = {st.get('quote_api_cooldown_reason')}")
         out.append(f"{state_label_prefix}last_main_post_id       = {st.get('last_main_post_id')}")
         out.append(f"{state_label_prefix}last_seen_mention_id    = {st.get('last_seen_mention_id')}")
+        out.append(
+            f"{state_label_prefix}mention_backlog_active   = {str(bool(st.get('mention_backlog_active'))).lower()}"
+        )
+        if st.get("mention_backlog_active"):
+            backlog_age = st.get("mention_backlog_age_seconds")
+            out.append(
+                f"{state_label_prefix}mention_backlog_age      = "
+                + (
+                    _human_snapshot_age(float(backlog_age))
+                    if type(backlog_age) in {int, float}
+                    else "unavailable"
+                )
+            )
+            out.append(
+                f"{state_label_prefix}mention_backlog_pages    = {st.get('mention_backlog_pages_completed')}"
+            )
+            out.append(
+                f"{state_label_prefix}mention_backlog_highest  = {st.get('mention_backlog_highest_mention_id')}"
+            )
+            out.append(
+                f"{state_label_prefix}mention_backlog_token    = {str(bool(st.get('mention_backlog_continuation_token_present'))).lower()}"
+            )
+        out.append(
+            f"{state_label_prefix}mention_pending_candidates = {st.get('mention_pending_candidate_count')}"
+        )
+        out.append(
+            f"{state_label_prefix}active_author_evaluation_quarantines = {st.get('active_author_evaluation_quarantine_count')}"
+        )
         if st.get("last_quote_post_epoch") is not None:
             out.append(f"{state_label_prefix}last_quote_post         = {st.get('last_quote_post_human')}  epoch={st.get('last_quote_post_epoch')}")
         out.append(f"{state_label_prefix}next_quote_post         = {st.get('next_quote_post_human')}  epoch={st.get('next_quote_post_epoch')}")
@@ -8952,6 +9084,45 @@ def render_markdown(report: Dict[str, Any]) -> str:
             "No digest resume snapshot or historical log snapshot is used as current state."
         )
         out.append("")
+
+    mention_control = report.get("mention_backlog_and_quarantine") or {}
+    mention_control_counts = mention_control.get("event_counts") or {}
+    out.append("## Mention backlog and author evaluation quarantine")
+    if st:
+        author_ids = st.get("active_author_evaluation_quarantine_author_ids") or []
+        out.append(
+            "Active mention backlog: "
+            + ("yes" if st.get("mention_backlog_active") else "no")
+            + "; active author evaluation quarantines: "
+            + str(st.get("active_author_evaluation_quarantine_count", 0))
+            + "."
+        )
+        out.append(
+            "Active quarantined author IDs: "
+            + (", ".join(str(value) for value in author_ids) if author_ids else "none")
+            + "."
+        )
+    out.append(
+        "Observed events: starts={starts}, progress={progress}, completions={completions}, "
+        "resets={resets}, quarantine_starts={quarantine_starts}, quarantine_skips={quarantine_skips}.".format(
+            starts=mention_control_counts.get("mention_backlog_started", 0),
+            progress=mention_control_counts.get("mention_backlog_progress", 0),
+            completions=mention_control_counts.get("mention_backlog_completed", 0),
+            resets=mention_control_counts.get("mention_backlog_reset", 0),
+            quarantine_starts=mention_control_counts.get(
+                "author_evaluation_quarantine_started", 0
+            ),
+            quarantine_skips=mention_control_counts.get(
+                "author_evaluation_quarantine_skip", 0
+            ),
+        )
+    )
+    out.append(
+        "Provider calls avoided by quarantine (explicit event counts only): "
+        + str(mention_control.get("provider_calls_avoided", 0))
+        + "."
+    )
+    out.append("")
 
     retained_state = report.get("historical_retained_state")
     retained_config = report.get("historical_retained_config")
@@ -11681,6 +11852,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         keep = [
             "MAX_AUTO_REPLIES_PER_DAY", "MAX_REPLIES_PER_AUTHOR_PER_DAY", "MAX_QUOTE_REPLIES_PER_DAY", "MIN_SECONDS_BETWEEN_REPLIES",
             "REPLY_CHECK_EVERY_SECONDS", "MAX_MENTIONS_PER_CHECK", "MENTIONS_MAX_PAGES_PER_CHECK",
+            "AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD",
+            "AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS",
+            "AUTHOR_NO_REPLY_QUARANTINE_SECONDS",
             "QUOTE_CHECK_EVERY_SECONDS", "QUOTE_LOOKUP_API_MAX_RESULTS", "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
             "QUOTE_CHECK_SPACING_RETRY_SECONDS", "ENABLE_HOT_POST_REPLY_CHECKS",
             "MAX_HOT_POST_REPLIES_PER_CHECK", "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
