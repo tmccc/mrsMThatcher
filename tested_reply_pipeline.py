@@ -705,22 +705,6 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
     return telemetry
 
 
-_COURTESY_CUES: Final[tuple[str, ...]] = (
-    "thank you",
-    "thanks",
-    "well said",
-    "quite right",
-    "hear hear",
-    "bravo",
-    "good point",
-    "nicely put",
-    "👏",
-    "👍",
-    "❤",
-    "🙏",
-)
-
-
 def classify_reply_kind(
     context: dict[str, Any],
     reply_requirement: str | None,
@@ -729,12 +713,11 @@ def classify_reply_kind(
     """Classify approved prose conservatively without another model call."""
     if reply_requirement == "supported_factual":
         return "factual"
-    if proposed_reply.rstrip().endswith("?"):
-        return "clarification"
-    incoming = str(context.get("incoming_contribution") or "").casefold()
-    if any(cue in incoming for cue in _COURTESY_CUES):
-        return "courtesy"
-    return "opinion_or_principle"
+    # Neither punctuation in the outgoing prose nor social cues in the incoming
+    # contribution establish what the approved outgoing reply actually does.
+    # Keep this observability-only field unknown unless the pipeline route has
+    # established its semantics.
+    return "unknown"
 
 
 def default_config() -> dict[str, Any]:
@@ -1247,7 +1230,11 @@ def run_reply_pipeline(
         "contribution_hash": hashlib.sha256(clean_context["incoming_contribution"].encode("utf-8")).hexdigest(),
         "context_hash": _hash_value(clean_context), "trusted_facts_hash": _hash_value(trusted_facts),
         "proposed_reply": candidate,
-        "mode": final_reply_kind,
+        "mode": (
+            "direct_factual_answer"
+            if reply_requirement == "supported_factual"
+            else "opinion_or_principle"
+        ),
         "final_reply_kind": final_reply_kind,
         "tone": "unknown", "factual_claims": factual_claims, "evidence_ids": None,
         "trusted_facts_supplied_count": len(trusted_facts),

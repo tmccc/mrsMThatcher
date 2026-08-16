@@ -20363,7 +20363,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
 
         clarification = clarification_reply_context(state, mention, current=current)
         author_cap_reached = daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY
-        if author_cap_reached and clarification is None:
+        if author_cap_reached:
             log.info(
                 "Skipping mention %s: already reached per-author daily cap for author_id=%s",
                 mention_id,
@@ -20385,20 +20385,6 @@ def maybe_reply_to_mentions(state: dict) -> str:
             mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             continue
-        if author_cap_reached:
-            log.info(
-                "Permitting one clarification reply past per-author cap target_id=%s thread_id=%s author_id=%s",
-                mention_id,
-                clarification["thread_id"],
-                author_id,
-            )
-            log_event(
-                "clarification_reply_cap_override",
-                target_id=mention_id,
-                thread_id=clarification["thread_id"],
-                author_id=author_id,
-                bypassed_cap="per_author_daily",
-            )
 
         if is_probably_spam_or_not_worth_replying(incoming_text):
             log.info("Skipping %s %s: spam/not worth replying", candidate_source, mention_id)
@@ -20937,12 +20923,13 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         if isinstance(raw_tokens, dict):
             pagination_tokens = {str(key): str(value) for key, value in raw_tokens.items() if str(value)}
 
-    if pagination_tokens.get(post_id):
-        params["pagination_token"] = pagination_tokens[post_id]
+    saved_pagination_token = pagination_tokens.get(post_id, "")
+    if saved_pagination_token:
+        params["pagination_token"] = saved_pagination_token
         log.info(
             "Quote lookup for post_id=%s resuming with pagination_token_fingerprint=%s",
             post_id,
-            hashlib.sha256(pagination_tokens[post_id].encode("utf-8")).hexdigest()[:16],
+            hashlib.sha256(saved_pagination_token.encode("utf-8")).hexdigest()[:16],
         )
 
     def clear_invalid_quote_lookup_cursor() -> None:
@@ -20957,6 +20944,10 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         pages_completed: int,
         results_retained: int,
     ) -> None:
+        if state is not None and post_id in pagination_tokens:
+            pagination_tokens.pop(post_id, None)
+            state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
+            save_state(state, durable=True)
         token_fingerprint = hashlib.sha256(
             repeated_token.encode("utf-8")
         ).hexdigest()[:16]

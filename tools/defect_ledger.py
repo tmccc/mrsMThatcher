@@ -1024,17 +1024,47 @@ def _external_evidence_checks(
             errors.append(f"duplicate external evidence ID: {evidence_id}")
         by_id[evidence_id] = record
         relative = str(record.get("repository_relative_path", ""))
-        if repository_root.joinpath(relative).exists():
-            errors.append(
-                f"{evidence_id}: external-untracked evidence unexpectedly "
-                f"resolves inside the ledger worktree: {relative}"
-            )
+        relative_path = repository_root.joinpath(relative)
         absolute = Path(str(record.get("observed_absolute_path", "")))
         if not absolute.is_absolute():
             errors.append(
                 f"{evidence_id}: observed evidence location is not absolute"
             )
             continue
+        if _git(
+            repository_root,
+            "ls-files",
+            "--error-unmatch",
+            "--",
+            relative,
+        ).returncode == 0:
+            errors.append(
+                f"{evidence_id}: external-untracked evidence is tracked by Git: "
+                f"{relative}"
+            )
+        if relative_path.exists():
+            same_observation = (
+                absolute.is_file()
+                and relative_path.resolve() == absolute.resolve()
+            )
+            if not same_observation:
+                errors.append(
+                    f"{evidence_id}: external-untracked evidence unexpectedly "
+                    f"resolves to a different file inside the ledger worktree: "
+                    f"{relative}"
+                )
+            elif _git(
+                repository_root,
+                "check-ignore",
+                "--quiet",
+                "--no-index",
+                "--",
+                relative,
+            ).returncode != 0:
+                errors.append(
+                    f"{evidence_id}: in-worktree external evidence is not ignored: "
+                    f"{relative}"
+                )
         if not absolute.is_file():
             warnings.append(
                 f"{evidence_id}: external evidence is currently unavailable "

@@ -793,6 +793,44 @@ def test_pipeline_failure_wrapper_resolves_after_same_target_terminal_no_reply()
     assert "Traceback" in raw_errors
 
 
+def test_later_terminal_pipeline_failure_does_not_resolve_pipeline_incident():
+    target_id = "2086177789732958385"
+    records = [
+        record(
+            0,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_failure",'
+            '"status":"operational_failure","lane":"mention",'
+            f'"target_id":"{target_id}","reason":"writer_invalid"}}',
+        ),
+        record(
+            0,
+            "ERROR",
+            "maybe_reply_to_mentions",
+            traceback(
+                "Failed to ask Grok for reply",
+                "APIError: writer returned an invalid reply",
+            ),
+        ),
+        record(
+            10,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_decision",'
+            '"status":"no_reply","lane":"mention",'
+            f'"target_id":"{target_id}","mode":"no_reply",'
+            '"reason":"revision_limit_reached"}',
+        ),
+    ]
+
+    health = digest.analyse(records)["error_health"]
+
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["target_id"] == target_id
+
+
 @pytest.mark.parametrize("duplicate_reason", ["exact_duplicate_reply", "near_duplicate_reply"])
 def test_pipeline_failure_wrapper_resolves_after_terminal_duplicate_decision(
     duplicate_reason: str,
@@ -1099,8 +1137,78 @@ def test_digest_resume_state_never_falls_back_as_current_runtime_state(tmp_path)
     }
     rendered = digest.render_markdown(report)
     assert "Current bot runtime state: **unavailable**" in rendered
+    assert "## Historical retained diagnostic snapshots" in rendered
+    assert "for historical diagnosis only" in rendered
+    assert '"daily_reply_count": 999' in rendered
+    assert '"MAX_AUTO_REPLIES_PER_DAY": "999"' in rendered
     assert "daily_reply_count       = 999" not in rendered
     assert "MAX_AUTO_REPLIES_PER_DAY=999" not in rendered
+
+
+def test_unavailable_runtime_reads_retain_historical_snapshots_across_runs(tmp_path):
+    resume_path = tmp_path / "digest-resume.json"
+    log_path = tmp_path / "bot.log"
+    original_state = {
+        "time": "2026-07-25 08:00:00",
+        "daily_reply_count": 7,
+    }
+    original_config = {"MAX_AUTO_REPLIES_PER_DAY": 48}
+    resume_path.write_text(
+        json.dumps(
+            {
+                "last_log_entry_time": "2026-07-25 08:00:00",
+                "last_known_latest_state": original_state,
+                "last_known_latest_config": original_config,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    for offset in (0, 1):
+        records = [record(offset, "INFO", "worker", "still running")]
+        report = digest.analyse(records)
+        digest.apply_saved_context(report, resume_path)
+        report["latest_state"] = {}
+        report["latest_config"] = {}
+        report["runtime_state_status"] = {"status": "absent"}
+        report["runtime_config_status"] = {
+            "status": "malformed: JSONDecodeError"
+        }
+
+        digest.save_resume_time(
+            resume_path,
+            records[-1].ts,
+            records,
+            report,
+            [log_path],
+        )
+        saved = digest.read_resume_data(resume_path)
+        assert saved["last_known_latest_state"] == original_state
+        assert saved["last_known_latest_config"] == original_config
+
+    empty_override = tmp_path / "mrsMThatcher.local.json"
+    empty_override.write_text("{}", encoding="utf-8")
+    current_config, _path, _timestamp, config_status = (
+        digest.load_current_runtime_config(tmp_path)
+    )
+    records = [record(2, "INFO", "worker", "runtime reads recovered")]
+    report = digest.analyse(records)
+    digest.apply_saved_context(report, resume_path)
+    report["latest_state"] = {"daily_reply_count": 2}
+    report["latest_config"] = current_config or {}
+    report["runtime_state_status"] = {"status": "available"}
+    report["runtime_config_status"] = {"status": config_status}
+
+    digest.save_resume_time(
+        resume_path,
+        records[-1].ts,
+        records,
+        report,
+        [log_path],
+    )
+    saved = digest.read_resume_data(resume_path)
+    assert saved["last_known_latest_state"] == {"daily_reply_count": 2}
+    assert saved["last_known_latest_config"] == {}
 
 
 def test_current_runtime_config_is_allow_listed_and_validated(tmp_path):
@@ -1126,6 +1234,116 @@ def test_current_runtime_config_is_allow_listed_and_validated(tmp_path):
     assert config["MAX_REPLIES_PER_AUTHOR_PER_DAY"] == 6
     assert config["MAX_QUOTE_REPLIES_PER_DAY"] == 12
     assert "OPENAI_API_KEY" not in config
+
+
+@pytest.mark.parametrize(
+    ("runtime_status", "state", "headline_text", "body_text"),
+    [
+        (
+            "absent",
+            None,
+            "current API cooldown state unavailable",
+            "Current bot runtime state: **unavailable**",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "xai_api_cooldown_until_epoch": int(BASE.timestamp()) + 60,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "xAI cooldown active now",
+            f"xai_api_cooldown_until  = {int(BASE.timestamp()) + 60}  2026-07-25 09:01:00  active",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "xai_api_cooldown_until_epoch": int(BASE.timestamp()) - 60,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "xAI cooldown occurred, now expired",
+            f"xai_api_cooldown_until  = {int(BASE.timestamp()) - 60}  2026-07-25 08:59:00  expired",
+        ),
+        (
+            "available",
+            {
+                "api_cooldown_until_epoch": 0,
+                "x_write_api_cooldown_until_epoch": 0,
+                "xai_api_cooldown_until_epoch": 0,
+                "quote_api_cooldown_until_epoch": 0,
+            },
+            "no API cooldown",
+            "xai_api_cooldown_until  = 0  none  cleared",
+        ),
+    ],
+)
+def test_current_cooldown_headline_and_body_use_generation_time(
+    runtime_status,
+    state,
+    headline_text,
+    body_text,
+    tmp_path,
+):
+    generation_epoch = int(BASE.timestamp())
+    report = digest.analyse([], generation_time=BASE)
+    report["generation_epoch"] = generation_epoch
+    report["runtime_state_status"] = {
+        "status": runtime_status,
+        "path": str(tmp_path / "bot_state.json"),
+    }
+    # Deliberately use a state-file timestamp on the opposite side of the
+    # cooldown to prove that current health is evaluated at generation time.
+    state_file_time = BASE - timedelta(days=30)
+    if state and state.get("xai_api_cooldown_until_epoch", 0) < generation_epoch:
+        state_file_time = BASE + timedelta(days=30)
+    report["latest_state"] = (
+        digest.summarize_latest_state(
+            state,
+            state_file_time,
+            source="bot_state.json",
+            source_path=tmp_path / "bot_state.json",
+        )
+        if state is not None
+        else {}
+    )
+
+    digest.refresh_derived(report)
+    rendered = digest.render_markdown(report)
+
+    assert headline_text in report["summary"]["headline"]
+    assert headline_text in rendered
+    assert body_text in rendered
+
+
+@pytest.mark.parametrize("contents", [None, {}, {"MAX_AUTO_REPLIES_PER_DAY": 48}])
+def test_local_config_is_described_as_on_disk_not_effective_live(
+    contents,
+    tmp_path,
+):
+    config_path = tmp_path / "mrsMThatcher.local.json"
+    if contents is not None:
+        config_path.write_text(json.dumps(contents), encoding="utf-8")
+    config, path, timestamp, status = digest.load_current_runtime_config(tmp_path)
+    report = digest.analyse([])
+    report["latest_config"] = config or {}
+    report["runtime_config_status"] = {
+        "status": status,
+        "path": str(path),
+        "time": digest.dt_text(timestamp) if timestamp else None,
+    }
+    rendered = digest.render_markdown(report)
+
+    assert "## On-disk local configuration overrides" in rendered
+    assert "Current production configuration" not in rendered
+    if contents is None:
+        assert "On-disk local overrides: **unavailable**" in rendered
+        assert "Effective live configuration is not established" in rendered
+    else:
+        assert "read-only file observation does not establish" in rendered
+        assert "effective in a live process" in rendered
 
 
 def test_reply_accounting_reconciles_terminal_local_rejections_and_timeout_wrapper():
@@ -1357,6 +1575,33 @@ def test_x_429_and_cooldown_are_one_resolved_incident_after_later_success():
     )
 
 
+def test_success_before_later_429_does_not_resolve_that_incident():
+    records = [
+        record(0, "INFO", "get_mentions", "Fetched 0 mentions"),
+        record(
+            60,
+            "ERROR",
+            "x_request",
+            'X bearer API error 429: {"status":429}',
+        ),
+        record(
+            61,
+            "ERROR",
+            "record_api_error",
+            "Entering API cooldown after 429 until 2026-07-25 09:02:00",
+        ),
+    ]
+
+    health = digest.analyse(
+        records,
+        generation_time=BASE + timedelta(minutes=10),
+    )["error_health"]
+
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["category"] == "x_api_rate_limit"
+
+
 def test_active_x_429_cooldown_remains_one_current_incident():
     records = [
         record(
@@ -1475,7 +1720,7 @@ def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
         "strategy_version": "tested-reply-pipeline-20260816",
         "lane": "mention",
         "target_id": "100",
-        "mode": "factual",
+        "mode": "direct_factual_answer",
         "final_reply_kind": "factual",
         "tone": "unknown",
         "reply_requirement": "supported_factual",
@@ -1504,6 +1749,59 @@ def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
     assert decision["used_fact_count"] == "unknown"
     assert decision["evidence_reference_count"] is None
     assert decision["grounded"] is None
+
+
+def test_nonfactual_pipeline_mode_and_unknown_reply_kind_stay_independent():
+    common = {
+        "strategy_version": "tested-reply-pipeline-20260816",
+        "lane": "mention",
+        "target_id": "100",
+        "mode": "opinion_or_principle",
+        "final_reply_kind": "unknown",
+        "tone": "unknown",
+        "reply_requirement": "general",
+        "route_source": "xai_gate",
+    }
+    decision = {
+        "event": "ai_reply_pipeline_decision",
+        "status": "approved",
+        **common,
+    }
+    outcome = {
+        "event": "ai_reply_pipeline_outcome",
+        "status": "confirmed",
+        "reply_post_id": "900",
+        **common,
+    }
+
+    report = digest.analyse(
+        [
+            record(0, "INFO", "log_event", "EVENT " + json.dumps(decision)),
+            record(1, "INFO", "log_event", "EVENT " + json.dumps(outcome)),
+        ]
+    )
+    events = report["events"]
+    strategy = report["reply_strategy"]
+    parsed_decision = next(
+        event for event in events if event["kind"] == "reply_strategy_decision"
+    )
+    parsed_outcome = next(
+        event for event in events if event["kind"] == "reply_strategy_outcome"
+    )
+
+    assert parsed_decision["mode"] == "opinion_or_principle"
+    assert parsed_decision["final_reply_kind"] == "unknown"
+    assert parsed_outcome["mode"] == "opinion_or_principle"
+    assert parsed_outcome["final_reply_kind"] == "unknown"
+    assert strategy["generated_mode_counts"]["opinion_or_principle"] == 1
+    assert strategy["mode_counts"]["opinion_or_principle"] == 1
+    assert strategy["generated_mode_counts"]["strategy metadata unavailable"] == 0
+    assert strategy["mode_counts"]["strategy metadata unavailable"] == 0
+    assert strategy["generated_final_reply_kind_counts"] == {"unknown": 1}
+    assert strategy["final_reply_kind_counts"] == {"unknown": 1}
+    rendered = digest.render_markdown(report)
+    assert "Generated final reply kinds: unknown=1" in rendered
+    assert "Published/terminal final reply kinds: unknown=1" in rendered
 
 
 def test_provider_cost_unknown_zero_nonzero_and_lower_bound_average():

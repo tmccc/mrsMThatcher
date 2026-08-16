@@ -193,16 +193,17 @@ def test_positive_social_and_brief_agreement_receive_warm_reply(text: str) -> No
     result = run(text, transport)
     assert result.status == "approved"
     assert str(result.reply) == "Thank you — that is kind of you."
-    assert result.reply.pipeline_metadata["final_reply_kind"] == "courtesy"
+    assert result.reply.pipeline_metadata["final_reply_kind"] == "unknown"
+    assert result.reply.pipeline_metadata["mode"] == "opinion_or_principle"
     assert result.reply.pipeline_metadata["tone"] == "unknown"
 
 
 @pytest.mark.parametrize(
     ("text", "writer", "facts", "expected_kind"),
     [
-        ("Could you say which point you mean?", "Which part did you have in mind?", False, "clarification"),
+        ("Could you say which point you mean?", "Which part did you have in mind?", False, "unknown"),
         ("Did Margaret Thatcher really say this?", "The local transcript records those exact words.", True, "factual"),
-        ("Liberty also requires institutions.", "Liberty endures only when institutions remain answerable.", False, "opinion_or_principle"),
+        ("Liberty also requires institutions.", "Liberty endures only when institutions remain answerable.", False, "unknown"),
     ],
 )
 def test_reply_kind_metadata_is_small_and_deterministic(
@@ -215,7 +216,9 @@ def test_reply_kind_metadata_is_small_and_deterministic(
 
     assert result.status == "approved"
     assert result.reply.pipeline_metadata["final_reply_kind"] == expected_kind
-    assert result.reply.pipeline_metadata["mode"] == expected_kind
+    assert result.reply.pipeline_metadata["mode"] == (
+        "direct_factual_answer" if facts else "opinion_or_principle"
+    )
     assert result.reply.pipeline_metadata["tone"] == "unknown"
 
 
@@ -522,7 +525,7 @@ def test_production_decision_logs_routing_kind_and_unknown_fact_use(monkeypatch)
     assert bot.generate_ai_first_reply(context("Thank you!")) == result.reply
 
     decision = events[-1][1]
-    assert decision["final_reply_kind"] == "courtesy"
+    assert decision["final_reply_kind"] == "unknown"
     assert decision["reply_requirement"] == "general"
     assert decision["route_source"] == "xai_gate"
     assert decision["tone"] == "unknown"

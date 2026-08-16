@@ -12888,16 +12888,18 @@ def test_final_receipt_cleanup_fsync_failure_latches_every_public_lane(
         bot.require_remote_operation_unpaused("auxiliary provider request")
 
 
-def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal(
+def test_same_thread_clarification_at_author_cap_is_skipped_before_model_or_post(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fixed_epoch = 2_000_000_000
     state = bot.default_state()
-    state["daily_reply_date"] = datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d")
-    state["daily_reply_count"] = 1
+    state["daily_reply_date"] = datetime.fromtimestamp(
+        fixed_epoch, ZoneInfo("Europe/London")
+    ).strftime("%Y-%m-%d")
+    state["daily_reply_count"] = 6
     state["daily_replied_author_ids"] = ["200"]
-    state["daily_replied_author_counts"] = {"200": 1}
+    state["daily_replied_author_counts"] = {"200": 6}
     state["own_auto_reply_ids"] = ["900"]
     state["tweet_cache"] = {
         "100": {
@@ -12918,30 +12920,6 @@ def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal
         "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
         "referenced_tweets": [{"type": "replied_to", "id": "900"}],
     }
-    second_follow_up = {
-        "id": "102", "author_id": "200", "conversation_id": "700",
-        "text": "@MrsMThatcher And again?",
-        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
-        "referenced_tweets": [{"type": "replied_to", "id": "900001"}],
-    }
-    calls: list[dict[str, object]] = []
-
-    def build_context(candidate: dict, _state: dict) -> tuple[dict[str, object], bool]:
-        return unit_reply_context(
-            target_id=str(candidate["id"]),
-            thread_id=str(candidate["conversation_id"]),
-            contribution=str(candidate["text"]),
-        ), True
-
-    def answer(context: dict[str, object], *_args: object, **_kwargs: object) -> AIReply:
-        calls.append(context)
-        return unit_approved_reply(
-            context,
-            text="People moved from East Berlin and East Germany towards West Berlin and West Germany.",
-            mode="direct_factual_answer",
-            factual=True,
-        )
-
     current_candidates = [correction]
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
@@ -12953,8 +12931,8 @@ def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal
     monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
     monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
     monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
-    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
-    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 1)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
     monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
     monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
@@ -12962,26 +12940,173 @@ def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal
     monkeypatch.setattr(bot, "get_mentions", lambda _state: list(current_candidates))
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
-    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
-    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(bot, "generate_ai_first_reply", answer)
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda *_args, **_kwargs: pytest.fail("context/model work must not start"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda *_args, **_kwargs: pytest.fail("model must not be called"),
+    )
     install_receipt_bound_x_request_stub(
         monkeypatch,
-        lambda *_args, **_kwargs: {"data": {"id": "900001"}},
+        lambda *_args, **_kwargs: pytest.fail("posting API must not be called"),
     )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert state["daily_reply_count"] == 6
+    assert state["daily_replied_author_counts"]["200"] == 6
+    assert "700" not in state.get("clarification_reply_records", {})
+
+
+def test_tested_pipeline_supported_factual_clarification_passes_guards_and_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tested_reply_pipeline as tested_pipeline
+
+    fixed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["daily_reply_date"] = datetime.fromtimestamp(
+        fixed_epoch, ZoneInfo("Europe/London")
+    ).strftime("%Y-%m-%d")
+    state["daily_reply_count"] = 1
+    state["daily_replied_author_ids"] = ["200"]
+    state["daily_replied_author_counts"] = {"200": 1}
+    state["own_auto_reply_ids"] = ["900"]
+    state["tweet_cache"] = {
+        "100": {
+            "id": "100",
+            "author_id": "200",
+            "conversation_id": "700",
+            "text": "@MrsMThatcher Where did people move when the Berlin Wall fell?",
+            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+        },
+        "900": {
+            "id": "900",
+            "author_id": "12345",
+            "conversation_id": "700",
+            "text": "When free to choose, people choose freedom.",
+            "post_type": "auto_reply",
+            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+        },
+    }
+    correction = {
+        "id": "101",
+        "author_id": "200",
+        "conversation_id": "700",
+        "text": "@MrsMThatcher That did not answer my question.",
+        "entities": {
+            "mentions": [{"id": "12345", "username": "MrsMThatcher"}]
+        },
+        "referenced_tweets": [{"type": "replied_to", "id": "900"}],
+    }
+
+    class TestedRepository(UnitReplyEvidenceRepository):
+        def candidate_passages(self, _text: str, **_kwargs: object) -> list:
+            return [self.passage]
+
+    def transport(**kwargs: object) -> dict[str, str]:
+        stage = str(kwargs["stage"])
+        if stage == "candidate_backed_engagement":
+            return {"decision": "no_reply", "reply": ""}
+        if stage.startswith("reply_necessity_"):
+            return {"outcome": "require_supported_factual_reply"}
+        if stage in {
+            "narrow_claim_audit",
+            "cleanup_claim_audit",
+            "diversity_claim_audit",
+        }:
+            return {"outcome": "pass"}
+        if stage in {
+            "writer_v3_initial",
+            "bounded_claim_cleanup",
+            "exact_duplicate_repair",
+        }:
+            return {
+                "status": "reply",
+                "reply": (
+                    "People moved from East Germany towards West Germany in "
+                    "November 1989."
+                ),
+            }
+        raise AssertionError(stage)
+
+    def build_context(
+        candidate: dict, _state: dict
+    ) -> tuple[dict[str, object], bool]:
+        return (
+            unit_reply_context(
+                target_id=str(candidate["id"]),
+                thread_id=str(candidate["conversation_id"]),
+                contribution=str(candidate["text"]),
+            ),
+            True,
+        )
+
+    promoted_receipts: list[dict] = []
+    original_promote = bot.promote_sending_reply_receipt
+
+    def promote(*args: object, **kwargs: object) -> dict:
+        receipt = original_promote(*args, **kwargs)
+        assert bot.confirmed_reply_receipt_is_semantically_valid(receipt)
+        promoted_receipts.append(dict(receipt))
+        return receipt
+
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    config = copy.deepcopy(tested_pipeline.default_config())
+    config["enabled"] = True
+    monkeypatch.setattr(bot, "tested_reply_pipeline", config)
+    monkeypatch.setattr(bot, "OPENAI_BASE", "http://127.0.0.1:9/v1")
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(
+        bot,
+        "current_datetime",
+        lambda: datetime.fromtimestamp(fixed_epoch, ZoneInfo("Europe/London")),
+    )
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [correction])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(
+        bot, "is_probably_spam_or_not_worth_replying", lambda _text: False
+    )
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
+    monkeypatch.setattr(
+        bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {}
+    )
+    monkeypatch.setattr(bot, "reply_evidence_repository", TestedRepository)
+    monkeypatch.setattr(bot, "tested_pipeline_structured_call", transport)
+    monkeypatch.setattr(bot, "promote_sending_reply_receipt", promote)
+
+    def confirmed_remote(*_args: object, **_kwargs: object) -> dict[str, object]:
+        status, sending = bot.load_confirmed_reply_receipt()
+        assert status == "sending"
+        assert sending is not None
+        assert bot.sending_reply_receipt_is_semantically_valid(sending)
+        assert sending["ai_reply_draft"]["mode"] == "direct_factual_answer"
+        assert sending["ai_reply_draft"]["final_reply_kind"] == "factual"
+        return {"data": {"id": "900001"}}
+
+    install_receipt_bound_x_request_stub(monkeypatch, confirmed_remote)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
-    assert len(calls) == 1
-    assert calls[0]["clarification_request"]["original_question"].startswith(
-        "@MrsMThatcher Where did people run"
-    )
+    assert len(promoted_receipts) == 1
+    assert promoted_receipts[0]["clarification_reply"]["thread_id"] == "700"
     assert state["daily_reply_count"] == 2
-    assert state["clarification_reply_records"]["700"]["status"] == "repair_reply_completed"
+    assert state["daily_replied_author_counts"]["200"] == 2
     assert state["clarification_reply_records"]["700"]["thread_terminal"] is True
-
-    current_candidates[:] = [second_follow_up]
-    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
-    assert len(calls) == 1
+    assert bot.terminal_reply_evaluation(state, "101") is None
 
 
 def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
@@ -13801,6 +13926,112 @@ def test_quote_lookup_repeated_saved_token_is_one_bounded_partial_warning(
     assert not any(row.levelno >= logging.ERROR for row in caplog.records)
     assert "Traceback" not in caplog.text
     assert repeated_token not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("next_tokens", "expected_ids", "expected_requests"),
+    [
+        ({"A": "A"}, ["101"], ["A"]),
+        ({"A": "B", "B": "A"}, ["101", "102"], ["A", "B"]),
+        ({"A": "B", "B": "B"}, ["101", "102"], ["A", "B"]),
+        (
+            {"A": "B", "B": "C", "C": "B"},
+            ["101", "102", "103"],
+            ["A", "B", "C"],
+        ),
+    ],
+)
+def test_quote_lookup_saved_repeated_cursor_is_durably_cleared_across_reload(
+    next_tokens: dict[str, str],
+    expected_ids: list[str],
+    expected_requests: list[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_path = tmp_path / "bot_state.json"
+    state = bot.default_state()
+    state["quote_lookup_pagination_tokens"] = {"900": "A"}
+    requests: list[str] = []
+
+    def request(_path: str, params: dict) -> dict:
+        token = str(params["pagination_token"])
+        requests.append(token)
+        return {
+            "data": [
+                {"id": str(100 + len(requests)), "author_id": "200"}
+            ],
+            "meta": {"next_token": next_tokens[token]},
+        }
+
+    monkeypatch.setattr(bot, "STATE_FILE", state_path)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "QUOTE_LOOKUP_MAX_PAGES_PER_POST", 6)
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    bot.save_state(state, durable=True)
+
+    result = bot.get_quote_tweets_for_post("900", state)
+
+    assert [item["id"] for item in result] == expected_ids
+    assert requests == expected_requests
+    assert state["quote_lookup_pagination_tokens"] == {}
+    assert bot.load_state()["quote_lookup_pagination_tokens"] == {}
+
+
+def test_quote_lookup_invalid_saved_cursor_then_repeated_head_token_saves_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    state_path = tmp_path / "bot_state.json"
+    state = bot.default_state()
+    state["quote_lookup_pagination_tokens"] = {"900": "A"}
+    requests: list[str | None] = []
+    events: list[tuple[str, dict]] = []
+
+    def request(_path: str, params: dict) -> dict:
+        token = params.get("pagination_token")
+        requests.append(token)
+        if token == "A":
+            raise invalid_pagination_cursor_error()
+        return {
+            "data": [{"id": "101", "author_id": "200"}],
+            "meta": {"next_token": "A"},
+        }
+
+    monkeypatch.setattr(bot, "STATE_FILE", state_path)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "x_quote_lookup_request", request)
+    bot.save_state(state, durable=True)
+    original_save_state = bot.save_state
+    durable_save_count = 0
+
+    def save_once(current: dict, *, durable: bool = False) -> None:
+        nonlocal durable_save_count
+        durable_save_count += 1
+        if durable_save_count > 1:
+            pytest.fail("repeated-token handling attempted a second durable save")
+        assert durable is True
+        original_save_state(current, durable=durable)
+
+    monkeypatch.setattr(bot, "save_state", save_once)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+    caplog.set_level(logging.WARNING)
+
+    result = bot.get_quote_tweets_for_post("900", state)
+
+    assert requests == ["A", None]
+    assert [item["id"] for item in result] == ["101"]
+    assert state["quote_lookup_pagination_tokens"] == {}
+    assert bot.load_state()["quote_lookup_pagination_tokens"] == {}
+    assert durable_save_count == 1
+    assert [name for name, _fields in events] == [
+        "quote_pagination_repeated_token"
+    ]
+    assert sum("Quote pagination stopped" in row.message for row in caplog.records) == 1
 
 
 def test_quote_lookup_repeated_token_after_several_pages_preserves_all_results(

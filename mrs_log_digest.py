@@ -1863,6 +1863,32 @@ def save_resume_time(
 
     latest_state = dict(report.get("latest_state") or {})
     latest_config = dict(report.get("latest_config") or {})
+    runtime_state_status = str(
+        (report.get("runtime_state_status") or {}).get("status") or ""
+    )
+    runtime_config_status = str(
+        (report.get("runtime_config_status") or {}).get("status") or ""
+    )
+    if (
+        preserve_existing_context
+        and runtime_state_status
+        and runtime_state_status != "available"
+    ):
+        retained_state = report.get("historical_retained_state") or old.get(
+            "last_known_latest_state"
+        )
+        if isinstance(retained_state, dict):
+            latest_state = dict(retained_state)
+    if (
+        preserve_existing_context
+        and runtime_config_status
+        and runtime_config_status != "available"
+    ):
+        retained_config = report.get("historical_retained_config") or old.get(
+            "last_known_latest_config"
+        )
+        if isinstance(retained_config, dict):
+            latest_config = dict(retained_config)
 
     # Persist clean context only; _carried_forward/_filled_from_previous are
     # rendering annotations for this run, not durable bot facts.
@@ -2024,13 +2050,17 @@ def int_or_none(value: Any) -> Optional[int]:
         return None
 
 
-def cooldown_state_text(until_epoch: Any, state_time_text: Any) -> str:
-    """Return the cooldown state text."""
+def cooldown_state_text(until_epoch: Any, generation_epoch: Any) -> str:
+    """Return cooldown state at digest-generation time."""
     until = int_or_none(until_epoch)
-    state_time = parse_dt(state_time_text) if state_time_text else None
-    if not until or not state_time:
+    generated = int_or_none(generation_epoch)
+    if generated is None:
         return ""
-    return "active" if int(state_time.timestamp()) < until else "expired"
+    if until is None or until < 0:
+        return "unavailable"
+    if until == 0:
+        return "cleared"
+    return "active" if generated < until else "expired"
 
 
 @dataclass(frozen=True)
@@ -2547,7 +2577,7 @@ CURRENT_CONFIG_REPORT_KEYS = {
 def load_current_runtime_config(
     project_dir: Path,
 ) -> Tuple[Optional[Dict[str, Any]], Path, Optional[datetime], str]:
-    """Read the allow-listed ignored production configuration source."""
+    """Read allow-listed values from the on-disk local override file."""
     path = project_dir / "mrsMThatcher.local.json"
     if not path.exists():
         return None, path, None, "absent"
@@ -3318,8 +3348,10 @@ def summarise_operational_error_health(
     receipt_events: List[Dict[str, Any]],
     lifecycle: Iterable[Dict[str, Any]] = (),
     current_remote_write_safety: Optional[Dict[str, Any]] = None,
+    generation_time: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Group traceback cascades and distinguish recovered from current incidents."""
+    generated_at = generation_time or datetime.now()
     serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
     operational = [
         item
@@ -3547,6 +3579,11 @@ def summarise_operational_error_health(
                 continue
             kind = event.get("kind")
             if kind == "reply_strategy_decision":
+                if _is_terminal_pipeline_failure(
+                    event.get("reason") or event.get("no_reply_reason"),
+                    event.get("status"),
+                ):
+                    continue
                 terminal_local_outcome = _terminal_local_rejection_outcome(
                     event.get("reason")
                 ) or _terminal_local_rejection_outcome(
@@ -3768,11 +3805,13 @@ def summarise_operational_error_health(
             later_x_successes = [
                 ts
                 for ts in event_times.get("x_activity_succeeded", [])
-                if cooldown_deadline is not None and ts > cooldown_deadline
+                if cooldown_deadline is not None
+                and ts > last_time
+                and ts > cooldown_deadline
             ]
             resolved = bool(
                 cooldown_deadline is not None
-                and cooldown_deadline < datetime.now()
+                and cooldown_deadline < generated_at
                 and later_x_successes
             )
             resolution_time = min(later_x_successes) if resolved else None
@@ -5409,6 +5448,27 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         lane = _normalise_lane(event.get("lane"))
         mode = str(event.get("mode") or "")
         generated_by_lane[lane][mode if mode in valid_modes else "strategy metadata unavailable"] += 1
+    final_reply_kinds = {
+        "factual",
+        "clarification",
+        "opinion_or_principle",
+        "light_humour",
+        "courtesy",
+        "unknown",
+        "no_reply",
+    }
+
+    def final_reply_kind_counts(rows: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+        counts = Counter()
+        for event in rows:
+            value = event.get("final_reply_kind")
+            counts[
+                value
+                if isinstance(value, str) and value in final_reply_kinds
+                else "metadata unavailable"
+            ] += 1
+        return dict(sorted(counts.items()))
+
     outcome_status_counts = Counter()
     for event in outcomes:
         status = str(event.get("status") or "confirmed")
@@ -5565,6 +5625,8 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "generated_mode_counts_by_lane": {
             lane: dict(sorted(counts.items())) for lane, counts in sorted(generated_by_lane.items())
         },
+        "final_reply_kind_counts": final_reply_kind_counts(observations),
+        "generated_final_reply_kind_counts": final_reply_kind_counts(decisions),
         "outcome_status_counts": dict(sorted(outcome_status_counts.items())),
         "humour_tone_counts": humour_counts,
         "confidence_counts": confidence_counts,
@@ -5801,6 +5863,7 @@ def analyse(
     initial_pending_mention: Optional[Dict[str, Any]] = None,
     initial_pending_qt: Optional[Dict[str, Any]] = None,
     current_remote_write_safety: Optional[Dict[str, Any]] = None,
+    generation_time: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Aggregate parsed production records into digest metrics."""
     stats = Counter()
@@ -6576,6 +6639,7 @@ def analyse(
                     target_id=event_obj.get("target_id") or "",
                     reply_post_id=event_obj.get("reply_post_id") or "",
                     mode=event_obj.get("mode"),
+                    final_reply_kind=event_obj.get("final_reply_kind"),
                     humour_tone=event_obj.get("humour_tone"),
                     tone=event_obj.get("humour_tone"),
                     **evidence_fields,
@@ -6607,8 +6671,7 @@ def analyse(
                 decision_status = str(event_obj.get("status") or "")
                 final_reply_kind = event_obj.get("final_reply_kind")
                 effective_mode = (
-                    final_reply_kind
-                    or event_obj.get("mode")
+                    event_obj.get("mode")
                     or ("no_reply" if decision_status == "no_reply" else None)
                 )
                 add_event(
@@ -6620,7 +6683,7 @@ def analyse(
                     status=decision_status or "unavailable",
                     mode=effective_mode,
                     proposer_mode=event_obj.get("proposer_mode") or event_obj.get("mode"),
-                    final_reply_kind=final_reply_kind or effective_mode,
+                    final_reply_kind=final_reply_kind,
                     reply_requirement=event_obj.get("reply_requirement"),
                     route_source=event_obj.get("route_source"),
                     claim_risk_categories=(
@@ -6766,8 +6829,8 @@ def analyse(
                     target_id=event_obj.get("target_id") or "",
                     reply_post_id=event_obj.get("reply_post_id") or "",
                     strategy_version=event_obj.get("strategy_version") or "unavailable",
-                    mode=event_obj.get("final_reply_kind") or event_obj.get("mode"),
-                    final_reply_kind=event_obj.get("final_reply_kind") or event_obj.get("mode"),
+                    mode=event_obj.get("mode"),
+                    final_reply_kind=event_obj.get("final_reply_kind"),
                     reply_requirement=event_obj.get("reply_requirement"),
                     route_source=event_obj.get("route_source"),
                     claim_risk_categories=(
@@ -7843,6 +7906,7 @@ def analyse(
         receipt_events,
         lifecycle,
         current_remote_write_safety=current_remote_write_safety,
+        generation_time=generation_time,
     )
 
     # Build a short automatic headline around current health, not raw traceback volume.
@@ -8228,12 +8292,33 @@ def analyse(
         compact_routine[routine_reason_map.get(reason, reason)] += count
     strategy_quality["routine_skip_reason_counts"] = dict(compact_routine.most_common())
 
+    cooldown_claims = {
+        "API cooldown occurred",
+        "no API cooldown",
+    }
+    cooldown_claim_prefixes = (
+        "X read API cooldown ",
+        "X write API cooldown ",
+        "xAI cooldown ",
+        "quote API cooldown ",
+        "current API cooldown state ",
+    )
+    headline_without_current_cooldown = [
+        item
+        for item in headline
+        if item not in cooldown_claims
+        and not item.startswith(cooldown_claim_prefixes)
+    ]
+
     return {
         "summary": {
             "record_count": len(records),
             "time_start": records[0].ts.strftime("%Y-%m-%d %H:%M:%S") if records else None,
             "time_end": records[-1].ts.strftime("%Y-%m-%d %H:%M:%S") if records else None,
             "headline": "; ".join(headline),
+            "_headline_without_current_cooldown": (
+                headline_without_current_cooldown
+            ),
             "stats": dict(stats),
             "routine_skip_counts": dict(routine_skip_counts),
         },
@@ -8398,6 +8483,63 @@ def md_table_row(cols: List[Any]) -> str:
     return "| " + " | ".join(esc(c) for c in cols) + " |"
 
 
+CURRENT_COOLDOWN_FIELDS = (
+    ("api_cooldown_until_epoch", "X read API"),
+    ("x_write_api_cooldown_until_epoch", "X write API"),
+    ("xai_api_cooldown_until_epoch", "xAI"),
+    ("quote_api_cooldown_until_epoch", "quote API"),
+)
+
+
+def refresh_current_health_headline(report: Dict[str, Any]) -> None:
+    """Rebuild current-health and cooldown claims after runtime overlay."""
+    if "runtime_state_status" not in report:
+        return
+    summary = report.get("summary") or {}
+    base = summary.get("_headline_without_current_cooldown")
+    if not isinstance(base, list):
+        return
+    runtime_status = str(
+        (report.get("runtime_state_status") or {}).get("status") or ""
+    )
+    generated = int_or_none(report.get("generation_epoch"))
+    state = report.get("latest_state") or {}
+    current_incidents = int(
+        (report.get("error_health") or {}).get(
+            "current_independent_incident_count", 0
+        )
+        or 0
+    )
+    health_claim = (
+        "current health: "
+        + plural_count(current_incidents, "unresolved operational incident")
+        if current_incidents
+        else "current health: no unresolved operational incidents"
+    )
+    rebuilt_base = [
+        health_claim if str(item).startswith("current health:") else item
+        for item in base
+    ]
+    claims: List[str] = []
+    statuses: Dict[str, str] = {}
+    if runtime_status != "available" or generated is None:
+        claims.append("current API cooldown state unavailable")
+    else:
+        for field, label in CURRENT_COOLDOWN_FIELDS:
+            status = cooldown_state_text(state.get(field), generated)
+            statuses[field] = status
+            if status == "active":
+                claims.append(f"{label} cooldown active now")
+            elif status == "expired":
+                claims.append(f"{label} cooldown occurred, now expired")
+            elif status == "unavailable":
+                claims.append(f"{label} cooldown state unavailable")
+        if statuses and all(value == "cleared" for value in statuses.values()):
+            claims.append("no API cooldown")
+    report["current_cooldown_status"] = statuses
+    summary["headline"] = "; ".join([*rebuilt_base, *claims])
+
+
 def refresh_derived(report: Dict[str, Any]) -> None:
     """Recalculate derived sections after any carried-forward context is applied."""
     configs = report.get("latest_config") or {}
@@ -8454,6 +8596,9 @@ def refresh_derived(report: Dict[str, Any]) -> None:
             "state_filled_from_previous": bool(st.get("_filled_from_previous")),
             "config_filled_from_previous": bool(configs.get("_filled_from_previous")),
             "config_filled_from_log_backscan": bool(configs.get("_filled_from_log_backscan")),
+            "config_is_on_disk_override": (
+                configs.get("_config_source") == "mrsMThatcher.local.json"
+            ),
         },
         "reply_lane_priority": {
             "current_next_priority": st.get("next_reply_lane_priority"),
@@ -8483,6 +8628,7 @@ def refresh_derived(report: Dict[str, Any]) -> None:
             "quote_tweet_checks_no_post": stats.get("quote_tweet_checks_no_post", 0),
         },
     }
+    refresh_current_health_headline(report)
 
 
 def apply_saved_context(
@@ -8731,7 +8877,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
         if st.get("skipped_hot_reply_count") is not None:
             out.append(f"{state_label_prefix}skipped_hot_reply_count = {st.get('skipped_hot_reply_count')}")
         out.append(f"{state_label_prefix}quote_spam_author_count = {st.get('quote_spam_author_count')}")
-        api_cooldown_status = cooldown_state_text(st.get("api_cooldown_until_epoch"), st.get("time"))
+        generation_epoch = report.get("generation_epoch")
+        api_cooldown_status = cooldown_state_text(st.get("api_cooldown_until_epoch"), generation_epoch)
         api_cooldown_suffix = f"  {api_cooldown_status}" if api_cooldown_status else ""
         api_cooldown_human = st.get("api_cooldown_until_human") or "none"
         out.append(
@@ -8740,7 +8887,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
         if st.get("api_cooldown_reason"):
             out.append(f"{state_label_prefix}x_read_api_cooldown_reason = {st.get('api_cooldown_reason')}")
-        x_write_api_cooldown_status = cooldown_state_text(st.get("x_write_api_cooldown_until_epoch"), st.get("time"))
+        x_write_api_cooldown_status = cooldown_state_text(st.get("x_write_api_cooldown_until_epoch"), generation_epoch)
         x_write_api_cooldown_suffix = f"  {x_write_api_cooldown_status}" if x_write_api_cooldown_status else ""
         x_write_api_cooldown_human = st.get("x_write_api_cooldown_until_human") or "none"
         out.append(
@@ -8749,7 +8896,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
         if st.get("x_write_api_cooldown_reason"):
             out.append(f"{state_label_prefix}x_write_api_cooldown_reason = {st.get('x_write_api_cooldown_reason')}")
-        xai_api_cooldown_status = cooldown_state_text(st.get("xai_api_cooldown_until_epoch"), st.get("time"))
+        xai_api_cooldown_status = cooldown_state_text(st.get("xai_api_cooldown_until_epoch"), generation_epoch)
         xai_api_cooldown_suffix = f"  {xai_api_cooldown_status}" if xai_api_cooldown_status else ""
         xai_api_cooldown_human = st.get("xai_api_cooldown_until_human") or "none"
         out.append(
@@ -8758,7 +8905,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
         if st.get("xai_api_cooldown_reason"):
             out.append(f"{state_label_prefix}xai_api_cooldown_reason = {st.get('xai_api_cooldown_reason')}")
-        quote_api_cooldown_status = cooldown_state_text(st.get("quote_api_cooldown_until_epoch"), st.get("time"))
+        quote_api_cooldown_status = cooldown_state_text(st.get("quote_api_cooldown_until_epoch"), generation_epoch)
         quote_api_cooldown_suffix = f"  {quote_api_cooldown_status}" if quote_api_cooldown_status else ""
         quote_api_cooldown_human = st.get("quote_api_cooldown_until_human") or "none"
         out.append(
@@ -8804,6 +8951,45 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(
             "No digest resume snapshot or historical log snapshot is used as current state."
         )
+        out.append("")
+
+    retained_state = report.get("historical_retained_state")
+    retained_config = report.get("historical_retained_config")
+    if retained_state or retained_config:
+        out.append("## Historical retained diagnostic snapshots")
+        out.append(
+            "These snapshots come from prior digest context and are preserved "
+            "for historical diagnosis only; they are not current runtime state "
+            "or effective live configuration."
+        )
+        if isinstance(retained_state, dict) and retained_state:
+            out.append(
+                "Retained state snapshot timestamp: "
+                f"`{retained_state.get('time') or 'unavailable'}`."
+            )
+            out.append("Historical state snapshot (diagnostic only):")
+            out.append("```json")
+            out.extend(
+                json.dumps(
+                    retained_state,
+                    indent=2,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                ).splitlines()
+            )
+            out.append("```")
+        if isinstance(retained_config, dict) and retained_config:
+            out.append("Historical configuration snapshot (not effective live configuration):")
+            out.append("```json")
+            out.extend(
+                json.dumps(
+                    retained_config,
+                    indent=2,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                ).splitlines()
+            )
+            out.append("```")
         out.append("")
 
     safety = report.get("remote_write_safety") or {}
@@ -9083,6 +9269,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
         if budget.get("config_filled_from_log_backscan"):
             ts = budget.get("config_backscan_timestamp")
             source_bits.append(f"config partly filled from earlier log scan{f' at {ts}' if ts else ''}")
+        if budget.get("config_is_on_disk_override"):
+            source_bits.append(
+                "limits from on-disk local overrides; live effectiveness unverified"
+            )
         if source_bits:
             out.append(f"source             = {', '.join(source_bits)}")
         if not budget.get("has_any_budget_input"):
@@ -10477,8 +10667,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"{strategy.get('deliberately_declined_count', 0)} deliberately declined.**"
     )
     out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))
+    out.append(
+        "Generated final reply kinds: "
+        + compact_counts(strategy.get("generated_final_reply_kind_counts") or {})
+    )
     out.append("Public outcomes: " + compact_counts(strategy.get("outcome_status_counts") or {}))
     out.append("Published/terminal modes: " + compact_counts(strategy.get("mode_counts") or {}))
+    out.append(
+        "Published/terminal final reply kinds: "
+        + compact_counts(strategy.get("final_reply_kind_counts") or {})
+    )
     for lane, counts in (strategy.get("mode_counts_by_lane") or {}).items():
         if counts:
             out.append(f"{lane}: {compact_counts(counts)}")
@@ -11457,11 +11655,15 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     cfg = report.get("latest_config") or {}
     if cfg:
-        out.append("## Current production configuration")
+        out.append("## On-disk local configuration overrides")
         if cfg.get("_config_source") == "mrsMThatcher.local.json":
             out.append(
-                f"Configuration source: `{cfg.get('_config_source_path')}`; "
+                f"On-disk override source: `{cfg.get('_config_source_path')}`; "
                 f"file timestamp: `{cfg.get('_config_source_time')}`."
+            )
+            out.append(
+                "This read-only file observation does not establish which "
+                "values are effective in a live process."
             )
         if cfg.get("_carried_forward"):
             out.append("Config source: carried forward from previous digest state.")
@@ -11500,14 +11702,15 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("")
     else:
         runtime_config_status = report.get("runtime_config_status") or {}
-        out.append("## Current production configuration")
+        out.append("## On-disk local configuration overrides")
         out.append(
-            "Current production configuration: **unavailable** "
+            "On-disk local overrides: **unavailable** "
             f"(`{runtime_config_status.get('status') or 'not read'}`; "
             f"source `{runtime_config_status.get('path') or 'unavailable'}`)."
         )
         out.append(
-            "No digest resume snapshot or historical startup log is used as current configuration."
+            "Effective live configuration is not established; no digest resume "
+            "snapshot or historical startup log is presented as current configuration."
         )
         out.append("")
 
@@ -11624,6 +11827,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path) -> int:
     """Run digest analysis, delivery, and resume-state persistence transactionally."""
+    generation_time = datetime.now()
     if args.logs:
         logs = resolve_explicit_logs(args.logs, project_dir)
     else:
@@ -11739,7 +11943,10 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         initial_pending_mention=initial_pending_mention,
         initial_pending_qt=initial_pending_qt,
         current_remote_write_safety=current_remote_write_safety,
+        generation_time=generation_time,
     )
+    report["generation_time"] = dt_text(generation_time)
+    report["generation_epoch"] = int(generation_time.timestamp())
     report["remote_write_safety"] = current_remote_write_safety
     report_window_end = until or (max((record.ts for record in records), default=None))
 
@@ -11815,13 +12022,6 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
 
     if not args.no_state and not args.reset_state:
         apply_saved_context(report, state_file, window_end=report_window_end)
-
-    historical_state = report.get("latest_state")
-    if isinstance(historical_state, dict) and historical_state:
-        report["historical_log_state_snapshot"] = dict(historical_state)
-    historical_config = report.get("latest_config")
-    if isinstance(historical_config, dict) and historical_config:
-        report["historical_log_config_snapshot"] = dict(historical_config)
 
     runtime_state, runtime_state_path, runtime_state_ts, runtime_state_status = (
         load_current_runtime_state(project_dir)
