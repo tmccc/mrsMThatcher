@@ -4872,6 +4872,46 @@ def normalise_state_candidate(
                         str(raw_backlog.get("next_token") or "").encode("utf-8")
                     ).hexdigest()[:16],
                 })
+    pending_candidates = normalised.get("mention_pending_candidates")
+    if (
+        isinstance(pending_candidates, dict)
+        and pending_candidates
+        and not normalised.get("mention_backlog")
+        and not normalised.get("mention_pagination")
+        and active_mention_backlog_reset_guard(normalised) is None
+    ):
+        watermark = str(normalised.get("last_seen_mention_id") or "")
+        watermark_value = int(watermark) if watermark else None
+        retained_candidates: dict[str, object] = {}
+        discarded_candidates = 0
+        for pending_key, candidate in pending_candidates.items():
+            identities = [str(pending_key)]
+            if isinstance(candidate, dict):
+                identities.append(str(candidate.get("id") or ""))
+            uncovered = any(
+                identity.isdigit()
+                and (
+                    watermark_value is None
+                    or int(identity) > watermark_value
+                )
+                for identity in identities
+            )
+            if uncovered:
+                discarded_candidates += 1
+            else:
+                retained_candidates[str(pending_key)] = candidate
+        if discarded_candidates:
+            normalised["mention_pending_candidates"] = retained_candidates
+            normalised["mention_backlog_reset_guard"] = {
+                "base_since_id": watermark,
+                "head_traversal_started": False,
+            }
+            if recovery_events is not None:
+                recovery_events.append({
+                    "reason": "orphaned_pending_candidates",
+                    "since_id": watermark or None,
+                    "discarded_candidates": discarded_candidates,
+                })
     if "author_evaluation_quarantines" in state:
         value = normalise_author_evaluation_quarantines(
             state["author_evaluation_quarantines"],
@@ -4922,11 +4962,20 @@ def load_state() -> dict:
 
     def emit_candidate_recoveries(candidate: Path) -> None:
         for recovery in candidate_recoveries.get(candidate, []):
-            log.warning(
-                "Resetting oversized mention backlog while loading %s; "
-                "watermark remains unchanged and pending candidates were discarded",
-                candidate,
-            )
+            if recovery.get("reason") == "orphaned_pending_candidates":
+                log.warning(
+                    "Discarding %s uncovered pending mention candidate(s) "
+                    "without pagination provenance while loading %s; watermark "
+                    "remains unchanged and a reset guard was installed",
+                    recovery.get("discarded_candidates"),
+                    candidate,
+                )
+            else:
+                log.warning(
+                    "Resetting oversized mention backlog while loading %s; "
+                    "watermark remains unchanged and pending candidates were discarded",
+                    candidate,
+                )
             log_event("mention_backlog_reset", **recovery)
 
     def load_candidate(candidate: Path, *, reject_legacy: bool) -> dict | None:

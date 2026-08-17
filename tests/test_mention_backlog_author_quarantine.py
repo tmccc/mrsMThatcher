@@ -1073,6 +1073,90 @@ def test_restored_cursor_after_reset_cannot_clear_guard_before_head_refetch(
     assert state["mention_backlog_reset_guard"] == {}
 
 
+def test_legacy_orphaned_pending_candidate_is_guarded_before_receipt_reconciliation(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_path = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_path)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    bot.atomic_write_json(
+        state_path,
+        {
+            "last_seen_mention_id": "99",
+            "mention_backlog": {},
+            "mention_pagination": {},
+            "mention_pending_candidates": {
+                "98": mention(98, 198),
+                "105": mention(105, 205),
+            },
+        },
+    )
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+
+    state = bot.load_state()
+
+    assert set(state["mention_pending_candidates"]) == {"98"}
+    assert state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+    assert (
+        "mention_backlog_reset",
+        {
+            "reason": "orphaned_pending_candidates",
+            "since_id": "99",
+            "discarded_candidates": 1,
+        },
+    ) in events
+
+    bot.apply_confirmed_reply_receipt(
+        state,
+        {
+            "target_id": "105",
+            "reply_post_id": "999",
+            "author_id": "205",
+            "reply_epoch": 2_000_000_000,
+            "candidate_source": "mention",
+            "conversation_id": "105",
+            "reply_text": "A confirmed reply.",
+        },
+    )
+    assert state["last_seen_mention_id"] == "99"
+    assert set(state["mention_pending_candidates"]) == {"98"}
+
+    bot.save_state(state, durable=True)
+    state = bot.load_state()
+    requests = install_mention_pages(
+        monkeypatch,
+        {
+            None: (
+                [mention(tweet_id, 200 + tweet_id) for tweet_id in range(100, 106)],
+                None,
+            ),
+        },
+    )
+    assert [row["id"] for row in bot.get_mentions(state)] == ["98"]
+    assert requests == []
+    retire_all_pending(state)
+
+    assert [row["id"] for row in bot.get_mentions(state)] == [
+        "100",
+        "101",
+        "102",
+        "103",
+        "104",
+    ]
+    assert requests[0]["since_id"] == "99"
+    assert state["last_seen_mention_id"] == "105"
+    assert state["mention_backlog_reset_guard"] == {}
+
+
 def test_continuation_token_limit_is_shared_by_loader_and_writer(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
