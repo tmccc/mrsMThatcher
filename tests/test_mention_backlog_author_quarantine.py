@@ -354,6 +354,146 @@ def test_active_quarantine_clarification_still_obeys_author_cap(
     assert all(name != "author_evaluation_quarantine_skip" for name, _ in events)
 
 
+def test_clarification_local_rejection_is_durably_terminal_without_strike_or_post(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = 2_000_000_000
+    state = bot.default_state()
+    candidate = mention(
+        100,
+        200,
+        "@MrsMThatcher That still did not answer my question.",
+    )
+    bot.record_qualifying_author_no_reply(
+        state,
+        "200",
+        current_epoch=current - 1,
+    )
+    quarantine_before = copy.deepcopy(state["author_evaluation_quarantines"])
+    original_save_state = bot.save_state
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    configure_provider_free_mention_check(
+        monkeypatch,
+        [candidate],
+        current_epoch=current,
+    )
+    monkeypatch.setattr(
+        bot,
+        "clarification_reply_context",
+        lambda *_args, **_kwargs: {
+            "thread_id": "100",
+            "prior_bot_reply_id": "90",
+            "original_question_id": "80",
+            "question_text": "Who creates that demand?",
+            "trigger": "explicit_correction",
+        },
+    )
+
+    def local_rejection(
+        _context: dict,
+        *_args: object,
+        evaluation_outcome: dict | None = None,
+        **_kwargs: object,
+    ) -> None:
+        assert evaluation_outcome is not None
+        evaluation_outcome.update(
+            {
+                "status": "local_rejection",
+                "reason": "repair_audit_not_passed:direct_answer",
+                "qualifying_author_no_reply": True,
+            }
+        )
+        return None
+
+    class SimulatedCrash(RuntimeError):
+        pass
+
+    durable_calls: list[bool] = []
+
+    def save_then_crash(current_state: dict, *, durable: bool = False) -> None:
+        durable_calls.append(durable)
+        original_save_state(current_state, durable=durable)
+        if durable:
+            raise SimulatedCrash("crash after durable local rejection")
+
+    monkeypatch.setattr(bot, "generate_ai_first_reply", local_rejection)
+    monkeypatch.setattr(bot, "save_state", save_then_crash)
+    monkeypatch.setattr(
+        bot,
+        "post_conversational_reply_with_durable_identity",
+        lambda *_args, **_kwargs: pytest.fail(
+            "a local repair rejection must never be posted"
+        ),
+    )
+
+    with pytest.raises(SimulatedCrash, match="durable local rejection"):
+        bot.maybe_reply_to_mentions(state)
+
+    assert durable_calls == [True]
+    restarted = bot.load_state()
+    terminal = bot.terminal_reply_evaluation(restarted, "100")
+    assert terminal is not None
+    assert terminal["reason"] == "repair_audit_not_passed:direct_answer"
+    assert restarted["author_evaluation_quarantines"] == quarantine_before
+
+
+def test_ordinary_no_reply_remains_non_durable_without_post(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = 2_000_000_000
+    state = bot.default_state()
+    candidate = mention(100, 200)
+    configure_provider_free_mention_check(
+        monkeypatch,
+        [candidate],
+        current_epoch=current,
+    )
+    monkeypatch.setattr(
+        bot,
+        "clarification_reply_context",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def no_reply(
+        _context: dict,
+        *_args: object,
+        evaluation_outcome: dict | None = None,
+        **_kwargs: object,
+    ) -> None:
+        assert evaluation_outcome is not None
+        evaluation_outcome.update(
+            {
+                "status": "no_reply",
+                "reason": "reply_necessity_review",
+                "qualifying_author_no_reply": False,
+            }
+        )
+        return None
+
+    durable_calls: list[bool] = []
+    monkeypatch.setattr(bot, "generate_ai_first_reply", no_reply)
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda _state, *, durable=False: durable_calls.append(durable),
+    )
+    monkeypatch.setattr(
+        bot,
+        "post_conversational_reply_with_durable_identity",
+        lambda *_args, **_kwargs: pytest.fail("ordinary no-reply must not post"),
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert durable_calls
+    assert not any(durable_calls)
+    terminal = bot.terminal_reply_evaluation(state, "100")
+    assert terminal is not None
+    assert terminal["reason"] == "reply_necessity_review"
+    assert state["author_evaluation_quarantines"] == {}
+
+
 def test_configured_quarantine_threshold_101_is_reachable(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

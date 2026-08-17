@@ -134,6 +134,12 @@ DIRECT_ANSWER_REPAIR_PROMPT = """You are performing one bounded factual repair f
 Answer the original direct question in the first sentence, using only facts explicitly established by trusted_facts. Do not guess, add outside knowledge, infer a private motive, embellish the evidence, or merely ask the contributor to clarify. If the question is ambiguous or trusted_facts do not explicitly establish a safe answer, use cannot_compose_safely.
 Return one or two short, natural British-English sentences, no more than 270 characters in total, as plain text inside the required JSON. Do not use emoji, mentions, links or hashtags. Do not refer to the repair, local guard, earlier draft, routing or evidence packet. Return only the required JSON."""
 
+DIRECT_ANSWER_REPAIR_AUDIT_PROMPT = """Independently audit one proposed direct-answer repair. Assess each requirement separately.
+Set direct_answer to pass only if the untrusted candidate directly answers selected_question and its first substantive sentence gives the answer rather than throat-clearing, evasion, discussion of the question, or a request for clarification.
+Set factual_grounding to pass only if every factual claim in the untrusted candidate is supported by trusted_facts. Do not use general knowledge, selected_question, or rejected_original as factual evidence.
+rejected_original is untrusted rejected text supplied only for comparison. Never treat it as evidence or as proof that the candidate is direct.
+Fail either requirement when its result is missing, uncertain, or ambiguous. Return only the required JSON."""
+
 
 def _strict_schema(properties: dict[str, Any]) -> dict[str, Any]:
     """Return a strict object schema requiring every supplied property."""
@@ -187,6 +193,10 @@ CLAIM_AUDIT_SCHEMA = _strict_schema({
         "type": "string",
         "enum": ["pass", "rewrite_claim_free", "rewrite_supported_factual"],
     }
+})
+DIRECT_ANSWER_REPAIR_AUDIT_SCHEMA = _strict_schema({
+    "direct_answer": {"type": "string", "enum": ["pass", "fail"]},
+    "factual_grounding": {"type": "string", "enum": ["pass", "fail"]},
 })
 
 
@@ -888,6 +898,20 @@ def _validate_writer(value: object) -> dict[str, str]:
     return {"status": str(item["status"]), "reply": reply}
 
 
+def _validate_direct_answer_repair_audit(value: object) -> dict[str, str]:
+    """Require explicit, independent passes from the repair-only audit."""
+    item = _parse_object(value, "direct answer repair audit")
+    fields = {"direct_answer", "factual_grounding"}
+    if set(item) != fields or any(
+        item.get(field) not in {"pass", "fail"} for field in fields
+    ):
+        raise ValueError("direct answer repair audit fields are invalid")
+    return {
+        "direct_answer": str(item["direct_answer"]),
+        "factual_grounding": str(item["factual_grounding"]),
+    }
+
+
 def _majority(outcomes: list[str | None], fail_closed: str) -> dict[str, Any]:
     if len(outcomes) != 3:
         raise ValueError("majority review requires exactly three calls")
@@ -910,6 +934,16 @@ def normalise_exact_reply(text: str) -> str:
     while end > start and (value[end - 1].isspace() or unicodedata.category(value[end - 1]).startswith("P")):
         end -= 1
     return " ".join(value[start:end].split())
+
+
+def _normalise_direct_answer_repair_echo(text: str) -> str:
+    """Ignore only case, whitespace, and punctuation for repair echoes."""
+    return "".join(
+        character
+        for character in unicodedata.normalize("NFKC", str(text)).casefold()
+        if not character.isspace()
+        and not unicodedata.category(character).startswith("P")
+    )
 
 
 def duplicate_analysis(reply: str, recent_replies: list[str]) -> dict[str, Any]:
@@ -1060,14 +1094,63 @@ def trusted_facts_support_direct_factual_answer(
     ]
     if not passages:
         return False
-    passage_roots = [
-        {
+    def evidence_roots(text: str) -> set[str]:
+        return {
             _normalise_evidence_token(token)
-            for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9'’-]*", passage)
+            for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9'’-]*", text)
         }
-        for passage in passages
-    ]
+
+    passage_roots = [evidence_roots(passage) for passage in passages]
     lowered = question.casefold().replace("’", "'")
+
+    def subject_roots(excluded: set[str]) -> set[str]:
+        generic = {
+            "after", "at", "before", "by", "during", "for", "how", "in",
+            "of", "on", "then", "to",
+        }
+        return {
+            root
+            for token in re.findall(r"[a-z0-9][a-z0-9'-]{1,}", lowered)
+            if token not in _DIRECT_FACTUAL_MATERIAL_STOPWORDS
+            if (root := _normalise_evidence_token(token)) not in excluded | generic
+        }
+
+    def supporting_units(subjects: set[str]) -> list[str]:
+        if not subjects:
+            return []
+        required = max(1, math.ceil(len(subjects) * 0.6))
+        return [
+            unit
+            for passage in passages
+            for unit in re.split(r"(?<=[.!?;])\s+|[\r\n]+", passage)
+            if len(subjects & evidence_roots(unit)) >= required
+        ]
+
+    def cue_near_subjects(
+        unit: str,
+        subjects: set[str],
+        cue: re.Pattern[str],
+        *,
+        minimum: int,
+        distance: int = 4,
+        after: bool = False,
+    ) -> bool:
+        tokens = list(re.finditer(r"[A-Za-z0-9][A-Za-z0-9'’-]*", unit))
+        for match in cue.finditer(unit):
+            cue_index = sum(token.start() < match.start() for token in tokens)
+            nearby = {
+                _normalise_evidence_token(token.group(0))
+                for index, token in enumerate(tokens)
+                if (
+                    0 < index - cue_index <= distance
+                    if after
+                    else abs(index - cue_index) <= distance
+                )
+                and _normalise_evidence_token(token.group(0)) in subjects
+            }
+            if len(nearby) >= min(minimum, len(subjects)):
+                return True
+        return False
 
     who_match = re.search(
         r"\bwho\s+([a-z][a-z'-]*)\s+(?:the\s+|an?\s+)?([a-z][a-z'-]*)",
@@ -1081,24 +1164,94 @@ def trusted_facts_support_direct_factual_answer(
         return any(required <= roots for roots in passage_roots)
 
     if re.search(r"\b(?:which\s+(?:way|direction)|what\s+direction)\b", lowered):
-        direction_roots = {
-            "east", "west", "north", "south", "toward", "from", "into", "out",
-        }
-        return any(roots & direction_roots for roots in passage_roots)
-
-    if re.search(r"\bwhen\b", lowered):
+        cue = re.compile(
+            r"\b(?:flow(?:s|ed|ing)?|go(?:es|ing)?|went|head(?:s|ed|ing)?|"
+            r"mov(?:e|es|ed|ing)|proceed(?:s|ed|ing)?|"
+            r"travel(?:s|ed|led|ing|ling)?|turn(?:s|ed|ing)?|"
+            r"fac(?:e|es|ed|ing))\s+(?:(?:to\s+the\s+)?"
+            r"(?:north(?:east|west)?|south(?:east|west)?|east|west|left|right|"
+            r"clockwise|anticlockwise)|towards?\s+[A-Za-z][A-Za-z'-]*)\b",
+            re.IGNORECASE,
+        )
+        subjects = subject_roots({
+            "direction", "way", "face", "flow", "go", "head", "move",
+            "proceed", "travel", "turn",
+        })
         return any(
-            re.search(
-                r"\b(?:1[0-9]{3}|20[0-9]{2}|January|February|March|April|May|June|"
-                r"July|August|September|October|November|December)\b",
-                passage,
-                re.IGNORECASE,
-            )
-            for passage in passages
+            cue_near_subjects(unit, subjects, cue, minimum=1, distance=3)
+            for unit in supporting_units(subjects)
+        )
+
+    if re.search(r"\b(?:when|what\s+(?:date|year|time))\b", lowered):
+        subjects = subject_roots({"date", "year", "time"})
+        cue = re.compile(
+            rf"{_DATE.pattern}|{_YEAR.pattern}|\b{_MONTH}\b|"
+            r"\b(?:1[0-2]|0?[1-9])(?::[0-5]\d)?\s*(?:am|pm)\b|"
+            r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b|"
+            r"\b(?:noon|midday|midnight|morning|afternoon|evening)\b",
+            re.IGNORECASE,
+        )
+        return any(
+            cue_near_subjects(unit, subjects, cue, minimum=2, distance=3)
+            for unit in supporting_units(subjects)
         )
 
     if re.search(r"\bhow\s+(?:many|much|long|old|far)\b", lowered):
-        return any(re.search(r"\b\d+(?:[.,]\d+)?\b", passage) for passage in passages)
+        kind = re.search(r"\bhow\s+(many|much|long|old|far)\b", lowered).group(1)
+        excluded = {"many", "much", "long", "old", "far"}
+        if kind in {"long", "far"}:
+            excluded.add("travel")
+        if kind == "much":
+            excluded.update({"cost", "money", "pay", "price", "spend"})
+        subjects = subject_roots(excluded)
+        units = supporting_units(subjects)
+
+        if kind in {"many", "much"}:
+            measure = re.search(rf"\bhow\s+{kind}\s+([a-z][a-z'-]*)", lowered)
+            measure_root = (
+                _normalise_evidence_token(measure.group(1))
+                if measure and measure.group(1) not in {
+                    "did", "do", "does", "is", "are", "was", "were",
+                }
+                else None
+            )
+            if measure_root and measure_root != "money":
+                number = re.compile(
+                    r"\b(?!(?:1[0-9]{3}|20[0-9]{2}|2100)\b)"
+                    r"\d+(?:[.,]\d+)?\b"
+                )
+                return any(
+                    cue_near_subjects(
+                        unit, {measure_root}, number,
+                        minimum=1, distance=3, after=True,
+                    )
+                    for unit in units
+                )
+            money_action = re.compile(
+                r"\b(?:cost(?:s|ing)?|paid|pay(?:s|ing)?|priced?|prices?|"
+                r"spent|spend(?:s|ing)?)\b",
+                re.IGNORECASE,
+            )
+            return any(
+                _MONEY.search(unit)
+                and money_action.search(unit)
+                for unit in units
+            )
+
+        units_by_kind = {
+            "long": r"(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?|"
+                    r"miles?|yards?|feet|inches|kilometres?|kilometers?|metres?|meters?)",
+            "far": r"(?:miles?|yards?|feet|inches|kilometres?|kilometers?|metres?|meters?)",
+            "old": r"years?\s+old",
+        }
+        cue = re.compile(
+            rf"\b\d+(?:[.,]\d+)?\s+{units_by_kind[kind]}\b",
+            re.IGNORECASE,
+        )
+        return any(
+            cue_near_subjects(unit, subjects, cue, minimum=1)
+            for unit in units
+        )
 
     question_roots = {
         _normalise_evidence_token(token)
@@ -1133,8 +1286,8 @@ def repair_approved_direct_answer(
     clean_context = validate_reply_context(context)
     recent = [str(value) for value in (recent_replies or []) if str(value).strip()][-20:]
     trusted_facts = build_trusted_facts(clean_context, repository, config)
-    eligible = clarification_requires_direct_factual_answer(clean_context)
-    if not eligible:
+    selected_question = _direct_factual_clarification_question(clean_context)
+    if selected_question is None:
         outcome = "not_attempted_not_direct_factual_question"
         return DirectAnswerRepairResult(
             None, False, outcome, outcome, None, 0,
@@ -1227,12 +1380,19 @@ def repair_approved_direct_answer(
         )
 
     candidate = writer["reply"]
-    rejection = _public_reply_error(
-        candidate,
-        repository,
-        maximum_reply_length=maximum_reply_length,
-        maximum_sentences=int(config["maximum_reply_sentences"]),
-    )
+    rejection = None
+    if (
+        _normalise_direct_answer_repair_echo(candidate)
+        == _normalise_direct_answer_repair_echo(str(approved_reply))
+    ):
+        rejection = "repeats_rejected_original"
+    if rejection is None:
+        rejection = _public_reply_error(
+            candidate,
+            repository,
+            maximum_reply_length=maximum_reply_length,
+            maximum_sentences=int(config["maximum_reply_sentences"]),
+        )
     if rejection is None and duplicate_analysis(candidate, recent)["exact_duplicate"]:
         rejection = "exact_duplicate_reply"
     audit.append({
@@ -1252,29 +1412,27 @@ def repair_approved_direct_answer(
         provider="xAI",
         stage="direct_answer_repair_claim_audit",
         model=str(config["xai_model"]),
-        system_prompt=CLAIM_AUDIT_PROMPT,
+        system_prompt=DIRECT_ANSWER_REPAIR_AUDIT_PROMPT,
         payload={
-            "context": clean_context,
-            "trusted_facts": trusted_facts,
-            "media_context": media,
-            "reply_requirement": "supported_factual",
+            "selected_question": selected_question,
             "candidate_reply": {
-                "label": "untrusted proposed output",
+                "label": "untrusted candidate",
                 "text": candidate,
             },
-            "risk_categories": risk["categories"],
-            "matched_text": risk["matched_text"],
+            "trusted_facts": trusted_facts,
+            "rejected_original": {
+                "label": "untrusted rejected text; not evidence",
+                "text": str(approved_reply),
+            },
         },
-        response_schema=copy.deepcopy(CLAIM_AUDIT_SCHEMA),
+        response_schema=copy.deepcopy(DIRECT_ANSWER_REPAIR_AUDIT_SCHEMA),
         timeout_seconds=int(config["timeout_seconds"]),
         max_output_tokens=int(config["claim_audit_max_output_tokens"]),
         reasoning_effort=str(config["xai_reasoning_effort"]),
     )
     additional_calls += 1
     try:
-        claim_outcome = _validate_enum(
-            claim_raw, CLAIM_AUDIT_SCHEMA, "direct answer repair claim audit"
-        )
+        claim_outcome = _validate_direct_answer_repair_audit(claim_raw)
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         audit.append({
             "stage": "direct_answer_repair_claim_audit", "provider": "xAI",
@@ -1291,10 +1449,23 @@ def repair_approved_direct_answer(
     })
     audit.append({
         "stage": "direct_answer_repair_claim_audit_outcome",
-        "outcome": claim_outcome,
+        "outcome": (
+            "pass"
+            if all(value == "pass" for value in claim_outcome.values())
+            else "fail"
+        ),
+        **claim_outcome,
     })
-    if claim_outcome != "pass":
-        outcome = f"claim_audit_not_passed:{claim_outcome}"
+    failed_requirement = next(
+        (
+            field
+            for field in ("direct_answer", "factual_grounding")
+            if claim_outcome[field] != "pass"
+        ),
+        None,
+    )
+    if failed_requirement is not None:
+        outcome = f"claim_audit_not_passed:{failed_requirement}"
         audit.append({"stage": "direct_answer_repair_outcome", "outcome": outcome})
         return DirectAnswerRepairResult(
             None, True, outcome, outcome, candidate, additional_calls, tuple(audit)

@@ -12,25 +12,33 @@ import tested_reply_pipeline as pipeline
 @dataclass(frozen=True)
 class Passage:
     evidence_id: str = "fact-1"
+    passage: str = (
+        "Consumers and businesses create demand through spending and investment."
+    )
 
     def prompt_record(self) -> dict[str, str]:
         return {
             "evidence_id": self.evidence_id,
-            "passage": (
-                "Consumers and businesses create demand through spending and investment."
-            ),
+            "passage": self.passage,
             "verification_status": "verified",
         }
 
 
 class Repository:
-    def __init__(self, facts: bool = False):
+    def __init__(
+        self,
+        facts: bool = False,
+        passages: list[Passage] | None = None,
+    ):
         self.facts = facts
+        self.passages = passages
 
     def resolve_context_quotation(self, _context):
         return None
 
     def candidate_passages(self, _text, **_kwargs):
+        if self.passages is not None:
+            return self.passages
         return [Passage()] if self.facts else []
 
     def detected_authorised_quote_ids(self, _reply):
@@ -191,11 +199,15 @@ class DirectAnswerRepairTransport:
         *,
         repaired_reply: str = "Consumers and businesses create demand through their spending and investment.",
         writer_status: str = "reply",
-        claim_outcome: str = "pass",
+        audit_response: object | None = None,
     ) -> None:
         self.repaired_reply = repaired_reply
         self.writer_status = writer_status
-        self.claim_outcome = claim_outcome
+        self.audit_response = (
+            audit_response
+            if audit_response is not None
+            else {"direct_answer": "pass", "factual_grounding": "pass"}
+        )
         self.calls: list[dict] = []
 
     def __call__(self, **kwargs):
@@ -206,7 +218,7 @@ class DirectAnswerRepairTransport:
                 "reply": self.repaired_reply if self.writer_status == "reply" else "",
             }
         if kwargs["stage"] == "direct_answer_repair_claim_audit":
-            return {"outcome": self.claim_outcome}
+            return self.audit_response
         raise AssertionError(kwargs["stage"])
 
 
@@ -291,10 +303,19 @@ def test_one_supported_direct_factual_repair_succeeds() -> None:
     assert sum(
         call["stage"] == "direct_answer_repair" for call in transport.calls
     ) == 1
+    assert len(transport.calls) == 2
     assert transport.calls[0]["model"] == "gpt-5.6-sol"
     assert "only facts explicitly established by trusted_facts" in (
         transport.calls[0]["system_prompt"]
     )
+    audit_payload = transport.calls[1]["payload"]
+    assert audit_payload["selected_question"] == (
+        "Who creates the demand needed to get a private economy moving?"
+    )
+    assert audit_payload["candidate_reply"]["label"] == "untrusted candidate"
+    assert audit_payload["trusted_facts"]
+    assert "untrusted" in audit_payload["rejected_original"]["label"]
+    assert "not evidence" in audit_payload["rejected_original"]["label"]
 
 
 def test_direct_answer_repair_is_not_attempted_without_trusted_facts() -> None:
@@ -348,7 +369,7 @@ def test_failed_direct_answer_repair_stays_fail_closed_without_a_loop() -> None:
     value = clarification_context()
     original = approved_non_factual_reply(repository, value)
     transport = DirectAnswerRepairTransport(
-        claim_outcome="rewrite_supported_factual"
+        audit_response={"direct_answer": "fail", "factual_grounding": "pass"}
     )
 
     repair = pipeline.repair_approved_direct_answer(
@@ -363,7 +384,7 @@ def test_failed_direct_answer_repair_stays_fail_closed_without_a_loop() -> None:
     assert repair.reply is None
     assert repair.attempted is True
     assert repair.outcome == (
-        "claim_audit_not_passed:rewrite_supported_factual"
+        "claim_audit_not_passed:direct_answer"
     )
     assert [call["stage"] for call in transport.calls] == [
         "direct_answer_repair",
@@ -397,6 +418,236 @@ def test_repair_writer_refusal_uses_only_the_one_extra_writer_call() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "Demand must be matched by confidence and enterprise.",
+        "  demand, MUST be matched by confidence -- and enterprise!  ",
+    ],
+)
+def test_direct_answer_repair_rejects_echo_without_audit(candidate: str) -> None:
+    repository = Repository(facts=True)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport(repaired_reply=candidate)
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.reply is None
+    assert repair.outcome == "deterministic_rejection:repeats_rejected_original"
+    assert repair.additional_model_calls == 1
+    assert [call["stage"] for call in transport.calls] == [
+        "direct_answer_repair"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("candidate", "audit_response", "failed_requirement"),
+    [
+        (
+            "Confidence and enterprise matter.",
+            {"direct_answer": "fail", "factual_grounding": "pass"},
+            "direct_answer",
+        ),
+        (
+            "The Treasury created demand in 1987.",
+            {"direct_answer": "pass", "factual_grounding": "fail"},
+            "factual_grounding",
+        ),
+    ],
+)
+def test_direct_answer_repair_requires_both_audit_results(
+    candidate: str,
+    audit_response: dict[str, str],
+    failed_requirement: str,
+) -> None:
+    repository = Repository(facts=True)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport(
+        repaired_reply=candidate,
+        audit_response=audit_response,
+    )
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.reply is None
+    assert repair.outcome == f"claim_audit_not_passed:{failed_requirement}"
+    assert repair.additional_model_calls == 2
+
+
+@pytest.mark.parametrize(
+    "audit_response",
+    [
+        {"direct_answer": "pass"},
+        {"direct_answer": "ambiguous", "factual_grounding": "pass"},
+        {
+            "direct_answer": "pass",
+            "factual_grounding": "pass",
+            "explanation": "extra fields are not allowed",
+        },
+        "not an object",
+    ],
+)
+def test_direct_answer_repair_audit_fails_closed(
+    audit_response: object,
+) -> None:
+    repository = Repository(facts=True)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport(audit_response=audit_response)
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.reply is None
+    assert repair.outcome == "claim_audit_schema_invalid"
+    assert repair.additional_model_calls == 2
+
+
+def test_direct_answer_repair_preserves_two_call_ceiling() -> None:
+    repository = Repository(facts=True)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    config = enabled_config()
+    original.pipeline_metadata["model_call_count"] = config["maximum_model_calls"] - 1
+    transport = DirectAnswerRepairTransport()
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=config,
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.outcome == "not_attempted_model_call_ceiling"
+    assert repair.additional_model_calls == 0
+    assert transport.calls == []
+
+
+def test_ordinary_non_clarification_reply_makes_no_repair_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    result = run("Thank you!", Transport())
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(pipeline, "run_reply_pipeline", lambda **_kwargs: result)
+    monkeypatch.setattr(
+        pipeline,
+        "repair_approved_direct_answer",
+        lambda **_kwargs: pytest.fail("ordinary reply must not invoke repair"),
+    )
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    assert bot.generate_ai_first_reply(context("Thank you!")) == result.reply
+
+
+@pytest.mark.parametrize(
+    ("question", "passage"),
+    [
+        (
+            "Which direction did the convoy travel?",
+            "The convoy travelled west.",
+        ),
+        (
+            "Which direction did the convoy travel?",
+            "The convoy travelled towards France.",
+        ),
+        (
+            "When did Margaret Thatcher become Prime Minister?",
+            "Margaret Thatcher became Prime Minister on 4 May 1979.",
+        ),
+        (
+            "What time did the meeting happen?",
+            "The meeting happened at 4 pm.",
+        ),
+        (
+            "How many seats did the Conservatives win in the election?",
+            "The Conservatives won 339 seats in the election.",
+        ),
+        (
+            "How much did the project cost?",
+            "The project cost £10 million.",
+        ),
+    ],
+)
+def test_special_spend_gate_accepts_clear_same_passage_support(
+    question: str,
+    passage: str,
+) -> None:
+    value = clarification_context(original=question)
+
+    assert pipeline.trusted_facts_support_direct_factual_answer(
+        value,
+        [Passage(passage=passage).prompt_record()],
+    ) is True
+
+
+@pytest.mark.parametrize(
+    ("question", "passage"),
+    [
+        (
+            "Which direction did the convoy travel?",
+            "The convoy stopped while a train travelled west.",
+        ),
+        (
+            "When did Margaret Thatcher become Prime Minister?",
+            "Margaret Thatcher became Prime Minister, and in 1979 a treaty "
+            "was signed.",
+        ),
+        (
+            "How many seats did the Conservatives win in the election?",
+            "The Conservatives won seats: 75 candidates stood in the election.",
+        ),
+    ],
+)
+def test_special_spend_gate_rejects_unrelated_cue_without_calls(
+    question: str,
+    passage: str,
+) -> None:
+    repository = Repository(passages=[Passage(passage=passage)])
+    value = clarification_context(original=question)
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport()
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.outcome == "not_attempted_insufficient_trusted_facts"
+    assert repair.additional_model_calls == 0
+    assert transport.calls == []
+
+
 def test_stage_approval_followed_by_failed_repair_logs_effective_local_rejection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -424,7 +675,7 @@ def test_stage_approval_followed_by_failed_repair_logs_effective_local_rejection
                 ),
             }
         if stage == "direct_answer_repair_claim_audit":
-            return {"outcome": "rewrite_supported_factual"}
+            return {"direct_answer": "fail", "factual_grounding": "pass"}
         raise AssertionError(stage)
 
     value = clarification_context()
@@ -478,6 +729,9 @@ def test_frozen_prompt_hashes_and_provider_profiles() -> None:
         "DIVERSITY_PROMPT": "fcb4b58e153023cd638642158fbdd4a53213fe2e69320ee92a0b48c89563b66b",
         "DIRECT_ANSWER_REPAIR_PROMPT": (
             "345a3c9521152f0d44508f633b50f616836c5b3a32707998a6922a87fa227204"
+        ),
+        "DIRECT_ANSWER_REPAIR_AUDIT_PROMPT": (
+            "899fa390d311209bbcc2d7694304493f1dbb11e25f278c96f4c1f62dd025e9b0"
         ),
     }
     for name, digest in expected.items():

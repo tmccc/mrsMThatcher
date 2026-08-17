@@ -1102,6 +1102,168 @@ def test_majority_resolvability_is_strict_boolean_and_requires_review_outcome():
     assert summary["allegation_conspiracy_majority_resolvable_counts"] == {}
 
 
+def _render_reply_events(events):
+    digest.reconcile_reply_pipeline_effective_outcomes(events)
+    report = digest.analyse([])
+    report["events"] = events
+    report["reply_strategy"] = digest.reply_strategy_summary(events)
+    report["reply_pipeline_stages"] = digest.reply_pipeline_stage_summary(events)
+    return digest.render_markdown(report)
+
+
+def test_versioned_attempts_render_and_classify_independently():
+    target = "same-target"
+    old_version = "tested-reply-pipeline-20260816"
+    new_version = "tested-reply-pipeline-20260817"
+    events = [
+        event(
+            "reply_strategy_decision", time="2026-08-17 09:00:00",
+            lane="mention", target_id=target, strategy_version=old_version,
+            attempt_id="old", mode="no_reply", model_call_count=1,
+            effective_status="local_rejection",
+            original_local_rejection_reason="clarification_not_direct_factual_answer",
+        ),
+        event(
+            "reply_strategy_local_rejection", time="2026-08-17 09:00:01",
+            lane="mention", target_id=target, strategy_version=old_version,
+            attempt_id="old", effective_status="local_rejection",
+            reason="clarification_not_direct_factual_answer",
+        ),
+        event(
+            "reply_strategy_decision", time="2026-08-17 09:01:00",
+            lane="mention", target_id=target, strategy_version=new_version,
+            attempt_id="new", mode="direct_factual_answer", model_call_count=1,
+        ),
+        event(
+            "reply_strategy_outcome", time="2026-08-17 09:01:01",
+            lane="mention", target_id=target, strategy_version=new_version,
+            attempt_id="new", status="confirmed", reply_post_id="posted",
+            mode="direct_factual_answer", model_call_count=1,
+        ),
+    ]
+
+    digest.reconcile_reply_pipeline_effective_outcomes(events)
+    strategy = digest.reply_strategy_summary(events)
+    costs = digest.xai_reply_cost_summary([], events)
+    rendered = _render_reply_events(events)
+
+    assert strategy["outcome_status_counts"]["posted"] == 1
+    assert strategy["terminal_clarification_mode_rejection_count"] == 1
+    assert {(row["strategy_version"], row["outcome"]) for row in costs["candidates"]} == {
+        (old_version, "terminal_clarification_mode_rejection"),
+        (new_version, "published"),
+    }
+    assert rendered.count(f"### Target `{target}`") == 1
+    assert old_version in rendered
+
+
+def test_matched_publication_overrides_earlier_local_rejection():
+    version = "tested-reply-pipeline-20260817"
+    events = [
+        event(
+            "reply_pipeline_stage_summary", lane="mention", target_id="matched",
+            strategy_version=version, attempt_id="attempt-1",
+            status="approved", model_call_count=1,
+        ),
+        event(
+            "reply_strategy_decision", lane="mention", target_id="matched",
+            strategy_version=version, evaluation_id="evaluation-1",
+            mode="direct_factual_answer", model_call_count=1,
+        ),
+        event(
+            "reply_strategy_local_rejection", lane="mention", target_id="matched",
+            strategy_version=version, evaluation_id="evaluation-1",
+            effective_status="local_rejection",
+            reason="clarification_not_direct_factual_answer",
+        ),
+        event(
+            "reply_strategy_outcome", lane="mention", target_id="matched",
+            strategy_version=version, attempt_id="attempt-1",
+            evaluation_id="evaluation-1",
+            status="confirmed", reply_post_id="confirmed",
+        ),
+    ]
+
+    digest.reconcile_reply_pipeline_effective_outcomes(events)
+    strategy = digest.reply_strategy_summary(events)
+    costs = digest.xai_reply_cost_summary([], events)
+
+    assert events[0]["effective_status"] == "published"
+    assert events[1]["effective_status"] == "published"
+    assert digest.reply_pipeline_stage_summary(events)[
+        "complete_stage_telemetry_count"
+    ] == 1
+    assert strategy["outcome_status_counts"]["posted"] == 1
+    assert strategy["terminal_clarification_mode_rejection_count"] == 0
+    assert costs["candidates"][0]["outcome"] == "published"
+    assert "## Effective local reply rejections" not in _render_reply_events(events)
+
+
+def test_same_version_retry_order_keeps_attempts_independent():
+    version = "tested-reply-pipeline-20260817"
+    events = [
+        event(
+            "reply_strategy_decision", lane="mention", target_id="retry",
+            strategy_version=version, attempt_id="first", mode="no_reply",
+            model_call_count=1,
+        ),
+        event(
+            "reply_strategy_local_rejection", lane="mention", target_id="retry",
+            strategy_version=version, attempt_id="first",
+            effective_status="local_rejection",
+            reason="clarification_not_direct_factual_answer",
+        ),
+        event(
+            "reply_strategy_decision", lane="mention", target_id="retry",
+            strategy_version=version, attempt_id="second",
+            mode="direct_factual_answer", model_call_count=1,
+        ),
+        event(
+            "reply_strategy_outcome", lane="mention", target_id="retry",
+            strategy_version=version, attempt_id="second", status="confirmed",
+            reply_post_id="retry-post",
+        ),
+    ]
+
+    digest.reconcile_reply_pipeline_effective_outcomes(events)
+    strategy = digest.reply_strategy_summary(events)
+    costs = digest.xai_reply_cost_summary([], events)
+
+    assert strategy["outcome_status_counts"]["posted"] == 1
+    assert strategy["terminal_clarification_mode_rejection_count"] == 1
+    assert sorted(row["outcome"] for row in costs["candidates"]) == [
+        "published", "terminal_clarification_mode_rejection",
+    ]
+
+
+def test_ambiguous_unversioned_legacy_rejection_stays_unmatched():
+    events = [
+        event(
+            "reply_strategy_decision", lane="mention", target_id="legacy",
+            strategy_version="tested-reply-pipeline-20260816",
+            mode="opinion_or_principle",
+        ),
+        event(
+            "reply_strategy_decision", lane="mention", target_id="legacy",
+            strategy_version="tested-reply-pipeline-20260817",
+            mode="direct_factual_answer",
+        ),
+        event(
+            "reply_strategy_local_rejection", lane="mention", target_id="legacy",
+            effective_status="local_rejection",
+            reason="clarification_not_direct_factual_answer",
+        ),
+    ]
+
+    digest.reconcile_reply_pipeline_effective_outcomes(events)
+
+    assert events[0]["effective_status"] == "not_observed_in_window"
+    assert events[1]["effective_status"] == "not_observed_in_window"
+    assert digest.reply_strategy_summary(events)[
+        "terminal_clarification_mode_rejection_count"
+    ] == 1
+
+
 def test_ai_first_event_without_strategy_version_is_not_mislabelled_v2():
     record = digest.Record(
         ts=datetime(2026, 7, 20, 12),

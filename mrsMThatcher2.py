@@ -22198,7 +22198,10 @@ def maybe_reply_to_mentions(
             maybe_mark_hot_post_reply_skipped(state, mention, reason="no_usable_reply_generated")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="no_usable_reply_generated")
             mark_mention_seen_if_applicable(state, mention)
-            save_state(state)
+            save_state(
+                state,
+                durable=evaluation_outcome.get("status") == "local_rejection",
+            )
             continue
         if not isinstance(reply_text, AIReply):
             log.error(

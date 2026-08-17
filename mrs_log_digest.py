@@ -4299,64 +4299,101 @@ def xai_reply_cost_summary(
 ) -> Dict[str, Any]:
     """Attribute logged conversational provider cost without inventing missing spend."""
     attempts = list(call_attempts or [])
-    decisions: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    outcomes: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    failures: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    local_rejections: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    local_rejections_by_target: Dict[str, Dict[str, Any]] = {}
+    decisions: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+    stages: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+    outcomes: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+    failures: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+    local_rejections: Dict[Tuple[Any, ...], Dict[str, Any]] = {}
+    contexts: Dict[Tuple[Any, ...], Tuple[str, str]] = {}
+    versions: Dict[Tuple[Any, ...], str] = {}
     execution_event_counts: Counter = Counter()
-    for item in reply_events:
-        target_id = str(item.get("target_id") or "")
-        if not target_id:
-            continue
-        key = (normalise_reply_lane(item.get("lane")), target_id)
-        kind = item.get("kind")
-        if kind == "reply_strategy_decision":
-            decisions[key] = item
-            execution_event_counts[key] += 1
-        elif kind == "reply_strategy_outcome":
-            outcomes[key] = item
-        elif kind == "reply_strategy_failure":
-            failures[key] = item
-            execution_event_counts[key] += 1
-        elif kind == "reply_strategy_local_rejection":
-            local_rejections[key] = item
-            local_rejections_by_target[target_id] = item
+    for attempt in _reply_attempts(reply_events):
+        key = ("attempt", int(attempt["sequence"]))
+        contexts[key] = (
+            normalise_reply_lane(attempt["lane"]), str(attempt["target_id"])
+        )
+        versions[key] = str(attempt["strategy_version"] or "unavailable")
+        if attempt["stages"]:
+            stages[key] = attempt["stages"][-1]
+        if attempt["decisions"]:
+            decisions[key] = attempt["decisions"][-1]
+        public = next(
+            (
+                item for item in reversed(attempt["outcomes"])
+                if str(item.get("status") or "confirmed")
+                in {"confirmed", "posted"}
+            ),
+            None,
+        )
+        if public is not None or attempt["outcomes"]:
+            outcomes[key] = public or attempt["outcomes"][-1]
+        if attempt["failures"] and not attempt["outcomes"]:
+            failures[key] = attempt["failures"][-1]
+        local = next(
+            (
+                item for item in reversed(attempt["local_rejections"])
+                if str(item.get("effective_status") or "local_rejection")
+                == "local_rejection"
+            ),
+            None,
+        )
+        if local is not None and not attempt["outcomes"]:
+            local_rejections[key] = local
+        execution_event_counts[key] = (
+            len(attempt["decisions"]) + len(attempt["failures"])
+        )
 
-    grouped_usage: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    keys_by_context: Dict[Tuple[str, str], List[Tuple[Any, ...]]] = {}
+    for key, context in contexts.items():
+        if context[1]:
+            keys_by_context.setdefault(context, []).append(key)
+
+    def assign_by_context(
+        items: List[Dict[str, Any]],
+        unattributed: List[Dict[str, Any]],
+    ) -> Dict[Tuple[Any, ...], List[Dict[str, Any]]]:
+        grouped: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+        for item in items:
+            context = (
+                normalise_reply_lane(item.get("lane")),
+                str(item.get("context_id") or ""),
+            )
+            if not context[1] or context[0] == "unknown":
+                unattributed.append(item)
+            else:
+                grouped.setdefault(context, []).append(item)
+        assigned: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
+        for context, rows in grouped.items():
+            candidates = keys_by_context.get(context, [])
+            if len(candidates) > 1:
+                unattributed.extend(rows)
+                continue
+            key = candidates[0] if candidates else ("context", *context)
+            contexts.setdefault(key, context)
+            versions.setdefault(key, "unavailable")
+            assigned[key] = rows
+        return assigned
+
     unattributed_usage: List[Dict[str, Any]] = []
-    for item in usage_events:
-        lane = normalise_reply_lane(item.get("lane"))
-        context_id = str(item.get("context_id") or "")
-        if not context_id or lane == "unknown":
-            unattributed_usage.append(item)
-            continue
-        grouped_usage.setdefault((lane, context_id), []).append(item)
-
-    grouped_attempts: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    grouped_usage = assign_by_context(usage_events, unattributed_usage)
     unattributed_attempts: List[Dict[str, Any]] = []
-    for item in attempts:
-        lane = normalise_reply_lane(item.get("lane"))
-        context_id = str(item.get("context_id") or "")
-        if not context_id or lane == "unknown":
-            unattributed_attempts.append(item)
-            continue
-        grouped_attempts.setdefault((lane, context_id), []).append(item)
+    grouped_attempts = assign_by_context(attempts, unattributed_attempts)
 
     event_keys_with_reported_calls = {
         key
-        for mapping in (decisions, outcomes, failures)
+        for mapping in (stages, decisions, outcomes, failures)
         for key, item in mapping.items()
         if (optional_int_usage_value(item.get("model_call_count")) or 0) > 0
     }
 
-    def candidate_first_time(key: Tuple[str, str]) -> str:
+    def candidate_first_time(key: Tuple[Any, ...]) -> str:
         rows = (
             grouped_usage.get(key, [])
             + grouped_attempts.get(key, [])
             + [
                 item
                 for item in (
+                    stages.get(key),
                     decisions.get(key),
                     outcomes.get(key),
                     failures.get(key),
@@ -4377,19 +4414,24 @@ def xai_reply_cost_summary(
 
     candidates: List[Dict[str, Any]] = []
     for key in candidate_keys:
-        lane, context_id = key
+        lane, context_id = contexts[key]
         calls = grouped_usage.get(key, [])
         candidate_attempts = grouped_attempts.get(key, [])
+        stage = stages.get(key)
         decision = decisions.get(key)
         outcome = outcomes.get(key)
         failure = failures.get(key)
-        local_rejection = local_rejections.get(key) or local_rejections_by_target.get(
-            context_id
-        )
+        local_rejection = local_rejections.get(key)
         terminal_local_outcome = _terminal_local_rejection_outcome(
             (decision or {}).get("no_reply_reason")
         ) or _terminal_local_rejection_outcome(
             (local_rejection or {}).get("reason")
+        ) or (
+            _terminal_local_rejection_outcome(
+                (stage or {}).get("original_local_rejection_reason")
+            )
+            if (stage or {}).get("effective_status") == "local_rejection"
+            else None
         )
         outcome_status = str((outcome or {}).get("status") or "")
         decision_terminal_failure = _is_terminal_pipeline_failure(
@@ -4422,7 +4464,7 @@ def xai_reply_cost_summary(
             disposition = "outcome_unavailable"
 
         reported_call_count: Optional[int] = None
-        for source in (outcome, decision, failure):
+        for source in (outcome, decision, failure, stage):
             if source is None:
                 continue
             value = optional_int_usage_value(source.get("model_call_count"))
@@ -4480,6 +4522,7 @@ def xai_reply_cost_summary(
             {
                 "lane": lane,
                 "context_id": context_id,
+                "strategy_version": versions[key],
                 "outcome": disposition,
                 "observed_successful_calls": observed_call_count,
                 "started_calls": started_call_count,
@@ -5133,6 +5176,171 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
+_REPLY_ATTEMPT_ID_FIELDS = ("attempt_id", "evaluation_id", "correlation_id")
+_REPLY_ATTEMPT_BUCKETS = {
+    "reply_pipeline_stage_summary": "stages",
+    "reply_strategy_decision": "decisions",
+    "reply_strategy_local_rejection": "local_rejections",
+    "reply_strategy_outcome": "outcomes",
+    "reply_strategy_failure": "failures",
+}
+
+
+def _reply_strategy_version(event: Dict[str, Any]) -> Optional[str]:
+    value = str(event.get("strategy_version") or "").strip()
+    return value if value and value != "unavailable" else None
+
+
+def _reply_attempt_ids(event: Dict[str, Any]) -> Dict[str, str]:
+    return {
+        field: str(event[field])
+        for field in _REPLY_ATTEMPT_ID_FIELDS
+        if str(event.get(field) or "").strip()
+    }
+
+
+def _reply_attempts(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Pair only version-compatible reply observations from one ordered attempt."""
+    attempts: List[Dict[str, Any]] = []
+
+    def same_context(attempt: Dict[str, Any], event: Dict[str, Any]) -> bool:
+        return (
+            attempt["lane"] == _normalise_lane(event.get("lane"))
+            and attempt["target_id"] == str(event.get("target_id") or "")
+        )
+
+    def is_open(attempt: Dict[str, Any]) -> bool:
+        return not any(
+            attempt[field]
+            for field in ("local_rejections", "outcomes", "failures")
+        )
+
+    for event in events:
+        bucket = _REPLY_ATTEMPT_BUCKETS.get(str(event.get("kind") or ""))
+        if bucket is None:
+            continue
+        version = _reply_strategy_version(event)
+        identifiers = _reply_attempt_ids(event)
+        matched: Optional[Dict[str, Any]] = None
+
+        if identifiers:
+            candidates = []
+            for attempt in attempts:
+                shared = set(identifiers) & set(attempt["identifiers"])
+                if (
+                    same_context(attempt, event)
+                    and shared
+                    and not (
+                        version is not None
+                        and attempt["strategy_version"] is not None
+                        and version != attempt["strategy_version"]
+                    )
+                    and all(
+                        identifiers[field] == attempt["identifiers"][field]
+                        for field in shared
+                    )
+                ):
+                    candidates.append(attempt)
+            explicit_versions = {
+                value
+                for value in [
+                    version,
+                    *(attempt["strategy_version"] for attempt in candidates),
+                ]
+                if value is not None
+            }
+            identifier_conflict = any(
+                len({
+                    value
+                    for value in [
+                        identifiers.get(field),
+                        *(attempt["identifiers"].get(field)
+                          for attempt in candidates),
+                    ]
+                    if value is not None
+                }) > 1
+                for field in _REPLY_ATTEMPT_ID_FIELDS
+            )
+            if candidates and len(explicit_versions) <= 1 and not identifier_conflict:
+                matched = candidates[0]
+                for other in candidates[1:]:
+                    for field in _REPLY_ATTEMPT_BUCKETS.values():
+                        matched[field].extend(other[field])
+                    matched["identifiers"].update(other["identifiers"])
+                    attempts.remove(other)
+                if matched["strategy_version"] is None and explicit_versions:
+                    matched["strategy_version"] = next(iter(explicit_versions))
+        else:
+            kind = str(event.get("kind") or "")
+            def role_matches(attempt: Dict[str, Any]) -> bool:
+                if kind == "reply_pipeline_stage_summary":
+                    return bool(
+                        is_open(attempt) and attempt["decisions"]
+                        and not attempt["stages"]
+                    )
+                if kind == "reply_strategy_decision":
+                    follows_stage = bool(
+                        is_open(attempt) and attempt["stages"]
+                        and not attempt["decisions"]
+                    )
+                    replaces_provisional = bool(
+                        is_open(attempt) and not attempt["stages"]
+                        and len(attempt["decisions"]) == 1
+                        and attempt["decisions"][0].get("status") == "approved"
+                        and event.get("status") in {"no_reply", "operational_failure"}
+                    )
+                    follows_failure = bool(
+                        attempt["failures"] and not attempt["stages"]
+                        and not attempt["decisions"] and not attempt["outcomes"]
+                        and not attempt["local_rejections"]
+                    )
+                    return follows_stage or replaces_provisional or follows_failure
+                return bool(
+                    is_open(attempt)
+                    and (attempt["stages"] or attempt["decisions"])
+                )
+
+            context_attempts = [
+                attempt for attempt in attempts
+                if same_context(attempt, event) and not attempt["identifiers"]
+            ]
+            candidates = [
+                attempt for attempt in context_attempts
+                if attempt["strategy_version"] == version and role_matches(attempt)
+            ]
+            explicit_versions = {
+                attempt["strategy_version"] for attempt in context_attempts
+                if attempt["strategy_version"] is not None
+            }
+            if not candidates and version is None and len(explicit_versions) <= 1:
+                candidates = [
+                    attempt for attempt in context_attempts
+                    if role_matches(attempt)
+                ]
+            if candidates:
+                matched = candidates[-1]
+
+        if matched is None:
+            matched = {
+                "sequence": max(
+                    (int(attempt["sequence"]) for attempt in attempts),
+                    default=-1,
+                ) + 1,
+                "lane": _normalise_lane(event.get("lane")),
+                "target_id": str(event.get("target_id") or ""),
+                "strategy_version": version,
+                "identifiers": dict(identifiers),
+                **{field: [] for field in _REPLY_ATTEMPT_BUCKETS.values()},
+            }
+            attempts.append(matched)
+        elif matched["strategy_version"] is None and version is not None:
+            matched["strategy_version"] = version
+        matched["identifiers"].update(identifiers)
+        matched[bucket].append(event)
+
+    return attempts
+
+
 def _terminal_local_rejection_outcome(reason: Any) -> Optional[str]:
     """Return the terminal local outcome represented by a pipeline reason."""
     normalised = str(reason or "").strip().lower()
@@ -5180,116 +5388,91 @@ def _no_reply_category(value: Any) -> str:
 def reconcile_reply_pipeline_effective_outcomes(
     events: List[Dict[str, Any]],
 ) -> None:
-    """Attach later terminal/public observations to stage-only telemetry."""
-    decisions: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
-    local_rejections: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    outcomes: Dict[Tuple[str, str], Dict[str, Any]] = {}
-    for event in events:
-        lane = _normalise_lane(event.get("lane"))
-        target = str(event.get("target_id") or "")
-        if not target:
-            continue
-        kind = event.get("kind")
-        if kind == "reply_strategy_decision":
-            version = str(event.get("strategy_version") or "unavailable")
-            decisions[(version, lane, target)] = event
-        elif kind == "reply_strategy_local_rejection":
-            local_rejections[(lane, target)] = event
-        elif kind == "reply_strategy_outcome":
-            outcomes[(lane, target)] = event
-
-    for decision in decisions.values():
-        lane = _normalise_lane(decision.get("lane"))
-        target = str(decision.get("target_id") or "")
-        local = local_rejections.get((lane, target))
-        outcome = outcomes.get((lane, target))
-        if local is not None:
-            for field in (
-                "effective_status",
-                "effective_reason",
-                "original_local_rejection_reason",
-                "direct_answer_repair_attempted",
-                "direct_answer_repair_outcome",
-            ):
-                if local.get(field) is not None:
-                    decision[field] = local.get(field)
-        elif outcome is not None:
-            outcome_status = str(outcome.get("status") or "confirmed")
-            decision["effective_status"] = (
-                "published"
-                if outcome_status in {"confirmed", "posted"}
-                else outcome_status
-            )
-            decision["effective_reason"] = (
-                outcome.get("failure_reason") or outcome_status
-            )
-        elif decision.get("status") == "no_reply":
-            decision["effective_status"] = "no_reply"
-            decision["effective_reason"] = (
-                decision.get("reason")
-                or decision.get("no_reply_reason")
-                or "no_reply"
-            )
-        elif not decision.get("effective_status"):
-            decision["effective_status"] = "not_observed_in_window"
-            decision["effective_reason"] = (
-                "no_terminal_or_public_outcome_observed"
-            )
-
-    for stage in events:
-        if stage.get("kind") != "reply_pipeline_stage_summary":
-            continue
-        version = str(stage.get("strategy_version") or "unavailable")
-        lane = _normalise_lane(stage.get("lane"))
-        target = str(stage.get("target_id") or "")
-        stage["pipeline_stage_status"] = (
-            stage.get("pipeline_stage_status")
-            or stage.get("status")
-            or "unavailable"
+    """Attach only terminal observations matched to the same reply attempt."""
+    copied_fields = (
+        "effective_status",
+        "effective_reason",
+        "original_local_rejection_reason",
+        "direct_answer_repair_attempted",
+        "direct_answer_repair_outcome",
+    )
+    for attempt in _reply_attempts(events):
+        stages = attempt["stages"]
+        decisions = attempt["decisions"]
+        public = next(
+            (
+                item for item in reversed(attempt["outcomes"])
+                if str(item.get("status") or "confirmed")
+                in {"confirmed", "posted"}
+            ),
+            None,
         )
-        stage["pipeline_stage_reason"] = (
-            stage.get("pipeline_stage_reason")
-            or stage.get("terminal_reason")
-            or ""
+        outcome = public or (
+            attempt["outcomes"][-1] if attempt["outcomes"] else None
         )
-        decision = decisions.get((version, lane, target))
-        local = local_rejections.get((lane, target))
-        outcome = outcomes.get((lane, target))
-        if local is not None:
-            source = local
-        elif outcome is not None:
-            outcome_status = str(outcome.get("status") or "confirmed")
-            stage["effective_status"] = (
-                "published"
-                if outcome_status in {"confirmed", "posted"}
-                else outcome_status
-            )
-            stage["effective_reason"] = (
-                outcome.get("failure_reason") or outcome_status
-            )
-            source = None
-        elif decision and decision.get("effective_status"):
-            source = decision
-        elif stage.get("effective_status"):
-            source = None
-        elif stage.get("pipeline_stage_status") == "no_reply":
-            stage["effective_status"] = "no_reply"
-            stage["effective_reason"] = stage.get("pipeline_stage_reason")
-            source = None
+        source = (
+            attempt["local_rejections"][-1]
+            if attempt["local_rejections"] and outcome is None
+            else None
+        )
+        if outcome is not None:
+            status = str(outcome.get("status") or "confirmed")
+            resolved = {
+                "effective_status": (
+                    "published" if status in {"confirmed", "posted"} else status
+                ),
+                "effective_reason": outcome.get("failure_reason") or status,
+            }
+            for local in attempt["local_rejections"]:
+                local.update(resolved)
+        elif source is not None:
+            resolved = {
+                field: source.get(field)
+                for field in copied_fields
+                if source.get(field) is not None
+            }
         else:
-            stage["effective_status"] = "not_observed_in_window"
-            stage["effective_reason"] = "no_terminal_or_public_outcome_observed"
-            source = None
-        if source is not None:
-            for field in (
-                "effective_status",
-                "effective_reason",
-                "original_local_rejection_reason",
-                "direct_answer_repair_attempted",
-                "direct_answer_repair_outcome",
-            ):
-                if source.get(field) is not None:
-                    stage[field] = source.get(field)
+            resolved = {}
+
+        for decision in decisions:
+            if resolved:
+                decision.update(resolved)
+            elif decision.get("status") == "no_reply":
+                decision["effective_status"] = "no_reply"
+                decision["effective_reason"] = (
+                    decision.get("reason")
+                    or decision.get("no_reply_reason")
+                    or "no_reply"
+                )
+            elif not decision.get("effective_status"):
+                decision["effective_status"] = "not_observed_in_window"
+                decision["effective_reason"] = (
+                    "no_terminal_or_public_outcome_observed"
+                )
+
+        for stage in stages:
+            stage["pipeline_stage_status"] = (
+                stage.get("pipeline_stage_status")
+                or stage.get("status")
+                or "unavailable"
+            )
+            stage["pipeline_stage_reason"] = (
+                stage.get("pipeline_stage_reason")
+                or stage.get("terminal_reason")
+                or ""
+            )
+            if resolved:
+                stage.update(resolved)
+            elif stage.get("effective_status"):
+                continue
+            elif stage.get("pipeline_stage_status") == "no_reply":
+                stage["effective_status"] = "no_reply"
+                stage["effective_reason"] = stage.get("pipeline_stage_reason")
+            else:
+                stage["effective_status"] = "not_observed_in_window"
+                stage["effective_reason"] = (
+                    "no_terminal_or_public_outcome_observed"
+                )
 
 
 def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -5309,39 +5492,44 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
         if event.get("kind") == "reply_strategy_decision"
         and tested_version(event)
     ]
-
-    def identity(row: Dict[str, Any], index: int) -> Tuple[str, str, str]:
-        version = str(row.get("strategy_version") or "unavailable")
-        lane = _normalise_lane(row.get("lane"))
-        target = str(row.get("target_id") or "")
-        return (
-            (version, lane, target)
-            if target
-            else (version, lane, f"missing:{index}:{row.get('time')}")
-        )
-
-    decision_ids = {identity(row, index) for index, row in enumerate(decisions)}
-    stage_ids = {identity(row, index) for index, row in enumerate(rows)}
-    complete_ids = decision_ids & stage_ids
+    attempts = [
+        attempt for attempt in _reply_attempts(events)
+        if any(tested_version(row) for row in attempt["stages"])
+        or any(tested_version(row) for row in attempt["decisions"])
+    ]
+    decision_attempts = [attempt for attempt in attempts if attempt["decisions"]]
+    complete_attempts = [
+        attempt for attempt in attempts
+        if attempt["decisions"] and attempt["stages"]
+    ]
+    partial_attempts = [
+        attempt for attempt in attempts
+        if bool(attempt["decisions"]) != bool(attempt["stages"])
+    ]
     versions = sorted({
         str(row.get("strategy_version")) for row in [*decisions, *rows]
     })
     latest_version = versions[-1] if versions else None
     by_version: Dict[str, Dict[str, int]] = {}
     for version in versions:
-        version_decisions = {
-            item for item in decision_ids if item[0] == version
-        }
-        version_stages = {item for item in stage_ids if item[0] == version}
-        version_complete = version_decisions & version_stages
+        version_attempts = [
+            attempt for attempt in attempts
+            if str(attempt["strategy_version"] or "unavailable") == version
+        ]
         by_version[version] = {
-            "decision_count": len(version_decisions),
+            "decision_count": sum(
+                bool(attempt["decisions"]) for attempt in version_attempts
+            ),
             "stage_summary_count": sum(
                 str(row.get("strategy_version")) == version for row in rows
             ),
-            "complete_stage_telemetry_count": len(version_complete),
-            "partial_or_legacy_telemetry_count": len(
-                version_decisions - version_complete
+            "complete_stage_telemetry_count": sum(
+                bool(attempt["decisions"] and attempt["stages"])
+                for attempt in version_attempts
+            ),
+            "partial_or_legacy_telemetry_count": sum(
+                bool(attempt["decisions"]) != bool(attempt["stages"])
+                for attempt in version_attempts
             ),
         }
 
@@ -5392,9 +5580,9 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
     return {
         "evaluation_count": len(rows),
         "all_stage_summary_event_count": len(rows),
-        "tested_pipeline_decision_count": len(decision_ids),
-        "complete_stage_telemetry_count": len(complete_ids),
-        "partial_or_legacy_telemetry_count": len(decision_ids - complete_ids),
+        "tested_pipeline_decision_count": len(decision_attempts),
+        "complete_stage_telemetry_count": len(complete_attempts),
+        "partial_or_legacy_telemetry_count": len(partial_attempts),
         "strategy_version_counts": by_version,
         "latest_strategy_version": latest_version,
         "latest_strategy_version_decision_count": (
@@ -5500,73 +5688,94 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
 
 def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Return the reply strategy summary."""
-    raw_decisions = [event for event in events if event.get("kind") == "reply_strategy_decision"]
-    decision_by_id: Dict[str, Dict[str, Any]] = {}
-    for index, event in enumerate(raw_decisions):
-        lane = _normalise_lane(event.get("lane"))
-        target = str(event.get("target_id") or "")
-        decision_id = f"{lane}:{target}" if target else f"missing:{index}"
-        decision_by_id[decision_id] = event
-    decisions = list(decision_by_id.values())
-    terminal_local_rejections: Dict[Tuple[str, str], str] = {}
-    terminal_local_rejection_reasons: Dict[Tuple[str, str], str] = {}
-    for index, event in enumerate(decisions):
-        raw_reason = event.get("no_reply_reason")
-        outcome = _terminal_local_rejection_outcome(raw_reason)
-        if outcome is None:
-            raw_reason = event.get("reason")
+    attempts = _reply_attempts(events)
+    event_attempt = {
+        id(event): ("attempt", int(attempt["sequence"]))
+        for attempt in attempts
+        for bucket in _REPLY_ATTEMPT_BUCKETS.values()
+        for event in attempt[bucket]
+    }
+
+    def attempt_identity(event: Dict[str, Any]) -> Tuple[str, int]:
+        return event_attempt.get(id(event), ("unmatched", id(event)))
+
+    attempt_contexts = {
+        ("attempt", int(attempt["sequence"])): (
+            str(attempt["lane"]), str(attempt["target_id"])
+        )
+        for attempt in attempts
+    }
+    decisions = [
+        attempt["decisions"][-1]
+        for attempt in attempts
+        if attempt["decisions"]
+    ]
+    terminal_outcome_attempts = {
+        ("attempt", int(attempt["sequence"]))
+        for attempt in attempts if attempt["outcomes"]
+    }
+    terminal_local_rejections: Dict[Tuple[str, int], str] = {}
+    terminal_local_rejection_reasons: Dict[Tuple[str, int], str] = {}
+    for attempt in attempts:
+        identity = ("attempt", int(attempt["sequence"]))
+        if identity in terminal_outcome_attempts:
+            continue
+        sources = [
+            item for item in attempt["local_rejections"]
+            if str(item.get("effective_status") or "local_rejection")
+            == "local_rejection"
+        ]
+        sources.extend(
+            item for item in [*attempt["stages"], *attempt["decisions"]]
+            if item.get("effective_status") == "local_rejection"
+        )
+        if not sources and attempt["decisions"]:
+            sources = [attempt["decisions"][-1]]
+        for source in reversed(sources):
+            raw_reason = (
+                source.get("original_local_rejection_reason")
+                or source.get("reason")
+                or source.get("no_reply_reason")
+            )
             outcome = _terminal_local_rejection_outcome(raw_reason)
-        if outcome is None:
-            continue
-        lane = _normalise_lane(event.get("lane"))
-        target = str(event.get("target_id") or f"missing-decision-{index}")
-        terminal_local_rejections[(lane, target)] = outcome
-        terminal_local_rejection_reasons[(lane, target)] = str(raw_reason)
-    for index, event in enumerate(events):
-        if event.get("kind") != "reply_strategy_local_rejection":
-            continue
-        outcome = _terminal_local_rejection_outcome(event.get("reason"))
-        if outcome is None:
-            continue
-        target = str(event.get("target_id") or f"missing-local-{index}")
-        lane = _normalise_lane(event.get("lane"))
-        matching_decision = next(
+            if outcome is not None:
+                terminal_local_rejections[identity] = outcome
+                terminal_local_rejection_reasons[identity] = str(raw_reason)
+                break
+
+    outcomes = []
+    for attempt in attempts:
+        public = next(
             (
-                decision
-                for decision in decisions
-                if str(decision.get("target_id") or "") == target
+                item for item in reversed(attempt["outcomes"])
+                if str(item.get("status") or "confirmed")
+                in {"confirmed", "posted"}
             ),
             None,
         )
-        if lane == "unavailable" and matching_decision is not None:
-            lane = _normalise_lane(matching_decision.get("lane"))
-        terminal_local_rejections[(lane, target)] = outcome
-        terminal_local_rejection_reasons[(lane, target)] = str(
-            event.get("reason") or ""
-        )
-    outcome_by_id: Dict[str, Dict[str, Any]] = {}
-    for index, event in enumerate(events):
-        if event.get("kind") != "reply_strategy_outcome":
-            continue
-        reply_post_id = str(event.get("reply_post_id") or "")
-        outcome_id = (
-            f"reply:{reply_post_id}"
-            if reply_post_id
-            else f"{event.get('status')}:{_normalise_lane(event.get('lane'))}:{event.get('target_id') or index}"
-        )
-        outcome_by_id.setdefault(outcome_id, event)
-    outcomes = list(outcome_by_id.values())
+        if public is not None:
+            outcomes.append(public)
+        elif attempt["outcomes"]:
+            outcomes.append(attempt["outcomes"][-1])
+    outcome_by_publication = {
+        (
+            _reply_strategy_version(event),
+            str(event.get("reply_post_id") or f"event:{id(event)}"),
+        ): event
+        for event in outcomes
+    }
+    outcomes = list(outcome_by_publication.values())
     pipeline_failures = [
-        event for event in events if event.get("kind") == "reply_strategy_failure"
+        attempt["failures"][-1]
+        for attempt in attempts
+        if attempt["failures"] and not attempt["outcomes"]
     ]
     published_outcomes = [
         event for event in outcomes
         if str(event.get("status") or "confirmed") in {"confirmed", "posted"}
     ]
-    published_identities = {
-        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
-        for event in published_outcomes
-        if event.get("target_id")
+    published_attempts = {
+        attempt_identity(event) for event in published_outcomes
     }
     pipeline_failures.extend(
         event
@@ -5575,34 +5784,24 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             event.get("reason") or event.get("no_reply_reason"),
             event.get("status"),
         )
-        and (
-            _normalise_lane(event.get("lane")),
-            str(event.get("target_id") or ""),
-        )
-        not in published_identities
+        and attempt_identity(event) not in terminal_outcome_attempts
     )
 
-    posted: list[tuple[str, str]] = []
-    for event in events:
+    event_positions = {id(event): index for index, event in enumerate(events)}
+    posted: list[tuple[str, str, int]] = []
+    for position, event in enumerate(events):
         kind = str(event.get("kind") or "")
         lane = {"mention_reply_posted": "mention", "hot_post_reply_posted": "hot-post",
                 "quote_tweet_reply_posted": "quote-tweet"}.get(kind)
         if lane:
             target_field = {"mention": "mention_id", "hot-post": "hot_post_reply_id", "quote-tweet": "quote_tweet_id"}[lane]
-            posted.append((lane, str(event.get(target_field) or "")))
+            posted.append((lane, str(event.get(target_field) or ""), position))
 
-    outcome_targets = {
-        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
-        for event in published_outcomes
-        if event.get("target_id")
-    }
     observations = list(published_outcomes)
     observed_decision_ids = set()
     for index, event in enumerate(decisions):
-        lane = _normalise_lane(event.get("lane"))
-        target = str(event.get("target_id") or f"missing-decision-{index}")
-        identity = (lane, target)
-        if identity in outcome_targets:
+        identity = attempt_identity(event)
+        if identity in published_attempts:
             continue
         if (
             event.get("mode") == "no_reply"
@@ -5620,22 +5819,35 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             continue
         lane = _normalise_lane(event.get("lane"))
         target = str(event.get("target_id") or "")
-        if target and (lane, target) in outcome_targets:
+        if attempt_identity(event) in published_attempts:
             continue
         if target:
             targeted_decisions.setdefault((lane, target), []).append(event)
         else:
             anonymous_decisions.setdefault(lane, []).append(event)
-    for lane, target in posted:
-        if target and (lane, target) in outcome_targets:
+    for lane, target, position in posted:
+        if any(
+            attempt_contexts.get(identity) == (lane, target)
+            for identity in published_attempts
+        ):
             continue
         candidates = targeted_decisions.get((lane, target), []) if target else []
-        if candidates:
-            observations.append(candidates.pop(0))
+        prior = [
+            item for item in candidates
+            if event_positions.get(id(item), position) < position
+        ]
+        if len(prior) == 1:
+            observations.append(prior[0])
+            candidates.remove(prior[0])
             continue
         anonymous = anonymous_decisions.get(lane, [])
-        if anonymous:
-            observations.append(anonymous.pop(0))
+        prior_anonymous = [
+            item for item in anonymous
+            if event_positions.get(id(item), position) < position
+        ]
+        if not candidates and len(prior_anonymous) == 1:
+            observations.append(prior_anonymous[0])
+            anonymous.remove(prior_anonymous[0])
             continue
         observations.append({"kind": "reply_strategy_unavailable", "lane": lane, "target_id": target})
 
@@ -5700,11 +5912,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             event.get("reason") or event.get("no_reply_reason"),
             event.get("status"),
         )
-        and (
-            _normalise_lane(event.get("lane")),
-            str(event.get("target_id") or ""),
-        )
-        not in terminal_local_rejections
+        and attempt_identity(event) not in terminal_local_rejections
         for event in decisions
     )
     outcome_status_counts["terminal_repetition_rejection"] += sum(
@@ -5720,11 +5928,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             event.get("reason") or event.get("no_reply_reason"),
             event.get("status"),
         )
-        and (
-            _normalise_lane(event.get("lane")),
-            str(event.get("target_id") or ""),
-        )
-        not in published_identities
+        and attempt_identity(event) not in terminal_outcome_attempts
         for event in decisions
     )
     retrieved = [int(event["retrieved_count"]) for event in observations if type(event.get("retrieved_count")) is int]
@@ -5751,19 +5955,26 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "regenerated_after_style_rejection", "no_acceptable_reply",
     )})
     routine = {"author_daily_cap", "daily_cap", "spacing", "already_replied", "dry_run_already_seen", "own_account"}
-    no_reply_targets = {
-        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
+    no_reply_attempts = {
+        attempt_identity(event)
         for event in decisions
         if event.get("mode") == "no_reply"
-        and event.get("target_id")
         and not _is_terminal_pipeline_failure(
             event.get("reason") or event.get("no_reply_reason"),
             event.get("status"),
         )
     }
-    terminal_local_targets = set(terminal_local_rejections)
-    for (lane, target), outcome in terminal_local_rejections.items():
-        reason = terminal_local_rejection_reasons.get((lane, target)) or (
+    no_reply_targets = {
+        attempt_contexts[identity]
+        for identity in no_reply_attempts if identity in attempt_contexts
+    }
+    terminal_local_attempts = set(terminal_local_rejections)
+    terminal_local_targets = {
+        attempt_contexts[identity]
+        for identity in terminal_local_attempts if identity in attempt_contexts
+    }
+    for identity, outcome in terminal_local_rejections.items():
+        reason = terminal_local_rejection_reasons.get(identity) or (
             "near_duplicate_reply"
             if outcome == "terminal_repetition_rejection"
             else "clarification_not_direct_factual_answer"
@@ -5806,11 +6017,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             event.get("reason") or event.get("no_reply_reason"),
             event.get("status"),
         ):
-            target = (
-                _normalise_lane(event.get("lane")),
-                str(event.get("target_id") or ""),
-            )
-            if target in terminal_local_targets:
+            if attempt_identity(event) in terminal_local_attempts:
                 continue
             reason = str(event.get("no_reply_reason") or "model-selected no_reply")
             rejection_reasons[reason] += 1
@@ -5892,11 +6099,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
                 event.get("reason") or event.get("no_reply_reason"),
                 event.get("status"),
             )
-            and (
-                _normalise_lane(event.get("lane")),
-                str(event.get("target_id") or ""),
-            )
-            not in terminal_local_targets
+            and attempt_identity(event) not in terminal_local_attempts
             for event in decisions
         ),
         "terminal_repetition_rejection_count": sum(
@@ -6165,7 +6368,10 @@ def analyse(
         stats[kind] += 1
         return ev
 
-    local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    local_rejections_by_identity: Dict[
+        Tuple[Optional[str], str, str, Tuple[Tuple[str, str], ...]],
+        Tuple[datetime, Dict[str, Any]],
+    ] = {}
 
     def add_or_merge_local_rejection(
         ts: datetime,
@@ -6174,21 +6380,23 @@ def analyse(
         target_id: Any,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """Keep one enriched effective local-rejection record per target."""
+        """Coalesce only one recent, compatible local-rejection observation."""
         target = str(target_id or "")
         normalised_lane = _normalise_lane(lane)
-        key = (normalised_lane, target)
-        existing = local_rejections_by_identity.get(key)
-        if existing is None and target:
-            existing = next(
-                (
-                    item
-                    for (item_lane, item_target), item in local_rejections_by_identity.items()
-                    if item_target == target
-                    and (normalised_lane == "unavailable" or item_lane == "unavailable")
-                ),
-                None,
-            )
+        version = _reply_strategy_version(kwargs)
+        identifiers = tuple(sorted(_reply_attempt_ids(kwargs).items()))
+        key = (version, normalised_lane, target, identifiers)
+        compatible = [
+            item
+            for (item_version, item_lane, item_target, item_ids), item
+            in local_rejections_by_identity.items()
+            if item_target == target
+            and (item_lane == normalised_lane or "unavailable" in {item_lane, normalised_lane})
+            and (item_version == version or version is None)
+            and (not identifiers or not item_ids or identifiers == item_ids)
+            and timedelta(0) <= ts - item[0] <= timedelta(seconds=5)
+        ]
+        existing = compatible[0][1] if len(compatible) == 1 else None
         if existing is None:
             existing = add_event(
                 "reply_strategy_local_rejection",
@@ -6197,12 +6405,10 @@ def analyse(
                 target_id=target,
                 **kwargs,
             )
-            local_rejections_by_identity[key] = existing
+            local_rejections_by_identity[key] = (ts, existing)
             return existing
         if _normalise_lane(existing.get("lane")) == "unavailable" and normalised_lane != "unavailable":
             existing["lane"] = lane
-            local_rejections_by_identity.pop(("unavailable", target), None)
-            local_rejections_by_identity[key] = existing
         for field, value in kwargs.items():
             existing_value = existing.get(field)
             if (
@@ -6211,6 +6417,10 @@ def analyse(
                 and (existing_value is None or existing_value == "")
             ):
                 existing[field] = short(value, max_text) if isinstance(value, str) else value
+        for prior_key, (_, prior) in list(local_rejections_by_identity.items()):
+            if prior is existing:
+                local_rejections_by_identity.pop(prior_key)
+        local_rejections_by_identity[key] = (ts, existing)
         return existing
 
     def add_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
@@ -6923,11 +7133,13 @@ def analyse(
                     r.ts,
                     lane=event_obj.get("lane") or "unavailable",
                     target_id=event_obj.get("target_id") or "",
+                    strategy_version=event_obj.get("strategy_version"),
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("humour_tone"),
                     tone=event_obj.get("humour_tone"),
                     **evidence_fields,
                     no_reply_reason=event_obj.get("no_reply_reason"),
+                    **_reply_attempt_ids(event_obj),
                 )
             elif event_obj and event_obj.get("event") == "reply_strategy_outcome":
                 retrieved_ids = event_obj.get("retrieved_quote_ids")
@@ -6952,6 +7164,7 @@ def analyse(
                     lane=event_obj.get("lane") or "unavailable",
                     target_id=event_obj.get("target_id") or "",
                     reply_post_id=event_obj.get("reply_post_id") or "",
+                    strategy_version=event_obj.get("strategy_version"),
                     mode=event_obj.get("mode"),
                     final_reply_kind=event_obj.get("final_reply_kind"),
                     humour_tone=event_obj.get("humour_tone"),
@@ -6959,6 +7172,7 @@ def analyse(
                     **evidence_fields,
                     no_reply_reason=event_obj.get("no_reply_reason"),
                     failure_reason=event_obj.get("failure_reason") or "",
+                    **_reply_attempt_ids(event_obj),
                 )
             elif event_obj and event_obj.get("event") == "reply_target_terminal":
                 add_event(
@@ -7037,6 +7251,7 @@ def analyse(
                     ),
                     proposed_draft=event_obj.get("proposed_draft"),
                     repaired_draft=event_obj.get("repaired_draft"),
+                    **_reply_attempt_ids(event_obj),
                 )
                 if event_obj.get("effective_status") == "local_rejection":
                     add_or_merge_local_rejection(
@@ -7069,6 +7284,7 @@ def analyse(
                         ),
                         proposed_draft=event_obj.get("proposed_draft"),
                         repaired_draft=event_obj.get("repaired_draft"),
+                        **_reply_attempt_ids(event_obj),
                     )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_stage_summary":
                 raw_provider_counts = event_obj.get("provider_call_counts")
@@ -7207,6 +7423,7 @@ def analyse(
                     duplicate_repair_called=event_obj.get("duplicate_repair_called"),
                     duplicate_repair_outcome=event_obj.get("duplicate_repair_outcome"),
                     final_validation=event_obj.get("final_validation"),
+                    **_reply_attempt_ids(event_obj),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_effective_outcome":
                 if event_obj.get("effective_status") == "local_rejection":
@@ -7239,6 +7456,7 @@ def analyse(
                         ),
                         proposed_draft=event_obj.get("proposed_draft"),
                         repaired_draft=event_obj.get("repaired_draft"),
+                        **_reply_attempt_ids(event_obj),
                     )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_failure":
                 add_event(
@@ -7254,6 +7472,7 @@ def analyse(
                     author_quarantine_evidence=event_obj.get(
                         "author_quarantine_evidence"
                     ),
+                    **_reply_attempt_ids(event_obj),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
                 evidence_ids = event_obj.get("evidence_ids")
@@ -7287,6 +7506,7 @@ def analyse(
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
                     failure_reason=event_obj.get("failure_reason") or "",
+                    **_reply_attempt_ids(event_obj),
                 )
             elif event_obj and event_obj.get("event") == "quote_pagination_repeated_token":
                 add_event(
@@ -11429,11 +11649,22 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
         out.append("")
 
-    local_rejections = [
-        event
-        for event in (report.get("events") or [])
-        if event.get("kind") == "reply_strategy_local_rejection"
-    ]
+    local_rejections = []
+    for attempt in _reply_attempts(report.get("events") or []):
+        if attempt["outcomes"]:
+            continue
+        sources = [
+            event for event in attempt["local_rejections"]
+            if str(event.get("effective_status") or "local_rejection")
+            == "local_rejection"
+        ]
+        if not sources:
+            sources = [
+                event for event in [*attempt["stages"], *attempt["decisions"]]
+                if event.get("effective_status") == "local_rejection"
+            ]
+        if sources:
+            local_rejections.append(sources[-1])
     if local_rejections:
         out.append("## Effective local reply rejections")
         out.append(
@@ -11444,8 +11675,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             target = str(event.get("target_id") or "unavailable")
             proposed = event.get("proposed_draft")
             repaired = event.get("repaired_draft")
+            version = str(event.get("strategy_version") or "unavailable")
             out.append("")
-            out.append(f"### Target `{target}`")
+            out.append(f"### Target `{target}` ({version})")
             out.append("")
             out.append(
                 "- Incoming contribution: "

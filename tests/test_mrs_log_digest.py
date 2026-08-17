@@ -1757,6 +1757,107 @@ def test_tested_pipeline_partial_telemetry_remains_explicit():
     assert summary["partial_or_legacy_telemetry_count"] == 3
 
 
+def test_tested_pipeline_counts_complete_and_both_missing_sides():
+    version = "tested-reply-pipeline-20260817"
+    events = [
+        {
+            "kind": "reply_pipeline_stage_summary",
+            "strategy_version": version,
+            "lane": "mention",
+            "target_id": "complete",
+        },
+        {
+            "kind": "reply_strategy_decision",
+            "strategy_version": version,
+            "lane": "mention",
+            "target_id": "complete",
+        },
+        {
+            "kind": "reply_pipeline_stage_summary",
+            "strategy_version": version,
+            "lane": "mention",
+            "target_id": "stage-only",
+        },
+        {
+            "kind": "reply_strategy_decision",
+            "strategy_version": version,
+            "lane": "mention",
+            "target_id": "decision-only",
+        },
+    ]
+
+    summary = digest.reply_pipeline_stage_summary(events)
+
+    assert summary["tested_pipeline_decision_count"] == 2
+    assert summary["complete_stage_telemetry_count"] == 1
+    assert summary["partial_or_legacy_telemetry_count"] == 2
+    assert summary["strategy_version_counts"][version] == {
+        "decision_count": 2,
+        "stage_summary_count": 2,
+        "complete_stage_telemetry_count": 1,
+        "partial_or_legacy_telemetry_count": 2,
+    }
+
+
+def test_stage_only_local_rejection_detail_is_partial_then_deduplicated():
+    version = "tested-reply-pipeline-20260817"
+    stage = {
+        "kind": "reply_pipeline_stage_summary",
+        "time": "2026-08-17 09:00:00",
+        "strategy_version": version,
+        "lane": "mention",
+        "target_id": "stage-local",
+        "evaluation_id": "evaluation-stage-local",
+        "status": "approved",
+        "effective_status": "local_rejection",
+        "effective_reason": "repair_failed",
+        "original_local_rejection_reason": (
+            "clarification_not_direct_factual_answer"
+        ),
+    }
+    stage_only = [dict(stage)]
+    digest.reconcile_reply_pipeline_effective_outcomes(stage_only)
+    partial = digest.reply_pipeline_stage_summary(stage_only)
+    report = digest.analyse([])
+    report["events"] = stage_only
+    report["reply_strategy"] = digest.reply_strategy_summary(stage_only)
+    rendered = digest.render_markdown(report)
+
+    assert partial["complete_stage_telemetry_count"] == 0
+    assert partial["partial_or_legacy_telemetry_count"] == 1
+    assert report["reply_strategy"][
+        "terminal_clarification_mode_rejection_count"
+    ] == 1
+    assert "provider response was not retained" in rendered
+
+    complete = [
+        dict(stage),
+        {
+            "kind": "reply_strategy_decision",
+            "time": "2026-08-17 09:00:01",
+            "strategy_version": version,
+            "lane": "mention",
+            "target_id": "stage-local",
+            "evaluation_id": "evaluation-stage-local",
+            "status": "no_reply",
+            "mode": "no_reply",
+            "effective_status": "local_rejection",
+            "original_local_rejection_reason": (
+                "clarification_not_direct_factual_answer"
+            ),
+        },
+    ]
+    digest.reconcile_reply_pipeline_effective_outcomes(complete)
+    summary = digest.reply_pipeline_stage_summary(complete)
+    report["events"] = complete
+    report["reply_strategy"] = digest.reply_strategy_summary(complete)
+    rendered = digest.render_markdown(report)
+
+    assert summary["complete_stage_telemetry_count"] == 1
+    assert summary["partial_or_legacy_telemetry_count"] == 0
+    assert rendered.count("### Target `stage-local`") == 1
+
+
 def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
     payload = {
         "event": "ai_reply_pipeline_decision",
