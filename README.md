@@ -708,7 +708,75 @@ Boot-before-login operation also requires user lingering. Check it with:
 loginctl show-user "$USER" -p Linger
 ```
 
+## Routine deployment of an already-tested commit
+
+This is the canonical production procedure when the target commit has already
+been reviewed, tested, committed and pushed. A new or untested code change must
+complete its appropriate validation before it becomes an approved deployment
+candidate. Deployment does not require rerunning the complete test suite.
+
+Changes involving canonical evidence, generated artefacts, corpus admission,
+gates, protocol activation, migrations or other changes that genuinely need
+expanded release assurance use the specialised
+[historical-context evidence release runbook](docs/historical_context_evidence_release_runbook.md).
+Do not automatically import that runbook's duplicated live/quiescent snapshots,
+release-attestation packages, deterministic-build evidence, formal admission
+reports or mandatory five-minute paused observation into this routine.
+
+1. Record the approved commit SHA. Fetch the remote, then confirm that the
+   production checkout is clean, on `master`, and that its current commit is an
+   ancestor of the approved commit. Preserve ignored and untracked operational
+   files. Stop if the update is not a clean fast-forward.
+2. Before changing `mrsMThatcher.control.json`, preserve its exact original
+   bytes and metadata in a private location, or record that it is absent.
+3. From the valid existing control document, or `{}` when it is absent, add the
+   supported global `"pause_all": true` control without changing any other
+   setting. Write a private temporary file in the same directory, apply the
+   intended ownership and mode, make it durable, and publish it with an atomic
+   replacement; never edit the live file in place. Stop if the existing control
+   document cannot be safely preserved.
+4. From a log boundary recorded after that replacement, wait for the running
+   bot to acknowledge exactly:
+
+   ```text
+   Global runtime control pause is active; all remote-write lanes remain idle
+   ```
+
+5. Stop only `mrsMThatcher.service`. Verify that its wrapper and Python child
+   have both exited before changing any tracked file; leave every other unit
+   running.
+6. With the service stopped, make one private, metadata-preserving backup of
+   the operational runtime files outside the checkout. This is the single
+   quiescent deployment backup; do not take duplicated live and stopped
+   snapshots for a routine deployment.
+7. Fetch again and update production `master` to the approved commit using
+   fast-forward-only Git operations. Never use reset, force, rebase or
+   `git clean` in production.
+8. Start `mrsMThatcher.service` while the global pause remains active.
+9. Confirm successful startup, exactly one wrapper and one Python child, the
+   correct instance lock, no traceback and no restart loop. Do not clear the
+   pause until these checks pass.
+10. Atomically restore the exact original control-file bytes and metadata, or
+    atomically restore its absence if it was originally absent. Do not
+    reconstruct an equivalent JSON document.
+11. Monitor normal operation for a few minutes after the original control state
+    is restored, including the service topology and logs.
+12. If a code rollback is required, preserve the current durable runtime state.
+    Never overwrite it with the deployment backup, which may already be stale;
+    use a separately reviewed compatibility or migration recovery procedure
+    when the earlier code cannot consume the current state.
+
+The pause acknowledgement, complete service shutdown, single runtime backup,
+fast-forward-only update, paused startup verification, exact control-state
+restoration and no-stale-state rollback rule are mandatory safeguards. They do
+not weaken the remote-write protocol, receipt handling or state compatibility
+rules.
+
 ## Deployment Smoke Test
+
+This smoke test is for validating new or changed deployment plumbing. It is not
+an additional requirement for the routine procedure above unless the target
+commit's validation plan specifically requires it.
 
 The canonical production bot script and launcher are the tracked repository
 files. Ensure both are executable:

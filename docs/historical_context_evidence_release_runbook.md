@@ -5,6 +5,18 @@ production historical-context release. It records durable operating rules; a
 specific release must still create its own transition manifest, audit,
 validation record and rollback evidence.
 
+This is an expanded, specialised process for changes involving canonical
+evidence, generated artefacts, corpus admission, gates, protocol activation,
+migrations or other changes that genuinely need these assurances. For an
+already reviewed, tested, committed and pushed code commit, use the canonical
+[routine deployment procedure](../README.md#routine-deployment-of-an-already-tested-commit).
+Its deployment does not rerun the complete test suite and does not require this
+runbook's duplicated live/quiescent snapshots, release-attestation packages,
+deterministic-build evidence, formal admission reports or mandatory five-minute
+paused observation. Do not automatically import those specialised requirements
+into a routine deployment. A new or untested change must still complete its
+appropriate validation before becoming an approved deployment candidate.
+
 ## Scope and safety model
 
 Historical-context evidence work has three distinct stages:
