@@ -16,7 +16,9 @@ class Passage:
     def prompt_record(self) -> dict[str, str]:
         return {
             "evidence_id": self.evidence_id,
-            "passage": "The supplied local record directly establishes the requested fact.",
+            "passage": (
+                "Consumers and businesses create demand through spending and investment."
+            ),
             "verification_status": "verified",
         }
 
@@ -170,6 +172,301 @@ def run(text: str, transport: Transport, *, facts: bool = False, recent=None):
     )
 
 
+def clarification_context(
+    *,
+    original: str = "Who creates the demand needed to get a private economy moving?",
+    correction: str = "You still did not answer who creates that demand.",
+) -> dict:
+    value = context(correction)
+    value["clarification_request"] = {
+        "original_question": original,
+        "correction": correction,
+    }
+    return value
+
+
+class DirectAnswerRepairTransport:
+    def __init__(
+        self,
+        *,
+        repaired_reply: str = "Consumers and businesses create demand through their spending and investment.",
+        writer_status: str = "reply",
+        claim_outcome: str = "pass",
+    ) -> None:
+        self.repaired_reply = repaired_reply
+        self.writer_status = writer_status
+        self.claim_outcome = claim_outcome
+        self.calls: list[dict] = []
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        if kwargs["stage"] == "direct_answer_repair":
+            return {
+                "status": self.writer_status,
+                "reply": self.repaired_reply if self.writer_status == "reply" else "",
+            }
+        if kwargs["stage"] == "direct_answer_repair_claim_audit":
+            return {"outcome": self.claim_outcome}
+        raise AssertionError(kwargs["stage"])
+
+
+def approved_non_factual_reply(repository: Repository, value: dict) -> object:
+    transport = Transport(writer="Demand must be matched by confidence and enterprise.")
+    result = pipeline.run_reply_pipeline(
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+        recent_replies=[],
+        media_context=None,
+    )
+    assert result.status == "approved"
+    assert result.reply is not None
+    assert result.reply.draft_record["mode"] == "opinion_or_principle"
+    return result.reply
+
+
+def test_target_2089269156994523171_is_a_direct_factual_repair_candidate() -> None:
+    value = clarification_context(
+        original="If public spending does not sustain employment, where does demand come from?",
+        correction=(
+            "@MrsMThatcher What if the private economy isn’t healthy? "
+            "Who creates the demand needed to get it moving?"
+        ),
+    )
+    value["target_id"] = "2089269156994523171"
+
+    assert pipeline.clarification_requires_direct_factual_answer(value) is True
+    assert pipeline.trusted_facts_support_direct_factual_answer(
+        value,
+        [
+            {
+                "evidence_id": "target-fact-1",
+                "passage": (
+                    "Government expenditure does not itself sustain long-term "
+                    "employment; a robust economy does."
+                ),
+            },
+            {
+                "evidence_id": "target-fact-2",
+                "passage": (
+                    "A healthy free-market economy lets private enterprise "
+                    "invest and create permanent jobs."
+                ),
+            },
+        ],
+    ) is False
+
+
+def test_one_supported_direct_factual_repair_succeeds() -> None:
+    repository = Repository(facts=True)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport()
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+        recent_replies=[],
+        media_context=None,
+    )
+
+    assert repair.outcome == "approved"
+    assert repair.attempted is True
+    assert repair.additional_model_calls == 2
+    assert repair.reply is not None
+    assert repair.reply.draft_record["mode"] == "direct_factual_answer"
+    assert repair.reply.draft_record["original_local_rejection_reason"] == (
+        "clarification_not_direct_factual_answer"
+    )
+    assert [call["stage"] for call in transport.calls] == [
+        "direct_answer_repair",
+        "direct_answer_repair_claim_audit",
+    ]
+    assert sum(
+        call["stage"] == "direct_answer_repair" for call in transport.calls
+    ) == 1
+    assert transport.calls[0]["model"] == "gpt-5.6-sol"
+    assert "only facts explicitly established by trusted_facts" in (
+        transport.calls[0]["system_prompt"]
+    )
+
+
+def test_direct_answer_repair_is_not_attempted_without_trusted_facts() -> None:
+    repository = Repository(facts=False)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport()
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.reply is None
+    assert repair.attempted is False
+    assert repair.outcome == "not_attempted_insufficient_trusted_facts"
+    assert transport.calls == []
+
+
+def test_correct_clarification_is_not_forced_into_a_factual_answer() -> None:
+    repository = Repository(facts=True)
+    value = clarification_context(
+        original="What should liberty mean in this argument?",
+        correction="Could you clarify which aspect you mean?",
+    )
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport()
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert str(original) == "Demand must be matched by confidence and enterprise."
+    assert repair.reply is None
+    assert repair.attempted is False
+    assert repair.outcome == "not_attempted_not_direct_factual_question"
+    assert transport.calls == []
+
+
+def test_failed_direct_answer_repair_stays_fail_closed_without_a_loop() -> None:
+    repository = Repository(facts=True)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport(
+        claim_outcome="rewrite_supported_factual"
+    )
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.reply is None
+    assert repair.attempted is True
+    assert repair.outcome == (
+        "claim_audit_not_passed:rewrite_supported_factual"
+    )
+    assert [call["stage"] for call in transport.calls] == [
+        "direct_answer_repair",
+        "direct_answer_repair_claim_audit",
+    ]
+    assert not any(
+        call["stage"] in {"bounded_claim_cleanup", "exact_duplicate_repair"}
+        for call in transport.calls
+    )
+
+
+def test_repair_writer_refusal_uses_only_the_one_extra_writer_call() -> None:
+    repository = Repository(facts=True)
+    value = clarification_context()
+    original = approved_non_factual_reply(repository, value)
+    transport = DirectAnswerRepairTransport(writer_status="cannot_compose_safely")
+
+    repair = pipeline.repair_approved_direct_answer(
+        approved_reply=original,
+        context=value,
+        config=enabled_config(),
+        repository=repository,
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert repair.reply is None
+    assert repair.outcome == "writer_cannot_compose_safely"
+    assert [call["stage"] for call in transport.calls] == [
+        "direct_answer_repair"
+    ]
+
+
+def test_stage_approval_followed_by_failed_repair_logs_effective_local_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    calls: list[dict] = []
+    events: list[tuple[str, dict]] = []
+
+    def transport(**kwargs):
+        calls.append(kwargs)
+        stage = kwargs["stage"]
+        if stage == "candidate_backed_engagement":
+            return {"decision": "reply", "reply": "PRIVATE GATE CANDIDATE"}
+        if stage == "writer_v3_initial":
+            return {
+                "status": "reply",
+                "reply": "Demand must be matched by confidence and enterprise.",
+            }
+        if stage == "direct_answer_repair":
+            return {
+                "status": "reply",
+                "reply": (
+                    "Consumers and businesses create demand through spending "
+                    "and investment."
+                ),
+            }
+        if stage == "direct_answer_repair_claim_audit":
+            return {"outcome": "rewrite_supported_factual"}
+        raise AssertionError(stage)
+
+    value = clarification_context()
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: Repository(True))
+    monkeypatch.setattr(bot, "tested_pipeline_structured_call", transport)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+
+    evaluation: dict = {}
+    reply = bot.generate_ai_first_reply(
+        value,
+        recent_replies=[],
+        evaluation_outcome=evaluation,
+    )
+
+    assert reply is None
+    assert [call["stage"] for call in calls] == [
+        "candidate_backed_engagement",
+        "writer_v3_initial",
+        "direct_answer_repair",
+        "direct_answer_repair_claim_audit",
+    ]
+    assert sum(call["stage"] == "direct_answer_repair" for call in calls) == 1
+    stage_event = next(fields for name, fields in events if name == "ai_reply_pipeline_stage_summary")
+    decision_event = next(fields for name, fields in events if name == "ai_reply_pipeline_decision")
+    assert stage_event["pipeline_stage_status"] == "approved"
+    assert stage_event["effective_status"] == "local_rejection"
+    assert stage_event["final_validation"] == "passed"
+    assert decision_event["status"] == "approved"
+    assert decision_event["effective_status"] == "local_rejection"
+    assert decision_event["proposed_draft"] == (
+        "Demand must be matched by confidence and enterprise."
+    )
+    assert decision_event["repaired_draft"].startswith("Consumers and businesses")
+    assert evaluation["status"] == "local_rejection"
+    assert evaluation["direct_answer_repair_attempted"] is True
+
+
 def test_frozen_prompt_hashes_and_provider_profiles() -> None:
     expected = {
         "XAI_GATE_PROMPT": "e145e67c365cc295174e00284568fd05c1848ad85e63f01815891ca00ca5ba55",
@@ -179,6 +476,9 @@ def test_frozen_prompt_hashes_and_provider_profiles() -> None:
         "CLAIM_AUDIT_PROMPT": "a2e0f3e78bdd3aa5a45e4fc2ba1eed7819043b4ffec97caeeb29c66ac6824589",
         "CLAIM_CLEANUP_PROMPT": "04a926149d8e5440f6b6426bfbba173112c01776f6bad1698c81755badffc7a5",
         "DIVERSITY_PROMPT": "fcb4b58e153023cd638642158fbdd4a53213fe2e69320ee92a0b48c89563b66b",
+        "DIRECT_ANSWER_REPAIR_PROMPT": (
+            "345a3c9521152f0d44508f633b50f616836c5b3a32707998a6922a87fa227204"
+        ),
     }
     for name, digest in expected.items():
         assert hashlib.sha256(getattr(pipeline, name).encode()).hexdigest() == digest

@@ -19696,100 +19696,229 @@ def generate_ai_first_reply(
 ) -> str | None:
     """Run the sole conversational reply strategy and return only approved prose."""
     if tested_reply_pipeline.get("enabled") is True:
-        from tested_reply_pipeline import STRATEGY_VERSION, run_reply_pipeline, stage_telemetry
+        from tested_reply_pipeline import (
+            STRATEGY_VERSION,
+            repair_approved_direct_answer,
+            run_reply_pipeline,
+            stage_telemetry,
+        )
 
         lane = str(context.get("lane") or "")
         target_id = str(context.get("target_id") or "")
         log.info("Running tested reply pipeline lane=%s target_id=%s", lane, target_id)
+        repository = reply_evidence_repository()
         result = run_reply_pipeline(
             context=context,
             config=tested_reply_pipeline,
-            repository=reply_evidence_repository(),
+            repository=repository,
             transport=tested_pipeline_structured_call,
             maximum_reply_length=MAX_REPLY_CHARS,
             recent_replies=recent_replies,
             media_context=media_context,
         )
-        pipeline_stage_telemetry = stage_telemetry(result.audit)
+        pipeline_stage_status = result.status
+        pipeline_stage_reason = result.reason
+        effective_reply = result.reply
+        effective_status = result.status
+        effective_reason = result.reason
+        original_local_rejection_reason: str | None = None
+        original_proposed_draft: str | None = None
+        repaired_draft: str | None = None
+        repair_attempted = False
+        repair_outcome = "not_applicable"
+        effective_audit = result.audit
+        effective_model_call_count = result.model_call_count
+        effective_revision_count = result.revision_count
+
+        if (
+            result.reply is not None
+            and context.get("clarification_request") is not None
+            and result.reply.draft_record.get("mode") != "direct_factual_answer"
+        ):
+            original_local_rejection_reason = (
+                "clarification_not_direct_factual_answer"
+            )
+            original_proposed_draft = str(result.reply)
+            repair = repair_approved_direct_answer(
+                approved_reply=result.reply,
+                context=context,
+                config=tested_reply_pipeline,
+                repository=repository,
+                transport=tested_pipeline_structured_call,
+                maximum_reply_length=MAX_REPLY_CHARS,
+                recent_replies=recent_replies,
+                media_context=media_context,
+            )
+            repair_attempted = repair.attempted
+            repair_outcome = repair.outcome
+            repaired_draft = repair.repaired_draft
+            effective_audit = (*result.audit, *repair.audit)
+            effective_model_call_count += repair.additional_model_calls
+            if repair.reply is None:
+                effective_reply = None
+                effective_status = "local_rejection"
+                effective_reason = repair.reason
+            else:
+                effective_reply = repair.reply
+                effective_status = "approved_for_publication"
+                effective_reason = repair.reason
+                effective_model_call_count = int(
+                    repair.reply.pipeline_metadata.get(
+                        "model_call_count", effective_model_call_count
+                    )
+                )
+                effective_revision_count = int(
+                    repair.reply.pipeline_metadata.get(
+                        "revision_count", effective_revision_count + 1
+                    )
+                )
+        elif result.reply is not None:
+            effective_status = "approved_for_publication"
+            effective_reason = "local_validation_passed"
+
+        pipeline_stage_telemetry = stage_telemetry(effective_audit)
+        pipeline_stage_telemetry.update(
+            {
+                "direct_answer_repair_attempted": repair_attempted,
+                "direct_answer_repair_outcome": repair_outcome,
+                "original_local_rejection_reason": (
+                    original_local_rejection_reason
+                ),
+            }
+        )
         log_event(
             "ai_reply_pipeline_stage_summary",
             lane=lane,
             target_id=target_id,
             strategy_version=STRATEGY_VERSION,
-            status=result.status,
-            terminal_reason=result.reason,
-            model_call_count=result.model_call_count,
-            revision_count=result.revision_count,
+            status=pipeline_stage_status,
+            pipeline_stage_status=pipeline_stage_status,
+            terminal_reason=pipeline_stage_reason,
+            effective_status=effective_status,
+            effective_reason=effective_reason,
+            model_call_count=effective_model_call_count,
+            revision_count=effective_revision_count,
             **pipeline_stage_telemetry,
         )
-        if result.reply is None:
+        if effective_reply is None:
             log.info(
-                "Tested reply pipeline ended status=%s lane=%s target_id=%s reason=%s calls=%d",
-                result.status,
+                "Tested reply pipeline ended stage_status=%s effective_status=%s "
+                "lane=%s target_id=%s reason=%s calls=%d",
+                pipeline_stage_status,
+                effective_status,
                 lane,
                 target_id,
-                result.reason,
-                result.model_call_count,
+                effective_reason,
+                effective_model_call_count,
             )
             log_event(
                 "ai_reply_pipeline_decision",
                 lane=lane,
                 target_id=target_id,
-                status=result.status,
+                status=pipeline_stage_status,
+                pipeline_stage_status=pipeline_stage_status,
+                effective_status=effective_status,
+                effective_reason=effective_reason,
                 strategy_version=STRATEGY_VERSION,
-                mode="no_reply",
-                final_reply_kind="no_reply",
+                mode=(
+                    result.reply.draft_record.get("mode")
+                    if result.reply is not None
+                    else "no_reply"
+                ),
+                final_reply_kind=(
+                    result.reply.draft_record.get("final_reply_kind")
+                    if result.reply is not None
+                    else "no_reply"
+                ),
                 reply_requirement=pipeline_stage_telemetry.get("reply_requirement"),
                 route_source=pipeline_stage_telemetry.get("route_source"),
                 claim_risk_categories=pipeline_stage_telemetry.get(
                     "claim_risk_categories", []
                 ),
-                proposer_mode="not_applicable",
+                proposer_mode=(
+                    result.reply.draft_record.get("mode")
+                    if result.reply is not None
+                    else "not_applicable"
+                ),
                 tone="unknown",
-                factual_claim_count=0,
+                factual_claim_count=(
+                    len(result.reply.draft_record.get("factual_claims") or [])
+                    if result.reply is not None
+                    else 0
+                ),
                 evidence_ids=None,
-                evidence_confidence="none",
+                evidence_confidence=(
+                    "local_trusted_facts_supplied"
+                    if pipeline_stage_telemetry.get(
+                        "trusted_facts_supplied_count", 0
+                    )
+                    else "none"
+                ),
                 retrieved_count=pipeline_stage_telemetry.get(
                     "trusted_facts_supplied_count", 0
                 ),
-                evidence_reference_count=0,
+                evidence_reference_count=(
+                    None if result.reply is not None else 0
+                ),
                 trusted_facts_supplied_count=pipeline_stage_telemetry.get(
                     "trusted_facts_supplied_count", 0
                 ),
                 trusted_fact_ids_supplied=pipeline_stage_telemetry.get(
                     "trusted_fact_ids_supplied", []
                 ),
-                used_fact_count=0,
-                used_fact_ids=[],
-                reviewer_verdict="pipeline_no_reply",
-                terminal_stage=result.reason,
+                used_fact_count=("unknown" if result.reply is not None else 0),
+                used_fact_ids=(None if result.reply is not None else []),
+                reviewer_verdict=(
+                    result.reply.draft_record.get("reviewer_verdict")
+                    if result.reply is not None
+                    else "pipeline_no_reply"
+                ),
+                terminal_stage=pipeline_stage_reason,
                 claim_auditor_status="recorded_in_pipeline_audit",
                 evidence_status="local_only",
-                reason=result.reason,
-                model_call_count=result.model_call_count,
-                revision_count=result.revision_count,
+                reason=effective_reason,
+                original_local_rejection_reason=original_local_rejection_reason,
+                direct_answer_repair_attempted=repair_attempted,
+                direct_answer_repair_outcome=repair_outcome,
+                incoming_contribution=(
+                    str(context.get("incoming_contribution") or "")
+                    if original_local_rejection_reason
+                    else None
+                ),
+                proposed_draft=original_proposed_draft,
+                repaired_draft=repaired_draft,
+                model_call_count=effective_model_call_count,
+                revision_count=effective_revision_count,
             )
             if evaluation_outcome is not None:
                 evaluation_outcome.update(
                     {
-                        "status": result.status,
-                        "reason": result.reason,
+                        "status": effective_status,
+                        "reason": effective_reason,
+                        "original_local_rejection_reason": (
+                            original_local_rejection_reason
+                        ),
+                        "direct_answer_repair_attempted": repair_attempted,
+                        "direct_answer_repair_outcome": repair_outcome,
                         "qualifying_author_no_reply": tested_pipeline_no_reply_qualifies_for_author_quarantine(
-                            status=result.status,
-                            reason=result.reason,
+                            status=pipeline_stage_status,
+                            reason=pipeline_stage_reason,
                             telemetry=pipeline_stage_telemetry,
                         ),
-                        "model_call_count": result.model_call_count,
+                        "model_call_count": effective_model_call_count,
                     }
                 )
             return None
-        metadata = result.reply.pipeline_metadata
-        telemetry = ai_reply_evidence_telemetry(result.reply)
+        metadata = effective_reply.pipeline_metadata
+        telemetry = ai_reply_evidence_telemetry(effective_reply)
         log_event(
             "ai_reply_pipeline_decision",
             lane=lane,
             target_id=target_id,
             status="approved",
+            pipeline_stage_status=pipeline_stage_status,
+            effective_status=effective_status,
+            effective_reason=effective_reason,
             strategy_version=metadata["strategy_version"],
             mode=metadata["mode"],
             final_reply_kind=metadata.get("final_reply_kind"),
@@ -19803,17 +19932,32 @@ def generate_ai_first_reply(
             reviewer_verdict=metadata["reviewer_verdict"],
             model_call_count=metadata["model_call_count"],
             revision_count=metadata["revision_count"],
+            original_local_rejection_reason=original_local_rejection_reason,
+            direct_answer_repair_attempted=repair_attempted,
+            direct_answer_repair_outcome=repair_outcome,
+            incoming_contribution=(
+                str(context.get("incoming_contribution") or "")
+                if original_local_rejection_reason
+                else None
+            ),
+            proposed_draft=original_proposed_draft,
+            repaired_draft=repaired_draft,
         )
         if evaluation_outcome is not None:
             evaluation_outcome.update(
                 {
                     "status": "approved",
-                    "reason": result.reason,
+                    "reason": effective_reason,
+                    "original_local_rejection_reason": (
+                        original_local_rejection_reason
+                    ),
+                    "direct_answer_repair_attempted": repair_attempted,
+                    "direct_answer_repair_outcome": repair_outcome,
                     "qualifying_author_no_reply": False,
-                    "model_call_count": result.model_call_count,
+                    "model_call_count": metadata["model_call_count"],
                 }
             )
-        return result.reply
+        return effective_reply
 
     from reply_strategy import STRATEGY_VERSION, outcome_telemetry, run_reply_pipeline
 
@@ -21578,7 +21722,10 @@ def maybe_reply_to_mentions(
         if not reply_text:
             if (
                 not DRY_RUN_REPLIES
-                and evaluation_outcome.get("status") == "no_reply"
+                and evaluation_outcome.get("status") in {
+                    "no_reply",
+                    "local_rejection",
+                }
             ):
                 record_terminal_reply_evaluation(
                     state,
@@ -21588,6 +21735,7 @@ def maybe_reply_to_mentions(
                 )
                 if (
                     candidate_source == "mention"
+                    and evaluation_outcome.get("status") == "no_reply"
                     and evaluation_outcome.get("qualifying_author_no_reply") is True
                 ):
                     record_qualifying_author_no_reply(
@@ -21619,6 +21767,27 @@ def maybe_reply_to_mentions(
             continue
         if clarification is not None and reply_text.draft_record.get("mode") != "direct_factual_answer":
             log.error("Clarification reply lacks direct_factual_answer mode; refusing target_id=%s", mention_id)
+            log_event(
+                "ai_reply_pipeline_effective_outcome",
+                lane=str(candidate_source),
+                target_id=mention_id,
+                strategy_version=reply_text.draft_record.get(
+                    "strategy_version", "unavailable"
+                ),
+                pipeline_stage_status="approved",
+                effective_status="local_rejection",
+                effective_reason="clarification_not_direct_factual_answer",
+                original_local_rejection_reason=(
+                    "clarification_not_direct_factual_answer"
+                ),
+                direct_answer_repair_attempted=False,
+                direct_answer_repair_outcome="unavailable_legacy_path",
+                incoming_contribution=str(
+                    reply_context.get("incoming_contribution") or ""
+                ),
+                proposed_draft=str(reply_text),
+                repaired_draft=None,
+            )
             record_terminal_reply_evaluation(
                 state,
                 target_id=mention_id,

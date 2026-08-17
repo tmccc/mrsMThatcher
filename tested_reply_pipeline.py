@@ -130,6 +130,10 @@ DIVERSITY_PROMPT = """Rewrite the proposed reply so that it preserves the same m
 Use one or two natural British-English sentences, no more than 270 characters. Change the opening and sentence structure. Do not introduce new factual claims, names, dates, attributions, popularity claims, private motives or linguistic claims. Do not use emoji. Do not refer to the rewrite process.
 Return only the required JSON."""
 
+DIRECT_ANSWER_REPAIR_PROMPT = """You are performing one bounded factual repair for a Margaret Thatcher quotation account on X. Separate routing and safety stages have already approved a public reply, but the approved draft failed a local guard because it did not directly answer the contributor's factual question.
+Answer the original direct question in the first sentence, using only facts explicitly established by trusted_facts. Do not guess, add outside knowledge, infer a private motive, embellish the evidence, or merely ask the contributor to clarify. If the question is ambiguous or trusted_facts do not explicitly establish a safe answer, use cannot_compose_safely.
+Return one or two short, natural British-English sentences, no more than 270 characters in total, as plain text inside the required JSON. Do not use emoji, mentions, links or hashtags. Do not refer to the repair, local guard, earlier draft, routing or evidence packet. Return only the required JSON."""
+
 
 def _strict_schema(properties: dict[str, Any]) -> dict[str, Any]:
     """Return a strict object schema requiring every supplied property."""
@@ -588,6 +592,19 @@ class PipelineResult:
     audit: tuple[dict[str, Any], ...]
 
 
+@dataclass(frozen=True)
+class DirectAnswerRepairResult:
+    """Outcome of the sole post-approval direct-factual repair opportunity."""
+
+    reply: object | None
+    attempted: bool
+    outcome: str
+    reason: str
+    repaired_draft: str | None
+    additional_model_calls: int
+    audit: tuple[dict[str, Any], ...]
+
+
 ModelTransport = Callable[..., object]
 
 
@@ -625,6 +642,9 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
         "trusted_fact_ids_supplied": [],
         "reply_requirement": None,
         "route_source": None,
+        "direct_answer_repair_attempted": False,
+        "direct_answer_repair_outcome": None,
+        "original_local_rejection_reason": None,
     }
 
     claim_categories: set[str] = set()
@@ -691,6 +711,7 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
             "narrow_claim_audit_outcome",
             "cleanup_claim_audit_outcome",
             "diversity_claim_audit_outcome",
+            "direct_answer_repair_claim_audit_outcome",
         }:
             outcome = row.get("outcome")
             if outcome:
@@ -705,6 +726,25 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
             telemetry["duplicate_repair_outcome"] = row.get("outcome")
         elif stage == "final_deterministic_validation":
             telemetry["final_validation"] = "rejected" if row.get("rejection") else "passed"
+        elif stage == "direct_answer_repair_eligibility":
+            telemetry["direct_answer_repair_attempted"] = row.get("attempted") is True
+            telemetry["direct_answer_repair_outcome"] = row.get("outcome")
+            telemetry["original_local_rejection_reason"] = row.get(
+                "original_local_rejection_reason"
+            )
+        elif stage == "direct_answer_repair_outcome":
+            telemetry["direct_answer_repair_attempted"] = True
+            telemetry["direct_answer_repair_outcome"] = row.get("outcome")
+            telemetry["original_local_rejection_reason"] = (
+                "clarification_not_direct_factual_answer"
+            )
+        elif stage in {
+            "direct_answer_repair_deterministic_validation",
+            "direct_answer_repair_final_validation",
+        }:
+            telemetry["final_validation"] = (
+                "rejected" if row.get("rejection") else "passed"
+            )
 
         if stage == "bounded_claim_cleanup":
             telemetry["claim_cleanup_called"] = True
@@ -928,6 +968,438 @@ def build_trusted_facts(context: dict[str, Any], repository: object, config: dic
         maximum_passages=int(config["maximum_trusted_facts"]), preferred_quote_id=preferred,
     )
     return [passage.prompt_record() for passage in passages]
+
+
+_DIRECT_FACTUAL_INTERROGATIVE = re.compile(
+    r"(?:^|[.!?]\s+)(?:@[A-Za-z0-9_]+\s+)*"
+    r"(?:who|whose|where|when|which\b|how\s+(?:many|much|long|old|far)\b|"
+    r"what\s+(?:did|does|do|is|are|was|were|happened|date|year|time|name|source|"
+    r"number|direction|place|country)\b|(?:did|does|do|is|are|was|were|has|have|had)\b)",
+    re.IGNORECASE,
+)
+_NON_FACTUAL_QUESTION_CUES = re.compile(
+    r"\b(?:should|ought|do\s+you\s+(?:think|believe|feel|prefer)|your\s+(?:view|opinion)|"
+    r"favourite|what\s+do\s+you\s+mean|why)\b",
+    re.IGNORECASE,
+)
+_DIRECT_FACTUAL_MATERIAL_STOPWORDS = {
+    "about", "actually", "answer", "answered", "are", "asked", "can", "clarify",
+    "could", "did", "does", "from", "have", "here", "is", "it", "me", "my",
+    "please", "question", "really", "she", "still", "that", "the", "their", "there",
+    "they", "this", "was", "were", "what", "when", "where", "which", "who", "whose",
+    "will", "with", "would", "you", "your",
+}
+
+
+def _normalise_evidence_token(token: str) -> str:
+    """Return a small deterministic lexical root for evidence gating."""
+    value = token.casefold().replace("’", "'").strip("'")
+    if value.endswith("ied") and len(value) > 5:
+        value = value[:-3] + "y"
+    elif value.endswith("ing") and len(value) > 6:
+        value = value[:-3]
+    elif value.endswith("ed") and len(value) > 5:
+        value = value[:-2]
+        if value.endswith(("v", "at")):
+            value += "e"
+    elif value.endswith(("sses", "xes", "zes", "ches", "shes")):
+        value = value[:-2]
+    elif value.endswith("s") and len(value) > 4:
+        value = value[:-1]
+    return value
+
+
+def _direct_factual_clarification_question(
+    context: dict[str, Any],
+) -> str | None:
+    """Return the current unambiguous factual question, if locally evident."""
+    clarification = context.get("clarification_request")
+    if not isinstance(clarification, dict):
+        return None
+    original = str(clarification.get("original_question") or "").strip()
+    correction = str(clarification.get("correction") or "").strip()
+    if not original or "?" not in original or not correction:
+        return None
+    questions = [original]
+    if "?" in correction:
+        questions.insert(0, correction)
+    for question in questions:
+        if _NON_FACTUAL_QUESTION_CUES.search(question):
+            continue
+        if _DIRECT_FACTUAL_INTERROGATIVE.search(question) is None:
+            continue
+        material = {
+            token
+            for token in re.findall(
+                r"[a-z0-9][a-z0-9'-]{1,}", question.casefold()
+            )
+            if token not in _DIRECT_FACTUAL_MATERIAL_STOPWORDS
+        }
+        if len(material) >= 2:
+            return question
+    return None
+
+
+def clarification_requires_direct_factual_answer(context: dict[str, Any]) -> bool:
+    """Conservatively identify an unambiguous factual clarification request."""
+    return _direct_factual_clarification_question(context) is not None
+
+
+def trusted_facts_support_direct_factual_answer(
+    context: dict[str, Any],
+    trusted_facts: list[dict[str, Any]],
+) -> bool:
+    """Require transparent answer cues before spending the one repair call."""
+    question = _direct_factual_clarification_question(context)
+    if question is None or not trusted_facts:
+        return False
+    passages = [
+        str(item.get("passage") or "")
+        for item in trusted_facts
+        if isinstance(item, dict) and str(item.get("passage") or "").strip()
+    ]
+    if not passages:
+        return False
+    passage_roots = [
+        {
+            _normalise_evidence_token(token)
+            for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9'’-]*", passage)
+        }
+        for passage in passages
+    ]
+    lowered = question.casefold().replace("’", "'")
+
+    who_match = re.search(
+        r"\bwho\s+([a-z][a-z'-]*)\s+(?:the\s+|an?\s+)?([a-z][a-z'-]*)",
+        lowered,
+    )
+    if who_match:
+        required = {
+            _normalise_evidence_token(who_match.group(1)),
+            _normalise_evidence_token(who_match.group(2)),
+        }
+        return any(required <= roots for roots in passage_roots)
+
+    if re.search(r"\b(?:which\s+(?:way|direction)|what\s+direction)\b", lowered):
+        direction_roots = {
+            "east", "west", "north", "south", "toward", "from", "into", "out",
+        }
+        return any(roots & direction_roots for roots in passage_roots)
+
+    if re.search(r"\bwhen\b", lowered):
+        return any(
+            re.search(
+                r"\b(?:1[0-9]{3}|20[0-9]{2}|January|February|March|April|May|June|"
+                r"July|August|September|October|November|December)\b",
+                passage,
+                re.IGNORECASE,
+            )
+            for passage in passages
+        )
+
+    if re.search(r"\bhow\s+(?:many|much|long|old|far)\b", lowered):
+        return any(re.search(r"\b\d+(?:[.,]\d+)?\b", passage) for passage in passages)
+
+    question_roots = {
+        _normalise_evidence_token(token)
+        for token in re.findall(r"[a-z0-9][a-z0-9'-]{1,}", lowered)
+        if token not in _DIRECT_FACTUAL_MATERIAL_STOPWORDS
+        and token not in {"actually", "answer", "get", "need", "please", "tell"}
+    }
+    if len(question_roots) < 2:
+        return False
+    required_overlap = max(2, math.ceil(len(question_roots) * 0.6))
+    return any(
+        len(question_roots & roots) >= required_overlap
+        for roots in passage_roots
+    )
+
+
+def repair_approved_direct_answer(
+    *,
+    approved_reply: object,
+    context: dict[str, Any],
+    config: dict[str, Any],
+    repository: object,
+    transport: ModelTransport,
+    maximum_reply_length: int,
+    recent_replies: list[str] | None = None,
+    media_context: object = None,
+) -> DirectAnswerRepairResult:
+    """Offer exactly one Sol repair after the clarification-mode local rejection."""
+    from reply_strategy import AIReply, validate_reply_context
+
+    original_reason = "clarification_not_direct_factual_answer"
+    clean_context = validate_reply_context(context)
+    recent = [str(value) for value in (recent_replies or []) if str(value).strip()][-20:]
+    trusted_facts = build_trusted_facts(clean_context, repository, config)
+    eligible = clarification_requires_direct_factual_answer(clean_context)
+    if not eligible:
+        outcome = "not_attempted_not_direct_factual_question"
+        return DirectAnswerRepairResult(
+            None, False, outcome, outcome, None, 0,
+            ({
+                "stage": "direct_answer_repair_eligibility",
+                "attempted": False,
+                "outcome": outcome,
+                "original_local_rejection_reason": original_reason,
+            },),
+        )
+    if not trusted_facts_support_direct_factual_answer(
+        clean_context, trusted_facts
+    ):
+        outcome = "not_attempted_insufficient_trusted_facts"
+        return DirectAnswerRepairResult(
+            None, False, outcome, outcome, None, 0,
+            ({
+                "stage": "direct_answer_repair_eligibility",
+                "attempted": False,
+                "outcome": outcome,
+                "original_local_rejection_reason": original_reason,
+            },),
+        )
+
+    original_metadata = getattr(approved_reply, "pipeline_metadata", {})
+    original_calls = (
+        int(original_metadata.get("model_call_count") or 0)
+        if isinstance(original_metadata, dict)
+        else 0
+    )
+    if original_calls + 2 > int(config["maximum_model_calls"]):
+        outcome = "not_attempted_model_call_ceiling"
+        return DirectAnswerRepairResult(
+            None, False, outcome, outcome, None, 0,
+            ({
+                "stage": "direct_answer_repair_eligibility",
+                "attempted": False,
+                "outcome": outcome,
+                "original_local_rejection_reason": original_reason,
+            },),
+        )
+
+    audit: list[dict[str, Any]] = [{
+        "stage": "direct_answer_repair_eligibility",
+        "attempted": True,
+        "outcome": "eligible",
+        "original_local_rejection_reason": original_reason,
+    }]
+    additional_calls = 0
+    media = _media_payload(media_context)
+    raw = transport(
+        provider="OpenAI",
+        stage="direct_answer_repair",
+        model=str(config["openai_model"]),
+        system_prompt=DIRECT_ANSWER_REPAIR_PROMPT,
+        payload={
+            "context": clean_context,
+            "recent_replies": recent,
+            "trusted_facts": trusted_facts,
+            "media_context": media,
+            "reply_requirement": "supported_factual",
+            "rejected_draft_untrusted": str(approved_reply),
+        },
+        response_schema=copy.deepcopy(WRITER_SCHEMA),
+        timeout_seconds=int(config["timeout_seconds"]),
+        max_output_tokens=int(config["writer_max_output_tokens"]),
+        reasoning_effort=str(config["openai_reasoning_effort"]),
+    )
+    additional_calls += 1
+    try:
+        writer = _validate_writer(raw)
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        audit.append({
+            "stage": "direct_answer_repair", "provider": "OpenAI",
+            "schema_valid": False, "error": type(exc).__name__,
+        })
+        outcome = "writer_schema_invalid"
+        audit.append({"stage": "direct_answer_repair_outcome", "outcome": outcome})
+        return DirectAnswerRepairResult(
+            None, True, outcome, outcome, None, additional_calls, tuple(audit)
+        )
+    audit.append({
+        "stage": "direct_answer_repair", "provider": "OpenAI", "schema_valid": True,
+    })
+    if writer["status"] != "reply":
+        outcome = "writer_cannot_compose_safely"
+        audit.append({"stage": "direct_answer_repair_outcome", "outcome": outcome})
+        return DirectAnswerRepairResult(
+            None, True, outcome, outcome, None, additional_calls, tuple(audit)
+        )
+
+    candidate = writer["reply"]
+    rejection = _public_reply_error(
+        candidate,
+        repository,
+        maximum_reply_length=maximum_reply_length,
+        maximum_sentences=int(config["maximum_reply_sentences"]),
+    )
+    if rejection is None and duplicate_analysis(candidate, recent)["exact_duplicate"]:
+        rejection = "exact_duplicate_reply"
+    audit.append({
+        "stage": "direct_answer_repair_deterministic_validation",
+        "rejection": rejection,
+    })
+    if rejection:
+        outcome = f"deterministic_rejection:{rejection}"
+        audit.append({"stage": "direct_answer_repair_outcome", "outcome": outcome})
+        return DirectAnswerRepairResult(
+            None, True, outcome, outcome, candidate, additional_calls, tuple(audit)
+        )
+
+    risk = detect_claim_risk(candidate, "supported_factual")
+    audit.append({"stage": "direct_answer_repair_claim_risk", **risk})
+    claim_raw = transport(
+        provider="xAI",
+        stage="direct_answer_repair_claim_audit",
+        model=str(config["xai_model"]),
+        system_prompt=CLAIM_AUDIT_PROMPT,
+        payload={
+            "context": clean_context,
+            "trusted_facts": trusted_facts,
+            "media_context": media,
+            "reply_requirement": "supported_factual",
+            "candidate_reply": {
+                "label": "untrusted proposed output",
+                "text": candidate,
+            },
+            "risk_categories": risk["categories"],
+            "matched_text": risk["matched_text"],
+        },
+        response_schema=copy.deepcopy(CLAIM_AUDIT_SCHEMA),
+        timeout_seconds=int(config["timeout_seconds"]),
+        max_output_tokens=int(config["claim_audit_max_output_tokens"]),
+        reasoning_effort=str(config["xai_reasoning_effort"]),
+    )
+    additional_calls += 1
+    try:
+        claim_outcome = _validate_enum(
+            claim_raw, CLAIM_AUDIT_SCHEMA, "direct answer repair claim audit"
+        )
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        audit.append({
+            "stage": "direct_answer_repair_claim_audit", "provider": "xAI",
+            "schema_valid": False, "error": type(exc).__name__,
+        })
+        outcome = "claim_audit_schema_invalid"
+        audit.append({"stage": "direct_answer_repair_outcome", "outcome": outcome})
+        return DirectAnswerRepairResult(
+            None, True, outcome, outcome, candidate, additional_calls, tuple(audit)
+        )
+    audit.append({
+        "stage": "direct_answer_repair_claim_audit", "provider": "xAI",
+        "schema_valid": True,
+    })
+    audit.append({
+        "stage": "direct_answer_repair_claim_audit_outcome",
+        "outcome": claim_outcome,
+    })
+    if claim_outcome != "pass":
+        outcome = f"claim_audit_not_passed:{claim_outcome}"
+        audit.append({"stage": "direct_answer_repair_outcome", "outcome": outcome})
+        return DirectAnswerRepairResult(
+            None, True, outcome, outcome, candidate, additional_calls, tuple(audit)
+        )
+
+    final_rejection = _public_reply_error(
+        candidate,
+        repository,
+        maximum_reply_length=maximum_reply_length,
+        maximum_sentences=int(config["maximum_reply_sentences"]),
+    )
+    if final_rejection is None and duplicate_analysis(candidate, recent)["exact_duplicate"]:
+        final_rejection = "exact_duplicate_reply"
+    audit.append({
+        "stage": "direct_answer_repair_final_validation",
+        "rejection": final_rejection,
+    })
+    if final_rejection:
+        outcome = f"final_validation_rejection:{final_rejection}"
+        audit.append({"stage": "direct_answer_repair_outcome", "outcome": outcome})
+        return DirectAnswerRepairResult(
+            None, True, outcome, outcome, candidate, additional_calls, tuple(audit)
+        )
+
+    trusted_fact_ids = sorted({
+        str(item.get("evidence_id"))
+        for item in trusted_facts
+        if item.get("evidence_id")
+    })
+    final_risk = detect_claim_risk(candidate, "supported_factual")
+    original_revisions = (
+        int(original_metadata.get("revision_count") or 0)
+        if isinstance(original_metadata, dict)
+        else 0
+    )
+    original_route_source = (
+        str(original_metadata.get("route_source") or "unavailable")
+        if isinstance(original_metadata, dict)
+        else "unavailable"
+    )
+    draft = {
+        "schema_version": DRAFT_SCHEMA_VERSION,
+        "strategy_version": STRATEGY_VERSION,
+        "target_id": clean_context["target_id"],
+        "thread_id": clean_context["thread_id"],
+        "candidate_source": clean_context["lane"],
+        "contribution_hash": hashlib.sha256(
+            clean_context["incoming_contribution"].encode("utf-8")
+        ).hexdigest(),
+        "context_hash": _hash_value(clean_context),
+        "trusted_facts_hash": _hash_value(trusted_facts),
+        "proposed_reply": candidate,
+        "mode": "direct_factual_answer",
+        "final_reply_kind": "factual",
+        "tone": "unknown",
+        "factual_claims": final_risk["matched_text"],
+        "evidence_ids": None,
+        "trusted_facts_supplied_count": len(trusted_facts),
+        "trusted_fact_ids_supplied": trusted_fact_ids,
+        "used_fact_count": "unknown",
+        "used_fact_ids": None,
+        "claim_risk_categories": final_risk["categories"],
+        "reviewer_verdict": "approve",
+        "model_call_count": original_calls + additional_calls,
+        "revision_count": original_revisions + 1,
+        "reply_requirement": "supported_factual",
+        "route_source": original_route_source,
+        "direct_answer_repair_attempted": True,
+        "direct_answer_repair_outcome": "approved",
+        "original_local_rejection_reason": original_reason,
+        "original_proposed_reply": str(approved_reply),
+        "creation_time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    draft["approval_hash"] = _hash_value(draft)
+    metadata = {
+        "strategy_version": STRATEGY_VERSION,
+        "mode": "direct_factual_answer",
+        "final_reply_kind": "factual",
+        "tone": "unknown",
+        "factual_claim_count": len(final_risk["matched_text"]),
+        "evidence_ids": None,
+        "reply_requirement": "supported_factual",
+        "route_source": original_route_source,
+        "trusted_facts_supplied_count": len(trusted_facts),
+        "trusted_fact_ids_supplied": trusted_fact_ids,
+        "used_fact_count": "unknown",
+        "used_fact_ids": None,
+        "claim_risk_categories": final_risk["categories"],
+        "reviewer_verdict": "approve",
+        "model_call_count": original_calls + additional_calls,
+        "revision_count": original_revisions + 1,
+        "evidence_confidence": "local_trusted_facts_supplied",
+        "retrieved_count": len(trusted_facts),
+        "evidence_reference_count": None,
+        "direct_answer_repair_attempted": True,
+        "direct_answer_repair_outcome": "approved",
+        "original_local_rejection_reason": original_reason,
+        "original_proposed_reply": str(approved_reply),
+    }
+    repaired_reply = AIReply(candidate, copy.deepcopy(draft), metadata)
+    audit.append({"stage": "direct_answer_repair_outcome", "outcome": "approved"})
+    return DirectAnswerRepairResult(
+        repaired_reply, True, "approved", "direct_answer_repair_approved",
+        candidate, additional_calls, tuple(audit),
+    )
 
 
 def _canonical(value: Any) -> bytes:

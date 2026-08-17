@@ -813,6 +813,278 @@ def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
     assert "outcomes: confirm_no_reply_spam_or_abuse=1; majority resolvability: true=1" in rendered
 
 
+def test_stage_approval_is_reconciled_with_effective_local_rejection_and_drafts():
+    base = datetime(2026, 8, 17, 9)
+    target_id = "2089269156994523171"
+    incoming = (
+        "@MrsMThatcher What if the private economy isn’t healthy? "
+        "Who creates the demand needed to get it moving?"
+    )
+    proposed = "A healthy economy rests on confidence, enterprise and sound money."
+    repaired = "Consumers and businesses create demand through spending and investment."
+    payloads = [
+        (
+            "INFO",
+            "maybe_reply_to_mentions",
+            f"Considering mention id={target_id} author_id=800 text={incoming!r}",
+        ),
+        (
+            "INFO",
+            "log_event",
+            "EVENT " + json.dumps({
+                "event": "ai_reply_pipeline_stage_summary",
+                "lane": "mention",
+                "target_id": target_id,
+                "strategy_version": "tested-reply-pipeline-20260817",
+                "status": "approved",
+                "pipeline_stage_status": "approved",
+                "terminal_reason": "pipeline_approved",
+                "effective_status": "local_rejection",
+                "effective_reason": "claim_audit_not_passed:rewrite_supported_factual",
+                "direct_answer_repair_attempted": True,
+                "direct_answer_repair_outcome": (
+                    "claim_audit_not_passed:rewrite_supported_factual"
+                ),
+                "original_local_rejection_reason": (
+                    "clarification_not_direct_factual_answer"
+                ),
+                "provider_call_counts": {"xAI": 2, "OpenAI": 2},
+                "final_validation": "passed",
+            }),
+        ),
+        (
+            "INFO",
+            "log_event",
+            "EVENT " + json.dumps({
+                "event": "ai_reply_pipeline_decision",
+                "lane": "mention",
+                "target_id": target_id,
+                "strategy_version": "tested-reply-pipeline-20260817",
+                "status": "approved",
+                "pipeline_stage_status": "approved",
+                "effective_status": "local_rejection",
+                "effective_reason": "claim_audit_not_passed:rewrite_supported_factual",
+                "mode": "opinion_or_principle",
+                "final_reply_kind": "unknown",
+                "factual_claim_count": 0,
+                "model_call_count": 4,
+                "original_local_rejection_reason": (
+                    "clarification_not_direct_factual_answer"
+                ),
+                "direct_answer_repair_attempted": True,
+                "direct_answer_repair_outcome": (
+                    "claim_audit_not_passed:rewrite_supported_factual"
+                ),
+                "incoming_contribution": incoming,
+                "proposed_draft": proposed,
+                "repaired_draft": repaired,
+            }),
+        ),
+        (
+            "ERROR",
+            "maybe_reply_to_mentions",
+            "Clarification reply lacks direct_factual_answer mode; refusing "
+            f"target_id={target_id}",
+        ),
+    ]
+    records = [
+        digest.Record(
+            ts=base + timedelta(seconds=index),
+            level=level,
+            src=source,
+            line=index,
+            msg=message,
+            path="mrsMThatcher.log",
+            ordinal=index,
+        )
+        for index, (level, source, message) in enumerate(payloads, 1)
+    ]
+
+    report = digest.analyse(records)
+    local = [
+        event
+        for event in report["events"]
+        if event["kind"] == "reply_strategy_local_rejection"
+    ]
+    stage = next(
+        event
+        for event in report["events"]
+        if event["kind"] == "reply_pipeline_stage_summary"
+    )
+
+    assert len(local) == 1
+    assert local[0]["incoming_contribution"] == incoming
+    assert local[0]["proposed_draft"] == proposed
+    assert local[0]["repaired_draft"] == repaired
+    assert local[0]["direct_answer_repair_attempted"] is True
+    assert local[0]["effective_status"] == "local_rejection"
+    assert stage["pipeline_stage_status"] == "approved"
+    assert stage["final_validation"] == "passed"
+    assert stage["effective_status"] == "local_rejection"
+    assert report["reply_strategy"][
+        "terminal_clarification_mode_rejection_count"
+    ] == 1
+    assert report["provider_usage"]["cost_summary"]["candidates"][0][
+        "outcome"
+    ] == "terminal_clarification_mode_rejection"
+
+    rendered = digest.render_markdown(report)
+    assert "## Effective local reply rejections" in rendered
+    assert target_id in rendered
+    assert incoming in rendered
+    assert proposed in rendered
+    assert repaired in rendered
+    assert "Final effective outcome: `local_rejection`" in rendered
+    assert "pipeline_stage_status" in rendered
+    assert "effective_status" in rendered
+
+
+def test_legacy_target_rejection_reports_lost_draft_as_unavailable_not_invented():
+    target_id = "2089269156994523171"
+    incoming = (
+        "@MrsMThatcher What if the private economy isn’t healthy? "
+        "Who creates the demand needed to get it moving?"
+    )
+    records = [
+        digest.Record(
+            datetime(2026, 8, 17, 9, 0, index),
+            level,
+            source,
+            index,
+            message,
+            "mrsMThatcher.log",
+            index,
+        )
+        for index, (level, source, message) in enumerate([
+            (
+                "INFO",
+                "maybe_reply_to_mentions",
+                f"Considering mention id={target_id} author_id=800 text={incoming!r}",
+            ),
+            (
+                "INFO",
+                "log_event",
+                "EVENT " + json.dumps({
+                    "event": "ai_reply_pipeline_stage_summary",
+                    "lane": "mention",
+                    "target_id": target_id,
+                    "strategy_version": "tested-reply-pipeline-20260816",
+                    "status": "approved",
+                    "terminal_reason": "pipeline_approved",
+                    "final_validation": "passed",
+                }),
+            ),
+            (
+                "INFO",
+                "log_event",
+                "EVENT " + json.dumps({
+                    "event": "ai_reply_pipeline_decision",
+                    "lane": "mention",
+                    "target_id": target_id,
+                    "strategy_version": "tested-reply-pipeline-20260816",
+                    "status": "approved",
+                    "mode": "opinion_or_principle",
+                    "factual_claim_count": 0,
+                }),
+            ),
+            (
+                "ERROR",
+                "maybe_reply_to_mentions",
+                "Clarification reply lacks direct_factual_answer mode; refusing "
+                f"target_id={target_id}",
+            ),
+        ], 1)
+    ]
+
+    report = digest.analyse(records)
+    local = next(
+        event
+        for event in report["events"]
+        if event["kind"] == "reply_strategy_local_rejection"
+    )
+    stage = next(
+        event
+        for event in report["events"]
+        if event["kind"] == "reply_pipeline_stage_summary"
+    )
+
+    assert local["incoming_contribution"] == incoming
+    assert local["proposed_draft"] is None
+    assert stage["pipeline_stage_status"] == "approved"
+    assert stage["effective_status"] == "local_rejection"
+    rendered = digest.render_markdown(report)
+    assert "provider response was not retained" in rendered
+    assert "Final effective outcome: `local_rejection`" in rendered
+
+
+def test_nine_tested_decisions_reconcile_across_headline_sections_and_raw_counts():
+    base = datetime(2026, 8, 17, 3, 24, 9)
+    records = []
+    ordinal = 0
+    for index in range(9):
+        version = (
+            "tested-reply-pipeline-20260816"
+            if index < 8
+            else "tested-reply-pipeline-20260817"
+        )
+        for event_payload in (
+            {
+                "event": "ai_reply_pipeline_stage_summary",
+                "lane": "mention",
+                "target_id": str(700 + index),
+                "strategy_version": version,
+                "status": "no_reply",
+                "terminal_reason": "reply_necessity_review",
+                "provider_call_counts": {"xAI": 1, "OpenAI": 3},
+            },
+            {
+                "event": "ai_reply_pipeline_decision",
+                "lane": "mention",
+                "target_id": str(700 + index),
+                "strategy_version": version,
+                "status": "no_reply",
+                "mode": "no_reply",
+                "factual_claim_count": 0,
+                "reason": "reply_necessity_review",
+            },
+        ):
+            ordinal += 1
+            records.append(digest.Record(
+                base + timedelta(seconds=ordinal),
+                "INFO",
+                "log_event",
+                ordinal,
+                "EVENT " + json.dumps(event_payload),
+                "mrsMThatcher.log",
+                ordinal,
+            ))
+
+    report = digest.analyse(records)
+    stages = report["reply_pipeline_stages"]
+    stats = report["summary"]["stats"]
+
+    assert report["reply_strategy"]["conversational_candidate_count"] == 9
+    assert stages["tested_pipeline_decision_count"] == 9
+    assert stages["all_stage_summary_event_count"] == 9
+    assert stages["complete_stage_telemetry_count"] == 9
+    assert stages["latest_strategy_version_decision_count"] == 1
+    assert stats["reply_strategy_decision"] == 9
+    assert stats["reply_pipeline_stage_summary"] == 9
+    assert stats["tested_pipeline_decisions_all_versions"] == 9
+    assert stats["tested_pipeline_stage_summary_events_all_versions"] == 9
+    assert "9 tested-pipeline decisions across all versions" in (
+        report["summary"]["headline"]
+    )
+
+    rendered = digest.render_markdown(report)
+    assert "All tested-pipeline decisions: **9**" in rendered
+    assert "All stage-summary events: **9**" in rendered
+    assert "Complete stage telemetry: **9**" in rendered
+    assert "tested-reply-pipeline-20260816 | 8 | 8 | 8 | 0" in rendered
+    assert "tested-reply-pipeline-20260817 | 1 | 1 | 1 | 0" in rendered
+    assert "Current/latest strategy-version subtotal" in rendered
+
+
 def test_majority_resolvability_is_strict_boolean_and_requires_review_outcome():
     version = "tested-reply-pipeline-20260817"
     summary = digest.reply_pipeline_stage_summary([

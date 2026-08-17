@@ -5177,28 +5177,173 @@ def _no_reply_category(value: Any) -> str:
     return "other_editorial_decline"
 
 
+def reconcile_reply_pipeline_effective_outcomes(
+    events: List[Dict[str, Any]],
+) -> None:
+    """Attach later terminal/public observations to stage-only telemetry."""
+    decisions: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+    local_rejections: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    outcomes: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for event in events:
+        lane = _normalise_lane(event.get("lane"))
+        target = str(event.get("target_id") or "")
+        if not target:
+            continue
+        kind = event.get("kind")
+        if kind == "reply_strategy_decision":
+            version = str(event.get("strategy_version") or "unavailable")
+            decisions[(version, lane, target)] = event
+        elif kind == "reply_strategy_local_rejection":
+            local_rejections[(lane, target)] = event
+        elif kind == "reply_strategy_outcome":
+            outcomes[(lane, target)] = event
+
+    for decision in decisions.values():
+        lane = _normalise_lane(decision.get("lane"))
+        target = str(decision.get("target_id") or "")
+        local = local_rejections.get((lane, target))
+        outcome = outcomes.get((lane, target))
+        if local is not None:
+            for field in (
+                "effective_status",
+                "effective_reason",
+                "original_local_rejection_reason",
+                "direct_answer_repair_attempted",
+                "direct_answer_repair_outcome",
+            ):
+                if local.get(field) is not None:
+                    decision[field] = local.get(field)
+        elif outcome is not None:
+            outcome_status = str(outcome.get("status") or "confirmed")
+            decision["effective_status"] = (
+                "published"
+                if outcome_status in {"confirmed", "posted"}
+                else outcome_status
+            )
+            decision["effective_reason"] = (
+                outcome.get("failure_reason") or outcome_status
+            )
+        elif decision.get("status") == "no_reply":
+            decision["effective_status"] = "no_reply"
+            decision["effective_reason"] = (
+                decision.get("reason")
+                or decision.get("no_reply_reason")
+                or "no_reply"
+            )
+        elif not decision.get("effective_status"):
+            decision["effective_status"] = "not_observed_in_window"
+            decision["effective_reason"] = (
+                "no_terminal_or_public_outcome_observed"
+            )
+
+    for stage in events:
+        if stage.get("kind") != "reply_pipeline_stage_summary":
+            continue
+        version = str(stage.get("strategy_version") or "unavailable")
+        lane = _normalise_lane(stage.get("lane"))
+        target = str(stage.get("target_id") or "")
+        stage["pipeline_stage_status"] = (
+            stage.get("pipeline_stage_status")
+            or stage.get("status")
+            or "unavailable"
+        )
+        stage["pipeline_stage_reason"] = (
+            stage.get("pipeline_stage_reason")
+            or stage.get("terminal_reason")
+            or ""
+        )
+        decision = decisions.get((version, lane, target))
+        local = local_rejections.get((lane, target))
+        outcome = outcomes.get((lane, target))
+        if local is not None:
+            source = local
+        elif outcome is not None:
+            outcome_status = str(outcome.get("status") or "confirmed")
+            stage["effective_status"] = (
+                "published"
+                if outcome_status in {"confirmed", "posted"}
+                else outcome_status
+            )
+            stage["effective_reason"] = (
+                outcome.get("failure_reason") or outcome_status
+            )
+            source = None
+        elif decision and decision.get("effective_status"):
+            source = decision
+        elif stage.get("effective_status"):
+            source = None
+        elif stage.get("pipeline_stage_status") == "no_reply":
+            stage["effective_status"] = "no_reply"
+            stage["effective_reason"] = stage.get("pipeline_stage_reason")
+            source = None
+        else:
+            stage["effective_status"] = "not_observed_in_window"
+            stage["effective_reason"] = "no_terminal_or_public_outcome_observed"
+            source = None
+        if source is not None:
+            for field in (
+                "effective_status",
+                "effective_reason",
+                "original_local_rejection_reason",
+                "direct_answer_repair_attempted",
+                "direct_answer_repair_outcome",
+            ):
+                if source.get(field) is not None:
+                    stage[field] = source.get(field)
+
+
 def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Aggregate safe tested-pipeline stage telemetry across evaluations."""
-    tested_version = "tested-reply-pipeline-20260817"
+    def tested_version(row: Dict[str, Any]) -> bool:
+        return str(row.get("strategy_version") or "").startswith(
+            "tested-reply-pipeline-"
+        )
+
     rows = [
         event for event in events
         if event.get("kind") == "reply_pipeline_stage_summary"
-        and event.get("strategy_version") == tested_version
+        and tested_version(event)
     ]
     decisions = [
         event for event in events
         if event.get("kind") == "reply_strategy_decision"
-        and event.get("strategy_version") == tested_version
+        and tested_version(event)
     ]
 
-    def identity(row: Dict[str, Any], index: int) -> Tuple[str, str]:
+    def identity(row: Dict[str, Any], index: int) -> Tuple[str, str, str]:
+        version = str(row.get("strategy_version") or "unavailable")
         lane = _normalise_lane(row.get("lane"))
         target = str(row.get("target_id") or "")
-        return (lane, target) if target else (lane, f"missing:{index}:{row.get('time')}")
+        return (
+            (version, lane, target)
+            if target
+            else (version, lane, f"missing:{index}:{row.get('time')}")
+        )
 
     decision_ids = {identity(row, index) for index, row in enumerate(decisions)}
     stage_ids = {identity(row, index) for index, row in enumerate(rows)}
     complete_ids = decision_ids & stage_ids
+    versions = sorted({
+        str(row.get("strategy_version")) for row in [*decisions, *rows]
+    })
+    latest_version = versions[-1] if versions else None
+    by_version: Dict[str, Dict[str, int]] = {}
+    for version in versions:
+        version_decisions = {
+            item for item in decision_ids if item[0] == version
+        }
+        version_stages = {item for item in stage_ids if item[0] == version}
+        version_complete = version_decisions & version_stages
+        by_version[version] = {
+            "decision_count": len(version_decisions),
+            "stage_summary_count": sum(
+                str(row.get("strategy_version")) == version for row in rows
+            ),
+            "complete_stage_telemetry_count": len(version_complete),
+            "partial_or_legacy_telemetry_count": len(
+                version_decisions - version_complete
+            ),
+        }
 
     def value_counts(field: str) -> Dict[str, int]:
         return dict(sorted(Counter(
@@ -5246,9 +5391,22 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
     }
     return {
         "evaluation_count": len(rows),
+        "all_stage_summary_event_count": len(rows),
         "tested_pipeline_decision_count": len(decision_ids),
         "complete_stage_telemetry_count": len(complete_ids),
         "partial_or_legacy_telemetry_count": len(decision_ids - complete_ids),
+        "strategy_version_counts": by_version,
+        "latest_strategy_version": latest_version,
+        "latest_strategy_version_decision_count": (
+            by_version.get(latest_version, {}).get("decision_count", 0)
+            if latest_version
+            else 0
+        ),
+        "latest_strategy_version_stage_summary_count": (
+            by_version.get(latest_version, {}).get("stage_summary_count", 0)
+            if latest_version
+            else 0
+        ),
         "provider_call_counts": dict(sorted(provider_calls.items())),
         "schema_invalid_call_count": sum(invalid_stages.values()),
         "schema_invalid_stage_counts": dict(sorted(invalid_stages.items())),
@@ -6007,6 +6165,54 @@ def analyse(
         stats[kind] += 1
         return ev
 
+    local_rejections_by_identity: Dict[Tuple[str, str], Dict[str, Any]] = {}
+
+    def add_or_merge_local_rejection(
+        ts: datetime,
+        *,
+        lane: Any,
+        target_id: Any,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Keep one enriched effective local-rejection record per target."""
+        target = str(target_id or "")
+        normalised_lane = _normalise_lane(lane)
+        key = (normalised_lane, target)
+        existing = local_rejections_by_identity.get(key)
+        if existing is None and target:
+            existing = next(
+                (
+                    item
+                    for (item_lane, item_target), item in local_rejections_by_identity.items()
+                    if item_target == target
+                    and (normalised_lane == "unavailable" or item_lane == "unavailable")
+                ),
+                None,
+            )
+        if existing is None:
+            existing = add_event(
+                "reply_strategy_local_rejection",
+                ts,
+                lane=lane or "unavailable",
+                target_id=target,
+                **kwargs,
+            )
+            local_rejections_by_identity[key] = existing
+            return existing
+        if _normalise_lane(existing.get("lane")) == "unavailable" and normalised_lane != "unavailable":
+            existing["lane"] = lane
+            local_rejections_by_identity.pop(("unavailable", target), None)
+            local_rejections_by_identity[key] = existing
+        for field, value in kwargs.items():
+            existing_value = existing.get(field)
+            if (
+                value is not None
+                and value != ""
+                and (existing_value is None or existing_value == "")
+            ):
+                existing[field] = short(value, max_text) if isinstance(value, str) else value
+        return existing
+
     def add_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
         item = {
             "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
@@ -6266,12 +6472,22 @@ def analyse(
             msg,
         )
         if clarification_mode_refusal is not None:
-            add_event(
-                "reply_strategy_local_rejection",
+            add_or_merge_local_rejection(
                 r.ts,
                 lane=pending_mention.get("source") or "unavailable",
                 target_id=clarification_mode_refusal.group(1),
                 reason="clarification_not_direct_factual_answer",
+                original_local_rejection_reason=(
+                    "clarification_not_direct_factual_answer"
+                ),
+                pipeline_stage_status="approved",
+                effective_status="local_rejection",
+                effective_reason="clarification_not_direct_factual_answer",
+                direct_answer_repair_attempted=False,
+                direct_answer_repair_outcome="not_available_legacy_telemetry",
+                incoming_contribution=pending_mention.get("incoming_text", ""),
+                proposed_draft=None,
+                repaired_draft=None,
             )
 
         # Error/warning collection. Exclude routine KeyboardInterrupt, expected
@@ -6702,7 +6918,7 @@ def analyse(
                         else None
                     )
                 evidence_fields["grounded"] = event_obj.get("grounded")
-                add_event(
+                decision_event = add_event(
                     "reply_strategy_decision",
                     r.ts,
                     lane=event_obj.get("lane") or "unavailable",
@@ -6800,7 +7016,60 @@ def analyse(
                     author_quarantine_evidence=event_obj.get(
                         "author_quarantine_evidence"
                     ),
+                    pipeline_stage_status=(
+                        event_obj.get("pipeline_stage_status")
+                        or decision_status
+                        or "unavailable"
+                    ),
+                    effective_status=event_obj.get("effective_status"),
+                    effective_reason=event_obj.get("effective_reason"),
+                    original_local_rejection_reason=event_obj.get(
+                        "original_local_rejection_reason"
+                    ),
+                    direct_answer_repair_attempted=event_obj.get(
+                        "direct_answer_repair_attempted"
+                    ),
+                    direct_answer_repair_outcome=event_obj.get(
+                        "direct_answer_repair_outcome"
+                    ),
+                    incoming_contribution=event_obj.get(
+                        "incoming_contribution"
+                    ),
+                    proposed_draft=event_obj.get("proposed_draft"),
+                    repaired_draft=event_obj.get("repaired_draft"),
                 )
+                if event_obj.get("effective_status") == "local_rejection":
+                    add_or_merge_local_rejection(
+                        r.ts,
+                        lane=event_obj.get("lane") or "unavailable",
+                        target_id=event_obj.get("target_id") or "",
+                        strategy_version=event_obj.get("strategy_version") or "unavailable",
+                        pipeline_stage_status=(
+                            event_obj.get("pipeline_stage_status")
+                            or decision_status
+                            or "unavailable"
+                        ),
+                        effective_status="local_rejection",
+                        effective_reason=event_obj.get("effective_reason") or "",
+                        reason=(
+                            event_obj.get("original_local_rejection_reason")
+                            or "clarification_not_direct_factual_answer"
+                        ),
+                        original_local_rejection_reason=event_obj.get(
+                            "original_local_rejection_reason"
+                        ),
+                        direct_answer_repair_attempted=event_obj.get(
+                            "direct_answer_repair_attempted"
+                        ),
+                        direct_answer_repair_outcome=event_obj.get(
+                            "direct_answer_repair_outcome"
+                        ),
+                        incoming_contribution=event_obj.get(
+                            "incoming_contribution"
+                        ),
+                        proposed_draft=event_obj.get("proposed_draft"),
+                        repaired_draft=event_obj.get("repaired_draft"),
+                    )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_stage_summary":
                 raw_provider_counts = event_obj.get("provider_call_counts")
                 provider_call_counts = {
@@ -6837,7 +7106,26 @@ def analyse(
                     target_id=event_obj.get("target_id") or "",
                     strategy_version=event_obj.get("strategy_version") or "unavailable",
                     status=event_obj.get("status") or "unavailable",
+                    pipeline_stage_status=(
+                        event_obj.get("pipeline_stage_status")
+                        or event_obj.get("status")
+                        or "unavailable"
+                    ),
+                    pipeline_stage_reason=(
+                        event_obj.get("terminal_reason") or ""
+                    ),
                     terminal_reason=event_obj.get("terminal_reason") or "",
+                    effective_status=event_obj.get("effective_status"),
+                    effective_reason=event_obj.get("effective_reason"),
+                    original_local_rejection_reason=event_obj.get(
+                        "original_local_rejection_reason"
+                    ),
+                    direct_answer_repair_attempted=event_obj.get(
+                        "direct_answer_repair_attempted"
+                    ),
+                    direct_answer_repair_outcome=event_obj.get(
+                        "direct_answer_repair_outcome"
+                    ),
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
                     provider_call_counts=provider_call_counts,
@@ -6920,6 +7208,38 @@ def analyse(
                     duplicate_repair_outcome=event_obj.get("duplicate_repair_outcome"),
                     final_validation=event_obj.get("final_validation"),
                 )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_effective_outcome":
+                if event_obj.get("effective_status") == "local_rejection":
+                    add_or_merge_local_rejection(
+                        r.ts,
+                        lane=event_obj.get("lane") or "unavailable",
+                        target_id=event_obj.get("target_id") or "",
+                        strategy_version=event_obj.get("strategy_version") or "unavailable",
+                        pipeline_stage_status=(
+                            event_obj.get("pipeline_stage_status") or "unavailable"
+                        ),
+                        effective_status="local_rejection",
+                        effective_reason=event_obj.get("effective_reason") or "",
+                        reason=(
+                            event_obj.get("original_local_rejection_reason")
+                            or event_obj.get("effective_reason")
+                            or "clarification_not_direct_factual_answer"
+                        ),
+                        original_local_rejection_reason=event_obj.get(
+                            "original_local_rejection_reason"
+                        ),
+                        direct_answer_repair_attempted=event_obj.get(
+                            "direct_answer_repair_attempted"
+                        ),
+                        direct_answer_repair_outcome=event_obj.get(
+                            "direct_answer_repair_outcome"
+                        ),
+                        incoming_contribution=event_obj.get(
+                            "incoming_contribution"
+                        ),
+                        proposed_draft=event_obj.get("proposed_draft"),
+                        repaired_draft=event_obj.get("repaired_draft"),
+                    )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_failure":
                 add_event(
                     "reply_strategy_failure",
@@ -8356,9 +8676,22 @@ def analyse(
         )
         explicit_strategy_outcome_targets.add(key)
 
+    reconcile_reply_pipeline_effective_outcomes(events)
     context_quality = historical_context_quality_summary(events)
     strategy_quality = reply_strategy_summary(events)
     pipeline_stage_quality = reply_pipeline_stage_summary(events)
+    stats["tested_pipeline_decisions_all_versions"] = int(
+        pipeline_stage_quality.get("tested_pipeline_decision_count", 0) or 0
+    )
+    stats["tested_pipeline_stage_summary_events_all_versions"] = int(
+        pipeline_stage_quality.get("all_stage_summary_event_count", 0) or 0
+    )
+    stats["tested_pipeline_complete_stage_telemetry"] = int(
+        pipeline_stage_quality.get("complete_stage_telemetry_count", 0) or 0
+    )
+    stats["tested_pipeline_partial_or_legacy_telemetry"] = int(
+        pipeline_stage_quality.get("partial_or_legacy_telemetry_count", 0) or 0
+    )
     provider_usage = {
         "events": xai_usage_events,
         "totals": xai_usage_totals(xai_usage_events),
@@ -8378,6 +8711,25 @@ def analyse(
         (index for index, item in enumerate(headline) if item.startswith("current health:")),
         len(headline),
     )
+    tested_decisions = int(
+        pipeline_stage_quality.get("tested_pipeline_decision_count", 0) or 0
+    )
+    if tested_decisions:
+        latest_version = str(
+            pipeline_stage_quality.get("latest_strategy_version") or "unavailable"
+        )
+        latest_subtotal = int(
+            pipeline_stage_quality.get(
+                "latest_strategy_version_decision_count", 0
+            )
+            or 0
+        )
+        headline.insert(
+            health_index,
+            f"{tested_decisions} tested-pipeline decisions across all versions; "
+            f"current/latest {latest_version}: {latest_subtotal}",
+        )
+        health_index += 1
     candidates = int(strategy_quality.get("conversational_candidate_count", 0) or 0)
     posted_replies = int(strategy_quality.get("confirmed_outcome_count", 0) or 0)
     declined = int(strategy_quality.get("deliberately_declined_count", 0) or 0)
@@ -10884,6 +11236,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"{plural_count(strategy.get('terminal_clarification_mode_rejection_count', 0), 'terminal clarification-mode rejection')}; "
         f"{strategy.get('deliberately_declined_count', 0)} deliberately declined.**"
     )
+    pipeline_stages = report.get("reply_pipeline_stages") or {}
+    if pipeline_stages.get("tested_pipeline_decision_count"):
+        out.append(
+            "All tested-pipeline decisions: "
+            f"**{pipeline_stages.get('tested_pipeline_decision_count', 0)}**; "
+            "complete stage telemetry: "
+            f"**{pipeline_stages.get('complete_stage_telemetry_count', 0)}**; "
+            "partial/legacy telemetry: "
+            f"**{pipeline_stages.get('partial_or_legacy_telemetry_count', 0)}**."
+        )
     out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))
     out.append(
         "Generated final reply kinds: "
@@ -10963,20 +11325,50 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row([reason, count]))
     out.append("")
 
-    pipeline_stages = report.get("reply_pipeline_stages") or {}
     if (
         pipeline_stages.get("tested_pipeline_decision_count")
         or pipeline_stages.get("evaluation_count")
     ):
         out.append("## Tested reply-pipeline stages")
         out.append(
-            f"Tested-pipeline decisions observed: **"
-            f"{pipeline_stages.get('tested_pipeline_decision_count', 0)}**; "
-            f"decisions with complete stage telemetry: **"
+            f"All tested-pipeline decisions: **"
+            f"{pipeline_stages.get('tested_pipeline_decision_count', 0)}**."
+        )
+        out.append(
+            f"All stage-summary events: **"
+            f"{pipeline_stages.get('all_stage_summary_event_count', 0)}**."
+        )
+        out.append(
+            f"Complete stage telemetry: **"
             f"{pipeline_stages.get('complete_stage_telemetry_count', 0)}**; "
-            f"decisions with partial/legacy telemetry: **"
+            f"partial/legacy telemetry: **"
             f"{pipeline_stages.get('partial_or_legacy_telemetry_count', 0)}**."
         )
+        versions = pipeline_stages.get("strategy_version_counts") or {}
+        if versions:
+            out.append("By strategy version:")
+            out.append(md_table_row([
+                "strategy version",
+                "decisions",
+                "stage summaries",
+                "complete",
+                "partial/legacy",
+            ]))
+            out.append(md_table_row(["---", "---:", "---:", "---:", "---:"]))
+            for version, counts in versions.items():
+                out.append(md_table_row([
+                    version,
+                    counts.get("decision_count", 0),
+                    counts.get("stage_summary_count", 0),
+                    counts.get("complete_stage_telemetry_count", 0),
+                    counts.get("partial_or_legacy_telemetry_count", 0),
+                ]))
+            out.append(
+                "Current/latest strategy-version subtotal "
+                f"(`{pipeline_stages.get('latest_strategy_version')}`): **"
+                f"{pipeline_stages.get('latest_strategy_version_decision_count', 0)}** "
+                "tested-pipeline decisions."
+            )
         out.append(
             f"Stage-summary events available: **{pipeline_stages.get('evaluation_count', 0)}**; "
             f"provider calls: **{compact_counts(pipeline_stages.get('provider_call_counts') or {})}**; "
@@ -11035,6 +11427,78 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"{compact_counts(pipeline_stages.get('duplicate_repair_outcome_counts') or {})}; "
             f"final validation: {compact_counts(pipeline_stages.get('final_validation_counts') or {})}."
         )
+        out.append("")
+
+    local_rejections = [
+        event
+        for event in (report.get("events") or [])
+        if event.get("kind") == "reply_strategy_local_rejection"
+    ]
+    if local_rejections:
+        out.append("## Effective local reply rejections")
+        out.append(
+            "These drafts passed an internal pipeline stage but did not become "
+            "public replies because a later local guard rejected them."
+        )
+        for event in local_rejections:
+            target = str(event.get("target_id") or "unavailable")
+            proposed = event.get("proposed_draft")
+            repaired = event.get("repaired_draft")
+            out.append("")
+            out.append(f"### Target `{target}`")
+            out.append("")
+            out.append(
+                "- Incoming contribution: "
+                + json.dumps(
+                    event.get("incoming_contribution")
+                    or "unavailable (not retained in the log window)",
+                    ensure_ascii=False,
+                )
+            )
+            out.append(
+                "- Proposed draft: "
+                + json.dumps(
+                    proposed
+                    or (
+                        "unavailable (the provider response was not retained "
+                        "before the local guard)"
+                    ),
+                    ensure_ascii=False,
+                )
+            )
+            out.append(
+                "- Original local rejection reason: `"
+                + str(
+                    event.get("original_local_rejection_reason")
+                    or event.get("reason")
+                    or "unavailable"
+                )
+                + "`"
+            )
+            attempted = event.get("direct_answer_repair_attempted")
+            out.append(
+                "- Direct-answer repair attempted: **"
+                + ("yes" if attempted is True else "no" if attempted is False else "unavailable")
+                + "**; outcome: `"
+                + str(event.get("direct_answer_repair_outcome") or "unavailable")
+                + "`"
+            )
+            if repaired:
+                out.append(
+                    "- Repaired draft: "
+                    + json.dumps(repaired, ensure_ascii=False)
+                )
+            out.append(
+                "- Final effective outcome: `"
+                + str(event.get("effective_status") or "local_rejection")
+                + "`; reason: `"
+                + str(
+                    event.get("effective_reason")
+                    or event.get("reason")
+                    or "unavailable"
+                )
+                + "`"
+            )
         out.append("")
 
     bounded_protocol_warnings = [
@@ -11272,8 +11736,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
             "time",
             "lane",
             "target_id",
-            "status",
-            "terminal_reason",
+            "strategy_version",
+            "pipeline_stage_status",
+            "pipeline_stage_reason",
+            "effective_status",
+            "effective_reason",
+            "direct_answer_repair_attempted",
+            "direct_answer_repair_outcome",
             "xai_gate_decision",
             "reply_necessity_outcome",
             "reply_necessity_majority_resolvable",

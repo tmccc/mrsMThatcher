@@ -1684,6 +1684,56 @@ def test_prefixed_quote_pagination_traceback_stays_visible_but_resolves():
 
 
 def test_tested_pipeline_coverage_counts_decisions_and_stage_telemetry():
+    old_version = "tested-reply-pipeline-20260816"
+    current_version = "tested-reply-pipeline-20260817"
+    version_by_target = {
+        str(index): old_version if index < 8 else current_version
+        for index in range(9)
+    }
+    events = []
+    for target_id, version in version_by_target.items():
+        events.extend([
+            {
+                "kind": "reply_strategy_decision",
+                "strategy_version": version,
+                "lane": "mention",
+                "target_id": target_id,
+            },
+            {
+                "kind": "reply_pipeline_stage_summary",
+                "strategy_version": version,
+                "lane": "mention",
+                "target_id": target_id,
+                "provider_call_counts": {"xAI": 1, "OpenAI": 1},
+            },
+        ])
+
+    summary = digest.reply_pipeline_stage_summary(events)
+
+    assert summary["tested_pipeline_decision_count"] == 9
+    assert summary["all_stage_summary_event_count"] == 9
+    assert summary["complete_stage_telemetry_count"] == 9
+    assert summary["partial_or_legacy_telemetry_count"] == 0
+    assert summary["evaluation_count"] == 9
+    assert summary["strategy_version_counts"] == {
+        old_version: {
+            "decision_count": 8,
+            "stage_summary_count": 8,
+            "complete_stage_telemetry_count": 8,
+            "partial_or_legacy_telemetry_count": 0,
+        },
+        current_version: {
+            "decision_count": 1,
+            "stage_summary_count": 1,
+            "complete_stage_telemetry_count": 1,
+            "partial_or_legacy_telemetry_count": 0,
+        },
+    }
+    assert summary["latest_strategy_version"] == current_version
+    assert summary["latest_strategy_version_decision_count"] == 1
+
+
+def test_tested_pipeline_partial_telemetry_remains_explicit():
     version = "tested-reply-pipeline-20260817"
     events = [
         {
@@ -1692,25 +1742,19 @@ def test_tested_pipeline_coverage_counts_decisions_and_stage_telemetry():
             "lane": "mention",
             "target_id": str(index),
         }
-        for index in range(10)
+        for index in range(4)
     ]
-    events.extend(
-        {
-            "kind": "reply_pipeline_stage_summary",
-            "strategy_version": version,
-            "lane": "mention",
-            "target_id": str(index),
-            "provider_call_counts": {"xAI": 1, "OpenAI": 1},
-        }
-        for index in range(3)
-    )
+    events.append({
+        "kind": "reply_pipeline_stage_summary",
+        "strategy_version": version,
+        "lane": "mention",
+        "target_id": "0",
+    })
 
     summary = digest.reply_pipeline_stage_summary(events)
 
-    assert summary["tested_pipeline_decision_count"] == 10
-    assert summary["complete_stage_telemetry_count"] == 3
-    assert summary["partial_or_legacy_telemetry_count"] == 7
-    assert summary["evaluation_count"] == 3
+    assert summary["complete_stage_telemetry_count"] == 1
+    assert summary["partial_or_legacy_telemetry_count"] == 3
 
 
 def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
