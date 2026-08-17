@@ -297,6 +297,7 @@ MENTIONS_MAX_PAGES_PER_CHECK = 3
 AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
 AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
 AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
+AUTHOR_NO_REPLY_EPOCH_LIMIT = max(100, AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD * 4)
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = "majority_spam_or_abuse_v1"
 
 # Optional hot-post reply lane. This reuses the same watched post ID file
@@ -501,6 +502,11 @@ LOCAL_CONFIG_MAX_BYTES = 64 * 1024
 CONTROL_FILE = BASE_DIR / "mrsMThatcher.control.json"
 LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
+STATE_READER_VERSION = 2
+STATE_MINIMUM_READER_VERSION = 2
+STATE_READER_COMPATIBILITY_FENCE = {
+    "__mrs_state_reader_compatibility_fence__": STATE_MINIMUM_READER_VERSION,
+}
 
 # Re-read before each quote-tweet check; edit this file while the bot is running.
 EXTRA_QUOTE_WATCH_FILE = BASE_DIR / "extra_quote_watch_post_ids.txt"
@@ -3756,9 +3762,11 @@ def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
 def default_state() -> dict:
     """Build a new runtime-state document with safe defaults."""
     return {
+        "minimum_reader_version": STATE_MINIMUM_READER_VERSION,
         "last_seen_mention_id": None,
         "mention_pagination": {},
         "mention_backlog": {},
+        "mention_backlog_reset_guard": {},
         "mention_pending_candidates": {},
         "author_evaluation_quarantines": {},
         "replied_to_ids": [],
@@ -4115,6 +4123,7 @@ def prune_author_evaluation_quarantines(
             if type(epoch) is int and cutoff < epoch <= current
         ]
         recent.sort()
+        recent = recent[-AUTHOR_NO_REPLY_EPOCH_LIMIT:]
         until = int(raw_record.get("quarantine_until_epoch", 0) or 0)
         updated = int(raw_record.get("last_updated_epoch", 0) or 0)
         if until and until <= current:
@@ -4192,6 +4201,7 @@ def record_qualifying_author_no_reply(
     ]
     recent.append(current)
     recent.sort()
+    recent = recent[-AUTHOR_NO_REPLY_EPOCH_LIMIT:]
     until = int(existing.get("quarantine_until_epoch", 0) or 0)
     started = False
     if until <= current and len(recent) >= AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD:
@@ -4341,6 +4351,60 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
     return candidate
 
 
+def normalise_mention_backlog_reset_guard(
+    value: object,
+    *,
+    path: Path,
+) -> dict[str, object] | None:
+    """Validate the watermark guard installed when mention provenance is reset."""
+    if not isinstance(value, dict):
+        log.error(
+            "State candidate %s has invalid mention_backlog_reset_guard type %s; ignoring",
+            path,
+            type(value).__name__,
+        )
+        return None
+    if not value:
+        return {}
+    if set(value) != {"base_since_id", "head_traversal_started"}:
+        log.error(
+            "State candidate %s has invalid mention_backlog_reset_guard fields; ignoring",
+            path,
+        )
+        return None
+    base_since_id = value.get("base_since_id")
+    head_traversal_started = value.get("head_traversal_started")
+    if (
+        not isinstance(base_since_id, str)
+        or (base_since_id and not base_since_id.isdigit())
+        or type(head_traversal_started) is not bool
+    ):
+        log.error(
+            "State candidate %s has invalid mention_backlog_reset_guard values; ignoring",
+            path,
+        )
+        return None
+    return {
+        "base_since_id": base_since_id,
+        "head_traversal_started": head_traversal_started,
+    }
+
+
+def active_mention_backlog_reset_guard(state: dict) -> dict[str, object] | None:
+    """Return the reset guard only while it is bound to the current watermark."""
+    guard = state.get("mention_backlog_reset_guard")
+    if (
+        not isinstance(guard, dict)
+        or set(guard) != {"base_since_id", "head_traversal_started"}
+        or not isinstance(guard.get("base_since_id"), str)
+        or type(guard.get("head_traversal_started")) is not bool
+        or str(guard["base_since_id"])
+        != str(state.get("last_seen_mention_id") or "")
+    ):
+        return None
+    return guard
+
+
 def normalise_mention_backlog(
     value: object,
     *,
@@ -4459,7 +4523,7 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
                 or timestamp > MAX_REASONABLE_STATE_EPOCH
                 for timestamp in timestamps
             )
-            or len(timestamps) > max(100, AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD * 4)
+            or len(timestamps) > AUTHOR_NO_REPLY_EPOCH_LIMIT
             or timestamps != sorted(timestamps)
         ):
             return None
@@ -4583,6 +4647,55 @@ def validate_meme_schedule_version_for_candidate(state: dict, *, path: Path) -> 
     return validate_meme_schedule_state(state, path=path)
 
 
+class IncompatibleStateReaderError(RuntimeError):
+    """Raised when durable state requires a newer executable."""
+
+
+def require_compatible_state_reader(
+    state: dict,
+    *,
+    path: Path,
+    reader_version: int | None = None,
+) -> int:
+    """Return the declared minimum after rejecting an incompatible reader."""
+    raw_minimum = state.get("minimum_reader_version", 1)
+    if type(raw_minimum) is not int or raw_minimum < 1:
+        raise IncompatibleStateReaderError(
+            f"State candidate {path} has invalid minimum reader version "
+            f"{raw_minimum!r}"
+        )
+    supported = STATE_READER_VERSION if reader_version is None else reader_version
+    if type(supported) is not int or supported < 1:
+        raise ValueError("reader_version must be a positive integer")
+    if raw_minimum > supported:
+        raise IncompatibleStateReaderError(
+            f"State candidate {path} requires minimum reader version "
+            f"{raw_minimum}, but this executable supports {supported}; refusing "
+            "state mutation and backup fallback"
+        )
+    return raw_minimum
+
+
+def state_document_for_persistence(state: dict) -> dict:
+    """Return state with the reader declaration and pre-reader rollback fence."""
+    minimum = require_compatible_state_reader(state, path=STATE_FILE)
+    legacy_drafts = state.get("pending_reply_drafts")
+    if legacy_drafts not in (None, {}, STATE_READER_COMPATIBILITY_FENCE):
+        raise RuntimeError(
+            "Legacy V1 reply drafts remain in runtime state; refusing to "
+            "overwrite them with the reader compatibility fence"
+        )
+    document = dict(state)
+    document["minimum_reader_version"] = max(
+        minimum,
+        STATE_MINIMUM_READER_VERSION,
+    )
+    document["pending_reply_drafts"] = copy.deepcopy(
+        STATE_READER_COMPATIBILITY_FENCE
+    )
+    return document
+
+
 def normalise_state_candidate(
     state: dict,
     *,
@@ -4590,6 +4703,7 @@ def normalise_state_candidate(
     recovery_events: list[dict[str, object]] | None = None,
 ) -> dict | None:
     """Normalise state candidate."""
+    minimum_reader_version = require_compatible_state_reader(state, path=path)
     list_keys = {
         "replied_to_ids",
         "dry_run_seen_mention_ids",
@@ -4647,6 +4761,10 @@ def normalise_state_candidate(
 
     normalised = default_state()
     normalised.update(state)
+    normalised["minimum_reader_version"] = max(
+        minimum_reader_version,
+        STATE_MINIMUM_READER_VERSION,
+    )
 
     for key in list_keys:
         if key in state:
@@ -4712,6 +4830,14 @@ def normalise_state_candidate(
         if value is None:
             return None
         normalised["mention_pagination"] = value
+    if "mention_backlog_reset_guard" in state:
+        value = normalise_mention_backlog_reset_guard(
+            state["mention_backlog_reset_guard"],
+            path=path,
+        )
+        if value is None:
+            return None
+        normalised["mention_backlog_reset_guard"] = value
     if "mention_backlog" in state:
         raw_backlog = state["mention_backlog"]
         token_overflow = (
@@ -4730,6 +4856,13 @@ def normalise_state_candidate(
         normalised["mention_backlog"] = value
         if token_overflow:
             normalised["mention_pagination"] = {}
+            normalised["mention_pending_candidates"] = {}
+            normalised["mention_backlog_reset_guard"] = {
+                "base_since_id": str(
+                    normalised.get("last_seen_mention_id") or ""
+                ),
+                "head_traversal_started": False,
+            }
             if recovery_events is not None:
                 recovery_events.append({
                     "reason": "continuation_token_limit",
@@ -4791,7 +4924,7 @@ def load_state() -> dict:
         for recovery in candidate_recoveries.get(candidate, []):
             log.warning(
                 "Resetting oversized mention backlog while loading %s; "
-                "watermark and pending candidates remain unchanged",
+                "watermark remains unchanged and pending candidates were discarded",
                 candidate,
             )
             log_event("mention_backlog_reset", **recovery)
@@ -4822,8 +4955,27 @@ def load_state() -> dict:
         if not isinstance(state, dict):
             log.error("State file candidate %s is not a JSON object; ignoring", candidate)
             return None
+        minimum_reader_version = require_compatible_state_reader(
+            state,
+            path=candidate,
+        )
         legacy_drafts = state.get("pending_reply_drafts")
-        if legacy_drafts not in (None, {}):
+        if minimum_reader_version >= STATE_MINIMUM_READER_VERSION:
+            if legacy_drafts != STATE_READER_COMPATIBILITY_FENCE:
+                message = (
+                    f"State candidate {candidate} declares minimum reader version "
+                    f"{minimum_reader_version} without the exact compatibility "
+                    "fence; refusing unsafe rollback state"
+                )
+                if reject_legacy:
+                    log.critical(message)
+                    raise RuntimeError(message)
+                log.warning(
+                    "%s; candidate is not needed because primary state is usable",
+                    message,
+                )
+                return None
+        elif legacy_drafts not in (None, {}):
             message = (
                 f"Legacy V1 reply drafts remain in {candidate}; refusing to interpret or post them "
                 "through the AI-first strategy"
@@ -4834,6 +4986,10 @@ def load_state() -> dict:
             log.warning("%s; candidate is not needed because primary state is usable", message)
             return None
         state.pop("pending_reply_drafts", None)
+        state["minimum_reader_version"] = max(
+            minimum_reader_version,
+            STATE_MINIMUM_READER_VERSION,
+        )
         recovery_events: list[dict[str, object]] = []
         normalised = normalise_state_candidate(
             state,
@@ -4989,6 +5145,7 @@ def save_state(state: dict, *, durable: bool = False) -> None:
         raise RuntimeError(f"Refusing test-process write to production state: {STATE_FILE}")
     log.debug("Saving state to %s", STATE_FILE)
     log_json_debug("State summary being saved", state_debug_summary(state))
+    persisted_state = state_document_for_persistence(state)
 
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -5000,7 +5157,7 @@ def save_state(state: dict, *, durable: bool = False) -> None:
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             os.fchmod(handle.fileno(), 0o600)
-            json.dump(state, handle, indent=2, sort_keys=True)
+            json.dump(persisted_state, handle, indent=2, sort_keys=True)
             if durable:
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -6089,10 +6246,11 @@ def x_paginated_get(
 
     A cursor-specific HTTP 400 gets one recovery from the original collection
     head. The caller clears its durable saved cursor before that retry. Other
-    client errors remain fail-closed. By default a repeated token is rejected
-    before it can be requested twice or persisted as a continuation. A caller
-    may instead supply ``on_repeated_cursor`` to retain the bounded partial
-    result and stop normally.
+    client errors remain fail-closed. Every validated page is passed to
+    ``on_page`` before a repeated returned token terminates traversal. By
+    default the repeated token is then rejected before it can be requested
+    twice. A caller may instead supply ``on_repeated_cursor`` to retain the
+    bounded partial result and stop normally.
     """
     base_params = dict(params)
     recovered_invalid_cursor = False
@@ -6200,6 +6358,14 @@ def x_paginated_get(
                 len(page_data) if isinstance(page_data, list) else 0,
                 bool(next_token),
             )
+            if on_page is not None:
+                on_page(
+                    page_data,
+                    includes,
+                    next_token,
+                    request_token,
+                    pages_fetched,
+                )
             if next_token and next_token in requested_tokens:
                 if on_repeated_cursor is None:
                     invalidate_cursor_state()
@@ -6215,14 +6381,6 @@ def x_paginated_get(
                 repeated_token_detected = True
                 next_token = ""
                 break
-            if on_page is not None:
-                on_page(
-                    page_data,
-                    includes,
-                    next_token,
-                    request_token,
-                    pages_fetched,
-                )
             if not next_token:
                 break
 
@@ -6939,13 +7097,22 @@ def get_mentions(state: dict) -> list[dict]:
             if isinstance(backlog, dict)
             else 0
         )
+        pending = state.get("mention_pending_candidates")
+        discarded_candidates = len(pending) if isinstance(pending, dict) else 0
+        state["mention_backlog_reset_guard"] = {
+            "base_since_id": str(state.get("last_seen_mention_id") or ""),
+            "head_traversal_started": False,
+        }
         state["mention_backlog"] = {}
         state["mention_pagination"] = {}
+        state["mention_pending_candidates"] = {}
         save_state(state, durable=True)
         if not reset_logged:
             log.warning(
-                "Mention backlog continuation was reset reason=%s; watermark remains unchanged",
+                "Mention backlog continuation was reset reason=%s; watermark "
+                "remains unchanged and %d pending candidate(s) were discarded",
                 reason,
+                discarded_candidates,
             )
             log_event(
                 "mention_backlog_reset",
@@ -7001,6 +7168,12 @@ def get_mentions(state: dict) -> list[dict]:
             }
             state["mention_backlog"] = backlog
             state["mention_pagination"] = {}
+            reset_guard = active_mention_backlog_reset_guard(state)
+            if reset_guard is not None and not reset_guard["head_traversal_started"]:
+                state["mention_backlog_reset_guard"] = {
+                    "base_since_id": watermark,
+                    "head_traversal_started": True,
+                }
             save_state(state, durable=True)
 
         base_since_id = str(backlog["since_id"])
@@ -7115,10 +7288,22 @@ def get_mentions(state: dict) -> list[dict]:
                     )
                 return
 
-            if highest:
+            reset_guard = active_mention_backlog_reset_guard(state)
+            head_traversal_completed = bool(
+                reset_guard is not None
+                and reset_guard["head_traversal_started"]
+            )
+            if highest and (reset_guard is None or head_traversal_completed):
                 update_last_seen_mention_id(state, highest)
+            elif highest and reset_guard is not None:
+                log.warning(
+                    "Deferring mention watermark advancement after a reset "
+                    "until a traversal from the collection head completes"
+                )
             state["mention_backlog"] = {}
             state["mention_pagination"] = {}
+            if head_traversal_completed:
+                state["mention_backlog_reset_guard"] = {}
             prune_completed_mention_quarantine_evaluations(state)
             save_state(state, durable=True)
             traversal_completed = True
@@ -7134,7 +7319,16 @@ def get_mentions(state: dict) -> list[dict]:
         def invalid_cursor() -> None:
             reset_backlog("invalid_continuation_token", token=resume_token)
 
-        def repeated_cursor(token: str, _pages: int, _results: int) -> None:
+        def repeated_cursor(token: str, pages: int, _results: int) -> None:
+            pending = state.get("mention_pending_candidates")
+            if pages > 0 and isinstance(pending, dict) and pending:
+                log.warning(
+                    "Mention backlog repeated its continuation token after a "
+                    "persisted page; retaining pagination provenance until %d "
+                    "pending candidate(s) are handled",
+                    len(pending),
+                )
+                return
             reset_backlog("repeated_continuation_token", token=token)
 
         try:
@@ -13112,8 +13306,13 @@ def save_regular_post_protected_state(lines_used: set, images_used: set, state: 
 def json_file_matches(path: Path, expected: object) -> bool:
     """Return whether a JSON file contains exactly the expected value."""
     try:
+        comparison = (
+            state_document_for_persistence(expected)
+            if path == STATE_FILE and isinstance(expected, dict)
+            else expected
+        )
         with open(path, "r", encoding="utf-8") as handle:
-            return json.load(handle) == expected
+            return json.load(handle) == comparison
     except Exception:
         return False
 
@@ -20403,6 +20602,13 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
                 target_id,
                 mention_pagination_to_preserve["base_since_id"] or None,
             )
+        elif active_mention_backlog_reset_guard(state) is not None:
+            log.warning(
+                "Deferring mention watermark advancement for confirmed reply "
+                "target_id=%s until a post-reset traversal from the collection "
+                "head completes",
+                target_id,
+            )
         else:
             update_last_seen_mention_id(state, target_id)
 
@@ -21148,8 +21354,10 @@ def maybe_reply_to_mentions(
             continue
 
         clarification = clarification_reply_context(state, mention, current=current)
+        author_cap_reached = daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY
+        local_spam_rejection = is_probably_spam_or_not_worth_replying(incoming_text)
 
-        if candidate_source == "mention" and clarification is None:
+        if candidate_source == "mention":
             quarantine = active_author_evaluation_quarantine(
                 state,
                 author_id,
@@ -21164,7 +21372,9 @@ def maybe_reply_to_mentions(
                     quarantine_until_epoch=quarantine.get(
                         "quarantine_until_epoch"
                     ),
-                    pipeline_evaluations_skipped=1,
+                    pipeline_evaluations_skipped=int(
+                        not author_cap_reached and not local_spam_rejection
+                    ),
                 )
                 maybe_mark_hot_post_reply_skipped(state, mention, reason=reason)
                 log_event(
@@ -21190,14 +21400,13 @@ def maybe_reply_to_mentions(
                 quarantine_retirements_pending = True
                 continue
 
-        author_cap_reached = daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY
         if author_cap_reached:
             log.info(
                 "Skipping mention %s: already reached per-author daily cap for author_id=%s",
                 mention_id,
                 author_id,
             )
-            if not is_probably_spam_or_not_worth_replying(incoming_text):
+            if not local_spam_rejection:
                 cache_tweet(
                     state,
                     tweet_id=mention_id,
@@ -21214,7 +21423,7 @@ def maybe_reply_to_mentions(
             save_state(state)
             continue
 
-        if is_probably_spam_or_not_worth_replying(incoming_text):
+        if local_spam_rejection:
             log.info("Skipping %s %s: spam/not worth replying", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="spam_or_not_worth_replying")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="spam_or_not_worth_replying")

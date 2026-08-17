@@ -128,6 +128,51 @@ def test_real_ledger_is_valid_and_markdown_summary_is_synchronized() -> None:
     assert dict(report.status_counts)
 
 
+def test_review_revisions_are_evidence_identities_not_repository_commits() -> None:
+    external_review = "f" * 40
+    local_fix = "e" * 40
+    ledger = {
+        "defects": [
+            {
+                "first_review_scope": {
+                    "reviewed_revision": external_review,
+                    "source": "Independent review package",
+                },
+                "detection": {
+                    "revision": external_review,
+                    "source": "Immutable reproduction record",
+                },
+                "fix": {"commit": local_fix},
+            }
+        ]
+    }
+
+    commits = ledger_tool._repository_commit_values(ledger)
+
+    assert commits == {local_fix}
+    assert external_review not in commits
+
+
+@pytest.mark.parametrize(
+    "record_name",
+    ["first_review_scope", "detection"],
+)
+def test_external_review_revision_retains_required_source_metadata(
+    record_name: str,
+) -> None:
+    ledger, schema, invariants = _documents()
+    defect = next(item for item in ledger["defects"] if item["id"] == "DEF-0018")
+    defect[record_name]["source"] = ""
+
+    report = _validate(ledger, schema, invariants)
+
+    assert not report.ok
+    assert any(
+        record_name in error and "shorter than 1" in error
+        for error in report.errors
+    )
+
+
 def test_external_evidence_accepts_exact_ignored_observation_not_shadow(
     tmp_path: Path,
 ) -> None:

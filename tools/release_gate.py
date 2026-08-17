@@ -2036,7 +2036,13 @@ def json_object_bytes(payload: bytes, *, label: str) -> dict[str, Any]:
 
 
 def ledger_commit_identities(ledger: Mapping[str, Any]) -> tuple[str, ...]:
-    """Extract every Git commit identity required by the ledger schema."""
+    """Extract repository commits needed by detached ledger validation.
+
+    Review-scope and detection revisions are externally supplied evidence
+    identities with their own structured source metadata.  They do not imply
+    that the reviewed object is retained in this repository and therefore
+    must not be requested from its object database.
+    """
     commits: set[str] = set()
 
     def add(value: Any) -> None:
@@ -2080,8 +2086,6 @@ def ledger_commit_identities(ledger: Mapping[str, Any]) -> tuple[str, ...]:
                 if isinstance(event, Mapping):
                     add(event.get("commit"))
         for key, field in (
-            ("first_review_scope", "reviewed_revision"),
-            ("detection", "revision"),
             ("fix", "commit"),
             ("deployment", "observed_commit"),
         ):

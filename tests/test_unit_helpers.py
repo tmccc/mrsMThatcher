@@ -9990,8 +9990,9 @@ def test_load_state_accepts_semantically_equal_differently_encoded_latest_pair(
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
     state = bot.default_state()
     state["last_reply_epoch"] = 1_800_000_100
-    bot.atomic_write_json(state_file, state)
-    reordered = dict(reversed(list(state.items())))
+    persisted = bot.state_document_for_persistence(state)
+    bot.atomic_write_json(state_file, persisted)
+    reordered = dict(reversed(list(persisted.items())))
     backup_file.write_text(
         json.dumps(reordered, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
@@ -12100,6 +12101,64 @@ def test_confirmed_mention_receipt_restores_pagination_without_advancing_waterma
     assert state["own_auto_reply_ids"].count("999") == 1
 
 
+def test_confirmed_mention_receipt_after_backlog_reset_cannot_skip_unseen_ids(
+    tmp_path: Path,
+) -> None:
+    pagination = {
+        "base_since_id": "99",
+        "next_token": "page-A",
+    }
+    receipt = unit_confirmed_v4_reply_receipt(target_id="105")
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
+
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_backlog"] = {
+        "since_id": "99",
+        "next_token": "page-A",
+        "highest_mention_id": "105",
+        "pages_completed": bot.MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT + 1,
+        "started_epoch": 2_000_000_000,
+        "seen_tokens": [
+            f"token-{index}"
+            for index in range(bot.MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT + 1)
+        ],
+        "announced": True,
+    }
+    state["mention_pagination"] = dict(pagination)
+    state["mention_pending_candidates"] = {
+        "105": {
+            "id": "105",
+            "author_id": "200",
+            "conversation_id": "105",
+            "text": "A queued mention.",
+        }
+    }
+
+    reset_state = bot.normalise_state_candidate(
+        state,
+        path=tmp_path / "bot_state.json",
+    )
+    assert reset_state is not None
+    assert reset_state["mention_backlog"] == {}
+    assert reset_state["mention_pagination"] == {}
+    assert reset_state["mention_pending_candidates"] == {}
+    assert reset_state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+
+    bot.apply_confirmed_reply_receipt(reset_state, receipt)
+
+    assert reset_state["last_seen_mention_id"] == "99"
+    assert reset_state["mention_pagination"] == {}
+    assert reset_state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+    assert "105" in reset_state["replied_to_ids"]
+
+
 def test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -13837,7 +13896,8 @@ def test_paginated_get_does_not_retry_unrelated_bad_request() -> None:
 
 
 def test_paginated_get_rejects_repeated_continuation_token_a_to_a() -> None:
-    events: list[tuple[str, str | None]] = []
+    events: list[tuple[str, object]] = []
+    persisted_ids: list[str] = []
 
     def request(_path: str, params: dict) -> dict:
         token = params.get("pagination_token")
@@ -13848,6 +13908,17 @@ def test_paginated_get_rejects_repeated_continuation_token_a_to_a() -> None:
             "meta": {"next_token": "A"},
         }
 
+    def persist_page(
+        page_data: list[dict],
+        _includes: dict,
+        _next_token: str,
+        _request_token: str,
+        _pages_fetched: int,
+    ) -> None:
+        page_ids = [str(item["id"]) for item in page_data]
+        persisted_ids.extend(page_ids)
+        events.append(("persist", page_ids))
+
     with pytest.raises(bot.PaginationCursorProtocolError, match="(?i)repeated"):
         bot.x_paginated_get(
             request,
@@ -13856,11 +13927,15 @@ def test_paginated_get_rejects_repeated_continuation_token_a_to_a() -> None:
             max_pages=5,
             label="mentions",
             on_invalid_cursor=lambda: events.append(("clear", None)),
+            on_page=persist_page,
         )
 
+    assert persisted_ids == ["100", "101"]
     assert events == [
         ("request", None),
+        ("persist", ["100"]),
         ("request", "A"),
+        ("persist", ["101"]),
         ("clear", None),
     ]
 
@@ -15025,6 +15100,30 @@ def test_mention_pagination_state_rejects_malformed_cursor(
     value: object,
 ) -> None:
     assert bot.normalise_mention_pagination(
+        value,
+        path=tmp_path / "bot_state.json",
+    ) is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        [],
+        {"base_since_id": "99"},
+        {"base_since_id": 99, "head_traversal_started": False},
+        {"base_since_id": "99", "head_traversal_started": 0},
+        {
+            "base_since_id": "99",
+            "head_traversal_started": False,
+            "unexpected": True,
+        },
+    ],
+)
+def test_mention_backlog_reset_guard_rejects_malformed_state(
+    tmp_path: Path,
+    value: object,
+) -> None:
+    assert bot.normalise_mention_backlog_reset_guard(
         value,
         path=tmp_path / "bot_state.json",
     ) is None

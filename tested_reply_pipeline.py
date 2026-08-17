@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Final
 
 
-STRATEGY_VERSION = "tested-reply-pipeline-20260816"
+STRATEGY_VERSION = "tested-reply-pipeline-20260817"
 DRAFT_SCHEMA_VERSION = 1
 
 XAI_GATE_PROMPT = """You write public replies for a Margaret Thatcher quotation account on X.

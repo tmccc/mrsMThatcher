@@ -1684,7 +1684,7 @@ def test_prefixed_quote_pagination_traceback_stays_visible_but_resolves():
 
 
 def test_tested_pipeline_coverage_counts_decisions_and_stage_telemetry():
-    version = "tested-reply-pipeline-20260816"
+    version = "tested-reply-pipeline-20260817"
     events = [
         {
             "kind": "reply_strategy_decision",
@@ -1717,7 +1717,7 @@ def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
     payload = {
         "event": "ai_reply_pipeline_decision",
         "status": "approved",
-        "strategy_version": "tested-reply-pipeline-20260816",
+        "strategy_version": "tested-reply-pipeline-20260817",
         "lane": "mention",
         "target_id": "100",
         "mode": "direct_factual_answer",
@@ -1753,7 +1753,7 @@ def test_new_pipeline_evidence_fields_distinguish_supply_from_unknown_use():
 
 def test_nonfactual_pipeline_mode_and_unknown_reply_kind_stay_independent():
     common = {
-        "strategy_version": "tested-reply-pipeline-20260816",
+        "strategy_version": "tested-reply-pipeline-20260817",
         "lane": "mention",
         "target_id": "100",
         "mode": "opinion_or_principle",

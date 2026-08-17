@@ -173,7 +173,7 @@ def test_operational_failure_does_not_add_strike(
     assert state["author_evaluation_quarantines"] == {}
 
 
-def test_active_quarantine_uses_zero_provider_calls_after_clarification_check(
+def test_active_quarantine_reports_one_skipped_pipeline_evaluation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     current = 2_000_000_000
@@ -187,6 +187,12 @@ def test_active_quarantine_uses_zero_provider_calls_after_clarification_check(
     state["mention_pending_candidates"] = {"100": copy.deepcopy(candidate)}
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
     monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
     monkeypatch.setattr(
         bot,
         "build_context_for_reply_ai",
@@ -206,9 +212,16 @@ def test_active_quarantine_uses_zero_provider_calls_after_clarification_check(
         terminal["evidence_policy"]
         == bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
     )
+    quarantine_events = [
+        values
+        for name, values in events
+        if name == "author_evaluation_quarantine_skip"
+    ]
+    assert len(quarantine_events) == 1
+    assert quarantine_events[0]["pipeline_evaluations_skipped"] == 1
 
 
-def test_active_quarantine_allows_valid_clarification_candidate(
+def test_active_quarantine_blocks_valid_clarification_candidate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     current = 2_000_000_000
@@ -217,6 +230,52 @@ def test_active_quarantine_allows_valid_clarification_candidate(
         bot.record_qualifying_author_no_reply(
             state, "200", current_epoch=current - 3 + offset
         )
+    candidate = mention(100, 200, "@MrsMThatcher That did not answer my question.")
+    state["last_seen_mention_id"] = "99"
+    state["mention_pending_candidates"] = {"100": copy.deepcopy(candidate)}
+    configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
+    monkeypatch.setattr(
+        bot,
+        "clarification_reply_context",
+        lambda *_args, **_kwargs: {
+            "thread_id": "100",
+            "prior_bot_reply_id": "90",
+            "original_question_id": "80",
+            "question_text": "What policy follows from that?",
+            "trigger": "explicit_correction",
+        },
+    )
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda *_args, **_kwargs: pytest.fail(
+            "active quarantine must block clarification context work"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda *_args, **_kwargs: pytest.fail(
+            "active quarantine must block clarification provider work"
+        ),
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    terminal = bot.terminal_reply_evaluation(state, "100")
+    assert terminal is not None
+    assert terminal["reason"] == "author_evaluation_quarantine"
+
+
+def test_expired_quarantine_allows_valid_clarification_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = 2_000_000_000
+    state = bot.default_state()
+    for offset in range(3):
+        bot.record_qualifying_author_no_reply(
+            state, "200", current_epoch=start + offset
+        )
+    current = start + 2 + bot.AUTHOR_NO_REPLY_QUARANTINE_SECONDS
     candidate = mention(100, 200, "@MrsMThatcher That did not answer my question.")
     configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
     monkeypatch.setattr(
@@ -257,6 +316,7 @@ def test_active_quarantine_allows_valid_clarification_candidate(
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert evaluated == ["100"]
+    assert state["author_evaluation_quarantines"] == {}
     assert bot.terminal_reply_evaluation(state, "100")["reason"] == "reply_necessity_review"
 
 
@@ -298,6 +358,52 @@ def test_quarantine_survives_reload_expires_and_is_pruned(
         current_epoch=start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
     ) is True
     assert loaded["author_evaluation_quarantines"] == {}
+
+
+def test_qualifying_no_reply_epochs_stay_bounded_through_five_backup_generations(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = 2_000_000_000
+    insertion_count = bot.AUTHOR_NO_REPLY_EPOCH_LIMIT + 5
+    current = start + insertion_count
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 5)
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    state = bot.default_state()
+
+    for offset in range(insertion_count):
+        bot.record_qualifying_author_no_reply(
+            state,
+            "200",
+            current_epoch=start + offset,
+        )
+
+    expected_epochs = list(range(start + 5, start + insertion_count))
+    record = state["author_evaluation_quarantines"]["200"]
+    assert len(record["recent_no_reply_epochs"]) == bot.AUTHOR_NO_REPLY_EPOCH_LIMIT
+    assert record["recent_no_reply_epochs"] == expected_epochs
+    assert bot.normalise_author_evaluation_quarantines(
+        state["author_evaluation_quarantines"],
+        path=state_file,
+    ) == state["author_evaluation_quarantines"]
+
+    for _generation in range(bot.STATE_BACKUP_COUNT + 1):
+        bot.save_state(state, durable=True)
+        state = bot.load_state()
+        record = state["author_evaluation_quarantines"]["200"]
+        assert record["recent_no_reply_epochs"] == expected_epochs
+        assert bot.active_author_evaluation_quarantine(
+            state,
+            "200",
+            current_epoch=current,
+        ) is not None
+
+    assert all(
+        state_file.with_name(f"{state_file.name}.bak{index}").is_file()
+        for index in range(1, bot.STATE_BACKUP_COUNT + 1)
+    )
 
 
 def test_legacy_broad_quarantine_records_are_dropped_during_load_normalisation(
@@ -472,6 +578,79 @@ def test_quarantine_skips_batch_one_durable_state_write(
     assert len(quarantine_events) == len(candidates)
     assert all(event.get("pipeline_evaluations_skipped") == 1 for event in quarantine_events)
     assert all("provider_calls_avoided" not in event for event in quarantine_events)
+
+
+@pytest.mark.parametrize(
+    ("author_cap_reached", "local_spam_rejection"),
+    [
+        (True, False),
+        (False, True),
+        (True, True),
+    ],
+)
+def test_quarantine_does_not_credit_deterministic_gate_overlap(
+    monkeypatch: pytest.MonkeyPatch,
+    author_cap_reached: bool,
+    local_spam_rejection: bool,
+) -> None:
+    current = 2_000_000_000
+    state = bot.default_state()
+    for offset in range(3):
+        bot.record_qualifying_author_no_reply(
+            state, "200", current_epoch=current - 3 + offset
+        )
+    if author_cap_reached:
+        state["daily_reply_date"] = bot.reply_cap_date_str(current)
+        state["daily_reply_count"] = bot.MAX_REPLIES_PER_AUTHOR_PER_DAY
+        state["daily_replied_author_ids"] = ["200"]
+        state["daily_replied_author_counts"] = {
+            "200": bot.MAX_REPLIES_PER_AUTHOR_PER_DAY
+        }
+    candidate = mention(100, 200)
+    state["last_seen_mention_id"] = "99"
+    state["mention_pending_candidates"] = {"100": copy.deepcopy(candidate)}
+    configure_provider_free_mention_check(monkeypatch, [candidate], current_epoch=current)
+    monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
+    local_filter_calls: list[str] = []
+
+    def local_filter(text: str) -> bool:
+        local_filter_calls.append(text)
+        return local_spam_rejection
+
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", local_filter)
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda *_args, **_kwargs: pytest.fail(
+            "quarantine and deterministic gates must precede context work"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda *_args, **_kwargs: pytest.fail(
+            "quarantine must make zero provider calls"
+        ),
+    )
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert local_filter_calls == [candidate["text"]]
+    quarantine_events = [
+        values
+        for name, values in events
+        if name == "author_evaluation_quarantine_skip"
+    ]
+    assert len(quarantine_events) == 1
+    assert quarantine_events[0]["pipeline_evaluations_skipped"] == 0
+    terminal = bot.terminal_reply_evaluation(state, "100")
+    assert terminal is not None
+    assert terminal["reason"] == "author_evaluation_quarantine"
 
 
 def test_completed_watermark_prunes_sustained_quarantine_terminal_volume() -> None:
@@ -685,7 +864,7 @@ def test_final_page_commits_watermark_and_pending_together_before_restart(
     assert len(requests) == 1
 
 
-def test_repeated_token_keeps_earlier_durable_page_and_deduplicates_after_restart(
+def test_repeated_token_persists_every_page_and_resets_after_queue_drains(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -702,14 +881,22 @@ def test_repeated_token_keeps_earlier_durable_page_and_deduplicates_after_restar
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
 
-    assert [row["id"] for row in bot.get_mentions(state)] == ["105"]
+    returned = bot.get_mentions(state)
+    assert [row["id"] for row in returned] == ["103", "105"]
     assert [request.get("pagination_token") for request in requests] == [None, "A"]
     assert state["last_seen_mention_id"] == "99"
-    assert state["mention_backlog"] == {}
-    assert set(state["mention_pending_candidates"]) == {"105"}
+    assert state["mention_backlog"]["next_token"] == "A"
+    assert state["mention_backlog"]["seen_tokens"] == ["A"]
+    assert state["mention_pagination"] == {
+        "base_since_id": "99",
+        "next_token": "A",
+    }
+    assert set(state["mention_pending_candidates"]) == {
+        row["id"] for row in returned
+    }
 
     restarted = bot.load_state()
-    assert [row["id"] for row in bot.get_mentions(restarted)] == ["105"]
+    assert [row["id"] for row in bot.get_mentions(restarted)] == ["103", "105"]
     assert len(requests) == 2
     bot.record_terminal_reply_evaluation(
         restarted,
@@ -720,34 +907,49 @@ def test_repeated_token_keeps_earlier_durable_page_and_deduplicates_after_restar
     retire_all_pending(restarted)
     bot.save_state(restarted, durable=True)
 
+    assert bot.get_mentions(restarted) == []
+    assert len(requests) == 2
+    assert restarted["last_seen_mention_id"] == "99"
+    assert restarted["mention_backlog"] == {}
+    assert restarted["mention_pagination"] == {}
+    assert restarted["mention_pending_candidates"] == {}
+    assert restarted["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+    reset_state = bot.load_state()
+    assert reset_state["mention_backlog"] == {}
+    assert reset_state["mention_pagination"] == {}
+    assert reset_state["mention_pending_candidates"] == {}
+    assert reset_state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+
     pages[None] = ([mention(105, 205), mention(103, 203)], None)
     restarted_again = bot.load_state()
     assert [row["id"] for row in bot.get_mentions(restarted_again)] == ["103"]
     assert len(requests) == 3
     assert requests[-1]["since_id"] == "99"
     assert bot.terminal_reply_evaluation(restarted_again, "105") is not None
+    assert restarted_again["mention_backlog_reset_guard"] == {}
 
 
-def test_invalid_and_repeated_continuations_reset_without_advancing_watermark(
+def test_invalid_continuation_discards_saved_page_without_advancing_watermark(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = bot.default_state()
     state["last_seen_mention_id"] = "99"
-    state["mention_backlog"] = {
-        "since_id": "99",
-        "next_token": "expired",
-        "highest_mention_id": "105",
-        "pages_completed": 1,
-        "started_epoch": 1_999_999_000,
-        "seen_tokens": ["A"],
-        "announced": True,
-    }
-    state["mention_pagination"] = {
-        "base_since_id": "99",
-        "next_token": "expired",
-    }
+    calls: list[str | None] = []
 
     def invalid(_method: str, _path: str, *, params: dict) -> dict:
+        token = params.get("pagination_token")
+        calls.append(token)
+        if token is None:
+            return {
+                "data": [mention(105, 205)],
+                "meta": {"next_token": "expired"},
+            }
         raise bot.ApiError(
             'X API error 400: {"errors":[{"message":"Invalid pagination_token"}]}',
             service="x",
@@ -756,35 +958,119 @@ def test_invalid_and_repeated_continuations_reset_without_advancing_watermark(
 
     monkeypatch.setattr(bot, "x_request", invalid)
     monkeypatch.setattr(bot, "MY_USER_ID", "12345")
-    monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 1)
+    monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 2)
     monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
-    assert bot.get_mentions(state) == []
+    with pytest.raises(bot.ApiError, match="Invalid pagination_token"):
+        bot.get_mentions(state)
+    assert calls == [None, "expired"]
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"] == {}
-
-    state["mention_backlog"] = {
-        "since_id": "99",
-        "next_token": "B",
-        "highest_mention_id": "105",
-        "pages_completed": 1,
-        "started_epoch": 1_999_999_000,
-        "seen_tokens": ["A"],
-        "announced": True,
+    assert state["mention_pagination"] == {}
+    assert state["mention_pending_candidates"] == {}
+    assert state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
     }
-    state["mention_pagination"] = {"base_since_id": "99", "next_token": "B"}
-    calls: list[str] = []
 
-    def repeated(_method: str, _path: str, *, params: dict) -> dict:
-        calls.append(str(params["pagination_token"]))
-        return {"data": [mention(103, 203)], "meta": {"next_token": "A"}}
-
-    monkeypatch.setattr(bot, "x_request", repeated)
-    assert bot.get_mentions(state) == []
-    assert calls == ["B"]
+    bot.apply_confirmed_reply_receipt(
+        state,
+        {
+            "target_id": "105",
+            "reply_post_id": "999",
+            "author_id": "205",
+            "reply_epoch": 2_000_000_000,
+            "candidate_source": "mention",
+            "conversation_id": "105",
+            "reply_text": "A confirmed reply.",
+        },
+    )
     assert state["last_seen_mention_id"] == "99"
-    assert state["mention_backlog"] == {}
+    assert state["mention_pending_candidates"] == {}
+    assert state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+
+    head_requests: list[dict] = []
+
+    def refetch(_method: str, _path: str, *, params: dict) -> dict:
+        head_requests.append(dict(params))
+        return {
+            "data": [mention(tweet_id, 200 + tweet_id) for tweet_id in range(100, 106)],
+            "meta": {},
+        }
+
+    monkeypatch.setattr(bot, "x_request", refetch)
+    assert [row["id"] for row in bot.get_mentions(state)] == [
+        "100",
+        "101",
+        "102",
+        "103",
+        "104",
+    ]
+    assert head_requests[0]["since_id"] == "99"
+    assert "pagination_token" not in head_requests[0]
+    assert state["last_seen_mention_id"] == "105"
+    assert state["mention_backlog_reset_guard"] == {}
+
+
+def test_restored_cursor_after_reset_cannot_clear_guard_before_head_refetch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests = install_mention_pages(
+        monkeypatch,
+        {
+            "A": ([mention(103, 203)], None),
+            None: (
+                [mention(tweet_id, 200 + tweet_id) for tweet_id in range(100, 106)],
+                None,
+            ),
+        },
+    )
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+    state["mention_backlog_reset_guard"] = {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+
+    bot.apply_confirmed_reply_receipt(
+        state,
+        {
+            "target_id": "105",
+            "reply_post_id": "999",
+            "author_id": "205",
+            "reply_epoch": 2_000_000_000,
+            "candidate_source": "mention",
+            "conversation_id": "105",
+            "reply_text": "A confirmed reply.",
+            "mention_pagination": {
+                "base_since_id": "99",
+                "next_token": "A",
+            },
+        },
+    )
+
+    assert [row["id"] for row in bot.get_mentions(state)] == ["103"]
+    assert state["last_seen_mention_id"] == "99"
+    assert state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+    retire_all_pending(state)
+
+    assert [row["id"] for row in bot.get_mentions(state)] == [
+        "100",
+        "101",
+        "102",
+        "103",
+        "104",
+    ]
+    assert [request.get("pagination_token") for request in requests] == ["A", None]
+    assert state["last_seen_mention_id"] == "105"
+    assert state["mention_backlog_reset_guard"] == {}
 
 
 def test_continuation_token_limit_is_shared_by_loader_and_writer(
@@ -844,7 +1130,11 @@ def test_continuation_token_limit_is_shared_by_loader_and_writer(
     assert recovered_overflow["last_seen_mention_id"] == "99"
     assert recovered_overflow["mention_backlog"] == {}
     assert recovered_overflow["mention_pagination"] == {}
-    assert set(recovered_overflow["mention_pending_candidates"]) == {"102"}
+    assert recovered_overflow["mention_pending_candidates"] == {}
+    assert recovered_overflow["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
     assert sum(
         name == "mention_backlog_reset"
         and values.get("reason") == "continuation_token_limit"
@@ -871,11 +1161,15 @@ def test_continuation_token_limit_is_shared_by_loader_and_writer(
     }
     bot.save_state(state, durable=True)
 
-    assert [row["id"] for row in bot.get_mentions(state)] == ["103"]
+    assert bot.get_mentions(state) == []
     assert state["last_seen_mention_id"] == "99"
     assert state["mention_backlog"] == {}
     assert state["mention_pagination"] == {}
-    assert set(state["mention_pending_candidates"]) == {"103"}
+    assert state["mention_pending_candidates"] == {}
+    assert state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
     assert any(
         name == "mention_backlog_reset"
         and values.get("reason") == "continuation_token_limit"
@@ -884,7 +1178,77 @@ def test_continuation_token_limit_is_shared_by_loader_and_writer(
 
     restarted = bot.load_state()
     assert [row["id"] for row in bot.get_mentions(restarted)] == ["103"]
-    assert len(requests) == 1
+    assert requests[-1].get("since_id") == "99"
+    assert "pagination_token" not in requests[-1]
+    assert len(requests) == 2
+    assert restarted["mention_backlog_reset_guard"] == {}
+
+
+def test_failed_backlog_reset_leaves_only_consistent_state_generations(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_save_state = bot.save_state
+    state_path = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_path)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MAX_MENTIONS_PER_CHECK", 5)
+    monkeypatch.setattr(bot, "MENTIONS_MAX_PAGES_PER_CHECK", 2)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 2_000_000_000)
+    requests: list[str | None] = []
+
+    def request(_method: str, _path: str, *, params: dict) -> dict:
+        token = params.get("pagination_token")
+        requests.append(token)
+        if token is None:
+            return {
+                "data": [mention(105, 205)],
+                "meta": {"next_token": "A"},
+            }
+        raise bot.ApiError(
+            'X API error 400: {"errors":[{"message":"Invalid pagination_token"}]}',
+            service="x",
+            status_code=400,
+        )
+
+    def fail_reset_save(current: dict, *, durable: bool = False) -> None:
+        if (
+            current.get("mention_backlog") == {}
+            and current.get("mention_pagination") == {}
+            and current.get("mention_pending_candidates") == {}
+        ):
+            raise OSError("injected mention backlog reset save failure")
+        original_save_state(current, durable=durable)
+
+    monkeypatch.setattr(bot, "x_request", request)
+    monkeypatch.setattr(bot, "save_state", fail_reset_save)
+    state = bot.default_state()
+    state["last_seen_mention_id"] = "99"
+
+    with pytest.raises(OSError, match="injected mention backlog reset save failure"):
+        bot.get_mentions(state)
+
+    assert requests == [None, "A"]
+    assert state["last_seen_mention_id"] == "99"
+    assert state["mention_backlog"] == {}
+    assert state["mention_pagination"] == {}
+    assert state["mention_pending_candidates"] == {}
+    assert state["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+
+    durable_before_failed_reset = bot.load_state()
+    assert durable_before_failed_reset["last_seen_mention_id"] == "99"
+    assert durable_before_failed_reset["mention_backlog"]["next_token"] == "A"
+    assert durable_before_failed_reset["mention_pagination"] == {
+        "base_since_id": "99",
+        "next_token": "A",
+    }
+    assert set(durable_before_failed_reset["mention_pending_candidates"]) == {
+        "105"
+    }
 
 
 def test_digest_reports_backlog_quarantines_and_skipped_pipeline_evaluations() -> None:
@@ -917,6 +1281,24 @@ def test_digest_reports_backlog_quarantines_and_skipped_pipeline_evaluations() -
                 "provider_calls_avoided": 4,
             },
         ),
+        record(
+            6,
+            {
+                "event": "author_evaluation_quarantine_skip",
+                "author_id": "200",
+                "target_id": "101",
+                "pipeline_evaluations_skipped": 0,
+            },
+        ),
+        record(
+            7,
+            {
+                "event": "author_evaluation_quarantine_skip",
+                "author_id": "200",
+                "target_id": "102",
+                "pipeline_evaluations_skipped": 0,
+            },
+        ),
     ]
     report = digest.analyse(records)
     report["latest_state"] = digest.summarize_latest_state(
@@ -944,6 +1326,7 @@ def test_digest_reports_backlog_quarantines_and_skipped_pipeline_evaluations() -
     assert "provider_calls_avoided" not in observed
     assert "provider_calls_avoided" not in observed["events"][-1]
     assert observed["event_counts"]["mention_backlog_reset"] == 1
+    assert observed["event_counts"]["author_evaluation_quarantine_skip"] == 3
     assert report["latest_state"]["mention_backlog_active"] is True
     assert report["latest_state"]["active_author_evaluation_quarantine_author_ids"] == ["200"]
     assert (

@@ -703,7 +703,7 @@ def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
                 "event": "ai_reply_pipeline_stage_summary",
                 "lane": "mention",
                 "target_id": "700",
-                "strategy_version": "tested-reply-pipeline-20260816",
+                "strategy_version": "tested-reply-pipeline-20260817",
                 "status": "approved",
                 "terminal_reason": "pipeline_approved",
                 "model_call_count": 2,
@@ -814,7 +814,7 @@ def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
 
 
 def test_majority_resolvability_is_strict_boolean_and_requires_review_outcome():
-    version = "tested-reply-pipeline-20260816"
+    version = "tested-reply-pipeline-20260817"
     summary = digest.reply_pipeline_stage_summary([
         {
             "kind": "reply_pipeline_stage_summary",

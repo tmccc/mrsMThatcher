@@ -422,7 +422,15 @@ def _git(repository_root: Path, *arguments: str) -> subprocess.CompletedProcess[
     )
 
 
-def _known_commit_values(ledger: Mapping[str, Any]) -> set[str]:
+def _repository_commit_values(ledger: Mapping[str, Any]) -> set[str]:
+    """Return identities asserted to be commits in this repository.
+
+    ``first_review_scope.reviewed_revision`` and ``detection.revision`` are
+    evidence identities for the revision an external review inspected.  Their
+    surrounding records carry the review date, source, scope and reproduction
+    metadata required by the ledger schema; they are not claims that the
+    object is retained in this repository.
+    """
     result: set[str] = set()
 
     def add(value: Any) -> None:
@@ -459,8 +467,6 @@ def _known_commit_values(ledger: Mapping[str, Any]) -> set[str]:
             if isinstance(event, Mapping):
                 add(event.get("commit"))
         for key, field in (
-            ("first_review_scope", "reviewed_revision"),
-            ("detection", "revision"),
             ("fix", "commit"),
             ("deployment", "observed_commit"),
         ):
@@ -1683,7 +1689,7 @@ def _semantic_errors(
     if git_probe.returncode != 0:
         warnings.append("Git commit and deployment ancestry checks were skipped")
     else:
-        for commit in sorted(_known_commit_values(ledger)):
+        for commit in sorted(_repository_commit_values(ledger)):
             result = _git(repository_root, "cat-file", "-e", f"{commit}^{{commit}}")
             if result.returncode != 0:
                 errors.append(f"ledger commit does not resolve in Git: {commit}")

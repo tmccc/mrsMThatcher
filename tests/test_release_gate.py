@@ -1672,7 +1672,7 @@ def test_detached_candidate_fetches_ledger_commit_from_side_branch(
     assert release_gate.recursive_metadata_identity(common) == common_before
 
 
-def test_ledger_commit_identities_cover_all_commit_bearing_fields() -> None:
+def test_ledger_commit_identities_exclude_external_review_revisions() -> None:
     commits = [f"{index:040x}" for index in range(1, 12)]
     ledger = {
         "baseline": {
@@ -1689,15 +1689,25 @@ def test_ledger_commit_identities_cover_all_commit_bearing_fields() -> None:
                     ),
                 },
                 "chronology": [{"commit": commits[6]}],
-                "first_review_scope": {"reviewed_revision": commits[7]},
-                "detection": {"revision": commits[8]},
+                "first_review_scope": {
+                    "reviewed_revision": commits[7],
+                    "source": "Independent review package",
+                },
+                "detection": {
+                    "revision": commits[8],
+                    "source": "Immutable reproduction record",
+                },
                 "fix": {"commit": commits[9]},
                 "deployment": {"observed_commit": commits[10]},
                 "tests": [{"commit": commits[5]}],
             }
         ],
     }
-    assert release_gate.ledger_commit_identities(ledger) == tuple(commits)
+    expected = tuple([*commits[:7], *commits[9:]])
+
+    assert release_gate.ledger_commit_identities(ledger) == expected
+    assert commits[7] not in expected
+    assert commits[8] not in expected
 
 
 def test_detached_candidate_reverification_rejects_tracked_mutation(

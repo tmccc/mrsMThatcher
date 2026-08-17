@@ -524,6 +524,33 @@ def test_persisted_tested_draft_revalidates_and_rejects_new_exact_duplicate() ->
         )
 
 
+def test_persisted_tested_draft_requires_current_contract_identity() -> None:
+    result = run("Thank you.", Transport())
+    current_record = result.reply.draft_record
+
+    assert current_record["strategy_version"] == "tested-reply-pipeline-20260817"
+    assert pipeline.validate_persisted_draft(
+        current_record,
+        context=context("Thank you."),
+        config=enabled_config(),
+        repository=Repository(),
+        maximum_reply_length=270,
+    )["strategy_version"] == pipeline.STRATEGY_VERSION
+
+    old_record = dict(current_record)
+    old_record["strategy_version"] = "tested-reply-pipeline-20260816"
+    old_record.pop("approval_hash")
+    old_record["approval_hash"] = pipeline._hash_value(old_record)
+    with pytest.raises(ValueError, match="draft version is unsupported"):
+        pipeline.validate_persisted_draft(
+            old_record,
+            context=context("Thank you."),
+            config=enabled_config(),
+            repository=Repository(),
+            maximum_reply_length=270,
+        )
+
+
 def test_http_adapter_preserves_provider_payload_isolation(monkeypatch) -> None:
     import json
     import mrsMThatcher2 as bot

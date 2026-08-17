@@ -5179,7 +5179,7 @@ def _no_reply_category(value: Any) -> str:
 
 def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Aggregate safe tested-pipeline stage telemetry across evaluations."""
-    tested_version = "tested-reply-pipeline-20260816"
+    tested_version = "tested-reply-pipeline-20260817"
     rows = [
         event for event in events
         if event.get("kind") == "reply_pipeline_stage_summary"
