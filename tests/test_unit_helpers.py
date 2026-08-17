@@ -12196,6 +12196,168 @@ def test_confirmed_truncated_mention_receipt_reconciles_after_restart_without_x(
     assert state["own_auto_reply_ids"] == ["999"]
 
 
+def test_confirmed_receipt_reconciliation_cannot_authorise_stale_pending_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.epoch_date_str(fixed_epoch)
+    state["last_seen_mention_id"] = "99"
+    state["mention_backlog"] = {
+        "since_id": "98",
+        "next_token": "page-A",
+        "highest_mention_id": "105",
+        "pages_completed": 1,
+        "started_epoch": fixed_epoch - 10,
+        "seen_tokens": [],
+        "announced": True,
+    }
+    state["mention_pagination"] = {
+        "base_since_id": "98",
+        "next_token": "page-A",
+    }
+    state["mention_pending_candidates"] = {
+        "105": {
+            "id": "105",
+            "author_id": "205",
+            "conversation_id": "105",
+            "text": "A queued mention.",
+        }
+    }
+    receipt = unit_confirmed_v3_reply_receipt(
+        target_id="105",
+        reply_post_id="999",
+        author_id="205",
+        epoch=fixed_epoch,
+    )
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda *_args, **_kwargs: pytest.fail(
+            "confirmed receipt reconciliation must not repeat the X write"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "x_request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "confirmed receipt reconciliation requires no X read"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda *_args, **_kwargs: pytest.fail(
+            "stale pending state must not reach the reply provider"
+        ),
+    )
+
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+
+    restarted = bot.load_state()
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert restarted["last_seen_mention_id"] == "99"
+    assert restarted["mention_backlog"] == {}
+    assert restarted["mention_pagination"] == {}
+    assert restarted["mention_pending_candidates"] == {}
+    assert restarted["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+    assert restarted["replied_to_ids"] == ["105"]
+    assert restarted["own_auto_reply_ids"] == ["999"]
+    assert restarted["daily_reply_count"] == 1
+    assert restarted["daily_replied_author_counts"] == {"205": 1}
+
+
+def test_receipt_recovery_from_older_backup_without_page_ownership_is_guarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_path = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_path)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
+    bot.atomic_write_json(
+        state_path,
+        {
+            "last_seen_mention_id": "99",
+            "mention_pending_candidates": {
+                "105": {
+                    "id": "106",
+                    "author_id": "205",
+                    "conversation_id": "105",
+                    "text": "Corrupt primary identity.",
+                }
+            },
+        },
+    )
+    bot.atomic_write_json(
+        tmp_path / "bot_state.json.bak1",
+        {
+            "last_seen_mention_id": "99",
+            "replied_to_ids": [],
+        },
+    )
+    state = bot.load_state()
+    assert state["last_seen_mention_id"] == "99"
+    assert state["mention_backlog"] == {}
+    assert state["mention_pagination"] == {}
+
+    receipt = unit_confirmed_v3_reply_receipt(
+        target_id="105",
+        reply_post_id="999",
+        author_id="205",
+    )
+    receipt["mention_pagination"] = {
+        "base_since_id": "99",
+        "next_token": "page-A",
+    }
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda *_args, **_kwargs: pytest.fail(
+            "backup receipt recovery must not repeat the X write"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "x_request",
+        lambda *_args, **_kwargs: pytest.fail(
+            "backup receipt recovery requires no X read"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda *_args, **_kwargs: pytest.fail(
+            "backup receipt recovery must not call the reply provider"
+        ),
+    )
+
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+
+    restarted = bot.load_state()
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert restarted["last_seen_mention_id"] == "99"
+    assert restarted["mention_backlog"] == {}
+    assert restarted["mention_pagination"] == {
+        "base_since_id": "99",
+        "next_token": "page-A",
+    }
+    assert restarted["mention_pending_candidates"] == {}
+    assert restarted["mention_backlog_reset_guard"] == {
+        "base_since_id": "99",
+        "head_traversal_started": False,
+    }
+    assert restarted["replied_to_ids"] == ["105"]
+    assert restarted["own_auto_reply_ids"] == ["999"]
+
+
 def test_confirmed_mention_receipt_rejects_pagination_base_mismatch() -> None:
     receipt = unit_confirmed_v3_reply_receipt(target_id="100")
     receipt["mention_pagination"] = {

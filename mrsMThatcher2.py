@@ -297,7 +297,6 @@ MENTIONS_MAX_PAGES_PER_CHECK = 3
 AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
 AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
 AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
-AUTHOR_NO_REPLY_EPOCH_LIMIT = max(100, AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD * 4)
 AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = "majority_spam_or_abuse_v1"
 
 # Optional hot-post reply lane. This reuses the same watched post ID file
@@ -3849,6 +3848,15 @@ def append_unique_durable(values: object, item: object) -> list[str]:
     return deduplicated
 
 
+def bounded_tweet_id_value(value: object, *, allow_empty: bool = False) -> int | None:
+    """Parse one bounded string tweet ID without unbounded integer conversion."""
+    if allow_empty and value == "":
+        return 0
+    if type(value) is not str or not re.fullmatch(r"\d{1,30}", value):
+        return None
+    return int(value)
+
+
 def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
     """Normalise state int."""
     if isinstance(value, bool):
@@ -4093,6 +4101,11 @@ def prune_reply_evaluation_records(
         )
 
 
+def author_no_reply_epoch_limit() -> int:
+    """Return retention sized from the effective runtime quarantine threshold."""
+    return max(100, int(AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD) * 4)
+
+
 def prune_author_evaluation_quarantines(
     state: dict,
     *,
@@ -4123,7 +4136,7 @@ def prune_author_evaluation_quarantines(
             if type(epoch) is int and cutoff < epoch <= current
         ]
         recent.sort()
-        recent = recent[-AUTHOR_NO_REPLY_EPOCH_LIMIT:]
+        recent = recent[-author_no_reply_epoch_limit():]
         until = int(raw_record.get("quarantine_until_epoch", 0) or 0)
         updated = int(raw_record.get("last_updated_epoch", 0) or 0)
         if until and until <= current:
@@ -4201,7 +4214,7 @@ def record_qualifying_author_no_reply(
     ]
     recent.append(current)
     recent.sort()
-    recent = recent[-AUTHOR_NO_REPLY_EPOCH_LIMIT:]
+    recent = recent[-author_no_reply_epoch_limit():]
     until = int(existing.get("quarantine_until_epoch", 0) or 0)
     started = False
     if until <= current and len(recent) >= AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD:
@@ -4330,8 +4343,9 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
         return None
     base_since_id = value.get("base_since_id", "")
     next_token = value.get("next_token")
-    if not isinstance(base_since_id, str) or (
-        base_since_id and not base_since_id.isdigit()
+    if (
+        not isinstance(base_since_id, str)
+        or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
     ):
         log.error(
             "State candidate %s has invalid mention pagination base; ignoring",
@@ -4376,7 +4390,7 @@ def normalise_mention_backlog_reset_guard(
     head_traversal_started = value.get("head_traversal_started")
     if (
         not isinstance(base_since_id, str)
-        or (base_since_id and not base_since_id.isdigit())
+        or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
         or type(head_traversal_started) is not bool
     ):
         log.error(
@@ -4436,7 +4450,10 @@ def normalise_mention_backlog(
     started = value.get("started_epoch")
     seen_tokens = value.get("seen_tokens")
     announced = value.get("announced")
-    if not isinstance(since_id, str) or (since_id and not since_id.isdigit()):
+    if (
+        not isinstance(since_id, str)
+        or bounded_tweet_id_value(since_id, allow_empty=True) is None
+    ):
         return None
     if (
         not isinstance(next_token, str)
@@ -4444,7 +4461,10 @@ def normalise_mention_backlog(
         or any(character.isspace() for character in next_token)
     ):
         return None
-    if not isinstance(highest_id, str) or (highest_id and not highest_id.isdigit()):
+    if (
+        not isinstance(highest_id, str)
+        or bounded_tweet_id_value(highest_id, allow_empty=True) is None
+    ):
         return None
     if type(pages) is not int or pages < 0:
         return None
@@ -4475,6 +4495,349 @@ def normalise_mention_backlog(
         "seen_tokens": list(seen_tokens),
         "announced": announced,
     }
+
+
+def canonical_mention_pending_candidates(
+    value: object,
+    *,
+    path: Path,
+) -> dict[str, dict] | None:
+    """Validate exact, bounded identities for the durable mention queue."""
+    if not isinstance(value, dict):
+        log.error(
+            "State candidate %s has invalid mention_pending_candidates type %s; ignoring",
+            path,
+            type(value).__name__,
+        )
+        return None
+    canonical: dict[str, dict] = {}
+    seen_ids: set[int] = set()
+    for map_key, candidate in value.items():
+        embedded_id = candidate.get("id") if isinstance(candidate, dict) else None
+        map_id = bounded_tweet_id_value(map_key)
+        candidate_id = bounded_tweet_id_value(embedded_id)
+        if (
+            type(map_key) is not str
+            or not isinstance(candidate, dict)
+            or type(embedded_id) is not str
+            or map_id is None
+            or candidate_id is None
+            or map_key != embedded_id
+        ):
+            log.error(
+                "State candidate %s has a pending mention with invalid or mismatched identity; ignoring",
+                path,
+            )
+            return None
+        if candidate_id in seen_ids:
+            log.error(
+                "State candidate %s has duplicate pending mention identity; ignoring",
+                path,
+            )
+            return None
+        seen_ids.add(candidate_id)
+        canonical[map_key] = dict(candidate)
+    return canonical
+
+
+def _emit_mention_authority_recovery(
+    recovery: dict[str, object],
+    *,
+    path: Path,
+    recovery_events: list[dict[str, object]] | None,
+) -> None:
+    if recovery_events is not None:
+        recovery_events.append(recovery)
+        return
+    log.warning(
+        "Resetting unsafe mention candidate authority reason=%s path=%s; "
+        "watermark remains unchanged and %s pending candidate(s) were discarded",
+        recovery.get("reason"),
+        path,
+        recovery.get("discarded_candidates", 0),
+    )
+    log_event("mention_backlog_reset", **recovery)
+
+
+def _reset_mention_candidate_authority(
+    state: dict,
+    *,
+    watermark: str,
+) -> None:
+    """Clear one unsafe traversal generation and require a head traversal."""
+    state["mention_backlog"] = {}
+    state["mention_pagination"] = {}
+    state["mention_pending_candidates"] = {}
+    state["mention_backlog_reset_guard"] = {
+        "base_since_id": watermark,
+        "head_traversal_started": False,
+    }
+
+
+def validate_pending_mention_candidate_authority(
+    state: dict,
+    *,
+    path: Path,
+    recover_pending_identity: bool,
+    recovery_events: list[dict[str, object]] | None = None,
+) -> tuple[bool, bool]:
+    """Canonicalise the queue and reject candidates without coherent provenance.
+
+    The boolean pair is ``(usable, changed)``.  A strict state-loader pass uses
+    ``recover_pending_identity=False`` so a usable backup wins over recovery of
+    a corrupt primary.  Runtime queue and receipt callers recover fail-closed.
+    """
+    raw_watermark = state.get("last_seen_mention_id")
+    watermark = "" if raw_watermark in (None, "") else raw_watermark
+    if (
+        type(watermark) is not str
+        or bounded_tweet_id_value(watermark, allow_empty=True) is None
+    ):
+        log.error(
+            "State candidate %s has no bounded mention watermark for pending authority",
+            path,
+        )
+        return False, False
+    watermark_value = bounded_tweet_id_value(watermark, allow_empty=True)
+    assert watermark_value is not None
+
+    raw_pending = state.get("mention_pending_candidates", {})
+    pending = canonical_mention_pending_candidates(raw_pending, path=path)
+    if pending is None:
+        if not recover_pending_identity:
+            return False, False
+        discarded = len(raw_pending) if isinstance(raw_pending, dict) else 0
+        _reset_mention_candidate_authority(state, watermark=watermark)
+        _emit_mention_authority_recovery(
+            {
+                "reason": "invalid_pending_candidate_identity",
+                "since_id": watermark or None,
+                "discarded_candidates": discarded,
+            },
+            path=path,
+            recovery_events=recovery_events,
+        )
+        return True, True
+
+    changed = pending != raw_pending
+    replied_ids = {str(value) for value in state.get("replied_to_ids", [])}
+    deduplicated = {
+        mention_id: candidate
+        for mention_id, candidate in pending.items()
+        if mention_id not in replied_ids
+        and terminal_reply_evaluation(state, mention_id) is None
+    }
+    if deduplicated != pending:
+        log.info(
+            "Disposed of %s already handled durable mention candidate(s) without provider work",
+            len(pending) - len(deduplicated),
+        )
+        pending = deduplicated
+        changed = True
+    if pending != raw_pending:
+        state["mention_pending_candidates"] = pending
+
+    raw_backlog = state.get("mention_backlog", {})
+    raw_pagination = state.get("mention_pagination", {})
+    raw_guard = state.get("mention_backlog_reset_guard", {})
+    authority_failure = ""
+
+    backlog = (
+        normalise_mention_backlog(raw_backlog, path=path)
+        if isinstance(raw_backlog, dict)
+        else None
+    )
+    pagination = (
+        normalise_mention_pagination(raw_pagination, path=path)
+        if isinstance(raw_pagination, dict)
+        else None
+    )
+    guard = (
+        normalise_mention_backlog_reset_guard(raw_guard, path=path)
+        if isinstance(raw_guard, dict)
+        else None
+    )
+    if backlog is None:
+        authority_failure = "invalid_backlog"
+    elif pagination is None:
+        authority_failure = "invalid_pagination"
+    elif guard is None:
+        authority_failure = "invalid_reset_guard"
+    elif guard and active_mention_backlog_reset_guard(state) is None:
+        authority_failure = "reset_guard_base_mismatch"
+
+    if not authority_failure and backlog:
+        base = backlog["since_id"]
+        highest = backlog["highest_mention_id"]
+        next_token = backlog["next_token"]
+        base_value = bounded_tweet_id_value(base, allow_empty=True)
+        highest_value = bounded_tweet_id_value(highest, allow_empty=True)
+        if base_value is None or highest_value is None:
+            authority_failure = "unbounded_backlog_identity"
+        elif base != watermark:
+            authority_failure = "backlog_base_mismatch"
+        elif highest_value < watermark_value:
+            authority_failure = "backlog_highest_before_watermark"
+        elif next_token:
+            expected_pagination = {
+                "base_since_id": base,
+                "next_token": next_token,
+            }
+            if int(backlog["pages_completed"]) <= 0:
+                authority_failure = "continuation_without_completed_page"
+            elif pagination != expected_pagination:
+                authority_failure = "backlog_pagination_mismatch"
+            elif pending and not highest:
+                authority_failure = "pending_without_highest_identity"
+            elif any(
+                (candidate_value := bounded_tweet_id_value(mention_id)) is None
+                or candidate_value <= watermark_value
+                or candidate_value > highest_value
+                for mention_id in pending
+            ):
+                authority_failure = "pending_outside_active_page_range"
+        elif int(backlog["pages_completed"]) != 0:
+            authority_failure = "completed_backlog_without_continuation"
+        elif highest != watermark:
+            authority_failure = "head_backlog_highest_mismatch"
+        elif pagination:
+            authority_failure = "pagination_without_backlog_continuation"
+        elif pending:
+            authority_failure = "pending_before_first_completed_page"
+
+    if not authority_failure and not backlog and pagination:
+        pagination_base = pagination["base_since_id"]
+        if bounded_tweet_id_value(pagination_base, allow_empty=True) is None:
+            authority_failure = "unbounded_pagination_base"
+        elif pagination_base != watermark:
+            authority_failure = "pagination_base_mismatch"
+        else:
+            # A cursor can recover the unseen tail, but it cannot prove page
+            # ownership or authorize watermark advancement.  Always bind it
+            # to a false reset guard and require a later head traversal.
+            discarded = len(pending)
+            state["mention_pending_candidates"] = {}
+            state["mention_backlog_reset_guard"] = {
+                "base_since_id": watermark,
+                "head_traversal_started": False,
+            }
+            if pending or guard != state["mention_backlog_reset_guard"]:
+                _emit_mention_authority_recovery(
+                    {
+                        "reason": "pagination_without_page_ownership",
+                        "since_id": watermark or None,
+                        "discarded_candidates": discarded,
+                    },
+                    path=path,
+                    recovery_events=recovery_events,
+                )
+                return True, True
+
+    if (
+        not authority_failure
+        and not backlog
+        and not pagination
+        and guard
+        and guard["head_traversal_started"]
+    ):
+        # A true guard without its owning head backlog records an interrupted
+        # traversal.  A false guard may legitimately own candidates fetched
+        # from a restored tail cursor whose completion deferred the watermark.
+        discarded = len(pending)
+        state["mention_pending_candidates"] = {}
+        state["mention_backlog_reset_guard"] = {
+            "base_since_id": watermark,
+            "head_traversal_started": False,
+        }
+        _emit_mention_authority_recovery(
+            {
+                "reason": "head_traversal_ownership_missing",
+                "since_id": watermark or None,
+                "discarded_candidates": discarded,
+            },
+            path=path,
+            recovery_events=recovery_events,
+        )
+        return True, True
+
+    if authority_failure:
+        discarded = len(pending)
+        _reset_mention_candidate_authority(state, watermark=watermark)
+        _emit_mention_authority_recovery(
+            {
+                "reason": "stale_pending_candidate_authority",
+                "authority_failure": authority_failure,
+                "since_id": watermark or None,
+                "discarded_candidates": discarded,
+            },
+            path=path,
+            recovery_events=recovery_events,
+        )
+        return True, True
+
+    if not backlog and not pagination and pending and not guard:
+        covered = {
+            mention_id: candidate
+            for mention_id, candidate in pending.items()
+            if (
+                (candidate_value := bounded_tweet_id_value(mention_id))
+                is not None
+                and candidate_value <= watermark_value
+            )
+        }
+        discarded = len(pending) - len(covered)
+        if discarded:
+            state["mention_pending_candidates"] = covered
+            state["mention_backlog_reset_guard"] = {
+                "base_since_id": watermark,
+                "head_traversal_started": False,
+            }
+            _emit_mention_authority_recovery(
+                {
+                    "reason": "orphaned_pending_candidates",
+                    "since_id": watermark or None,
+                    "discarded_candidates": discarded,
+                },
+                path=path,
+                recovery_events=recovery_events,
+            )
+            return True, True
+
+    return True, changed
+
+
+def mention_pagination_has_canonical_page_ownership(
+    state: dict,
+    pagination: object,
+    *,
+    target_id: str,
+) -> bool:
+    """Return whether canonical state owns the page bound into a receipt."""
+    if not mention_pagination_provenance_is_valid(pagination):
+        return False
+    if state.get("mention_pagination") != pagination:
+        return False
+    backlog = state.get("mention_backlog")
+    if not isinstance(backlog, dict) or not backlog:
+        return False
+    normalised = normalise_mention_backlog(backlog, path=STATE_FILE)
+    if normalised is None or normalised != backlog:
+        return False
+    watermark = str(state.get("last_seen_mention_id") or "")
+    base = str(normalised.get("since_id") or "")
+    highest = str(normalised.get("highest_mention_id") or "")
+    base_value = bounded_tweet_id_value(base, allow_empty=True)
+    highest_value = bounded_tweet_id_value(highest)
+    target_value = bounded_tweet_id_value(target_id)
+    return bool(
+        base == watermark == pagination["base_since_id"]
+        and normalised.get("next_token") == pagination["next_token"]
+        and int(normalised.get("pages_completed", 0)) > 0
+        and base_value is not None
+        and highest_value is not None
+        and target_value is not None
+        and base_value < target_value <= highest_value
+    )
 
 
 def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dict | None:
@@ -4523,7 +4886,7 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
                 or timestamp > MAX_REASONABLE_STATE_EPOCH
                 for timestamp in timestamps
             )
-            or len(timestamps) > AUTHOR_NO_REPLY_EPOCH_LIMIT
+            or len(timestamps) > author_no_reply_epoch_limit()
             or timestamps != sorted(timestamps)
         ):
             return None
@@ -4560,7 +4923,7 @@ def normalise_optional_numeric_id(value: object, *, key: str, path: Path) -> str
     if value in (None, ""):
         return ""
     text = str(value)
-    if text.isdigit():
+    if bounded_tweet_id_value(text) is not None:
         return text
     log.error("State candidate %s has invalid %s value %r; ignoring", path, key, value)
     return None
@@ -4701,6 +5064,7 @@ def normalise_state_candidate(
     *,
     path: Path,
     recovery_events: list[dict[str, object]] | None = None,
+    recover_pending_identity: bool = False,
 ) -> dict | None:
     """Normalise state candidate."""
     minimum_reader_version = require_compatible_state_reader(state, path=path)
@@ -4729,7 +5093,6 @@ def normalise_state_candidate(
         "pending_ai_reply_drafts",
         "reply_evaluation_records",
         "clarification_reply_records",
-        "mention_pending_candidates",
     }
     optional_scalar_keys = {
         "daily_reply_date",
@@ -4796,6 +5159,15 @@ def normalise_state_candidate(
             if value is None:
                 return None
             normalised[key] = value
+    if "mention_pending_candidates" in state:
+        pending_value = canonical_mention_pending_candidates(
+            state["mention_pending_candidates"],
+            path=path,
+        )
+        if pending_value is None and not recover_pending_identity:
+            return None
+        if pending_value is not None:
+            normalised["mention_pending_candidates"] = pending_value
     for key in optional_scalar_keys:
         if key in state:
             value = normalise_optional_scalar(state[key], key=key, path=path)
@@ -4872,46 +5244,19 @@ def normalise_state_candidate(
                         str(raw_backlog.get("next_token") or "").encode("utf-8")
                     ).hexdigest()[:16],
                 })
-    pending_candidates = normalised.get("mention_pending_candidates")
-    if (
-        isinstance(pending_candidates, dict)
-        and pending_candidates
-        and not normalised.get("mention_backlog")
-        and not normalised.get("mention_pagination")
-        and active_mention_backlog_reset_guard(normalised) is None
-    ):
-        watermark = str(normalised.get("last_seen_mention_id") or "")
-        watermark_value = int(watermark) if watermark else None
-        retained_candidates: dict[str, object] = {}
-        discarded_candidates = 0
-        for pending_key, candidate in pending_candidates.items():
-            identities = [str(pending_key)]
-            if isinstance(candidate, dict):
-                identities.append(str(candidate.get("id") or ""))
-            uncovered = any(
-                identity.isdigit()
-                and (
-                    watermark_value is None
-                    or int(identity) > watermark_value
-                )
-                for identity in identities
-            )
-            if uncovered:
-                discarded_candidates += 1
-            else:
-                retained_candidates[str(pending_key)] = candidate
-        if discarded_candidates:
-            normalised["mention_pending_candidates"] = retained_candidates
-            normalised["mention_backlog_reset_guard"] = {
-                "base_since_id": watermark,
-                "head_traversal_started": False,
-            }
-            if recovery_events is not None:
-                recovery_events.append({
-                    "reason": "orphaned_pending_candidates",
-                    "since_id": watermark or None,
-                    "discarded_candidates": discarded_candidates,
-                })
+    # Retire legacy quarantine-only terminal records before they can suppress
+    # a completed-page pending candidate that the watermark will not refetch.
+    prune_reply_evaluation_records(normalised)
+    pending_authority_usable, _pending_authority_changed = (
+        validate_pending_mention_candidate_authority(
+            normalised,
+            path=path,
+            recover_pending_identity=recover_pending_identity,
+            recovery_events=recovery_events,
+        )
+    )
+    if not pending_authority_usable:
+        return None
     if "author_evaluation_quarantines" in state:
         value = normalise_author_evaluation_quarantines(
             state["author_evaluation_quarantines"],
@@ -4944,7 +5289,6 @@ def normalise_state_candidate(
     if not validate_meme_schedule_version_for_candidate(normalised, path=path):
         return None
 
-    prune_reply_evaluation_records(normalised)
     prune_author_evaluation_quarantines(normalised)
 
     return normalised
@@ -4962,7 +5306,8 @@ def load_state() -> dict:
 
     def emit_candidate_recoveries(candidate: Path) -> None:
         for recovery in candidate_recoveries.get(candidate, []):
-            if recovery.get("reason") == "orphaned_pending_candidates":
+            reason = recovery.get("reason")
+            if reason == "orphaned_pending_candidates":
                 log.warning(
                     "Discarding %s uncovered pending mention candidate(s) "
                     "without pagination provenance while loading %s; watermark "
@@ -4970,15 +5315,33 @@ def load_state() -> dict:
                     recovery.get("discarded_candidates"),
                     candidate,
                 )
-            else:
+            elif reason == "continuation_token_limit":
                 log.warning(
                     "Resetting oversized mention backlog while loading %s; "
                     "watermark remains unchanged and pending candidates were discarded",
                     candidate,
                 )
+            else:
+                log.warning(
+                    "Resetting unsafe mention candidate authority while loading %s "
+                    "reason=%s; watermark remains unchanged",
+                    candidate,
+                    reason,
+                )
             log_event("mention_backlog_reset", **recovery)
 
-    def load_candidate(candidate: Path, *, reject_legacy: bool) -> dict | None:
+    def persist_candidate_recoveries(candidate: Path, state: dict) -> None:
+        """Commit a false reset guard before any post-load provider work."""
+        if not candidate_recoveries.get(candidate):
+            return
+        save_state(state, durable=True)
+
+    def load_candidate(
+        candidate: Path,
+        *,
+        reject_legacy: bool,
+        recover_pending_identity: bool = False,
+    ) -> dict | None:
         nonlocal existing_candidates
         try:
             present, data = read_stable_owned_json_bytes_no_follow(candidate)
@@ -5044,6 +5407,7 @@ def load_state() -> dict:
             state,
             path=candidate,
             recovery_events=recovery_events,
+            recover_pending_identity=recover_pending_identity,
         )
         if normalised is not None:
             candidate_recoveries[candidate] = recovery_events
@@ -5070,6 +5434,7 @@ def load_state() -> dict:
             )
             raise RuntimeError(message)
         emit_candidate_recoveries(STATE_FILE)
+        persist_candidate_recoveries(STATE_FILE, primary)
         log_json_debug("Loaded state summary", state_debug_summary(primary))
         return primary
 
@@ -5081,10 +5446,30 @@ def load_state() -> dict:
             continue
         log.warning("Recovered state from backup %s", candidate)
         emit_candidate_recoveries(candidate)
+        persist_candidate_recoveries(candidate, recovered)
         log_json_debug("Loaded state summary", state_debug_summary(recovered))
         return recovered
 
     if existing_candidates:
+        # Pending identity corruption is recoverable only after every strict
+        # candidate has failed, so a usable backup always remains authoritative.
+        for candidate in candidates:
+            recovered = load_candidate(
+                candidate,
+                reject_legacy=True,
+                recover_pending_identity=True,
+            )
+            if recovered is None:
+                continue
+            log.warning(
+                "Recovered state candidate %s by discarding corrupt pending "
+                "mention identity and requiring a head refetch",
+                candidate,
+            )
+            emit_candidate_recoveries(candidate)
+            persist_candidate_recoveries(candidate, recovered)
+            log_json_debug("Loaded state summary", state_debug_summary(recovered))
+            return recovered
         message = "Existing state file(s) found but no usable state or backup; refusing to start with empty state"
         log.critical(message)
         raise RuntimeError(message)
@@ -7096,12 +7481,23 @@ def reply_target_is_directly_eligible(tweet: dict) -> bool:
 
 def pending_mention_candidates(state: dict) -> list[dict]:
     """Return the durable fetched-candidate queue, deduplicated by status ID."""
+    usable, changed = validate_pending_mention_candidate_authority(
+        state,
+        path=STATE_FILE,
+        recover_pending_identity=True,
+    )
+    if not usable:
+        raise RuntimeError(
+            "Mention pending-candidate authority cannot be recovered without "
+            "a bounded watermark"
+        )
+    if changed:
+        save_state(state, durable=True)
     pending = state.get("mention_pending_candidates", {})
     if not isinstance(pending, dict):
-        state["mention_pending_candidates"] = {}
         return []
     return valid_tweets_sorted_by_id(
-        [candidate for candidate in pending.values() if isinstance(candidate, dict)],
+        list(pending.values()),
         context="durable pending mention",
     )
 
@@ -20119,9 +20515,10 @@ def mention_pagination_provenance_is_valid(value: object) -> bool:
         return False
     base_since_id = value.get("base_since_id")
     next_token = value.get("next_token")
-    if not isinstance(base_since_id, str):
-        return False
-    if base_since_id and not base_since_id.isdigit():
+    if (
+        not isinstance(base_since_id, str)
+        or bounded_tweet_id_value(base_since_id, allow_empty=True) is None
+    ):
         return False
     if (
         not isinstance(next_token, str)
@@ -20698,6 +21095,19 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     candidate_source = str(receipt.get("candidate_source") or "mention")
     conversation_id = str(receipt.get("conversation_id") or target_id)
     reply_text = str(receipt.get("reply_text") or "")
+    if candidate_source == "mention":
+        authority_usable, _authority_changed = (
+            validate_pending_mention_candidate_authority(
+                state,
+                path=STATE_FILE,
+                recover_pending_identity=True,
+            )
+        )
+        if not authority_usable:
+            raise InvalidConfirmedReplyReceipt(
+                "Confirmed mention receipt cannot be reconciled without a "
+                "bounded pending-candidate authority base"
+            )
     receipt_reply_date = str(receipt.get("daily_reply_date") or reply_cap_date_str(reply_epoch))
     receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
     if receipt.get("schema_version") == 4:
@@ -20731,6 +21141,25 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
                 "Confirmed mention receipt pagination base does not match "
                 "the current mention watermark"
             )
+        if not mention_pagination_has_canonical_page_ownership(
+            state,
+            mention_pagination,
+            target_id=target_id,
+        ):
+            discarded = len(state.get("mention_pending_candidates", {}))
+            _reset_mention_candidate_authority(
+                state,
+                watermark=current_since_id,
+            )
+            _emit_mention_authority_recovery(
+                {
+                    "reason": "receipt_page_ownership_missing",
+                    "since_id": current_since_id or None,
+                    "discarded_candidates": discarded,
+                },
+                path=STATE_FILE,
+                recovery_events=None,
+            )
         mention_pagination_to_preserve = copy.deepcopy(mention_pagination)
     elif candidate_source == "mention":
         # Receipts written by pre-provenance versions can still be reconciled
@@ -20743,6 +21172,28 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
             mention_pagination_provenance_is_valid(active_pagination)
             and str(active_pagination["base_since_id"]) == current_since_id
         ):
+            pagination_has_page_ownership = (
+                mention_pagination_has_canonical_page_ownership(
+                    state,
+                    active_pagination,
+                    target_id=target_id,
+                )
+            )
+            if not pagination_has_page_ownership:
+                discarded = len(state.get("mention_pending_candidates", {}))
+                _reset_mention_candidate_authority(
+                    state,
+                    watermark=current_since_id,
+                )
+                _emit_mention_authority_recovery(
+                    {
+                        "reason": "receipt_page_ownership_missing",
+                        "since_id": current_since_id or None,
+                        "discarded_candidates": discarded,
+                    },
+                    path=STATE_FILE,
+                    recovery_events=None,
+                )
             mention_pagination_to_preserve = copy.deepcopy(active_pagination)
             log.warning(
                 "Preserving active mention pagination for a legacy confirmed "
@@ -21550,7 +22001,7 @@ def maybe_reply_to_mentions(
         author_cap_reached = daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY
         local_spam_rejection = is_probably_spam_or_not_worth_replying(incoming_text)
 
-        if candidate_source == "mention":
+        if candidate_source == "mention" and clarification is None:
             quarantine = active_author_evaluation_quarantine(
                 state,
                 author_id,
