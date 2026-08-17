@@ -1333,7 +1333,12 @@ def test_proposer_invalid_pipeline_telemetry_raises_retryable_api_error(
             evaluation_outcome=outcome,
         )
 
-    assert outcome == {"status": "operational_failure", "reason": "proposer_invalid"}
+    assert outcome == {
+        "status": "operational_failure",
+        "reason": "proposer_invalid",
+        "qualifying_author_no_reply": False,
+        "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
+    }
     assert events == [(
         "ai_reply_pipeline_failure",
         {
@@ -1353,6 +1358,7 @@ def test_proposer_invalid_pipeline_telemetry_raises_retryable_api_error(
             "terminal_stage": "proposer",
             "claim_auditor_status": "not_run",
             "evidence_status": "not_run",
+            "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
             "reason": "proposer_invalid",
             "model_call_count": 2,
             "revision_count": 0,
@@ -1368,6 +1374,7 @@ def test_confirmed_no_reply_pipeline_telemetry_reports_independent_review(
     interpretation_marker = "PRIVATE_PROPOSER_INTERPRETATION_MARKER"
     reason_marker = "PRIVATE_PROPOSER_NO_REPLY_REASON_MARKER"
     events: list[tuple[str, dict]] = []
+    outcome: dict[str, object] = {}
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(
         reply_strategy,
@@ -1396,7 +1403,17 @@ def test_confirmed_no_reply_pipeline_telemetry_reports_independent_review(
     )
     monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
 
-    assert bot.generate_ai_first_reply(unit_reply_context()) is None
+    assert bot.generate_ai_first_reply(
+        unit_reply_context(),
+        evaluation_outcome=outcome,
+    ) is None
+
+    assert outcome == {
+        "status": "no_reply",
+        "reason": "independent_no_reply_confirmed",
+        "qualifying_author_no_reply": False,
+        "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
+    }
 
     name, decision = events[-1]
     assert name == "ai_reply_pipeline_decision"
@@ -1406,6 +1423,10 @@ def test_confirmed_no_reply_pipeline_telemetry_reports_independent_review(
     assert decision["reviewer_verdict"] == "confirm_no_reply"
     assert decision["claim_auditor_status"] == "not_run"
     assert decision["evidence_status"] == "not_run"
+    assert (
+        decision["author_quarantine_evidence"]
+        == "unavailable_ai_first_reply_strategy"
+    )
     assert decision["reason"] == "independent_no_reply_confirmed"
     serialised_decision = json.dumps(decision, sort_keys=True)
     for private_marker in (interpretation_marker, reason_marker):

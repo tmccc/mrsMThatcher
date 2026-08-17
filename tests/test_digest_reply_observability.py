@@ -713,13 +713,15 @@ def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
                 "deterministic_suppressed": False,
                 "deterministic_reason": None,
                 "xai_gate_decision": "reply",
-                "reply_necessity_outcome": None,
+                "reply_necessity_outcome": "confirm_no_reply",
+                "reply_necessity_majority_resolvable": False,
                 "reply_necessity_invalid_calls": 0,
                 "group_hostility_candidate": False,
                 "group_hostility_outcome": None,
                 "allegation_conspiracy_candidate": True,
                 "allegation_conspiracy_categories": ["corruption_or_fraud"],
-                "allegation_conspiracy_outcome": "require_claim_free_reply",
+                "allegation_conspiracy_outcome": "confirm_no_reply_spam_or_abuse",
+                "allegation_conspiracy_majority_resolvable": True,
                 "allegation_conspiracy_invalid_calls": 0,
                 "attribution_route": "none",
                 "attribution_reply_requirement": None,
@@ -791,6 +793,13 @@ def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
     assert stage_summary["provider_call_counts"] == {"OpenAI": 1, "xAI": 1}
     assert stage_summary["allegation_conspiracy_candidate_count"] == 1
     assert stage_summary["allegation_conspiracy_review_count"] == 1
+    assert stage_summary["allegation_conspiracy_suppression_count"] == 1
+    assert stage_summary["reply_necessity_majority_resolvable_counts"] == {
+        "false": 1
+    }
+    assert stage_summary["allegation_conspiracy_majority_resolvable_counts"] == {
+        "true": 1
+    }
     assert stage_summary["claim_risk_category_counts"] == {"private_motive": 1}
     assert stage_summary["near_duplicate_candidate_count"] == 1
     assert stage_summary["final_validation_counts"] == {"passed": 1}
@@ -800,6 +809,25 @@ def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
     assert "Successful calls by provider: OpenAI=1, xAI=1." in rendered
     assert "## Tested reply-pipeline stages" in rendered
     assert "Allegation/conspiracy candidates/reviews/suppressions" in rendered
+    assert "reply-necessity outcomes: confirm_no_reply=1; majority resolvability: false=1" in rendered
+    assert "outcomes: confirm_no_reply_spam_or_abuse=1; majority resolvability: true=1" in rendered
+
+
+def test_majority_resolvability_is_strict_boolean_and_requires_review_outcome():
+    version = "tested-reply-pipeline-20260816"
+    summary = digest.reply_pipeline_stage_summary([
+        {
+            "kind": "reply_pipeline_stage_summary",
+            "strategy_version": version,
+            "reply_necessity_outcome": None,
+            "reply_necessity_majority_resolvable": False,
+            "allegation_conspiracy_outcome": "confirm_no_reply",
+            "allegation_conspiracy_majority_resolvable": 1,
+        }
+    ])
+
+    assert summary["reply_necessity_majority_resolvable_counts"] == {}
+    assert summary["allegation_conspiracy_majority_resolvable_counts"] == {}
 
 
 def test_ai_first_event_without_strategy_version_is_not_mislabelled_v2():
@@ -811,7 +839,8 @@ def test_ai_first_event_without_strategy_version_is_not_mislabelled_v2():
         msg=(
             'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
             '"target_id":"100","mode":"no_reply","tone":"neutral",'
-            '"factual_claim_count":0,"evidence_ids":[],"reason":"not_warranted"}'
+            '"factual_claim_count":0,"evidence_ids":[],"reason":"not_warranted",'
+            '"author_quarantine_evidence":"unavailable_ai_first_reply_strategy"}'
         ),
         path="mrsMThatcher.log",
         ordinal=1,
@@ -824,6 +853,11 @@ def test_ai_first_event_without_strategy_version_is_not_mislabelled_v2():
     )
 
     assert decision["strategy_version"] == "unavailable"
+    assert (
+        decision["author_quarantine_evidence"]
+        == "unavailable_ai_first_reply_strategy"
+    )
+    assert "unavailable_ai_first_reply_strategy" in digest.render_markdown(report)
 
 
 def test_ai_first_operational_failure_is_not_reported_as_editorial_no_reply():
@@ -836,7 +870,8 @@ def test_ai_first_operational_failure_is_not_reported_as_editorial_no_reply():
             'EVENT {"event":"ai_reply_pipeline_failure","lane":"mention",'
             '"target_id":"100","status":"operational_failure",'
             '"strategy_version":"ai-first-reply-v3","reason":"proposer_invalid",'
-            '"model_call_count":2,"revision_count":0}'
+            '"model_call_count":2,"revision_count":0,'
+            '"author_quarantine_evidence":"unavailable_ai_first_reply_strategy"}'
         ),
         path="mrsMThatcher.log",
         ordinal=1,
@@ -854,6 +889,10 @@ def test_ai_first_operational_failure_is_not_reported_as_editorial_no_reply():
     assert strategy["rejection_reason_counts"] == {}
     assert strategy["outcome_status_counts"].get("terminal_no_reply", 0) == 0
     assert failures[0]["status"] == "operational_failure"
+    assert (
+        failures[0]["author_quarantine_evidence"]
+        == "unavailable_ai_first_reply_strategy"
+    )
     rendered = digest.render_markdown(report)
     assert "Operational AI-first pipeline failures" in rendered
     assert "retryable, not editorial no-reply" in rendered

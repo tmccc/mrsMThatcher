@@ -104,6 +104,7 @@ def test_stage_telemetry_is_allow_listed_and_text_free() -> None:
             "stage": "reply_necessity_resolution",
             "call_outcomes": ["require_claim_free_reply", None, "require_claim_free_reply"],
             "majority_outcome": "require_claim_free_reply",
+            "majority_resolvable": True,
             "invalid_or_refused_calls": 1,
         },
         {
@@ -115,6 +116,7 @@ def test_stage_telemetry_is_allow_listed_and_text_free() -> None:
         {
             "stage": "allegation_conspiracy_resolution",
             "majority_outcome": "confirm_no_reply",
+            "majority_resolvable": True,
             "invalid_or_refused_calls": 0,
             "free_form_reason": private_marker,
         },
@@ -137,10 +139,12 @@ def test_stage_telemetry_is_allow_listed_and_text_free() -> None:
     assert telemetry["provider_call_counts"] == {"xAI": 2, "OpenAI": 5}
     assert telemetry["schema_invalid_stages"] == ["reply_necessity_2"]
     assert telemetry["reply_necessity_outcome"] == "require_claim_free_reply"
+    assert telemetry["reply_necessity_majority_resolvable"] is True
     assert telemetry["reply_necessity_invalid_calls"] == 1
     assert telemetry["allegation_conspiracy_candidate"] is True
     assert telemetry["allegation_conspiracy_categories"] == ["corruption_or_fraud"]
     assert telemetry["allegation_conspiracy_outcome"] == "confirm_no_reply"
+    assert telemetry["allegation_conspiracy_majority_resolvable"] is True
     assert telemetry["claim_risk_categories"] == ["private_motive"]
     assert telemetry["claim_audit_outcomes"] == [{
         "stage": "narrow_claim_audit_outcome",
@@ -169,7 +173,7 @@ def run(text: str, transport: Transport, *, facts: bool = False, recent=None):
 def test_frozen_prompt_hashes_and_provider_profiles() -> None:
     expected = {
         "XAI_GATE_PROMPT": "e145e67c365cc295174e00284568fd05c1848ad85e63f01815891ca00ca5ba55",
-        "REPLY_NECESSITY_PROMPT": "53a0f53546885e8ae4d750a11242099d0fccaef8e7f94f7295988edf55f19c3c",
+        "REPLY_NECESSITY_PROMPT": "66d2c3ef36a5cb1560f025ed1ead588e3c2e343e5dcde51d36508c3dd545b13b",
         "GROUP_REVIEW_PROMPT": "2355c7056d0ba93ddd79d731cc2999fc2e5fecd55eb8444814c1d21c06e7e6fc",
         "WRITER_PROMPT": "832b086a4e32dfec255143146ab7a7d0674b4773041b643b037187402d8ae717",
         "CLAIM_AUDIT_PROMPT": "a2e0f3e78bdd3aa5a45e4fc2ba1eed7819043b4ffec97caeeb29c66ac6824589",
@@ -312,6 +316,109 @@ def test_named_allegation_invokes_three_call_review_and_can_suppress() -> None:
     assert result.status == "no_reply"
     assert result.reason == "allegation_review_suppression"
     assert len([call for call in transport.calls if call["stage"].startswith("allegation_review_")]) == 3
+
+
+class SequencedReviewTransport(Transport):
+    def __init__(self, *, gate: str, votes: list[str | None]):
+        super().__init__(gate=gate)
+        self.votes = list(votes)
+
+    def __call__(self, **kwargs):
+        stage = kwargs["stage"]
+        if stage.startswith("reply_necessity_") or stage.startswith("allegation_review_"):
+            self.calls.append(kwargs)
+            vote = self.votes.pop(0)
+            return {"outcome": vote} if vote is not None else {"malformed": True}
+        return super().__call__(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("gate", "text", "reason", "outcome_field", "resolvable_field", "invalid_field"),
+    [
+        (
+            "no_reply",
+            "I disagree: liberty also requires institutions.",
+            "reply_necessity_review",
+            "reply_necessity_outcome",
+            "reply_necessity_majority_resolvable",
+            "reply_necessity_invalid_calls",
+        ),
+        (
+            "reply",
+            NO_REPLY_ALLEGATIONS["synthetic-17b"],
+            "allegation_review_suppression",
+            "allegation_conspiracy_outcome",
+            "allegation_conspiracy_majority_resolvable",
+            "allegation_conspiracy_invalid_calls",
+        ),
+    ],
+    ids=["reply-necessity", "allegation-review"],
+)
+@pytest.mark.parametrize(
+    ("votes", "expected_outcome", "expected_resolvable", "expected_invalid"),
+    [
+        (
+            [
+                "confirm_no_reply_spam_or_abuse",
+                "confirm_no_reply",
+                "require_claim_free_reply",
+            ],
+            "confirm_no_reply",
+            False,
+            0,
+        ),
+        (
+            ["confirm_no_reply_spam_or_abuse", "confirm_no_reply", None],
+            "confirm_no_reply",
+            False,
+            1,
+        ),
+        (
+            [
+                "confirm_no_reply_spam_or_abuse",
+                "confirm_no_reply_spam_or_abuse",
+                None,
+            ],
+            "confirm_no_reply_spam_or_abuse",
+            True,
+            1,
+        ),
+    ],
+    ids=["three-way-split", "one-invalid-one-one", "one-invalid-two-punitive"],
+)
+def test_review_resolution_distinguishes_non_punitive_fallback_from_punitive_majority(
+    gate: str,
+    text: str,
+    reason: str,
+    outcome_field: str,
+    resolvable_field: str,
+    invalid_field: str,
+    votes: list[str | None],
+    expected_outcome: str,
+    expected_resolvable: bool,
+    expected_invalid: int,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    transport = SequencedReviewTransport(gate=gate, votes=votes)
+
+    result = run(text, transport)
+    telemetry = pipeline.stage_telemetry(result.audit)
+
+    assert result.status == "no_reply"
+    assert result.reason == reason
+    assert telemetry[outcome_field] == expected_outcome
+    assert telemetry[resolvable_field] is expected_resolvable
+    assert telemetry[invalid_field] == expected_invalid
+    assert bot.tested_pipeline_no_reply_qualifies_for_author_quarantine(
+        status=result.status,
+        reason=result.reason,
+        telemetry=telemetry,
+    ) is (
+        expected_outcome == "confirm_no_reply_spam_or_abuse"
+        and expected_resolvable
+    )
+    assert transport.votes == []
 
 
 def test_group_hostility_candidate_invokes_narrow_review() -> None:
@@ -480,6 +587,7 @@ def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch)
             {
                 "stage": "reply_necessity_resolution",
                 "majority_outcome": "confirm_no_reply",
+                "majority_resolvable": True,
                 "invalid_or_refused_calls": 0,
                 "reason": private_marker,
             },
@@ -500,6 +608,7 @@ def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch)
     assert summary["provider_call_counts"] == {"xAI": 1, "OpenAI": 3}
     assert summary["xai_gate_decision"] == "no_reply"
     assert summary["reply_necessity_outcome"] == "confirm_no_reply"
+    assert summary["reply_necessity_majority_resolvable"] is True
     assert summary["terminal_reason"] == "reply_necessity_review"
     assert private_marker not in json.dumps(summary, sort_keys=True)
     decision = events[1][1]

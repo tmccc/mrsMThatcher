@@ -5213,6 +5213,17 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
             if str(value)
         ).items()))
 
+    def majority_resolution_counts(
+        outcome_field: str,
+        resolvable_field: str,
+    ) -> Dict[str, int]:
+        return dict(sorted(Counter(
+            "true" if row[resolvable_field] else "false"
+            for row in rows
+            if row.get(outcome_field) not in {None, ""}
+            and type(row.get(resolvable_field)) is bool
+        ).items()))
+
     provider_calls: Counter = Counter()
     invalid_stages: Counter = Counter()
     claim_audit_outcomes: Counter = Counter()
@@ -5250,6 +5261,10 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
             row.get("reply_necessity_outcome") not in {None, ""} for row in rows
         ),
         "reply_necessity_outcome_counts": value_counts("reply_necessity_outcome"),
+        "reply_necessity_majority_resolvable_counts": majority_resolution_counts(
+            "reply_necessity_outcome",
+            "reply_necessity_majority_resolvable",
+        ),
         "reply_necessity_overturn_count": sum(
             row.get("xai_gate_decision") == "no_reply"
             and row.get("reply_necessity_outcome") in reply_required
@@ -5282,8 +5297,17 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
             "allegation_conspiracy_outcome"
         ),
         "allegation_conspiracy_suppression_count": sum(
-            row.get("allegation_conspiracy_outcome") == "confirm_no_reply"
+            row.get("allegation_conspiracy_outcome") in {
+                "confirm_no_reply",
+                "confirm_no_reply_spam_or_abuse",
+            }
             for row in rows
+        ),
+        "allegation_conspiracy_majority_resolvable_counts": (
+            majority_resolution_counts(
+                "allegation_conspiracy_outcome",
+                "allegation_conspiracy_majority_resolvable",
+            )
         ),
         "allegation_conspiracy_invalid_call_count": sum(
             int(row.get("allegation_conspiracy_invalid_calls") or 0)
@@ -6551,11 +6575,9 @@ def analyse(
                     quarantine_until_epoch=event_obj.get(
                         "quarantine_until_epoch"
                     ),
-                    provider_calls_avoided=event_obj.get(
-                        "provider_calls_avoided"
+                    pipeline_evaluations_skipped=event_obj.get(
+                        "pipeline_evaluations_skipped"
                     ),
-                    xai_calls_avoided=event_obj.get("xai_calls_avoided"),
-                    openai_calls_avoided=event_obj.get("openai_calls_avoided"),
                 )
                 stats[kind] += 1
             elif event_obj and event_obj.get("event") == "historical_context_reply":
@@ -6775,6 +6797,9 @@ def analyse(
                     reviewer_verdict=event_obj.get("reviewer_verdict"),
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
+                    author_quarantine_evidence=event_obj.get(
+                        "author_quarantine_evidence"
+                    ),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_stage_summary":
                 raw_provider_counts = event_obj.get("provider_call_counts")
@@ -6835,6 +6860,13 @@ def analyse(
                     deterministic_reason=event_obj.get("deterministic_reason"),
                     xai_gate_decision=event_obj.get("xai_gate_decision"),
                     reply_necessity_outcome=event_obj.get("reply_necessity_outcome"),
+                    reply_necessity_majority_resolvable=(
+                        event_obj.get("reply_necessity_majority_resolvable")
+                        if type(
+                            event_obj.get("reply_necessity_majority_resolvable")
+                        ) is bool
+                        else None
+                    ),
                     reply_necessity_invalid_calls=(
                         event_obj.get("reply_necessity_invalid_calls")
                         if type(event_obj.get("reply_necessity_invalid_calls")) is int
@@ -6850,6 +6882,17 @@ def analyse(
                         else []
                     ),
                     allegation_conspiracy_outcome=event_obj.get("allegation_conspiracy_outcome"),
+                    allegation_conspiracy_majority_resolvable=(
+                        event_obj.get(
+                            "allegation_conspiracy_majority_resolvable"
+                        )
+                        if type(
+                            event_obj.get(
+                                "allegation_conspiracy_majority_resolvable"
+                            )
+                        ) is bool
+                        else None
+                    ),
                     allegation_conspiracy_invalid_calls=(
                         event_obj.get("allegation_conspiracy_invalid_calls")
                         if type(event_obj.get("allegation_conspiracy_invalid_calls")) is int
@@ -6888,6 +6931,9 @@ def analyse(
                     reason=event_obj.get("reason") or "unknown_pipeline_failure",
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
+                    author_quarantine_evidence=event_obj.get(
+                        "author_quarantine_evidence"
+                    ),
                 )
             elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
                 evidence_ids = event_obj.get("evidence_ids")
@@ -8401,12 +8447,12 @@ def analyse(
     mention_control_counts = Counter(
         str(item.get("kind")) for item in mention_control_events
     )
-    provider_calls_avoided = sum(
-        int(item["provider_calls_avoided"])
+    pipeline_evaluations_skipped = sum(
+        int(item["pipeline_evaluations_skipped"])
         for item in mention_control_events
         if item.get("kind") == "author_evaluation_quarantine_skip"
-        and type(item.get("provider_calls_avoided")) is int
-        and item["provider_calls_avoided"] >= 0
+        and type(item.get("pipeline_evaluations_skipped")) is int
+        and item["pipeline_evaluations_skipped"] >= 0
     )
 
     return {
@@ -8427,7 +8473,7 @@ def analyse(
         "mention_backlog_and_quarantine": {
             "events": mention_control_events,
             "event_counts": dict(sorted(mention_control_counts.items())),
-            "provider_calls_avoided": provider_calls_avoided,
+            "pipeline_evaluations_skipped": pipeline_evaluations_skipped,
         },
         "api_health": {
             "errors": api_errors,
@@ -9118,8 +9164,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
     )
     out.append(
-        "Provider calls avoided by quarantine (explicit event counts only): "
-        + str(mention_control.get("provider_calls_avoided", 0))
+        "Pipeline evaluations skipped by active author quarantine "
+        "(explicit event counts only): "
+        + str(mention_control.get("pipeline_evaluations_skipped", 0))
         + "."
     )
     out.append("")
@@ -10942,6 +10989,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
             + compact_counts(
                 pipeline_stages.get("reply_necessity_outcome_counts") or {}
             )
+            + "; majority resolvability: "
+            + compact_counts(
+                pipeline_stages.get(
+                    "reply_necessity_majority_resolvable_counts"
+                ) or {}
+            )
             + f"; gate overturns: {pipeline_stages.get('reply_necessity_overturn_count', 0)}."
         )
         out.append(
@@ -10956,7 +11009,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"{pipeline_stages.get('allegation_conspiracy_candidate_count', 0)} / "
             f"{pipeline_stages.get('allegation_conspiracy_review_count', 0)} / "
             f"{pipeline_stages.get('allegation_conspiracy_suppression_count', 0)}**; "
-            f"outcomes: {compact_counts(pipeline_stages.get('allegation_conspiracy_outcome_counts') or {})}."
+            f"outcomes: {compact_counts(pipeline_stages.get('allegation_conspiracy_outcome_counts') or {})}; "
+            f"majority resolvability: "
+            f"{compact_counts(pipeline_stages.get('allegation_conspiracy_majority_resolvable_counts') or {})}."
         )
         out.append(
             "Attribution routes: "
@@ -11221,8 +11276,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
             "terminal_reason",
             "xai_gate_decision",
             "reply_necessity_outcome",
+            "reply_necessity_majority_resolvable",
             "group_hostility_outcome",
             "allegation_conspiracy_outcome",
+            "allegation_conspiracy_majority_resolvable",
             "attribution_route",
             "claim_risk_categories",
             "duplicate_repair_outcome",
@@ -11232,7 +11289,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section(
         "reply_strategy_decision",
         "Reply strategy decisions",
-        ["time", "lane", "strategy_version", "mode", "reply_requirement", "route_source", "tone", "evidence_confidence", "trusted_facts_supplied_count", "used_fact_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "no_reply_reason"],
+        ["time", "lane", "strategy_version", "mode", "reply_requirement", "route_source", "tone", "evidence_confidence", "trusted_facts_supplied_count", "used_fact_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "author_quarantine_evidence", "no_reply_reason"],
     )
     section(
         "reply_strategy_outcome",
@@ -11242,7 +11299,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section(
         "reply_strategy_failure",
         "Operational reply-pipeline failures",
-        ["time", "status", "lane", "target_id", "strategy_version", "reason", "model_call_count", "revision_count"],
+        ["time", "status", "lane", "target_id", "strategy_version", "reason", "model_call_count", "revision_count", "author_quarantine_evidence"],
     )
     section(
         "reply_target_terminal",

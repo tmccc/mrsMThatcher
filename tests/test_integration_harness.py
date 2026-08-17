@@ -6665,8 +6665,8 @@ def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
     assert "## Reply strategy decisions" in digest.stdout
-    assert "| time | lane | strategy_version | mode | reply_requirement | route_source | tone | evidence_confidence | trusted_facts_supplied_count | used_fact_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | no_reply_reason |" in digest.stdout
-    assert "| 2026-07-14 12:00:00 | unavailable |  | historical_context |  |  | dry | medium |  |  | True | True |  |  |  |  |" in digest.stdout
+    assert "| time | lane | strategy_version | mode | reply_requirement | route_source | tone | evidence_confidence | trusted_facts_supplied_count | used_fact_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | author_quarantine_evidence | no_reply_reason |" in digest.stdout
+    assert "| 2026-07-14 12:00:00 | unavailable |  | historical_context |  |  | dry | medium |  |  | True | True |  |  |  |  |  |" in digest.stdout
 
 
 def test_digest_markdown_distinguishes_principle_and_editorial_no_reply_categories(

@@ -280,6 +280,7 @@ NORMAL_CHECK_STATUS_API_ERROR = "api_error"
 
 REPLY_EVALUATION_MIN_RETENTION_SECONDS = 30 * 24 * 60 * 60
 REPLY_EVALUATION_MAX_RECORDS = 25_000
+MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT = 10_000
 
 # ---------------------------------------------------------------------
 # Reply automation
@@ -296,6 +297,7 @@ MENTIONS_MAX_PAGES_PER_CHECK = 3
 AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
 AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
 AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
+AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = "majority_spam_or_abuse_v1"
 
 # Optional hot-post reply lane. This reuses the same watched post ID file
 # as the quote-tweet lane, but looks for ordinary replies in that post
@@ -3367,6 +3369,10 @@ class PaginationCursorProtocolError(ApiError):
     """An X collection returned a pagination-token cycle."""
 
 
+class _MentionBacklogContinuationLimit(RuntimeError):
+    """Stop one mention traversal after safely resetting its oversized cursor history."""
+
+
 class RemoteOperationsPaused(RuntimeError):
     """A global runtime-control pause blocked a remote operation."""
 
@@ -3941,12 +3947,60 @@ def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, di
     return out
 
 
+def completed_mention_watermark_covers_target(state: dict, target_id: str) -> bool:
+    """Return whether a completed mention traversal prevents refetching one target."""
+    target_id = str(target_id)
+    watermark = str(state.get("last_seen_mention_id") or "")
+    pending = state.get("mention_pending_candidates")
+    if (
+        not target_id.isdigit()
+        or not watermark.isdigit()
+        or not isinstance(pending, dict)
+        or target_id in pending
+    ):
+        return False
+    return int(target_id) <= int(watermark)
+
+
+def prune_completed_mention_quarantine_evaluations(state: dict) -> int:
+    """Drop unsafe legacy or watermark-covered local quarantine skips."""
+    records = state.get("reply_evaluation_records")
+    if not isinstance(records, dict):
+        return 0
+    removable = {
+        str(target_id)
+        for target_id, record in records.items()
+        if isinstance(record, dict)
+        and record.get("lane") == "mention"
+        and record.get("outcome") == "no_reply"
+        and record.get("reason") == "author_evaluation_quarantine"
+        and (
+            record.get("evidence_policy")
+            != AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+            or completed_mention_watermark_covers_target(state, str(target_id))
+        )
+    }
+    if not removable:
+        return 0
+    state["reply_evaluation_records"] = {
+        str(target_id): record
+        for target_id, record in records.items()
+        if str(target_id) not in removable
+    }
+    log.info(
+        "Retired %s legacy or completed-watermark mention quarantine evaluations",
+        len(removable),
+    )
+    return len(removable)
+
+
 def prune_reply_evaluation_records(
     state: dict,
     *,
     current_epoch: int | None = None,
 ) -> None:
     """Prune old terminal evaluations while preserving recent replay protection."""
+    prune_completed_mention_quarantine_evaluations(state)
     records = state.get("reply_evaluation_records")
     if not isinstance(records, dict):
         return
@@ -3983,6 +4037,29 @@ def prune_reply_evaluation_records(
 
     protected.sort(key=sort_key)
     older.sort(key=sort_key)
+    protected_overflow = max(0, len(protected) - REPLY_EVALUATION_MAX_RECORDS)
+    if protected_overflow:
+        evictable_quarantine = [
+            item
+            for item in protected
+            if evaluated_epoch(item) is not None
+            and item[1].get("lane") == "mention"
+            and item[1].get("outcome") == "no_reply"
+            and item[1].get("reason") == "author_evaluation_quarantine"
+        ]
+        evicted_ids = {
+            target_id
+            for target_id, _record in evictable_quarantine[:protected_overflow]
+        }
+        if evicted_ids:
+            protected = [
+                item for item in protected if item[0] not in evicted_ids
+            ]
+            log.warning(
+                "Pruned %s oldest recent mention quarantine evaluations to bound "
+                "reply-evaluation state; an incomplete traversal may refetch them",
+                len(evicted_ids),
+            )
     if len(protected) > REPLY_EVALUATION_MAX_RECORDS:
         retained = protected
         log.warning(
@@ -4001,7 +4078,7 @@ def prune_reply_evaluation_records(
     removed = len(records) - len(retained)
     if removed:
         log.info(
-            "Pruned %s old reply evaluation records; retained=%s cap=%s",
+            "Pruned %s reply evaluation records; retained=%s cap=%s",
             removed,
             len(retained),
             REPLY_EVALUATION_MAX_RECORDS,
@@ -4024,6 +4101,12 @@ def prune_author_evaluation_quarantines(
     changed = False
     for author_id, raw_record in records.items():
         if not isinstance(raw_record, dict):
+            changed = True
+            continue
+        if (
+            raw_record.get("evidence_policy")
+            != AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+        ):
             changed = True
             continue
         recent = [
@@ -4050,6 +4133,7 @@ def prune_author_evaluation_quarantines(
                 "recent_no_reply_epochs": recent,
                 "quarantine_until_epoch": until,
                 "last_updated_epoch": updated,
+                "evidence_policy": AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
             }
             retained[str(author_id)] = record
             if record != raw_record or str(author_id) != author_id:
@@ -4126,6 +4210,7 @@ def record_qualifying_author_no_reply(
         "recent_no_reply_epochs": recent,
         "quarantine_until_epoch": until,
         "last_updated_epoch": current,
+        "evidence_policy": AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
     }
     state["author_evaluation_quarantines"] = records
     return started
@@ -4256,7 +4341,12 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
     return candidate
 
 
-def normalise_mention_backlog(value: object, *, path: Path) -> dict | None:
+def normalise_mention_backlog(
+    value: object,
+    *,
+    path: Path,
+    reset_token_overflow: bool = False,
+) -> dict | None:
     """Validate the durable state for one incomplete mention traversal."""
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid mention_backlog type %s; ignoring", path, type(value).__name__)
@@ -4305,12 +4395,13 @@ def normalise_mention_backlog(value: object, *, path: Path) -> dict | None:
             or any(character.isspace() for character in token)
             for token in seen_tokens
         )
-        or len(seen_tokens) > 10_000
         or len(set(seen_tokens)) != len(seen_tokens)
     ):
         return None
     if type(announced) is not bool:
         return None
+    if len(seen_tokens) > MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT:
+        return {} if reset_token_overflow else None
     return {
         "since_id": since_id,
         "next_token": next_token,
@@ -4332,15 +4423,30 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
         )
         return None
     result: dict[str, dict[str, object]] = {}
+    legacy_fields = {
+        "recent_no_reply_epochs",
+        "quarantine_until_epoch",
+        "last_updated_epoch",
+    }
+    current_fields = legacy_fields | {"evidence_policy"}
     for raw_author_id, raw_record in value.items():
         author_id = str(raw_author_id)
         if not author_id.isdigit() or not isinstance(raw_record, dict):
             return None
-        if set(raw_record) != {
-            "recent_no_reply_epochs",
-            "quarantine_until_epoch",
-            "last_updated_epoch",
-        }:
+        record_fields = set(raw_record)
+        if record_fields == legacy_fields:
+            log.warning(
+                "Discarding legacy broad author-evaluation quarantine for author_id=%s from %s",
+                author_id,
+                path,
+            )
+            continue
+        if record_fields != current_fields:
+            return None
+        if (
+            raw_record.get("evidence_policy")
+            != AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+        ):
             return None
         timestamps = raw_record.get("recent_no_reply_epochs")
         until = raw_record.get("quarantine_until_epoch")
@@ -4370,6 +4476,7 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             "recent_no_reply_epochs": list(timestamps),
             "quarantine_until_epoch": until,
             "last_updated_epoch": updated,
+            "evidence_policy": AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
         }
     return result
 
@@ -4476,7 +4583,12 @@ def validate_meme_schedule_version_for_candidate(state: dict, *, path: Path) -> 
     return validate_meme_schedule_state(state, path=path)
 
 
-def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
+def normalise_state_candidate(
+    state: dict,
+    *,
+    path: Path,
+    recovery_events: list[dict[str, object]] | None = None,
+) -> dict | None:
     """Normalise state candidate."""
     list_keys = {
         "replied_to_ids",
@@ -4601,10 +4713,32 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
             return None
         normalised["mention_pagination"] = value
     if "mention_backlog" in state:
-        value = normalise_mention_backlog(state["mention_backlog"], path=path)
+        raw_backlog = state["mention_backlog"]
+        token_overflow = (
+            isinstance(raw_backlog, dict)
+            and isinstance(raw_backlog.get("seen_tokens"), list)
+            and len(raw_backlog["seen_tokens"])
+            > MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT
+        )
+        value = normalise_mention_backlog(
+            raw_backlog,
+            path=path,
+            reset_token_overflow=token_overflow,
+        )
         if value is None:
             return None
         normalised["mention_backlog"] = value
+        if token_overflow:
+            normalised["mention_pagination"] = {}
+            if recovery_events is not None:
+                recovery_events.append({
+                    "reason": "continuation_token_limit",
+                    "since_id": str(raw_backlog.get("since_id") or "") or None,
+                    "pages_completed": raw_backlog.get("pages_completed"),
+                    "token_fingerprint": hashlib.sha256(
+                        str(raw_backlog.get("next_token") or "").encode("utf-8")
+                    ).hexdigest()[:16],
+                })
     if "author_evaluation_quarantines" in state:
         value = normalise_author_evaluation_quarantines(
             state["author_evaluation_quarantines"],
@@ -4651,6 +4785,16 @@ def load_state() -> dict:
     candidates.extend(STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}") for i in range(1, STATE_BACKUP_COUNT + 1))
 
     existing_candidates = False
+    candidate_recoveries: dict[Path, list[dict[str, object]]] = {}
+
+    def emit_candidate_recoveries(candidate: Path) -> None:
+        for recovery in candidate_recoveries.get(candidate, []):
+            log.warning(
+                "Resetting oversized mention backlog while loading %s; "
+                "watermark and pending candidates remain unchanged",
+                candidate,
+            )
+            log_event("mention_backlog_reset", **recovery)
 
     def load_candidate(candidate: Path, *, reject_legacy: bool) -> dict | None:
         nonlocal existing_candidates
@@ -4690,7 +4834,14 @@ def load_state() -> dict:
             log.warning("%s; candidate is not needed because primary state is usable", message)
             return None
         state.pop("pending_reply_drafts", None)
-        normalised = normalise_state_candidate(state, path=candidate)
+        recovery_events: list[dict[str, object]] = []
+        normalised = normalise_state_candidate(
+            state,
+            path=candidate,
+            recovery_events=recovery_events,
+        )
+        if normalised is not None:
+            candidate_recoveries[candidate] = recovery_events
         return normalised
 
     latest_backup_path = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
@@ -4713,6 +4864,7 @@ def load_state() -> dict:
                 latest_backup_path,
             )
             raise RuntimeError(message)
+        emit_candidate_recoveries(STATE_FILE)
         log_json_debug("Loaded state summary", state_debug_summary(primary))
         return primary
 
@@ -4723,6 +4875,7 @@ def load_state() -> dict:
         if recovered is None:
             continue
         log.warning("Recovered state from backup %s", candidate)
+        emit_candidate_recoveries(candidate)
         log_json_debug("Loaded state summary", state_debug_summary(recovered))
         return recovered
 
@@ -6932,6 +7085,12 @@ def get_mentions(state: dict) -> list[dict]:
             active = copy.deepcopy(active)
             seen_tokens = list(active.get("seen_tokens", []))
             if request_token and request_token not in seen_tokens:
+                if len(seen_tokens) >= MENTION_BACKLOG_CONTINUATION_TOKEN_LIMIT:
+                    reset_backlog(
+                        "continuation_token_limit",
+                        token=request_token,
+                    )
+                    raise _MentionBacklogContinuationLimit
                 seen_tokens.append(request_token)
             active["seen_tokens"] = seen_tokens
             active["highest_mention_id"] = highest
@@ -6960,6 +7119,7 @@ def get_mentions(state: dict) -> list[dict]:
                 update_last_seen_mention_id(state, highest)
             state["mention_backlog"] = {}
             state["mention_pagination"] = {}
+            prune_completed_mention_quarantine_evaluations(state)
             save_state(state, durable=True)
             traversal_completed = True
             if active.get("announced"):
@@ -6990,6 +7150,8 @@ def get_mentions(state: dict) -> list[dict]:
                 initial_requested_tokens=prior_seen_tokens,
                 retry_invalid_cursor_from_head=False,
             )
+        except _MentionBacklogContinuationLimit:
+            break
         except ApiError as exc:
             if resume_token and api_error_is_invalid_pagination_cursor(exc):
                 break
@@ -19257,31 +19419,21 @@ def tested_pipeline_no_reply_qualifies_for_author_quarantine(
     reason: str,
     telemetry: dict,
 ) -> bool:
-    """Identify complete policy-silence outcomes, excluding fail-closed errors."""
+    """Accept only a resolved tested-pipeline spam/abuse majority as a strike."""
     if status != "no_reply":
         return False
-    invalid_stages = {
-        str(stage) for stage in telemetry.get("schema_invalid_stages", [])
-    }
-    if telemetry.get("deterministic_suppressed") is True:
-        deterministic_reason = str(telemetry.get("deterministic_reason") or "")
-        return "abusive epithet" in deterministic_reason
     if (
         reason == "reply_necessity_review"
-        and telemetry.get("reply_necessity_outcome") == "confirm_no_reply"
-        and int(telemetry.get("reply_necessity_invalid_calls") or 0) <= 1
-    ):
-        return True
-    if (
-        reason == "group_hostility_suppression"
-        and telemetry.get("group_hostility_outcome") == "suppress_group_hostility"
-        and "focused_group_review" not in invalid_stages
+        and telemetry.get("reply_necessity_outcome")
+        == "confirm_no_reply_spam_or_abuse"
+        and telemetry.get("reply_necessity_majority_resolvable") is True
     ):
         return True
     if (
         reason == "allegation_review_suppression"
-        and telemetry.get("allegation_conspiracy_outcome") == "confirm_no_reply"
-        and int(telemetry.get("allegation_conspiracy_invalid_calls") or 0) <= 1
+        and telemetry.get("allegation_conspiracy_outcome")
+        == "confirm_no_reply_spam_or_abuse"
+        and telemetry.get("allegation_conspiracy_majority_resolvable") is True
     ):
         return True
     return False
@@ -19466,12 +19618,20 @@ def generate_ai_first_reply(
             terminal_stage=pipeline_telemetry["terminal_stage"],
             claim_auditor_status=pipeline_telemetry["claim_auditor_status"],
             evidence_status=evidence_status,
+            author_quarantine_evidence="unavailable_ai_first_reply_strategy",
             reason=result.reason,
             model_call_count=result.model_call_count,
             revision_count=result.revision_count,
         )
         if evaluation_outcome is not None:
-            evaluation_outcome.update({"status": result.status, "reason": result.reason})
+            evaluation_outcome.update(
+                {
+                    "status": result.status,
+                    "reason": result.reason,
+                    "qualifying_author_no_reply": False,
+                    "author_quarantine_evidence": "unavailable_ai_first_reply_strategy",
+                }
+            )
         if operational_failure:
             raise ApiError(
                 f"AI-first reply pipeline operational failure: {result.reason}",
@@ -19520,6 +19680,8 @@ def record_terminal_reply_evaluation(
     lane: str,
     reason: str,
     outcome: str = "no_reply",
+    prune_records: bool = True,
+    evidence_policy: str | None = None,
 ) -> None:
     """Record terminal reply evaluation."""
     if outcome not in {"no_reply", "reply_not_permitted"}:
@@ -19527,16 +19689,21 @@ def record_terminal_reply_evaluation(
     records = state.get("reply_evaluation_records", {})
     if not isinstance(records, dict):
         records = {}
-    records = dict(records)
-    records[str(target_id)] = {
+    if prune_records:
+        records = dict(records)
+    record = {
         "target_id": str(target_id),
         "lane": str(lane),
         "outcome": outcome,
         "reason": str(reason or "model_selected_no_reply"),
         "evaluated_epoch": now_epoch(),
     }
+    if evidence_policy is not None:
+        record["evidence_policy"] = str(evidence_policy)
+    records[str(target_id)] = record
     state["reply_evaluation_records"] = records
-    prune_reply_evaluation_records(state)
+    if prune_records:
+        prune_reply_evaluation_records(state)
 
 
 def ai_reply_receipt_draft_is_valid(data: dict, text: object) -> bool:
@@ -20839,6 +21006,24 @@ def maybe_reply_to_mentions(
     log.debug("dry_run_seen_ids count=%d", len(dry_run_seen_ids))
 
     fresh_mention_ai_evaluations = int(_fresh_mention_ai_evaluations)
+    quarantine_retirements_pending = False
+    quarantine_evaluations_deferred = False
+
+    def prune_quarantine_retirement_batch() -> None:
+        nonlocal quarantine_evaluations_deferred
+        if quarantine_evaluations_deferred:
+            prune_reply_evaluation_records(state)
+        else:
+            prune_completed_mention_quarantine_evaluations(state)
+        quarantine_evaluations_deferred = False
+
+    def flush_quarantine_retirements() -> None:
+        nonlocal quarantine_retirements_pending
+        if not quarantine_retirements_pending:
+            return
+        prune_quarantine_retirement_batch()
+        save_state(state, durable=True)
+        quarantine_retirements_pending = False
 
     for mention in mentions:
         mention_id = str(mention["id"])
@@ -20956,10 +21141,15 @@ def maybe_reply_to_mentions(
                 reason=reason,
             )
             mark_mention_seen_if_applicable(state, mention)
+            if quarantine_retirements_pending:
+                prune_quarantine_retirement_batch()
             save_state(state, durable=True)
+            quarantine_retirements_pending = False
             continue
 
-        if candidate_source == "mention":
+        clarification = clarification_reply_context(state, mention, current=current)
+
+        if candidate_source == "mention" and clarification is None:
             quarantine = active_author_evaluation_quarantine(
                 state,
                 author_id,
@@ -20967,12 +21157,6 @@ def maybe_reply_to_mentions(
             )
             if quarantine is not None:
                 reason = "author_evaluation_quarantine"
-                record_terminal_reply_evaluation(
-                    state,
-                    target_id=mention_id,
-                    lane="mention",
-                    reason=reason,
-                )
                 log_event(
                     "author_evaluation_quarantine_skip",
                     author_id=author_id,
@@ -20980,9 +21164,7 @@ def maybe_reply_to_mentions(
                     quarantine_until_epoch=quarantine.get(
                         "quarantine_until_epoch"
                     ),
-                    provider_calls_avoided=4,
-                    xai_calls_avoided=1,
-                    openai_calls_avoided=3,
+                    pipeline_evaluations_skipped=1,
                 )
                 maybe_mark_hot_post_reply_skipped(state, mention, reason=reason)
                 log_event(
@@ -20993,10 +21175,21 @@ def maybe_reply_to_mentions(
                     author_id=author_id,
                 )
                 mark_mention_seen_if_applicable(state, mention)
-                save_state(state, durable=True)
+                if not completed_mention_watermark_covers_target(state, mention_id):
+                    record_terminal_reply_evaluation(
+                        state,
+                        target_id=mention_id,
+                        lane="mention",
+                        reason=reason,
+                        prune_records=False,
+                        evidence_policy=(
+                            AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+                        ),
+                    )
+                    quarantine_evaluations_deferred = True
+                quarantine_retirements_pending = True
                 continue
 
-        clarification = clarification_reply_context(state, mention, current=current)
         author_cap_reached = daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY
         if author_cap_reached:
             log.info(
@@ -21029,6 +21222,7 @@ def maybe_reply_to_mentions(
             save_state(state)
             continue
 
+        flush_quarantine_retirements()
         try:
             reply_context, should_continue = build_context_for_reply_ai(mention, state)
         except ApiError as e:
@@ -21457,7 +21651,10 @@ def maybe_reply_to_mentions(
         log.info("Reply posted successfully")
         return NORMAL_CHECK_STATUS_POSTED
 
-    save_state(state)
+    if quarantine_retirements_pending:
+        flush_quarantine_retirements()
+    else:
+        save_state(state)
     if (
         started_with_pending_mentions
         and not pending_mention_candidates(state)

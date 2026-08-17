@@ -39,7 +39,9 @@ only the required JSON."""
 
 REPLY_NECESSITY_PROMPT = """You are an independent reply-necessity reviewer for a Margaret Thatcher quotation account on X. Judge the visible interaction afresh. Decide whether the account should remain silent or whether a reply is required. There is no upstream decision to defer to.
 Return only the required outcome enum. Do not draft a reply, suggest wording, classify the contributor, provide confidence, or give free-form reasoning.
-Choose confirm_no_reply only when silence is genuinely warranted: spam or irrelevance; incoherent or insufficient context; an unresolved contextless pronoun or demonstrative; a material question already answered in the visible thread with no new distinction; direct abuse best ignored; a genuinely literal bare mention or bare link; categorical group hostility that would mainly be amplified by a rebuttal; or an unsupported allegation, fabricated quotation, or precise unsupported attribution that cannot be addressed safely.
+Choose confirm_no_reply_spam_or_abuse only for clear repetitive or promotional spam, or direct targeted abuse or harassment.
+Choose confirm_no_reply for every other genuinely warranted silence: ordinary irrelevance; incoherent or insufficient context; an unresolved contextless pronoun or demonstrative; a material question already answered in the visible thread with no new distinction; a genuinely literal bare mention or bare link; categorical group hostility that would mainly be amplified by a rebuttal; or an unsupported allegation, fabricated quotation, or precise unsupported attribution that cannot be addressed safely.
+Never classify insufficient context, an already-answered question, a literal bare mention or link, ordinary irrelevance, an unsupported attribution or allegation, civil criticism, or disagreement as spam_or_abuse.
 A literal bare mention or link contains no meaningful text and no expressive social signal. A handle accompanied by a positive expressive emoji, applause, thanks, a greeting, sympathy, congratulations, or other clear social content is not a bare mention and normally requires a brief claim-free courtesy reply.
 Choose require_claim_free_reply when a safe and useful response can be made without checkable factual claims. This includes genuine social interaction, thanks, grief or distress, civil criticism, substantive disagreement, a principle-level or normative question, and safe contextual clarification.
 Choose require_supported_factual_reply when the contribution asks a direct factual question that can be answered from trusted_facts and a claim-free response would not answer it.
@@ -148,6 +150,7 @@ REPLY_NECESSITY_SCHEMA = _strict_schema({
         "type": "string",
         "enum": [
             "confirm_no_reply",
+            "confirm_no_reply_spam_or_abuse",
             "require_claim_free_reply",
             "require_supported_factual_reply",
         ],
@@ -598,12 +601,14 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
         "deterministic_reason": None,
         "xai_gate_decision": None,
         "reply_necessity_outcome": None,
+        "reply_necessity_majority_resolvable": False,
         "reply_necessity_invalid_calls": 0,
         "group_hostility_candidate": None,
         "group_hostility_outcome": None,
         "allegation_conspiracy_candidate": None,
         "allegation_conspiracy_categories": [],
         "allegation_conspiracy_outcome": None,
+        "allegation_conspiracy_majority_resolvable": False,
         "allegation_conspiracy_invalid_calls": 0,
         "attribution_route": None,
         "attribution_reply_requirement": None,
@@ -652,6 +657,9 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
             telemetry["xai_gate_decision"] = row["decision"]
         elif stage == "reply_necessity_resolution":
             telemetry["reply_necessity_outcome"] = row.get("majority_outcome")
+            telemetry["reply_necessity_majority_resolvable"] = (
+                row.get("majority_resolvable") is True
+            )
             telemetry["reply_necessity_invalid_calls"] = int(row.get("invalid_or_refused_calls") or 0)
         elif stage == "group_hostility_detector":
             telemetry["group_hostility_candidate"] = row.get("candidate") is True
@@ -666,6 +674,9 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
                 )
         elif stage == "allegation_conspiracy_resolution":
             telemetry["allegation_conspiracy_outcome"] = row.get("majority_outcome")
+            telemetry["allegation_conspiracy_majority_resolvable"] = (
+                row.get("majority_resolvable") is True
+            )
             telemetry["allegation_conspiracy_invalid_calls"] = int(row.get("invalid_or_refused_calls") or 0)
         elif stage == "attribution_route_v2":
             telemetry["attribution_route"] = row.get("route_class")
