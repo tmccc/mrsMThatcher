@@ -1,0 +1,29 @@
+[Unit]
+Description=MrsMThatcher OpenAI published-cost cache collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/disks/disk1/etc/mrsMThatcher
+ExecStart=/bin/bash -lc 'set -a; source /disks/disk1/etc/mrsMThatcher/mrsMThatcher.env; set +a; exec /usr/bin/python3 /disks/disk1/etc/mrsMThatcher/openai_cost_cache.py update'
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectProc=invisible
+ProcSubset=pid
+ReadWritePaths=%h/.local/state/mrsMThatcher/openai-costs
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+TimeoutStartSec=2min
+
+# User unit. Install as ~/.config/systemd/user/mrs-openai-cost-cache.service.

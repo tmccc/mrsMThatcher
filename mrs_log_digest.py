@@ -41,7 +41,7 @@ import tempfile
 from collections import Counter
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -61,6 +61,14 @@ GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
 RESUME_FINGERPRINT_TAIL_LIMIT = 128
 USD_TICKS_PER_DOLLAR = 10_000_000_000
 USD_DISPLAY_QUANTUM = Decimal("0.00000001")
+OPENAI_COST_CACHE_SCHEMA_VERSION = 1
+OPENAI_COST_CACHE_SOURCE = "openai_organization_costs"
+OPENAI_COST_CACHE_PATH = (
+    Path.home() / ".local/state/mrsMThatcher/openai-costs/daily_costs.json"
+)
+OPENAI_COST_CACHE_MAX_BYTES = 16 * 1024 * 1024
+OPENAI_COST_CACHE_STALE_AFTER_SECONDS = 2 * 60 * 60
+OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS = 2 * 60 * 60
 SEMANTIC_VETO_NAMED_COVERAGE_QUOTE_ID = (
     "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
 )
@@ -4089,6 +4097,467 @@ def format_reported_cost(row: Dict[str, Any]) -> str:
     if costed <= 0:
         return "unknown"
     return format_usd_ticks(int(row.get("known_cost_in_usd_ticks", 0) or 0))
+
+
+def _parse_openai_cost_decimal(value: Any, *, label: str) -> Decimal:
+    """Parse one canonical monetary string from the private OpenAI cache."""
+
+    if type(value) is not str or not re.fullmatch(
+        r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]*[1-9])?", value
+    ):
+        raise ValueError(f"{label} is not a canonical decimal string")
+    parsed = Decimal(value)
+    if not parsed.is_finite() or (parsed == 0 and value != "0"):
+        raise ValueError(f"{label} is not a canonical finite decimal string")
+    return parsed
+
+
+def _openai_decimal_text(value: Decimal) -> str:
+    """Render one finite Decimal without an exponent or redundant zeroes."""
+
+    if not value.is_finite():
+        raise ValueError("OpenAI cost is not finite")
+    if value == 0:
+        return "0"
+    rendered = format(value, "f")
+    if "." in rendered:
+        rendered = rendered.rstrip("0").rstrip(".")
+    return rendered
+
+
+def format_openai_usd(value: Any) -> str:
+    """Render one cache decimal as provider-published US dollars."""
+
+    amount = (
+        value
+        if isinstance(value, Decimal)
+        else _parse_openai_cost_decimal(value, label="OpenAI cost")
+    )
+    return f"US${_openai_decimal_text(amount)}"
+
+
+def _parse_openai_utc(value: Any, *, label: str) -> datetime:
+    """Parse the cache's canonical whole-second UTC timestamp."""
+
+    if type(value) is not str or not re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", value
+    ):
+        raise ValueError(f"{label} is not a canonical UTC timestamp")
+    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=timezone.utc
+    )
+
+
+def _validate_openai_money_map(value: Any, *, label: str) -> Decimal:
+    """Validate one monetary breakdown and return its exact sum."""
+
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} is not an object")
+    total = Decimal(0)
+    for key, amount in value.items():
+        if type(key) is not str or not key:
+            raise ValueError(f"{label} contains an invalid key")
+        total += _parse_openai_cost_decimal(amount, label=f"{label}.{key}")
+    return total
+
+
+def load_openai_cost_cache(
+    cache_path: Optional[Path] = None,
+    *,
+    now_utc: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Read and strictly validate the private cache without network access."""
+
+    path = Path(cache_path or OPENAI_COST_CACHE_PATH).expanduser()
+    observed_now = now_utc or datetime.now(timezone.utc)
+    if observed_now.tzinfo is None:
+        observed_now = observed_now.astimezone(timezone.utc)
+    else:
+        observed_now = observed_now.astimezone(timezone.utc)
+
+    def unavailable(reason: str) -> Dict[str, Any]:
+        return {
+            "available": False,
+            "path": str(path),
+            "reason": reason,
+        }
+
+    try:
+        raw = read_stable_regular_bytes(path, maximum=OPENAI_COST_CACHE_MAX_BYTES)
+    except FileNotFoundError:
+        return unavailable("cache file is missing")
+    except (OSError, RuntimeError, ValueError) as exc:
+        return unavailable(f"cache file is unavailable: {exc}")
+    try:
+        cache = _strict_json_object(raw, label="OpenAI cost cache")
+        if cache.get("schema_version") != OPENAI_COST_CACHE_SCHEMA_VERSION:
+            raise ValueError("unsupported cache schema")
+        if cache.get("source") != OPENAI_COST_CACHE_SOURCE:
+            raise ValueError("unexpected cache source")
+        if cache.get("currency") != "usd":
+            raise ValueError("unsupported or mixed cache currency")
+        updated_at = _parse_openai_utc(
+            cache.get("updated_at_utc"), label="updated_at_utc"
+        )
+        if updated_at > observed_now + timedelta(minutes=5):
+            raise ValueError("cache update time is in the future")
+        age_seconds = max(0, int((observed_now - updated_at).total_seconds()))
+        if age_seconds > OPENAI_COST_CACHE_STALE_AFTER_SECONDS:
+            return unavailable(
+                f"cache is stale ({_human_snapshot_age(age_seconds)} old)"
+            )
+
+        scope = cache.get("scope")
+        if not isinstance(scope, dict) or scope.get("kind") not in {
+            "project",
+            "organization",
+        }:
+            raise ValueError("cache scope is invalid")
+        if type(scope.get("description")) is not str or not scope["description"]:
+            raise ValueError("cache scope description is invalid")
+        if scope["kind"] == "project":
+            if type(scope.get("project_id")) is not str or not scope["project_id"]:
+                raise ValueError("project-scoped cache has no project ID")
+        elif "project_id" in scope:
+            raise ValueError("organization-scoped cache contains a project ID")
+
+        days = cache.get("days")
+        if not isinstance(days, dict) or not days or len(days) > 400:
+            raise ValueError("cache days are missing or exceed the retention bound")
+        for day_key, day_value in days.items():
+            if type(day_key) is not str or not isinstance(day_value, dict):
+                raise ValueError("cache contains an invalid day")
+            day_date = datetime.strptime(day_key, "%Y-%m-%d").date()
+            expected_start = int(
+                datetime.combine(day_date, time.min, tzinfo=timezone.utc).timestamp()
+            )
+            if (
+                type(day_value.get("start_time")) is not int
+                or type(day_value.get("end_time")) is not int
+                or day_value["start_time"] != expected_start
+                or day_value["end_time"] != expected_start + 86_400
+            ):
+                raise ValueError(f"cache day {day_key} has invalid UTC boundaries")
+            primary = _parse_openai_cost_decimal(
+                day_value.get("primary_total"), label=f"days.{day_key}.primary_total"
+            )
+            organization = _parse_openai_cost_decimal(
+                day_value.get("organization_total"),
+                label=f"days.{day_key}.organization_total",
+            )
+            _validate_openai_money_map(
+                day_value.get("projects"), label=f"days.{day_key}.projects"
+            )
+            line_total = _validate_openai_money_map(
+                day_value.get("line_items"), label=f"days.{day_key}.line_items"
+            )
+            organization_line_items = day_value.get("organization_line_items")
+            organization_line_total = (
+                _validate_openai_money_map(
+                    organization_line_items,
+                    label=f"days.{day_key}.organization_line_items",
+                )
+                if organization_line_items is not None
+                else None
+            )
+            if line_total != primary or (
+                organization_line_total is not None
+                and organization_line_total != organization
+            ):
+                raise ValueError(f"cache day {day_key} breakdown totals disagree")
+            if scope["kind"] == "organization" and primary != organization:
+                raise ValueError(f"cache day {day_key} organization primary total disagrees")
+            if scope["kind"] == "project":
+                expected_primary = _parse_openai_cost_decimal(
+                    day_value["projects"].get(scope["project_id"], "0"),
+                    label=f"days.{day_key}.selected_project",
+                )
+                if primary != expected_primary:
+                    raise ValueError(f"cache day {day_key} project primary total disagrees")
+
+            samples = day_value.get("samples")
+            if not isinstance(samples, list) or not samples or len(samples) > 96:
+                raise ValueError(f"cache day {day_key} has invalid samples")
+            previous_sample_time: Optional[datetime] = None
+            for sample in samples:
+                if not isinstance(sample, dict):
+                    raise ValueError(f"cache day {day_key} contains an invalid sample")
+                sample_time = _parse_openai_utc(
+                    sample.get("fetched_at_utc"), label="sample fetched_at_utc"
+                )
+                _parse_openai_cost_decimal(
+                    sample.get("primary_total"), label="sample primary_total"
+                )
+                if sample_time > updated_at:
+                    raise ValueError(f"cache day {day_key} sample is newer than the cache")
+                if previous_sample_time is not None and sample_time < previous_sample_time:
+                    raise ValueError(f"cache day {day_key} samples are out of order")
+                previous_sample_time = sample_time
+            if samples[-1].get("primary_total") != day_value.get("primary_total"):
+                raise ValueError(f"cache day {day_key} latest sample disagrees")
+
+        current_date = observed_now.date().isoformat()
+        if current_date not in days:
+            raise ValueError("cache is missing the current UTC date")
+    except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+        return unavailable(f"cache validation failed: {exc}")
+
+    return {
+        "available": True,
+        "path": str(path),
+        "currency": "usd",
+        "updated_at_utc": cache["updated_at_utc"],
+        "updated_at_display": updated_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "age_seconds": age_seconds,
+        "age": _human_snapshot_age(age_seconds),
+        "scope": dict(scope),
+        "days": days,
+        "current_utc_date": current_date,
+    }
+
+
+def local_digest_time_to_utc(value: datetime) -> datetime:
+    """Convert the digest's existing host-local naive time to aware UTC."""
+
+    if value.tzinfo is None:
+        return value.astimezone(timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _openai_window_text(start: datetime, end: datetime) -> str:
+    """Render one requested UTC cost window compactly."""
+
+    if start.date() == end.date():
+        return f"{start:%H:%M}–{end:%H:%M} UTC"
+    return f"{start:%Y-%m-%d %H:%M}–{end:%Y-%m-%d %H:%M} UTC"
+
+
+def estimate_openai_cost_window(
+    cache: Dict[str, Any],
+    *,
+    window_start_utc: datetime,
+    window_end_utc: datetime,
+    now_utc: datetime,
+) -> Dict[str, Any]:
+    """Estimate a UTC window from bracketing cumulative samples only."""
+
+    start = window_start_utc.astimezone(timezone.utc)
+    end = window_end_utc.astimezone(timezone.utc)
+    result: Dict[str, Any] = {
+        "status": "unknown",
+        "method": "cumulative provider-published cost delta",
+        "requested_start_utc": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "requested_end_utc": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "requested_window": _openai_window_text(start, end),
+        "segments": [],
+        "reason": None,
+    }
+    if end <= start:
+        result["reason"] = "selected log window has no positive duration"
+        return result
+
+    cursor = start
+    total = Decimal(0)
+    valid_count = 0
+    while cursor < end:
+        next_midnight = datetime.combine(
+            cursor.date() + timedelta(days=1), time.min, tzinfo=timezone.utc
+        )
+        segment_end = min(end, next_midnight)
+        day_key = cursor.date().isoformat()
+        segment: Dict[str, Any] = {
+            "utc_date": day_key,
+            "requested_start_utc": cursor.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "requested_end_utc": segment_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "status": "unavailable",
+        }
+        day = cache.get("days", {}).get(day_key)
+        if not isinstance(day, dict):
+            segment["reason"] = "required UTC date is missing from the cache"
+            result["segments"].append(segment)
+            cursor = segment_end
+            continue
+
+        day_start = datetime.combine(cursor.date(), time.min, tzinfo=timezone.utc)
+        is_complete_closed_day = (
+            cursor == day_start
+            and segment_end == next_midnight
+            and cursor.date() < now_utc.astimezone(timezone.utc).date()
+        )
+        if is_complete_closed_day:
+            amount = _parse_openai_cost_decimal(
+                day["primary_total"], label=f"days.{day_key}.primary_total"
+            )
+            segment.update(
+                {
+                    "status": "complete",
+                    "method": "latest provider-published daily total",
+                    "amount": _openai_decimal_text(amount),
+                    "sample_start_utc": cursor.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "sample_end_utc": segment_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                }
+            )
+            total += amount
+            valid_count += 1
+            result["segments"].append(segment)
+            cursor = segment_end
+            continue
+
+        samples: list[tuple[datetime, Decimal]] = [
+            (
+                _parse_openai_utc(sample["fetched_at_utc"], label="sample time"),
+                _parse_openai_cost_decimal(
+                    sample["primary_total"], label="sample primary_total"
+                ),
+            )
+            for sample in day.get("samples", [])
+        ]
+        before = [item for item in samples if item[0] <= cursor]
+        after = [item for item in samples if item[0] >= segment_end]
+        if not before:
+            segment["reason"] = "no cumulative sample at or before segment start"
+        elif not after:
+            segment["reason"] = "no cumulative sample at or after segment end"
+        else:
+            start_sample = max(before, key=lambda item: item[0])
+            end_sample = min(after, key=lambda item: item[0])
+            start_gap = (cursor - start_sample[0]).total_seconds()
+            end_gap = (end_sample[0] - segment_end).total_seconds()
+            if start_gap > OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS:
+                segment["reason"] = "start boundary sample is too old"
+            elif end_gap > OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS:
+                segment["reason"] = "end boundary sample is too late"
+            elif end_sample[1] < start_sample[1]:
+                segment["reason"] = (
+                    "provider-published cumulative total changed non-monotonically"
+                )
+            else:
+                amount = end_sample[1] - start_sample[1]
+                segment.update(
+                    {
+                        "status": "complete",
+                        "method": result["method"],
+                        "amount": _openai_decimal_text(amount),
+                        "sample_start_utc": start_sample[0].strftime(
+                            "%Y-%m-%dT%H:%M:%SZ"
+                        ),
+                        "sample_end_utc": end_sample[0].strftime(
+                            "%Y-%m-%dT%H:%M:%SZ"
+                        ),
+                    }
+                )
+                total += amount
+                valid_count += 1
+        result["segments"].append(segment)
+        cursor = segment_end
+
+    if valid_count == len(result["segments"]):
+        result["status"] = "complete"
+        result["amount"] = _openai_decimal_text(total)
+    elif valid_count:
+        result["status"] = "partial"
+        result["amount"] = _openai_decimal_text(total)
+        result["reason"] = "one or more UTC-date segments lack boundary coverage"
+    else:
+        result["reason"] = "no UTC-date segment has suitable boundary coverage"
+    return result
+
+
+def _xai_provider_reported_component(provider_usage: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the existing xAI provider-reported component without reconstruction."""
+
+    events = provider_usage.get("events") or []
+    values = [
+        value
+        for item in events
+        if item.get("provider", "xAI") == "xAI"
+        and (value := optional_int_usage_value(item.get("cost_in_usd_ticks")))
+        is not None
+    ]
+    successful = sum(item.get("provider", "xAI") == "xAI" for item in events)
+    if not values:
+        return {
+            "available": False,
+            "successful_calls": successful,
+            "costed_calls": 0,
+        }
+    ticks = sum(values)
+    return {
+        "available": True,
+        "ticks": ticks,
+        "amount": _openai_decimal_text(
+            Decimal(ticks) / Decimal(USD_TICKS_PER_DOLLAR)
+        ),
+        "successful_calls": successful,
+        "costed_calls": len(values),
+        "coverage_complete": len(values) == successful,
+    }
+
+
+def openai_published_cost_report(
+    *,
+    cache_path: Optional[Path],
+    window_start_local: Optional[datetime],
+    window_end_local: Optional[datetime],
+    generation_time_local: datetime,
+    provider_usage: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Build the digest's offline cache, current-day, and window-cost view."""
+
+    now_utc = local_digest_time_to_utc(generation_time_local)
+    cache = load_openai_cost_cache(cache_path, now_utc=now_utc)
+    report: Dict[str, Any] = {
+        key: value for key, value in cache.items() if key != "days"
+    }
+    report["current_day"] = {"available": False}
+    report["selected_window"] = {
+        "status": "unknown",
+        "reason": "OpenAI published-cost cache is unavailable",
+    }
+    if not cache.get("available"):
+        return report
+
+    current = cache["days"][cache["current_utc_date"]]
+    report["current_day"] = {
+        "available": True,
+        "utc_date": cache["current_utc_date"],
+        "primary_total": current["primary_total"],
+        "provisional": True,
+        "status": "provisional",
+    }
+    if window_start_local is not None and window_end_local is not None:
+        report["selected_window"] = estimate_openai_cost_window(
+            cache,
+            window_start_utc=local_digest_time_to_utc(window_start_local),
+            window_end_utc=local_digest_time_to_utc(window_end_local),
+            now_utc=now_utc,
+        )
+    else:
+        report["selected_window"] = {
+            "status": "unknown",
+            "reason": "selected log window boundaries are unavailable",
+        }
+
+    xai_component = _xai_provider_reported_component(provider_usage)
+    report["xai_component"] = xai_component
+    if cache["scope"]["kind"] == "project":
+        selected = report["selected_window"]
+        if selected.get("status") == "complete" and xai_component.get("available"):
+            combined = _parse_openai_cost_decimal(
+                selected["amount"], label="selected OpenAI cost"
+            ) + _parse_openai_cost_decimal(
+                xai_component["amount"], label="selected xAI cost"
+            )
+            report["combined_selected_window"] = {
+                "available": True,
+                "amount": _openai_decimal_text(combined),
+            }
+        else:
+            report["combined_selected_window"] = {
+                "available": False,
+                "reason": "one or both provider components are unavailable or partial",
+            }
+    return report
 
 
 def xai_usage_stage_from_msg(msg: str) -> str:
@@ -9919,6 +10388,153 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("```")
         out.append("")
 
+    openai_cost = report.get("openai_published_cost") or {
+        "available": False,
+        "reason": "cache was not inspected",
+    }
+    out.append("## OpenAI published-cost cache")
+    if not openai_cost.get("available"):
+        out.append("OpenAI published cost: unknown")
+        out.append(
+            f"Cache status: **unavailable** ({openai_cost.get('reason') or 'unknown reason'})."
+        )
+    else:
+        openai_scope = openai_cost.get("scope") or {}
+        if openai_scope.get("kind") == "project":
+            scope_text = f"project {openai_scope.get('project_id', 'unavailable')}"
+        else:
+            scope_text = "organisation-wide (not bot-exclusive)"
+        out.append(f"Cache scope: **{scope_text}**.")
+        out.append(
+            f"Cache updated: **{openai_cost.get('updated_at_display')}** "
+            f"(age: {openai_cost.get('age')})."
+        )
+        current_day = openai_cost.get("current_day") or {}
+        if current_day.get("available"):
+            out.append(
+                "Current UTC-day provider-published total: "
+                f"**{format_openai_usd(current_day.get('primary_total'))}** "
+                f"for `{current_day.get('utc_date')}`."
+            )
+            out.append("Status: **provisional**.")
+        else:
+            out.append("Current UTC-day provider-published total: **unknown**.")
+
+        selected = openai_cost.get("selected_window") or {}
+        selected_status = selected.get("status")
+        organization_prefix = (
+            "OpenAI organisation-wide "
+            if openai_scope.get("kind") == "organization"
+            else "OpenAI "
+        )
+        if selected_status == "complete":
+            out.append(
+                f"{organization_prefix}selected-window estimate: "
+                f"**{format_openai_usd(selected.get('amount'))}**."
+            )
+        elif selected_status == "partial":
+            out.append(
+                f"{organization_prefix}selected-window estimate (partial coverage): "
+                f"**{format_openai_usd(selected.get('amount'))}**."
+            )
+        else:
+            out.append(f"{organization_prefix}selected-window estimate: **unknown**.")
+        if selected.get("method"):
+            out.append(f"Method: {selected.get('method')}.")
+        if selected.get("requested_window"):
+            out.append(f"Requested window: **{selected.get('requested_window')}**.")
+        valid_segments = [
+            item
+            for item in selected.get("segments", [])
+            if item.get("status") == "complete"
+        ]
+        if valid_segments:
+            coverage_parts = []
+            outside_requested = False
+            for item in valid_segments:
+                sample_start = _parse_openai_utc(
+                    item.get("sample_start_utc"), label="sample coverage start"
+                )
+                sample_end = _parse_openai_utc(
+                    item.get("sample_end_utc"), label="sample coverage end"
+                )
+                requested_start = _parse_openai_utc(
+                    item.get("requested_start_utc"), label="requested segment start"
+                )
+                requested_end = _parse_openai_utc(
+                    item.get("requested_end_utc"), label="requested segment end"
+                )
+                outside_requested = outside_requested or (
+                    sample_start < requested_start or sample_end > requested_end
+                )
+                coverage_parts.append(
+                    f"{item.get('utc_date')}: {_openai_window_text(sample_start, sample_end)}"
+                )
+            out.append("Sample coverage: **" + "; ".join(coverage_parts) + "**.")
+            if outside_requested:
+                out.append(
+                    "The estimate can include a small amount immediately outside the "
+                    "requested log window because samples are collected at intervals."
+                )
+        unavailable_segments = [
+            item
+            for item in selected.get("segments", [])
+            if item.get("status") != "complete"
+        ]
+        if unavailable_segments:
+            out.append(
+                "Unavailable UTC segment(s): "
+                + "; ".join(
+                    f"{item.get('utc_date')}: {item.get('reason') or 'unknown reason'}"
+                    for item in unavailable_segments
+                )
+                + "."
+            )
+        elif selected.get("reason"):
+            out.append(f"Estimate status: {selected.get('reason')}.")
+
+        if openai_scope.get("kind") == "project":
+            combined = openai_cost.get("combined_selected_window") or {}
+            xai_component = openai_cost.get("xai_component") or {}
+            if combined.get("available"):
+                out.append(
+                    "Combined selected-window estimate: "
+                    f"**{format_openai_usd(combined.get('amount'))}**."
+                )
+            else:
+                out.append("Combined selected-window estimate: **unknown**.")
+            if xai_component.get("available"):
+                xai_qualifier = (
+                    "provider-reported"
+                    if xai_component.get("coverage_complete")
+                    else "provider-reported known lower bound"
+                )
+                out.append(
+                    f"xAI component ({xai_qualifier}): "
+                    f"**{format_openai_usd(xai_component.get('amount'))}**."
+                )
+            else:
+                out.append("xAI component (provider-reported): **unknown**.")
+            if selected_status == "complete":
+                out.append(
+                    "OpenAI component (published-cost delta estimate): "
+                    f"**{format_openai_usd(selected.get('amount'))}**."
+                )
+            else:
+                out.append(
+                    "OpenAI component (published-cost delta estimate): **unknown or partial**."
+                )
+        else:
+            out.append(
+                "The OpenAI figure is organization-wide and is therefore not combined "
+                "with the bot's xAI component."
+            )
+    out.append(
+        "Individual OpenAI calls and pipeline stages remain cost **unknown**; the "
+        "daily estimate is not allocated across calls or stages."
+    )
+    out.append("")
+
     xai_usage = report.get("provider_usage") or report.get("xai_usage") or {}
     xai_events = xai_usage.get("events") or []
     xai_call_attempts = xai_usage.get("call_attempts") or []
@@ -12668,6 +13284,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         report["input_retention_coverage"].get("warning"),
     )
     report["requested_since"] = dt_text(since) if since else None
+    report["requested_until"] = dt_text(until) if until else None
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
     report["resume_cursor_mode"] = resume_cursor_mode
@@ -12768,6 +13385,19 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     )
     report["verbose_replies"] = bool(args.verbose_replies)
     report["detailed_appendix"] = bool(getattr(args, "detailed_appendix", False))
+    selected_window_start = since or min(
+        (record.ts for record in records), default=None
+    )
+    selected_window_end = until or max(
+        (record.ts for record in records), default=None
+    )
+    report["openai_published_cost"] = openai_published_cost_report(
+        cache_path=OPENAI_COST_CACHE_PATH,
+        window_start_local=selected_window_start,
+        window_end_local=selected_window_end,
+        generation_time_local=generation_time,
+        provider_usage=report.get("provider_usage") or report.get("xai_usage") or {},
+    )
 
     if args.json:
         rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"

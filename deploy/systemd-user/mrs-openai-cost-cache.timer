@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh MrsMThatcher OpenAI published costs every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+RandomizedDelaySec=60
+Unit=mrs-openai-cost-cache.service
+
+[Install]
+WantedBy=timers.target
+
+# User unit. Install as ~/.config/systemd/user/mrs-openai-cost-cache.timer.

@@ -54,6 +54,8 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     timer = (SYSTEMD_DIR / "mrs-engagement-analytics.timer").read_text(encoding="utf-8")
     shadow_health = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.service").read_text(encoding="utf-8")
     shadow_timer = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.timer").read_text(encoding="utf-8")
+    openai_cost = (SYSTEMD_DIR / "mrs-openai-cost-cache.service").read_text(encoding="utf-8")
+    openai_timer = (SYSTEMD_DIR / "mrs-openai-cost-cache.timer").read_text(encoding="utf-8")
 
     assert "ExecStart=/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2" in main
     assert "Restart=on-failure" in main
@@ -78,7 +80,21 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert "Persistent=true" in shadow_timer
     assert "AccuracySec=1s" in shadow_timer
 
-    combined = main + analytics + timer + shadow_health + shadow_timer
+    assert "GET" not in openai_cost
+    assert "source /disks/disk1/etc/mrsMThatcher/mrsMThatcher.env" in openai_cost
+    assert "openai_cost_cache.py update" in openai_cost
+    assert "OPENAI_ADMIN_API_KEY=" not in openai_cost
+    assert "ProtectSystem=strict" in openai_cost
+    assert "ProtectHome=read-only" in openai_cost
+    assert "ReadWritePaths=%h/.local/state/mrsMThatcher/openai-costs" in openai_cost
+    assert "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6" in openai_cost
+    assert "UMask=0077" in openai_cost
+    assert "OnCalendar=*:0/30" in openai_timer
+    assert "Persistent=true" in openai_timer
+    assert "RandomizedDelaySec=60" in openai_timer
+    assert "Unit=mrs-openai-cost-cache.service" in openai_timer
+
+    combined = main + analytics + timer + shadow_health + shadow_timer + openai_cost + openai_timer
     assert not re.search(r"(?i)(api[_-]?key|access[_-]?token|client[_-]?secret)\s*=\s*\S+", combined)
 
 
@@ -91,8 +107,10 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert "ln -s" not in installer
     assert "SOURCE_PROJECT_DIR=" in installer
     assert 'RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMThatcher}"' in installer
-    assert 'install -d -m 0700 -- "${SHADOW_HEALTH_DIR}" "${SHADOW_HEALTH_DIR}/history"' in installer
+    assert '"${SHADOW_HEALTH_DIR}/history"' in installer
+    assert '"${OPENAI_COST_DIR}"' in installer
     assert 'SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"' in installer
+    assert 'OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"' in installer
     assert "MRS_SEMANTIC_VETO_HEALTH_DIR" not in installer
     assert '"${ANALYTICS_PROGRAM}" status --project-dir "${RUNTIME_PROJECT_DIR}"' in installer
     assert "initialise --project-dir %q" in installer
@@ -111,6 +129,7 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
         "mrs-engagement-analytics.timer",
     ):
         assert f"systemctl --user enable {unit}" in installer
+    assert "systemctl --user enable --now mrs-openai-cost-cache.timer" in installer
 
 
 @pytest.mark.parametrize(
@@ -196,6 +215,8 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
         "mrsMThatcher.service",
         "mrs-engagement-analytics.service",
         "mrs-engagement-analytics.timer",
+        "mrs-openai-cost-cache.service",
+        "mrs-openai-cost-cache.timer",
         "mrs-semantic-veto-shadow-health.service",
         "mrs-semantic-veto-shadow-health.timer",
     ):
@@ -203,6 +224,8 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
     health_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "semantic-veto-health"
     assert health_dir.stat().st_mode & 0o777 == 0o700
     assert (health_dir / "history").stat().st_mode & 0o777 == 0o700
+    cost_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "openai-costs"
+    assert cost_dir.stat().st_mode & 0o777 == 0o700
     assert "enable each desired unit separately" in result.stdout
     if analytics_status == "initialised":
         assert "analytics database is initialised" in result.stdout
@@ -236,6 +259,30 @@ def test_user_unit_installer_rejects_production_runtime_override(tmp_path: Path)
 
     assert result.returncode == 2
     assert "MRS_RUNTIME_PROJECT_DIR is test-only" in result.stderr
+
+
+def test_all_tracked_user_units_pass_systemd_verify() -> None:
+    units = sorted(
+        path
+        for path in SYSTEMD_DIR.iterdir()
+        if path.suffix in {".service", ".timer"}
+    )
+    result = subprocess.run(
+        ["systemd-analyze", "--user", "verify", *(str(path) for path in units)],
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_openai_collector_environment_example_contains_only_placeholders() -> None:
+    example = (PROJECT_DIR / "mrsMThatcher.env.example").read_text(encoding="utf-8")
+    assert "# Collector-only OpenAI organization administration settings." in example
+    assert "OPENAI_ADMIN_API_KEY=\n" in example
+    assert "OPENAI_COST_PROJECT_ID=\n" in example
+    assert "proj_" not in example
 
 
 def test_local_config_example_covers_current_optional_selection_features() -> None:

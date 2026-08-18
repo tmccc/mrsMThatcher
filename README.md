@@ -168,8 +168,16 @@ deployed as a coherent set:
 - `semantic_alignment_research/quote_research_full_001/research_packets.json`
 - `semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json`
 - `mrs_log_digest.py`
+- `openai_cost_cache.py`
 - `runMrsMThatcher2`
-- `deploy/systemd-user/*`
+- `deploy/systemd-user/install.sh`
+- `deploy/systemd-user/mrsMThatcher.service`
+- `deploy/systemd-user/mrs-engagement-analytics.service`
+- `deploy/systemd-user/mrs-engagement-analytics.timer`
+- `deploy/systemd-user/mrs-openai-cost-cache.service`
+- `deploy/systemd-user/mrs-openai-cost-cache.timer`
+- `deploy/systemd-user/mrs-semantic-veto-shadow-health.service`
+- `deploy/systemd-user/mrs-semantic-veto-shadow-health.timer`
 - `mrsMThatcher.env.example`
 
 The offline research and benchmark implementation remains versioned with the
@@ -608,6 +616,31 @@ used” is not an account-lifetime claim. Rate sections report calendar span,
 observed logging time, largest detected gap, and coverage quality; material
 gaps make observed runway estimates unavailable rather than falsely precise.
 
+### OpenAI published-cost cache
+
+`openai_cost_cache.py` makes a read-only administration call to OpenAI's
+organization Costs API and stores provider-published daily UTC totals at:
+
+```text
+~/.local/state/mrsMThatcher/openai-costs/daily_costs.json
+```
+
+The private cache retains bounded cumulative samples and refreshes the current
+UTC date plus the preceding six dates so delayed or corrected published costs
+can settle. `mrs_log_digest.py` remains entirely network-free: it reads this
+cache and estimates a selected log window from bracketing sample deltas without
+interpolation or model-list-price reconstruction. Sample spacing can include a
+small amount immediately outside the requested window, and missing boundaries
+produce partial coverage or `unknown`, never a zero-cost fallback. OpenAI
+per-call and per-stage rows remain `unknown` because daily cost is not allocated
+back to individual calls.
+
+Set the collector-only `OPENAI_COST_PROJECT_ID` when the configured project is
+the bot's OpenAI project. The digest can then label and combine that project's
+sample-delta estimate with the existing xAI provider-reported component. With
+no configured project, reporting is explicitly organization-wide, is not
+described as bot-exclusive, and is not combined with bot cost.
+
 ## Launcher And Private Environment
 
 `mrsMThatcher.env.example` is a sanitized example of the private live
@@ -678,7 +711,12 @@ the analytics timer only after its database is ready):
 systemctl --user enable mrsMThatcher.service
 systemctl --user enable mrs-semantic-veto-shadow-health.timer
 systemctl --user enable mrs-engagement-analytics.timer
+systemctl --user enable --now mrs-openai-cost-cache.timer
 ```
+
+The OpenAI published-cost user timer runs every 30 minutes with up to 60 seconds
+of randomized delay. Its oneshot service sources the existing private
+`mrsMThatcher.env`; the Admin key is never copied into a unit or the cache.
 
 The semantic-veto health timer runs daily at 23:35 Europe/London. It validates
 the configured shadow manifest and source hashes, records cumulative shadow

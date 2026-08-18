@@ -11,11 +11,14 @@ fi
 readonly RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMThatcher}"
 readonly TARGET_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
 readonly SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"
+readonly OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"
 readonly ANALYTICS_PROGRAM="${RUNTIME_PROJECT_DIR}/mrs_engagement_analytics.py"
 readonly UNITS=(
   mrsMThatcher.service
   mrs-engagement-analytics.service
   mrs-engagement-analytics.timer
+  mrs-openai-cost-cache.service
+  mrs-openai-cost-cache.timer
   mrs-semantic-veto-shadow-health.service
   mrs-semantic-veto-shadow-health.timer
 )
@@ -91,12 +94,17 @@ print_enable_commands() {
     'enable each desired unit separately:' \
     '  systemctl --user enable mrsMThatcher.service' \
     '  systemctl --user enable mrs-semantic-veto-shadow-health.timer' \
-    '  systemctl --user enable mrs-engagement-analytics.timer'
+    '  systemctl --user enable mrs-engagement-analytics.timer' \
+    '  systemctl --user enable --now mrs-openai-cost-cache.timer'
 }
 
 prepare_scheduled_task_state() {
-  install -d -m 0700 -- "${SHADOW_HEALTH_DIR}" "${SHADOW_HEALTH_DIR}/history"
+  install -d -m 0700 -- \
+    "${SHADOW_HEALTH_DIR}" \
+    "${SHADOW_HEALTH_DIR}/history" \
+    "${OPENAI_COST_DIR}"
   printf 'prepared private semantic-veto health state: %s\n' "${SHADOW_HEALTH_DIR}"
+  printf 'prepared private OpenAI cost state: %s\n' "${OPENAI_COST_DIR}"
 }
 
 install_units() {
