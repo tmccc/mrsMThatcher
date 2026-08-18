@@ -379,6 +379,14 @@ def test_combined_reporting_exists_only_for_project_scope(tmp_path: Path) -> Non
 def test_digest_path_override_uses_monkeypatched_fixture_not_environment(
     tmp_path: Path, monkeypatch
 ) -> None:
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            if tz is None:
+                return NOW.astimezone().replace(tzinfo=None)
+            return NOW.astimezone(tz)
+
+    monkeypatch.setattr(digest, "datetime", FixedDateTime)
     cache_path = write_cache(tmp_path / "daily.json", current_day())
     monkeypatch.setattr(digest, "OPENAI_COST_CACHE_PATH", cache_path)
     monkeypatch.setenv("OPENAI_COST_CACHE", str(tmp_path / "must-not-be-read.json"))

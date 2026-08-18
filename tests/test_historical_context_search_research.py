@@ -1574,8 +1574,9 @@ def test_fetch_v6_gzip_is_decoded_and_unadvertised_brotli_is_rejected(
 @pytest.mark.parametrize(
     "payload",
     [
-        gzip.compress(b"first member") + gzip.compress(b"second member"),
-        gzip.compress(b"document") + b"trailing non-gzip bytes",
+        gzip.compress(b"first member", mtime=0)
+        + gzip.compress(b"second member", mtime=0),
+        gzip.compress(b"document", mtime=0) + b"trailing non-gzip bytes",
     ],
 )
 def test_fetch_v6_rejects_concatenated_or_trailing_gzip_data(
