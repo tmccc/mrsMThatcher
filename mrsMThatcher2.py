@@ -262,6 +262,8 @@ RECENT_OWN_POST_IDS_MAX = 20
 # X's quote_tweets endpoint commonly expects at least 10 max_results.
 QUOTE_LOOKUP_API_MAX_RESULTS = 10
 QUOTE_LOOKUP_MAX_PAGES_PER_POST = 3
+QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS = 21600
+QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES = 64
 
 QUOTE_CHECK_STATUS_CHECKED = "checked"
 QUOTE_CHECK_STATUS_POSTED = "posted"
@@ -3809,6 +3811,7 @@ def default_state() -> dict:
         "replied_to_quote_post_ids": [],
         "skipped_quote_post_ids": [],
         "quote_lookup_pagination_tokens": {},
+        "quote_lookup_repeated_cursor_suppressions": {},
         "quote_spam_author_ids": [],
         "daily_quote_reply_date": None,
         "daily_quote_reply_count": 0,
@@ -3961,6 +3964,83 @@ def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, di
             return None
         out[str(item_key)] = dict(item_value)
     return out
+
+
+def quote_repeated_cursor_suppression_record(
+    post_id: object,
+    value: object,
+    *,
+    current_epoch: int,
+    allow_expired: bool = False,
+) -> dict[str, object] | None:
+    """Return one canonical exact-cursor suppression record when usable."""
+    if (
+        type(post_id) is not str
+        or bounded_tweet_id_value(post_id) is None
+        or not isinstance(value, dict)
+        or set(value)
+        != {"cursor_sha256", "detected_epoch", "retry_after_epoch"}
+    ):
+        return None
+    cursor_sha256 = value.get("cursor_sha256")
+    detected_epoch = value.get("detected_epoch")
+    retry_after_epoch = value.get("retry_after_epoch")
+    if (
+        type(cursor_sha256) is not str
+        or re.fullmatch(r"[0-9a-f]{64}", cursor_sha256) is None
+        or type(detected_epoch) is not int
+        or detected_epoch < 0
+        or detected_epoch > current_epoch
+        or detected_epoch > MAX_REASONABLE_STATE_EPOCH
+        or type(retry_after_epoch) is not int
+        or retry_after_epoch
+        != detected_epoch + QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS
+        or retry_after_epoch > MAX_REASONABLE_STATE_EPOCH
+        or (not allow_expired and retry_after_epoch <= current_epoch)
+    ):
+        return None
+    return {
+        "cursor_sha256": cursor_sha256,
+        "detected_epoch": detected_epoch,
+        "retry_after_epoch": retry_after_epoch,
+    }
+
+
+def normalise_quote_repeated_cursor_suppressions(
+    value: object,
+    *,
+    current_epoch: int | None = None,
+) -> tuple[dict[str, dict[str, object]], int]:
+    """Discard malformed, expired, and excess quote-cursor suppressions."""
+    if current_epoch is None:
+        current_epoch = now_epoch()
+    if not isinstance(value, dict):
+        return {}, 1
+
+    retained: list[tuple[str, dict[str, object]]] = []
+    for post_id, record in value.items():
+        canonical = quote_repeated_cursor_suppression_record(
+            post_id,
+            record,
+            current_epoch=current_epoch,
+        )
+        if canonical is not None:
+            retained.append((post_id, canonical))
+
+    retained.sort(
+        key=lambda item: (
+            int(item[1]["detected_epoch"]),
+            int(item[1]["retry_after_epoch"]),
+            item[0],
+        ),
+        reverse=True,
+    )
+    retained = retained[:QUOTE_REPEATED_CURSOR_SUPPRESSION_MAX_ENTRIES]
+    normalised = dict(retained)
+    discarded = max(0, len(value) - len(normalised))
+    if normalised != value and discarded == 0:
+        discarded = 1
+    return normalised, discarded
 
 
 def completed_mention_watermark_covers_target(state: dict, target_id: str) -> bool:
@@ -5147,6 +5227,16 @@ def normalise_state_candidate(
             if value is None:
                 return None
             normalised[key] = value
+    if "quote_lookup_repeated_cursor_suppressions" in state:
+        value, discarded = normalise_quote_repeated_cursor_suppressions(
+            state["quote_lookup_repeated_cursor_suppressions"]
+        )
+        normalised["quote_lookup_repeated_cursor_suppressions"] = value
+        if discarded and recovery_events is not None:
+            recovery_events.append({
+                "kind": "quote_cursor_suppression_pruned",
+                "discarded_entries": discarded,
+            })
     for key in int_map_keys:
         if key in state:
             value = normalise_int_map(state[key], key=key, path=path)
@@ -5306,6 +5396,14 @@ def load_state() -> dict:
 
     def emit_candidate_recoveries(candidate: Path) -> None:
         for recovery in candidate_recoveries.get(candidate, []):
+            if recovery.get("kind") == "quote_cursor_suppression_pruned":
+                log.info(
+                    "Pruned %s malformed, expired, or excess quote cursor "
+                    "suppression entry or entries while loading %s",
+                    recovery.get("discarded_entries"),
+                    candidate,
+                )
+                continue
             reason = recovery.get("reason")
             if reason == "orphaned_pending_candidates":
                 log.warning(
@@ -5331,7 +5429,7 @@ def load_state() -> dict:
             log_event("mention_backlog_reset", **recovery)
 
     def persist_candidate_recoveries(candidate: Path, state: dict) -> None:
-        """Commit a false reset guard before any post-load provider work."""
+        """Commit safe state repairs before any post-load provider work."""
         if not candidate_recoveries.get(candidate):
             return
         save_state(state, durable=True)
@@ -6672,6 +6770,7 @@ def x_paginated_get(
     on_invalid_cursor=None,
     on_repeated_cursor=None,
     on_page=None,
+    should_request_cursor=None,
     initial_requested_tokens: set[str] | None = None,
     retry_invalid_cursor_from_head: bool = True,
 ) -> dict:
@@ -6684,13 +6783,15 @@ def x_paginated_get(
     ``on_page`` before a repeated returned token terminates traversal. By
     default the repeated token is then rejected before it can be requested
     twice. A caller may instead supply ``on_repeated_cursor`` to retain the
-    bounded partial result and stop normally.
+    bounded partial result and stop normally. ``should_request_cursor`` may
+    optionally stop before a continuation request as a bounded partial success.
     """
     base_params = dict(params)
     recovered_invalid_cursor = False
     cursor_state_invalidated = False
     requested_tokens: set[str] = set(initial_requested_tokens or set())
     repeated_token_detected = False
+    cursor_request_suppressed = False
 
     def invalidate_cursor_state() -> None:
         nonlocal cursor_state_invalidated
@@ -6727,6 +6828,13 @@ def x_paginated_get(
                         len(combined["data"]),
                     )
                     repeated_token_detected = True
+                    next_token = ""
+                    break
+                if (
+                    should_request_cursor is not None
+                    and not should_request_cursor(request_token)
+                ):
+                    cursor_request_suppressed = True
                     next_token = ""
                     break
                 requested_tokens.add(request_token)
@@ -6831,11 +6939,17 @@ def x_paginated_get(
         combined["includes"] = includes
     combined["_pagination"] = {
         "pages_fetched": pages_fetched,
-        "truncated": bool(next_token) or repeated_token_detected,
+        "truncated": (
+            bool(next_token)
+            or repeated_token_detected
+            or cursor_request_suppressed
+        ),
         "next_token": next_token or None,
         "invalid_cursor_recovered": recovered_invalid_cursor,
         "repeated_token_detected": repeated_token_detected,
     }
+    if cursor_request_suppressed:
+        combined["_pagination"]["cursor_request_suppressed"] = True
     if next_token:
         pagination_log = log.info if label == "mentions" else log.warning
         pagination_log(
@@ -22667,6 +22781,7 @@ def get_recent_own_post_ids_for_quote_lookup(state: dict) -> list[str]:
 
 def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[dict]:
     """Return quote tweets for post."""
+    post_id = str(post_id)
     log.info("Fetching quote tweets for post_id=%s", post_id)
 
     params = {
@@ -22677,13 +22792,81 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         "media.fields": "media_key,type,url,preview_image_url",
     }
     pagination_tokens: dict[str, str] = {}
-    post_id = str(post_id)
+    suppressions: dict[str, dict[str, object]] = {}
+    current_epoch = now_epoch()
+    expired_probe_sha256 = ""
+    suppression_state_changed = False
     if state is not None:
         raw_tokens = state.get("quote_lookup_pagination_tokens", {})
         if isinstance(raw_tokens, dict):
             pagination_tokens = {str(key): str(value) for key, value in raw_tokens.items() if str(value)}
 
+        raw_suppressions = state.get(
+            "quote_lookup_repeated_cursor_suppressions",
+            {},
+        )
+        if isinstance(raw_suppressions, dict):
+            expired_probe = quote_repeated_cursor_suppression_record(
+                post_id,
+                raw_suppressions.get(post_id),
+                current_epoch=current_epoch,
+                allow_expired=True,
+            )
+            if (
+                expired_probe is not None
+                and int(expired_probe["retry_after_epoch"]) <= current_epoch
+            ):
+                expired_probe_sha256 = str(expired_probe["cursor_sha256"])
+        suppressions, discarded_suppressions = (
+            normalise_quote_repeated_cursor_suppressions(
+                raw_suppressions,
+                current_epoch=current_epoch,
+            )
+        )
+        if discarded_suppressions:
+            state["quote_lookup_repeated_cursor_suppressions"] = dict(
+                suppressions
+            )
+            suppression_state_changed = True
+            log.debug(
+                "Pruned %d malformed, expired, or excess quote cursor "
+                "suppression entry or entries",
+                discarded_suppressions,
+            )
+
+    active_suppression = suppressions.get(post_id)
+    active_suppression_sha256 = (
+        str(active_suppression.get("cursor_sha256") or "")
+        if isinstance(active_suppression, dict)
+        else ""
+    )
+    known_suppression_sha256 = (
+        active_suppression_sha256 or expired_probe_sha256
+    )
+    suppression_is_active = bool(active_suppression_sha256)
+
     saved_pagination_token = pagination_tokens.get(post_id, "")
+    if (
+        saved_pagination_token
+        and known_suppression_sha256
+        and hashlib.sha256(saved_pagination_token.encode("utf-8")).hexdigest()
+        == known_suppression_sha256
+    ):
+        pagination_tokens.pop(post_id, None)
+        if state is not None:
+            state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
+        suppression_state_changed = True
+        saved_pagination_token = ""
+        log.debug(
+            "Removed ordinary quote continuation matching a repeated-cursor "
+            "suppression for post_id=%s token_fingerprint=%s",
+            post_id,
+            known_suppression_sha256[:16],
+        )
+
+    if state is not None and suppression_state_changed:
+        save_state(state, durable=True)
+
     if saved_pagination_token:
         params["pagination_token"] = saved_pagination_token
         log.info(
@@ -22693,31 +22876,117 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         )
 
     def clear_invalid_quote_lookup_cursor() -> None:
-        if state is None:
+        if state is None or post_id not in pagination_tokens:
             return
         pagination_tokens.pop(post_id, None)
         state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
         save_state(state, durable=True)
+
+    def clear_known_repeated_cursor_suppression(reason: str) -> None:
+        nonlocal known_suppression_sha256, suppression_is_active
+        if not known_suppression_sha256:
+            return
+        token_fingerprint = known_suppression_sha256[:16]
+        existing = suppressions.get(post_id)
+        if (
+            state is not None
+            and isinstance(existing, dict)
+            and existing.get("cursor_sha256") == known_suppression_sha256
+        ):
+            suppressions.pop(post_id, None)
+            state["quote_lookup_repeated_cursor_suppressions"] = dict(
+                suppressions
+            )
+            save_state(state, durable=True)
+        known_suppression_sha256 = ""
+        suppression_is_active = False
+        log.info(
+            "Quote pagination cursor suppression cleared post_id=%s "
+            "token_fingerprint=%s reason=%s",
+            post_id,
+            token_fingerprint,
+            reason,
+        )
+
+    def observe_quote_lookup_page(
+        _page_data: list[dict],
+        _includes: dict,
+        next_token: str,
+        _request_token: str,
+        _pages_fetched: int,
+    ) -> None:
+        if not known_suppression_sha256:
+            return
+        if not next_token:
+            clear_known_repeated_cursor_suppression("pagination_complete")
+            return
+        next_token_sha256 = hashlib.sha256(
+            next_token.encode("utf-8")
+        ).hexdigest()
+        if next_token_sha256 != known_suppression_sha256:
+            clear_known_repeated_cursor_suppression("continuation_changed")
+
+    def should_request_quote_cursor(cursor: str) -> bool:
+        if (
+            not suppression_is_active
+            or not known_suppression_sha256
+            or hashlib.sha256(cursor.encode("utf-8")).hexdigest()
+            != known_suppression_sha256
+        ):
+            return True
+        retry_after_epoch = int(
+            suppressions.get(post_id, {}).get("retry_after_epoch", 0) or 0
+        )
+        log.debug(
+            "Skipping actively suppressed quote continuation post_id=%s "
+            "token_fingerprint=%s retry_after_epoch=%s",
+            post_id,
+            known_suppression_sha256[:16],
+            retry_after_epoch,
+        )
+        return False
 
     def retain_partial_quote_lookup(
         repeated_token: str,
         pages_completed: int,
         results_retained: int,
     ) -> None:
-        if state is not None and post_id in pagination_tokens:
+        nonlocal suppressions, known_suppression_sha256, suppression_is_active
+        detected_epoch = now_epoch()
+        retry_after_epoch = (
+            detected_epoch + QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS
+        )
+        token_sha256 = hashlib.sha256(
+            repeated_token.encode("utf-8")
+        ).hexdigest()
+        if state is not None:
             pagination_tokens.pop(post_id, None)
             state["quote_lookup_pagination_tokens"] = dict(pagination_tokens)
+            suppressions[post_id] = {
+                "cursor_sha256": token_sha256,
+                "detected_epoch": detected_epoch,
+                "retry_after_epoch": retry_after_epoch,
+            }
+            suppressions, _discarded = normalise_quote_repeated_cursor_suppressions(
+                suppressions,
+                current_epoch=detected_epoch,
+            )
+            state["quote_lookup_repeated_cursor_suppressions"] = dict(
+                suppressions
+            )
             save_state(state, durable=True)
-        token_fingerprint = hashlib.sha256(
-            repeated_token.encode("utf-8")
-        ).hexdigest()[:16]
+        known_suppression_sha256 = token_sha256
+        suppression_is_active = state is not None
+        token_fingerprint = token_sha256[:16]
         log.warning(
             "Quote pagination stopped after repeated token post_id=%s "
-            "token_fingerprint=%s pages_completed=%d results_retained=%d",
+            "token_fingerprint=%s pages_completed=%d results_retained=%d "
+            "retry_after_epoch=%d",
             post_id,
             token_fingerprint,
             pages_completed,
             results_retained,
+            retry_after_epoch,
         )
         log_event(
             "quote_pagination_repeated_token",
@@ -22725,6 +22994,8 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
             token_fingerprint=token_fingerprint,
             pages_completed=pages_completed,
             results_retained=results_retained,
+            backoff_seconds=QUOTE_REPEATED_CURSOR_BACKOFF_SECONDS,
+            retry_after_epoch=retry_after_epoch,
         )
 
     result = x_paginated_get(
@@ -22735,6 +23006,8 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
         label=f"quote tweets for {post_id}",
         on_invalid_cursor=clear_invalid_quote_lookup_cursor,
         on_repeated_cursor=retain_partial_quote_lookup,
+        on_page=observe_quote_lookup_page,
+        should_request_cursor=should_request_quote_cursor,
     )
     pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
     if state is not None:
