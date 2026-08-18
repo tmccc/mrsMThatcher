@@ -1,5 +1,9 @@
 # Reply Spacing 30-Minute Change Report
 
+> Historical deployment record: this report documents the July 2026 change to
+> 1,800 seconds. The current production policy supersedes it with a 900-second
+> (15-minute) interval; historical values and observations below are retained.
+
 ## 1. Executive result
 
 **Reasoning verdict: 30-minute global spacing is judged safe.**

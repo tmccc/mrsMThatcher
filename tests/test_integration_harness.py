@@ -781,7 +781,7 @@ def test_production_tick_spacing_skip_does_not_consume_normal_check_interval(tmp
         ("quote", ["910", "100"]),
     ],
 )
-def test_global_1800_reply_spacing_blocks_cross_lane_until_boundary(
+def test_global_900_reply_spacing_blocks_cross_lane_until_boundary(
     tmp_path: Path,
     first_priority: str,
     expected_targets: list[str],
@@ -814,7 +814,7 @@ def test_global_1800_reply_spacing_blocks_cross_lane_until_boundary(
             },
             local_config={
                 "ENABLE_HOT_POST_REPLY_CHECKS": False,
-                "MIN_SECONDS_BETWEEN_REPLIES": 1800,
+                "MIN_SECONDS_BETWEEN_REPLIES": 900,
                 "REPLY_CHECK_EVERY_SECONDS": 1,
                 "QUOTE_CHECK_EVERY_SECONDS": 1,
             },
@@ -835,7 +835,7 @@ def test_global_1800_reply_spacing_blocks_cross_lane_until_boundary(
             base_dir,
             server,
             "--test-main-tick",
-            extra_env={"MRS_FAKE_NOW_EPOCH": str(start + 1799)},
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(start + 899)},
         )
         assert blocked.returncode == 0, blocked.stderr + blocked.stdout
         assert len(server.requests) == requests_after_first
@@ -846,12 +846,12 @@ def test_global_1800_reply_spacing_blocks_cross_lane_until_boundary(
             base_dir,
             server,
             "--test-main-tick",
-            extra_env={"MRS_FAKE_NOW_EPOCH": str(start + 1800)},
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(start + 900)},
         )
         assert boundary.returncode == 0, boundary.stderr + boundary.stdout
         assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == expected_targets
         state = read_json(base_dir / "bot_state.json")
-        assert state["last_reply_epoch"] == start + 1800
+        assert state["last_reply_epoch"] == start + 900
         assert state["daily_reply_count"] == 2
         assert state["daily_quote_reply_count"] == 1
     finally:

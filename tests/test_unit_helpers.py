@@ -17090,7 +17090,7 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
         monkeypatch,
         {
             "ENABLE_AUTO_REPLIES": True,
-            "MIN_SECONDS_BETWEEN_REPLIES": 1800,
+            "MIN_SECONDS_BETWEEN_REPLIES": 900,
             "MAX_AUTO_REPLIES_PER_DAY": 48,
             "MAX_REPLIES_PER_AUTHOR_PER_DAY": 6,
             "MAX_QUOTE_REPLIES_PER_DAY": 12,
@@ -17109,7 +17109,7 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
     )
 
     assert bot.ENABLE_AUTO_REPLIES is True
-    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 1800
+    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 900
     assert bot.MAX_AUTO_REPLIES_PER_DAY == 48
     assert bot.MAX_REPLIES_PER_AUTHOR_PER_DAY == 6
     assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
@@ -17117,8 +17117,14 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
     assert bot.POST_SLEEP_MAX == 9000
 
 
-def test_default_minimum_reply_spacing_is_30_minutes() -> None:
-    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 1800
+def test_default_reply_spacing_caps_and_lane_timers_match_production_policy() -> None:
+    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 900
+    assert bot.MAX_AUTO_REPLIES_PER_DAY == 48
+    assert bot.MAX_REPLIES_PER_AUTHOR_PER_DAY == 6
+    assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
+    assert bot.REPLY_CHECK_EVERY_SECONDS == 900
+    assert bot.QUOTE_CHECK_EVERY_SECONDS == 3600
+    assert bot.QUOTE_CHECK_SPACING_RETRY_SECONDS == 300
 
 
 def test_default_reply_caps_are_48_global_6_per_author_and_12_quote() -> None:
