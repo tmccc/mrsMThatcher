@@ -22192,6 +22192,21 @@ def maybe_reply_to_mentions(
         flush_quarantine_retirements()
         try:
             reply_context, should_continue = build_context_for_reply_ai(mention, state)
+        except RemoteOperationsPaused:
+            log.info(
+                "Deferring conversational reply evaluation lane=%s target_id=%s "
+                "reason=global_runtime_control_pause",
+                candidate_source,
+                mention_id,
+            )
+            log_event(
+                "reply_pipeline_paused",
+                lane=str(candidate_source),
+                target_id=mention_id,
+                reason="global_runtime_control_pause",
+            )
+            save_state(state, durable=True)
+            return NORMAL_CHECK_STATUS_CHECKED
         except ApiError as e:
             log.exception("Could not build context for %s %s due to API error", candidate_source, mention_id)
             record_api_error(state, e, "x")
@@ -22272,6 +22287,21 @@ def maybe_reply_to_mentions(
                 )
             else:
                 log.info("Reusing persisted AI-first reply draft target_id=%s source=%s", mention_id, candidate_source)
+        except RemoteOperationsPaused:
+            log.info(
+                "Deferring conversational reply evaluation lane=%s target_id=%s "
+                "reason=global_runtime_control_pause",
+                candidate_source,
+                mention_id,
+            )
+            log_event(
+                "reply_pipeline_paused",
+                lane=str(candidate_source),
+                target_id=mention_id,
+                reason="global_runtime_control_pause",
+            )
+            save_state(state, durable=True)
+            return NORMAL_CHECK_STATUS_CHECKED
         except ApiError as e:
             log.exception("Failed to ask Grok for reply")
             record_api_error(state, e, "xai")

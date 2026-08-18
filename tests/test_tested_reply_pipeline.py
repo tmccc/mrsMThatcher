@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -91,6 +94,132 @@ def enabled_config() -> dict:
     value = pipeline.default_config()
     value["enabled"] = True
     return value
+
+
+REGRESSION_TARGET_ID = "2089755083861098981"
+
+
+def configure_queued_candidate_evaluation(
+    bot,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> tuple[dict, dict, int]:
+    fixed_epoch = 2_000_000_000
+    base_since_id = str(int(REGRESSION_TARGET_ID) - 1)
+    candidate = {
+        "id": REGRESSION_TARGET_ID,
+        "author_id": "200",
+        "conversation_id": REGRESSION_TARGET_ID,
+        "text": "@MrsMThatcher Thank you!",
+        "entities": {
+            "mentions": [{"id": "12345", "username": "MrsMThatcher"}],
+        },
+        "referenced_tweets": [],
+    }
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.reply_cap_date_str(fixed_epoch)
+    state["last_reply_epoch"] = 0
+    state["last_seen_mention_id"] = base_since_id
+    state["mention_backlog"] = {
+        "since_id": base_since_id,
+        "next_token": "A",
+        "highest_mention_id": REGRESSION_TARGET_ID,
+        "pages_completed": 1,
+        "started_epoch": fixed_epoch - 60,
+        "seen_tokens": [],
+        "announced": True,
+    }
+    state["mention_pagination"] = {
+        "base_since_id": base_since_id,
+        "next_token": "A",
+    }
+    state["mention_pending_candidates"] = {
+        REGRESSION_TARGET_ID: copy.deepcopy(candidate),
+    }
+
+    reply_context = context("Thank you!")
+    reply_context.update(
+        {
+            "target_id": REGRESSION_TARGET_ID,
+            "thread_id": REGRESSION_TARGET_ID,
+            "lane": "mention",
+        }
+    )
+
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 48)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 6)
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(
+        bot, "require_instance_lock_for_remote_write", lambda _operation: None
+    )
+    monkeypatch.setattr(
+        bot,
+        "load_confirmed_reply_receipt",
+        lambda: ("absent", None),
+    )
+    monkeypatch.setattr(
+        bot,
+        "get_mentions",
+        lambda current_state: (
+            []
+            if REGRESSION_TARGET_ID in current_state.get("replied_to_ids", [])
+            else [copy.deepcopy(candidate)]
+        ),
+    )
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(
+        bot, "is_probably_spam_or_not_worth_replying", lambda _text: False
+    )
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda *_args, **_kwargs: (copy.deepcopy(reply_context), True),
+    )
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(
+        bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {}
+    )
+    monkeypatch.setattr(
+        bot, "retire_lane_transport_journal_if_present", lambda **_kwargs: None
+    )
+    monkeypatch.setattr(bot, "remove_confirmed_reply_receipt", lambda *_args: None)
+    return state, candidate, fixed_epoch
+
+
+def provider_failure_state(state: dict) -> dict:
+    return {
+        key: copy.deepcopy(state[key])
+        for key in (
+            "xai_error_epochs",
+            "xai_api_cooldown_until_epoch",
+            "xai_api_cooldown_reason",
+        )
+    }
+
+
+def capture_bot_logs(bot, monkeypatch: pytest.MonkeyPatch) -> list[logging.LogRecord]:
+    records: list[logging.LogRecord] = []
+
+    class RecordingHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    logger = logging.Logger("mrsMThatcher.pause-defer-test", level=logging.DEBUG)
+    logger.propagate = False
+    logger.addHandler(RecordingHandler(level=logging.DEBUG))
+    monkeypatch.setattr(bot, "log", logger)
+    return records
 
 
 def test_stage_telemetry_is_allow_listed_and_text_free() -> None:
@@ -465,6 +594,300 @@ def test_stage_approval_followed_by_failed_repair_logs_effective_local_rejection
     assert decision_event["repaired_draft"].startswith("Consumers and businesses")
     assert evaluation["status"] == "local_rejection"
     assert evaluation["direct_answer_repair_attempted"] is True
+
+
+def test_writer_pause_defers_queued_candidate_then_posts_once_when_unpaused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    state, _candidate, fixed_epoch = configure_queued_candidate_evaluation(
+        bot, monkeypatch, tmp_path
+    )
+    control_path = tmp_path / "control.json"
+    control_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", control_path)
+    monkeypatch.setattr(
+        bot,
+        "_CONTROL_CACHE",
+        {
+            "signature": None,
+            "data": {},
+            "has_valid": False,
+            "failure_signature": None,
+        },
+    )
+
+    pause_after_gate = [True]
+    provider_stages: list[str] = []
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        def __init__(self, content: dict[str, str]) -> None:
+            self.content = content
+
+        def json(self) -> dict:
+            return {"choices": [{"message": {"content": self.content}}]}
+
+    def provider_post(_url: str, **kwargs: object) -> Response:
+        request = kwargs["json"]
+        assert isinstance(request, dict)
+        schema = request["response_format"]["json_schema"]
+        stage = str(schema["name"]).removeprefix("mrs_tested_")
+        provider_stages.append(stage)
+        if stage == "candidate_backed_engagement":
+            if pause_after_gate[0]:
+                control_path.write_text(
+                    json.dumps({"pause_all": True}), encoding="utf-8"
+                )
+            return Response(
+                {"decision": "reply", "reply": "PRIVATE GATE CANDIDATE"}
+            )
+        if stage == "writer_v3_initial":
+            return Response(
+                {
+                    "status": "reply",
+                    "reply": "Thank you — that is kind of you.",
+                }
+            )
+        raise AssertionError(stage)
+
+    public_replies: list[dict[str, str]] = []
+
+    def post_reply(**kwargs: object) -> tuple[dict, dict]:
+        receipt_template = kwargs["receipt_template"]
+        assert isinstance(receipt_template, dict)
+        public_replies.append(
+            {
+                "target_id": str(kwargs["reply_to_id"]),
+                "text": str(kwargs["reply_text"]),
+            }
+        )
+        receipt = bot._confirmed_reply_receipt_from_sending(
+            receipt_template,
+            reply_post_id="900001",
+            confirmation_epoch=fixed_epoch,
+        )
+        return {"data": {"id": "900001"}}, receipt
+
+    api_error_calls: list[tuple] = []
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(bot.requests, "post", provider_post)
+    monkeypatch.setattr(
+        bot, "post_conversational_reply_with_durable_identity", post_reply
+    )
+    monkeypatch.setattr(
+        bot,
+        "record_api_error",
+        lambda *args, **kwargs: api_error_calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+
+    initial_provider_state = provider_failure_state(state)
+    initial_daily_reply_count = state["daily_reply_count"]
+    initial_last_seen = state["last_seen_mention_id"]
+    log_records = capture_bot_logs(bot, monkeypatch)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    paused_messages = [record.getMessage() for record in log_records]
+    assert provider_stages == ["candidate_backed_engagement"]
+    assert public_replies == []
+    assert api_error_calls == []
+    assert provider_failure_state(state) == initial_provider_state
+    assert not any("Unexpected Grok failure" in message for message in paused_messages)
+    assert not any("RemoteOperationsPaused" in message for message in paused_messages)
+    assert all(record.exc_info is None for record in log_records)
+    pause_records = [
+        record
+        for record in log_records
+        if record.getMessage().startswith(
+            "Deferring conversational reply evaluation"
+        )
+    ]
+    assert len(pause_records) == 1
+    assert pause_records[0].levelno == logging.INFO
+    assert events == [
+        (
+            "reply_pipeline_paused",
+            {
+                "lane": "mention",
+                "target_id": REGRESSION_TARGET_ID,
+                "reason": "global_runtime_control_pause",
+            },
+        )
+    ]
+    assert bot.terminal_reply_evaluation(state, REGRESSION_TARGET_ID) is None
+    assert state["last_seen_mention_id"] == initial_last_seen
+    assert REGRESSION_TARGET_ID in state["mention_pending_candidates"]
+    assert state["replied_to_ids"] == []
+    assert state["daily_reply_count"] == initial_daily_reply_count
+    assert state["author_evaluation_quarantines"] == {}
+    persisted = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+    assert REGRESSION_TARGET_ID in persisted["mention_pending_candidates"]
+
+    pause_after_gate[0] = False
+    control_path.write_text("{}", encoding="utf-8")
+    log_records.clear()
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
+    assert public_replies == [
+        {
+            "target_id": REGRESSION_TARGET_ID,
+            "text": "Thank you — that is kind of you.",
+        }
+    ]
+    assert provider_stages == [
+        "candidate_backed_engagement",
+        "candidate_backed_engagement",
+        "writer_v3_initial",
+    ]
+    assert REGRESSION_TARGET_ID not in state["mention_pending_candidates"]
+    assert state["replied_to_ids"] == [REGRESSION_TARGET_ID]
+    assert state["daily_reply_count"] == initial_daily_reply_count + 1
+    assert bot.terminal_reply_evaluation(state, REGRESSION_TARGET_ID) is None
+    assert api_error_calls == []
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert len(public_replies) == 1
+
+
+def test_context_pause_defers_candidate_without_provider_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    state, _candidate, _fixed_epoch = configure_queued_candidate_evaluation(
+        bot, monkeypatch, tmp_path
+    )
+    initial_provider_state = provider_failure_state(state)
+    initial_last_seen = state["last_seen_mention_id"]
+    api_error_calls: list[tuple] = []
+    events: list[tuple[str, dict]] = []
+
+    def paused_context(*_args: object, **_kwargs: object) -> None:
+        raise bot.RemoteOperationsPaused("paused during candidate context")
+
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", paused_context)
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda *_args, **_kwargs: pytest.fail("provider stage must not start"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "post_conversational_reply_with_durable_identity",
+        lambda **_kwargs: pytest.fail("public reply must not be posted"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "record_api_error",
+        lambda *args, **kwargs: api_error_calls.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+    log_records = capture_bot_logs(bot, monkeypatch)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    paused_messages = [record.getMessage() for record in log_records]
+    assert api_error_calls == []
+    assert provider_failure_state(state) == initial_provider_state
+    assert not any("Unexpected Grok failure" in message for message in paused_messages)
+    assert not any("RemoteOperationsPaused" in message for message in paused_messages)
+    assert all(record.exc_info is None for record in log_records)
+    assert sum(
+        record.levelno == logging.INFO
+        and record.getMessage().startswith(
+            "Deferring conversational reply evaluation"
+        )
+        for record in log_records
+    ) == 1
+    assert events == [
+        (
+            "reply_pipeline_paused",
+            {
+                "lane": "mention",
+                "target_id": REGRESSION_TARGET_ID,
+                "reason": "global_runtime_control_pause",
+            },
+        )
+    ]
+    assert bot.terminal_reply_evaluation(state, REGRESSION_TARGET_ID) is None
+    assert state["last_seen_mention_id"] == initial_last_seen
+    assert REGRESSION_TARGET_ID in state["mention_pending_candidates"]
+    assert state["replied_to_ids"] == []
+
+
+@pytest.mark.parametrize(
+    ("failure_kind", "expected_log"),
+    [
+        ("api_error", "Failed to ask Grok for reply"),
+        ("unexpected", "Unexpected Grok failure"),
+    ],
+)
+def test_non_pause_generation_failures_keep_existing_fail_closed_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_kind: str,
+    expected_log: str,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    state, _candidate, fixed_epoch = configure_queued_candidate_evaluation(
+        bot, monkeypatch, tmp_path
+    )
+    error = (
+        bot.ApiError("provider unavailable", service="xai", status_code=503)
+        if failure_kind == "api_error"
+        else RuntimeError("unrelated generation defect")
+    )
+
+    def fail_generation(*_args: object, **_kwargs: object) -> None:
+        raise error
+
+    original_record_api_error = bot.record_api_error
+    recorded: list[tuple[str, str]] = []
+
+    def record_api_error(
+        current_state: dict,
+        current_error: Exception,
+        service: str,
+        *,
+        scope: str = "api",
+    ) -> None:
+        recorded.append((service, scope))
+        original_record_api_error(
+            current_state, current_error, service, scope=scope
+        )
+
+    monkeypatch.setattr(bot, "generate_ai_first_reply", fail_generation)
+    monkeypatch.setattr(bot, "record_api_error", record_api_error)
+    log_records = capture_bot_logs(bot, monkeypatch)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
+
+    assert recorded == [("xai", "api")]
+    assert state["xai_error_epochs"] == [fixed_epoch]
+    assert state["xai_api_cooldown_until_epoch"] == 0
+    failure_records = [
+        record for record in log_records if record.getMessage() == expected_log
+    ]
+    assert len(failure_records) == 1
+    assert failure_records[0].exc_info is not None
+    assert bot.terminal_reply_evaluation(state, REGRESSION_TARGET_ID) is None
+    assert REGRESSION_TARGET_ID in state["mention_pending_candidates"]
 
 
 def test_frozen_prompt_hashes_and_provider_profiles() -> None:
