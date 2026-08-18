@@ -715,13 +715,9 @@ been reviewed, tested, committed and pushed. A new or untested code change must
 complete its appropriate validation before it becomes an approved deployment
 candidate. Deployment does not require rerunning the complete test suite.
 
-Changes involving canonical evidence, generated artefacts, corpus admission,
-gates, protocol activation, migrations or other changes that genuinely need
-expanded release assurance use the specialised
-[historical-context evidence release runbook](docs/historical_context_evidence_release_runbook.md).
-Do not automatically import that runbook's duplicated live/quiescent snapshots,
-release-attestation packages, deterministic-build evidence, formal admission
-reports or mandatory five-minute paused observation into this routine.
+Changes to canonical historical evidence or the generated corpus use the
+[historical-context evidence runbook](docs/historical_context_evidence_release_runbook.md)
+for content validation.
 
 1. Record the approved commit SHA. Fetch the remote, then confirm that the
    production checkout is clean, on `master`, and that its current commit is an

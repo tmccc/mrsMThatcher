@@ -5,16 +5,11 @@ production historical-context release. It records durable operating rules; a
 specific release must still create its own transition manifest, audit,
 validation record and rollback evidence.
 
-This is an expanded, specialised process for changes involving canonical
-evidence, generated artefacts, corpus admission, gates, protocol activation,
-migrations or other changes that genuinely need these assurances. For an
-already reviewed, tested, committed and pushed code commit, use the canonical
+Use this runbook for content validation when changing canonical historical
+evidence or the generated corpus. For an already reviewed, tested, committed
+and pushed code commit, use the canonical
 [routine deployment procedure](../README.md#routine-deployment-of-an-already-tested-commit).
-Its deployment does not rerun the complete test suite and does not require this
-runbook's duplicated live/quiescent snapshots, release-attestation packages,
-deterministic-build evidence, formal admission reports or mandatory five-minute
-paused observation. Do not automatically import those specialised requirements
-into a routine deployment. A new or untested change must still complete its
+A new or untested change must still complete its
 appropriate validation before becoming an approved deployment candidate.
 
 ## Scope and safety model
@@ -200,7 +195,7 @@ the complete suite once more only when the integrated candidate is ready.
 Test expectations which bind exact hashes or generated counts must be updated
 only after verifying that the underlying semantic change is authorised.
 
-The default release gate remains a final green complete-suite run. If the
+An evidence change must have a final green complete-suite run before deployment. If the
 operator explicitly directs that a second long run not be performed after a
 broad run exposes repair-related failures, do not describe the broad suite as
 passing. Preserve the complete failed-node list and signatures, require every

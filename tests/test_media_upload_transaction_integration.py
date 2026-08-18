@@ -4,10 +4,6 @@ The driver in this file imports the candidate in a fresh interpreter for every
 phase.  All HTTP boundaries are local sentinels: no test permits a network
 request.  A second interpreter inspects the durable state left by each hard
 exit or injected local failure.
-
-These are focused candidate regressions, not authoritative release-assurance
-evidence.  In particular, their assertions execute in the candidate's pytest
-interpreter and must not be treated as an external trust root.
 """
 
 from __future__ import annotations
