@@ -203,20 +203,59 @@ def test_bracketing_sample_delta_uses_no_interpolation(tmp_path: Path) -> None:
     assert selected["requested_window"] == "08:05–10:25 UTC"
     assert selected["segments"][0]["sample_start_utc"] == "2026-08-18T08:00:00Z"
     assert selected["segments"][0]["sample_end_utc"] == "2026-08-18T10:30:00Z"
+    assert "trailing_uncovered_seconds" not in selected["segments"][0]
 
 
-def test_incomplete_trailing_coverage_has_no_end_sample(tmp_path: Path) -> None:
+def test_incomplete_trailing_coverage_uses_latest_sample(tmp_path: Path) -> None:
     samples = [
-        (datetime(2026, 8, 18, 8, 0, tzinfo=timezone.utc), "1"),
-        (datetime(2026, 8, 18, 10, 0, tzinfo=timezone.utc), "1.5"),
+        (datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc), "1"),
+        (datetime(2026, 8, 18, 4, 0, tzinfo=timezone.utc), "1.1968775"),
     ]
     path = write_cache(
-        tmp_path / "daily.json", current_day(total="1.5", samples=samples)
+        tmp_path / "daily.json", current_day(total="1.1968775", samples=samples)
     )
-    selected = cost_report(path)["selected_window"]
-    assert selected["status"] == "unknown"
-    assert "at or after segment end" in selected["segments"][0]["reason"]
-    assert "amount" not in selected
+    selected = cost_report(
+        path,
+        start=datetime(2026, 8, 18, 0, 9, tzinfo=timezone.utc),
+        end=datetime(2026, 8, 18, 4, 11, tzinfo=timezone.utc),
+    )["selected_window"]
+    segment = selected["segments"][0]
+    assert selected["status"] == "partial"
+    assert selected["amount"] == "0.1968775"
+    assert segment["status"] == "partial"
+    assert segment["requested_start_utc"] == "2026-08-18T00:09:00Z"
+    assert segment["requested_end_utc"] == "2026-08-18T04:11:00Z"
+    assert segment["sample_start_utc"] == "2026-08-18T00:00:00Z"
+    assert segment["sample_end_utc"] == "2026-08-18T04:00:00Z"
+    assert segment["trailing_uncovered_seconds"] == 660
+    assert "latest cumulative sample" in segment["partial_coverage_reason"]
+
+
+def test_trailing_partial_coverage_is_explicit_in_markdown(tmp_path: Path) -> None:
+    samples = [
+        (datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc), "1"),
+        (datetime(2026, 8, 18, 4, 0, tzinfo=timezone.utc), "1.1968775"),
+    ]
+    path = write_cache(
+        tmp_path / "daily.json", current_day(total="1.1968775", samples=samples)
+    )
+    report = cost_report(
+        path,
+        start=datetime(2026, 8, 18, 0, 9, tzinfo=timezone.utc),
+        end=datetime(2026, 8, 18, 4, 11, tzinfo=timezone.utc),
+    )
+    rendered = render_cost(report)
+    assert (
+        "OpenAI selected-window estimate (partial coverage): **US$0.1968775**."
+        in rendered
+    )
+    assert "Sample coverage: **2026-08-18: 00:00–04:00 UTC**." in rendered
+    assert (
+        "Requested coverage represented: approximately "
+        "**2026-08-18: 00:09–04:00 UTC**."
+    ) in rendered
+    assert "Trailing period unavailable: **11 minutes**." in rendered
+    assert "samples are collected at intervals" in rendered
 
 
 def test_no_start_sample_does_not_extrapolate(tmp_path: Path) -> None:
@@ -232,17 +271,41 @@ def test_no_start_sample_does_not_extrapolate(tmp_path: Path) -> None:
     assert "at or before segment start" in selected["segments"][0]["reason"]
 
 
-def test_no_end_sample_does_not_extrapolate(tmp_path: Path) -> None:
+def test_start_sample_without_later_sample_remains_unknown(tmp_path: Path) -> None:
     samples = [
         (datetime(2026, 8, 18, 8, 0, tzinfo=timezone.utc), "1"),
-        (datetime(2026, 8, 18, 9, 0, tzinfo=timezone.utc), "1.25"),
+    ]
+    path = write_cache(
+        tmp_path / "daily.json", current_day(total="1", samples=samples)
+    )
+    selected = cost_report(path)["selected_window"]
+    assert selected["status"] == "unknown"
+    assert "no later cumulative sample" in selected["segments"][0]["reason"]
+    assert "amount" not in selected
+
+
+def test_latest_sample_too_stale_for_trailing_coverage_is_unknown(
+    tmp_path: Path,
+) -> None:
+    latest = datetime(2026, 8, 18, 8, 15, tzinfo=timezone.utc)
+    samples = [
+        (datetime(2026, 8, 18, 8, 0, tzinfo=timezone.utc), "1"),
+        (latest, "1.25"),
     ]
     path = write_cache(
         tmp_path / "daily.json", current_day(total="1.25", samples=samples)
     )
-    selected = cost_report(path)["selected_window"]
+    selected = cost_report(
+        path,
+        start=datetime(2026, 8, 18, 8, 5, tzinfo=timezone.utc),
+        end=latest
+        + timedelta(
+            seconds=digest.OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS + 1
+        ),
+    )["selected_window"]
     assert selected["status"] == "unknown"
-    assert "at or after segment end" in selected["segments"][0]["reason"]
+    assert "too old for trailing coverage" in selected["segments"][0]["reason"]
+    assert "amount" not in selected
 
 
 def test_window_crossing_utc_midnight_is_split_and_summed(tmp_path: Path) -> None:
@@ -292,18 +355,25 @@ def test_europe_london_bst_local_window_converts_to_utc(monkeypatch) -> None:
         time_module.tzset()
 
 
-def test_non_monotonic_total_makes_segment_unavailable(tmp_path: Path) -> None:
+def test_non_monotonic_trailing_total_makes_segment_unavailable(
+    tmp_path: Path,
+) -> None:
     samples = [
-        (datetime(2026, 8, 18, 8, 0, tzinfo=timezone.utc), "1"),
-        (datetime(2026, 8, 18, 10, 30, tzinfo=timezone.utc), "0.5"),
+        (datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc), "1"),
+        (datetime(2026, 8, 18, 4, 0, tzinfo=timezone.utc), "0.5"),
     ]
     path = write_cache(
         tmp_path / "daily.json", current_day(total="0.5", samples=samples)
     )
-    selected = cost_report(path)["selected_window"]
+    selected = cost_report(
+        path,
+        start=datetime(2026, 8, 18, 0, 9, tzinfo=timezone.utc),
+        end=datetime(2026, 8, 18, 4, 11, tzinfo=timezone.utc),
+    )["selected_window"]
     assert selected["status"] == "unknown"
     assert "non-monotonically" in selected["segments"][0]["reason"]
     assert "amount" not in selected["segments"][0]
+    assert "amount" not in selected
 
 
 def test_partial_coverage_reports_only_valid_segments(tmp_path: Path) -> None:
@@ -325,6 +395,36 @@ def test_partial_coverage_reports_only_valid_segments(tmp_path: Path) -> None:
     assert selected["status"] == "partial"
     assert selected["amount"] == "0.2"
     assert selected["segments"][1]["status"] == "unavailable"
+
+
+def test_utc_midnight_window_sums_complete_and_trailing_partial_segments(
+    tmp_path: Path,
+) -> None:
+    day_17_samples = [
+        (datetime(2026, 8, 17, 22, 30, tzinfo=timezone.utc), "1"),
+        (datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc), "1.2"),
+    ]
+    day_18_samples = [
+        (datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc), "0"),
+        (datetime(2026, 8, 18, 1, 0, tzinfo=timezone.utc), "0.3"),
+    ]
+    days = {
+        "2026-08-17": day_payload(date(2026, 8, 17), "1.2", day_17_samples),
+        "2026-08-18": day_payload(date(2026, 8, 18), "0.3", day_18_samples),
+    }
+    path = write_cache(tmp_path / "daily.json", days)
+    selected = cost_report(
+        path,
+        start=datetime(2026, 8, 17, 23, 0, tzinfo=timezone.utc),
+        end=datetime(2026, 8, 18, 1, 11, tzinfo=timezone.utc),
+    )["selected_window"]
+    assert selected["status"] == "partial"
+    assert selected["amount"] == "0.5"
+    assert [segment["status"] for segment in selected["segments"]] == [
+        "complete",
+        "partial",
+    ]
+    assert selected["segments"][1]["trailing_uncovered_seconds"] == 660
 
 
 def test_complete_closed_utc_day_uses_published_daily_total(tmp_path: Path) -> None:
@@ -374,6 +474,81 @@ def test_combined_reporting_exists_only_for_project_scope(tmp_path: Path) -> Non
     organization_report = cost_report(organization_path, provider_usage=usage)
     assert "combined_selected_window" not in organization_report
     assert "Combined selected-window estimate:" not in render_cost(organization_report)
+
+
+def test_organization_wide_partial_cost_remains_separate_from_xai(
+    tmp_path: Path,
+) -> None:
+    usage = {
+        "events": [
+            {
+                "provider": "xAI",
+                "cost_in_usd_ticks": 1_000_000_000,
+            }
+        ]
+    }
+    samples = [
+        (datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc), "1"),
+        (datetime(2026, 8, 18, 4, 0, tzinfo=timezone.utc), "1.1968775"),
+    ]
+    path = write_cache(
+        tmp_path / "organization-partial.json",
+        current_day(
+            total="1.1968775", samples=samples, scope_kind="organization"
+        ),
+        scope_kind="organization",
+    )
+    report = cost_report(
+        path,
+        start=datetime(2026, 8, 18, 0, 9, tzinfo=timezone.utc),
+        end=datetime(2026, 8, 18, 4, 11, tzinfo=timezone.utc),
+        provider_usage=usage,
+    )
+    rendered = render_cost(report)
+    assert report["selected_window"]["status"] == "partial"
+    assert report["selected_window"]["amount"] == "0.1968775"
+    assert "combined_selected_window" not in report
+    assert "OpenAI organisation-wide selected-window estimate (partial coverage)" in rendered
+    assert "not combined with the bot's xAI component" in rendered
+    assert "Combined selected-window estimate:" not in rendered
+
+
+def test_project_partial_cost_is_not_used_for_combined_total(tmp_path: Path) -> None:
+    usage = {
+        "events": [
+            {
+                "provider": "xAI",
+                "cost_in_usd_ticks": 1_000_000_000,
+            }
+        ]
+    }
+    samples = [
+        (datetime(2026, 8, 18, 0, 0, tzinfo=timezone.utc), "1"),
+        (datetime(2026, 8, 18, 4, 0, tzinfo=timezone.utc), "1.1968775"),
+    ]
+    path = write_cache(
+        tmp_path / "project-partial.json",
+        current_day(total="1.1968775", samples=samples),
+    )
+    report = cost_report(
+        path,
+        start=datetime(2026, 8, 18, 0, 9, tzinfo=timezone.utc),
+        end=datetime(2026, 8, 18, 4, 11, tzinfo=timezone.utc),
+        provider_usage=usage,
+    )
+    rendered = render_cost(report)
+    assert report["selected_window"]["status"] == "partial"
+    assert report["combined_selected_window"] == {
+        "available": False,
+        "reason": "one or both provider components are unavailable or partial",
+    }
+    assert "OpenAI selected-window estimate (partial coverage)" in rendered
+    assert "Combined selected-window estimate: **unknown**." in rendered
+    assert "xAI component (provider-reported): **US$0.1**." in rendered
+    assert (
+        "OpenAI component (published-cost delta estimate): **unknown or partial**."
+        in rendered
+    )
 
 
 def test_digest_path_override_uses_monkeypatched_fixture_not_environment(

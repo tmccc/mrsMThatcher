@@ -4339,7 +4339,7 @@ def estimate_openai_cost_window(
     window_end_utc: datetime,
     now_utc: datetime,
 ) -> Dict[str, Any]:
-    """Estimate a UTC window from bracketing cumulative samples only."""
+    """Estimate a UTC window from cumulative samples without interpolation."""
 
     start = window_start_utc.astimezone(timezone.utc)
     end = window_end_utc.astimezone(timezone.utc)
@@ -4416,42 +4416,87 @@ def estimate_openai_cost_window(
         after = [item for item in samples if item[0] >= segment_end]
         if not before:
             segment["reason"] = "no cumulative sample at or before segment start"
-        elif not after:
-            segment["reason"] = "no cumulative sample at or after segment end"
         else:
             start_sample = max(before, key=lambda item: item[0])
-            end_sample = min(after, key=lambda item: item[0])
             start_gap = (cursor - start_sample[0]).total_seconds()
-            end_gap = (end_sample[0] - segment_end).total_seconds()
             if start_gap > OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS:
                 segment["reason"] = "start boundary sample is too old"
-            elif end_gap > OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS:
-                segment["reason"] = "end boundary sample is too late"
-            elif end_sample[1] < start_sample[1]:
-                segment["reason"] = (
-                    "provider-published cumulative total changed non-monotonically"
+            elif after:
+                end_sample = min(after, key=lambda item: item[0])
+                end_gap = (end_sample[0] - segment_end).total_seconds()
+                if end_gap > OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS:
+                    segment["reason"] = "end boundary sample is too late"
+                elif end_sample[1] < start_sample[1]:
+                    segment["reason"] = (
+                        "provider-published cumulative total changed non-monotonically"
+                    )
+                else:
+                    amount = end_sample[1] - start_sample[1]
+                    segment.update(
+                        {
+                            "status": "complete",
+                            "method": result["method"],
+                            "amount": _openai_decimal_text(amount),
+                            "sample_start_utc": start_sample[0].strftime(
+                                "%Y-%m-%dT%H:%M:%SZ"
+                            ),
+                            "sample_end_utc": end_sample[0].strftime(
+                                "%Y-%m-%dT%H:%M:%SZ"
+                            ),
+                        }
+                    )
+                    total += amount
+                    valid_count += 1
+            elif segment_end == end:
+                latest_sample = max(
+                    (item for item in samples if item[0] <= segment_end),
+                    key=lambda item: item[0],
                 )
+                trailing_gap = (segment_end - latest_sample[0]).total_seconds()
+                if (
+                    latest_sample[0] <= start_sample[0]
+                    or latest_sample[0] <= cursor
+                ):
+                    segment["reason"] = (
+                        "no later cumulative sample before segment end"
+                    )
+                elif trailing_gap > OPENAI_COST_SAMPLE_BOUNDARY_MAX_GAP_SECONDS:
+                    segment["reason"] = (
+                        "latest cumulative sample is too old for trailing coverage"
+                    )
+                elif latest_sample[1] < start_sample[1]:
+                    segment["reason"] = (
+                        "provider-published cumulative total changed non-monotonically"
+                    )
+                else:
+                    amount = latest_sample[1] - start_sample[1]
+                    partial_reason = (
+                        "requested segment ends after the latest cumulative sample"
+                    )
+                    segment.update(
+                        {
+                            "status": "partial",
+                            "method": result["method"],
+                            "amount": _openai_decimal_text(amount),
+                            "sample_start_utc": start_sample[0].strftime(
+                                "%Y-%m-%dT%H:%M:%SZ"
+                            ),
+                            "sample_end_utc": latest_sample[0].strftime(
+                                "%Y-%m-%dT%H:%M:%SZ"
+                            ),
+                            "trailing_uncovered_seconds": int(trailing_gap),
+                            "partial_coverage_reason": partial_reason,
+                            "reason": partial_reason,
+                        }
+                    )
+                    total += amount
+                    valid_count += 1
             else:
-                amount = end_sample[1] - start_sample[1]
-                segment.update(
-                    {
-                        "status": "complete",
-                        "method": result["method"],
-                        "amount": _openai_decimal_text(amount),
-                        "sample_start_utc": start_sample[0].strftime(
-                            "%Y-%m-%dT%H:%M:%SZ"
-                        ),
-                        "sample_end_utc": end_sample[0].strftime(
-                            "%Y-%m-%dT%H:%M:%SZ"
-                        ),
-                    }
-                )
-                total += amount
-                valid_count += 1
+                segment["reason"] = "no cumulative sample at or after segment end"
         result["segments"].append(segment)
         cursor = segment_end
 
-    if valid_count == len(result["segments"]):
+    if all(item.get("status") == "complete" for item in result["segments"]):
         result["status"] = "complete"
         result["amount"] = _openai_decimal_text(total)
     elif valid_count:
@@ -10446,10 +10491,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
         valid_segments = [
             item
             for item in selected.get("segments", [])
-            if item.get("status") == "complete"
+            if item.get("status") in {"complete", "partial"}
         ]
         if valid_segments:
             coverage_parts = []
+            requested_coverage_parts = []
             outside_requested = False
             for item in valid_segments:
                 sample_start = _parse_openai_utc(
@@ -10470,7 +10516,34 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 coverage_parts.append(
                     f"{item.get('utc_date')}: {_openai_window_text(sample_start, sample_end)}"
                 )
+                represented_start = max(sample_start, requested_start)
+                represented_end = min(sample_end, requested_end)
+                if represented_end > represented_start:
+                    requested_coverage_parts.append(
+                        f"{item.get('utc_date')}: "
+                        f"{_openai_window_text(represented_start, represented_end)}"
+                    )
             out.append("Sample coverage: **" + "; ".join(coverage_parts) + "**.")
+            if selected_status == "partial" and requested_coverage_parts:
+                out.append(
+                    "Requested coverage represented: approximately **"
+                    + "; ".join(requested_coverage_parts)
+                    + "**."
+                )
+            trailing_segments = [
+                item
+                for item in valid_segments
+                if item.get("status") == "partial"
+                and item.get("trailing_uncovered_seconds") is not None
+            ]
+            if len(trailing_segments) == 1:
+                out.append(
+                    "Trailing period unavailable: **"
+                    + _human_snapshot_age(
+                        float(trailing_segments[0]["trailing_uncovered_seconds"])
+                    )
+                    + "**."
+                )
             if outside_requested:
                 out.append(
                     "The estimate can include a small amount immediately outside the "
@@ -10479,7 +10552,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         unavailable_segments = [
             item
             for item in selected.get("segments", [])
-            if item.get("status") != "complete"
+            if item.get("status") == "unavailable"
         ]
         if unavailable_segments:
             out.append(
