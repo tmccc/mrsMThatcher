@@ -517,6 +517,11 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     )
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda tweet_id: {"id": str(tweet_id)},
+    )
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
     monkeypatch.setattr(
         bot,
@@ -13431,7 +13436,11 @@ def test_author_cap_context_is_terminal_but_available_to_next_eligible_reply(
     monkeypatch.setattr(
         bot,
         "get_tweet_by_id",
-        lambda *_args, **_kwargs: pytest.fail("context must use tweet_cache"),
+        lambda tweet_id, **_kwargs: (
+            {"id": "201"}
+            if str(tweet_id) == "201"
+            else pytest.fail("parent context must use tweet_cache")
+        ),
     )
     monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
 
@@ -17157,6 +17166,65 @@ def test_deleted_reply_target_403_is_terminal_not_transient(
     assert state["x_write_api_cooldown_until_epoch"] == 0
 
 
+def test_pre_send_reply_target_revalidation_bypasses_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def fresh_lookup(target_id: str) -> dict[str, str]:
+        calls.append(target_id)
+        return {"id": target_id}
+
+    monkeypatch.setattr(bot, "get_tweet_by_id", fresh_lookup)
+
+    assert bot.reply_target_is_available_immediately_before_send("123") is True
+    assert calls == ["123"]
+
+
+@pytest.mark.parametrize("failure_kind", ["missing_data", "target_lookup_error"])
+def test_pre_send_reply_target_revalidation_returns_false_only_for_missing_target(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_kind: str,
+) -> None:
+    if failure_kind == "missing_data":
+        monkeypatch.setattr(bot, "get_tweet_by_id", lambda _target_id: None)
+    else:
+        unavailable = bot.ApiError(
+            "X API error 404: post not found",
+            service="x",
+            status_code=404,
+            request_method="GET",
+            request_path="/2/tweets/123",
+        )
+        monkeypatch.setattr(
+            bot,
+            "get_tweet_by_id",
+            lambda _target_id: (_ for _ in ()).throw(unavailable),
+        )
+
+    assert bot.reply_target_is_available_immediately_before_send("123") is False
+
+
+def test_pre_send_reply_target_revalidation_propagates_global_lookup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    denial = bot.ApiError(
+        "X API error 403: Invalid or expired token",
+        service="x",
+        status_code=403,
+        request_method="GET",
+        request_path="/2/tweets/123",
+    )
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda _target_id: (_ for _ in ()).throw(denial),
+    )
+
+    with pytest.raises(bot.ApiError, match="expired token"):
+        bot.reply_target_is_available_immediately_before_send("123")
+
+
 def test_global_post_create_403_remains_in_transient_error_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -17363,6 +17431,102 @@ def test_strategy_persistence_failure_blocks_mention_x_write(
     assert state["reply_evaluation_records"]["100"]["reason"] == (
         "ai_reply_persistence_validation_failed"
     )
+
+
+def test_deleted_target_after_generation_is_retired_before_any_x_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+    mention = {
+        "id": "100",
+        "author_id": "200",
+        "text": "@MrsMThatcher a substantive direct mention",
+        "entities": {
+            "mentions": [{"id": "12345", "username": "MrsMThatcher"}],
+        },
+        "conversation_id": "100",
+        "referenced_tweets": [],
+    }
+    state["mention_pending_candidates"] = {"100": copy.deepcopy(mention)}
+    context = unit_reply_context(target_id="100", contribution=mention["text"])
+    events: list[tuple[str, dict]] = []
+    durable_saves: list[bool] = []
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [copy.deepcopy(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", lambda *_args: (context, True))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda actual_context, *_args, **_kwargs: unit_approved_reply(
+            actual_context,
+            mode="opinion_or_principle",
+        ),
+    )
+    monkeypatch.setattr(bot, "get_tweet_by_id", lambda _target_id: None)
+    monkeypatch.setattr(
+        bot,
+        "post_conversational_reply_with_durable_identity",
+        lambda **_kwargs: pytest.fail("X write must not be prepared or attempted"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+    monkeypatch.setattr(
+        bot,
+        "save_state",
+        lambda _state, **kwargs: durable_saves.append(
+            bool(kwargs.get("durable", False))
+        ),
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert "100" not in state["mention_pending_candidates"]
+    assert "mention:100" not in state.get("pending_ai_reply_drafts", {})
+    assert "100" in state["replied_to_ids"]
+    assert state["daily_reply_count"] == 0
+    assert state["reply_evaluation_records"]["100"] == {
+        "target_id": "100",
+        "lane": "mention",
+        "outcome": "reply_not_permitted",
+        "reason": "x_target_unavailable_pre_send",
+        "evaluated_epoch": 1_800_000_000,
+    }
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert durable_saves[-1] is True
+    terminal_events = [
+        values for name, values in events if name == "reply_target_terminal"
+    ]
+    assert terminal_events == [
+        {
+            "lane": "mention",
+            "target_id": "100",
+            "outcome": "reply_not_permitted",
+            "reason": "x_target_unavailable_pre_send",
+        }
+    ]
+    outcome_events = [
+        values for name, values in events if name == "ai_reply_pipeline_outcome"
+    ]
+    assert len(outcome_events) == 1
+    assert outcome_events[0]["status"] == "posting_failed_terminal"
+    assert outcome_events[0]["failure_reason"] == "target_unavailable_pre_send"
 
 
 def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(

@@ -7125,6 +7125,51 @@ def get_tweet_by_id(tweet_id: str) -> dict | None:
     return tweet
 
 
+def reply_target_is_available_immediately_before_send(target_id: str) -> bool:
+    """Freshly prove that one reply target still exists before durable send setup.
+
+    Reply generation can take long enough for a fetched mention or quote tweet
+    to be deleted in the meantime.  A direct lookup here deliberately bypasses
+    the tweet cache and runs before the sending receipt and transport journal
+    are created.  Target-specific lookup failures are terminal for this
+    candidate; authentication, endpoint and transient failures remain errors
+    so callers retain the approved draft for a later attempt.
+    """
+
+    target_id = str(target_id)
+    log.info(
+        "Freshly revalidating reply target immediately before send. target_id=%s",
+        target_id,
+    )
+    try:
+        target = get_tweet_by_id(target_id)
+    except ApiError as exc:
+        if api_error_is_permanent_target_failure(exc):
+            log.warning(
+                "Reply target became unavailable before send. target_id=%s",
+                target_id,
+            )
+            return False
+        raise
+
+    if target is None:
+        log.warning(
+            "Reply target was absent in the fresh pre-send lookup. target_id=%s",
+            target_id,
+        )
+        return False
+    if not isinstance(target, dict) or str(target.get("id") or "") != target_id:
+        raise ApiError(
+            "X reply-target pre-send lookup returned a mismatched or malformed post",
+            service="x",
+            request_method="GET",
+            request_path=f"/2/tweets/{target_id}",
+        )
+
+    log.info("Fresh pre-send reply-target lookup passed. target_id=%s", target_id)
+    return True
+
+
 def get_tweet_by_id_cached(tweet_id: str, state: dict) -> dict | None:
     """Return a cached post or fetch it from X by ID."""
     prune_tweet_cache(state)
@@ -22536,6 +22581,42 @@ def maybe_reply_to_mentions(
 
         receipt_template = bind_conversational_reply_attempt_time(receipt_template)
         try:
+            if not reply_target_is_available_immediately_before_send(mention_id):
+                log.warning(
+                    "Cannot reply to mention %s because it disappeared after "
+                    "evaluation; marking it handled without consuming reply quota",
+                    mention_id,
+                )
+                log_ai_reply_posting_outcome(
+                    reply=reply_text,
+                    status="posting_failed_terminal",
+                    lane=str(candidate_source),
+                    target_id=mention_id,
+                    failure_reason="target_unavailable_pre_send",
+                )
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=mention_id,
+                    lane=str(candidate_source),
+                    reason="x_target_unavailable_pre_send",
+                    outcome="reply_not_permitted",
+                )
+                log_event(
+                    "reply_target_terminal",
+                    lane=candidate_log_source,
+                    target_id=mention_id,
+                    outcome="reply_not_permitted",
+                    reason="x_target_unavailable_pre_send",
+                )
+                replied_to_ids.add(mention_id)
+                clear_pending_ai_reply(state, mention_id, str(candidate_source))
+                state["replied_to_ids"] = append_unique_durable(
+                    state.get("replied_to_ids", []),
+                    mention_id,
+                )
+                mark_mention_seen_if_applicable(state, mention)
+                save_state(state, durable=True)
+                return NORMAL_CHECK_STATUS_CHECKED
             reply_response, receipt = (
                 post_conversational_reply_with_durable_identity(
                     state=state,
@@ -23620,6 +23701,38 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 receipt_template
             )
             try:
+                if not reply_target_is_available_immediately_before_send(quote_id):
+                    log.warning(
+                        "Cannot reply to quote tweet %s because it disappeared "
+                        "after evaluation; marking it skipped without consuming "
+                        "reply quota",
+                        quote_id,
+                    )
+                    log_ai_reply_posting_outcome(
+                        reply=reply_text,
+                        status="posting_failed_terminal",
+                        lane="quote_tweet",
+                        target_id=quote_id,
+                        failure_reason="target_unavailable_pre_send",
+                    )
+                    log_event(
+                        "reply_target_terminal",
+                        lane="quote_tweet",
+                        target_id=quote_id,
+                        outcome="reply_not_permitted",
+                        reason="x_target_unavailable_pre_send",
+                    )
+                    record_terminal_reply_evaluation(
+                        state,
+                        target_id=quote_id,
+                        lane="quote_tweet",
+                        reason="x_target_unavailable_pre_send",
+                        outcome="reply_not_permitted",
+                    )
+                    mark_quote_tweet_skipped(state, quote_id)
+                    clear_pending_ai_reply(state, quote_id, "quote_tweet")
+                    save_state(state, durable=True)
+                    return QUOTE_CHECK_STATUS_CHECKED
                 reply_response, receipt = (
                     post_conversational_reply_with_durable_identity(
                         state=state,

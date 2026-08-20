@@ -177,6 +177,11 @@ def configure_queued_candidate_evaluation(
             else [copy.deepcopy(candidate)]
         ),
     )
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda tweet_id: {"id": str(tweet_id)},
+    )
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(
         bot, "is_probably_spam_or_not_worth_replying", lambda _text: False

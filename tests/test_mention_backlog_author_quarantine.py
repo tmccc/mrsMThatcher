@@ -70,6 +70,11 @@ def configure_provider_free_mention_check(
     monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
     monkeypatch.setattr(bot, "get_mentions", lambda _state: copy.deepcopy(candidates))
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id",
+        lambda tweet_id: {"id": str(tweet_id)},
+    )
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
     monkeypatch.setattr(
         bot, "is_probably_spam_or_not_worth_replying", lambda _text: False

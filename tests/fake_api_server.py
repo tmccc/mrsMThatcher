@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 import json
 import time
 import threading
@@ -26,6 +27,12 @@ class FakeApiServer:
         self.path_counts: dict[str, int] = {}
         self._next_post_id = int(scenario.get("next_post_id", 900000))
         self._current_ai_reply_text = ""
+        self._known_tweets: dict[str, dict[str, Any]] = {}
+        self._known_tweets_lock = threading.Lock()
+
+        configured_tweets = scenario.get("tweets", {})
+        if isinstance(configured_tweets, dict):
+            self._remember_tweets(configured_tweets.values())
 
         handler = self._handler_class()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -49,6 +56,28 @@ class FakeApiServer:
         self.httpd.shutdown()
         self.thread.join(timeout=5)
         self.httpd.server_close()
+
+    def _remember_tweets(self, tweets: object) -> None:
+        """Index posts exposed by discovery endpoints for later ID lookups."""
+        if not isinstance(tweets, Iterable) or isinstance(tweets, (str, bytes, dict)):
+            return
+        with self._known_tweets_lock:
+            for tweet in tweets:
+                if not isinstance(tweet, dict):
+                    continue
+                tweet_id = str(tweet.get("id") or "")
+                if tweet_id:
+                    self._known_tweets[tweet_id] = dict(tweet)
+
+    def _known_tweet(self, tweet_id: str) -> dict[str, Any] | None:
+        configured_tweets = self.scenario.get("tweets", {})
+        if isinstance(configured_tweets, dict):
+            configured = configured_tweets.get(tweet_id)
+            if isinstance(configured, dict):
+                return dict(configured)
+        with self._known_tweets_lock:
+            tweet = self._known_tweets.get(tweet_id)
+            return dict(tweet) if tweet is not None else None
 
     def _handler_class(self):
         class Handler(BaseHTTPRequestHandler):
@@ -445,6 +474,7 @@ class FakeApiServer:
                                 ]
                             }
                         mentions.append(mention)
+                    self.fake._remember_tweets(mentions)
                     self._json_response(
                         200,
                         self._page_body(
@@ -458,6 +488,7 @@ class FakeApiServer:
 
                 if path == "/2/tweets/search/recent":
                     replies = list(self.fake.scenario.get("search_recent", []))
+                    self.fake._remember_tweets(replies)
                     self._json_response(
                         200,
                         self._page_body(
@@ -472,6 +503,7 @@ class FakeApiServer:
                 if path.startswith("/2/tweets/") and path.endswith("/quote_tweets"):
                     post_id = path.split("/")[3]
                     data = self.fake.scenario.get("quote_tweets", {}).get(post_id, {})
+                    self.fake._remember_tweets(data.get("data", []))
                     body = self._page_body(
                         path,
                         list(data.get("data", [])),
@@ -483,7 +515,7 @@ class FakeApiServer:
 
                 if path.startswith("/2/tweets/"):
                     tweet_id = path.split("/")[3]
-                    tweet = self.fake.scenario.get("tweets", {}).get(tweet_id)
+                    tweet = self.fake._known_tweet(tweet_id)
                     self._json_response(200, {"data": tweet} if tweet else {})
                     return
 
