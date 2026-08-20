@@ -7,6 +7,7 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -49,6 +50,33 @@ PRODUCTION_DELETED_REPLY_ERROR = {
     "title": "Forbidden",
     "type": "about:blank",
 }
+
+
+def _existing_reply_target_then_deleted_create(
+    target_id: str,
+    *,
+    remote_calls: list[str] | None = None,
+):
+    """Return a request stub for a live preflight target and rejected create."""
+
+    target_path = f"/2/tweets/{target_id}"
+
+    def request(
+        method: str,
+        url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        method = str(method).upper()
+        path = urlsplit(str(url)).path
+        if remote_calls is not None:
+            remote_calls.append(f"{method} {path}")
+        if method == "GET" and path == target_path:
+            return _x_response(200, {"data": {"id": target_id}})
+        if method == "POST" and path == "/2/tweets":
+            return _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
+        pytest.fail(f"unexpected X request in reply rejection test: {method} {path}")
+
+    return request
 
 
 def _raw_x_response(
@@ -2737,15 +2765,14 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
         provider_calls=provider_calls,
     )
 
-    def rejected(
-        _method: str,
-        _url: str,
-        **_kwargs: object,
-    ) -> bot.requests.Response:
-        remote_calls.append("called")
-        return _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
-
-    monkeypatch.setattr(bot.requests, "request", rejected)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        _existing_reply_target_then_deleted_create(
+            "100",
+            remote_calls=remote_calls,
+        ),
+    )
 
     assert (
         bot.maybe_reply_to_mentions(state)
@@ -2761,7 +2788,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
     assert state["daily_replied_author_ids"] == []
     assert not state.get("pending_ai_reply_drafts")
     assert provider_calls == ["called"]
-    assert remote_calls == ["called"]
+    assert remote_calls == ["GET /2/tweets/100", "POST /2/tweets"]
     assert bot.load_confirmed_reply_receipt() == ("absent", None)
     journal_path = bot.journal_path_for_receipt(
         bot.CONFIRMED_REPLY_RECEIPT_FILE
@@ -2792,7 +2819,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
         == bot.NORMAL_CHECK_STATUS_CHECKED
     )
     assert provider_calls == ["called"]
-    assert remote_calls == ["called"]
+    assert remote_calls == ["GET /2/tweets/100", "POST /2/tweets"]
     assert bot.terminal_reply_evaluation(restarted, "100") is not None
 
     # The proved rejection released the global transaction barrier: a later,
@@ -2832,7 +2859,7 @@ def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
         post_id="900001",
     )
     bot.remove_confirmed_reply_receipt(confirmed)
-    assert remote_calls == ["called", "later"]
+    assert remote_calls == ["GET /2/tweets/100", "POST /2/tweets", "later"]
     assert bot.ambiguous_remote_post_is_blocking() is False
 
 
@@ -2848,15 +2875,14 @@ def test_deleted_quote_tweet_reply_is_terminal_without_barriers_or_quota(
         provider_calls=provider_calls,
     )
 
-    def rejected(
-        _method: str,
-        _url: str,
-        **_kwargs: object,
-    ) -> bot.requests.Response:
-        remote_calls.append("called")
-        return _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
-
-    monkeypatch.setattr(bot.requests, "request", rejected)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        _existing_reply_target_then_deleted_create(
+            "910",
+            remote_calls=remote_calls,
+        ),
+    )
 
     assert (
         bot.maybe_reply_to_quote_tweets(state)
@@ -2874,7 +2900,7 @@ def test_deleted_quote_tweet_reply_is_terminal_without_barriers_or_quota(
     assert "910" in state["skipped_quote_post_ids"]
     assert not state.get("pending_ai_reply_drafts")
     assert provider_calls == ["called"]
-    assert remote_calls == ["called"]
+    assert remote_calls == ["GET /2/tweets/910", "POST /2/tweets"]
     assert bot.load_confirmed_reply_receipt() == ("absent", None)
     journal_path = bot.journal_path_for_receipt(
         bot.CONFIRMED_REPLY_RECEIPT_FILE
@@ -2899,10 +2925,7 @@ def test_proved_rejection_journal_retirement_failure_preserves_barriers_and_is_n
     monkeypatch.setattr(
         bot.requests,
         "request",
-        lambda *_args, **_kwargs: _x_response(
-            403,
-            PRODUCTION_DELETED_REPLY_ERROR,
-        ),
+        _existing_reply_target_then_deleted_create("100"),
     )
     real_unlink = journal_module._unlink_exact_stable_file
 
@@ -2948,10 +2971,7 @@ def test_proved_rejection_journal_close_failure_invalidates_proof_and_fails_clos
     monkeypatch.setattr(
         bot.requests,
         "request",
-        lambda *_args, **_kwargs: _x_response(
-            403,
-            PRODUCTION_DELETED_REPLY_ERROR,
-        ),
+        _existing_reply_target_then_deleted_create("100"),
     )
     captured_proofs: list[object] = []
     real_retire = (
@@ -3028,10 +3048,7 @@ def test_proved_rejection_receipt_retirement_failure_is_terminal_but_fails_close
     monkeypatch.setattr(
         bot.requests,
         "request",
-        lambda *_args, **_kwargs: _x_response(
-            403,
-            PRODUCTION_DELETED_REPLY_ERROR,
-        ),
+        _existing_reply_target_then_deleted_create("100"),
     )
     claimed_proofs: list[object] = []
     real_claim = bot.claim_reply_create_rejection_for_receipt_retirement
@@ -3088,10 +3105,7 @@ def test_proved_rejection_missing_receipt_at_claim_latches_terminal_barrier(
     monkeypatch.setattr(
         bot.requests,
         "request",
-        lambda *_args, **_kwargs: _x_response(
-            403,
-            PRODUCTION_DELETED_REPLY_ERROR,
-        ),
+        _existing_reply_target_then_deleted_create("100"),
     )
     captured_proofs: list[object] = []
     real_claim = bot.claim_reply_create_rejection_for_receipt_retirement
