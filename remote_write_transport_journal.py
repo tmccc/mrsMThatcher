@@ -22,22 +22,27 @@ from __future__ import annotations
 
 import ctypes
 import hashlib
+import ipaddress
 import json
+import math
 import os
 import re
 import secrets
 import stat
+import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable, Mapping
+from urllib.parse import urlsplit
+
+import requests
 
 from transaction_mutation_authority import (
     TransactionMutationAuthority,
     require_transaction_mutation_authority,
 )
-
-
 JOURNAL_BASENAME = "remote_write_transport_journal.json"
 FENCE_BASENAME = "remote_write_transport_fence.json"
 JOURNAL_SCHEMA_VERSION = 2
@@ -56,11 +61,50 @@ _LANE_RE = re.compile(r"[a-z][a-z0-9_.:-]{0,79}")
 _POST_ID_RE = re.compile(r"\d{1,30}")
 _MEDIA_ID_RE = re.compile(r"[A-Za-z0-9_.:-]{1,128}")
 _VALIDATOR_ID_RE = re.compile(r"[a-z][a-z0-9_.:-]{2,159}")
+_TEST_MODE_AT_IMPORT = os.getenv("MRS_TEST_MODE") == "1"
 _consumed_authorities: set[tuple[str, str]] = set()
+_consumed_authority_objects: dict[tuple[str, str], "TransportAuthority"] = {}
 _issued_untransmitted_authorities: set[tuple[str, str, str]] = set()
+_issued_untransmitted_authority_objects: dict[
+    tuple[str, str, str], "TransportAuthority"
+] = {}
+_consumed_x_responses: dict[
+    int,
+    tuple[
+        "_ConsumedXResponse",
+        tuple[str, str],
+        "TransportAuthority",
+        object,
+        "SourceReceiptBinding",
+        int,
+        str,
+    ],
+] = {}
+_bound_x_requests: dict[
+    int,
+    tuple[
+        "_BoundXRequestAuthority",
+        "TransportAuthority",
+        "SourceReceiptBinding",
+        str,
+        object,
+        object,
+        str,
+    ],
+] = {}
+_bound_x_request_transactions: dict[tuple[str, str], int] = {}
+_configured_x_request_install_record: (
+    _ConfiguredXRequestInstallRecord | None
+) = None
 _issued_source_bindings: set[
     tuple[str, str, int, int, int, str, str, str]
 ] = set()
+_issued_source_binding_objects: dict[
+    tuple[str, str, int, int, int, str, str, str], "SourceReceiptBinding"
+] = {}
+_transaction_source_bindings: dict[
+    tuple[str, str], "SourceReceiptBinding"
+] = {}
 _transitioning_transactions: set[tuple[str, str]] = set()
 _aborting_transactions: set[tuple[str, str]] = set()
 _authority_lock = threading.Lock()
@@ -72,6 +116,131 @@ class TransportJournalError(RuntimeError):
 
 class BoundSourceReceiptTransitionError(TransportJournalError):
     """An identity-bound source promotion did not complete exactly."""
+
+
+class _ConsumedXResponse:
+    """Opaque proof of one actual response to an exact consumed request."""
+
+    __slots__ = (
+        "__pid",
+        "__transaction_key",
+        "__authority_identity",
+        "__response_identity",
+        "__status_code",
+        "__body_sha256",
+    )
+
+    def __init__(
+        self,
+        *,
+        transaction_key: tuple[str, str],
+        authority_identity: int,
+        response_identity: int,
+        status_code: int,
+        body_sha256: str,
+    ) -> None:
+        """Bind the capability to one authority, response object, and body."""
+
+        self.__pid = os.getpid()
+        self.__transaction_key = transaction_key
+        self.__authority_identity = authority_identity
+        self.__response_identity = response_identity
+        self.__status_code = status_code
+        self.__body_sha256 = body_sha256
+
+    def _matches(
+        self,
+        *,
+        transaction_key: tuple[str, str],
+        authority_identity: int,
+        response_identity: int,
+        status_code: int,
+        body_sha256: str,
+    ) -> bool:
+        """Return whether every bound process-local identity still matches."""
+
+        return bool(
+            self.__pid == os.getpid()
+            and self.__transaction_key == transaction_key
+            and self.__authority_identity == authority_identity
+            and self.__response_identity == response_identity
+            and self.__status_code == status_code
+            and self.__body_sha256 == body_sha256
+        )
+
+    def __reduce__(self) -> object:
+        raise TypeError("consumed X responses are not serialisable")
+
+
+class _BoundXRequestAuthority:
+    """Opaque one-shot binding of a transaction to configured X transport."""
+
+    __slots__ = (
+        "__pid",
+        "__authority_identity",
+        "__source_identity",
+        "__url",
+        "__auth_identity",
+        "__timeout_identity",
+        "__payload_sha256",
+    )
+
+    def __init__(
+        self,
+        *,
+        authority_identity: int,
+        source_identity: int,
+        url: str,
+        auth_identity: int,
+        timeout_identity: int,
+        payload_sha256: str,
+    ) -> None:
+        self.__pid = os.getpid()
+        self.__authority_identity = authority_identity
+        self.__source_identity = source_identity
+        self.__url = url
+        self.__auth_identity = auth_identity
+        self.__timeout_identity = timeout_identity
+        self.__payload_sha256 = payload_sha256
+
+    def _matches(
+        self,
+        *,
+        authority: object,
+        source_binding: object,
+        url: str,
+        auth: object,
+        timeout: object,
+        payload_sha256: str,
+    ) -> bool:
+        return bool(
+            self.__pid == os.getpid()
+            and self.__authority_identity == id(authority)
+            and self.__source_identity == id(source_binding)
+            and self.__url == url
+            and self.__auth_identity == id(auth)
+            and self.__timeout_identity == id(timeout)
+            and self.__payload_sha256 == payload_sha256
+        )
+
+    def __reduce__(self) -> object:
+        raise TypeError("bound X request authorities are not serialisable")
+
+
+@dataclass(frozen=True)
+class _ConfiguredXRequestInstallRecord:
+    """Strong process record for app-owned X transport configuration."""
+
+    owner_module: ModuleType
+    provider: Callable[[], tuple[str, object, object]]
+    installed_create_url: str
+    installed_auth: object
+    installed_timeout: object
+    current_create_url: str
+    current_auth: object
+    current_timeout: object
+    reload_fingerprint: tuple[object, ...]
+    pid: int
 
 
 @dataclass(frozen=True)
@@ -94,6 +263,7 @@ class TransportAuthority:
     source_receipt_basename: str
     source_validator_id: str
     lifecycle_state: str
+    source_binding_identity: int = 0
 
 
 @dataclass(frozen=True)
@@ -374,6 +544,7 @@ def bind_transport_source(
     )
     with _authority_lock:
         _issued_source_bindings.add(_source_binding_key(binding))
+        _issued_source_binding_objects[_source_binding_key(binding)] = binding
     return binding
 
 
@@ -389,6 +560,49 @@ def _source_binding_key(
         binding.request.payload_sha256,
         binding.lane,
         binding.validator_id,
+    )
+
+
+def _source_binding_matches_current_receipt(
+    source_binding: object,
+    *,
+    receipt_path: Path,
+    expected_receipt: Mapping[str, Any],
+) -> bool:
+    """Match the caller and current file to one exact retained source binding."""
+
+    if (
+        not isinstance(source_binding, SourceReceiptBinding)
+        or type(expected_receipt) is not dict
+        or Path(receipt_path).absolute()
+        != Path(source_binding.receipt_path).absolute()
+        or dict(expected_receipt) != source_binding.receipt_document
+    ):
+        return False
+    try:
+        current = _read_stable_regular(
+            Path(receipt_path),
+            maximum=JOURNAL_MAX_BYTES,
+            expected_mode=JOURNAL_MODE,
+        )
+    except (OSError, TransportJournalError):
+        return False
+    return bool(
+        current.data == source_binding.receipt_bytes
+        and hashlib.sha256(current.data).hexdigest()
+        == source_binding.receipt_sha256
+        and (
+            int(current.metadata.st_dev),
+            int(current.metadata.st_ino),
+            int(current.metadata.st_ctime_ns),
+            int(current.metadata.st_size),
+        )
+        == (
+            source_binding.receipt_device,
+            source_binding.receipt_inode,
+            source_binding.receipt_ctime_ns,
+            source_binding.receipt_size,
+        )
     )
 
 
@@ -1373,7 +1587,11 @@ def begin_transport_transaction(
         raise TransportJournalError("source binding is not for this request")
     binding_key = _source_binding_key(source_binding)
     with _authority_lock:
-        if binding_key not in _issued_source_bindings:
+        if (
+            binding_key not in _issued_source_bindings
+            or _issued_source_binding_objects.get(binding_key)
+            is not source_binding
+        ):
             raise TransportJournalError(
                 "source binding was not issued by semantic validation"
             )
@@ -1471,12 +1689,20 @@ def begin_transport_transaction(
         source_receipt_basename=receipt_path.name,
         source_validator_id=source_binding.validator_id,
         lifecycle_state="prepared",
+        source_binding_identity=id(source_binding),
     )
     with _authority_lock:
         _issued_source_bindings.discard(binding_key)
-        _issued_untransmitted_authorities.add(
-            (authority.journal_path, authority.transaction_id, "prepared")
+        _issued_source_binding_objects.pop(binding_key, None)
+        prepared_key = (
+            authority.journal_path,
+            authority.transaction_id,
+            "prepared",
         )
+        transaction_key = (authority.journal_path, authority.transaction_id)
+        _issued_untransmitted_authorities.add(prepared_key)
+        _issued_untransmitted_authority_objects[prepared_key] = authority
+        _transaction_source_bindings[transaction_key] = source_binding
     return authority
 
 
@@ -1497,11 +1723,14 @@ def arm_transport_transaction(
     with _authority_lock:
         if (
             prepared_key not in _issued_untransmitted_authorities
+            or _issued_untransmitted_authority_objects.get(prepared_key)
+            is not authority
             or transaction_key in _aborting_transactions
             or transaction_key in _transitioning_transactions
         ):
             raise TransportJournalError("prepared transport authority was not issued")
         _issued_untransmitted_authorities.discard(prepared_key)
+        _issued_untransmitted_authority_objects.pop(prepared_key, None)
         _transitioning_transactions.add(transaction_key)
     try:
         snapshot = _required_snapshot(Path(path))
@@ -1567,11 +1796,16 @@ def arm_transport_transaction(
         source_receipt_basename=authority.source_receipt_basename,
         source_validator_id=authority.source_validator_id,
         lifecycle_state="attempting",
+        source_binding_identity=authority.source_binding_identity,
     )
     with _authority_lock:
-        _issued_untransmitted_authorities.add(
-            (authority.journal_path, authority.transaction_id, "attempting")
+        issued_key = (
+            authority.journal_path,
+            authority.transaction_id,
+            "attempting",
         )
+        _issued_untransmitted_authorities.add(issued_key)
+        _issued_untransmitted_authority_objects[issued_key] = updated_authority
     return updated_authority
 
 
@@ -1644,12 +1878,747 @@ def consume_transport_authority(
             authority.transaction_id,
             "attempting",
         )
-        if issued_key not in _issued_untransmitted_authorities:
+        if (
+            issued_key not in _issued_untransmitted_authorities
+            or _issued_untransmitted_authority_objects.get(issued_key)
+            is not authority
+            or _transaction_source_bindings.get(key) is None
+        ):
             raise TransportJournalError(
-                "transport authority was not issued in this process"
+                "exact transport authority was not issued in this process"
             )
         _issued_untransmitted_authorities.discard(issued_key)
+        _issued_untransmitted_authority_objects.pop(issued_key, None)
         _consumed_authorities.add(key)
+        _consumed_authority_objects[key] = authority
+
+
+def _discard_consumed_x_response(consumed_response: object) -> None:
+    """Invalidate a coordinator-issued response capability."""
+
+    if not isinstance(consumed_response, _ConsumedXResponse):
+        return
+    with _authority_lock:
+        registered = _consumed_x_responses.get(id(consumed_response))
+        if registered is not None and registered[0] is consumed_response:
+            _consumed_x_responses.pop(id(consumed_response), None)
+
+
+def _claim_consumed_x_response_for_reply_rejection(
+    consumed_response: object,
+    *,
+    authority: object,
+    response: object,
+    status_code: int,
+    body_sha256: str,
+) -> SourceReceiptBinding | None:
+    """Claim a response and return its exact strongly-held source binding."""
+
+    if not isinstance(consumed_response, _ConsumedXResponse) or not isinstance(
+        authority,
+        TransportAuthority,
+    ):
+        return None
+    transaction_key = (
+        str(Path(authority.journal_path).absolute()),
+        authority.transaction_id,
+    )
+    with _authority_lock:
+        registered = _consumed_x_responses.get(id(consumed_response))
+        if (
+            registered is None
+            or registered[0] is not consumed_response
+            or registered[1] != transaction_key
+            or registered[2] is not authority
+            or registered[3] is not response
+            or _transaction_source_bindings.get(transaction_key)
+            is not registered[4]
+            or registered[5] != status_code
+            or registered[6] != body_sha256
+            or not consumed_response._matches(
+                transaction_key=transaction_key,
+                authority_identity=id(authority),
+                response_identity=id(response),
+                status_code=status_code,
+                body_sha256=body_sha256,
+            )
+            or transaction_key not in _consumed_authorities
+            or _consumed_authority_objects.get(transaction_key)
+            is not authority
+        ):
+            return None
+        _consumed_x_responses.pop(id(consumed_response), None)
+        source_binding = registered[4]
+    return source_binding
+
+
+def _bind_transport_authority_to_configured_x_request(
+    authority: TransportAuthority,
+    *,
+    payload: Mapping[str, Any],
+) -> _BoundXRequestAuthority:
+    """Bind one exact unconsumed authority to its configured X destination."""
+
+    with _authority_lock:
+        install_record = _configured_x_request_install_record
+        configuration = (
+            (
+                install_record.current_create_url,
+                install_record.current_auth,
+                install_record.current_timeout,
+            )
+            if _configured_x_request_install_record_is_valid(install_record)
+            else None
+        )
+    if configuration is None:
+        raise TransportJournalError(
+            "configured X request provider is unavailable in this process"
+        )
+    url, auth, timeout = configuration
+    url = _validated_configured_x_create_url(url)
+    payload_hash = payload_sha256(payload)
+    transaction_key = (
+        str(Path(authority.journal_path).absolute()),
+        authority.transaction_id,
+    )
+    issued_key = (
+        authority.journal_path,
+        authority.transaction_id,
+        "attempting",
+    )
+    if (
+        authority.lifecycle_state != "attempting"
+        or auth is None
+        or timeout is None
+        or payload_hash != authority.payload_sha256
+    ):
+        raise TransportJournalError(
+            "configured X request does not bind the exact transaction"
+        )
+    bound_request: _BoundXRequestAuthority | None = None
+    try:
+        with _authority_lock:
+            source_binding = _transaction_source_bindings.get(transaction_key)
+            if (
+                issued_key not in _issued_untransmitted_authorities
+                or _issued_untransmitted_authority_objects.get(issued_key)
+                is not authority
+                or source_binding is None
+                or _configured_x_request_install_record is not install_record
+                or transaction_key in _consumed_authorities
+                or transaction_key in _bound_x_request_transactions
+            ):
+                raise TransportJournalError(
+                    "configured X request authority is stale or already bound"
+                )
+            bound_request = _BoundXRequestAuthority(
+                authority_identity=id(authority),
+                source_identity=id(source_binding),
+                url=url,
+                auth_identity=id(auth),
+                timeout_identity=id(timeout),
+                payload_sha256=payload_hash,
+            )
+            _bound_x_requests[id(bound_request)] = (
+                bound_request,
+                authority,
+                source_binding,
+                url,
+                auth,
+                timeout,
+                payload_hash,
+            )
+            _bound_x_request_transactions[transaction_key] = id(bound_request)
+        return bound_request
+    except BaseException:
+        if bound_request is not None:
+            with _authority_lock:
+                registered = _bound_x_requests.get(id(bound_request))
+                if registered is not None and registered[0] is bound_request:
+                    _bound_x_requests.pop(id(bound_request), None)
+                if (
+                    _bound_x_request_transactions.get(transaction_key)
+                    == id(bound_request)
+                ):
+                    _bound_x_request_transactions.pop(transaction_key, None)
+        raise
+
+
+def _validated_configured_x_create_url(value: object) -> str:
+    """Return one exact create URL supplied by sealed application config."""
+
+    if type(value) is not str:
+        raise TransportJournalError(
+            "configured X request provider returned an invalid endpoint"
+        )
+    try:
+        parsed_url = urlsplit(value)
+        parsed_port = parsed_url.port
+    except ValueError as exc:
+        raise TransportJournalError(
+            "configured X request provider returned an invalid endpoint"
+        ) from exc
+    if (
+        parsed_url.scheme not in {"http", "https"}
+        or not parsed_url.hostname
+        or (parsed_port is None and ":" in parsed_url.netloc.rsplit("]", 1)[-1])
+        or parsed_url.username is not None
+        or parsed_url.password is not None
+        or parsed_url.path != "/2/tweets"
+        or parsed_url.query
+        or parsed_url.fragment
+    ):
+        raise TransportJournalError(
+            "configured X request provider returned an invalid endpoint"
+        )
+    return value
+
+
+def _configured_x_request_reload_fingerprint_is_valid(
+    fingerprint: object,
+) -> bool:
+    """Return whether one app reload fingerprint has the sealed schema."""
+
+    if type(fingerprint) is not tuple or len(fingerprint) != 6:
+        return False
+    version, test_mode, create_url, total_timeout, connect_timeout, digest = (
+        fingerprint
+    )
+    try:
+        _validated_configured_x_create_url(create_url)
+    except TransportJournalError:
+        return False
+    return bool(
+        version == "sealed-x-request-provider-reload-v1"
+        and type(test_mode) is bool
+        and type(total_timeout) is float
+        and math.isfinite(total_timeout)
+        and 0 < total_timeout <= 60.0
+        and type(connect_timeout) is float
+        and math.isfinite(connect_timeout)
+        and connect_timeout == min(10.0, total_timeout)
+        and type(digest) is str
+        and _SHA256_RE.fullmatch(digest) is not None
+    )
+
+
+def _configured_x_timeout_matches_reload_fingerprint(
+    timeout: object,
+    fingerprint: tuple[object, ...],
+) -> bool:
+    """Return whether an evaluated timeout matches its sealed configuration."""
+
+    try:
+        total_timeout = timeout.total
+        connect_timeout = timeout.connect_timeout
+    except BaseException:
+        return False
+    return bool(
+        type(total_timeout) is float
+        and type(connect_timeout) is float
+        and total_timeout == fingerprint[3]
+        and connect_timeout == fingerprint[4]
+    )
+
+
+def _configured_x_create_url_is_loopback(url: str) -> bool:
+    """Return whether one already-validated X create URL is loopback-only."""
+
+    host = (urlsplit(url).hostname or "").casefold()
+    if (
+        host in {"localhost", "localhost.localdomain"}
+        or host.endswith(".localhost")
+    ):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _configured_x_request_install_record_fields_are_valid(
+    record: object,
+) -> bool:
+    """Return whether one record retains its exact sealed strong fields."""
+
+    if type(record) is not _ConfiguredXRequestInstallRecord:
+        return False
+    try:
+        installed_create_url = _validated_configured_x_create_url(
+            record.installed_create_url
+        )
+        _validated_configured_x_create_url(record.current_create_url)
+    except TransportJournalError:
+        return False
+    return bool(
+        type(record.owner_module) is ModuleType
+        and sys.modules.get(record.owner_module.__name__) is record.owner_module
+        and callable(record.provider)
+        and _configured_x_request_reload_fingerprint_is_valid(
+            record.reload_fingerprint
+        )
+        and installed_create_url == record.reload_fingerprint[2]
+        and record.installed_auth is not None
+        and record.current_auth is not None
+        and record.current_timeout is not None
+        and _configured_x_timeout_matches_reload_fingerprint(
+            record.installed_timeout,
+            record.reload_fingerprint,
+        )
+    )
+
+
+def _configured_x_request_install_record_is_valid(record: object) -> bool:
+    """Return whether one registry record is exact and current-process owned."""
+
+    return bool(
+        _configured_x_request_install_record_fields_are_valid(record)
+        and record.pid == os.getpid()
+    )
+
+
+def _configured_x_request_reload_record(
+    owner_module: object,
+) -> tuple[str, tuple[object, ...] | None]:
+    """Return the sealed app fingerprint without exposing mutable authority."""
+
+    with _authority_lock:
+        record = _configured_x_request_install_record
+        if record is None:
+            return "unconfigured", None
+        if (
+            not _configured_x_request_install_record_is_valid(record)
+            or record.owner_module is not owner_module
+        ):
+            return "invalid", None
+        return "installed", tuple(record.reload_fingerprint)
+
+
+def _configured_x_request_provider_identity(
+) -> Callable[[], tuple[str, object, object]] | None:
+    """Return the installed compatibility provider for identity diagnostics."""
+
+    with _authority_lock:
+        record = _configured_x_request_install_record
+        if not _configured_x_request_install_record_is_valid(record):
+            return None
+        return record.provider
+
+
+def _configured_x_request_is_sealed_test_loopback() -> bool:
+    """Return whether sealed app authority permits the local-test bypass."""
+
+    with _authority_lock:
+        record = _configured_x_request_install_record
+        if not _configured_x_request_install_record_is_valid(record):
+            return False
+        fingerprint = record.reload_fingerprint
+        provider_url = record.current_create_url
+    if fingerprint[1] is not True:
+        return False
+    try:
+        configured_url = _validated_configured_x_create_url(fingerprint[2])
+        provider_url = _validated_configured_x_create_url(provider_url)
+    except BaseException:
+        return False
+    with _authority_lock:
+        return bool(
+            _configured_x_request_install_record is record
+            and _configured_x_create_url_is_loopback(configured_url)
+            and _configured_x_create_url_is_loopback(provider_url)
+        )
+
+
+def _install_configured_x_request_provider(
+    provider: Callable[[], tuple[str, object, object]],
+    *,
+    owner_module: object = None,
+    reload_fingerprint: object = None,
+) -> None:
+    """Install one owner-bound, evaluated X transport configuration."""
+
+    global _configured_x_request_install_record
+    with _authority_lock:
+        if _configured_x_request_install_record is not None:
+            raise TransportJournalError(
+                "configured X request provider was already installed"
+            )
+    if not callable(provider) or not (
+        _configured_x_request_reload_fingerprint_is_valid(
+            reload_fingerprint
+        )
+    ):
+        raise TransportJournalError("configured X request provider is invalid")
+    if (
+        type(owner_module) is not ModuleType
+        or sys.modules.get(owner_module.__name__) is not owner_module
+    ):
+        raise TransportJournalError(
+            "configured X request provider lacks its exact app owner"
+        )
+    try:
+        configuration = provider()
+    except BaseException as exc:
+        raise TransportJournalError(
+            "configured X request provider could not be evaluated"
+        ) from exc
+    if type(configuration) is not tuple or len(configuration) != 3:
+        raise TransportJournalError(
+            "configured X request provider returned invalid authority"
+        )
+    create_url, auth, timeout = configuration
+    create_url = _validated_configured_x_create_url(create_url)
+    if (
+        create_url != reload_fingerprint[2]
+        or auth is None
+        or getattr(owner_module, "AUTH", None) is not auth
+        or getattr(owner_module, "IMPORT_TIME_TEST_MODE", None)
+        is not reload_fingerprint[1]
+        or not _configured_x_timeout_matches_reload_fingerprint(
+            timeout,
+            reload_fingerprint,
+        )
+    ):
+        raise TransportJournalError(
+            "configured X request provider does not match sealed app config"
+        )
+    sealed_provider = (
+        lambda _url=create_url, _auth=auth, _timeout=timeout: (
+            _url,
+            _auth,
+            _timeout,
+        )
+    )
+    with _authority_lock:
+        if _configured_x_request_install_record is not None:
+            raise TransportJournalError(
+                "configured X request provider was already installed"
+            )
+        _configured_x_request_install_record = (
+            _ConfiguredXRequestInstallRecord(
+                owner_module=owner_module,
+                provider=sealed_provider,
+                installed_create_url=create_url,
+                installed_auth=auth,
+                installed_timeout=timeout,
+                current_create_url=create_url,
+                current_auth=auth,
+                current_timeout=timeout,
+                reload_fingerprint=reload_fingerprint,
+                pid=os.getpid(),
+            )
+        )
+
+
+def _reset_configured_x_request_provider_for_tests(
+    *,
+    create_url: str,
+    auth: object,
+    timeout: object,
+) -> None:
+    """Install an isolated test endpoint only with no live transaction state."""
+
+    if not _TEST_MODE_AT_IMPORT or os.getenv("MRS_TEST_MODE") != "1":
+        raise TransportJournalError(
+            "configured X request test reset is unavailable outside test mode"
+        )
+    create_url = _validated_configured_x_create_url(create_url)
+    configured_host = urlsplit(create_url).hostname or ""
+    try:
+        loopback_host = ipaddress.ip_address(configured_host).is_loopback
+    except ValueError:
+        loopback_host = configured_host.casefold() == "localhost"
+    if not loopback_host:
+        raise TransportJournalError(
+            "configured X request test reset requires a loopback endpoint"
+        )
+    if auth is None or timeout is None:
+        raise TransportJournalError(
+            "configured X request test reset received invalid authority"
+        )
+    from x_api_error_semantics import (
+        _reply_create_rejection_proof_registry_is_empty,
+    )
+
+    if not _reply_create_rejection_proof_registry_is_empty():
+        raise TransportJournalError(
+            "configured X request test reset found an active rejection proof"
+        )
+    sealed_provider = (
+        lambda _url=create_url, _auth=auth, _timeout=timeout: (
+            _url,
+            _auth,
+            _timeout,
+        )
+    )
+    global _configured_x_request_install_record
+    with _authority_lock:
+        install_record = _configured_x_request_install_record
+        if (
+            not _configured_x_request_install_record_is_valid(install_record)
+            or _issued_source_bindings
+            or _issued_untransmitted_authorities
+            or _consumed_authorities
+            or _consumed_x_responses
+            or _bound_x_requests
+            or _bound_x_request_transactions
+            or _transaction_source_bindings
+            or _transitioning_transactions
+            or _aborting_transactions
+        ):
+            raise TransportJournalError(
+                "configured X request test reset found active transaction state"
+            )
+        _configured_x_request_install_record = (
+            _ConfiguredXRequestInstallRecord(
+                owner_module=install_record.owner_module,
+                provider=sealed_provider,
+                installed_create_url=install_record.installed_create_url,
+                installed_auth=install_record.installed_auth,
+                installed_timeout=install_record.installed_timeout,
+                current_create_url=create_url,
+                current_auth=auth,
+                current_timeout=timeout,
+                reload_fingerprint=install_record.reload_fingerprint,
+                pid=os.getpid(),
+            )
+        )
+
+
+def _rebind_loopback_test_x_request_record_after_fork() -> None:
+    """Re-seal an inherited loopback-only test record to the child PID."""
+
+    global _configured_x_request_install_record
+    record = _configured_x_request_install_record
+    if (
+        not _configured_x_request_install_record_fields_are_valid(record)
+        or record.reload_fingerprint[1] is not True
+        or not _configured_x_create_url_is_loopback(
+            record.installed_create_url
+        )
+        or not _configured_x_create_url_is_loopback(record.current_create_url)
+    ):
+        return
+    _configured_x_request_install_record = _ConfiguredXRequestInstallRecord(
+        owner_module=record.owner_module,
+        provider=record.provider,
+        installed_create_url=record.installed_create_url,
+        installed_auth=record.installed_auth,
+        installed_timeout=record.installed_timeout,
+        current_create_url=record.current_create_url,
+        current_auth=record.current_auth,
+        current_timeout=record.current_timeout,
+        reload_fingerprint=record.reload_fingerprint,
+        pid=os.getpid(),
+    )
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(
+        after_in_child=_rebind_loopback_test_x_request_record_after_fork
+    )
+
+
+def perform_consumed_x_request(
+    path: Path,
+    authority: TransportAuthority,
+    *,
+    request_authority: _BoundXRequestAuthority,
+    payload: Mapping[str, Any],
+    expected_receipt_path: Path,
+    request_kwargs: Mapping[str, Any],
+) -> tuple[requests.Response, object | None, object | None]:
+    """Consume authority and itself cross the sole X request boundary."""
+
+    request_options = dict(request_kwargs)
+    if (
+        set(request_options) != {"json", "allow_redirects"}
+        or type(request_options.get("json")) is not dict
+        or request_options["json"] != dict(payload)
+        or request_options.get("allow_redirects") is not False
+    ):
+        raise TransportJournalError(
+            "coordinated X request does not bind the exact create route"
+        )
+    payload_hash = payload_sha256(payload)
+    transaction_key = (str(Path(path).absolute()), authority.transaction_id)
+    with _authority_lock:
+        registered_request = _bound_x_requests.get(id(request_authority))
+        source_binding = _transaction_source_bindings.get(transaction_key)
+        if (
+            not isinstance(request_authority, _BoundXRequestAuthority)
+            or registered_request is None
+            or registered_request[0] is not request_authority
+            or registered_request[1] is not authority
+            or registered_request[2] is not source_binding
+            or registered_request[6] != payload_hash
+            or not request_authority._matches(
+                authority=authority,
+                source_binding=source_binding,
+                url=registered_request[3],
+                auth=registered_request[4],
+                timeout=registered_request[5],
+                payload_sha256=payload_hash,
+            )
+            or _bound_x_request_transactions.get(transaction_key)
+            != id(request_authority)
+        ):
+            raise TransportJournalError(
+                "coordinated X request lacks its exact configured authority"
+            )
+        _bound_x_requests.pop(id(request_authority), None)
+        _bound_x_request_transactions.pop(transaction_key, None)
+        request_url = registered_request[3]
+        request_auth = registered_request[4]
+        request_timeout = registered_request[5]
+    consume_transport_authority(
+        path,
+        authority,
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+        expected_receipt_path=expected_receipt_path,
+    )
+    with _authority_lock:
+        if (
+            transaction_key not in _consumed_authorities
+            or _consumed_authority_objects.get(transaction_key)
+            is not authority
+            or _transaction_source_bindings.get(transaction_key) is None
+        ):
+            raise TransportJournalError(
+                "coordinated X request did not consume the exact authority"
+            )
+    response = requests.request(
+        "POST",
+        request_url,
+        auth=request_auth,
+        timeout=request_timeout,
+        **request_options,
+    )
+    status_code = getattr(response, "status_code", None)
+
+    def response_authority_error(message: str) -> TransportJournalError:
+        error = TransportJournalError(message)
+        error.status_code = status_code if type(status_code) is int else None
+        return error
+
+    if type(response) is not requests.Response:
+        raise response_authority_error(
+            "coordinated X transport returned an untrusted response object"
+        )
+    response_url = getattr(response, "url", None)
+    if response_url is not None and (
+        type(response_url) is not str
+        or (response_url and response_url != request_url)
+    ):
+        raise response_authority_error(
+            "coordinated X response does not bind the configured endpoint"
+        )
+    prepared_request = getattr(response, "request", None)
+    if prepared_request is not None:
+        if type(prepared_request) is not requests.PreparedRequest:
+            raise response_authority_error(
+                "coordinated X response has an untrusted prepared request"
+            )
+        prepared_body = prepared_request.body
+        if type(prepared_body) is str:
+            try:
+                prepared_body_bytes = prepared_body.encode("utf-8", "strict")
+            except UnicodeError as exc:
+                raise response_authority_error(
+                    "coordinated X prepared body is not strict UTF-8"
+                ) from exc
+        elif type(prepared_body) is bytes:
+            prepared_body_bytes = prepared_body
+        else:
+            raise response_authority_error(
+                "coordinated X prepared body is not exact JSON bytes"
+            )
+        try:
+            prepared_payload = _parse_strict_object_bytes(
+                prepared_body_bytes,
+                label="coordinated X prepared body",
+            )
+        except TransportJournalError as exc:
+            raise response_authority_error(
+                "coordinated X prepared body is not exact JSON"
+            ) from exc
+        if (
+            prepared_request.method != "POST"
+            or prepared_request.url != request_url
+            or prepared_payload != dict(payload)
+        ):
+            raise response_authority_error(
+                "coordinated X response does not bind the exact request"
+            )
+    response_history = getattr(response, "history", None)
+    if type(response_history) is not list or response_history:
+        raise response_authority_error(
+            "coordinated X response does not prove one redirect-free hop"
+        )
+    if type(status_code) is int and 200 <= status_code < 300:
+        return response, None, None
+    raw_body = getattr(response, "content", None)
+    if (
+        type(raw_body) is not bytes
+        or type(status_code) is not int
+    ):
+        return response, None, None
+    consumed_response: _ConsumedXResponse | None = None
+    try:
+        body_sha256 = hashlib.sha256(raw_body).hexdigest()
+        consumed_response = _ConsumedXResponse(
+            transaction_key=transaction_key,
+            authority_identity=id(authority),
+            response_identity=id(response),
+            status_code=status_code,
+            body_sha256=body_sha256,
+        )
+        with _authority_lock:
+            if (
+                transaction_key not in _consumed_authorities
+                or _consumed_authority_objects.get(transaction_key)
+                is not authority
+                or _transaction_source_bindings.get(transaction_key) is None
+            ):
+                raise TransportJournalError(
+                    "coordinated X request lost consumed authority"
+                )
+            _consumed_x_responses[id(consumed_response)] = (
+                consumed_response,
+                transaction_key,
+                authority,
+                response,
+                _transaction_source_bindings[transaction_key],
+                status_code,
+                body_sha256,
+            )
+        from x_api_error_semantics import (
+            _prove_reply_create_rejection_from_actual_response,
+            invalidate_reply_create_rejection_proof,
+        )
+
+        validated_response, rejection_proof = (
+            _prove_reply_create_rejection_from_actual_response(
+                raw_body=raw_body,
+                status_code=status_code,
+                payload=payload,
+                authority=authority,
+                consumed_response=consumed_response,
+                actual_response=response,
+            )
+        )
+        try:
+            return response, validated_response, rejection_proof
+        except BaseException:
+            invalidate_reply_create_rejection_proof(rejection_proof)
+            raise
+    except BaseException:
+        _discard_consumed_x_response(consumed_response)
+        raise
+    finally:
+        _discard_consumed_x_response(consumed_response)
 
 
 def confirm_transport_transaction(
@@ -1700,7 +2669,11 @@ def confirm_transport_transaction(
     ):
         raise TransportJournalError("attempting transport authority is stale")
     with _authority_lock:
-        if key not in _consumed_authorities:
+        if (
+            key not in _consumed_authorities
+            or _consumed_authority_objects.get(key) is not authority
+            or _transaction_source_bindings.get(key) is None
+        ):
             raise TransportJournalError(
                 "transport authority was not consumed at the request boundary"
             )
@@ -1722,6 +2695,10 @@ def confirm_transport_transaction(
     updated = _required_snapshot(Path(path))
     if updated.data != replacement_data:
         raise TransportJournalError("confirmed transport journal changed")
+    with _authority_lock:
+        _consumed_authorities.discard(key)
+        _consumed_authority_objects.pop(key, None)
+        _transaction_source_bindings.pop(key, None)
     return updated
 
 
@@ -1955,12 +2932,18 @@ def abort_untransmitted_transport_transaction(
             or transaction_key in _aborting_transactions
         ):
             raise TransportJournalError("transport lifecycle transition is in progress")
+        if _transaction_source_bindings.get(transaction_key) is not source_binding:
+            raise TransportJournalError(
+                "untransmitted transaction is not provably bound to this source"
+            )
         if lifecycle == "attempting":
             if (
                 authority is None
                 or authority.lifecycle_state != "attempting"
                 or authority.transaction_id != document["transaction_id"]
                 or issued_key not in _issued_untransmitted_authorities
+                or _issued_untransmitted_authority_objects.get(issued_key)
+                is not authority
                 or (str(path.absolute()), authority.transaction_id)
                 in _consumed_authorities
             ):
@@ -1970,6 +2953,7 @@ def abort_untransmitted_transport_transaction(
         elif lifecycle != "prepared":
             raise TransportJournalError("confirmed transaction cannot be aborted")
         _issued_untransmitted_authorities.discard(issued_key)
+        _issued_untransmitted_authority_objects.pop(issued_key, None)
         _aborting_transactions.add(transaction_key)
     directory_fd: int | None = None
     try:
@@ -2006,6 +2990,256 @@ def abort_untransmitted_transport_transaction(
             os.close(directory_fd)
         with _authority_lock:
             _aborting_transactions.discard(transaction_key)
+    with _authority_lock:
+        _transaction_source_bindings.pop(transaction_key, None)
+
+
+def retire_consumed_transport_transaction_after_proved_remote_non_success(
+    *,
+    source_binding: SourceReceiptBinding,
+    authority: TransportAuthority,
+    remote_non_success_proof: object,
+    mutation_authority: TransactionMutationAuthority | None = None,
+) -> None:
+    """Retire one consumed reply attempt after a proved X rejection.
+
+    This is deliberately distinct from aborting an untransmitted transaction:
+    the request crossed the transport boundary and consumed its authority.  It
+    can be retired only in that same process, while the exact attempting
+    journal/fence/source generation remains intact, and with an opaque proof
+    produced from a validated target-specific X error response.  Any mismatch
+    or filesystem uncertainty leaves at least one durable barrier to the
+    caller's fail-closed handling.
+    """
+
+    from x_api_error_semantics import (
+        begin_reply_create_rejection_transport_retirement,
+        complete_reply_create_rejection_transport_retirement,
+        invalidate_reply_create_rejection_proof,
+    )
+
+    require_transaction_mutation_authority(
+        mutation_authority,
+        operation="proved remote non-success transport retirement",
+    )
+    if not isinstance(source_binding, SourceReceiptBinding) or not isinstance(
+        authority,
+        TransportAuthority,
+    ):
+        raise TransportJournalError(
+            "proved remote non-success retirement lacks exact transaction authority"
+        )
+    path = journal_path_for_receipt(Path(source_binding.receipt_path))
+    fence_path = fence_path_for_journal(path)
+    transaction_key = (str(path.absolute()), authority.transaction_id)
+    with _authority_lock:
+        if (
+            transaction_key not in _consumed_authorities
+            or _consumed_authority_objects.get(transaction_key)
+            is not authority
+            or _transaction_source_bindings.get(transaction_key)
+            is not source_binding
+            or transaction_key in _transitioning_transactions
+            or transaction_key in _aborting_transactions
+        ):
+            raise TransportJournalError(
+                "proved remote non-success authority was not consumed by this process"
+            )
+        _transitioning_transactions.add(transaction_key)
+
+    directory_fd: int | None = None
+    proof_claimed = False
+    files_retired = False
+    retired = False
+    try:
+        payload = source_binding.request.payload()
+        reply = payload.get("reply") if type(payload) is dict else None
+        target_id = (
+            reply.get("in_reply_to_tweet_id")
+            if type(reply) is dict
+            else None
+        )
+        if (
+            authority.lifecycle_state != "attempting"
+            or authority.lane != "conversational_reply"
+            or source_binding.lane != "conversational_reply"
+            or source_binding.request.method != "POST"
+            or source_binding.request.request_path != "/2/tweets"
+            or type(reply) is not dict
+            or set(reply) != {"in_reply_to_tweet_id"}
+            or type(target_id) is not str
+            or _POST_ID_RE.fullmatch(target_id) is None
+            or Path(authority.journal_path) != path.absolute()
+            or Path(authority.fence_path) != fence_path.absolute()
+            or Path(source_binding.receipt_path).name
+            != authority.source_receipt_basename
+            or authority.source_validator_id != source_binding.validator_id
+            or authority.source_binding_identity != id(source_binding)
+            or authority.payload_sha256
+            != source_binding.request.payload_sha256
+        ):
+            raise TransportJournalError(
+                "proved remote non-success transaction identity is stale"
+            )
+        if not begin_reply_create_rejection_transport_retirement(
+            remote_non_success_proof,
+            authority=authority,
+            source_binding=source_binding,
+            payload_sha256=source_binding.request.payload_sha256,
+            target_id=target_id,
+        ):
+            raise TransportJournalError(
+                "proved remote non-success transaction identity is stale"
+            )
+        proof_claimed = True
+
+        state = inspect_transport_state(path)
+        if (
+            state.errors
+            or state.staging_names
+            or state.retirement_guard_names
+            or state.journal is None
+            or state.fence is None
+            or not _documents_share_transaction_identity(
+                state.journal.document,
+                state.fence.document,
+            )
+        ):
+            raise TransportJournalError(
+                "proved remote non-success transaction is not one intact pair"
+            )
+        document = state.journal.document
+        fence_document = state.fence.document
+        if (
+            document["transaction_id"] != authority.transaction_id
+            or document["lifecycle_state"] != "attempting"
+            or document["lane"] != "conversational_reply"
+            or document["request_method"] != "POST"
+            or document["request_path"] != "/2/tweets"
+            or document["remote_payload"] != payload
+            or document["remote_payload_sha256"]
+            != source_binding.request.payload_sha256
+            or document["source_receipt"]["basename"]
+            != Path(source_binding.receipt_path).name
+            or document["source_receipt"]["sha256"]
+            != source_binding.receipt_sha256
+            or document["source_receipt"]["device"]
+            != source_binding.receipt_device
+            or document["source_receipt"]["inode"]
+            != source_binding.receipt_inode
+            or document["source_receipt"]["ctime_ns"]
+            != source_binding.receipt_ctime_ns
+            or document["source_receipt"]["size"]
+            != source_binding.receipt_size
+            or document["source_validation"]["validator_id"]
+            != source_binding.validator_id
+            or document["source_validation"]["receipt_sha256"]
+            != source_binding.receipt_sha256
+            or document["source_validation"]["payload_sha256"]
+            != source_binding.request.payload_sha256
+            or fence_document["remote_payload"] != payload
+            or state.journal.sha256 != authority.journal_sha256
+            or (
+                state.journal.device,
+                state.journal.inode,
+                state.journal.ctime_ns,
+            )
+            != (
+                authority.journal_device,
+                authority.journal_inode,
+                authority.journal_ctime_ns,
+            )
+            or state.fence.sha256 != authority.fence_sha256
+            or (
+                state.fence.device,
+                state.fence.inode,
+                state.fence.ctime_ns,
+            )
+            != (
+                authority.fence_device,
+                authority.fence_inode,
+                authority.fence_ctime_ns,
+            )
+        ):
+            raise TransportJournalError(
+                "proved remote non-success transaction identity is stale"
+            )
+        current_receipt = _read_stable_regular(
+            Path(source_binding.receipt_path),
+            maximum=JOURNAL_MAX_BYTES,
+        )
+        if (
+            current_receipt.data != source_binding.receipt_bytes
+            or hashlib.sha256(current_receipt.data).hexdigest()
+            != source_binding.receipt_sha256
+            or (
+                int(current_receipt.metadata.st_dev),
+                int(current_receipt.metadata.st_ino),
+                int(current_receipt.metadata.st_ctime_ns),
+                int(current_receipt.metadata.st_size),
+            )
+            != (
+                source_binding.receipt_device,
+                source_binding.receipt_inode,
+                source_binding.receipt_ctime_ns,
+                source_binding.receipt_size,
+            )
+        ):
+            raise TransportJournalError(
+                "proved remote non-success source receipt changed"
+            )
+
+        directory_fd = _open_directory(path.parent)
+        current_journal = _stable_file_matching_snapshot(
+            path,
+            state.journal,
+            label="proved-non-success transport journal",
+        )
+        _unlink_exact_stable_file(
+            directory_fd,
+            path,
+            current_journal,
+            maximum=JOURNAL_MAX_BYTES,
+            label="proved-non-success transport journal",
+        )
+        # The immutable fence remains the restart barrier until journal
+        # removal is durable, and is then removed only as the same generation.
+        current_fence = _stable_file_matching_snapshot(
+            fence_path,
+            state.fence,
+            label="proved-non-success transport fence",
+        )
+        _unlink_exact_stable_file(
+            directory_fd,
+            fence_path,
+            current_fence,
+            maximum=JOURNAL_MAX_BYTES,
+            label="proved-non-success transport fence",
+        )
+        files_retired = True
+    finally:
+        try:
+            if directory_fd is not None:
+                os.close(directory_fd)
+            if proof_claimed and files_retired:
+                if not complete_reply_create_rejection_transport_retirement(
+                    remote_non_success_proof
+                ):
+                    raise TransportJournalError(
+                        "proved remote non-success capability could not be advanced"
+                    )
+                retired = True
+        finally:
+            if proof_claimed and not retired:
+                invalidate_reply_create_rejection_proof(
+                    remote_non_success_proof
+                )
+            with _authority_lock:
+                if retired:
+                    _consumed_authorities.discard(transaction_key)
+                    _consumed_authority_objects.pop(transaction_key, None)
+                    _transaction_source_bindings.pop(transaction_key, None)
+                _transitioning_transactions.discard(transaction_key)
 
 
 def retire_confirmed_transport_transaction(
@@ -2309,7 +3543,19 @@ def reset_consumed_authorities_for_tests() -> None:
 
     with _authority_lock:
         _consumed_authorities.clear()
+        _consumed_authority_objects.clear()
+        _consumed_x_responses.clear()
+        _bound_x_requests.clear()
+        _bound_x_request_transactions.clear()
         _issued_untransmitted_authorities.clear()
+        _issued_untransmitted_authority_objects.clear()
         _issued_source_bindings.clear()
+        _issued_source_binding_objects.clear()
+        _transaction_source_bindings.clear()
         _transitioning_transactions.clear()
         _aborting_transactions.clear()
+    from x_api_error_semantics import (
+        reset_reply_create_rejection_proofs_for_tests,
+    )
+
+    reset_reply_create_rejection_proofs_for_tests()

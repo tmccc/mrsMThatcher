@@ -54,6 +54,11 @@ def reconciled_remote_write_safety(*, archive_offset: int = 120) -> dict:
     """Return a current clear snapshot with evidence tied to t64.jpg."""
 
     archive_epoch = int((BASE + timedelta(seconds=archive_offset)).timestamp())
+    marker_audit = {
+        "archived_at_epoch": archive_epoch,
+        "audit_path": "archive/marker.reconciliation.json",
+        "marker_sha256": "a" * 64,
+    }
     return {
         "configured": True,
         "available": True,
@@ -73,10 +78,8 @@ def reconciled_remote_write_safety(*, archive_offset: int = 120) -> dict:
             "valid": True,
             "valid_marker_reconciliation_count": 1,
             "valid_media_reconciliation_count": 1,
-            "latest_marker_reconciliation": {
-                "archived_at_epoch": archive_epoch,
-                "audit_path": "archive/marker.reconciliation.json",
-            },
+            "marker_reconciliations": [marker_audit],
+            "latest_marker_reconciliation": marker_audit,
             "latest_media_reconciliation": {
                 "archived_at_epoch": archive_epoch - 1,
                 "audit_path": "archive/media.reconciliation.json",
@@ -89,6 +92,7 @@ def reconciled_remote_write_safety(*, archive_offset: int = 120) -> dict:
             {"valid": True, "blocking": False} for _ in range(4)
         ],
         "active_entries": [],
+        "active_marker_names": [],
     }
 
 
@@ -151,6 +155,94 @@ def ambiguous_media_records() -> list[digest.Record]:
     ]
 
 
+RECONCILED_REPLY_TARGET = "2090236705231995281"
+
+
+def digest044_reply_ambiguity_records() -> list[digest.Record]:
+    """Represent the correlated reply receipt/barrier shape from digest044."""
+
+    return [
+        record(
+            0,
+            "WARNING",
+            "write_sending_reply_receipt",
+            "Wrote conversational reply sending receipt source=mention "
+            f"target_id={RECONCILED_REPLY_TARGET} path=/srv/reply.json",
+        ),
+        record(
+            1,
+            "INFO",
+            "create_post",
+            "Creating X post with durable transport journal. "
+            f"lane=conversational_reply transaction_id={'e' * 64} "
+            f"reply_to_id={RECONCILED_REPLY_TARGET} media_count=0 "
+            "made_with_ai=True",
+        ),
+        record(
+            1,
+            "DEBUG",
+            "x_request",
+            "X request: POST https://api.x.com/2/tweets",
+            line=2,
+        ),
+        record(
+            2,
+            "ERROR",
+            "x_request",
+            "X API error 403: "
+            '{"detail":"You attempted to reply to a Tweet that is deleted or '
+            'not visible to you.","status":403,"title":"Forbidden",'
+            '"type":"about:blank"}',
+        ),
+        record(
+            2,
+            "CRITICAL",
+            "record_ambiguous_remote_post",
+            "AMBIGUOUS REMOTE X POST OUTCOME: X may have accepted the write, "
+            "but a usable confirmation was not received. Automatic posting is "
+            "blocked pending manual reconciliation: /srv/ambiguous_post_outcome.json",
+            line=2,
+        ),
+        record(
+            2,
+            "INFO",
+            "log_event",
+            'EVENT {"event":"ai_reply_pipeline_outcome",'
+            '"status":"posting_failed_retryable","lane":"mention",'
+            f'"target_id":"{RECONCILED_REPLY_TARGET}",'
+            '"failure_reason":"ambiguous_remote_outcome"}',
+            line=3,
+        ),
+        record(
+            3,
+            "CRITICAL",
+            "run_normal_check",
+            "Normal reply lane stopped by the global remote-write safety barrier",
+        ),
+        record(
+            60,
+            "CRITICAL",
+            "maintain_global_remote_write_barrier_tick",
+            "All remote posting and reply lanes are paused by the durable "
+            "remote-write safety barrier; manual reconciliation is required "
+            "before a controlled restart",
+        ),
+        record(
+            180,
+            "INFO",
+            "maybe_reply_to_mentions",
+            "Considering mention id=2090237404426694900 author_id=42 "
+            "text='later candidate'",
+        ),
+        record(
+            181,
+            "INFO",
+            "maybe_reply_to_mentions",
+            "Reply posted successfully",
+        ),
+    ]
+
+
 def test_media_503_uses_exact_endpoint_and_one_durably_resolved_incident():
     safety = reconciled_remote_write_safety()
     report = digest.analyse(
@@ -198,6 +290,212 @@ def test_stale_reconciliation_evidence_cannot_resolve_new_ambiguity():
     assert report["error_health"]["historical_resolved_incident_count"] == 0
     assert report["media_upload"]["reconciled_incidents"] == []
     assert report["media_upload"]["incidents"][0]["status"] == "blocked"
+
+
+def test_digest044_reply_barrier_symptoms_join_one_reconciled_root_everywhere():
+    safety = reconciled_remote_write_safety()
+    report = digest.analyse(
+        digest044_reply_ambiguity_records(),
+        current_remote_write_safety=safety,
+    )
+    rendered = digest.render_markdown(report)
+    json_report = json.loads(json.dumps(report))
+    health = report["error_health"]
+
+    assert health["current_independent_incident_count"] == 0
+    assert health["historical_resolved_incident_count"] == 1
+    assert health["current_incidents"] == []
+    incident = health["historical_resolved_incidents"][0]
+    assert incident["category"] == "remote_write_ambiguity_barrier"
+    assert incident["record_count"] == 4
+    assert incident["correlated_subordinate_symptom_counts"] == {
+        "conversational_reply_receipt_barrier": 1,
+        "normal reply lane stopped by the global remote-write safety barrier": 1,
+    }
+    assert incident["correlated_reply_receipt_identities"] == [
+        {"lane": "mention", "target_id": RECONCILED_REPLY_TARGET}
+    ]
+    assert report["confirmed_reply_recovery"][
+        "durably_reconciled_ambiguity_receipts"
+    ][0]["target_id"] == RECONCILED_REPLY_TARGET
+    assert report["confirmed_reply_recovery"][
+        "durably_reconciled_ambiguity_receipts"
+    ][0]["source_time"] == digest.dt_text(BASE)
+    assert "current health: no unresolved operational incidents" in report[
+        "summary"
+    ]["headline"]
+    current_section = rendered.split("## Current independent errors", 1)[1].split(
+        "## Historical/resolved incident errors", 1
+    )[0]
+    historical_section = rendered.split(
+        "## Historical/resolved incident errors", 1
+    )[1].split("## Other warnings", 1)[0]
+    assert "None unresolved in the selected window." in current_section
+    assert "remote write ambiguity barrier" in historical_section
+    assert "conversational reply receipt barrier" not in current_section
+    assert "normal reply lane stopped" not in current_section
+    assert "Stale or unresolved confirmed-reply receipts:" not in rendered
+    assert (
+        "Sending-receipt barrier observations durably reconciled with their "
+        "remote-write ambiguity: **1**."
+        in rendered
+    )
+    assert json_report["error_health"][
+        "current_independent_incident_count"
+    ] == 0
+    assert json_report["error_health"][
+        "historical_resolved_incident_count"
+    ] == 1
+    assert len(json_report["error_health"]["historical_resolved_incidents"]) == 1
+
+
+def test_same_reply_receipt_identity_after_reconciliation_remains_current():
+    records = [
+        *digest044_reply_ambiguity_records(),
+        record(
+            240,
+            "WARNING",
+            "write_sending_reply_receipt",
+            "Wrote conversational reply sending receipt source=mention "
+            f"target_id={RECONCILED_REPLY_TARGET} path=/srv/reply.json",
+        ),
+    ]
+    report = digest.analyse(
+        records,
+        current_remote_write_safety=reconciled_remote_write_safety(),
+    )
+    rendered = digest.render_markdown(report)
+    json_report = json.loads(json.dumps(report))
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 1
+    assert health["current_incidents"][0]["category"] == (
+        "conversational_reply_receipt_barrier"
+    )
+    assert health["current_incidents"][0]["first_seen"] == digest.dt_text(
+        BASE + timedelta(seconds=240)
+    )
+    assert "current health: 1 unresolved operational incident" in report[
+        "summary"
+    ]["headline"]
+    assert json_report["error_health"][
+        "current_independent_incident_count"
+    ] == 1
+    current_section = rendered.split("## Current independent errors", 1)[1].split(
+        "## Historical/resolved incident errors", 1
+    )[0]
+    assert "conversational reply receipt barrier" in current_section
+    assert (
+        "Sending-receipt barrier observations durably reconciled with their "
+        "remote-write ambiguity: **1**."
+        in rendered
+    )
+    assert "Stale or unresolved confirmed-reply receipts:" in rendered
+    assert digest.dt_text(BASE + timedelta(seconds=240)) in rendered
+
+
+def test_invalid_reconciliation_evidence_resolves_no_reply_barrier_symptoms():
+    safety = reconciled_remote_write_safety()
+    safety["reconciliation_archive"]["valid"] = False
+
+    report = digest.analyse(
+        digest044_reply_ambiguity_records(),
+        current_remote_write_safety=safety,
+    )
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["category"] == (
+        "remote_write_ambiguity_barrier"
+    )
+    assert report["confirmed_reply_recovery"][
+        "durably_reconciled_ambiguity_receipts"
+    ] == []
+
+
+def test_clean_snapshot_does_not_resolve_unmatched_transaction_barrier():
+    report = digest.analyse(
+        [
+            record(
+                0,
+                "CRITICAL",
+                "remote_write_guard",
+                "Remote-write transport journal blocks this unrelated write",
+            )
+        ],
+        current_remote_write_safety=reconciled_remote_write_safety(),
+    )
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 0
+    assert health["current_incidents"][0]["category"] == (
+        "remote_write_transaction_barrier"
+    )
+
+
+@pytest.mark.parametrize("active_barrier", ["receipt", "journal", "marker"])
+def test_current_reply_receipt_journal_or_marker_keeps_root_current(
+    active_barrier: str,
+):
+    safety = reconciled_remote_write_safety()
+    safety["blocking"] = True
+    if active_barrier == "journal":
+        safety["transport"] = {
+            "classification": "attempting",
+            "blocking": True,
+        }
+    else:
+        safety["active_entries"] = [
+            {
+                "name": (
+                    "confirmed_reply_receipt.json"
+                    if active_barrier == "receipt"
+                    else "ambiguous_post_outcome.json"
+                ),
+                "kind": (
+                    "source_receipt"
+                    if active_barrier == "receipt"
+                    else "ambiguity_marker"
+                ),
+                "safe_regular": True,
+            }
+        ]
+        if active_barrier == "marker":
+            safety["active_marker_names"] = ["ambiguous_post_outcome.json"]
+
+    report = digest.analyse(
+        digest044_reply_ambiguity_records(),
+        current_remote_write_safety=safety,
+    )
+
+    assert report["error_health"]["current_independent_incident_count"] == 1
+    assert report["error_health"]["historical_resolved_incident_count"] == 0
+
+
+def test_unrelated_current_error_stays_current_after_reply_root_reconciliation():
+    report = digest.analyse(
+        [
+            *digest044_reply_ambiguity_records(),
+            record(
+                220,
+                "ERROR",
+                "unrelated_worker",
+                "ValueError: unrelated current failure",
+            ),
+        ],
+        current_remote_write_safety=reconciled_remote_write_safety(),
+    )
+
+    health = report["error_health"]
+    assert health["current_independent_incident_count"] == 1
+    assert health["historical_resolved_incident_count"] == 1
+    assert health["current_incidents"][0]["category"] == "valueerror"
+    assert health["historical_resolved_incidents"][0]["category"] == (
+        "remote_write_ambiguity_barrier"
+    )
 
 
 def test_x_request_endpoint_classification_is_path_and_method_specific():

@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import signal
+from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,15 +13,20 @@ import pytest
 import historical_context_outbox as outbox_module
 import mrsMThatcher2 as bot
 import remote_media_upload_receipt as media_receipt_module
+import remote_write_transport_journal as journal_module
+import x_api_error_semantics as error_semantics
 from historical_context_formatter import (
     AmbiguousContextReplyOutcome,
     HistoricalContextReplyStore,
 )
+from tests.fake_api_server import FakeApiServer
 from tests.helpers.protocol_activation import create_test_protocol_activation
 from tests.test_unit_helpers import (
     UNIT_REPLY_REPOSITORY,
     configure_simple_meme_post,
     configure_simple_quote_post,
+    unit_approved_reply,
+    unit_reply_context,
     unit_sending_reply_receipt,
     unit_sending_v4_reply_receipt,
 )
@@ -33,7 +40,31 @@ def _x_response(status_code: int, body: object) -> bot.requests.Response:
     return response
 
 
-def _armed_x_create_authority(payload: dict[str, object]) -> bot.TransportAuthority:
+PRODUCTION_DELETED_REPLY_ERROR = {
+    "detail": (
+        "You attempted to reply to a Tweet that is deleted or not visible "
+        "to you."
+    ),
+    "status": 403,
+    "title": "Forbidden",
+    "type": "about:blank",
+}
+
+
+def _raw_x_response(
+    status_code: int,
+    body: str | bytes,
+) -> bot.requests.Response:
+    response = bot.requests.Response()
+    response.status_code = status_code
+    response._content = body if isinstance(body, bytes) else body.encode("utf-8")
+    response.headers["Content-Type"] = "application/json"
+    return response
+
+
+def _armed_x_create_transaction(
+    payload: dict[str, object],
+) -> tuple[bot.SourceReceiptBinding, bot.TransportAuthority]:
     """Create one exact journal authority for a direct transport unit test."""
 
     receipt = {
@@ -42,25 +73,34 @@ def _armed_x_create_authority(payload: dict[str, object]) -> bot.TransportAuthor
         "unit_test": True,
     }
     bot.atomic_write_json(bot.CONFIRMED_REPLY_RECEIPT_FILE, receipt, durable=True)
-    prepared = bot.begin_transport_transaction(
+    source = bot.bind_transport_source(
         receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
         expected_receipt=receipt,
         lane="conversational_reply",
         payload=payload,
-        source_validator_id="unit-test-source-binding-v2",
-        source_validator=lambda lane, observed, body: bool(
+        validator_id="unit-test-source-binding-v2",
+        validator=lambda lane, observed, body: bool(
             lane == "conversational_reply"
             and observed == receipt
             and body == payload
         ),
     )
-    return bot.arm_transport_transaction(
+    prepared = bot.begin_transport_transaction(
+        receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        source_binding=source,
+    )
+    armed = bot.arm_transport_transaction(
         Path(prepared.journal_path),
         prepared,
         mutation_authority=bot.transaction_mutation_authority(
             "focused transport arming"
         ),
     )
+    return source, armed
+
+
+def _armed_x_create_authority(payload: dict[str, object]) -> bot.TransportAuthority:
+    return _armed_x_create_transaction(payload)[1]
 
 
 @pytest.mark.parametrize("transport", ("tweet", "media"))
@@ -558,7 +598,10 @@ def test_final_pretransport_pause_exactly_aborts_media_pair_without_marker(
     monkeypatch.setattr(
         bot.requests,
         "request",
-        lambda *_args, **_kwargs: request_calls.append("request"),
+        lambda *_args, **_kwargs: (
+            request_calls.append("later-request"),
+            _x_response(403, PRODUCTION_DELETED_REPLY_ERROR),
+        )[1],
     )
 
     with pytest.raises(bot.RemoteOperationsPaused, match="runtime control"):
@@ -585,7 +628,7 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
     consume_calls = 0
     request_calls = 0
     durable_attempt_observed = False
-    real_consume = bot.consume_transport_authority
+    real_consume = journal_module.consume_transport_authority
 
     def consume_then_pause(*args: object, **kwargs: object) -> None:
         nonlocal pause_active, consume_calls
@@ -612,7 +655,11 @@ def test_pause_after_tweet_authority_consumption_is_prospective_and_confirms_onc
         return _x_response(201, {"data": {"id": "123456"}})
 
     monkeypatch.setattr(bot, "global_remote_writes_paused", lambda: pause_active)
-    monkeypatch.setattr(bot, "consume_transport_authority", consume_then_pause)
+    monkeypatch.setattr(
+        journal_module,
+        "consume_transport_authority",
+        consume_then_pause,
+    )
     monkeypatch.setattr(bot.requests, "request", confirmed_once)
 
     result = bot.create_post(
@@ -1124,6 +1171,7 @@ def isolate_remote_write_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Keep every durable ambiguity barrier inside one test directory."""
+    journal_module.reset_consumed_authorities_for_tests()
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
     monkeypatch.setattr(
         bot,
@@ -1214,6 +1262,159 @@ def isolate_remote_write_state(
     monkeypatch.setattr(bot, "reply_evidence_repository", lambda: UNIT_REPLY_REPOSITORY)
 
 
+def _configure_approved_mention_candidate(
+    state: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    provider_calls: list[str],
+    fixed_epoch: int = 2_000_000_000,
+) -> dict[str, object]:
+    mention = {
+        "id": "100",
+        "author_id": "200",
+        "text": "@MrsMThatcher a substantive direct mention",
+        "entities": {
+            "mentions": [{"id": "12345", "username": "MrsMThatcher"}]
+        },
+        "conversation_id": "100",
+        "referenced_tweets": [],
+    }
+    context = unit_reply_context(
+        target_id="100",
+        contribution=str(mention["text"]),
+    )
+
+    def approved(
+        actual_context: dict[str, object],
+        *_args: object,
+        **_kwargs: object,
+    ) -> str:
+        provider_calls.append("called")
+        assert actual_context == context
+        return unit_approved_reply(
+            actual_context,
+            text="Conviction still matters.",
+            mode="opinion_or_principle",
+        )
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(
+        bot,
+        "current_datetime",
+        lambda: datetime.fromtimestamp(fixed_epoch),
+    )
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(
+        bot,
+        "is_probably_spam_or_not_worth_replying",
+        lambda _text: False,
+    )
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda *_args: (dict(context), True),
+    )
+    monkeypatch.setattr(
+        bot,
+        "reply_media_context_for_candidate",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(bot, "generate_ai_first_reply", approved)
+    state["last_reply_epoch"] = 0
+    return mention
+
+
+def _configure_approved_quote_candidate(
+    state: dict,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    provider_calls: list[str],
+    fixed_epoch: int = 2_000_000_000,
+) -> dict[str, object]:
+    own_post = {
+        "id": "900",
+        "author_id": "12345",
+        "text": "An original post.",
+        "conversation_id": "900",
+        "referenced_tweets": [],
+    }
+    quote_post = {
+        "id": "910",
+        "author_id": "777",
+        "text": "A substantive comment.",
+        "conversation_id": "910",
+        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+    }
+
+    def approved(
+        actual_context: dict[str, object],
+        *_args: object,
+        **_kwargs: object,
+    ) -> str:
+        provider_calls.append("called")
+        return unit_approved_reply(
+            actual_context,
+            text="Conviction still matters.",
+            mode="opinion_or_principle",
+        )
+
+    state["recent_own_post_ids"] = ["900"]
+    state["daily_reply_date"] = datetime.fromtimestamp(fixed_epoch).strftime(
+        "%Y-%m-%d"
+    )
+    state["daily_quote_reply_date"] = state["daily_reply_date"]
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+    monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(
+        bot,
+        "current_datetime",
+        lambda: datetime.fromtimestamp(fixed_epoch),
+    )
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
+    monkeypatch.setattr(
+        bot,
+        "get_tweet_by_id_cached",
+        lambda *_args, **_kwargs: dict(own_post),
+    )
+    monkeypatch.setattr(
+        bot,
+        "get_quote_tweets_for_post",
+        lambda *_args, **_kwargs: [dict(quote_post)],
+    )
+    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
+    monkeypatch.setattr(
+        bot,
+        "is_probably_spam_or_not_worth_replying",
+        lambda _text: False,
+    )
+    monkeypatch.setattr(
+        bot,
+        "reply_media_context_for_candidate",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(bot, "generate_ai_first_reply", approved)
+    return quote_post
+
+
 @pytest.mark.parametrize("status_code", [400, 401, 403, 404, 408, 409, 425, 429, 500])
 def test_x_create_non_success_is_ambiguous_by_default(
     status_code: int,
@@ -1247,6 +1448,1757 @@ def test_x_create_non_success_is_ambiguous_by_default(
         )
 
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("status_code", [403, 404, 429])
+def test_generic_reply_create_403_404_and_429_remain_ambiguous(
+    status_code: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            status_code,
+            {
+                "detail": "generic response without target-specific semantics",
+                "status": status_code,
+                "title": "Request failed",
+                "type": "about:blank",
+            },
+        ),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {
+            "detail": "Tweet is unavailable",
+            "status": 403,
+            "title": "Client Forbidden",
+            "type": "about:blank",
+        },
+        {
+            "errors": [
+                {
+                    "detail": "Tweet is unavailable",
+                    "title": "Client Forbidden",
+                }
+            ],
+            "status": 403,
+            "title": "Forbidden",
+            "type": "about:blank",
+        },
+    ],
+    ids=("root-title", "nested-error-title"),
+)
+def test_global_denial_title_overrides_target_specific_detail(
+    body: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            body,
+        ),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_legacy_raw_error_fallback_is_read_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = {
+        "legacy_note": "Tweet is unavailable",
+        "status": 403,
+        "title": "Forbidden",
+        "type": "about:blank",
+    }
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(403, body),
+    )
+
+    with pytest.raises(bot.ApiError) as caught:
+        bot.x_request("GET", "/2/tweets/100")
+    assert (
+        bot.classify_x_api_error(caught.value)
+        == bot.X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE
+    )
+
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_consumed_reply_rejection_requires_classifier_issued_proof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    source, authority = _armed_x_create_transaction(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(bot.ProvedRemotePostNonSuccess) as caught:
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    journal_path = Path(authority.journal_path)
+    fence_path = bot.fence_path_for_journal(journal_path)
+    genuine_proof = caught.value.remote_non_success_proof
+    transaction_key = (str(journal_path.absolute()), authority.transaction_id)
+    assert journal_module._consumed_authority_objects[transaction_key] is authority
+    assert journal_module._transaction_source_bindings[transaction_key] is source
+    proof_registration = error_semantics._issued_rejection_proofs[
+        id(genuine_proof)
+    ]
+    assert proof_registration[9] is authority
+    assert proof_registration[10] is source
+    forged_proof = error_semantics.DeterministicReplyCreateRejectionProof(
+        error_semantics._REJECTION_PROOF_SECRET,
+        classification=(
+            genuine_proof._DeterministicReplyCreateRejectionProof__classification
+        ),
+        status_code=(
+            genuine_proof._DeterministicReplyCreateRejectionProof__status_code
+        ),
+        response_sha256=(
+            genuine_proof._DeterministicReplyCreateRejectionProof__response_sha256
+        ),
+        transaction_identity=(
+            genuine_proof._DeterministicReplyCreateRejectionProof__transaction_identity
+        ),
+        payload_sha256=(
+            genuine_proof._DeterministicReplyCreateRejectionProof__payload_sha256
+        ),
+        target_id=(
+            genuine_proof._DeterministicReplyCreateRejectionProof__target_id
+        ),
+        payload_bytes=(
+            genuine_proof._DeterministicReplyCreateRejectionProof__payload_bytes
+        ),
+    )
+    forged_error = bot.ProvedRemotePostNonSuccess(
+        "caller-rebound proof",
+        service="x",
+        status_code=403,
+        request_method="POST",
+        request_path="/2/tweets",
+        remote_non_success_proof=forged_proof,
+    )
+    assert bot.api_error_proves_remote_non_success(forged_error) is False
+    for fabricated in (
+        True,
+        bot.ApiError(
+            "caller says it failed",
+            service="x",
+            status_code=403,
+            request_method="POST",
+            request_path="/2/tweets",
+        ),
+        forged_proof,
+    ):
+        with pytest.raises(
+            bot.TransportJournalError,
+            match="transaction identity is stale",
+        ):
+            bot.retire_consumed_transport_transaction_after_proved_remote_non_success(
+                source_binding=source,
+                authority=authority,
+                remote_non_success_proof=fabricated,
+                mutation_authority=bot.transaction_mutation_authority(
+                    "focused fabricated rejection retirement"
+                ),
+            )
+        assert journal_path.exists()
+        assert fence_path.exists()
+
+    reconstructed_source = replace(source)
+    copied_authority = replace(
+        authority,
+        source_binding_identity=id(reconstructed_source),
+    )
+    with pytest.raises(
+        bot.TransportJournalError,
+        match="authority was not consumed by this process",
+    ):
+        bot.retire_consumed_transport_transaction_after_proved_remote_non_success(
+            source_binding=reconstructed_source,
+            authority=copied_authority,
+            remote_non_success_proof=caught.value.remote_non_success_proof,
+            mutation_authority=bot.transaction_mutation_authority(
+                "focused copied source rejection retirement"
+            ),
+        )
+    assert journal_path.exists()
+    assert fence_path.exists()
+
+    bot.retire_consumed_transport_transaction_after_proved_remote_non_success(
+        source_binding=source,
+        authority=authority,
+        remote_non_success_proof=caught.value.remote_non_success_proof,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused proved rejection retirement"
+        ),
+    )
+
+    assert not journal_path.exists()
+    assert not fence_path.exists()
+    assert bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+
+
+def test_caller_synthesised_response_cannot_mint_registered_rejection_proof() -> None:
+    assert not hasattr(
+        journal_module,
+        "_consume_transport_authority_for_x_request",
+    )
+    assert not hasattr(
+        error_semantics,
+        "_bind_consumed_transport_attempt_to_x_response",
+    )
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    _source, authority = _armed_x_create_transaction(payload)
+    assert (
+        bot.consume_transport_authority(
+            Path(authority.journal_path),
+            authority,
+            method="POST",
+            request_path="/2/tweets",
+            payload=payload,
+            expected_receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+        is None
+    )
+    raw_body = json.dumps(PRODUCTION_DELETED_REPLY_ERROR).encode("utf-8")
+    validated = error_semantics.parse_validated_x_error_response(
+        raw_body,
+        status_code=403,
+    )
+    api_error = bot.ApiError(
+        "synthetic production-style error",
+        service="x",
+        status_code=403,
+        request_method="POST",
+        request_path="/2/tweets",
+        x_error_response=validated,
+        x_error_message_fallback=False,
+    )
+    actual_response = _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
+    fabricated_response = journal_module._ConsumedXResponse(
+        transaction_key=(
+            str(Path(authority.journal_path).absolute()),
+            authority.transaction_id,
+        ),
+        response_identity=id(actual_response),
+        status_code=403,
+        body_sha256=hashlib.sha256(raw_body).hexdigest(),
+        authority_identity=id(authority),
+    )
+
+    assert (
+        error_semantics._issue_reply_create_rejection_from_consumed_response(
+            api_error,
+            payload=payload,
+            authority=authority,
+            consumed_response=fabricated_response,
+            actual_response=actual_response,
+        )
+        is None
+    )
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_preconsumed_authority_cannot_reenter_request_coordinator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    _source, authority = _armed_x_create_transaction(payload)
+    bot.consume_transport_authority(
+        Path(authority.journal_path),
+        authority,
+        method="POST",
+        request_path="/2/tweets",
+        payload=payload,
+        expected_receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+    request_calls: list[str] = []
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: request_calls.append("request"),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert request_calls == []
+    assert error_semantics._issued_rejection_proofs == {}
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_configured_request_coordinator_rejects_loopback_and_custom_auth_chain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    source, authority = _armed_x_create_transaction(payload)
+    server = FakeApiServer(
+        {
+            "tweet_post_responses": [
+                {"status": 403, "body": PRODUCTION_DELETED_REPLY_ERROR}
+            ]
+        }
+    ).start()
+
+    class ResponseReplacingAuth(bot.requests.auth.AuthBase):
+        calls = 0
+
+        def __call__(self, request: object) -> object:
+            self.calls += 1
+            request.register_hook(
+                "response",
+                lambda *_args, **_kwargs: _x_response(
+                    403,
+                    PRODUCTION_DELETED_REPLY_ERROR,
+                ),
+            )
+            return request
+
+    custom_auth = ResponseReplacingAuth()
+    configured_auth = bot.AUTH
+    try:
+        with pytest.raises(TypeError):
+            journal_module._bind_transport_authority_to_configured_x_request(
+                authority,
+                payload=payload,
+                url=f"{server.url}/2/tweets",
+                auth=custom_auth,
+            )
+        with pytest.raises(
+            bot.TransportJournalError,
+            match="already installed",
+        ):
+            journal_module._install_configured_x_request_provider(
+                lambda: (f"{server.url}/2/tweets", custom_auth, 30)
+            )
+
+        forged = journal_module._BoundXRequestAuthority(
+            authority_identity=id(authority),
+            source_identity=id(source),
+            url=f"{server.url}/2/tweets",
+            auth_identity=id(custom_auth),
+            timeout_identity=id(30),
+            payload_sha256=journal_module.payload_sha256(payload),
+        )
+        with pytest.raises(
+            bot.TransportJournalError,
+            match="exact configured authority",
+        ):
+            journal_module.perform_consumed_x_request(
+                Path(authority.journal_path),
+                authority,
+                request_authority=forged,
+                payload=payload,
+                expected_receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+                request_kwargs={"json": payload, "allow_redirects": False},
+            )
+
+        observed_auth: list[object] = []
+
+        def generic_forbidden(
+            *_args: object,
+            **kwargs: object,
+        ) -> bot.requests.Response:
+            observed_auth.append(kwargs.get("auth"))
+            return _x_response(403, {"title": "Forbidden"})
+
+        monkeypatch.setattr(bot, "AUTH", custom_auth)
+        monkeypatch.setattr(bot.requests, "request", generic_forbidden)
+        with pytest.raises(bot.AmbiguousRemotePostOutcome):
+            bot.x_request(
+                "POST",
+                "/2/tweets",
+                json=payload,
+                ambiguous_write=True,
+                _remote_write_authorization=authority,
+            )
+    finally:
+        server.stop()
+
+    assert server.requests == []
+    assert observed_auth == [configured_auth]
+    assert observed_auth[0] is not custom_auth
+    assert custom_auth.calls == 0
+    assert error_semantics._issued_rejection_proofs == {}
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_post_install_config_mutation_cannot_redirect_proof_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    provider = journal_module._configured_x_request_provider_identity()
+    assert provider is not None
+    configured_url, configured_auth, configured_timeout = provider()
+    server = FakeApiServer(
+        {
+            "tweet_post_responses": [
+                {"status": 403, "body": PRODUCTION_DELETED_REPLY_ERROR}
+            ]
+        }
+    ).start()
+    attacker_url = f"{server.url}/2/tweets"
+
+    class ResponseReplacingAuth(bot.requests.auth.AuthBase):
+        calls = 0
+
+        def __call__(self, request: object) -> object:
+            self.calls += 1
+            request.register_hook(
+                "response",
+                lambda *_args, **_kwargs: _x_response(
+                    403,
+                    PRODUCTION_DELETED_REPLY_ERROR,
+                ),
+            )
+            return request
+
+    attacker_auth = ResponseReplacingAuth()
+    attacker_timeout = object()
+    real_request = bot.requests.request
+    observed: list[tuple[str, object, object]] = []
+
+    # The compatibility callable is deliberately non-authoritative.  Even
+    # direct mutation of its defaults cannot replace the strong tuple which
+    # the journal evaluated and retained at installation.
+    monkeypatch.setattr(
+        provider,
+        "__defaults__",
+        (attacker_url, attacker_auth, attacker_timeout),
+    )
+    assert provider() == (attacker_url, attacker_auth, attacker_timeout)
+
+    def dispatch(
+        method: str,
+        url: str,
+        **kwargs: object,
+    ) -> bot.requests.Response:
+        observed.append((url, kwargs.get("auth"), kwargs.get("timeout")))
+        if url == attacker_url:
+            return real_request(method, url, **kwargs)
+        raise bot.requests.ConnectionError("sealed test endpoint is unavailable")
+
+    monkeypatch.setattr(bot, "X_BASE", server.url)
+    monkeypatch.setattr(bot, "AUTH", attacker_auth)
+    monkeypatch.setattr(bot, "request_timeout", lambda: attacker_timeout)
+    monkeypatch.setattr(bot.requests, "request", dispatch)
+    try:
+        with pytest.raises(bot.AmbiguousRemotePostOutcome):
+            bot.x_request(
+                "POST",
+                "/2/tweets",
+                json=payload,
+                ambiguous_write=True,
+                _remote_write_authorization=authority,
+            )
+    finally:
+        server.stop()
+
+    assert observed == [(configured_url, configured_auth, configured_timeout)]
+    assert configured_url != attacker_url
+    assert attacker_auth.calls == 0
+    assert server.requests == []
+    assert error_semantics._issued_rejection_proofs == {}
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_test_only_request_provider_reset_refuses_active_transaction() -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    provider = journal_module._configured_x_request_provider_identity()
+    assert provider is not None
+    configured_url, configured_auth, configured_timeout = provider()
+
+    with pytest.raises(
+        bot.TransportJournalError,
+        match="active transaction state",
+    ):
+        journal_module._reset_configured_x_request_provider_for_tests(
+            create_url=configured_url,
+            auth=configured_auth,
+            timeout=configured_timeout,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_test_only_request_provider_reset_is_unavailable_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = journal_module._configured_x_request_provider_identity()
+    assert provider is not None
+    configured_url, configured_auth, configured_timeout = provider()
+    monkeypatch.setenv("MRS_TEST_MODE", "0")
+
+    with pytest.raises(
+        bot.TransportJournalError,
+        match="outside test mode",
+    ):
+        journal_module._reset_configured_x_request_provider_for_tests(
+            create_url=configured_url,
+            auth=configured_auth,
+            timeout=configured_timeout,
+        )
+
+
+@pytest.mark.parametrize(
+    "create_url",
+    (
+        "https://api.x.com/2/tweets",
+        "http://127.0.0.1%40.attacker.invalid/2/tweets",
+        "http://127.0.0.1%00.attacker.invalid/2/tweets",
+    ),
+    ids=("live-x", "encoded-at-suffix", "encoded-null-suffix"),
+)
+def test_test_only_request_provider_reset_rejects_non_loopback_without_mutation(
+    create_url: str,
+) -> None:
+    provider = journal_module._configured_x_request_provider_identity()
+    assert provider is not None
+    configuration = provider()
+    _configured_url, configured_auth, configured_timeout = configuration
+
+    with pytest.raises(
+        bot.TransportJournalError,
+        match="loopback endpoint",
+    ):
+        journal_module._reset_configured_x_request_provider_for_tests(
+            create_url=create_url,
+            auth=configured_auth,
+            timeout=configured_timeout,
+        )
+
+    assert journal_module._configured_x_request_provider_identity() is provider
+    assert provider() == configuration
+    assert journal_module._bound_x_requests == {}
+    assert journal_module._bound_x_request_transactions == {}
+    assert journal_module._consumed_x_responses == {}
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "untrusted-response",
+        "wrong-response-url",
+        "wrong-request-method",
+        "wrong-request-url",
+        "wrong-request-body",
+    ),
+)
+def test_response_provenance_mismatch_cannot_prove_reply_rejection(
+    case: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    configured_url = f"{bot.x_request_base_url('POST', '/2/tweets')}/2/tweets"
+    response: object
+    if case == "untrusted-response":
+        response = SimpleNamespace(
+            status_code=403,
+            content=json.dumps(PRODUCTION_DELETED_REPLY_ERROR).encode("utf-8"),
+            history=[],
+            headers={},
+            text=json.dumps(PRODUCTION_DELETED_REPLY_ERROR),
+            url=configured_url,
+        )
+    else:
+        response = _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
+        response.url = (
+            "https://attacker.invalid/2/tweets"
+            if case == "wrong-response-url"
+            else configured_url
+        )
+        prepared_payload = (
+            {**payload, "text": "different reply"}
+            if case == "wrong-request-body"
+            else payload
+        )
+        response.request = bot.requests.Request(
+            method="GET" if case == "wrong-request-method" else "POST",
+            url=(
+                "https://attacker.invalid/2/tweets"
+                if case == "wrong-request-url"
+                else configured_url
+            ),
+            json=prepared_payload,
+        ).prepare()
+
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: response,
+    )
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert error_semantics._issued_rejection_proofs == {}
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+@pytest.mark.parametrize(
+    "case",
+    (
+        "redirect-enabled",
+        "extra-request-option",
+        "error-response-history",
+        "success-response-history",
+    ),
+)
+def test_request_coordinator_rejects_redirect_uncertainty(
+    case: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    _source, authority = _armed_x_create_transaction(payload)
+    request_calls: list[str] = []
+    request_authority = (
+        journal_module._bind_transport_authority_to_configured_x_request(
+            authority,
+            payload=payload,
+        )
+    )
+
+    if not case.endswith("response-history"):
+        monkeypatch.setattr(
+            bot.requests,
+            "request",
+            lambda *_args, **_kwargs: request_calls.append("request"),
+        )
+        with pytest.raises(
+            bot.TransportJournalError,
+            match="exact create route",
+        ):
+            journal_module.perform_consumed_x_request(
+                Path(authority.journal_path),
+                authority,
+                request_authority=request_authority,
+                payload=payload,
+                expected_receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+                request_kwargs={
+                    "json": payload,
+                    "allow_redirects": case != "extra-request-option",
+                    **(
+                        {"params": {"unexpected": "channel"}}
+                        if case == "extra-request-option"
+                        else {}
+                    ),
+                },
+            )
+        assert request_calls == []
+    else:
+        response = _x_response(
+            201 if case == "success-response-history" else 403,
+            (
+                {"data": {"id": "999"}}
+                if case == "success-response-history"
+                else PRODUCTION_DELETED_REPLY_ERROR
+            ),
+        )
+        response.history = [_x_response(307, {"location": "/2/tweets"})]
+
+        def redirected(*_args: object, **_kwargs: object) -> object:
+            request_calls.append("request")
+            return response
+
+        monkeypatch.setattr(bot.requests, "request", redirected)
+        with pytest.raises(
+            bot.TransportJournalError,
+            match="redirect-free hop",
+        ):
+            journal_module.perform_consumed_x_request(
+                Path(authority.journal_path),
+                authority,
+                request_authority=request_authority,
+                payload=payload,
+                expected_receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+                request_kwargs={"json": payload, "allow_redirects": False},
+            )
+        assert request_calls == ["request"]
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_target_specific_body_on_non_reply_create_remains_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {"text": "ordinary non-reply post"}
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "not JSON: You attempted to reply to a Tweet that is deleted or not visible to you.",
+        (
+            '{"detail":"You attempted to reply to a Tweet that is deleted or not '
+            'visible to you.","detail":"You attempted to reply to a Tweet that is '
+            'deleted or not visible to you."}'
+        ),
+        '["You attempted to reply to a Tweet that is deleted or not visible to you."]',
+        '{"detail":["You attempted to reply to a Tweet that is deleted or not visible to you."]}',
+        '{"status":404,"detail":"You attempted to reply to a Tweet that is deleted or not visible to you."}',
+        (
+            b'{"detail":"You attempted to reply to a Tweet that is deleted or not '
+            b'visible to you.","status":403,"title":"Forbidden","type":"about:blank",'
+            b'"invalid_utf8":"\xff"}'
+        ),
+    ],
+    ids=(
+        "non-json",
+        "duplicate-key",
+        "non-object",
+        "invalid-message-schema",
+        "mismatched-body-status",
+        "invalid-utf8",
+    ),
+)
+def test_malformed_target_specific_write_response_remains_ambiguous(
+    body: str | bytes,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _raw_x_response(403, body),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {**PRODUCTION_DELETED_REPLY_ERROR, "data": {"id": "999"}},
+        {**PRODUCTION_DELETED_REPLY_ERROR, "accepted": True},
+        {
+            **PRODUCTION_DELETED_REPLY_ERROR,
+            "type": "urn:x:reply-created-successfully",
+        },
+        {
+            **PRODUCTION_DELETED_REPLY_ERROR,
+            "detail": (
+                f"{PRODUCTION_DELETED_REPLY_ERROR['detail']} "
+                "The reply was created successfully."
+            ),
+        },
+        {
+            **PRODUCTION_DELETED_REPLY_ERROR,
+            "message": "reply was created successfully",
+        },
+        {
+            "errors": [
+                {"detail": PRODUCTION_DELETED_REPLY_ERROR["detail"]},
+                {"message": "reply was accepted successfully"},
+            ],
+            "status": 403,
+            "title": "Forbidden",
+            "type": "about:blank",
+        },
+    ],
+    ids=(
+        "conflicting-data-id",
+        "unknown-success-field",
+        "success-problem-type",
+        "success-in-single-detail",
+        "extra-success-message",
+        "second-success-error",
+    ),
+)
+def test_conflicting_or_extended_target_error_envelope_remains_ambiguous(
+    body: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(403, body),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_target_specific_body_on_historical_context_reply_remains_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = {
+        "schema_version": 1,
+        "lifecycle_state": "sending",
+        "unit_test": True,
+    }
+    payload = {
+        "text": "historical context",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    bot.atomic_write_json(
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        receipt,
+        durable=True,
+    )
+    source = bot.bind_transport_source(
+        receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        expected_receipt=receipt,
+        lane="historical_context_reply",
+        payload=payload,
+        validator_id="unit-test-context-source-binding-v2",
+        validator=lambda lane, observed, body: bool(
+            lane == "historical_context_reply"
+            and observed == receipt
+            and body == payload
+        ),
+    )
+    prepared = bot.begin_transport_transaction(
+        receipt_path=bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        source_binding=source,
+    )
+    authority = bot.arm_transport_transaction(
+        Path(prepared.journal_path),
+        prepared,
+        mutation_authority=bot.transaction_mutation_authority(
+            "focused historical reply arming"
+        ),
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+    assert bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists()
+
+
+@pytest.mark.parametrize(
+    "transport_error",
+    [
+        pytest.param(bot.requests.Timeout("response timeout"), id="timeout"),
+        pytest.param(
+            bot.requests.ConnectionError("connection lost"),
+            id="connection-loss",
+        ),
+    ],
+)
+def test_reply_create_transport_failure_remains_ambiguous(
+    transport_error: bot.requests.RequestException,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(transport_error),
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_unexpected_response_handling_failure_invalidates_consumed_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    consume_calls = 0
+    real_consume = journal_module.consume_transport_authority
+
+    def capture_consumption(*args: object, **kwargs: object) -> None:
+        nonlocal consume_calls
+        real_consume(*args, **kwargs)
+        consume_calls += 1
+
+    class ExplodingResponse:
+        @property
+        def status_code(self) -> int:
+            raise RuntimeError("injected status handling failure")
+
+    monkeypatch.setattr(
+        journal_module,
+        "consume_transport_authority",
+        capture_consumption,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: ExplodingResponse(),
+    )
+
+    with pytest.raises(RuntimeError, match="status handling failure"):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert consume_calls == 1
+    assert journal_module._consumed_x_responses == {}
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_post_bind_response_handling_failure_discards_actual_response_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    captured_proofs: list[object] = []
+    real_perform = bot.perform_consumed_x_request
+
+    def capture_proof(*args: object, **kwargs: object) -> object:
+        result = real_perform(*args, **kwargs)
+        captured_proofs.append(result[2])
+        return result
+
+    real_debug = bot.log.debug
+
+    def fail_after_bind(message: str, *args: object, **kwargs: object) -> None:
+        if message == "X response status: %s":
+            raise RuntimeError("injected post-bind logging failure")
+        real_debug(message, *args, **kwargs)
+
+    monkeypatch.setattr(
+        bot,
+        "perform_consumed_x_request",
+        capture_proof,
+    )
+    monkeypatch.setattr(bot.log, "debug", fail_after_bind)
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="post-bind logging failure"):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert len(captured_proofs) == 1
+    assert journal_module._consumed_x_responses == {}
+    assert id(captured_proofs[0]) not in error_semantics._issued_rejection_proofs
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_actual_response_capability_publication_interruption_rolls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+
+    class PublishThenRaise(dict[int, tuple[object, ...]]):
+        def __setitem__(self, key: int, value: tuple[object, ...]) -> None:
+            super().__setitem__(key, value)
+            raise RuntimeError("injected response capability interruption")
+
+    interrupted_registry = PublishThenRaise()
+    monkeypatch.setattr(
+        journal_module,
+        "_consumed_x_responses",
+        interrupted_registry,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="response capability interruption"):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert interrupted_registry == {}
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_proved_exception_construction_failure_invalidates_issued_proof(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+    captured_proofs: list[object] = []
+    real_exception = bot.ProvedRemotePostNonSuccess
+
+    class ExplodingProvedRemotePostNonSuccess(real_exception):
+        def __init__(
+            self,
+            message: str,
+            *,
+            remote_non_success_proof: object,
+            **kwargs: object,
+        ) -> None:
+            captured_proofs.append(remote_non_success_proof)
+            raise RuntimeError("injected proved-exception construction failure")
+
+    monkeypatch.setattr(
+        bot,
+        "ProvedRemotePostNonSuccess",
+        ExplodingProvedRemotePostNonSuccess,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="proved-exception construction"):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert len(captured_proofs) == 1
+    assert error_semantics.reply_create_rejection_payload(
+        captured_proofs[0]
+    ) is None
+    assert id(captured_proofs[0]) not in error_semantics._issued_rejection_proofs
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_proof_publication_interruption_rolls_back_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "text": "unit reply",
+        "reply": {"in_reply_to_tweet_id": "100"},
+    }
+    authority = _armed_x_create_authority(payload)
+
+    class PublishThenRaise(dict[int, tuple[object, ...]]):
+        def __setitem__(self, key: int, value: tuple[object, ...]) -> None:
+            super().__setitem__(key, value)
+            raise RuntimeError("injected proof publication interruption")
+
+    interrupted_registry = PublishThenRaise()
+    monkeypatch.setattr(
+        error_semantics,
+        "_issued_rejection_proofs",
+        interrupted_registry,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="proof publication interruption"):
+        bot.x_request(
+            "POST",
+            "/2/tweets",
+            json=payload,
+            ambiguous_write=True,
+            _remote_write_authorization=authority,
+        )
+
+    assert interrupted_registry == {}
+    assert Path(authority.journal_path).exists()
+    assert Path(authority.fence_path).exists()
+
+
+def test_deleted_mention_reply_is_terminal_without_transport_barriers_or_quota(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    provider_calls: list[str] = []
+    remote_calls: list[str] = []
+    _configure_approved_mention_candidate(
+        state,
+        monkeypatch,
+        provider_calls=provider_calls,
+    )
+
+    def rejected(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        remote_calls.append("called")
+        return _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
+
+    monkeypatch.setattr(bot.requests, "request", rejected)
+
+    assert (
+        bot.maybe_reply_to_mentions(state)
+        == bot.NORMAL_CHECK_STATUS_CHECKED
+    )
+
+    terminal = bot.terminal_reply_evaluation(state, "100")
+    assert terminal is not None
+    assert terminal["outcome"] == "reply_not_permitted"
+    assert terminal["reason"] == "x_reply_not_permitted"
+    assert state["daily_reply_count"] == 0
+    assert state["last_reply_epoch"] == 0
+    assert state["daily_replied_author_ids"] == []
+    assert not state.get("pending_ai_reply_drafts")
+    assert provider_calls == ["called"]
+    assert remote_calls == ["called"]
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+    journal_path = bot.journal_path_for_receipt(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE
+    )
+    assert not journal_path.exists()
+    assert not bot.fence_path_for_journal(journal_path).exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+    restarted = bot.load_state()
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_reply_ai",
+        lambda *_args: pytest.fail(
+            "terminal target must not rebuild context after restart"
+        ),
+    )
+    monkeypatch.setattr(
+        bot,
+        "generate_ai_first_reply",
+        lambda *_args, **_kwargs: pytest.fail(
+            "terminal target must not call a provider after restart"
+        ),
+    )
+    assert (
+        bot.maybe_reply_to_mentions(restarted)
+        == bot.NORMAL_CHECK_STATUS_CHECKED
+    )
+    assert provider_calls == ["called"]
+    assert remote_calls == ["called"]
+    assert bot.terminal_reply_evaluation(restarted, "100") is not None
+
+    # The proved rejection released the global transaction barrier: a later,
+    # unrelated authorised reply can cross transport and confirm normally.
+    later_sending = unit_sending_v4_reply_receipt(
+        target_id="101",
+        author_id="201",
+        text="A later unrelated reply.",
+        epoch=2_000_000_001,
+        attempt_epoch=2_000_000_001,
+    )
+
+    def confirmed_later(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        remote_calls.append("later")
+        return _x_response(201, {"data": {"id": "900001"}})
+
+    monkeypatch.setattr(bot.requests, "request", confirmed_later)
+    response, confirmed = bot.post_conversational_reply_with_durable_identity(
+        state=restarted,
+        receipt_template=later_sending,
+        reply_text=str(later_sending["reply_text"]),
+        reply_to_id=str(later_sending["target_id"]),
+        made_with_ai=False,
+        lane="mention",
+    )
+    assert response == {"data": {"id": "900001"}}
+    bot.apply_confirmed_reply_receipt(restarted, confirmed)
+    bot.save_state(restarted, durable=True)
+    bot.retire_lane_transport_journal_if_present(
+        receipt_path=bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        receipt=confirmed,
+        lane="conversational_reply",
+        post_id="900001",
+    )
+    bot.remove_confirmed_reply_receipt(confirmed)
+    assert remote_calls == ["called", "later"]
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_deleted_quote_tweet_reply_is_terminal_without_barriers_or_quota(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    provider_calls: list[str] = []
+    remote_calls: list[str] = []
+    _configure_approved_quote_candidate(
+        state,
+        monkeypatch,
+        provider_calls=provider_calls,
+    )
+
+    def rejected(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        remote_calls.append("called")
+        return _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
+
+    monkeypatch.setattr(bot.requests, "request", rejected)
+
+    assert (
+        bot.maybe_reply_to_quote_tweets(state)
+        == bot.QUOTE_CHECK_STATUS_CHECKED
+    )
+
+    terminal = bot.terminal_reply_evaluation(state, "910")
+    assert terminal is not None
+    assert terminal["outcome"] == "reply_not_permitted"
+    assert terminal["reason"] == "x_reply_not_permitted"
+    assert state["daily_reply_count"] == 0
+    assert state["daily_quote_reply_count"] == 0
+    assert state["last_reply_epoch"] == 0
+    assert state["daily_replied_author_ids"] == []
+    assert "910" in state["skipped_quote_post_ids"]
+    assert not state.get("pending_ai_reply_drafts")
+    assert provider_calls == ["called"]
+    assert remote_calls == ["called"]
+    assert bot.load_confirmed_reply_receipt() == ("absent", None)
+    journal_path = bot.journal_path_for_receipt(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE
+    )
+    assert not journal_path.exists()
+    assert not bot.fence_path_for_journal(journal_path).exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_FILE.exists()
+    assert not bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
+def test_proved_rejection_journal_retirement_failure_preserves_barriers_and_is_not_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    provider_calls: list[str] = []
+    _configure_approved_mention_candidate(
+        state,
+        monkeypatch,
+        provider_calls=provider_calls,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+    real_unlink = journal_module._unlink_exact_stable_file
+
+    def fail_proved_journal_retirement(*args: object, **kwargs: object) -> None:
+        if kwargs.get("label") == "proved-non-success transport journal":
+            raise bot.TransportJournalError(
+                "injected proved rejection journal retirement failure"
+            )
+        real_unlink(*args, **kwargs)
+
+    monkeypatch.setattr(
+        journal_module,
+        "_unlink_exact_stable_file",
+        fail_proved_journal_retirement,
+    )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.maybe_reply_to_mentions(state)
+
+    assert bot.terminal_reply_evaluation(state, "100") is None
+    assert state["daily_reply_count"] == 0
+    assert state.get("pending_ai_reply_drafts")
+    assert bot.load_confirmed_reply_receipt()[0] == "sending"
+    journal_path = bot.journal_path_for_receipt(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE
+    )
+    assert journal_path.exists()
+    assert bot.fence_path_for_journal(journal_path).exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+def test_proved_rejection_journal_close_failure_invalidates_proof_and_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    provider_calls: list[str] = []
+    _configure_approved_mention_candidate(
+        state,
+        monkeypatch,
+        provider_calls=provider_calls,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+    captured_proofs: list[object] = []
+    real_retire = (
+        bot.retire_consumed_transport_transaction_after_proved_remote_non_success
+    )
+
+    def capture_proof(*args: object, **kwargs: object) -> None:
+        captured_proofs.append(kwargs["remote_non_success_proof"])
+        real_retire(*args, **kwargs)
+
+    monkeypatch.setattr(
+        bot,
+        "retire_consumed_transport_transaction_after_proved_remote_non_success",
+        capture_proof,
+    )
+    real_unlink = journal_module._unlink_exact_stable_file
+    close_target: int | None = None
+
+    def track_final_unlink(
+        directory_fd: int,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        nonlocal close_target
+        real_unlink(directory_fd, *args, **kwargs)
+        if kwargs.get("label") == "proved-non-success transport fence":
+            close_target = directory_fd
+
+    real_close = journal_module.os.close
+
+    def fail_final_directory_close(descriptor: int) -> None:
+        nonlocal close_target
+        if descriptor == close_target:
+            close_target = None
+            real_close(descriptor)
+            raise OSError("injected proved rejection directory close failure")
+        real_close(descriptor)
+
+    monkeypatch.setattr(
+        journal_module,
+        "_unlink_exact_stable_file",
+        track_final_unlink,
+    )
+    monkeypatch.setattr(journal_module.os, "close", fail_final_directory_close)
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.maybe_reply_to_mentions(state)
+
+    assert captured_proofs
+    assert error_semantics.reply_create_rejection_payload(
+        captured_proofs[0]
+    ) is None
+    assert bot.terminal_reply_evaluation(state, "100") is None
+    assert state["daily_reply_count"] == 0
+    assert bot.load_confirmed_reply_receipt()[0] == "sending"
+    journal_path = bot.journal_path_for_receipt(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE
+    )
+    assert not journal_path.exists()
+    assert not bot.fence_path_for_journal(journal_path).exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+def test_proved_rejection_receipt_retirement_failure_is_terminal_but_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    provider_calls: list[str] = []
+    _configure_approved_mention_candidate(
+        state,
+        monkeypatch,
+        provider_calls=provider_calls,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+    claimed_proofs: list[object] = []
+    real_claim = bot.claim_reply_create_rejection_for_receipt_retirement
+
+    def capture_claim(proof: object, **kwargs: object) -> bool:
+        claimed_proofs.append(proof)
+        return real_claim(proof, **kwargs)
+
+    monkeypatch.setattr(
+        bot,
+        "claim_reply_create_rejection_for_receipt_retirement",
+        capture_claim,
+    )
+    monkeypatch.setattr(
+        bot,
+        "remove_confirmed_reply_receipt",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            OSError("injected sending receipt retirement failure")
+        ),
+    )
+
+    with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):
+        bot.maybe_reply_to_mentions(state)
+
+    terminal = bot.terminal_reply_evaluation(state, "100")
+    assert terminal is not None
+    assert terminal["outcome"] == "reply_not_permitted"
+    assert claimed_proofs
+    assert error_semantics.reply_create_rejection_payload(
+        claimed_proofs[0]
+    ) is None
+    assert state["daily_reply_count"] == 0
+    assert not state.get("pending_ai_reply_drafts")
+    assert bot.load_confirmed_reply_receipt()[0] == "sending"
+    journal_path = bot.journal_path_for_receipt(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE
+    )
+    assert not journal_path.exists()
+    assert not bot.fence_path_for_journal(journal_path).exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+def test_proved_rejection_missing_receipt_at_claim_latches_terminal_barrier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    provider_calls: list[str] = []
+    _configure_approved_mention_candidate(
+        state,
+        monkeypatch,
+        provider_calls=provider_calls,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+    captured_proofs: list[object] = []
+    real_claim = bot.claim_reply_create_rejection_for_receipt_retirement
+
+    def remove_before_claim(proof: object, **kwargs: object) -> bool:
+        captured_proofs.append(proof)
+        bot.CONFIRMED_REPLY_RECEIPT_FILE.unlink()
+        return real_claim(proof, **kwargs)
+
+    monkeypatch.setattr(
+        bot,
+        "claim_reply_create_rejection_for_receipt_retirement",
+        remove_before_claim,
+    )
+
+    with pytest.raises(
+        bot.ConfirmedReplyLocalPersistenceError,
+        match="retirement unresolved",
+    ):
+        bot.maybe_reply_to_mentions(state)
+
+    terminal = bot.terminal_reply_evaluation(state, "100")
+    assert terminal is not None
+    assert terminal["outcome"] == "reply_not_permitted"
+    assert bot.json_file_matches(bot.STATE_FILE, state)
+    assert state["daily_reply_count"] == 0
+    assert not state.get("pending_ai_reply_drafts")
+    assert captured_proofs
+    assert error_semantics.reply_create_rejection_payload(
+        captured_proofs[0]
+    ) is not None
+    assert bot.load_confirmed_reply_receipt()[0] == "absent"
+    journal_path = bot.journal_path_for_receipt(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE
+    )
+    assert not journal_path.exists()
+    assert not bot.fence_path_for_journal(journal_path).exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
+        bot.block_if_ambiguous_remote_post()
+
+
+def test_proved_rejection_cannot_retire_replaced_same_target_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    receipt = unit_sending_v4_reply_receipt(
+        target_id="100",
+        author_id="200",
+        text="unit reply",
+        epoch=2_000_000_000,
+        attempt_epoch=2_000_000_000,
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: _x_response(
+            403,
+            PRODUCTION_DELETED_REPLY_ERROR,
+        ),
+    )
+
+    with pytest.raises(bot.ProvedRemotePostNonSuccess) as caught:
+        bot.post_conversational_reply_with_durable_identity(
+            state=state,
+            receipt_template=receipt,
+            reply_text=str(receipt["reply_text"]),
+            reply_to_id=str(receipt["target_id"]),
+            made_with_ai=False,
+            lane="mention",
+        )
+
+    replacement = unit_sending_v4_reply_receipt(
+        target_id="100",
+        author_id="999",
+        text="unit reply",
+        epoch=2_000_000_001,
+        attempt_epoch=2_000_000_001,
+    )
+    assert bot.sending_reply_receipt_is_semantically_valid(replacement)
+    bot.atomic_write_json(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE,
+        replacement,
+        durable=True,
+    )
+
+    with pytest.raises(
+        bot.ConfirmedReplyLocalPersistenceError,
+        match="retirement unresolved",
+    ):
+        bot.retire_proved_rejected_conversational_reply_receipt(
+            replacement,
+            caught.value,
+        )
+
+    assert error_semantics.reply_create_rejection_payload(
+        caught.value.remote_non_success_proof
+    ) is not None
+    assert bot.load_confirmed_reply_receipt() == ("sending", replacement)
+    journal_path = bot.journal_path_for_receipt(
+        bot.CONFIRMED_REPLY_RECEIPT_FILE
+    )
+    assert not journal_path.exists()
+    assert not bot.fence_path_for_journal(journal_path).exists()
+    assert bot.AMBIGUOUS_POST_OUTCOME_SUCCESSOR_FILE.exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
 
 
 def test_x_create_redirect_is_not_followed_and_is_ambiguous(
@@ -1576,6 +3528,52 @@ def test_historical_context_generic_4xx_retains_sending_receipt_and_blocks_retry
 
     assert remote_calls == 1
     assert store.receipt_path.read_bytes() == receipt_bytes
+
+
+def test_historical_context_target_error_stays_ambiguous_in_real_store_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = HistoricalContextReplyStore(
+        tmp_path / "context-history.json",
+        bot.HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        mutation_authority_provider=bot.transaction_mutation_authority,
+    )
+    remote_calls: list[str] = []
+
+    def target_error(
+        _method: str,
+        _url: str,
+        **_kwargs: object,
+    ) -> bot.requests.Response:
+        remote_calls.append("request")
+        return _x_response(403, PRODUCTION_DELETED_REPLY_ERROR)
+
+    monkeypatch.setattr(bot.requests, "request", target_error)
+    _outbox, callbacks = _claimed_context_outbox_callbacks(
+        parent_post_id="111",
+        quote_id="b" * 64,
+        quote_text="A reviewed historical-context quotation.",
+        started_epoch=1_800_000_000,
+    )
+
+    with pytest.raises(AmbiguousContextReplyOutcome):
+        store.post(
+            parent_post_id="111",
+            quote_id="b" * 64,
+            reply_text="Context",
+            create_post=bot.create_post,
+            now_epoch=lambda: 1_800_000_000,
+            **callbacks,
+        )
+
+    assert remote_calls == ["request"]
+    sending = json.loads(store.receipt_path.read_text(encoding="utf-8"))
+    assert sending["lifecycle_state"] == "sending"
+    journal_path = bot.journal_path_for_receipt(store.receipt_path)
+    assert journal_path.exists()
+    assert bot.fence_path_for_journal(journal_path).exists()
+    assert bot.ambiguous_remote_post_is_blocking() is True
 
 
 def test_exact_owning_historical_context_create_is_allowed_once(

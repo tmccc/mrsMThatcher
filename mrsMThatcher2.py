@@ -4,16 +4,19 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 import os
 import sys
+from urllib.parse import urlsplit, urlunsplit
 
 
-# Command-mode authority is fixed before any application import or bootstrap
-# work.  Neither a later mutation of ``sys.argv`` nor the executable name may
-# silently change the mode whose module-level configuration was constructed.
-IMPORT_TIME_CLI_ARGUMENTS = tuple(sys.argv[1:])
-IMPORT_TIME_TEST_MODE = os.environ.get("MRS_TEST_MODE") == "1"
-
+# Direct command-line validity precedes every configuration read, including
+# the reload guard below.  Keep candidates separate until the guard proves a
+# reload cannot mix old transport authority with new safety configuration.
+_CANDIDATE_IMPORT_TIME_CLI_ARGUMENTS = tuple(sys.argv[1:])
+_CANDIDATE_IMPORT_TIME_TEST_MODE = os.environ.get("MRS_TEST_MODE") == "1"
 
 DOCUMENTED_CLI_MODE_FLAGS = (
     "--initialise",
@@ -58,18 +61,16 @@ def parse_cli_mode(argv: list[str] | tuple[str, ...]) -> str | None:
     return mode
 
 
-# A directly executed bot validates its complete argv before importing third-
-# party or application modules, constructing runtime globals, inspecting
-# credentials, configuring logging, or touching the filesystem.  Imports used
-# by tests and tools remain side-effect compatible with ordinary Python module
-# loading; their callable entry point separately requires both the current and
-# any explicitly supplied argv to equal the immutable import-time arguments.
+# A directly executed bot validates its complete argv before inspecting API
+# configuration, credentials, logging destinations, or the filesystem.
 if __name__ == "__main__":
     try:
-        import_time_mode = parse_cli_mode(IMPORT_TIME_CLI_ARGUMENTS)
+        import_time_mode = parse_cli_mode(
+            _CANDIDATE_IMPORT_TIME_CLI_ARGUMENTS
+        )
         if (
             import_time_mode in TEST_MODE_REQUIRED_CLI_FLAGS
-            and not IMPORT_TIME_TEST_MODE
+            and not _CANDIDATE_IMPORT_TIME_TEST_MODE
         ):
             raise CliUsageError(
                 f"{import_time_mode} requires MRS_TEST_MODE=1 before bot import"
@@ -78,16 +79,119 @@ if __name__ == "__main__":
         print(f"{CLI_USAGE}\nmrsMThatcher2.py: error: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
 
+
+def _normalise_x_origin_before_runtime_configuration(raw: object) -> str:
+    """Normalise one X origin before reload can overwrite safety globals."""
+
+    value = str(raw or "").strip()
+    if not value or any(ord(character) < 0x20 for character in value):
+        raise ValueError("API base URL is empty or contains control characters")
+    parsed = urlsplit(value)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("API base URL has an invalid port") from exc
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("API base URL must use http or https")
+    if (
+        not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("API base URL must be an origin without user information")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError(
+            "API base URL must not contain a query or fragment, and X API "
+            "bases must be origin-only"
+        )
+    host = parsed.hostname
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    netloc = host if port is None else f"{host}:{port}"
+    return urlunsplit((parsed.scheme.lower(), netloc, "", "", ""))
+
+
+def _effective_request_timeout_before_runtime_configuration(raw: object) -> float:
+    """Derive the effective request timeout without changing runtime globals."""
+
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 60.0
+    if not math.isfinite(value) or value <= 0 or value > 60.0:
+        return 60.0
+    return value
+
+
+def _x_request_provider_reload_fingerprint_from_environment() -> tuple[object, ...]:
+    """Fingerprint proof-transport config before a reload mutates the module."""
+
+    credential_bytes = json.dumps(
+        [
+            os.getenv("X_CONSUMER_KEY", ""),
+            os.getenv("X_CONSUMER_SECRET", ""),
+            os.getenv("X_ACCESS_TOKEN", ""),
+            os.getenv("X_ACCESS_SECRET", ""),
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    timeout_seconds = _effective_request_timeout_before_runtime_configuration(
+        os.getenv("MRS_REQUEST_TIMEOUT_SECONDS", "60")
+    )
+    create_url = (
+        _normalise_x_origin_before_runtime_configuration(
+            os.getenv("X_API_BASE_URL", "https://api.x.com")
+        )
+        + "/2/tweets"
+    )
+    return (
+        "sealed-x-request-provider-reload-v1",
+        os.environ.get("MRS_TEST_MODE") == "1",
+        create_url,
+        timeout_seconds,
+        min(10.0, timeout_seconds),
+        hashlib.sha256(
+            b"mrsMThatcher-x-oauth-config-v1\x00" + credential_bytes
+        ).hexdigest(),
+    )
+
+
+_CURRENT_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT = (
+    _x_request_provider_reload_fingerprint_from_environment()
+)
+from remote_write_transport_journal import (  # noqa: E402
+    _configured_x_request_reload_record,
+)
+
+(
+    _X_REQUEST_PROVIDER_RELOAD_RECORD_STATE,
+    _X_REQUEST_PROVIDER_INSTALLED_FINGERPRINT,
+) = _configured_x_request_reload_record(sys.modules[__name__])
+if _X_REQUEST_PROVIDER_RELOAD_RECORD_STATE == "invalid" or (
+    _X_REQUEST_PROVIDER_RELOAD_RECORD_STATE == "installed"
+    and _X_REQUEST_PROVIDER_INSTALLED_FINGERPRINT
+    != _CURRENT_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT
+):
+    raise RuntimeError(
+        "Refusing to reload mrsMThatcher2 with changed sealed X request "
+        "configuration"
+    )
+
+
+# Command-mode authority is fixed before any application import or bootstrap
+# work.  Neither a later mutation of ``sys.argv`` nor the executable name may
+# silently change the mode whose module-level configuration was constructed.
+IMPORT_TIME_CLI_ARGUMENTS = _CANDIDATE_IMPORT_TIME_CLI_ARGUMENTS
+IMPORT_TIME_TEST_MODE = _CANDIDATE_IMPORT_TIME_TEST_MODE
+
 import html
 import copy
 from decimal import Decimal
 import errno
 import fcntl
-import hashlib
 import ipaddress
-import json
 import logging
-import math
 import mimetypes
 import posixpath
 import random
@@ -105,7 +209,7 @@ from glob import glob
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from time import sleep
-from urllib.parse import unquote, urlsplit, urlunsplit
+from urllib.parse import unquote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
@@ -147,6 +251,9 @@ from remote_write_transport_journal import (
     SourceReceiptBinding,
     TransportAuthority,
     TransportJournalError,
+    _bind_transport_authority_to_configured_x_request,
+    _configured_x_request_is_sealed_test_loopback,
+    _install_configured_x_request_provider,
     abort_untransmitted_transport_transaction,
     arm_transport_transaction,
     bind_confirmed_transport_source,
@@ -159,12 +266,31 @@ from remote_write_transport_journal import (
     inspect_confirmed_transport_transaction,
     inspect_transport_state,
     journal_path_for_receipt,
+    perform_consumed_x_request,
     replace_bound_source_receipt,
     replace_exact_source_receipt_document,
+    retire_consumed_transport_transaction_after_proved_remote_non_success,
     retire_confirmed_transport_transaction,
     transport_journal_has_valid_restart_barrier,
     transport_journal_is_blocking,
     verify_confirmed_transport_source_lineage,
+)
+from x_api_error_semantics import (
+    DeterministicReplyCreateRejectionProof,
+    ValidatedXErrorResponse,
+    XErrorResponseValidationError,
+    X_API_ERROR_ENDPOINT_NOT_FOUND,
+    X_API_ERROR_GLOBAL_DENIAL,
+    X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE,
+    X_API_ERROR_OTHER,
+    X_API_ERROR_REPLY_TARGET_RESTRICTED,
+    X_API_ERROR_REPLY_TARGET_UNAVAILABLE,
+    _activate_coordinator_reply_create_rejection_proof,
+    claim_reply_create_rejection_for_receipt_retirement,
+    classify_x_api_error,
+    invalidate_reply_create_rejection_proof,
+    parse_validated_x_error_response,
+    reply_create_rejection_payload,
 )
 from exact_receipt_retirement import (
     ExactReceiptRetirementError,
@@ -299,7 +425,12 @@ MENTIONS_MAX_PAGES_PER_CHECK = 3
 AUTHOR_NO_REPLY_QUARANTINE_THRESHOLD = 3
 AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS = 21600
 AUTHOR_NO_REPLY_QUARANTINE_SECONDS = 43200
-AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = "majority_spam_or_abuse_v1"
+AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY = (
+    "majority_spam_or_abuse_seeded_corroboration_v2"
+)
+AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY = (
+    "majority_spam_or_abuse_v1"
+)
 
 # Optional hot-post reply lane. This reuses the same watched post ID file
 # as the quote-tweet lane, but looks for ordinary replies in that post
@@ -699,6 +830,7 @@ def test_mode_excludes_live_remote_writes() -> bool:
         endpoints.append(OPENAI_BASE)
     return (
         TEST_MODE
+        and _configured_x_request_is_sealed_test_loopback()
         and os.getenv("MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST")
         != LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE
         and all(
@@ -3211,6 +3343,9 @@ def normalise_base_url(raw: str, *, require_origin: bool = False) -> str:
     classification.
     """
 
+    if require_origin:
+        return _normalise_x_origin_before_runtime_configuration(raw)
+
     value = str(raw or "").strip()
     if not value or any(ord(character) < 0x20 for character in value):
         raise ValueError("API base URL is empty or contains control characters")
@@ -3258,7 +3393,7 @@ def endpoint_is_loopback(url: str) -> bool:
     ):
         return True
     try:
-        return ipaddress.ip_address(host.split("%", 1)[0]).is_loopback
+        return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
 
@@ -3356,6 +3491,8 @@ class ApiError(Exception):
         reset_epoch: int | None = None,
         request_method: str | None = None,
         request_path: str | None = None,
+        x_error_response: ValidatedXErrorResponse | None = None,
+        x_error_message_fallback: bool = True,
     ) -> None:
         """Initialise the API error."""
         super().__init__(message)
@@ -3366,10 +3503,35 @@ class ApiError(Exception):
             str(request_method).upper() if request_method else None
         )
         self.request_path = str(request_path) if request_path else None
+        self.x_error_response = x_error_response
+        self.x_error_message_fallback = x_error_message_fallback is True
 
 
 class AmbiguousRemotePostOutcome(ApiError):
     """X may have accepted a write although no response reached this process."""
+
+
+class ProvedRemotePostNonSuccess(ApiError):
+    """X deterministically rejected one exact conversational reply create."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        remote_non_success_proof: DeterministicReplyCreateRejectionProof,
+        **kwargs: object,
+    ) -> None:
+        """Bind the exception to one classifier-issued registered proof."""
+
+        if not isinstance(
+            remote_non_success_proof,
+            DeterministicReplyCreateRejectionProof,
+        ):
+            raise ValueError(
+                "proved remote non-success requires a classifier-issued proof"
+            )
+        super().__init__(message, **kwargs)
+        self.remote_non_success_proof = remote_non_success_proof
 
 
 class PaginationCursorProtocolError(ApiError):
@@ -3390,12 +3552,20 @@ def api_error_proves_remote_non_success(error: BaseException) -> bool:
     HTTP status alone is not an idempotency or reconciliation contract.  In
     particular, the project has no provider-contract evidence which proves
     that every ``POST /2/tweets`` 4xx response excludes an accepted write.
-    :class:`RemoteOperationsPaused` is the only currently modelled exception
-    which proves that the final local preflight stopped before transmission.
-    Keep every other exception fail-closed until a narrowly specified,
-    externally bound provider rejection contract exists.
+    A local preflight pause proves no transmission.  The only post-boundary
+    case is a classifier-issued proof that one exact conversational reply was
+    rejected for target-specific reasons.  Every other exception remains
+    fail-closed.
     """
-    return isinstance(error, RemoteOperationsPaused)
+    if isinstance(error, RemoteOperationsPaused):
+        return True
+    return bool(
+        isinstance(error, ProvedRemotePostNonSuccess)
+        and reply_create_rejection_payload(
+            error.remote_non_success_proof
+        )
+        is not None
+    )
 
 
 def require_remote_operation_unpaused(
@@ -3438,114 +3608,6 @@ def require_remote_operation_unpaused(
     raise RemoteOperationsPaused(
         f"Global runtime control pause blocks remote operation: {operation}"
     )
-
-
-X_API_ERROR_REPLY_TARGET_RESTRICTED = "reply_target_restricted"
-X_API_ERROR_REPLY_TARGET_UNAVAILABLE = "reply_target_missing_or_inaccessible"
-X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE = "lookup_target_missing_or_inaccessible"
-X_API_ERROR_GLOBAL_DENIAL = "global_authentication_or_application_denial"
-X_API_ERROR_ENDPOINT_NOT_FOUND = "endpoint_or_unclassified_not_found"
-X_API_ERROR_OTHER = "other"
-
-
-def _x_error_request_path(error: Exception) -> str:
-    """Return the request path without query data or credentials."""
-    raw = str(getattr(error, "request_path", "") or "")
-    if not raw:
-        return ""
-    parsed = urlsplit(raw)
-    return parsed.path or raw.split("?", 1)[0]
-
-
-def _x_error_is_tweet_lookup(error: Exception) -> bool:
-    """Return whether the failed request was one exact post lookup."""
-    return (
-        str(getattr(error, "request_method", "") or "").upper() == "GET"
-        and re.fullmatch(r"/2/tweets/\d+", _x_error_request_path(error)) is not None
-    )
-
-
-def _x_error_is_post_create(error: Exception) -> bool:
-    """Return whether the failed request was the X post-create endpoint."""
-    return (
-        str(getattr(error, "request_method", "") or "").upper() == "POST"
-        and _x_error_request_path(error) == "/2/tweets"
-    )
-
-
-def classify_x_api_error(error: Exception) -> str:
-    """Classify X failures using request context, status and bounded messages.
-
-    Status alone is deliberately insufficient: a 403 may be a target-specific
-    reply restriction or an application-wide denial, and a 404 may identify a
-    missing post or a missing/misconfigured endpoint.
-    """
-    if getattr(error, "service", None) != "x":
-        return X_API_ERROR_OTHER
-
-    status_code = getattr(error, "status_code", None)
-    message = str(error).casefold()
-    is_lookup = _x_error_is_tweet_lookup(error)
-    is_post_create = _x_error_is_post_create(error)
-
-    global_denial_markers = (
-        "invalid or expired token",
-        "could not authenticate you",
-        "authentication credentials",
-        "client forbidden",
-        "this application is not permitted",
-        "application is not permitted",
-        "unsupported authentication",
-    )
-    if status_code in {401, 403} and any(
-        marker in message for marker in global_denial_markers
-    ):
-        return X_API_ERROR_GLOBAL_DENIAL
-
-    reply_restriction_markers = (
-        "reply to this conversation is not allowed",
-        "not been mentioned or otherwise engaged by the author",
-        "not allowed to reply",
-        "only reply to or quote posts where you are mentioned or are the author",
-        "author has restricted who can reply",
-    )
-    target_unavailable_markers = (
-        "tweet that is deleted or not visible to you",
-        "post that is deleted or not visible to you",
-        "tweet is deleted or not visible",
-        "post is deleted or not visible",
-        "tweet is unavailable",
-        "post is unavailable",
-        "could not find tweet",
-        "could not find post",
-        "tweet not found",
-        "post not found",
-    )
-
-    if status_code == 403 and any(
-        marker in message for marker in reply_restriction_markers
-    ):
-        # Strong reply-specific messages remain classifiable for legacy errors
-        # which pre-date explicit request metadata.
-        if is_post_create or not getattr(error, "request_path", None):
-            return X_API_ERROR_REPLY_TARGET_RESTRICTED
-
-    if status_code in {403, 404} and any(
-        marker in message for marker in target_unavailable_markers
-    ):
-        if is_post_create or not getattr(error, "request_path", None):
-            return X_API_ERROR_REPLY_TARGET_UNAVAILABLE
-        if is_lookup:
-            return X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE
-
-    if status_code == 404:
-        if is_lookup:
-            return X_API_ERROR_LOOKUP_TARGET_UNAVAILABLE
-        return X_API_ERROR_ENDPOINT_NOT_FOUND
-
-    if status_code == 403:
-        return X_API_ERROR_GLOBAL_DENIAL
-    return X_API_ERROR_OTHER
 
 
 def api_error_is_reply_not_allowed(error: Exception) -> bool:
@@ -4210,6 +4272,16 @@ def prune_author_evaluation_quarantines(
         ):
             changed = True
             continue
+        explicit_epoch = raw_record.get(
+            "latest_explicit_spam_or_abuse_epoch"
+        )
+        if (
+            type(explicit_epoch) is not int
+            or explicit_epoch < 0
+            or explicit_epoch > MAX_REASONABLE_STATE_EPOCH
+        ):
+            changed = True
+            continue
         recent = [
             int(epoch)
             for epoch in raw_record.get("recent_no_reply_epochs", [])
@@ -4228,13 +4300,18 @@ def prune_author_evaluation_quarantines(
             )
             until = 0
             recent = []
+            explicit_epoch = 0
             updated = current
             changed = True
-        if until > current or recent:
+        explicit_seed_is_live = cutoff < explicit_epoch <= current
+        if until <= current and not explicit_seed_is_live:
+            recent = []
+        if until > current or (recent and explicit_seed_is_live):
             record = {
                 "recent_no_reply_epochs": recent,
                 "quarantine_until_epoch": until,
                 "last_updated_epoch": updated,
+                "latest_explicit_spam_or_abuse_epoch": explicit_epoch,
                 "evidence_policy": AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
             }
             retained[str(author_id)] = record
@@ -4272,8 +4349,9 @@ def record_qualifying_author_no_reply(
     author_id: str,
     *,
     current_epoch: int | None = None,
+    explicit_spam_or_abuse: bool = True,
 ) -> bool:
-    """Add one confirmed policy-silence strike and start quarantine at threshold."""
+    """Add one explicit or explicitly seeded corroborating no-reply strike."""
     author_id = str(author_id)
     if not author_id or not author_id.isdigit():
         return False
@@ -4292,6 +4370,14 @@ def record_qualifying_author_no_reply(
         for epoch in existing.get("recent_no_reply_epochs", [])
         if type(epoch) is int and cutoff < epoch <= current
     ]
+    explicit_epoch = existing.get("latest_explicit_spam_or_abuse_epoch", 0)
+    explicit_seed_is_live = (
+        type(explicit_epoch) is int and cutoff < explicit_epoch <= current
+    )
+    if explicit_spam_or_abuse is not True and not explicit_seed_is_live:
+        return False
+    if explicit_spam_or_abuse is True:
+        explicit_epoch = current
     recent.append(current)
     recent.sort()
     recent = recent[-author_no_reply_epoch_limit():]
@@ -4313,6 +4399,7 @@ def record_qualifying_author_no_reply(
         "recent_no_reply_epochs": recent,
         "quarantine_until_epoch": until,
         "last_updated_epoch": current,
+        "latest_explicit_spam_or_abuse_epoch": explicit_epoch,
         "evidence_policy": AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
     }
     state["author_evaluation_quarantines"] = records
@@ -4935,7 +5022,10 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
         "quarantine_until_epoch",
         "last_updated_epoch",
     }
-    current_fields = legacy_fields | {"evidence_policy"}
+    previous_policy_fields = legacy_fields | {"evidence_policy"}
+    current_fields = previous_policy_fields | {
+        "latest_explicit_spam_or_abuse_epoch"
+    }
     for raw_author_id, raw_record in value.items():
         author_id = str(raw_author_id)
         if not author_id.isdigit() or not isinstance(raw_record, dict):
@@ -4948,10 +5038,20 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
                 path,
             )
             continue
-        if record_fields != current_fields:
-            return None
         if (
-            raw_record.get("evidence_policy")
+            record_fields != previous_policy_fields
+            and record_fields != current_fields
+        ):
+            return None
+        evidence_policy = raw_record.get("evidence_policy")
+        is_previous_policy = (
+            record_fields == previous_policy_fields
+            and evidence_policy
+            == AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY
+        )
+        if not is_previous_policy and (
+            record_fields != current_fields
+            or evidence_policy
             != AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
         ):
             return None
@@ -4979,10 +5079,45 @@ def normalise_author_evaluation_quarantines(value: object, *, path: Path) -> dic
             or updated > MAX_REASONABLE_STATE_EPOCH
         ):
             return None
+        if is_previous_policy:
+            if not timestamps:
+                if not until:
+                    log.warning(
+                        "Discarding empty prior-policy author-evaluation history "
+                        "for author_id=%s from %s",
+                        author_id,
+                        path,
+                    )
+                    continue
+                # A v1 quarantine can outlive its six-hour strike history.
+                # Preserve that active-until value, but do not manufacture a
+                # live explicit seed which could authorise corroboration.
+                explicit_epoch = 0
+            else:
+                explicit_epoch = timestamps[-1]
+            log.info(
+                "Migrating prior explicit-spam author-evaluation history "
+                "for author_id=%s from %s",
+                author_id,
+                path,
+            )
+        else:
+            explicit_epoch = raw_record.get(
+                "latest_explicit_spam_or_abuse_epoch"
+            )
+            if (
+                type(explicit_epoch) is not int
+                or explicit_epoch < 0
+                or explicit_epoch > MAX_REASONABLE_STATE_EPOCH
+                or explicit_epoch > updated
+                or (not until and explicit_epoch not in timestamps)
+            ):
+                return None
         result[author_id] = {
             "recent_no_reply_epochs": list(timestamps),
             "quarantine_until_epoch": until,
             "last_updated_epoch": updated,
+            "latest_explicit_spam_or_abuse_epoch": explicit_epoch,
             "evidence_policy": AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
         }
     return result
@@ -6254,6 +6389,35 @@ def frozen_strict_json_object(value: object, *, label: str) -> dict:
         )
     return decoded
 
+
+if _X_REQUEST_PROVIDER_RELOAD_RECORD_STATE == "unconfigured":
+    current_record_state, _current_record_fingerprint = (
+        _configured_x_request_reload_record(sys.modules[__name__])
+    )
+    if current_record_state != "unconfigured":
+        raise RuntimeError(
+            "Configured X request authority changed during module import"
+        )
+    _install_configured_x_request_provider(
+        lambda _url=f"{x_request_base_url('POST', '/2/tweets')}/2/tweets",
+        _auth=AUTH,
+        _timeout=request_timeout(): (_url, _auth, _timeout),
+        owner_module=sys.modules[__name__],
+        reload_fingerprint=_CURRENT_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT,
+    )
+else:
+    current_record_state, current_record_fingerprint = (
+        _configured_x_request_reload_record(sys.modules[__name__])
+    )
+    if (
+        current_record_state != "installed"
+        or current_record_fingerprint
+        != _CURRENT_X_REQUEST_PROVIDER_RELOAD_FINGERPRINT
+    ):
+        raise RuntimeError(
+            "Configured X request authority changed during module reload"
+        )
+
 def print_rate_limit_headers(response: requests.Response) -> int | None:
     """Log rate limit headers."""
     log.warning("Rate Limit: %s", response.headers.get("x-rate-limit-limit"))
@@ -6365,6 +6529,7 @@ def x_request(
             request_path=path,
         )
 
+    expected_receipt_path: Path | None = None
     if is_post_create:
         if set(kwargs) != {"json"}:
             raise AmbiguousRemotePostOutcome(
@@ -6433,14 +6598,6 @@ def x_request(
             block_if_unrelated_receipt_appeared_for_tweet_transport(
                 expected_receipt_path
             )
-            consume_transport_authority(
-                Path(_remote_write_authorization.journal_path),
-                _remote_write_authorization,
-                method=method,
-                request_path="/2/tweets",
-                payload=payload,
-                expected_receipt_path=expected_receipt_path,
-            )
         except TransportJournalError as exc:
             raise AmbiguousRemotePostOutcome(
                 "X post creation lost its exact durable transport authority",
@@ -6503,14 +6660,58 @@ def x_request(
                 request_path=path,
             ) from exc
 
+    validated_error_response: ValidatedXErrorResponse | None = None
+    rejection_proof: DeterministicReplyCreateRejectionProof | None = None
     try:
-        response = requests.request(
-            method,
-            url,
-            auth=AUTH,
-            timeout=request_timeout(),
-            **kwargs,
-        )
+        if is_post_create:
+            if expected_receipt_path is None:
+                raise TransportJournalError(
+                    "tweet transport has no canonical source receipt"
+                )
+            (
+                response,
+                coordinated_validated_error,
+                coordinated_rejection_proof,
+            ) = perform_consumed_x_request(
+                Path(_remote_write_authorization.journal_path),
+                _remote_write_authorization,
+                request_authority=(
+                    _bind_transport_authority_to_configured_x_request(
+                        _remote_write_authorization,
+                        payload=kwargs["json"],
+                    )
+                ),
+                payload=kwargs["json"],
+                expected_receipt_path=expected_receipt_path,
+                request_kwargs=kwargs,
+            )
+            if isinstance(
+                coordinated_validated_error,
+                ValidatedXErrorResponse,
+            ):
+                validated_error_response = coordinated_validated_error
+            if isinstance(
+                coordinated_rejection_proof,
+                DeterministicReplyCreateRejectionProof,
+            ):
+                rejection_proof = coordinated_rejection_proof
+        else:
+            response = requests.request(
+                method,
+                url,
+                auth=AUTH,
+                timeout=request_timeout(),
+                **kwargs,
+            )
+    except TransportJournalError as e:
+        log.exception("X request lost its exact transport authority")
+        raise AmbiguousRemotePostOutcome(
+            "X post creation lost its exact durable transport authority",
+            service="x",
+            status_code=getattr(e, "status_code", None),
+            request_method=method,
+            request_path=path,
+        ) from e
     except requests.RequestException as e:
         log.exception("X request failed before receiving response")
         if ambiguous_write:
@@ -6526,78 +6727,151 @@ def x_request(
             request_method=method,
             request_path=path,
         ) from e
+    except BaseException:
+        raise
 
-    log.debug("X response status: %s", response.status_code)
-    log.debug(
-        "X response headers: x-rate-limit-limit=%s remaining=%s reset=%s",
-        response.headers.get("x-rate-limit-limit"),
-        response.headers.get("x-rate-limit-remaining"),
-        response.headers.get("x-rate-limit-reset"),
-    )
+    def process_received_response() -> dict:
+        nonlocal rejection_proof, validated_error_response
 
-    if not 200 <= response.status_code < 300:
-        log.error("X API error %s: %s", response.status_code, response.text)
-        reset_epoch = print_rate_limit_headers(response)
+        log.debug("X response status: %s", response.status_code)
+        log.debug(
+            "X response headers: x-rate-limit-limit=%s remaining=%s reset=%s",
+            response.headers.get("x-rate-limit-limit"),
+            response.headers.get("x-rate-limit-remaining"),
+            response.headers.get("x-rate-limit-reset"),
+        )
 
-        if ambiguous_write:
-            raise AmbiguousRemotePostOutcome(
-                "X write outcome is not proved by HTTP status alone; "
-                f"received HTTP {response.status_code}: {response.text}",
+        if not 200 <= response.status_code < 300:
+            log.error("X API error %s: %s", response.status_code, response.text)
+            reset_epoch = print_rate_limit_headers(response)
+            if validated_error_response is None:
+                try:
+                    validated_error_response = parse_validated_x_error_response(
+                        getattr(response, "content", None),
+                        status_code=response.status_code,
+                    )
+                except XErrorResponseValidationError:
+                    log.warning(
+                        "X API non-success body was not one strict validated "
+                        "error object; it cannot prove remote non-success",
+                        exc_info=True,
+                    )
+
+            api_error = ApiError(
+                f"X API error {response.status_code}: {response.text}",
                 service="x",
                 status_code=response.status_code,
                 reset_epoch=reset_epoch,
                 request_method=method,
                 request_path=path,
+                x_error_response=validated_error_response,
+                x_error_message_fallback=not ambiguous_write,
             )
 
-        raise ApiError(
-            f"X API error {response.status_code}: {response.text}",
-            service="x",
-            status_code=response.status_code,
-            reset_epoch=reset_epoch,
-            request_method=method,
-            request_path=path,
-        )
+            if ambiguous_write:
+                if rejection_proof is not None:
+                    if not _activate_coordinator_reply_create_rejection_proof(
+                        rejection_proof,
+                        authority=_remote_write_authorization,
+                    ):
+                        invalidate_reply_create_rejection_proof(rejection_proof)
+                        rejection_proof = None
+                    else:
+                        raise ProvedRemotePostNonSuccess(
+                            str(api_error),
+                            service="x",
+                            status_code=response.status_code,
+                            reset_epoch=reset_epoch,
+                            request_method=method,
+                            request_path=path,
+                            x_error_response=validated_error_response,
+                            x_error_message_fallback=False,
+                            remote_non_success_proof=rejection_proof,
+                        )
+                raise AmbiguousRemotePostOutcome(
+                    "X write outcome is not proved by HTTP status alone; "
+                    f"received HTTP {response.status_code}: {response.text}",
+                    service="x",
+                    status_code=response.status_code,
+                    reset_epoch=reset_epoch,
+                    request_method=method,
+                    request_path=path,
+                    x_error_message_fallback=False,
+                )
 
-    if not response.text:
-        log.debug("X response has empty body")
-        return {}
+            raise api_error
 
-    try:
-        data = response.json()
-    except json.JSONDecodeError as e:
-        log.error("X API returned non-JSON response: %s", response.text[:1000])
-        if ambiguous_write:
-            raise AmbiguousRemotePostOutcome(
-                f"X may have accepted the write but returned a non-JSON response: {response.text[:500]}",
+        if not response.text:
+            log.debug("X response has empty body")
+            return {}
+
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            log.error(
+                "X API returned non-JSON response: %s",
+                response.text[:1000],
+            )
+            if ambiguous_write:
+                raise AmbiguousRemotePostOutcome(
+                    "X may have accepted the write but returned a non-JSON "
+                    f"response: {response.text[:500]}",
+                    service="x",
+                    request_method=method,
+                    request_path=path,
+                ) from e
+            raise ApiError(
+                f"X API returned non-JSON response: {response.text[:500]}",
                 service="x",
                 request_method=method,
                 request_path=path,
             ) from e
-        raise ApiError(
-            f"X API returned non-JSON response: {response.text[:500]}",
-            service="x",
-            request_method=method,
-            request_path=path,
-        ) from e
-    if not isinstance(data, dict):
-        message = f"X API response must be a JSON object, got {type(data).__name__}"
-        if ambiguous_write:
-            raise AmbiguousRemotePostOutcome(
-                f"X may have accepted the write but its response was not a JSON object: {type(data).__name__}",
+        if not isinstance(data, dict):
+            message = (
+                "X API response must be a JSON object, got "
+                f"{type(data).__name__}"
+            )
+            if ambiguous_write:
+                raise AmbiguousRemotePostOutcome(
+                    "X may have accepted the write but its response was not "
+                    f"a JSON object: {type(data).__name__}",
+                    service="x",
+                    request_method=method,
+                    request_path=path,
+                )
+            raise ApiError(
+                message,
                 service="x",
                 request_method=method,
                 request_path=path,
             )
-        raise ApiError(
-            message,
-            service="x",
-            request_method=method,
-            request_path=path,
-        )
 
-    log_json_debug("X response json", data)
-    return data
+        log_json_debug("X response json", data)
+        return data
+
+    try:
+        return process_received_response()
+    finally:
+        escaping_error = sys.exc_info()[1]
+        if rejection_proof is not None:
+            preserve_proof = False
+            try:
+                preserve_proof = bool(
+                    isinstance(
+                        escaping_error,
+                        ProvedRemotePostNonSuccess,
+                    )
+                    and getattr(
+                        escaping_error,
+                        "remote_non_success_proof",
+                        None,
+                    )
+                    is rejection_proof
+                )
+            except BaseException:
+                preserve_proof = False
+            if not preserve_proof:
+                invalidate_reply_create_rejection_proof(rejection_proof)
 
 
 def x_bearer_request(method: str, path: str, **kwargs) -> dict:
@@ -11032,6 +11306,34 @@ def create_post(
         )
         log.info("Created X post successfully. response=%s", result)
         return result
+    except ProvedRemotePostNonSuccess as remote_rejection:
+        try:
+            retire_consumed_transport_transaction_after_proved_remote_non_success(
+                source_binding=transport_source,
+                authority=transport_authority,
+                remote_non_success_proof=(
+                    remote_rejection.remote_non_success_proof
+                ),
+                mutation_authority=transaction_mutation_authority(
+                    "proved remote non-success transport retirement"
+                ),
+            )
+        except BaseException as retirement_error:
+            # A rejected remote create is useful only if its exact consumed
+            # transaction can also be retired without uncertainty.  Preserve
+            # the source receipt and latch a durable global barrier whenever
+            # either journal generation cannot be retired exactly.
+            record_ambiguous_remote_post(payload)
+            if not isinstance(retirement_error, Exception):
+                raise
+            raise AmbiguousRemotePostOutcome(
+                "X rejected the reply create, but its consumed transport "
+                "transaction could not be retired safely",
+                service="x",
+                request_method="POST",
+                request_path="/2/tweets",
+            ) from retirement_error
+        raise
     except TransportJournalError as exc:
         record_ambiguous_remote_post(payload)
         raise AmbiguousRemotePostOutcome(
@@ -20176,17 +20478,22 @@ def tested_pipeline_no_reply_qualifies_for_author_quarantine(
     status: str,
     reason: str,
     telemetry: dict,
+    allow_corroborating_no_reply: bool = False,
 ) -> bool:
-    """Accept only a resolved tested-pipeline spam/abuse majority as a strike."""
+    """Accept explicit spam/abuse, or an authorised ordinary corroboration."""
     if status != "no_reply":
         return False
-    if (
-        reason == "reply_necessity_review"
-        and telemetry.get("reply_necessity_outcome")
-        == "confirm_no_reply_spam_or_abuse"
-        and telemetry.get("reply_necessity_majority_resolvable") is True
-    ):
-        return True
+    if reason == "reply_necessity_review" and telemetry.get(
+        "reply_necessity_majority_resolvable"
+    ) is True:
+        outcome = telemetry.get("reply_necessity_outcome")
+        if outcome == "confirm_no_reply_spam_or_abuse":
+            return True
+        if (
+            allow_corroborating_no_reply is True
+            and outcome == "confirm_no_reply"
+        ):
+            return True
     if (
         reason == "allegation_review_suppression"
         and telemetry.get("allegation_conspiracy_outcome")
@@ -20401,6 +20708,13 @@ def generate_ai_first_reply(
                 revision_count=effective_revision_count,
             )
             if evaluation_outcome is not None:
+                qualifying_author_no_reply = (
+                    tested_pipeline_no_reply_qualifies_for_author_quarantine(
+                        status=pipeline_stage_status,
+                        reason=pipeline_stage_reason,
+                        telemetry=pipeline_stage_telemetry,
+                    )
+                )
                 evaluation_outcome.update(
                     {
                         "status": effective_status,
@@ -20410,10 +20724,15 @@ def generate_ai_first_reply(
                         ),
                         "direct_answer_repair_attempted": repair_attempted,
                         "direct_answer_repair_outcome": repair_outcome,
-                        "qualifying_author_no_reply": tested_pipeline_no_reply_qualifies_for_author_quarantine(
-                            status=pipeline_stage_status,
-                            reason=pipeline_stage_reason,
-                            telemetry=pipeline_stage_telemetry,
+                        "qualifying_author_no_reply": qualifying_author_no_reply,
+                        "corroborating_author_no_reply": (
+                            not qualifying_author_no_reply
+                            and tested_pipeline_no_reply_qualifies_for_author_quarantine(
+                                status=pipeline_stage_status,
+                                reason=pipeline_stage_reason,
+                                telemetry=pipeline_stage_telemetry,
+                                allow_corroborating_no_reply=True,
+                            )
                         ),
                         "model_call_count": effective_model_call_count,
                     }
@@ -21594,6 +21913,61 @@ def confirmed_reply_emergency_representation_is_complete(
     }
 
 
+def retire_proved_rejected_conversational_reply_receipt(
+    receipt: dict,
+    error: ProvedRemotePostNonSuccess,
+) -> None:
+    """Retire the exact sending receipt after terminal state is durable."""
+
+    if (
+        not isinstance(error, ProvedRemotePostNonSuccess)
+        or not api_error_is_reply_not_allowed(error)
+        or not sending_reply_receipt_is_semantically_valid(receipt)
+    ):
+        raise ValueError(
+            "conversational receipt retirement requires a proved target rejection"
+        )
+    payload = reply_create_rejection_payload(
+        error.remote_non_success_proof
+    )
+    if (
+        payload is None
+        or str(payload.get("text") or "") != str(receipt.get("reply_text") or "")
+        or str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or "")
+        != str(receipt.get("target_id") or "")
+        or payload.get("media") is not None
+    ):
+        raise ValueError(
+            "proved target rejection no longer binds the conversational receipt"
+        )
+    try:
+        if not claim_reply_create_rejection_for_receipt_retirement(
+            error.remote_non_success_proof,
+            target_id=str(receipt.get("target_id") or ""),
+            receipt_path=CONFIRMED_REPLY_RECEIPT_FILE,
+            receipt=receipt,
+        ):
+            raise ValueError(
+                "proved target rejection was not retired by its exact transport"
+            )
+        remove_confirmed_reply_receipt(
+            receipt,
+            sending_disposition="definite_non_success",
+        )
+    except BaseException as retirement_error:
+        # Terminal state was saved before this call, so the target cannot be
+        # retried.  Still preserve a durable global barrier for any uncertain
+        # receipt namespace transition instead of pretending the transaction
+        # is wholly clear.
+        record_ambiguous_remote_post(payload)
+        if not isinstance(retirement_error, Exception):
+            raise
+        raise ConfirmedReplyLocalPersistenceError(
+            "A proved-rejected conversational reply left its sending receipt "
+            "retirement unresolved"
+        ) from retirement_error
+
+
 def post_conversational_reply_with_durable_identity(
     *,
     state: dict,
@@ -21681,6 +22055,12 @@ def post_conversational_reply_with_durable_identity(
                 "A definitely failed conversational reply left its durable "
                 "sending receipt unresolved"
             ) from removal_error
+        end_confirmed_post_sigint_deferral(sigint_guard)
+        raise
+    except ProvedRemotePostNonSuccess:
+        # create_post has already retired the exact consumed journal/fence.
+        # Keep the sending receipt until the lane durably records its terminal
+        # target outcome, then let that lane retire the receipt explicitly.
         end_confirmed_post_sigint_deferral(sigint_guard)
         raise
     except ApiError as remote_error:
@@ -22331,12 +22711,23 @@ def maybe_reply_to_mentions(
                 if (
                     candidate_source == "mention"
                     and evaluation_outcome.get("status") == "no_reply"
-                    and evaluation_outcome.get("qualifying_author_no_reply") is True
+                    and (
+                        evaluation_outcome.get("qualifying_author_no_reply") is True
+                        or evaluation_outcome.get("corroborating_author_no_reply")
+                        is True
+                    )
                 ):
+                    # The recorder is the state-aware gate: an ordinary
+                    # no-reply cannot create history without a live explicit
+                    # spam/abuse seed for this exact author.
                     record_qualifying_author_no_reply(
                         state,
                         author_id,
                         current_epoch=current,
+                        explicit_spam_or_abuse=(
+                            evaluation_outcome.get("qualifying_author_no_reply")
+                            is True
+                        ),
                     )
             log.info("No usable reply generated for %s %s", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="no_usable_reply_generated")
@@ -22612,6 +23003,11 @@ def maybe_reply_to_mentions(
                 )
                 mark_mention_seen_if_applicable(state, mention)
                 save_state(state, durable=True)
+                if isinstance(e, ProvedRemotePostNonSuccess):
+                    retire_proved_rejected_conversational_reply_receipt(
+                        receipt_template,
+                        e,
+                    )
                 return NORMAL_CHECK_STATUS_CHECKED
 
             log.exception("Failed to post generated reply")
@@ -23688,6 +24084,11 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                     mark_quote_tweet_skipped(state, quote_id)
                     clear_pending_ai_reply(state, quote_id, "quote_tweet")
                     save_state(state, durable=True)
+                    if isinstance(e, ProvedRemotePostNonSuccess):
+                        retire_proved_rejected_conversational_reply_receipt(
+                            receipt_template,
+                            e,
+                        )
                     return QUOTE_CHECK_STATUS_CHECKED
 
                 log.exception("Failed to post generated quote-tweet reply")

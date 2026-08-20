@@ -73,6 +73,30 @@ from reply_strategy import (  # noqa: E402
 SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
 
 
+def _configure_test_x_base(
+    monkeypatch: pytest.MonkeyPatch,
+    base_url: str,
+) -> None:
+    """Install one isolated fake X origin without mutating production authority."""
+
+    prior_record = (
+        transport_journal_module._configured_x_request_install_record
+    )
+    assert prior_record is not None
+    monkeypatch.setattr(
+        transport_journal_module,
+        "_configured_x_request_install_record",
+        prior_record,
+    )
+    normalised_base = bot.normalise_base_url(base_url, require_origin=True)
+    transport_journal_module._reset_configured_x_request_provider_for_tests(
+        create_url=f"{normalised_base}/2/tweets",
+        auth=bot.AUTH,
+        timeout=bot.request_timeout(),
+    )
+    monkeypatch.setattr(bot, "X_BASE", normalised_base)
+
+
 def test_valid_receipt_epoch_uses_fixed_transaction_policy() -> None:
     assert bot.valid_receipt_epoch(1_499_999_999) is False
     assert bot.valid_receipt_epoch(1_500_000_000) is True
@@ -458,6 +482,7 @@ def test_conversational_source_lineage_helpers_require_integer_schema(
 
 @pytest.fixture(autouse=True)
 def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    transport_journal_module.reset_consumed_authorities_for_tests()
     # Operational command tests model the supported post-bootstrap dispatch path.
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular_post_receipt.json")
@@ -649,7 +674,7 @@ def run_native_photo_mention_with_xai_responses(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         enabled_strategy = copy.deepcopy(bot.ai_first_reply_strategy)
         enabled_strategy["enabled"] = True
@@ -10641,7 +10666,7 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", control_file)
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", watch_file)
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -10776,7 +10801,7 @@ def test_mention_native_photo_context_reaches_xai(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -10833,7 +10858,7 @@ def test_text_only_mention_keeps_plain_xai_content(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -10878,7 +10903,7 @@ def test_mention_external_url_without_native_photo_is_not_image_input(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -10934,7 +10959,7 @@ def test_mention_native_photo_context_caps_multiple_photos_in_order(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -10994,7 +11019,7 @@ def test_native_photo_unavailable_adds_incomplete_context_warning(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -11063,7 +11088,7 @@ def test_multimodal_xai_rejection_fails_closed_without_retry(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -11260,7 +11285,7 @@ def test_quote_tweet_native_photo_context_reaches_xai(
         monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
@@ -11300,7 +11325,7 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
         monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
@@ -11517,7 +11542,7 @@ def test_hot_post_reply_native_photo_context_reaches_xai(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", watch_file)
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", True)
@@ -15417,7 +15442,7 @@ def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_remova
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -15473,7 +15498,7 @@ def test_confirmed_reply_latest_backup_recovers_suppression_after_primary_corrup
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
@@ -15536,7 +15561,7 @@ def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
         monkeypatch.setattr(bot, "STATE_FILE", state_file)
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
@@ -15632,7 +15657,7 @@ def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
         monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
         monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
         monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
-        monkeypatch.setattr(bot, "X_BASE", server.url)
+        _configure_test_x_base(monkeypatch, server.url)
         monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
         monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
         monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)

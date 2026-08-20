@@ -8,6 +8,8 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_log_digest as digest
+import tested_reply_pipeline as pipeline
+from reply_strategy import AIReply
 
 
 def mention(tweet_id: int, author_id: int, text: str = "@MrsMThatcher A contribution.") -> dict:
@@ -95,6 +97,43 @@ def configure_provider_free_mention_check(
     monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
 
 
+def majority_no_reply_pipeline_result(outcome: str) -> pipeline.PipelineResult:
+    """Return one resolved reviewer result for the real production wrapper."""
+
+    assert outcome in {
+        "confirm_no_reply",
+        "confirm_no_reply_spam_or_abuse",
+    }
+    return pipeline.PipelineResult(
+        None,
+        "no_reply",
+        "reply_necessity_review",
+        4,
+        0,
+        (
+            {
+                "stage": "candidate_backed_engagement",
+                "provider": "xAI",
+                "schema_valid": True,
+            },
+            *(
+                {
+                    "stage": f"reply_necessity_{index}",
+                    "provider": "OpenAI",
+                    "schema_valid": True,
+                }
+                for index in range(1, 4)
+            ),
+            {
+                "stage": "reply_necessity_resolution",
+                "majority_outcome": outcome,
+                "majority_resolvable": True,
+                "invalid_or_refused_calls": 0,
+            },
+        ),
+    )
+
+
 def test_three_qualifying_no_replies_start_author_quarantine() -> None:
     state = bot.default_state()
     start = 2_000_000_000
@@ -130,6 +169,12 @@ def test_only_resolved_spam_or_abuse_majorities_qualify() -> None:
     ) is False
     assert bot.tested_pipeline_no_reply_qualifies_for_author_quarantine(
         status="no_reply",
+        reason="reply_necessity_review",
+        telemetry={**base, "reply_necessity_outcome": "confirm_no_reply"},
+        allow_corroborating_no_reply=True,
+    ) is True
+    assert bot.tested_pipeline_no_reply_qualifies_for_author_quarantine(
+        status="no_reply",
         reason="unquoted abusive epithet is grammatically directed at a permitted personal target",
         telemetry={
             "deterministic_suppressed": True,
@@ -151,6 +196,107 @@ def test_only_resolved_spam_or_abuse_majorities_qualify() -> None:
     ) is True
 
 
+def test_three_ordinary_no_reply_majorities_do_not_seed_clean_author() -> None:
+    state = bot.default_state()
+    start = 2_000_000_000
+    ordinary = {
+        "reply_necessity_outcome": "confirm_no_reply",
+        "reply_necessity_majority_resolvable": True,
+    }
+
+    assert bot.tested_pipeline_no_reply_qualifies_for_author_quarantine(
+        status="no_reply",
+        reason="reply_necessity_review",
+        telemetry=ordinary,
+        allow_corroborating_no_reply=True,
+    ) is True
+    for offset in range(3):
+        assert bot.record_qualifying_author_no_reply(
+            state,
+            "200",
+            current_epoch=start + offset,
+            explicit_spam_or_abuse=False,
+        ) is False
+
+    assert state["author_evaluation_quarantines"] == {}
+
+
+def test_explicit_spam_plus_two_ordinary_no_replies_starts_quarantine_and_skips_next(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    current = 2_000_000_000
+    candidates = [mention(tweet_id, 200) for tweet_id in range(100, 104)]
+    state = bot.default_state()
+    configure_provider_free_mention_check(
+        monkeypatch,
+        candidates,
+        current_epoch=current,
+    )
+    monkeypatch.setattr(bot, "clarification_reply_context", lambda *_args, **_kwargs: None)
+    context_targets: list[str] = []
+
+    def build_context(candidate: dict, _state: dict) -> tuple[dict, bool]:
+        target_id = str(candidate["id"])
+        context_targets.append(target_id)
+        return (
+            {
+                "target_id": target_id,
+                "thread_id": str(candidate["conversation_id"]),
+                "lane": "mention",
+                "incoming_contribution": str(candidate["text"]),
+                "parent_thread": [],
+            },
+            True,
+        )
+
+    monkeypatch.setattr(bot, "build_context_for_reply_ai", build_context)
+    pipeline_targets: list[str] = []
+    pipeline_results = iter(
+        [
+            majority_no_reply_pipeline_result(
+                "confirm_no_reply_spam_or_abuse"
+            ),
+            majority_no_reply_pipeline_result("confirm_no_reply"),
+            majority_no_reply_pipeline_result("confirm_no_reply"),
+        ]
+    )
+
+    def run_pipeline(**kwargs: object) -> pipeline.PipelineResult:
+        context = kwargs["context"]
+        assert isinstance(context, dict)
+        pipeline_targets.append(str(context["target_id"]))
+        return next(pipeline_results)
+
+    monkeypatch.setattr(pipeline, "run_reply_pipeline", run_pipeline)
+    monkeypatch.setattr(
+        bot,
+        "tested_pipeline_structured_call",
+        lambda **_kwargs: pytest.fail("the fixture must make no provider call"),
+    )
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert pipeline_targets == ["100", "101", "102"]
+    assert context_targets == pipeline_targets
+    record = state["author_evaluation_quarantines"]["200"]
+    assert record["recent_no_reply_epochs"] == [current, current, current]
+    assert record["latest_explicit_spam_or_abuse_epoch"] == current
+    assert record["quarantine_until_epoch"] == current + 43_200
+    quarantine_events = [
+        values
+        for name, values in events
+        if name == "author_evaluation_quarantine_skip"
+    ]
+    assert len(quarantine_events) == 1
+    assert quarantine_events[0]["target_id"] == "103"
+    assert quarantine_events[0]["pipeline_evaluations_skipped"] == 1
+
+
 def test_strikes_outside_window_do_not_start_quarantine() -> None:
     state = bot.default_state()
     start = 2_000_000_000
@@ -159,21 +305,76 @@ def test_strikes_outside_window_do_not_start_quarantine() -> None:
         state,
         "200",
         current_epoch=start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
+        explicit_spam_or_abuse=False,
     )
     started = bot.record_qualifying_author_no_reply(
         state,
         "200",
         current_epoch=start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS + 1,
+        explicit_spam_or_abuse=False,
     )
 
     assert started is False
-    assert state["author_evaluation_quarantines"]["200"]["quarantine_until_epoch"] == 0
+    assert state["author_evaluation_quarantines"] == {}
 
 
-def test_approved_reply_clears_author_strikes() -> None:
+def test_approved_reply_production_branch_clears_author_strikes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     state = bot.default_state()
-    bot.record_qualifying_author_no_reply(state, "200", current_epoch=2_000_000_000)
-    assert bot.clear_author_evaluation_quarantine_history(state, "200") is True
+    start = 2_000_000_000
+    bot.record_qualifying_author_no_reply(state, "200", current_epoch=start)
+    bot.record_qualifying_author_no_reply(
+        state,
+        "200",
+        current_epoch=start + 1,
+        explicit_spam_or_abuse=False,
+    )
+    candidate = mention(100, 200)
+    configure_provider_free_mention_check(
+        monkeypatch,
+        [candidate],
+        current_epoch=start + 2,
+    )
+    monkeypatch.setattr(
+        bot,
+        "clarification_reply_context",
+        lambda *_args, **_kwargs: None,
+    )
+    generation_targets: list[str] = []
+    approved_reply = AIReply(
+        "Thank you for the contribution.",
+        {"mode": "opinion_or_principle"},
+        {},
+    )
+
+    def generate_approved(
+        context: dict,
+        *_args: object,
+        **_kwargs: object,
+    ) -> AIReply:
+        generation_targets.append(str(context["target_id"]))
+        return approved_reply
+
+    monkeypatch.setattr(bot, "generate_ai_first_reply", generate_approved)
+    monkeypatch.setattr(
+        bot,
+        "tested_pipeline_structured_call",
+        lambda **_kwargs: pytest.fail("the fixture must make no provider call"),
+    )
+
+    def stop_after_approved_branch(
+        current_state: dict,
+        *_args: object,
+        **_kwargs: object,
+    ) -> bool:
+        assert current_state["author_evaluation_quarantines"] == {}
+        return False
+
+    monkeypatch.setattr(bot, "store_pending_ai_reply", stop_after_approved_branch)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert generation_targets == ["100"]
     assert state["author_evaluation_quarantines"] == {}
 
 
@@ -181,6 +382,11 @@ def test_operational_failure_does_not_add_strike(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = bot.default_state()
+    bot.record_qualifying_author_no_reply(
+        state,
+        "200",
+        current_epoch=1_999_999_999,
+    )
     candidate = mention(100, 200)
     configure_provider_free_mention_check(
         monkeypatch, [candidate], current_epoch=2_000_000_000
@@ -192,7 +398,62 @@ def test_operational_failure_does_not_add_strike(
     monkeypatch.setattr(bot, "generate_ai_first_reply", fail)
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_API_ERROR
-    assert state["author_evaluation_quarantines"] == {}
+    assert state["author_evaluation_quarantines"]["200"][
+        "recent_no_reply_epochs"
+    ] == [1_999_999_999]
+
+
+@pytest.mark.parametrize(
+    ("reason", "telemetry"),
+    [
+        (
+            "reply_necessity_review",
+            {
+                "reply_necessity_outcome": "confirm_no_reply",
+                "reply_necessity_majority_resolvable": False,
+            },
+        ),
+        (
+            "allegation_review_suppression",
+            {
+                "allegation_conspiracy_outcome": "confirm_no_reply",
+                "allegation_conspiracy_majority_resolvable": True,
+            },
+        ),
+        (
+            "unsupported_authentication_suppression",
+            {"authentication_outcome": "suppress_unsupported_authentication"},
+        ),
+        (
+            "group_hostility_suppression",
+            {"group_hostility_outcome": "suppress_group_hostility"},
+        ),
+        (
+            "unquoted abusive epithet is grammatically directed at a permitted personal target",
+            {
+                "deterministic_suppressed": True,
+                "deterministic_reason": "unquoted abusive epithet is grammatically directed at a permitted personal target",
+            },
+        ),
+    ],
+    ids=[
+        "unresolved-review",
+        "allegation-safety-suppression",
+        "evidence-authentication-suppression",
+        "group-hostility-suppression",
+        "deterministic-local-suppression",
+    ],
+)
+def test_non_qualifying_failures_and_suppressions_do_not_corroborate(
+    reason: str,
+    telemetry: dict,
+) -> None:
+    assert bot.tested_pipeline_no_reply_qualifies_for_author_quarantine(
+        status="no_reply",
+        reason=reason,
+        telemetry=telemetry,
+        allow_corroborating_no_reply=True,
+    ) is False
 
 
 def test_active_quarantine_reports_one_skipped_pipeline_evaluation(
@@ -267,34 +528,40 @@ def test_active_quarantine_permits_valid_clarification_candidate(
     )
     evaluated: list[str] = []
 
-    def no_reply(
-        context: dict,
-        *_args: object,
-        evaluation_outcome: dict | None = None,
-        **_kwargs: object,
-    ) -> None:
+    def run_pipeline(**kwargs: object) -> pipeline.PipelineResult:
+        context = kwargs["context"]
+        assert isinstance(context, dict)
         assert context["clarification_request"] == {
             "original_question": "What policy follows from that?",
             "correction": "@MrsMThatcher That did not answer my question.",
         }
         evaluated.append(str(context["target_id"]))
-        assert evaluation_outcome is not None
-        evaluation_outcome.update(
-            {
-                "status": "no_reply",
-                "reason": "reply_necessity_review",
-                "qualifying_author_no_reply": False,
-            }
-        )
-        return None
+        return majority_no_reply_pipeline_result("confirm_no_reply")
 
-    monkeypatch.setattr(bot, "generate_ai_first_reply", no_reply)
+    monkeypatch.setattr(pipeline, "run_reply_pipeline", run_pipeline)
+    monkeypatch.setattr(
+        bot,
+        "tested_pipeline_structured_call",
+        lambda **_kwargs: pytest.fail("the fixture must make no provider call"),
+    )
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert evaluated == ["100"]
     terminal = bot.terminal_reply_evaluation(state, "100")
     assert terminal is not None
     assert terminal["reason"] == "reply_necessity_review"
+    record = state["author_evaluation_quarantines"]["200"]
+    assert record["recent_no_reply_epochs"][-1] == current
+    assert all(
+        name != "author_evaluation_quarantine_skip"
+        for name, _values in events
+    )
 
 
 def test_active_quarantine_clarification_still_obeys_author_cap(
@@ -480,12 +747,145 @@ def test_quarantine_survives_reload_expires_and_is_pruned(
         "recent_no_reply_epochs": [start],
         "quarantine_until_epoch": 0,
         "last_updated_epoch": start,
+        "latest_explicit_spam_or_abuse_epoch": start,
         "evidence_policy": bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
     }
     assert bot.prune_author_evaluation_quarantines(
         loaded,
         current_epoch=start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS,
     ) is True
+    assert loaded["author_evaluation_quarantines"] == {}
+
+
+def test_seeded_corroboration_history_survives_restart_and_reaches_threshold(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = 2_000_000_000
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "now_epoch", lambda: start + 2)
+    state = bot.default_state()
+    assert bot.record_qualifying_author_no_reply(
+        state,
+        "200",
+        current_epoch=start,
+    ) is False
+    assert bot.record_qualifying_author_no_reply(
+        state,
+        "200",
+        current_epoch=start + 1,
+        explicit_spam_or_abuse=False,
+    ) is False
+    bot.save_state(state, durable=True)
+
+    loaded = bot.load_state()
+    record = loaded["author_evaluation_quarantines"]["200"]
+    assert record["recent_no_reply_epochs"] == [start, start + 1]
+    assert record["latest_explicit_spam_or_abuse_epoch"] == start
+    assert record["evidence_policy"] == (
+        bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+    )
+    assert bot.record_qualifying_author_no_reply(
+        loaded,
+        "200",
+        current_epoch=start + 2,
+        explicit_spam_or_abuse=False,
+    ) is True
+
+
+def test_previous_explicit_only_policy_history_migrates_to_live_seed(tmp_path) -> None:
+    start = 2_000_000_000
+    previous = {
+        "200": {
+            "recent_no_reply_epochs": [start, start + 1],
+            "quarantine_until_epoch": 0,
+            "last_updated_epoch": start + 1,
+            "evidence_policy": (
+                bot.AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY
+            ),
+        }
+    }
+
+    normalised = bot.normalise_author_evaluation_quarantines(
+        previous,
+        path=tmp_path / "bot_state.json",
+    )
+
+    assert normalised == {
+        "200": {
+            "recent_no_reply_epochs": [start, start + 1],
+            "quarantine_until_epoch": 0,
+            "last_updated_epoch": start + 1,
+            "latest_explicit_spam_or_abuse_epoch": start + 1,
+            "evidence_policy": (
+                bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY
+            ),
+        }
+    }
+
+
+def test_previous_policy_active_quarantine_without_live_strikes_survives_restart(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = 2_000_000_000
+    current = start + bot.AUTHOR_NO_REPLY_QUARANTINE_WINDOW_SECONDS + 1
+    quarantine_until = start + bot.AUTHOR_NO_REPLY_QUARANTINE_SECONDS
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "now_epoch", lambda: current)
+    state = bot.default_state()
+    state["author_evaluation_quarantines"] = {
+        "200": {
+            "recent_no_reply_epochs": [],
+            "quarantine_until_epoch": quarantine_until,
+            "last_updated_epoch": start,
+            "evidence_policy": (
+                bot.AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY
+            ),
+        },
+        "201": {
+            "recent_no_reply_epochs": [],
+            "quarantine_until_epoch": 0,
+            "last_updated_epoch": start,
+            "evidence_policy": (
+                bot.AUTHOR_EVALUATION_QUARANTINE_LEGACY_EVIDENCE_POLICY
+            ),
+        },
+    }
+    bot.save_state(state, durable=True)
+
+    loaded = bot.load_state()
+
+    assert set(loaded["author_evaluation_quarantines"]) == {"200"}
+    record = loaded["author_evaluation_quarantines"]["200"]
+    assert record == {
+        "recent_no_reply_epochs": [],
+        "quarantine_until_epoch": quarantine_until,
+        "last_updated_epoch": start,
+        "latest_explicit_spam_or_abuse_epoch": 0,
+        "evidence_policy": bot.AUTHOR_EVALUATION_QUARANTINE_EVIDENCE_POLICY,
+    }
+    assert bot.active_author_evaluation_quarantine(
+        loaded,
+        "200",
+        current_epoch=current,
+    ) is not None
+    assert bot.record_qualifying_author_no_reply(
+        loaded,
+        "200",
+        current_epoch=current,
+        explicit_spam_or_abuse=False,
+    ) is False
+    assert loaded["author_evaluation_quarantines"]["200"] == record
+    assert bot.active_author_evaluation_quarantine(
+        loaded,
+        "200",
+        current_epoch=quarantine_until,
+    ) is None
     assert loaded["author_evaluation_quarantines"] == {}
 
 

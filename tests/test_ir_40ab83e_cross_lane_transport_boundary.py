@@ -504,7 +504,9 @@ def _install_post_journal_receipt_loss_fault(
     """Remove the lane receipt only after its durable successor is armed."""
 
     receipt_path = _receipt_path(bot, lane)
-    real_consume = bot.consume_transport_authority
+    import remote_write_transport_journal as journal_module
+
+    real_consume = journal_module.consume_transport_authority
     injected = False
 
     def consume_after_peer_deletion(*args: object, **kwargs: object) -> None:
@@ -520,7 +522,7 @@ def _install_post_journal_receipt_loss_fault(
         )
         real_consume(*args, **kwargs)
 
-    bot.consume_transport_authority = consume_after_peer_deletion
+    journal_module.consume_transport_authority = consume_after_peer_deletion
 
 
 def _install_post_journal_source_mutation_fault(
@@ -533,7 +535,9 @@ def _install_post_journal_source_mutation_fault(
     """Mutate the receipt after its journal is armed but before final consume."""
 
     receipt_path = _receipt_path(bot, lane)
-    real_consume = bot.consume_transport_authority
+    import remote_write_transport_journal as journal_module
+
+    real_consume = journal_module.consume_transport_authority
     injected = False
 
     def consume_after_peer_mutation(*args: object, **kwargs: object) -> None:
@@ -550,7 +554,7 @@ def _install_post_journal_source_mutation_fault(
         )
         real_consume(*args, **kwargs)
 
-    bot.consume_transport_authority = consume_after_peer_mutation
+    journal_module.consume_transport_authority = consume_after_peer_mutation
 
 
 def _invoke_lane(bot: Any, lane: str, state_directory: Path) -> None:

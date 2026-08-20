@@ -4834,7 +4834,7 @@ def test_made_with_ai_network_failure_does_not_retry_ambiguous_post(tmp_path: Pa
 
 
 @pytest.mark.parametrize("fake_server", ["reply_not_allowed_403.json"], indirect=True)
-def test_reply_not_allowed_403_remains_ambiguous_and_unhandled(
+def test_reply_not_allowed_403_is_terminal_without_remote_write_barrier(
     tmp_path: Path,
     fake_server: FakeApiServer,
 ) -> None:
@@ -4842,16 +4842,30 @@ def test_reply_not_allowed_403_remains_ambiguous_and_unhandled(
     result = run_cycle(base_dir, fake_server)
 
     assert result.returncode == 0, result.stderr + result.stdout
+    assert fake_server.path_counts["/2/tweets"] == 1
     assert fake_server.posts == []
     state = read_json(base_dir / "bot_state.json")
-    assert "190" not in state["replied_to_ids"]
+    assert "190" in state["replied_to_ids"]
+    assert "190" not in state["mention_pending_candidates"]
     assert state["daily_reply_count"] == 0
+    assert state["daily_replied_author_counts"] == {}
+    assert state["daily_replied_author_ids"] == []
     assert state["x_error_epochs"] == []
     assert state["x_write_error_epochs"] == []
-    assert "reply_evaluation_records" not in state
-    marker = read_json(base_dir / "ambiguous_post_outcome.json")
-    assert marker["outcome"] == "ambiguous_remote_post"
-    assert marker["reply_to_id"] == "190"
+    evaluation = state["reply_evaluation_records"]["190"]
+    assert evaluation == {
+        "evaluated_epoch": evaluation["evaluated_epoch"],
+        "lane": "mention",
+        "outcome": "reply_not_permitted",
+        "reason": "x_reply_not_permitted",
+        "target_id": "190",
+    }
+    assert isinstance(evaluation["evaluated_epoch"], int)
+    assert evaluation["evaluated_epoch"] > 0
+    assert not (base_dir / "ambiguous_post_outcome.json").exists()
+    assert not (base_dir / "confirmed_reply_receipt.json").exists()
+    assert not (base_dir / "remote_write_transport_journal.json").exists()
+    assert not (base_dir / "remote_write_transport_fence.json").exists()
 
 
 @pytest.mark.parametrize("fake_server", ["non_json_mentions.json"], indirect=True)

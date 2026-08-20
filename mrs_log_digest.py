@@ -3534,6 +3534,88 @@ def summarise_operational_error_health(
         == "remote_write_ambiguity_barrier"
     ]
     ambiguity_times = [item for item in ambiguity_times if item is not None]
+    ambiguous_reply_outcomes: List[Tuple[datetime, str, str]] = []
+    for event in events:
+        if (
+            event.get("kind") != "reply_strategy_outcome"
+            or event.get("status") != "posting_failed_retryable"
+            or event.get("failure_reason") != "ambiguous_remote_outcome"
+        ):
+            continue
+        outcome_time = _event_time(event)
+        lane = _normalise_lane(event.get("lane"))
+        target_id = str(event.get("target_id") or "")
+        if outcome_time is None or lane == "unavailable" or not target_id:
+            continue
+        if not any(
+            seconds_between(outcome_time, root_time) <= 5
+            for root_time in ambiguity_times
+        ):
+            continue
+        ambiguous_reply_outcomes.append((outcome_time, lane, target_id))
+
+    def is_subordinate_remote_write_symptom(
+        *,
+        category: str,
+        raw: str,
+        item_time: Optional[datetime],
+    ) -> bool:
+        """Bind exact receipt/lane symptoms to a logged reply ambiguity root."""
+
+        if item_time is None:
+            return False
+        if category == "conversational_reply_receipt_barrier":
+            identity = re.search(
+                r"\blane=([^\s]+) target_id=([^\s]+)",
+                raw,
+            )
+            if identity is None:
+                return False
+            lane = _normalise_lane(identity.group(1))
+            target_id = identity.group(2)
+            return any(
+                outcome_lane == lane
+                and outcome_target == target_id
+                and 0
+                <= (outcome_time - item_time).total_seconds()
+                <= 300
+                for outcome_time, outcome_lane, outcome_target
+                in ambiguous_reply_outcomes
+            )
+        if category == "remote_write_transaction_barrier":
+            return any(
+                seconds_between(item_time, root_time) <= 5
+                for root_time in ambiguity_times
+            )
+        first_line = raw.splitlines()[0].strip() if raw else ""
+        exact_lane_barrier = bool(
+            re.fullmatch(
+                r"(?:Normal reply|Quote-tweet) lane (?:stopped by the global "
+                r"remote-write safety barrier|created an ambiguous-post barrier; "
+                r"skipping all later lanes)",
+                first_line,
+            )
+            or re.fullmatch(
+                r"Test-cycle (?:normal|quote_tweet) reply lane stopped by the "
+                r"global remote-write safety barrier",
+                first_line,
+            )
+            or first_line
+            == "Test cycle stopped after an ambiguous remote post; no later lane will run"
+            or re.fullmatch(
+                r"(?:Mention|Hot-post|Quote-tweet) reply stopped after an "
+                r"ambiguous remote outcome; the global remote-write safety "
+                r"barrier remains active",
+                first_line,
+            )
+        )
+        if not exact_lane_barrier:
+            return False
+        return any(
+            0 <= (item_time - outcome_time).total_seconds() <= 5
+            for outcome_time, _lane, _target_id in ambiguous_reply_outcomes
+        )
+
     for item in operational:
         raw = str(item.get("_raw_message") or item.get("message") or "")
         pipeline_evidence = raw_pipeline_evidence.get(id(item))
@@ -3549,6 +3631,24 @@ def summarise_operational_error_health(
             and item_time is not None
             and any(seconds_between(item_time, other) <= 10 for other in ambiguity_times)
         ):
+            category = "remote_write_ambiguity_barrier"
+        elif is_subordinate_remote_write_symptom(
+            category=category,
+            raw=raw,
+            item_time=item_time,
+        ):
+            item["_remote_write_subordinate_category"] = category
+            if category == "conversational_reply_receipt_barrier":
+                identity = re.search(
+                    r"\blane=([^\s]+) target_id=([^\s]+)",
+                    raw,
+                )
+                if identity is not None:
+                    item["_remote_write_subordinate_reply_identity"] = {
+                        "lane": _normalise_lane(identity.group(1)),
+                        "target_id": identity.group(2),
+                        "source_time": str(item.get("time") or ""),
+                    }
             category = "remote_write_ambiguity_barrier"
         root = (_incident_exception_line(raw) or raw.splitlines()[0]) if raw else category
         if category == "xai_provider_timeout" and item_time is not None:
@@ -3738,14 +3838,25 @@ def summarise_operational_error_health(
         elif category in {
             "remote_write_ambiguity_barrier",
             "remote_write_protocol_barrier",
-            "remote_write_transaction_barrier",
         }:
             safety = current_remote_write_safety or {}
             if safety.get("configured") is True and safety.get("available") is True:
                 protocol_valid = (
                     (safety.get("protocol") or {}).get("valid") is True
                 )
+                active_entries = safety.get("active_entries")
+                active_marker_names = safety.get("active_marker_names")
+                transport = safety.get("transport") or {}
                 current_clear = safety.get("blocking") is False
+                authoritative_barrier_namespace_clear = bool(
+                    safety.get("blocking") is False
+                    and isinstance(active_entries, list)
+                    and not active_entries
+                    and isinstance(active_marker_names, list)
+                    and not active_marker_names
+                    and transport.get("blocking") is False
+                    and transport.get("classification") == "clear"
+                )
                 if category == "remote_write_ambiguity_barrier":
                     proved = safety.get("reconciliation_proven") is True
                     archive = safety.get("reconciliation_archive") or {}
@@ -3761,9 +3872,10 @@ def summarise_operational_error_health(
                         >= int(last_time.timestamp())
                     ]
                     if (
-                        current_clear
+                        authoritative_barrier_namespace_clear
                         and protocol_valid
                         and proved
+                        and archive.get("valid") is True
                         and following_audits
                     ):
                         resolution_audit = min(
@@ -3909,6 +4021,58 @@ def summarise_operational_error_health(
                 "resolution_reason": resolution_reason,
                 "resolution_time": dt_text(resolution_time) if resolution_time else None,
             }
+        subordinate_symptoms = Counter(
+            str(item.get("_remote_write_subordinate_category") or "")
+            for item in ordered
+            if item.get("_remote_write_subordinate_category")
+        )
+        subordinate_reply_identities = sorted(
+            {
+                (
+                    str(identity.get("lane") or ""),
+                    str(identity.get("target_id") or ""),
+                )
+                for item in ordered
+                if isinstance(
+                    identity := item.get(
+                        "_remote_write_subordinate_reply_identity"
+                    ),
+                    dict,
+                )
+                and identity.get("lane")
+                and identity.get("target_id")
+            }
+        )
+        subordinate_reply_events = [
+            {
+                "lane": str(identity.get("lane") or ""),
+                "target_id": str(identity.get("target_id") or ""),
+                "source_time": str(identity.get("source_time") or ""),
+            }
+            for item in ordered
+            if isinstance(
+                identity := item.get(
+                    "_remote_write_subordinate_reply_identity"
+                ),
+                dict,
+            )
+            and identity.get("lane")
+            and identity.get("target_id")
+            and identity.get("source_time")
+        ]
+        if subordinate_symptoms:
+            incident["correlated_subordinate_symptom_counts"] = dict(
+                sorted(subordinate_symptoms.items())
+            )
+        if subordinate_reply_identities:
+            incident["correlated_reply_receipt_identities"] = [
+                {"lane": lane, "target_id": target_id}
+                for lane, target_id in subordinate_reply_identities
+            ]
+        if subordinate_reply_events:
+            incident["correlated_reply_receipt_events"] = (
+                subordinate_reply_events
+            )
         if pipeline_identity is not None:
             incident.update(
                 {
@@ -8773,8 +8937,9 @@ def analyse(
         remaining_errors.append(item)
     errors = remaining_errors
 
-    pending_sending_lifecycle: Counter = Counter()
-    latest_sending_event: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    pending_sending_lifecycle: Dict[
+        Tuple[str, str], List[Dict[str, Any]]
+    ] = {}
     pending_reconciliations: List[
         Tuple[Tuple[str, str, str], Dict[str, Any]]
     ] = []
@@ -8805,14 +8970,17 @@ def analyse(
         )
         kind = str(item.get("kind") or "")
         if kind == "sending":
-            pending_sending_lifecycle[sending_identity] += 1
-            latest_sending_event[sending_identity] = item
+            pending_sending_lifecycle.setdefault(sending_identity, []).append(item)
         elif kind in {
             "promoted",
             "sending_removed",
             "confirmed_state_fallback_removed",
-        } and pending_sending_lifecycle[sending_identity] > 0:
-            pending_sending_lifecycle[sending_identity] -= 1
+        }:
+            pending_for_identity = pending_sending_lifecycle.get(
+                sending_identity, []
+            )
+            if pending_for_identity:
+                pending_for_identity.pop()
         if kind == "reconciled":
             pending_reconciliations.append((identity, item))
         elif kind == "removed":
@@ -8822,23 +8990,21 @@ def analyse(
             "replay_suppressed_quote_tweet_check",
         }:
             clear_latest_reconciliation(lane=sending_identity[0])
-    for identity, count in sorted(pending_sending_lifecycle.items()):
-        if count <= 0:
-            continue
-        source = latest_sending_event.get(identity, {})
-        raw_message = (
-            "Unresolved conversational reply sending receipt remains at the end "
-            f"of the observed window lane={identity[0]} target_id={identity[1]}"
-        )
-        errors.append(
-            {
-                "time": str(source.get("time") or ""),
-                "level": "CRITICAL",
-                "where": "confirmed_reply_receipt_lifecycle",
-                "message": raw_message,
-                "_raw_message": raw_message,
-            }
-        )
+    for identity, pending_events in sorted(pending_sending_lifecycle.items()):
+        for source in pending_events:
+            raw_message = (
+                "Unresolved conversational reply sending receipt remains at the end "
+                f"of the observed window lane={identity[0]} target_id={identity[1]}"
+            )
+            errors.append(
+                {
+                    "time": str(source.get("time") or ""),
+                    "level": "CRITICAL",
+                    "where": "confirmed_reply_receipt_lifecycle",
+                    "message": raw_message,
+                    "_raw_message": raw_message,
+                }
+            )
     for identity, source in pending_reconciliations:
         raw_message = (
             "Unresolved confirmed reply receipt reconciliation remains at the "
@@ -8864,6 +9030,34 @@ def analyse(
         current_remote_write_safety=current_remote_write_safety,
         generation_time=generation_time,
     )
+    durably_reconciled_reply_receipts: List[Dict[str, Any]] = []
+    for incident in error_health.get("historical_resolved_incidents") or []:
+        if incident.get("category") != "remote_write_ambiguity_barrier":
+            continue
+        resolution_time = str(incident.get("resolution_time") or "")
+        try:
+            resolved_at = parse_dt(resolution_time)
+        except ValueError:
+            continue
+        for receipt_event in incident.get("correlated_reply_receipt_events") or []:
+            if not isinstance(receipt_event, dict):
+                continue
+            source_time = str(receipt_event.get("source_time") or "")
+            try:
+                source_at = parse_dt(source_time)
+            except ValueError:
+                continue
+            if source_at > resolved_at:
+                continue
+            durably_reconciled_reply_receipts.append(
+                {
+                    "lane": str(receipt_event.get("lane") or ""),
+                    "target_id": str(receipt_event.get("target_id") or ""),
+                    "source_time": source_time,
+                    "resolution_time": resolution_time,
+                    "resolution_reason": incident.get("resolution_reason"),
+                }
+            )
 
     # Build a short automatic headline around current health, not raw traceback volume.
     headline = []
@@ -9370,6 +9564,9 @@ def analyse(
         "confirmed_reply_recovery": {
             "receipt_events": confirmed_reply_receipts,
             "warnings": confirmed_reply_recovery,
+            "durably_reconciled_ambiguity_receipts": (
+                durably_reconciled_reply_receipts
+            ),
         },
         "historical_context_replies": {
             "events": [item for item in events if item.get("kind") == "historical_context_reply"],
@@ -12534,8 +12731,25 @@ def render_markdown(report: Dict[str, Any]) -> str:
     reply_recovery = report.get("confirmed_reply_recovery") or {}
     reply_receipt_events = reply_recovery.get("receipt_events") or []
     reply_recovery_warnings = reply_recovery.get("warnings") or []
+    reconciled_ambiguity_receipts = (
+        reply_recovery.get("durably_reconciled_ambiguity_receipts") or []
+    )
+    reconciled_ambiguity_event_counts = Counter(
+        (
+            _normalise_lane(item.get("lane")),
+            str(item.get("target_id") or ""),
+            str(item.get("source_time") or ""),
+        )
+        for item in reconciled_ambiguity_receipts
+        if isinstance(item, dict)
+        and item.get("lane")
+        and item.get("target_id")
+        and item.get("source_time")
+    )
     if reply_receipt_events or reply_recovery_warnings:
-        pending_sending_receipts: Counter = Counter()
+        pending_sending_receipts: Dict[
+            Tuple[str, str], List[Dict[str, Any]]
+        ] = {}
         pending_reply_receipts: Counter = Counter()
         pending_reconciliations: List[
             Tuple[Tuple[str, str, str], Dict[str, Any]]
@@ -12545,6 +12759,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         terminal_reply_removals_outside_window = 0
         definite_non_success_clears = 0
         confirmed_state_fallback_clears = 0
+        reconciled_ambiguity_sending_receipts = 0
 
         def clear_latest_reconciliation(
             *,
@@ -12572,21 +12787,32 @@ def render_markdown(report: Dict[str, Any]) -> str:
             )
             kind = str(item.get("kind") or "")
             if kind == "sending":
-                pending_sending_receipts[sending_identity] += 1
+                pending_sending_receipts.setdefault(
+                    sending_identity, []
+                ).append(item)
             elif kind == "promoted":
-                if pending_sending_receipts[sending_identity] > 0:
-                    pending_sending_receipts[sending_identity] -= 1
+                pending_for_identity = pending_sending_receipts.get(
+                    sending_identity, []
+                )
+                if pending_for_identity:
+                    pending_for_identity.pop()
                 pending_reply_receipts[identity] += 1
             elif kind == "sending_removed":
-                if pending_sending_receipts[sending_identity] > 0:
-                    pending_sending_receipts[sending_identity] -= 1
+                pending_for_identity = pending_sending_receipts.get(
+                    sending_identity, []
+                )
+                if pending_for_identity:
+                    pending_for_identity.pop()
                 # The matching pre-send event may be outside the selected log
                 # window.  This terminal event still proves that the receipt
                 # was cleared after a definite non-success.
                 definite_non_success_clears += 1
             elif kind == "confirmed_state_fallback_removed":
-                if pending_sending_receipts[sending_identity] > 0:
-                    pending_sending_receipts[sending_identity] -= 1
+                pending_for_identity = pending_sending_receipts.get(
+                    sending_identity, []
+                )
+                if pending_for_identity:
+                    pending_for_identity.pop()
                 # Likewise, a digest window can begin after the sending event.
                 # The terminal fallback event is self-contained evidence that
                 # the confirmed reply identity was durably preserved.
@@ -12620,31 +12846,31 @@ def render_markdown(report: Dict[str, Any]) -> str:
             else:
                 unmatched_reply_receipts.append(item)
         unresolved_reply_receipts = list(unmatched_reply_receipts)
-        for (lane, target_id), count in sorted(pending_sending_receipts.items()):
-            if count <= 0:
-                continue
-            source = next(
-                (
-                    item
-                    for item in reversed(reply_receipt_events)
-                    if str(item.get("kind") or "") == "sending"
-                    and str(item.get("lane") or "") == lane
-                    and str(item.get("target_id") or "") == target_id
-                ),
-                {},
-            )
-            unresolved_reply_receipts.append(
-                {
-                    **source,
-                    "lane": lane,
-                    "target_id": target_id,
-                    "kind": "sending_unresolved",
-                    "message": (
-                        "Pre-send reply receipt remains unresolved at the end "
-                        "of the observed window"
-                    ),
-                }
-            )
+        for (lane, target_id), pending_events in sorted(
+            pending_sending_receipts.items()
+        ):
+            for source in pending_events:
+                event_identity = (
+                    _normalise_lane(lane),
+                    target_id,
+                    str(source.get("time") or ""),
+                )
+                if reconciled_ambiguity_event_counts[event_identity] > 0:
+                    reconciled_ambiguity_event_counts[event_identity] -= 1
+                    reconciled_ambiguity_sending_receipts += 1
+                    continue
+                unresolved_reply_receipts.append(
+                    {
+                        **source,
+                        "lane": lane,
+                        "target_id": target_id,
+                        "kind": "sending_unresolved",
+                        "message": (
+                            "Pre-send reply receipt remains unresolved at the end "
+                            "of the observed window"
+                        ),
+                    }
+                )
         pending_reconciliation_counts = Counter(
             identity for identity, _item in pending_reconciliations
         )
@@ -12718,6 +12944,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 out.append(
                     "Confirmed replies preserved through the durable canonical-state "
                     f"fallback: **{confirmed_state_fallback_clears}**."
+                )
+            if reconciled_ambiguity_sending_receipts:
+                out.append(
+                    "Sending-receipt barrier observations durably reconciled with "
+                    "their remote-write ambiguity: "
+                    f"**{reconciled_ambiguity_sending_receipts}**. They remain "
+                    "visible under historical/resolved incident errors."
                 )
             if terminal_reply_removals_outside_window:
                 out.append(

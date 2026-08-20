@@ -1348,7 +1348,11 @@ def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch)
     monkeypatch.setattr(pipeline, "run_reply_pipeline", lambda **_kwargs: result)
     monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
 
-    assert bot.generate_ai_first_reply(context("A visible contribution.")) is None
+    evaluation_outcome: dict[str, object] = {}
+    assert bot.generate_ai_first_reply(
+        context("A visible contribution."),
+        evaluation_outcome=evaluation_outcome,
+    ) is None
 
     assert [name for name, _values in events] == [
         "ai_reply_pipeline_stage_summary",
@@ -1366,6 +1370,8 @@ def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch)
     assert decision["tone"] == "unknown"
     assert decision["used_fact_count"] == 0
     assert decision["trusted_facts_supplied_count"] == 0
+    assert evaluation_outcome["qualifying_author_no_reply"] is False
+    assert evaluation_outcome["corroborating_author_no_reply"] is True
 
 
 def test_production_decision_logs_routing_kind_and_unknown_fact_use(monkeypatch) -> None:

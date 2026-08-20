@@ -422,6 +422,40 @@ def test_real_script_rejects_invalid_argv_before_import_side_effects(
     assert not log_path.exists()
 
 
+def test_invalid_argv_precedes_malformed_x_configuration(
+    tmp_path: Path,
+) -> None:
+    base_directory = tmp_path / "must-not-be-created"
+    log_path = tmp_path / "must-not-be-created.log"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(bot.__file__).resolve()),
+            "--unknown",
+        ],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "MRS_BASE_DIR": str(base_directory),
+            "MRS_LOG_FILE": str(log_path),
+            "X_API_BASE_URL": "http://[malformed",
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr == (
+        f"{bot.CLI_USAGE}\n"
+        "mrsMThatcher2.py: error: unknown command mode: '--unknown'\n"
+    )
+    assert "Traceback" not in result.stderr
+    assert not base_directory.exists()
+    assert not log_path.exists()
+
+
 def test_run_cli_refuses_mode_different_from_process_argv_before_bootstrap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
