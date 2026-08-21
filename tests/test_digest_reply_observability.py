@@ -12,6 +12,55 @@ def event(kind, **values):
     return {"kind": kind, "time": "2026-07-15 12:00:00", **values}
 
 
+MAJORITY_TELEMETRY_MISSING = object()
+
+
+def majority_review_entry(family, calls=2, valid_votes=None):
+    if calls == 2:
+        return {
+            "family": family,
+            "reviewer_calls_attempted": 2,
+            "valid_votes_obtained": 2 if valid_votes is None else valid_votes,
+            "first_two_valid_votes_agreed": True,
+            "reviewer_3_called": False,
+            "reviewer_3_skipped_first_two_agreement": True,
+        }
+    return {
+        "family": family,
+        "reviewer_calls_attempted": 3,
+        "valid_votes_obtained": 3 if valid_votes is None else valid_votes,
+        "first_two_valid_votes_agreed": False,
+        "reviewer_3_called": True,
+        "reviewer_3_skipped_first_two_agreement": False,
+    }
+
+
+def analyse_majority_review_payloads(*payloads):
+    base = datetime(2026, 8, 21, 12)
+    records = []
+    for index, majority_payload in enumerate(payloads, 1):
+        payload = {
+            "event": "ai_reply_pipeline_stage_summary",
+            "lane": "mention",
+            "target_id": str(700 + index),
+            "strategy_version": "tested-reply-pipeline-20260817",
+            "status": "no_reply",
+            "terminal_reason": "reply_necessity_review",
+        }
+        if majority_payload is not MAJORITY_TELEMETRY_MISSING:
+            payload["majority_review_summaries"] = majority_payload
+        records.append(digest.Record(
+            base + timedelta(seconds=index),
+            "INFO",
+            "log_event",
+            index,
+            "EVENT " + json.dumps(payload),
+            "mrsMThatcher.log",
+            index,
+        ))
+    return digest.analyse(records)
+
+
 def test_source_classification_uses_stable_authoritative_classes():
     assert formatter.classify_source({"title": "HC Deb", "url": "https://hansard.parliament.uk/x", "source_type": "transcript"}) == "Hansard"
     assert formatter.classify_source({"title": "Redirect", "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/x"}) == "no public URL"
@@ -650,6 +699,9 @@ def test_ai_first_usage_log_format_is_counted_with_pending_context():
         "successful_openai_calls": 0,
         "prompt_tokens": 1779,
         "cached_tokens": 192,
+        "cache_read_input_tokens": 192,
+        "cache_creation_input_tokens": None,
+        "cache_write_input_tokens": None,
         "image_tokens": 0,
         "reasoning_tokens": 706,
         "completion_tokens": 123,
@@ -663,6 +715,97 @@ def test_ai_first_usage_log_format_is_counted_with_pending_context():
     assert report["xai_usage"]["events"][0]["context_id"] == "123"
     assert report["xai_usage"]["events"][0]["stage"] == "proposer"
     assert report["xai_usage"]["events"][0]["model"] == "grok-4-1-fast-reasoning"
+
+
+def test_provider_cache_tokens_are_cache_reads_and_writes_stay_nullable():
+    usage = {
+        "prompt_tokens": 100,
+        "prompt_tokens_details": {"cached_tokens": 25},
+        "completion_tokens": 20,
+        "completion_tokens_details": {"reasoning_tokens": 7},
+        "total_tokens": 120,
+    }
+    record = digest.Record(
+        datetime(2026, 8, 21, 11),
+        "INFO",
+        "tested_pipeline_structured_call",
+        1,
+        "Tested reply stage=writer_v3_initial provider=OpenAI usage="
+        + repr(usage),
+        "mrsMThatcher.log",
+        1,
+    )
+    item = digest.summarize_xai_usage_event(
+        record,
+        usage,
+        {"lane": "mention", "context_id": "700"},
+        provider="OpenAI",
+    )
+    totals = digest.xai_usage_totals([item])
+
+    assert item["cached_tokens"] == 25
+    assert item["cache_read_input_tokens"] == 25
+    assert item["cache_creation_input_tokens"] is None
+    assert item["cache_write_input_tokens"] is None
+    assert totals["cached_tokens"] == 25
+    assert totals["cache_read_input_tokens"] == 25
+    assert totals["cache_creation_input_tokens"] is None
+    assert totals["cache_write_input_tokens"] is None
+    assert totals["prompt_tokens"] == 100
+    assert totals["reasoning_tokens"] == 7
+    assert totals["completion_tokens"] == 20
+    assert totals["total_tokens"] == 120
+
+    report = digest.analyse([record])
+    rendered = digest.render_markdown(report)
+    assert "cache-read input" in rendered
+    assert "cache_read_input_tokens = 25" in rendered
+    assert (
+        "cached_tokens        = 25 (compatibility alias for cache-read input; "
+        "not cache-write usage)"
+    ) in rendered
+    assert "cache_creation_input_tokens = unavailable" in rendered
+    assert "cache_write_input_tokens = unavailable" in rendered
+
+
+def test_distinct_cache_creation_and_write_metrics_remain_separate():
+    usage = {
+        "prompt_tokens": 80,
+        "prompt_tokens_details": {
+            "cached_tokens": 20,
+            "cache_creation_tokens": 6,
+            "cache_write_tokens": 4,
+        },
+        "completion_tokens": 10,
+        "total_tokens": 90,
+    }
+    record = digest.Record(
+        datetime(2026, 8, 21, 11),
+        "INFO",
+        "tested_pipeline_structured_call",
+        1,
+        "Tested reply stage=writer_v3_initial provider=OpenAI usage="
+        + repr(usage),
+        "mrsMThatcher.log",
+        1,
+    )
+    item = digest.summarize_xai_usage_event(
+        record,
+        usage,
+        {"lane": "mention", "context_id": "700"},
+        provider="OpenAI",
+    )
+    totals = digest.xai_usage_totals([item])
+
+    assert item["cache_read_input_tokens"] == 20
+    assert item["cache_creation_input_tokens"] == 6
+    assert item["cache_write_input_tokens"] == 4
+    assert totals["cache_read_input_tokens"] == 20
+    assert totals["cache_creation_input_tokens"] == 6
+    assert totals["cache_write_input_tokens"] == 4
+    assert totals["prompt_tokens"] == 80
+    assert totals["completion_tokens"] == 10
+    assert totals["total_tokens"] == 90
 
 
 def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
@@ -811,6 +954,240 @@ def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
     assert "Allegation/conspiracy candidates/reviews/suppressions" in rendered
     assert "reply-necessity outcomes: confirm_no_reply=1; majority resolvability: false=1" in rendered
     assert "outcomes: confirm_no_reply_spam_or_abuse=1; majority resolvability: true=1" in rendered
+
+
+def test_majority_review_empty_and_legacy_coverage_are_distinct():
+    report = analyse_majority_review_payloads(
+        [],
+        MAJORITY_TELEMETRY_MISSING,
+    )
+    utilisation = report["reply_pipeline_stages"][
+        "majority_review_utilisation"
+    ]
+    coverage = utilisation["coverage"]
+
+    assert coverage == {
+        "stage_summary_events_examined": 2,
+        "events_with_majority_review_summaries": 1,
+        "events_without_majority_review_summaries": 1,
+        "events_with_empty_majority_review_summaries": 1,
+        "valid_majority_family_entries": 0,
+        "malformed_entries": 0,
+        "events_with_duplicate_family_entries": 0,
+    }
+    assert utilisation["overall"]["completed_family_resolutions"] == 0
+    assert utilisation["overall"]["reviewer_call_reduction_percentage"] is None
+    assert utilisation["overall"]["short_circuit_rate_percentage"] is None
+
+
+def test_majority_review_valid_entries_cover_all_families_and_shared_event():
+    report = analyse_majority_review_payloads(
+        [
+            majority_review_entry("reply_necessity"),
+            majority_review_entry("allegation_review", calls=3),
+        ],
+        [majority_review_entry(
+            "authentication_review", calls=3, valid_votes=2
+        )],
+    )
+    utilisation = report["reply_pipeline_stages"][
+        "majority_review_utilisation"
+    ]
+    overall = utilisation["overall"]
+
+    assert utilisation["coverage"]["valid_majority_family_entries"] == 3
+    assert list(utilisation["per_family"]) == [
+        "reply_necessity",
+        "allegation_review",
+        "authentication_review",
+    ]
+    assert utilisation["per_family"]["reply_necessity"][
+        "two_call_resolutions"
+    ] == 1
+    assert utilisation["per_family"]["allegation_review"][
+        "three_call_resolutions_with_all_three_votes_valid"
+    ] == 1
+    assert utilisation["per_family"]["authentication_review"][
+        "valid_votes_obtained"
+    ] == 2
+    assert overall["actual_reviewer_calls_attempted"] == 8
+    assert overall["reviewer_calls_saved"] == 1
+    assert overall["total_invalid_or_unusable_votes"] == 1
+    assert overall[
+        "three_call_resolutions_with_all_three_votes_valid"
+    ] == 1
+    assert overall[
+        "three_call_resolutions_with_invalid_or_unusable_votes"
+    ] == 1
+
+
+def test_majority_review_aggregate_call_savings_arithmetic():
+    report = analyse_majority_review_payloads(
+        [majority_review_entry("reply_necessity")],
+        [majority_review_entry("allegation_review")],
+        [majority_review_entry("authentication_review", calls=3)],
+        [majority_review_entry("reply_necessity", calls=3, valid_votes=2)],
+    )
+    overall = report["reply_pipeline_stages"][
+        "majority_review_utilisation"
+    ]["overall"]
+
+    assert overall["completed_family_resolutions"] == 4
+    assert overall["fixed_three_call_baseline"] == 12
+    assert overall["actual_reviewer_calls_attempted"] == 10
+    assert overall["reviewer_calls_saved"] == 2
+    assert overall["reviewer_call_reduction_percentage"] == 2 / 12 * 100
+    assert overall["two_call_resolutions"] == 2
+    assert overall["three_call_resolutions"] == 2
+    assert overall["first_two_agreement_resolutions"] == 2
+    assert overall[
+        "reviewer_3_skips_due_to_matching_first_two_votes"
+    ] == 2
+    assert overall["reviewer_3_calls"] == 2
+    assert overall[
+        "three_call_resolutions_with_all_three_votes_valid"
+    ] == 1
+    assert overall[
+        "family_resolutions_with_invalid_or_unusable_votes"
+    ] == 1
+    assert overall["total_invalid_or_unusable_votes"] == 1
+
+
+def test_majority_review_malformed_payloads_are_excluded_strictly():
+    valid = majority_review_entry("reply_necessity")
+    malformed_payloads = [
+        "not-a-list",
+        ["not-a-dictionary"],
+        [{**valid, "family": "unknown_family"}],
+        [{**valid, "first_two_valid_votes_agreed": 1}],
+        [{**valid, "reviewer_calls_attempted": 4}],
+        [{**valid, "valid_votes_obtained": 3}],
+        [{**valid, "reviewer_3_called": True}],
+        [{**valid, "valid_votes_obtained": 1}],
+        [{**valid, "private_extra_field": "PRIVATE-MAJORITY-MARKER"}],
+    ]
+    for malformed in malformed_payloads:
+        normalised = digest.normalise_majority_review_telemetry({
+            "majority_review_summaries": malformed,
+        })
+        assert normalised["valid_entries"] == []
+        assert normalised["malformed_entry_count"] == 1
+
+    duplicate = digest.normalise_majority_review_telemetry({
+        "majority_review_summaries": [valid, dict(valid)],
+    })
+    assert duplicate["duplicate_family"] is True
+    assert duplicate["valid_entries"] == []
+    assert duplicate["malformed_entry_count"] == 2
+
+    duplicate_report = analyse_majority_review_payloads([valid, dict(valid)])
+    duplicate_coverage = duplicate_report["reply_pipeline_stages"][
+        "majority_review_utilisation"
+    ]["coverage"]
+    assert duplicate_coverage["events_with_duplicate_family_entries"] == 1
+    assert duplicate_coverage["malformed_entries"] == 2
+    assert duplicate_coverage["valid_majority_family_entries"] == 0
+
+
+def test_majority_review_malformed_private_content_cannot_leak():
+    private_marker = "PRIVATE-MAJORITY-CONTENT-MUST-NOT-LEAK"
+    malformed = {
+        **majority_review_entry("reply_necessity"),
+        "arbitrary_private_text": private_marker,
+    }
+    report = analyse_majority_review_payloads([malformed])
+    rendered_json = json.dumps(report, ensure_ascii=False)
+    rendered_markdown = digest.render_markdown(report)
+
+    assert private_marker not in rendered_json
+    assert private_marker not in rendered_markdown
+    assert report["reply_pipeline_stages"]["majority_review_utilisation"][
+        "coverage"
+    ]["malformed_entries"] == 1
+
+
+def test_majority_review_markdown_reports_rows_rates_and_coverage_warnings():
+    malformed = {
+        **majority_review_entry("authentication_review"),
+        "unexpected": "excluded",
+    }
+    report = analyse_majority_review_payloads(
+        [majority_review_entry("reply_necessity")],
+        [majority_review_entry("allegation_review")],
+        [majority_review_entry("authentication_review", calls=3)],
+        [majority_review_entry("reply_necessity", calls=3, valid_votes=2)],
+        MAJORITY_TELEMETRY_MISSING,
+        [malformed],
+    )
+    rendered = digest.render_markdown(report)
+
+    assert "### Majority-review utilisation" in rendered
+    assert "Valid majority-family entries: **4**" in rendered
+    assert "2 calls saved" in rendered
+    assert "Overall short-circuit rate: **50.0%**" in rendered
+    assert "reviewer-call reduction: **16.7%**" in rendered
+    assert "| reply_necessity | 2 | 1 | 1 | 1 | 1 | 5 | 1 | 0 | 1 |" in rendered
+    assert "| allegation_review | 1 | 1 | 0 | 1 | 0 | 2 | 1 | 0 | 0 |" in rendered
+    assert "| authentication_review | 1 | 0 | 1 | 0 | 1 | 3 | 0 | 1 | 0 |" in rendered
+    assert "| Overall | 4 | 2 | 2 | 2 | 2 | 10 | 2 | 1 | 1 |" in rendered
+    assert "**Coverage warning:** 1 legacy/incomplete" in rendered
+    assert "**Malformed telemetry warning:** 1 malformed" in rendered
+
+
+def test_majority_review_markdown_legacy_only_is_unavailable_without_table():
+    report = analyse_majority_review_payloads(MAJORITY_TELEMETRY_MISSING)
+    rendered = digest.render_markdown(report)
+
+    assert "### Majority-review utilisation" in rendered
+    assert "unavailable for this window" in rendered
+    assert "| Family | Resolutions |" not in rendered
+    assert "zero-call" in rendered
+
+    no_stage_summary = digest.render_markdown(digest.analyse([]))
+    assert "### Majority-review utilisation" not in no_stage_summary
+
+
+def test_majority_review_cli_json_is_serialisable_and_ordered(tmp_path):
+    payload = {
+        "event": "ai_reply_pipeline_stage_summary",
+        "lane": "mention",
+        "target_id": "701",
+        "strategy_version": "tested-reply-pipeline-20260817",
+        "status": "no_reply",
+        "majority_review_summaries": [
+            majority_review_entry("reply_necessity")
+        ],
+    }
+    log = tmp_path / "mrsMThatcher.log"
+    log.write_text(
+        "2026-08-21 12:00:00 INFO log_event:1 - EVENT "
+        + json.dumps(payload)
+        + "\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "digest.json"
+
+    assert digest.main([
+        str(log),
+        "--project-dir",
+        str(tmp_path),
+        "--no-state",
+        "--json",
+        "--output",
+        str(output),
+    ]) == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    utilisation = report["reply_pipeline_stages"][
+        "majority_review_utilisation"
+    ]
+
+    assert utilisation["overall"]["reviewer_calls_saved"] == 1
+    assert list(utilisation["per_family"]) == [
+        "reply_necessity",
+        "allegation_review",
+        "authentication_review",
+    ]
+    assert "provider_call_counts" in report["reply_pipeline_stages"]
 
 
 def test_stage_approval_is_reconciled_with_effective_local_rejection_and_drafts():

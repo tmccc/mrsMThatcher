@@ -114,6 +114,19 @@ REMOTE_WRITE_CONTROL_ALLOWED_KEYS = (
     | REMOTE_WRITE_CONTROL_TIME_KEYS
     | {"generation"}
 )
+MAJORITY_REVIEW_FAMILIES = (
+    "reply_necessity",
+    "allegation_review",
+    "authentication_review",
+)
+MAJORITY_REVIEW_SUMMARY_FIELDS = (
+    "family",
+    "reviewer_calls_attempted",
+    "valid_votes_obtained",
+    "first_two_valid_votes_agreed",
+    "reviewer_3_called",
+    "reviewer_3_skipped_first_two_agreement",
+)
 
 
 def file_sha256(path: Path) -> str:
@@ -4896,6 +4909,20 @@ def normalise_active_xai_call_attempt(value: Any) -> Optional[Dict[str, Any]]:
     return result
 
 
+def _cache_input_metric(
+    usage: Dict[str, Any],
+    prompt_details: Dict[str, Any],
+    input_details: Dict[str, Any],
+    field_names: Tuple[str, ...],
+) -> Optional[int]:
+    """Return one explicitly reported cache metric without inventing zero."""
+    for container in (usage, prompt_details, input_details):
+        for field in field_names:
+            if field in container:
+                return optional_int_usage_value(container.get(field))
+    return None
+
+
 def summarize_xai_usage_event(
     record: Record,
     usage: Dict[str, Any],
@@ -4912,6 +4939,27 @@ def summarize_xai_usage_event(
     completion_details = usage.get("completion_tokens_details")
     if not isinstance(completion_details, dict):
         completion_details = {}
+    input_details = usage.get("input_tokens_details")
+    if not isinstance(input_details, dict):
+        input_details = {}
+    cache_read_input = _cache_input_metric(
+        usage,
+        prompt_details,
+        input_details,
+        ("cache_read_input_tokens", "cached_tokens"),
+    )
+    cache_creation_input = _cache_input_metric(
+        usage,
+        prompt_details,
+        input_details,
+        ("cache_creation_input_tokens", "cache_creation_tokens"),
+    )
+    cache_write_input = _cache_input_metric(
+        usage,
+        prompt_details,
+        input_details,
+        ("cache_write_input_tokens", "cache_write_tokens"),
+    )
     return {
         "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
         "lane": context.get("lane", "unknown"),
@@ -4922,7 +4970,12 @@ def summarize_xai_usage_event(
         "model": model,
         "call_start_matched": bool(call_start_matched),
         "prompt_tokens": int_usage_value(usage.get("prompt_tokens")),
-        "cached_tokens": int_usage_value(prompt_details.get("cached_tokens")),
+        # Retain cached_tokens for JSON compatibility. Provider cached-token
+        # usage is an input-cache read, not evidence of cache creation/writes.
+        "cached_tokens": int_usage_value(cache_read_input),
+        "cache_read_input_tokens": int_usage_value(cache_read_input),
+        "cache_creation_input_tokens": cache_creation_input,
+        "cache_write_input_tokens": cache_write_input,
         "image_tokens": int_usage_value(prompt_details.get("image_tokens")),
         "reasoning_tokens": int_usage_value(completion_details.get("reasoning_tokens")),
         "completion_tokens": int_usage_value(usage.get("completion_tokens")),
@@ -4934,7 +4987,7 @@ def summarize_xai_usage_event(
     }
 
 
-def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
+def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Return backward-compatible totals for all conversational providers."""
     reported_costs = [
         value
@@ -4945,12 +4998,42 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
     provider_counts = Counter(
         str(item.get("provider") or "xAI") for item in events
     )
+    cache_creation_values = [
+        value
+        for item in events
+        if (
+            value := optional_int_usage_value(
+                item.get("cache_creation_input_tokens")
+            )
+        )
+        is not None
+    ]
+    cache_write_values = [
+        value
+        for item in events
+        if (
+            value := optional_int_usage_value(item.get("cache_write_input_tokens"))
+        )
+        is not None
+    ]
     return {
         "successful_provider_calls": len(events),
         "successful_xai_calls": provider_counts["xAI"],
         "successful_openai_calls": provider_counts["OpenAI"],
         "prompt_tokens": sum(int_usage_value(item.get("prompt_tokens")) for item in events),
         "cached_tokens": sum(int_usage_value(item.get("cached_tokens")) for item in events),
+        "cache_read_input_tokens": sum(
+            int_usage_value(
+                item.get("cache_read_input_tokens", item.get("cached_tokens"))
+            )
+            for item in events
+        ),
+        "cache_creation_input_tokens": (
+            sum(cache_creation_values) if cache_creation_values else None
+        ),
+        "cache_write_input_tokens": (
+            sum(cache_write_values) if cache_write_values else None
+        ),
         "image_tokens": sum(int_usage_value(item.get("image_tokens")) for item in events),
         "reasoning_tokens": sum(int_usage_value(item.get("reasoning_tokens")) for item in events),
         "completion_tokens": sum(int_usage_value(item.get("completion_tokens")) for item in events),
@@ -5970,6 +6053,208 @@ def reconcile_reply_pipeline_effective_outcomes(
                     stage[field] = source.get(field)
 
 
+def _valid_majority_review_summary(value: Any) -> Optional[Dict[str, Any]]:
+    """Return one strict, allow-listed majority-review summary, if valid."""
+    if (
+        not isinstance(value, dict)
+        or set(value) != set(MAJORITY_REVIEW_SUMMARY_FIELDS)
+    ):
+        return None
+    family = value.get("family")
+    calls = value.get("reviewer_calls_attempted")
+    valid_votes = value.get("valid_votes_obtained")
+    first_two_agreed = value.get("first_two_valid_votes_agreed")
+    reviewer_3_called = value.get("reviewer_3_called")
+    reviewer_3_skipped = value.get(
+        "reviewer_3_skipped_first_two_agreement"
+    )
+    if (
+        type(family) is not str
+        or family not in MAJORITY_REVIEW_FAMILIES
+        or type(calls) is not int
+        or calls not in {2, 3}
+        or type(valid_votes) is not int
+        or not 0 <= valid_votes <= calls
+        or type(first_two_agreed) is not bool
+        or type(reviewer_3_called) is not bool
+        or type(reviewer_3_skipped) is not bool
+        or reviewer_3_called != (calls == 3)
+    ):
+        return None
+    if calls == 2 and not (
+        valid_votes == 2
+        and first_two_agreed is True
+        and reviewer_3_called is False
+        and reviewer_3_skipped is True
+    ):
+        return None
+    if calls == 3 and not (
+        first_two_agreed is False
+        and reviewer_3_called is True
+        and reviewer_3_skipped is False
+    ):
+        return None
+    return {field: value[field] for field in MAJORITY_REVIEW_SUMMARY_FIELDS}
+
+
+def normalise_majority_review_telemetry(
+    event: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Validate majority-review telemetry without retaining malformed content."""
+    present = "majority_review_summaries" in event
+    result = {
+        "present": present,
+        "present_empty": False,
+        "valid_entries": [],
+        "malformed_entry_count": 0,
+        "duplicate_family": False,
+    }
+    if not present:
+        return result
+    raw = event.get("majority_review_summaries")
+    if not isinstance(raw, list):
+        result["malformed_entry_count"] = 1
+        return result
+    result["present_empty"] = not raw
+
+    family_occurrences = Counter(
+        item.get("family")
+        for item in raw
+        if isinstance(item, dict)
+        and type(item.get("family")) is str
+        and item.get("family") in MAJORITY_REVIEW_FAMILIES
+    )
+    duplicate_families = {
+        family for family, count in family_occurrences.items() if count > 1
+    }
+    result["duplicate_family"] = bool(duplicate_families)
+    for item in raw:
+        validated = _valid_majority_review_summary(item)
+        if validated is None or validated["family"] in duplicate_families:
+            result["malformed_entry_count"] += 1
+            continue
+        result["valid_entries"].append(validated)
+    return result
+
+
+def _majority_review_telemetry_for_event(
+    event: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Read raw test events or the digest parser's already-sanitised form."""
+    parsed_presence = event.get("majority_review_telemetry_present")
+    if type(parsed_presence) is not bool:
+        return normalise_majority_review_telemetry(event)
+    if not parsed_presence:
+        return normalise_majority_review_telemetry({})
+
+    validated = normalise_majority_review_telemetry({
+        "majority_review_summaries": event.get("majority_review_summaries", []),
+    })
+    stored_malformed = event.get("majority_review_malformed_entry_count")
+    if type(stored_malformed) is int and stored_malformed >= 0:
+        validated["malformed_entry_count"] += stored_malformed
+    stored_empty = event.get("majority_review_telemetry_present_empty")
+    if type(stored_empty) is bool:
+        validated["present_empty"] = stored_empty
+    if event.get("majority_review_duplicate_family") is True:
+        validated["duplicate_family"] = True
+    return validated
+
+
+def _majority_review_utilisation_counts(
+    entries: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Aggregate reviewer-call savings for validated family resolutions."""
+    completed = len(entries)
+    two_call = sum(item["reviewer_calls_attempted"] == 2 for item in entries)
+    three_call = sum(item["reviewer_calls_attempted"] == 3 for item in entries)
+    calls_attempted = sum(item["reviewer_calls_attempted"] for item in entries)
+    valid_votes = sum(item["valid_votes_obtained"] for item in entries)
+    invalid_votes = calls_attempted - valid_votes
+    baseline = completed * 3
+    calls_saved = baseline - calls_attempted
+    return {
+        "completed_family_resolutions": completed,
+        "two_call_resolutions": two_call,
+        "three_call_resolutions": three_call,
+        "first_two_agreement_resolutions": sum(
+            item["first_two_valid_votes_agreed"] is True for item in entries
+        ),
+        "reviewer_3_calls": sum(
+            item["reviewer_3_called"] is True for item in entries
+        ),
+        "reviewer_3_skips_due_to_matching_first_two_votes": sum(
+            item["reviewer_3_skipped_first_two_agreement"] is True
+            for item in entries
+        ),
+        "actual_reviewer_calls_attempted": calls_attempted,
+        "fixed_three_call_baseline": baseline,
+        "reviewer_calls_saved": calls_saved,
+        "reviewer_call_reduction_percentage": (
+            calls_saved / baseline * 100.0 if baseline else None
+        ),
+        "short_circuit_rate_percentage": (
+            two_call / completed * 100.0 if completed else None
+        ),
+        "valid_votes_obtained": valid_votes,
+        "total_invalid_or_unusable_votes": invalid_votes,
+        "family_resolutions_with_invalid_or_unusable_votes": sum(
+            item["valid_votes_obtained"] < item["reviewer_calls_attempted"]
+            for item in entries
+        ),
+        "three_call_resolutions_with_all_three_votes_valid": sum(
+            item["reviewer_calls_attempted"] == 3
+            and item["valid_votes_obtained"] == 3
+            for item in entries
+        ),
+        "three_call_resolutions_with_invalid_or_unusable_votes": sum(
+            item["reviewer_calls_attempted"] == 3
+            and item["valid_votes_obtained"] < 3
+            for item in entries
+        ),
+    }
+
+
+def majority_review_utilisation(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return safe coverage, overall, and per-family majority utilisation."""
+    entries: List[Dict[str, Any]] = []
+    present_events = 0
+    absent_events = 0
+    empty_events = 0
+    malformed_entries = 0
+    duplicate_events = 0
+    for row in rows:
+        telemetry = _majority_review_telemetry_for_event(row)
+        if telemetry["present"]:
+            present_events += 1
+            empty_events += int(telemetry["present_empty"])
+        else:
+            absent_events += 1
+        malformed_entries += int(telemetry["malformed_entry_count"])
+        duplicate_events += int(telemetry["duplicate_family"])
+        entries.extend(telemetry["valid_entries"])
+
+    per_family = {
+        family: _majority_review_utilisation_counts([
+            item for item in entries if item["family"] == family
+        ])
+        for family in MAJORITY_REVIEW_FAMILIES
+    }
+    return {
+        "coverage": {
+            "stage_summary_events_examined": len(rows),
+            "events_with_majority_review_summaries": present_events,
+            "events_without_majority_review_summaries": absent_events,
+            "events_with_empty_majority_review_summaries": empty_events,
+            "valid_majority_family_entries": len(entries),
+            "malformed_entries": malformed_entries,
+            "events_with_duplicate_family_entries": duplicate_events,
+        },
+        "overall": _majority_review_utilisation_counts(entries),
+        "per_family": per_family,
+    }
+
+
 def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Aggregate safe tested-pipeline stage telemetry across evaluations."""
     def tested_version(row: Dict[str, Any]) -> bool:
@@ -6070,6 +6355,7 @@ def reply_pipeline_stage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]
     return {
         "evaluation_count": len(rows),
         "all_stage_summary_event_count": len(rows),
+        "majority_review_utilisation": majority_review_utilisation(rows),
         "tested_pipeline_decision_count": len(decision_ids),
         "complete_stage_telemetry_count": len(complete_ids),
         "partial_or_legacy_telemetry_count": len(decision_ids - complete_ids),
@@ -7777,6 +8063,9 @@ def analyse(
                     and item.get("stage")
                     and item.get("outcome")
                 ]
+                majority_review = normalise_majority_review_telemetry(
+                    event_obj
+                )
                 add_event(
                     "reply_pipeline_stage_summary",
                     r.ts,
@@ -7807,6 +8096,23 @@ def analyse(
                     model_call_count=event_obj.get("model_call_count"),
                     revision_count=event_obj.get("revision_count"),
                     provider_call_counts=provider_call_counts,
+                    majority_review_telemetry_present=majority_review[
+                        "present"
+                    ],
+                    majority_review_telemetry_present_empty=majority_review[
+                        "present_empty"
+                    ],
+                    majority_review_summaries=(
+                        majority_review["valid_entries"]
+                        if majority_review["present"]
+                        else None
+                    ),
+                    majority_review_malformed_entry_count=majority_review[
+                        "malformed_entry_count"
+                    ],
+                    majority_review_duplicate_family=majority_review[
+                        "duplicate_family"
+                    ],
                     reply_requirement=event_obj.get("reply_requirement"),
                     route_source=event_obj.get("route_source"),
                     trusted_facts_supplied_count=event_obj.get(
@@ -11007,8 +11313,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 "time",
                 "lane",
                 "context_id",
-                "prompt",
-                "cached",
+                "prompt input",
+                "cache-read input",
                 "reasoning",
                 "completion",
                 "total",
@@ -11030,7 +11336,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("lane", ""),
                     item.get("context_id", ""),
                     item.get("prompt_tokens", 0),
-                    item.get("cached_tokens", 0),
+                    item.get(
+                        "cache_read_input_tokens",
+                        item.get("cached_tokens", 0),
+                    ),
                     item.get("reasoning_tokens", 0),
                     item.get("completion_tokens", 0),
                     item.get("total_tokens", 0),
@@ -11053,7 +11362,23 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"successful_xai_calls = {totals.get('successful_xai_calls', 0)}")
             out.append(f"successful_openai_calls = {totals.get('successful_openai_calls', 0)}")
             out.append(f"prompt_tokens        = {totals.get('prompt_tokens', 0)}")
-            out.append(f"cached_tokens        = {totals.get('cached_tokens', 0)}")
+            out.append(
+                "cache_read_input_tokens = "
+                f"{totals.get('cache_read_input_tokens', totals.get('cached_tokens', 0))}"
+            )
+            out.append(
+                "cached_tokens        = "
+                f"{totals.get('cached_tokens', 0)} "
+                "(compatibility alias for cache-read input; not cache-write usage)"
+            )
+            out.append(
+                "cache_creation_input_tokens = "
+                f"{totals.get('cache_creation_input_tokens') if totals.get('cache_creation_input_tokens') is not None else 'unavailable'}"
+            )
+            out.append(
+                "cache_write_input_tokens = "
+                f"{totals.get('cache_write_input_tokens') if totals.get('cache_write_input_tokens') is not None else 'unavailable'}"
+            )
             out.append(f"image_tokens         = {totals.get('image_tokens', 0)}")
             out.append(f"reasoning_tokens     = {totals.get('reasoning_tokens', 0)}")
             out.append(f"completion_tokens    = {totals.get('completion_tokens', 0)}")
@@ -12313,6 +12638,151 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"{compact_counts(pipeline_stages.get('duplicate_repair_outcome_counts') or {})}; "
             f"final validation: {compact_counts(pipeline_stages.get('final_validation_counts') or {})}."
         )
+
+        majority_utilisation = (
+            pipeline_stages.get("majority_review_utilisation") or {}
+        )
+        majority_coverage = majority_utilisation.get("coverage") or {}
+        stage_events_examined = int(
+            majority_coverage.get("stage_summary_events_examined", 0) or 0
+        )
+        if stage_events_examined:
+            present_events = int(
+                majority_coverage.get(
+                    "events_with_majority_review_summaries", 0
+                )
+                or 0
+            )
+            absent_events = int(
+                majority_coverage.get(
+                    "events_without_majority_review_summaries", 0
+                )
+                or 0
+            )
+            empty_events = int(
+                majority_coverage.get(
+                    "events_with_empty_majority_review_summaries", 0
+                )
+                or 0
+            )
+            malformed_entries = int(
+                majority_coverage.get("malformed_entries", 0) or 0
+            )
+            duplicate_events = int(
+                majority_coverage.get(
+                    "events_with_duplicate_family_entries", 0
+                )
+                or 0
+            )
+            out.append("")
+            out.append("### Majority-review utilisation")
+            out.append("")
+            if not present_events:
+                out.append(
+                    "Majority-review utilisation is **unavailable for this "
+                    "window**: all stage-summary events predate or lack "
+                    "`majority_review_summaries`."
+                )
+            else:
+                out.append(
+                    f"Coverage: **{present_events}/{stage_events_examined} "
+                    "stage-summary events supplied majority-review telemetry**; "
+                    f"present and empty: **{empty_events}**."
+                )
+                out.append(
+                    "Valid majority-family entries: **"
+                    f"{majority_coverage.get('valid_majority_family_entries', 0)}"
+                    "**; malformed entries excluded: **"
+                    f"{malformed_entries}**; events with duplicate families: "
+                    f"**{duplicate_events}**."
+                )
+                overall = majority_utilisation.get("overall") or {}
+                out.append(
+                    f"Overall: **{overall.get('completed_family_resolutions', 0)} "
+                    "resolutions; "
+                    f"{overall.get('actual_reviewer_calls_attempted', 0)} calls "
+                    "made versus "
+                    f"{overall.get('fixed_three_call_baseline', 0)} fixed-three "
+                    f"baseline; {overall.get('reviewer_calls_saved', 0)} calls "
+                    "saved; "
+                    f"{overall.get('total_invalid_or_unusable_votes', 0)} "
+                    "invalid/unusable votes**."
+                )
+                short_circuit = overall.get("short_circuit_rate_percentage")
+                reduction = overall.get(
+                    "reviewer_call_reduction_percentage"
+                )
+                out.append(
+                    "Overall short-circuit rate: **"
+                    + (
+                        f"{float(short_circuit):.1f}%"
+                        if short_circuit is not None
+                        else "unavailable"
+                    )
+                    + "**; reviewer-call reduction: **"
+                    + (
+                        f"{float(reduction):.1f}%"
+                        if reduction is not None
+                        else "unavailable"
+                    )
+                    + "**."
+                )
+                out.append(
+                    md_table_row([
+                        "Family",
+                        "Resolutions",
+                        "2-call",
+                        "3-call",
+                        "Reviewer 3 skipped",
+                        "Reviewer 3 called",
+                        "Calls made",
+                        "Calls saved",
+                        "All-valid disagreements",
+                        "With invalid/unusable vote",
+                    ])
+                )
+                out.append(md_table_row(["---"] * 10))
+                per_family = majority_utilisation.get("per_family") or {}
+                table_rows = [
+                    (family, per_family.get(family) or {})
+                    for family in MAJORITY_REVIEW_FAMILIES
+                ]
+                table_rows.append(("Overall", overall))
+                for family, counts in table_rows:
+                    out.append(md_table_row([
+                        family,
+                        counts.get("completed_family_resolutions", 0),
+                        counts.get("two_call_resolutions", 0),
+                        counts.get("three_call_resolutions", 0),
+                        counts.get(
+                            "reviewer_3_skips_due_to_matching_first_two_votes",
+                            0,
+                        ),
+                        counts.get("reviewer_3_calls", 0),
+                        counts.get("actual_reviewer_calls_attempted", 0),
+                        counts.get("reviewer_calls_saved", 0),
+                        counts.get(
+                            "three_call_resolutions_with_all_three_votes_valid",
+                            0,
+                        ),
+                        counts.get(
+                            "family_resolutions_with_invalid_or_unusable_votes",
+                            0,
+                        ),
+                    ]))
+            if absent_events:
+                out.append(
+                    "**Coverage warning:** "
+                    f"{absent_events} legacy/incomplete stage-summary "
+                    "event(s) lacked `majority_review_summaries`; they were not "
+                    "treated as zero-call or zero-agreement events."
+                )
+            if malformed_entries:
+                out.append(
+                    "**Malformed telemetry warning:** "
+                    f"{malformed_entries} malformed majority-review entry/entries "
+                    "were excluded from utilisation totals."
+                )
         out.append("")
 
     local_rejections = [
