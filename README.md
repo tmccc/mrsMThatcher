@@ -111,6 +111,7 @@ Safety guards:
 
 - Operational entry points require a successful explicit `production_bootstrap()` call; importing the module alone never enables them.
 - Production bootstrap configures the rotating production file log explicitly. Tests must pass `configure_file_logging=False` or an isolated `log_path`; module-owned handlers are replaced and closed on reconfiguration.
+- The primary production log rotates at 2,000,000 bytes, retains 100 rotated backups, and therefore has an approximate maximum active-plus-rotations footprint of 202 MB.
 - If `MRS_TEST_MODE=1` and `MRS_BASE_DIR` resolves to the production directory or a child of it, the bot aborts before logging or state writes.
 - If `MRS_TEST_MODE=1` and `MRS_LOG_FILE` resolves under the production directory, the bot aborts.
 - If `MRS_TEST_MODE=1` and any API base URL still points at live X/xAI hosts, the bot aborts unless `MRS_ALLOW_LIVE_ENDPOINTS_IN_TEST=I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X` is set deliberately.

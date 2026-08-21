@@ -445,16 +445,28 @@ def test_default_project_dir_is_script_directory(monkeypatch):
 
 
 def test_default_log_discovery_excludes_selftest_logs(tmp_path):
-    production = tmp_path / "mrsMThatcher.log"
-    rotation = tmp_path / "mrsMThatcher.log.1"
+    primary_names = {
+        "mrsMThatcher.log",
+        "mrsMThatcher.log.1",
+        "mrsMThatcher.log.2",
+        "mrsMThatcher.log.5",
+        "mrsMThatcher.log.9",
+        "mrsMThatcher.log.10",
+        "mrsMThatcher.log.11",
+        "mrsMThatcher.log.99",
+        "mrsMThatcher.log.100",
+    }
     selftest = tmp_path / "mrsMThatcher.selftest.log"
-    for path in (production, rotation, selftest):
-        path.write_text("", encoding="utf-8")
+    for name in (*primary_names, selftest.name):
+        (tmp_path / name).write_text("", encoding="utf-8")
 
     discovered = digest.discover_logs(tmp_path, "mrsMThatcher*.log*")
 
-    assert production in discovered
-    assert rotation in discovered
+    assert {path.name for path in discovered} == primary_names
+    assert len(discovered) == 9
+    assert {"mrsMThatcher.log.10", "mrsMThatcher.log.99", "mrsMThatcher.log.100"} <= {
+        path.name for path in discovered
+    }
     assert selftest not in discovered
 
 
@@ -493,6 +505,97 @@ def test_physical_record_order_preserves_clock_rollback_append_order(tmp_path: P
     records = digest.read_records([path], None, None, physical_order=True)
 
     assert [record.msg for record in records] == ["before fallback", "after fallback"]
+
+
+def test_physical_record_order_uses_numeric_three_digit_rotation_suffixes(
+    tmp_path: Path,
+) -> None:
+    physical_names = [
+        "mrsMThatcher.log.100",
+        "mrsMThatcher.log.99",
+        "mrsMThatcher.log.10",
+        "mrsMThatcher.log.2",
+        "mrsMThatcher.log.1",
+        "mrsMThatcher.log",
+    ]
+    identical_mtime_ns = 1_700_000_000_000_000_000
+    for index, name in enumerate(physical_names):
+        path = tmp_path / name
+        path.write_text(
+            log_line(
+                NOW + timedelta(seconds=len(physical_names) - index),
+                f"physical record from {name}",
+            ),
+            encoding="utf-8",
+        )
+        os.utime(path, ns=(identical_mtime_ns, identical_mtime_ns))
+
+    paths = digest.discover_logs(tmp_path, "mrsMThatcher*.log*")
+    records = digest.read_records(paths, None, None, physical_order=True)
+
+    assert len({path.stat().st_mtime_ns for path in paths}) == 1
+    assert [Path(record.path).name for record in records] == physical_names
+    assert [record.msg for record in records] == [
+        f"physical record from {name}" for name in physical_names
+    ]
+
+
+def test_active_plus_one_hundred_rotations_are_all_discovered_and_read(
+    tmp_path: Path,
+) -> None:
+    for rotation in range(101):
+        name = "mrsMThatcher.log" if rotation == 0 else f"mrsMThatcher.log.{rotation}"
+        (tmp_path / name).write_text(
+            post(
+                NOW - timedelta(seconds=rotation),
+                str(10_000 + rotation),
+                "t01.jpg",
+            ),
+            encoding="utf-8",
+        )
+
+    paths = digest.discover_logs(tmp_path, "mrsMThatcher*.log*")
+    records = digest.read_records(paths, None, None, physical_order=True)
+    history = digest.generated_post_rate_history(paths, NOW)
+    post_ids = {item["post_id"] for item in history["successful_regular_posts"]}
+
+    assert len(paths) == 101
+    assert len(records) == 101
+    assert {Path(record.path).name for record in records} == {
+        "mrsMThatcher.log",
+        *(f"mrsMThatcher.log.{rotation}" for rotation in range(1, 101)),
+    }
+    assert Path(records[0].path).name == "mrsMThatcher.log.100"
+    assert Path(records[-1].path).name == "mrsMThatcher.log"
+    assert history["files_scanned"] == 101
+    assert history["unique_regular_posts"] == 101
+    assert {"10000", "10100"} <= post_ids
+
+
+def test_latest_configuration_wins_across_distant_rotation(tmp_path: Path) -> None:
+    active = tmp_path / "mrsMThatcher.log"
+    oldest = tmp_path / "mrsMThatcher.log.100"
+    active.write_text(
+        log_line(
+            NOW - timedelta(minutes=5),
+            "Config: MAX_AUTO_REPLIES_PER_DAY=17",
+        ),
+        encoding="utf-8",
+    )
+    oldest.write_text(
+        log_line(
+            NOW - timedelta(hours=2),
+            "Config: MAX_AUTO_REPLIES_PER_DAY=11",
+        ),
+        encoding="utf-8",
+    )
+
+    paths = digest.discover_logs(tmp_path, "mrsMThatcher*.log*")
+    config, timestamp = digest.find_latest_config_before(paths, NOW)
+
+    assert [path.name for path in paths] == ["mrsMThatcher.log", "mrsMThatcher.log.100"]
+    assert config["MAX_AUTO_REPLIES_PER_DAY"] == "17"
+    assert timestamp == NOW - timedelta(minutes=5)
 
 
 def test_resume_tail_keeps_post_fallback_record_after_rotation(tmp_path: Path) -> None:

@@ -652,6 +652,8 @@ MEME_ANALYSIS_FILE = BASE_DIR / "final_posting_queue_top90_as_is" / "renamed_png
 # Logging
 # ---------------------------------------------------------------------
 
+PRODUCTION_LOG_MAX_BYTES = 2_000_000
+PRODUCTION_LOG_BACKUP_COUNT = 100
 _MANAGED_LOG_HANDLER_ATTR = "_mrs_mthatcher_managed_handler"
 
 
@@ -703,7 +705,11 @@ def setup_logging(
 
     if configure_file_logging:
         file_handler = mark_managed_log_handler(
-            RotatingFileHandler(target_log, maxBytes=2_000_000, backupCount=5),
+            RotatingFileHandler(
+                target_log,
+                maxBytes=PRODUCTION_LOG_MAX_BYTES,
+                backupCount=PRODUCTION_LOG_BACKUP_COUNT,
+            ),
             "file",
         )
         setattr(file_handler, "_mrs_mthatcher_log_path", str(target_log.resolve()))

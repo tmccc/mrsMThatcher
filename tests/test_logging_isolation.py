@@ -4,12 +4,13 @@ import logging
 import os
 import subprocess
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import pytest
 
 import mrsMThatcher2 as bot
-from tests.conftest import PRODUCTION_LOG, process_has_open_path
+from tests.conftest import PRODUCTION_LOG, appended_bytes, process_has_open_path
 
 
 def managed_file_handlers() -> list[logging.Handler]:
@@ -37,6 +38,71 @@ def configure_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
 def test_plain_import_does_not_open_production_log():
     assert not process_has_open_path(PRODUCTION_LOG)
     assert managed_file_handlers() == []
+
+
+def test_temporary_production_handler_uses_expected_rotation_and_is_isolated(
+    tmp_path,
+):
+    target = tmp_path / "production-shaped.log"
+
+    logger = bot.setup_logging(log_path=target)
+    logger.warning("temporary production handler marker")
+    handlers = [
+        handler
+        for handler in logger.handlers
+        if getattr(handler, bot._MANAGED_LOG_HANDLER_ATTR, False)
+        and isinstance(handler, logging.FileHandler)
+    ]
+
+    assert logger is bot.log
+    assert logger.propagate is False
+    assert len(handlers) == 1
+    handler = handlers[0]
+    assert isinstance(handler, RotatingFileHandler)
+    assert Path(handler.baseFilename) == target
+    assert handler.maxBytes == bot.PRODUCTION_LOG_MAX_BYTES == 2_000_000
+    assert handler.backupCount == bot.PRODUCTION_LOG_BACKUP_COUNT == 100
+    assert "temporary production handler marker" in target.read_text()
+    assert not process_has_open_path(PRODUCTION_LOG)
+
+
+def test_small_rotation_limit_reaches_backup_100_without_retaining_101(
+    tmp_path,
+    monkeypatch,
+):
+    target = tmp_path / "rotation-ceiling.log"
+    monkeypatch.setattr(bot, "PRODUCTION_LOG_MAX_BYTES", 1)
+    assert bot.PRODUCTION_LOG_BACKUP_COUNT == 100
+
+    logger = bot.setup_logging(log_path=target)
+    for index in range(102):
+        logger.warning("temporary rotation record %03d", index)
+
+    assert target.is_file()
+    assert target.with_name(f"{target.name}.100").is_file()
+    assert not target.with_name(f"{target.name}.101").exists()
+
+    logger.warning("active file remains writable")
+    for handler in managed_file_handlers():
+        handler.flush()
+    assert "active file remains writable" in target.read_text()
+    assert not process_has_open_path(PRODUCTION_LOG)
+
+
+def test_contamination_guard_follows_original_inode_to_rotation_100(tmp_path):
+    active = tmp_path / "mrsMThatcher.log"
+    active.write_bytes(b"existing production bytes\n")
+    original = active.stat()
+    offset = original.st_size
+    with active.open("ab") as handle:
+        handle.write(b"original inode marker\n")
+    active.replace(tmp_path / "mrsMThatcher.log.100")
+    active.write_bytes(b"new active marker\n")
+
+    appended = appended_bytes(active, inode=original.st_ino, offset=offset)
+
+    assert b"original inode marker" in appended
+    assert b"new active marker" in appended
 
 
 def test_pytest_process_refuses_production_state_write():
