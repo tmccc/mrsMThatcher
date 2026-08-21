@@ -20458,6 +20458,7 @@ def tested_pipeline_structured_call(
     else:
         request["max_completion_tokens"] = max_output_tokens
         request["store"] = False
+        request["prompt_cache_options"] = {"mode": "explicit"}
     base = XAI_BASE if is_xai else OPENAI_BASE
     api_key = XAI_API_KEY if is_xai else OPENAI_API_KEY
     log.info(

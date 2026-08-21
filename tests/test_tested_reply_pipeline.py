@@ -242,6 +242,11 @@ def test_stage_telemetry_is_allow_listed_and_text_free() -> None:
             "majority_outcome": "require_claim_free_reply",
             "majority_resolvable": True,
             "invalid_or_refused_calls": 1,
+            "reviewer_calls_attempted": 3,
+            "valid_votes_obtained": 2,
+            "first_two_valid_votes_agreed": False,
+            "reviewer_3_called": True,
+            "reviewer_3_skipped_first_two_agreement": False,
         },
         {
             "stage": "allegation_conspiracy_detector",
@@ -277,6 +282,14 @@ def test_stage_telemetry_is_allow_listed_and_text_free() -> None:
     assert telemetry["reply_necessity_outcome"] == "require_claim_free_reply"
     assert telemetry["reply_necessity_majority_resolvable"] is True
     assert telemetry["reply_necessity_invalid_calls"] == 1
+    assert telemetry["majority_review_summaries"] == [{
+        "family": "reply_necessity",
+        "reviewer_calls_attempted": 3,
+        "valid_votes_obtained": 2,
+        "first_two_valid_votes_agreed": False,
+        "reviewer_3_called": True,
+        "reviewer_3_skipped_first_two_agreement": False,
+    }]
     assert telemetry["allegation_conspiracy_candidate"] is True
     assert telemetry["allegation_conspiracy_categories"] == ["corruption_or_fraud"]
     assert telemetry["allegation_conspiracy_outcome"] == "confirm_no_reply"
@@ -988,7 +1001,14 @@ def test_literal_bare_mention_is_deterministically_suppressed_without_calls() ->
 
 
 def test_gate_no_reply_is_reviewed_three_times_and_can_be_overturned() -> None:
-    transport = Transport(gate="no_reply")
+    transport = SequencedReviewTransport(
+        gate="no_reply",
+        votes=[
+            "confirm_no_reply",
+            "require_claim_free_reply",
+            "require_claim_free_reply",
+        ],
+    )
     result = run("I disagree: liberty also requires institutions.", transport)
     assert result.status == "approved"
     review_calls = [call for call in transport.calls if call["stage"].startswith("reply_necessity_")]
@@ -1039,7 +1059,14 @@ def test_named_allegation_sanity_reply_controls(case_id: str, text: str) -> None
 
 
 def test_named_allegation_invokes_three_call_review_and_can_suppress() -> None:
-    transport = Transport(review="confirm_no_reply")
+    transport = SequencedReviewTransport(
+        gate="reply",
+        votes=[
+            "confirm_no_reply",
+            "require_claim_free_reply",
+            "confirm_no_reply",
+        ],
+    )
     result = run(NO_REPLY_ALLEGATIONS["synthetic-17b"], transport)
     assert result.status == "no_reply"
     assert result.reason == "allegation_review_suppression"
@@ -1058,6 +1085,387 @@ class SequencedReviewTransport(Transport):
             vote = self.votes.pop(0)
             return {"outcome": vote} if vote is not None else {"malformed": True}
         return super().__call__(**kwargs)
+
+
+class FamilyReviewTransport(Transport):
+    def __init__(
+        self,
+        *,
+        family: str,
+        votes: list[object],
+        gate: str,
+        writer: str = "Thank you — that is kind of you.",
+    ):
+        super().__init__(gate=gate, writer=writer)
+        self.family = family
+        self.votes = list(votes)
+
+    def __call__(self, **kwargs):
+        stage = kwargs["stage"]
+        if stage.startswith(f"{self.family}_"):
+            self.calls.append(kwargs)
+            if not self.votes:
+                raise AssertionError(f"unexpected reviewer call {stage}")
+            vote = self.votes.pop(0)
+            if isinstance(vote, BaseException):
+                raise vote
+            return {"outcome": vote} if vote is not None else {"malformed": True}
+        return super().__call__(**kwargs)
+
+
+REVIEW_FAMILY_CASES = [
+    pytest.param(
+        "reply_necessity",
+        "no_reply",
+        "I disagree: liberty also requires institutions.",
+        False,
+        "confirm_no_reply",
+        "require_claim_free_reply",
+        "reply_necessity_resolution",
+        "reply_necessity_review",
+        "reply_necessity_invalid_calls",
+        id="reply-necessity",
+    ),
+    pytest.param(
+        "allegation_review",
+        "reply",
+        NO_REPLY_ALLEGATIONS["synthetic-17b"],
+        False,
+        "confirm_no_reply",
+        "require_claim_free_reply",
+        "allegation_conspiracy_resolution",
+        "allegation_review_suppression",
+        "allegation_conspiracy_invalid_calls",
+        id="allegation-review",
+    ),
+    pytest.param(
+        "authentication_review",
+        "reply",
+        "Did Margaret Thatcher really say this?",
+        False,
+        "suppress_unsupported_authentication",
+        "require_supported_factual_reply",
+        "authentication_resolution",
+        "unsupported_authentication_suppression",
+        None,
+        id="authentication-review",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    (
+        "family",
+        "gate",
+        "text",
+        "facts",
+        "winning_vote",
+        "opposing_vote",
+        "resolution_stage",
+        "expected_reason",
+        "invalid_field",
+    ),
+    REVIEW_FAMILY_CASES,
+)
+def test_matching_first_two_valid_votes_short_circuit_each_majority_family(
+    family: str,
+    gate: str,
+    text: str,
+    facts: bool,
+    winning_vote: str,
+    opposing_vote: str,
+    resolution_stage: str,
+    expected_reason: str,
+    invalid_field: str | None,
+) -> None:
+    del opposing_vote, invalid_field
+    transport = FamilyReviewTransport(
+        family=family,
+        gate=gate,
+        votes=[winning_vote, winning_vote],
+    )
+
+    result = run(text, transport, facts=facts)
+
+    reviewer_stages = [
+        call["stage"]
+        for call in transport.calls
+        if call["stage"].startswith(f"{family}_")
+    ]
+    assert reviewer_stages == [f"{family}_1", f"{family}_2"]
+    assert result.status == "no_reply"
+    assert result.reason == expected_reason
+    assert result.model_call_count == 3
+    assert result.model_call_count == len(transport.calls)
+    resolution = next(
+        row for row in result.audit if row["stage"] == resolution_stage
+    )
+    assert resolution["majority_outcome"] == winning_vote
+    assert resolution["call_outcomes"] == [winning_vote, winning_vote]
+    assert pipeline.stage_telemetry(result.audit)[
+        "majority_review_summaries"
+    ] == [{
+        "family": family,
+        "reviewer_calls_attempted": 2,
+        "valid_votes_obtained": 2,
+        "first_two_valid_votes_agreed": True,
+        "reviewer_3_called": False,
+        "reviewer_3_skipped_first_two_agreement": True,
+    }]
+    assert transport.votes == []
+
+
+@pytest.mark.parametrize(
+    (
+        "family",
+        "gate",
+        "text",
+        "facts",
+        "winning_vote",
+        "opposing_vote",
+        "resolution_stage",
+        "expected_reason",
+        "invalid_field",
+    ),
+    REVIEW_FAMILY_CASES,
+)
+def test_disagreeing_first_two_votes_call_reviewer_three_and_preserve_majority(
+    family: str,
+    gate: str,
+    text: str,
+    facts: bool,
+    winning_vote: str,
+    opposing_vote: str,
+    resolution_stage: str,
+    expected_reason: str,
+    invalid_field: str | None,
+) -> None:
+    del invalid_field
+    transport = FamilyReviewTransport(
+        family=family,
+        gate=gate,
+        votes=[winning_vote, opposing_vote, winning_vote],
+    )
+
+    result = run(text, transport, facts=facts)
+
+    reviewer_stages = [
+        call["stage"]
+        for call in transport.calls
+        if call["stage"].startswith(f"{family}_")
+    ]
+    assert reviewer_stages == [
+        f"{family}_1",
+        f"{family}_2",
+        f"{family}_3",
+    ]
+    assert result.status == "no_reply"
+    assert result.reason == expected_reason
+    assert result.model_call_count == 4
+    assert result.model_call_count == len(transport.calls)
+    resolution = next(
+        row for row in result.audit if row["stage"] == resolution_stage
+    )
+    assert resolution["majority_outcome"] == winning_vote
+    assert resolution["call_outcomes"] == [
+        winning_vote,
+        opposing_vote,
+        winning_vote,
+    ]
+    assert pipeline.stage_telemetry(result.audit)[
+        "majority_review_summaries"
+    ] == [{
+        "family": family,
+        "reviewer_calls_attempted": 3,
+        "valid_votes_obtained": 3,
+        "first_two_valid_votes_agreed": False,
+        "reviewer_3_called": True,
+        "reviewer_3_skipped_first_two_agreement": False,
+    }]
+    assert transport.votes == []
+
+
+@pytest.mark.parametrize(
+    (
+        "family",
+        "gate",
+        "text",
+        "facts",
+        "winning_vote",
+        "opposing_vote",
+        "resolution_stage",
+        "expected_reason",
+        "invalid_field",
+    ),
+    REVIEW_FAMILY_CASES,
+)
+def test_invalid_first_vote_calls_reviewer_three_and_preserves_fail_closed_rules(
+    family: str,
+    gate: str,
+    text: str,
+    facts: bool,
+    winning_vote: str,
+    opposing_vote: str,
+    resolution_stage: str,
+    expected_reason: str,
+    invalid_field: str | None,
+) -> None:
+    del opposing_vote
+    transport = FamilyReviewTransport(
+        family=family,
+        gate=gate,
+        votes=[None, winning_vote, winning_vote],
+    )
+
+    result = run(text, transport, facts=facts)
+
+    reviewer_stages = [
+        call["stage"]
+        for call in transport.calls
+        if call["stage"].startswith(f"{family}_")
+    ]
+    assert reviewer_stages == [
+        f"{family}_1",
+        f"{family}_2",
+        f"{family}_3",
+    ]
+    assert result.status == "no_reply"
+    assert result.reason == expected_reason
+    assert result.model_call_count == 4
+    resolution = next(
+        row for row in result.audit if row["stage"] == resolution_stage
+    )
+    assert resolution["majority_outcome"] == winning_vote
+    assert resolution["invalid_or_refused_calls"] == 1
+    if invalid_field is not None:
+        assert pipeline.stage_telemetry(result.audit)[invalid_field] == 1
+    assert pipeline.stage_telemetry(result.audit)[
+        "majority_review_summaries"
+    ] == [{
+        "family": family,
+        "reviewer_calls_attempted": 3,
+        "valid_votes_obtained": 2,
+        "first_two_valid_votes_agreed": False,
+        "reviewer_3_called": True,
+        "reviewer_3_skipped_first_two_agreement": False,
+    }]
+    assert transport.votes == []
+
+
+@pytest.mark.parametrize(
+    (
+        "family",
+        "gate",
+        "text",
+        "facts",
+        "winning_vote",
+        "opposing_vote",
+        "resolution_stage",
+        "expected_reason",
+        "invalid_field",
+    ),
+    REVIEW_FAMILY_CASES,
+)
+def test_reviewer_transport_timeout_preserves_existing_safe_abort_without_extra_calls(
+    family: str,
+    gate: str,
+    text: str,
+    facts: bool,
+    winning_vote: str,
+    opposing_vote: str,
+    resolution_stage: str,
+    expected_reason: str,
+    invalid_field: str | None,
+) -> None:
+    del resolution_stage, expected_reason, invalid_field
+    timeout = TimeoutError(f"{family} timed out")
+    transport = FamilyReviewTransport(
+        family=family,
+        gate=gate,
+        votes=[winning_vote, timeout, opposing_vote],
+    )
+
+    with pytest.raises(TimeoutError, match="timed out"):
+        run(text, transport, facts=facts)
+
+    assert [
+        call["stage"]
+        for call in transport.calls
+        if call["stage"].startswith(f"{family}_")
+    ] == [f"{family}_1", f"{family}_2"]
+    assert transport.votes == [opposing_vote]
+
+
+def test_short_circuit_charges_only_actual_calls_and_keeps_writer_eligible() -> None:
+    transport = FamilyReviewTransport(
+        family="reply_necessity",
+        gate="no_reply",
+        votes=["require_claim_free_reply", "require_claim_free_reply"],
+    )
+    config = enabled_config()
+    config["maximum_model_calls"] = 12
+
+    result = pipeline.run_reply_pipeline(
+        context=context("I disagree: liberty also requires institutions."),
+        config=config,
+        repository=Repository(),
+        transport=transport,
+        maximum_reply_length=270,
+    )
+
+    assert result.status == "approved"
+    assert [call["stage"] for call in transport.calls] == [
+        "candidate_backed_engagement",
+        "reply_necessity_1",
+        "reply_necessity_2",
+        "writer_v3_initial",
+    ]
+    assert result.model_call_count == len(transport.calls) == 4
+    assert result.model_call_count <= config["maximum_model_calls"]
+
+
+def test_interruption_before_reviewer_three_does_not_log_a_short_circuit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    transport = FamilyReviewTransport(
+        family="reply_necessity",
+        gate="no_reply",
+        votes=[
+            "confirm_no_reply",
+            "require_claim_free_reply",
+            bot.RemoteOperationsPaused("paused before reviewer 3 completed"),
+        ],
+    )
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(bot, "tested_pipeline_structured_call", transport)
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **values: events.append((name, values)),
+    )
+
+    with pytest.raises(bot.RemoteOperationsPaused, match="reviewer 3"):
+        bot.generate_ai_first_reply(
+            context("I disagree: liberty also requires institutions."),
+            evaluation_outcome={},
+        )
+
+    assert [
+        call["stage"]
+        for call in transport.calls
+        if call["stage"].startswith("reply_necessity_")
+    ] == ["reply_necessity_1", "reply_necessity_2", "reply_necessity_3"]
+    assert not any(
+        name == "ai_reply_pipeline_stage_summary" for name, _values in events
+    )
+    assert pipeline.stage_telemetry((
+        {"stage": "reply_necessity_1", "provider": "OpenAI", "schema_valid": True},
+        {"stage": "reply_necessity_2", "provider": "OpenAI", "schema_valid": True},
+    ))["majority_review_summaries"] == []
 
 
 @pytest.mark.parametrize(
@@ -1102,11 +1510,7 @@ class SequencedReviewTransport(Transport):
             1,
         ),
         (
-            [
-                "confirm_no_reply_spam_or_abuse",
-                "confirm_no_reply_spam_or_abuse",
-                None,
-            ],
+            ["confirm_no_reply_spam_or_abuse", None, "confirm_no_reply_spam_or_abuse"],
             "confirm_no_reply_spam_or_abuse",
             True,
             1,
@@ -1190,7 +1594,16 @@ def test_attribution_route_v2(text: str, route: str) -> None:
 
 
 def test_supported_direct_authentication_uses_three_sol_calls_and_factual_audit() -> None:
-    transport = Transport(writer="The local transcript records those exact words.")
+    transport = FamilyReviewTransport(
+        family="authentication_review",
+        gate="reply",
+        votes=[
+            "require_supported_factual_reply",
+            "suppress_unsupported_authentication",
+            "require_supported_factual_reply",
+        ],
+        writer="The local transcript records those exact words.",
+    )
     result = run("Did Margaret Thatcher really say this?", transport, facts=True)
     assert result.status == "approved"
     assert len([call for call in transport.calls if call["stage"].startswith("authentication_review_")]) == 3
@@ -1279,8 +1692,29 @@ def test_persisted_tested_draft_requires_current_contract_identity() -> None:
         )
 
 
-def test_http_adapter_preserves_provider_payload_isolation(monkeypatch) -> None:
-    import json
+@pytest.mark.parametrize(
+    ("stage", "response_schema", "response_content"),
+    [
+        pytest.param(
+            "writer_v3_initial",
+            pipeline.WRITER_SCHEMA,
+            '{"status":"reply","reply":"A bounded reply."}',
+            id="writer",
+        ),
+        pytest.param(
+            "reply_necessity_1",
+            pipeline.REPLY_NECESSITY_SCHEMA,
+            '{"outcome":"confirm_no_reply"}',
+            id="reviewer",
+        ),
+    ],
+)
+def test_openai_reply_pipeline_requests_use_explicit_cache_mode_without_breakpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+    response_schema: dict,
+    response_content: str,
+) -> None:
     import mrsMThatcher2 as bot
 
     captured = {}
@@ -1291,7 +1725,7 @@ def test_http_adapter_preserves_provider_payload_isolation(monkeypatch) -> None:
 
         @staticmethod
         def json():
-            return {"choices": [{"message": {"content": '{"outcome":"pass"}'}}]}
+            return {"choices": [{"message": {"content": response_content}}]}
 
     def post(url, **kwargs):
         captured.update({"url": url, **kwargs})
@@ -1303,19 +1737,103 @@ def test_http_adapter_preserves_provider_payload_isolation(monkeypatch) -> None:
     monkeypatch.setattr(bot, "OPENAI_API_KEY", "set-in-test")
     visible = {"context": context("A visible contribution."), "trusted_facts": [], "media_context": []}
     result = bot.tested_pipeline_structured_call(
-        provider="OpenAI", stage="payload_isolation", model="gpt-5.6-sol",
+        provider="OpenAI", stage=stage, model="gpt-5.6-sol",
         system_prompt="Frozen prompt", payload=visible,
-        response_schema=pipeline.CLAIM_AUDIT_SCHEMA, timeout_seconds=180,
+        response_schema=response_schema, timeout_seconds=180,
         max_output_tokens=300, reasoning_effort="medium",
     )
-    assert result == '{"outcome":"pass"}'
+    assert result == response_content
+    assert captured["url"] == "https://openai.invalid/v1/chat/completions"
+    assert captured["timeout"] == 180
     request = captured["json"]
     assert json.loads(request["messages"][1]["content"]) == visible
+    assert request["model"] == "gpt-5.6-sol"
+    assert request["messages"][0] == {"role": "system", "content": "Frozen prompt"}
     assert request["reasoning_effort"] == "medium"
     assert request["temperature"] == 1
+    assert request["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "mrs_tested_" + stage,
+            "strict": True,
+            "schema": response_schema,
+        },
+    }
     assert request["max_completion_tokens"] == 300
     assert request["store"] is False
+    assert request["prompt_cache_options"] == {"mode": "explicit"}
+    assert set(request) == {
+        "model",
+        "messages",
+        "reasoning_effort",
+        "temperature",
+        "response_format",
+        "max_completion_tokens",
+        "store",
+        "prompt_cache_options",
+    }
+    assert "cache_control" not in json.dumps(request, sort_keys=True)
+    assert "prompt_cache_key" not in request
     assert "tools" not in request and "search" not in request
+
+
+def test_xai_reply_pipeline_request_is_unchanged_by_cache_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    captured = {}
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {
+                "choices": [{
+                    "message": {
+                        "content": '{"decision":"no_reply","reply":""}'
+                    }
+                }]
+            }
+
+    def post(url, **kwargs):
+        captured.update({"url": url, **kwargs})
+        return Response()
+
+    monkeypatch.setattr(bot.requests, "post", post)
+    monkeypatch.setattr(
+        bot, "require_remote_operation_unpaused", lambda _operation: None
+    )
+    monkeypatch.setattr(bot, "XAI_BASE", "https://xai.invalid/v1")
+    monkeypatch.setattr(bot, "XAI_API_KEY", "set-in-test")
+    visible = {
+        "context": context("A visible contribution."),
+        "trusted_facts": [],
+        "media_context": [],
+    }
+
+    result = bot.tested_pipeline_structured_call(
+        provider="xAI",
+        stage="candidate_backed_engagement",
+        model="grok-4.3",
+        system_prompt="Frozen prompt",
+        payload=visible,
+        response_schema=pipeline.GATE_SCHEMA,
+        timeout_seconds=180,
+        max_output_tokens=900,
+        reasoning_effort="low",
+    )
+
+    assert result == '{"decision":"no_reply","reply":""}'
+    assert captured["url"] == "https://xai.invalid/v1/chat/completions"
+    request = captured["json"]
+    assert request["max_tokens"] == 900
+    assert "max_completion_tokens" not in request
+    assert "store" not in request
+    assert "prompt_cache_options" not in request
+    assert "cache_control" not in json.dumps(request, sort_keys=True)
 
 
 def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch) -> None:
@@ -1344,6 +1862,11 @@ def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch)
                 "majority_outcome": "confirm_no_reply",
                 "majority_resolvable": True,
                 "invalid_or_refused_calls": 0,
+                "reviewer_calls_attempted": 3,
+                "valid_votes_obtained": 3,
+                "first_two_valid_votes_agreed": False,
+                "reviewer_3_called": True,
+                "reviewer_3_skipped_first_two_agreement": False,
                 "reason": private_marker,
             },
         ),
@@ -1368,6 +1891,14 @@ def test_production_wrapper_logs_safe_tested_pipeline_stage_summary(monkeypatch)
     assert summary["xai_gate_decision"] == "no_reply"
     assert summary["reply_necessity_outcome"] == "confirm_no_reply"
     assert summary["reply_necessity_majority_resolvable"] is True
+    assert summary["majority_review_summaries"] == [{
+        "family": "reply_necessity",
+        "reviewer_calls_attempted": 3,
+        "valid_votes_obtained": 3,
+        "first_two_valid_votes_agreed": False,
+        "reviewer_3_called": True,
+        "reviewer_3_skipped_first_two_agreement": False,
+    }]
     assert summary["terminal_reason"] == "reply_necessity_review"
     assert private_marker not in json.dumps(summary, sort_keys=True)
     decision = events[1][1]

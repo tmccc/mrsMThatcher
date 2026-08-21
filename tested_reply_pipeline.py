@@ -630,6 +630,7 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
         "attribution_route": None,
         "attribution_reply_requirement": None,
         "authentication_outcome": None,
+        "majority_review_summaries": [],
         "claim_risk_categories": [],
         "claim_audit_outcomes": [],
         "claim_cleanup_called": False,
@@ -648,6 +649,11 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
     }
 
     claim_categories: set[str] = set()
+    review_resolution_families = {
+        "reply_necessity_resolution": "reply_necessity",
+        "allegation_conspiracy_resolution": "allegation_review",
+        "authentication_resolution": "authentication_review",
+    }
     for row in rows:
         stage = str(row.get("stage") or "")
         provider = row.get("provider")
@@ -655,6 +661,40 @@ def stage_telemetry(audit: object) -> dict[str, Any]:
             telemetry["provider_call_counts"][provider] += 1
             if row.get("schema_valid") is False:
                 telemetry["schema_invalid_stages"].append(stage)
+        review_family = review_resolution_families.get(stage)
+        if review_family is not None:
+            reviewer_calls_attempted = row.get("reviewer_calls_attempted")
+            valid_votes_obtained = row.get("valid_votes_obtained")
+            first_two_valid_votes_agreed = row.get(
+                "first_two_valid_votes_agreed"
+            )
+            reviewer_3_called = row.get("reviewer_3_called")
+            reviewer_3_skipped = row.get(
+                "reviewer_3_skipped_first_two_agreement"
+            )
+            if (
+                type(reviewer_calls_attempted) is int
+                and reviewer_calls_attempted in {2, 3}
+                and type(valid_votes_obtained) is int
+                and 0 <= valid_votes_obtained <= reviewer_calls_attempted
+                and type(first_two_valid_votes_agreed) is bool
+                and type(reviewer_3_called) is bool
+                and type(reviewer_3_skipped) is bool
+                and reviewer_3_called == (reviewer_calls_attempted == 3)
+                and reviewer_3_skipped == (
+                    reviewer_calls_attempted == 2
+                    and first_two_valid_votes_agreed
+                    and not reviewer_3_called
+                )
+            ):
+                telemetry["majority_review_summaries"].append({
+                    "family": review_family,
+                    "reviewer_calls_attempted": reviewer_calls_attempted,
+                    "valid_votes_obtained": valid_votes_obtained,
+                    "first_two_valid_votes_agreed": first_two_valid_votes_agreed,
+                    "reviewer_3_called": reviewer_3_called,
+                    "reviewer_3_skipped_first_two_agreement": reviewer_3_skipped,
+                })
         if stage == "A_B_C":
             telemetry["deterministic_suppressed"] = row.get("suppressed") is True
             reason = row.get("reason")
@@ -889,8 +929,14 @@ def _validate_writer(value: object) -> dict[str, str]:
 
 
 def _majority(outcomes: list[str | None], fail_closed: str) -> dict[str, Any]:
-    if len(outcomes) != 3:
-        raise ValueError("majority review requires exactly three calls")
+    if len(outcomes) not in {2, 3}:
+        raise ValueError("majority review requires two or three calls")
+    if len(outcomes) == 2 and (
+        outcomes[0] is None or outcomes[0] != outcomes[1]
+    ):
+        raise ValueError(
+            "majority review can stop after two calls only for matching valid outcomes"
+        )
     counts = Counter(value for value in outcomes if value is not None)
     resolved = next((value for value, count in counts.items() if count >= 2), fail_closed)
     return {
@@ -1496,18 +1542,49 @@ def run_reply_pipeline(
         audit.append({"stage": stage, "provider": provider, "schema_valid": True})
         return result
 
-    def review_three(stage: str) -> dict[str, Any]:
-        payload = {key: model[key] for key in ("context", "trusted_facts", "media_context")}
-        values = [
-            invoke(
-                provider="OpenAI", stage=f"{stage}_{number}", prompt=REPLY_NECESSITY_PROMPT,
-                payload=payload, schema=REPLY_NECESSITY_SCHEMA,
-                max_tokens=int(config["review_max_output_tokens"]),
-                validator=lambda raw: _validate_enum(raw, REPLY_NECESSITY_SCHEMA, stage),
+    def review_majority(
+        *, family: str, prompt: str, payload: dict[str, Any],
+        schema: dict[str, Any], max_tokens: int, validation_stage: str,
+        fail_closed: str,
+    ) -> dict[str, Any]:
+        def invoke_reviewer(number: int) -> str | None:
+            return invoke(
+                provider="OpenAI", stage=f"{family}_{number}", prompt=prompt,
+                payload=payload, schema=schema, max_tokens=max_tokens,
+                validator=lambda raw: _validate_enum(raw, schema, validation_stage),
             )
-            for number in (1, 2, 3)
-        ]
-        return _majority(values, "confirm_no_reply")
+
+        values = [invoke_reviewer(1), invoke_reviewer(2)]
+        first_two_valid_votes_agreed = (
+            values[0] is not None and values[0] == values[1]
+        )
+        reviewer_3_called = not first_two_valid_votes_agreed
+        if reviewer_3_called:
+            values.append(invoke_reviewer(3))
+        return {
+            **_majority(values, fail_closed),
+            "reviewer_calls_attempted": len(values),
+            "valid_votes_obtained": sum(value is not None for value in values),
+            "first_two_valid_votes_agreed": first_two_valid_votes_agreed,
+            "reviewer_3_called": reviewer_3_called,
+            "reviewer_3_skipped_first_two_agreement": (
+                first_two_valid_votes_agreed and not reviewer_3_called
+            ),
+        }
+
+    def review_reply_necessity(family: str) -> dict[str, Any]:
+        return review_majority(
+            family=family,
+            prompt=REPLY_NECESSITY_PROMPT,
+            payload={
+                key: model[key]
+                for key in ("context", "trusted_facts", "media_context")
+            },
+            schema=REPLY_NECESSITY_SCHEMA,
+            max_tokens=int(config["review_max_output_tokens"]),
+            validation_stage=family,
+            fail_closed="confirm_no_reply",
+        )
 
     policies = policy_result(clean_context)
     audit.append({"stage": "A_B_C", **policies})
@@ -1532,7 +1609,7 @@ def run_reply_pipeline(
     # The gate's candidate is intentionally never placed in any later payload.
     audit.append({"stage": "xai_gate_decision", "decision": gate["decision"], "private_candidate_discarded": True})
     if not provisional:
-        resolution = review_three("reply_necessity")
+        resolution = review_reply_necessity("reply_necessity")
         audit.append({"stage": "reply_necessity_resolution", **resolution})
         provisional, reply_requirement = _apply_review(resolution, reply_requirement)
         route_source = "reply_necessity_review"
@@ -1556,7 +1633,7 @@ def run_reply_pipeline(
         detector = allegation_review_candidate(clean_context)
         audit.append({"stage": "allegation_conspiracy_detector", **detector})
         if detector["candidate"]:
-            resolution = review_three("allegation_review")
+            resolution = review_reply_necessity("allegation_review")
             audit.append({"stage": "allegation_conspiracy_resolution", **resolution})
             provisional, reply_requirement = _apply_review(resolution, reply_requirement)
             route_source = "allegation_review" if provisional else "allegation_review_suppression"
@@ -1574,17 +1651,15 @@ def run_reply_pipeline(
                 "context": model["context"], "trusted_facts": trusted_facts,
                 "media_context": media, "review_scope": "direct_authentication_evidence_only",
             }
-            values = [
-                invoke(
-                    provider="OpenAI", stage=f"authentication_review_{number}",
-                    prompt=AUTHENTICATION_EVIDENCE_PROMPT, payload=payload,
-                    schema=AUTHENTICATION_EVIDENCE_SCHEMA,
-                    max_tokens=int(config["authentication_max_output_tokens"]),
-                    validator=lambda raw: _validate_enum(raw, AUTHENTICATION_EVIDENCE_SCHEMA, "authentication review"),
-                )
-                for number in (1, 2, 3)
-            ]
-            resolution = _majority(values, "suppress_unsupported_authentication")
+            resolution = review_majority(
+                family="authentication_review",
+                prompt=AUTHENTICATION_EVIDENCE_PROMPT,
+                payload=payload,
+                schema=AUTHENTICATION_EVIDENCE_SCHEMA,
+                max_tokens=int(config["authentication_max_output_tokens"]),
+                validation_stage="authentication review",
+                fail_closed="suppress_unsupported_authentication",
+            )
             audit.append({"stage": "authentication_resolution", **resolution})
             if resolution["majority_outcome"] == "require_supported_factual_reply" and trusted_facts:
                 reply_requirement, route_source = "supported_factual", "supported_authentication_route"
