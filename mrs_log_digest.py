@@ -4987,6 +4987,84 @@ def summarize_xai_usage_event(
     }
 
 
+def _cache_metric_coverage(
+    events: List[Dict[str, Any]],
+    metric_name: str,
+) -> Dict[str, Any]:
+    """Return explicit reporting coverage for one nullable cache metric."""
+
+    def coverage_for_scope(
+        scope_events: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        reported_values = [
+            value
+            for item in scope_events
+            if (
+                value := optional_int_usage_value(item.get(metric_name))
+            ) is not None
+        ]
+        successful_call_count = len(scope_events)
+        reporting_call_count = len(reported_values)
+        missing_call_count = successful_call_count - reporting_call_count
+        if successful_call_count and not missing_call_count:
+            coverage_status = "complete"
+        elif reporting_call_count:
+            coverage_status = "partial"
+        else:
+            coverage_status = "unavailable"
+        return {
+            "coverage_status": coverage_status,
+            "successful_call_count": successful_call_count,
+            "reporting_call_count": reporting_call_count,
+            "missing_call_count": missing_call_count,
+            "reported_subtotal": (
+                sum(reported_values) if reporting_call_count else None
+            ),
+        }
+
+    coverage = coverage_for_scope(events)
+    coverage["by_provider"] = {
+        provider: coverage_for_scope([
+            item
+            for item in events
+            if str(item.get("provider") or "xAI") == provider
+        ])
+        for provider in ("OpenAI", "xAI")
+    }
+    return coverage
+
+
+def _format_cache_metric_coverage_line(
+    metric_name: str,
+    coverage: Dict[str, Any],
+    *,
+    provider: str = "",
+) -> str:
+    """Format one cache-metric total without overstating missing coverage."""
+    successful_calls = int(coverage.get("successful_call_count", 0) or 0)
+    reporting_calls = int(coverage.get("reporting_call_count", 0) or 0)
+    call_noun = "call" if successful_calls == 1 else "calls"
+    scope_noun = call_noun if provider else f"successful {call_noun}"
+    prefix = f"{provider} " if provider else ""
+    coverage_status = coverage.get("coverage_status")
+    if coverage_status == "complete":
+        return (
+            f"{prefix}{metric_name} = {coverage.get('reported_subtotal')} "
+            f"(complete coverage: {reporting_calls}/{successful_calls} "
+            f"{scope_noun})"
+        )
+    if coverage_status == "partial":
+        return (
+            f"{prefix}{metric_name} = partial; reported subtotal "
+            f"{coverage.get('reported_subtotal')} across "
+            f"{reporting_calls}/{successful_calls} {scope_noun}"
+        )
+    return (
+        f"{prefix}{metric_name} = unavailable "
+        f"({reporting_calls}/{successful_calls} {scope_noun} reported the metric)"
+    )
+
+
 def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Return backward-compatible totals for all conversational providers."""
     reported_costs = [
@@ -4998,23 +5076,18 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     provider_counts = Counter(
         str(item.get("provider") or "xAI") for item in events
     )
-    cache_creation_values = [
-        value
-        for item in events
-        if (
-            value := optional_int_usage_value(
-                item.get("cache_creation_input_tokens")
-            )
+    cache_metric_coverage = {
+        metric_name: _cache_metric_coverage(events, metric_name)
+        for metric_name in (
+            "cache_creation_input_tokens",
+            "cache_write_input_tokens",
         )
-        is not None
+    }
+    cache_creation_coverage = cache_metric_coverage[
+        "cache_creation_input_tokens"
     ]
-    cache_write_values = [
-        value
-        for item in events
-        if (
-            value := optional_int_usage_value(item.get("cache_write_input_tokens"))
-        )
-        is not None
+    cache_write_coverage = cache_metric_coverage[
+        "cache_write_input_tokens"
     ]
     return {
         "successful_provider_calls": len(events),
@@ -5029,11 +5102,16 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             for item in events
         ),
         "cache_creation_input_tokens": (
-            sum(cache_creation_values) if cache_creation_values else None
+            cache_creation_coverage["reported_subtotal"]
+            if cache_creation_coverage["coverage_status"] == "complete"
+            else None
         ),
         "cache_write_input_tokens": (
-            sum(cache_write_values) if cache_write_values else None
+            cache_write_coverage["reported_subtotal"]
+            if cache_write_coverage["coverage_status"] == "complete"
+            else None
         ),
+        "cache_metric_coverage": cache_metric_coverage,
         "image_tokens": sum(int_usage_value(item.get("image_tokens")) for item in events),
         "reasoning_tokens": sum(int_usage_value(item.get("reasoning_tokens")) for item in events),
         "completion_tokens": sum(int_usage_value(item.get("completion_tokens")) for item in events),
@@ -11371,14 +11449,38 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 f"{totals.get('cached_tokens', 0)} "
                 "(compatibility alias for cache-read input; not cache-write usage)"
             )
-            out.append(
-                "cache_creation_input_tokens = "
-                f"{totals.get('cache_creation_input_tokens') if totals.get('cache_creation_input_tokens') is not None else 'unavailable'}"
-            )
-            out.append(
-                "cache_write_input_tokens = "
-                f"{totals.get('cache_write_input_tokens') if totals.get('cache_write_input_tokens') is not None else 'unavailable'}"
-            )
+            cache_metric_coverage = totals.get("cache_metric_coverage")
+            if not isinstance(cache_metric_coverage, dict):
+                cache_metric_coverage = {}
+            for metric_name in (
+                "cache_creation_input_tokens",
+                "cache_write_input_tokens",
+            ):
+                metric_coverage = cache_metric_coverage.get(metric_name)
+                if not isinstance(metric_coverage, dict):
+                    metric_coverage = _cache_metric_coverage(
+                        xai_events,
+                        metric_name,
+                    )
+                out.append(
+                    _format_cache_metric_coverage_line(
+                        metric_name,
+                        metric_coverage,
+                    )
+                )
+                provider_coverage = metric_coverage.get("by_provider") or {}
+                for provider in ("OpenAI", "xAI"):
+                    scope_coverage = provider_coverage.get(provider) or {}
+                    if int(
+                        scope_coverage.get("successful_call_count", 0) or 0
+                    ):
+                        out.append(
+                            _format_cache_metric_coverage_line(
+                                metric_name,
+                                scope_coverage,
+                                provider=provider,
+                            )
+                        )
             out.append(f"image_tokens         = {totals.get('image_tokens', 0)}")
             out.append(f"reasoning_tokens     = {totals.get('reasoning_tokens', 0)}")
             out.append(f"completion_tokens    = {totals.get('completion_tokens', 0)}")
@@ -12698,15 +12800,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 )
                 overall = majority_utilisation.get("overall") or {}
                 out.append(
-                    f"Overall: **{overall.get('completed_family_resolutions', 0)} "
-                    "resolutions; "
-                    f"{overall.get('actual_reviewer_calls_attempted', 0)} calls "
+                    "Overall: **"
+                    f"{plural_count(overall.get('completed_family_resolutions', 0), 'resolution')}; "
+                    f"{plural_count(overall.get('actual_reviewer_calls_attempted', 0), 'call')} "
                     "made versus "
                     f"{overall.get('fixed_three_call_baseline', 0)} fixed-three "
-                    f"baseline; {overall.get('reviewer_calls_saved', 0)} calls "
+                    "baseline; "
+                    f"{plural_count(overall.get('reviewer_calls_saved', 0), 'call')} "
                     "saved; "
-                    f"{overall.get('total_invalid_or_unusable_votes', 0)} "
-                    "invalid/unusable votes**."
+                    f"{plural_count(overall.get('total_invalid_or_unusable_votes', 0), 'invalid/unusable vote')}"
+                    "**."
                 )
                 short_circuit = overall.get("short_circuit_rate_percentage")
                 reduction = overall.get(

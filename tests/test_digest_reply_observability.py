@@ -61,6 +61,24 @@ def analyse_majority_review_payloads(*payloads):
     return digest.analyse(records)
 
 
+def analyse_provider_usage_records(*provider_usages):
+    base = datetime(2026, 8, 21, 13)
+    records = [
+        digest.Record(
+            base + timedelta(seconds=index),
+            "INFO",
+            "tested_pipeline_structured_call",
+            index,
+            f"Tested reply stage=coverage_{index} provider={provider} usage="
+            + repr(usage),
+            "mrsMThatcher.log",
+            index,
+        )
+        for index, (provider, usage) in enumerate(provider_usages, 1)
+    ]
+    return digest.analyse(records)
+
+
 def test_source_classification_uses_stable_authoritative_classes():
     assert formatter.classify_source({"title": "HC Deb", "url": "https://hansard.parliament.uk/x", "source_type": "transcript"}) == "Hansard"
     assert formatter.classify_source({"title": "Redirect", "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/x"}) == "no public URL"
@@ -702,6 +720,54 @@ def test_ai_first_usage_log_format_is_counted_with_pending_context():
         "cache_read_input_tokens": 192,
         "cache_creation_input_tokens": None,
         "cache_write_input_tokens": None,
+        "cache_metric_coverage": {
+            "cache_creation_input_tokens": {
+                "coverage_status": "unavailable",
+                "successful_call_count": 1,
+                "reporting_call_count": 0,
+                "missing_call_count": 1,
+                "reported_subtotal": None,
+                "by_provider": {
+                    "OpenAI": {
+                        "coverage_status": "unavailable",
+                        "successful_call_count": 0,
+                        "reporting_call_count": 0,
+                        "missing_call_count": 0,
+                        "reported_subtotal": None,
+                    },
+                    "xAI": {
+                        "coverage_status": "unavailable",
+                        "successful_call_count": 1,
+                        "reporting_call_count": 0,
+                        "missing_call_count": 1,
+                        "reported_subtotal": None,
+                    },
+                },
+            },
+            "cache_write_input_tokens": {
+                "coverage_status": "unavailable",
+                "successful_call_count": 1,
+                "reporting_call_count": 0,
+                "missing_call_count": 1,
+                "reported_subtotal": None,
+                "by_provider": {
+                    "OpenAI": {
+                        "coverage_status": "unavailable",
+                        "successful_call_count": 0,
+                        "reporting_call_count": 0,
+                        "missing_call_count": 0,
+                        "reported_subtotal": None,
+                    },
+                    "xAI": {
+                        "coverage_status": "unavailable",
+                        "successful_call_count": 1,
+                        "reporting_call_count": 0,
+                        "missing_call_count": 1,
+                        "reported_subtotal": None,
+                    },
+                },
+            },
+        },
         "image_tokens": 0,
         "reasoning_tokens": 706,
         "completion_tokens": 123,
@@ -806,6 +872,250 @@ def test_distinct_cache_creation_and_write_metrics_remain_separate():
     assert totals["prompt_tokens"] == 80
     assert totals["completion_tokens"] == 10
     assert totals["total_tokens"] == 90
+
+
+def test_cache_write_coverage_is_partial_for_mixed_provider_omissions():
+    provider_usages = [
+        (
+            "xAI",
+            {
+                "prompt_tokens": 10,
+                "cache_write_input_tokens": 0,
+                "completion_tokens": 2,
+                "total_tokens": 12,
+            },
+        )
+        for _ in range(4)
+    ] + [
+        (
+            "OpenAI",
+            {
+                "prompt_tokens": 20,
+                "completion_tokens": 3,
+                "total_tokens": 23,
+            },
+        )
+        for _ in range(5)
+    ]
+
+    report = analyse_provider_usage_records(*provider_usages)
+    totals = report["provider_usage"]["totals"]
+    creation = totals["cache_metric_coverage"][
+        "cache_creation_input_tokens"
+    ]
+    write = totals["cache_metric_coverage"]["cache_write_input_tokens"]
+
+    assert creation["coverage_status"] == "unavailable"
+    assert creation["successful_call_count"] == 9
+    assert creation["reporting_call_count"] == 0
+    assert creation["missing_call_count"] == 9
+    assert creation["reported_subtotal"] is None
+    assert write["coverage_status"] == "partial"
+    assert write["successful_call_count"] == 9
+    assert write["reporting_call_count"] == 4
+    assert write["missing_call_count"] == 5
+    assert write["reported_subtotal"] == 0
+    assert totals["cache_write_input_tokens"] is None
+    assert list(write["by_provider"]) == ["OpenAI", "xAI"]
+    assert write["by_provider"]["OpenAI"] == {
+        "coverage_status": "unavailable",
+        "successful_call_count": 5,
+        "reporting_call_count": 0,
+        "missing_call_count": 5,
+        "reported_subtotal": None,
+    }
+    assert write["by_provider"]["xAI"] == {
+        "coverage_status": "complete",
+        "successful_call_count": 4,
+        "reporting_call_count": 4,
+        "missing_call_count": 0,
+        "reported_subtotal": 0,
+    }
+
+    rendered = digest.render_markdown(report)
+    assert (
+        "cache_creation_input_tokens = unavailable "
+        "(0/9 successful calls reported the metric)"
+    ) in rendered
+    assert (
+        "cache_write_input_tokens = partial; reported subtotal 0 across "
+        "4/9 successful calls"
+    ) in rendered
+    assert "\ncache_write_input_tokens = 0" not in rendered
+    assert (
+        "OpenAI cache_write_input_tokens = unavailable "
+        "(0/5 calls reported the metric)"
+    ) in rendered
+    assert (
+        "xAI cache_write_input_tokens = 0 "
+        "(complete coverage: 4/4 calls)"
+    ) in rendered
+
+
+def test_cache_write_complete_zero_coverage_keeps_numeric_compatibility():
+    report = analyse_provider_usage_records(
+        ("OpenAI", {"cache_write_input_tokens": 0}),
+        ("OpenAI", {"cache_write_input_tokens": 0}),
+    )
+    totals = report["provider_usage"]["totals"]
+    write = totals["cache_metric_coverage"]["cache_write_input_tokens"]
+
+    assert write["coverage_status"] == "complete"
+    assert write["successful_call_count"] == 2
+    assert write["reporting_call_count"] == 2
+    assert write["missing_call_count"] == 0
+    assert write["reported_subtotal"] == 0
+    assert write["by_provider"]["OpenAI"]["coverage_status"] == "complete"
+    assert write["by_provider"]["OpenAI"]["reported_subtotal"] == 0
+    assert totals["cache_write_input_tokens"] == 0
+
+    rendered = digest.render_markdown(report)
+    assert (
+        "cache_write_input_tokens = 0 "
+        "(complete coverage: 2/2 successful calls)"
+    ) in rendered
+    assert (
+        "OpenAI cache_write_input_tokens = 0 "
+        "(complete coverage: 2/2 calls)"
+    ) in rendered
+
+
+def test_cache_write_partial_nonzero_coverage_retains_reported_subtotal():
+    report = analyse_provider_usage_records(
+        ("OpenAI", {"cache_write_input_tokens": 3}),
+        ("OpenAI", {"cache_write_input_tokens": 4}),
+        ("OpenAI", {}),
+    )
+    totals = report["provider_usage"]["totals"]
+    write = totals["cache_metric_coverage"]["cache_write_input_tokens"]
+
+    assert write["coverage_status"] == "partial"
+    assert write["successful_call_count"] == 3
+    assert write["reporting_call_count"] == 2
+    assert write["missing_call_count"] == 1
+    assert write["reported_subtotal"] == 7
+    assert totals["cache_write_input_tokens"] is None
+
+    rendered = digest.render_markdown(report)
+    assert (
+        "cache_write_input_tokens = partial; reported subtotal 7 across "
+        "2/3 successful calls"
+    ) in rendered
+    assert (
+        "OpenAI cache_write_input_tokens = partial; reported subtotal 7 "
+        "across 2/3 calls"
+    ) in rendered
+
+
+def test_cache_creation_and_write_are_unavailable_when_no_calls_report_them():
+    report = analyse_provider_usage_records(
+        ("OpenAI", {"prompt_tokens": 5, "total_tokens": 5}),
+        ("xAI", {"prompt_tokens": 7, "total_tokens": 7}),
+        ("xAI", {"prompt_tokens": 11, "total_tokens": 11}),
+    )
+    totals = report["provider_usage"]["totals"]
+
+    for metric_name in (
+        "cache_creation_input_tokens",
+        "cache_write_input_tokens",
+    ):
+        coverage = totals["cache_metric_coverage"][metric_name]
+        assert coverage["coverage_status"] == "unavailable"
+        assert coverage["successful_call_count"] == 3
+        assert coverage["reporting_call_count"] == 0
+        assert coverage["missing_call_count"] == 3
+        assert coverage["reported_subtotal"] is None
+        assert totals[metric_name] is None
+
+    rendered = digest.render_markdown(report)
+    assert (
+        "cache_creation_input_tokens = unavailable "
+        "(0/3 successful calls reported the metric)"
+    ) in rendered
+    assert (
+        "cache_write_input_tokens = unavailable "
+        "(0/3 successful calls reported the metric)"
+    ) in rendered
+    assert "\ncache_creation_input_tokens = 0" not in rendered
+    assert "\ncache_write_input_tokens = 0" not in rendered
+
+
+def test_cache_creation_write_and_read_accounting_remain_independent():
+    report = analyse_provider_usage_records(
+        (
+            "OpenAI",
+            {
+                "prompt_tokens": 10,
+                "prompt_tokens_details": {
+                    "cached_tokens": 4,
+                    "cache_creation_tokens": 5,
+                    "cache_write_tokens": 2,
+                },
+                "completion_tokens": 3,
+                "completion_tokens_details": {"reasoning_tokens": 1},
+                "total_tokens": 13,
+            },
+        ),
+        (
+            "OpenAI",
+            {
+                "prompt_tokens": 20,
+                "prompt_tokens_details": {
+                    "cached_tokens": 6,
+                    "cache_creation_tokens": 7,
+                },
+                "completion_tokens": 4,
+                "completion_tokens_details": {"reasoning_tokens": 2},
+                "total_tokens": 24,
+            },
+        ),
+    )
+    totals = report["provider_usage"]["totals"]
+    coverage = totals["cache_metric_coverage"]
+
+    assert coverage["cache_creation_input_tokens"]["coverage_status"] == "complete"
+    assert coverage["cache_creation_input_tokens"]["reported_subtotal"] == 12
+    assert totals["cache_creation_input_tokens"] == 12
+    assert coverage["cache_write_input_tokens"]["coverage_status"] == "partial"
+    assert coverage["cache_write_input_tokens"]["reporting_call_count"] == 1
+    assert coverage["cache_write_input_tokens"]["reported_subtotal"] == 2
+    assert totals["cache_write_input_tokens"] is None
+    assert totals["cached_tokens"] == 10
+    assert totals["cache_read_input_tokens"] == 10
+    assert totals["prompt_tokens"] == 30
+    assert totals["completion_tokens"] == 7
+    assert totals["reasoning_tokens"] == 3
+    assert totals["total_tokens"] == 37
+    json.dumps(report)
+
+
+def test_invalid_cache_metric_values_do_not_count_as_reports():
+    invalid_values = (True, False, -1, "3", {"tokens": 3})
+    report = analyse_provider_usage_records(
+        ("OpenAI", {"cache_write_input_tokens": 0}),
+        *(
+            ("OpenAI", {"cache_write_input_tokens": value})
+            for value in invalid_values
+        ),
+    )
+    events = report["provider_usage"]["events"]
+    totals = report["provider_usage"]["totals"]
+    write = totals["cache_metric_coverage"]["cache_write_input_tokens"]
+
+    assert [item["cache_write_input_tokens"] for item in events] == [
+        0,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
+    assert write["coverage_status"] == "partial"
+    assert write["successful_call_count"] == 6
+    assert write["reporting_call_count"] == 1
+    assert write["missing_call_count"] == 5
+    assert write["reported_subtotal"] == 0
+    assert totals["cache_write_input_tokens"] is None
 
 
 def test_tested_pipeline_provider_usage_and_stage_summary_are_complete():
@@ -1051,6 +1361,27 @@ def test_majority_review_aggregate_call_savings_arithmetic():
         "family_resolutions_with_invalid_or_unusable_votes"
     ] == 1
     assert overall["total_invalid_or_unusable_votes"] == 1
+
+
+def test_majority_review_markdown_pluralises_resolutions_and_saved_calls():
+    singular = digest.render_markdown(analyse_majority_review_payloads(
+        [majority_review_entry("reply_necessity")],
+    ))
+    plural = digest.render_markdown(analyse_majority_review_payloads(
+        [majority_review_entry("reply_necessity")],
+        [majority_review_entry("allegation_review")],
+    ))
+
+    assert (
+        "Overall: **1 resolution; 2 calls made versus 3 fixed-three baseline; "
+        "1 call saved; 0 invalid/unusable votes**."
+    ) in singular
+    assert "1 resolutions" not in singular
+    assert "1 calls saved" not in singular
+    assert (
+        "Overall: **2 resolutions; 4 calls made versus 6 fixed-three baseline; "
+        "2 calls saved; 0 invalid/unusable votes**."
+    ) in plural
 
 
 def test_majority_review_malformed_payloads_are_excluded_strictly():
