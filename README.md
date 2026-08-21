@@ -789,8 +789,19 @@ for content validation.
    `git clean` in production.
 8. Start `mrsMThatcher.service` while the global pause remains active.
 9. Confirm successful startup, exactly one wrapper and one Python child, the
-   correct instance lock, no traceback and no restart loop. Do not clear the
-   pause until these checks pass.
+   correct instance lock, no traceback and no restart loop. A process started
+   with the global pause already active initializes its pause-log
+   de-duplication state from that condition, so it does not repeat the step 4
+   transition acknowledgement. Do not wait for that line a second time.
+   Verify that the live control still contains `"pause_all": true` and confirm
+   the paused-start safeguard message:
+
+   ```text
+   Global runtime control pause is active; leaving main-post receipts untouched during startup
+   ```
+
+   together with `Bot started successfully`. Do not clear the pause until all
+   of these checks pass.
 10. Atomically restore the exact original control-file bytes and metadata, or
     atomically restore its absence if it was originally absent. Do not
     reconstruct an equivalent JSON document.
