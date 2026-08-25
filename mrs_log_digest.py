@@ -102,6 +102,9 @@ REMOTE_TRANSPORT_JOURNAL_BASENAME = "remote_write_transport_journal.json"
 REMOTE_TRANSPORT_FENCE_BASENAME = "remote_write_transport_fence.json"
 REMOTE_WRITE_ARCHIVE_BASENAME = "remote_write_safety_marker_archive"
 REMOTE_WRITE_SNAPSHOT_MAX_BYTES = 256 * 1024
+RETIREMENT_SOURCE_IDENTITY_KEYS = frozenset(
+    ("ctime_ns", "device", "inode", "link_count", "mode", "mtime_ns", "owner_uid", "size")
+)
 REMOTE_WRITE_CONTROL_BOOLEAN_KEYS = frozenset(
     {
         "disable_all",
@@ -278,6 +281,20 @@ def _strict_json_object(data: bytes, *, label: str) -> Dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} root is not an object")
     return value
+
+
+def _canonical_retirement_source_identity(value: Any) -> str:
+    """Return the stable structural representation of one exact source identity."""
+
+    if (
+        not isinstance(value, dict)
+        or frozenset(value) != RETIREMENT_SOURCE_IDENTITY_KEYS
+        or any(type(value[key]) is not int for key in RETIREMENT_SOURCE_IDENTITY_KEYS)
+    ):
+        raise ValueError("retirement source identity is not a strict exact-file identity")
+    return json.dumps(
+        value, allow_nan=False, sort_keys=True, separators=(",", ":")
+    )
 
 
 def _control_boolean(value: Any) -> bool:
@@ -786,6 +803,24 @@ def _group_active_remote_write_artifacts(
 
     if not artifacts:
         return []
+    artifacts = [dict(item) for item in artifacts]
+    for item in artifacts:
+        source_identity = item.get("retirement_source_identity")
+        if source_identity is None:
+            continue
+        try:
+            canonical = _canonical_retirement_source_identity(source_identity)
+        except ValueError as exc:
+            error = f"ValueError: {exc}"
+            if item.get("identity_error"):
+                error = str(item["identity_error"]) + "; " + error
+            item["identity_error"] = error
+            item.pop("retirement_source_identity", None)
+            continue
+        item["retirement_source_identity_canonical"] = canonical
+        item["retirement_source_identity_sha256"] = hashlib.sha256(
+            canonical.encode("utf-8")
+        ).hexdigest()
     parents = list(range(len(artifacts)))
 
     def root(index: int) -> int:
@@ -811,11 +846,26 @@ def _group_active_remote_write_artifacts(
         }
 
     def compatible(left: int, right: int) -> bool:
+        def combined(*fields: str) -> set[str]:
+            return component_values(left, *fields) | component_values(
+                right, *fields
+            )
+
+        expected_or_bound_receipt = combined(
+            "retirement_expected_sha256",
+            "source_receipt_sha256",
+        )
         return bool(
-            len(component_values(left, "transaction_id") | component_values(right, "transaction_id")) <= 1
-            and len(component_values(left, "target_id") | component_values(right, "target_id")) <= 1
-            and len(component_values(left, "receipt_role") | component_values(right, "receipt_role")) <= 1
-            and len(component_values(left, "retirement_source_basename") | component_values(right, "retirement_source_basename")) <= 1
+            len(combined("transaction_id")) <= 1
+            and len(combined("target_id")) <= 1
+            and len(combined("receipt_role")) <= 1
+            and len(combined("retirement_source_basename")) <= 1
+            and len(combined("retirement_expected_sha256")) <= 1
+            and len(combined("retirement_expected_size")) <= 1
+            and len(combined("retirement_source_identity_canonical")) <= 1
+            and len(combined("source_receipt_name")) <= 1
+            and len(combined("source_receipt_sha256")) <= 1
+            and len(expected_or_bound_receipt) <= 1
         )
 
     def union_matching(fields: Tuple[str, ...]) -> None:
@@ -865,6 +915,69 @@ def _group_active_remote_write_artifacts(
             if compatible(first_root, component_root):
                 union(first_root, component_root)
 
+    # Snapshot-only fallback: one malformed canonical auxiliary may join the
+    # sole non-contradictory active generation for its exact source basename.
+    roots_by_retirement_source: Dict[str, set[int]] = {}
+    for index in range(len(artifacts)):
+        if "receipt_retirement_auxiliary" not in component_values(index, "kind"):
+            continue
+        sources = component_values(index, "retirement_source_basename")
+        if len(sources) == 1:
+            roots_by_retirement_source.setdefault(next(iter(sources)), set()).add(
+                root(index)
+            )
+
+    def values_for_roots(component_roots: set[int], *fields: str) -> set[str]:
+        return {
+            str(item.get(field) or "").strip()
+            for item_index, item in enumerate(artifacts)
+            if root(item_index) in component_roots
+            for field in fields
+            if str(item.get(field) or "").strip()
+        }
+
+    for component_roots in roots_by_retirement_source.values():
+        if len(component_roots) <= 1:
+            continue
+        conflict_fields = (
+            ("retirement_expected_sha256", "retirement_expected_sha256"),
+            ("retirement_expected_size", "retirement_expected_size"),
+            ("retirement_source_identity_canonical", "retirement_source_identity"),
+            ("receipt_role", "receipt_role"),
+            ("transaction_id", "transaction_id"),
+            ("target_id", "target_id"),
+            ("lane", "lane"),
+            ("source_receipt_name", "source_receipt_binding"),
+            ("source_receipt_sha256", "source_receipt_binding"),
+        )
+        conflict_reasons = {
+            reason
+            for field, reason in conflict_fields
+            if len(values_for_roots(component_roots, field)) > 1
+        }
+        bound_receipt_hashes = values_for_roots(
+            component_roots,
+            "source_receipt_sha256",
+        )
+        if bound_receipt_hashes and len(
+            bound_receipt_hashes
+            | values_for_roots(
+                component_roots,
+                "retirement_expected_sha256",
+            )
+        ) > 1:
+            conflict_reasons.add("source_receipt_binding")
+        conflict_reasons = sorted(conflict_reasons)
+        if conflict_reasons:
+            for index, item in enumerate(artifacts):
+                if root(index) in component_roots:
+                    item["retirement_snapshot_conflict"] = True
+                    item["retirement_conflict_reasons"] = conflict_reasons
+            continue
+        first_root, *other_roots = sorted(component_roots)
+        for component_root in other_roots:
+            union(first_root, component_root)
+
     components: Dict[int, List[Dict[str, Any]]] = {}
     for index, artifact in enumerate(artifacts):
         components.setdefault(root(index), []).append(artifact)
@@ -888,7 +1001,16 @@ def _group_active_remote_write_artifacts(
         source_receipt_sha256s = values("source_receipt_sha256")
         retirement_expected_sha256s = values("retirement_expected_sha256")
         retirement_source_basenames = values("retirement_source_basename")
-        retirement_phases = values("retirement_phase")
+        retirement_phases = sorted(
+            set(values("retirement_phase"))
+            | set(values("retirement_document_phase"))
+        )
+        retirement_source_identity_canonicals = values(
+            "retirement_source_identity_canonical"
+        )
+        retirement_source_identity_sha256s = values(
+            "retirement_source_identity_sha256"
+        )
         snapshot_identity_tokens = [
             *("document_sha256:" + value for value in document_sha256s),
             *("artifact_sha256:" + value for value in artifact_sha256s),
@@ -899,6 +1021,18 @@ def _group_active_remote_write_artifacts(
                 + expected
                 for source in retirement_source_basenames
                 for expected in retirement_expected_sha256s
+            ),
+            *(
+                "retirement_source_identity:"
+                + source
+                + ":"
+                + identity_sha256
+                for source in retirement_source_basenames
+                for identity_sha256 in retirement_source_identity_sha256s
+            ),
+            *(
+                "source_receipt_sha256:" + value
+                for value in source_receipt_sha256s
             ),
         ]
         invalid_artifact_names = sorted(
@@ -959,10 +1093,31 @@ def _group_active_remote_write_artifacts(
                 ),
                 "retirement_phases": retirement_phases,
                 "retirement_source_identities": [
-                    item["retirement_source_identity"]
-                    for item in rows
-                    if isinstance(item.get("retirement_source_identity"), dict)
+                    json.loads(canonical)
+                    for canonical in retirement_source_identity_canonicals
                 ],
+                "retirement_source_identity_sha256s": (
+                    retirement_source_identity_sha256s
+                ),
+                "retirement_auxiliary_names": sorted(
+                    {
+                        str(item.get("name"))
+                        for item in rows
+                        if item.get("kind") == "receipt_retirement_auxiliary"
+                        and item.get("name")
+                    }
+                ),
+                "retirement_snapshot_conflict": any(
+                    item.get("retirement_snapshot_conflict") is True
+                    for item in rows
+                ),
+                "retirement_conflict_reasons": sorted(
+                    {
+                        str(reason)
+                        for item in rows
+                        for reason in item.get("retirement_conflict_reasons") or []
+                    }
+                ),
                 "snapshot_identity_tokens": snapshot_identity_tokens,
                 "recorded_at_epoch": min(recorded_epochs) if recorded_epochs else None,
                 "attribution_identity_available": bool(
@@ -973,6 +1128,7 @@ def _group_active_remote_write_artifacts(
                     or artifact_sha256s
                     or source_receipt_sha256s
                     or retirement_expected_sha256s
+                    or retirement_source_identity_sha256s
                     or any(item.get("name") for item in rows)
                 ),
                 # Retain the established field for JSON consumers while
@@ -1110,10 +1266,21 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                         entry["retirement_expected_size"] = len(data)
                     phase = document.get("phase")
                     if isinstance(phase, str) and phase:
-                        entry["retirement_phase"] = phase
+                        entry["retirement_document_phase"] = phase
                     source_identity = document.get("source_identity")
-                    if isinstance(source_identity, dict):
+                    if source_identity is not None:
+                        canonical_identity = (
+                            _canonical_retirement_source_identity(source_identity)
+                        )
                         entry["retirement_source_identity"] = source_identity
+                        entry["retirement_source_identity_canonical"] = (
+                            canonical_identity
+                        )
+                        entry["retirement_source_identity_sha256"] = (
+                            hashlib.sha256(
+                                canonical_identity.encode("utf-8")
+                            ).hexdigest()
+                        )
             except Exception as exc:
                 entry["identity_error"] = f"{type(exc).__name__}: {exc}"
         active_entries.append(entry)
@@ -1174,6 +1341,50 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                     "exchange_path": inspection.exchange_path,
                 }
             )
+            ledger_row = ledger_rows[-1]
+            if inspection.state in {"exchange_staged", "exchange_committed"}:
+                binding_path = Path(
+                    inspection.exchange_path
+                    if inspection.state == "exchange_staged"
+                    else inspection.ledger_path
+                )
+                try:
+                    binding_data = read_stable_regular_bytes(
+                        binding_path, maximum=REMOTE_WRITE_SNAPSHOT_MAX_BYTES
+                    )
+                    binding_document = _strict_json_object(
+                        binding_data, label=binding_path.name
+                    )
+                    binding = binding_document.get("source_binding")
+                    if not isinstance(binding, dict):
+                        raise ValueError("recoverable exchange has no source binding")
+                    expected_sha256 = binding.get("expected_sha256")
+                    expected_size = binding.get("expected_size")
+                    source_identity = binding.get("source_identity")
+                    if (
+                        binding_document.get("source_basename") != name
+                        or binding_document.get("state") != "completed"
+                        or not isinstance(expected_sha256, str)
+                        or re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None
+                        or type(expected_size) is not int
+                        or expected_size <= 0
+                    ):
+                        raise ValueError("recoverable exchange binding is invalid")
+                    canonical_identity = _canonical_retirement_source_identity(
+                        source_identity
+                    )
+                    ledger_row.update(
+                        {
+                            "retirement_expected_sha256": expected_sha256,
+                            "retirement_expected_size": expected_size,
+                            "retirement_source_identity": source_identity,
+                            "retirement_source_identity_sha256": hashlib.sha256(
+                                canonical_identity.encode("utf-8")
+                            ).hexdigest(),
+                        }
+                    )
+                except Exception as exc:
+                    ledger_row["binding_inspection_error"] = f"{type(exc).__name__}: {exc}"
             auxiliary_phases = (
                 "prepared",
                 "committed",
@@ -1408,6 +1619,12 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
             ledger.get("record_sha256")
             or error_identity(ledger.get("detail"))
         )
+        expected_sha256 = str(
+            ledger.get("retirement_expected_sha256") or ""
+        )
+        source_identity_sha256 = str(
+            ledger.get("retirement_source_identity_sha256") or ""
+        )
         add_blocker(
             "remote_write_transaction_barrier",
             "retirement_ledger",
@@ -1417,6 +1634,18 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
             f"sequence {ledger.get('sequence', 'unavailable')}, detail "
             + str(ledger.get("detail") or "unavailable"),
             retirement_source_basenames=[source_basename],
+            retirement_expected_sha256s=[expected_sha256]
+            if expected_sha256
+            else [],
+            retirement_expected_sizes=[ledger["retirement_expected_size"]]
+            if type(ledger.get("retirement_expected_size")) is int
+            else [],
+            retirement_source_identities=[ledger["retirement_source_identity"]]
+            if isinstance(ledger.get("retirement_source_identity"), dict)
+            else [],
+            retirement_source_identity_sha256s=[source_identity_sha256]
+            if source_identity_sha256
+            else [],
             receipt_roles=[receipt_role] if receipt_role else [],
             receipt_role_labels=[REMOTE_WRITE_RECEIPT_ROLE_LABELS[receipt_role]]
             if receipt_role
@@ -5687,16 +5916,165 @@ def summarise_operational_error_health(
             )
         incidents.append(incident)
 
+    def evidence_values(
+        value: Dict[str, Any],
+        plural: str,
+        singular: str = "",
+    ) -> set[str]:
+        supplied = value.get(plural) or []
+        if not isinstance(supplied, (list, tuple, set)):
+            supplied = [supplied]
+        else:
+            supplied = list(supplied)
+        if singular and value.get(singular):
+            supplied.append(value[singular])
+        return {str(item).strip() for item in supplied if str(item).strip()}
+
+    def evidence_blocker_kinds(value: Dict[str, Any]) -> set[str]:
+        return evidence_values(value, "blocker_kinds", "blocker_kind")
+
+    def retirement_exchange_matches_component(
+        ledger: Dict[str, Any],
+        retirement: Dict[str, Any],
+    ) -> bool:
+        if (
+            str(ledger.get("ledger_state") or "")
+            not in {"exchange_staged", "exchange_committed"}
+            or "retirement_ledger" not in evidence_blocker_kinds(ledger)
+            or "receipt_retirement" not in evidence_blocker_kinds(retirement)
+        ):
+            return False
+        ledger_sources = evidence_values(ledger, "retirement_source_basenames")
+        retirement_sources = evidence_values(
+            retirement, "retirement_source_basenames"
+        )
+        if (
+            len(ledger_sources) != 1
+            or len(retirement_sources) != 1
+            or ledger_sources != retirement_sources
+        ):
+            return False
+
+        def non_conflicting(plural: str, singular: str = "") -> bool:
+            return len(
+                evidence_values(ledger, plural, singular)
+                | evidence_values(retirement, plural, singular)
+            ) <= 1
+
+        expected_or_bound_hashes = (
+            evidence_values(ledger, "retirement_expected_sha256s")
+            | evidence_values(retirement, "retirement_expected_sha256s")
+            | evidence_values(ledger, "source_receipt_sha256s")
+            | evidence_values(retirement, "source_receipt_sha256s")
+        )
+        return bool(
+            non_conflicting("receipt_roles")
+            and len(expected_or_bound_hashes) <= 1
+            and non_conflicting("retirement_source_identity_sha256s")
+            and non_conflicting("transaction_ids", "transaction_id")
+            and non_conflicting("target_ids", "target_id")
+            and non_conflicting("lanes", "lane")
+            and non_conflicting("source_receipt_sha256s")
+        )
+
+    def retirement_incident_summary(value: Dict[str, Any]) -> str:
+        sources = sorted(
+            evidence_values(value, "retirement_source_basenames")
+        )
+        role_labels = sorted(evidence_values(value, "receipt_role_labels"))
+        expected = sorted(
+            evidence_values(value, "retirement_expected_sha256s")
+        )
+        phases = sorted(evidence_values(value, "retirement_phases"))
+        invalid = sorted(evidence_values(value, "invalid_artifact_names"))
+        summary = (
+            "Interrupted exact receipt retirement: source receipt "
+            f"{', '.join(sources) or 'unavailable'}, role "
+            f"{', '.join(role_labels) or 'unavailable'}, expected SHA-256 "
+            f"{expected[0] if len(expected) == 1 else 'unavailable'}, "
+            "observed retirement phases "
+            f"{', '.join(phases) or 'unavailable'}"
+        )
+        if invalid:
+            summary += "; malformed or unreadable artefacts " + ", ".join(
+                invalid
+            )
+        ledger_state = str(value.get("ledger_state") or "")
+        if ledger_state in {"exchange_staged", "exchange_committed"}:
+            summary += "; blocking ledger exchange state " + ledger_state
+        conflict_reasons = sorted(
+            evidence_values(value, "retirement_conflict_reasons")
+        )
+        if conflict_reasons:
+            summary += "; conflicting snapshot evidence " + ", ".join(
+                conflict_reasons
+            )
+        return short(summary, 600)
+
+    def merge_retirement_evidence(
+        incident: Dict[str, Any],
+        evidence: Dict[str, Any],
+    ) -> None:
+        if evidence.get("blocker_kind") == "receipt_retirement":
+            incident["signature"] = evidence["signature"]
+        for field, incoming in evidence.items():
+            if isinstance(incoming, list) and field != "retirement_source_identities":
+                existing = incident.get(field)
+                if not isinstance(existing, list):
+                    existing = []
+                incident[field] = sorted(set(existing) | set(incoming))
+        if not incident.get("retirement_source_identities"):
+            incident["retirement_source_identities"] = list(
+                evidence.get("retirement_source_identities") or []
+            )
+        kinds = evidence_blocker_kinds(incident) | evidence_blocker_kinds(evidence)
+        incident["blocker_kinds"] = sorted(kinds)
+        for field in (
+            "ledger_state",
+            "ledger_sequence",
+            "ledger_detail",
+            "ledger_record_sha256",
+            "selected_window_relationship",
+            "current_health_relationship",
+        ):
+            if field in evidence and evidence.get(field) not in {None, ""}:
+                incident[field] = evidence[field]
+        artifact_names = sorted(
+            evidence_values(incident, "active_artifact_names")
+            | evidence_values(incident, "artifact_names")
+            | evidence_values(evidence, "artifact_names")
+        )
+        incident["active_artifact_names"] = artifact_names
+        incident["active_artifact_count"] = len(artifact_names)
+        incident["summary"] = retirement_incident_summary(incident)
+
     def evidence_matches_incident(
         evidence: Dict[str, Any],
         incident: Dict[str, Any],
     ) -> bool:
         if evidence.get("category") != incident.get("category"):
             return False
-        if (evidence.get("signature") == incident.get("signature")
-                or component_matches_identity(evidence, incident)):
-            return True
         blocker_kind = str(evidence.get("blocker_kind") or "")
+        if (
+            blocker_kind == "retirement_ledger"
+            and str(evidence.get("ledger_state") or "")
+            in {"exchange_staged", "exchange_committed"}
+        ):
+            return evidence.get("signature") == incident.get("signature")
+        if (
+            blocker_kind == "receipt_retirement"
+            and "receipt_retirement" in evidence_blocker_kinds(incident)
+            and (
+                evidence.get("retirement_snapshot_conflict") is True
+                or incident.get("retirement_snapshot_conflict") is True
+            )
+        ):
+            return evidence.get("signature") == incident.get("signature")
+        if (
+            evidence.get("signature") == incident.get("signature")
+            or component_matches_identity(evidence, incident)
+        ):
+            return True
         incident_summary = str(incident.get("summary") or "").lower()
         if blocker_kind == "ambiguity_marker":
             hashes = evidence.get("document_sha256s") or evidence.get("artifact_sha256s") or []
@@ -5740,6 +6118,22 @@ def summarise_operational_error_health(
             fallback = hashlib.sha256(
                 "|".join([*hashes, *names, *(component.get("inspection_error_identities") or [])]).encode("utf-8")
             ).hexdigest()
+            retirement_fallback = hashlib.sha256(
+                json.dumps(
+                    {
+                        "artifact_names": sorted(
+                            component.get("retirement_auxiliary_names") or names
+                        ),
+                        "inspection_error_identities": sorted(
+                            component.get("inspection_error_identities") or []
+                        ),
+                    },
+                    ensure_ascii=False,
+                    allow_nan=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()
             if "ambiguity_marker" in kinds:
                 category, kind = "remote_write_ambiguity_barrier", "ambiguity_marker"
                 identity = hashes[0] if len(hashes) == 1 else fallback
@@ -5752,15 +6146,21 @@ def summarise_operational_error_health(
                 )
             elif "receipt_retirement_auxiliary" in kinds:
                 category, kind = "remote_write_transaction_barrier", "receipt_retirement"
-                source = ", ".join(sources) or "unavailable"
-                identity = expected[0] if len(expected) == 1 else fallback
-                signature = f"snapshot:receipt-retirement:{source}:{identity}"
-                summary = (
-                    f"Interrupted exact receipt retirement: source {source}, role "
-                    f"{', '.join(component.get('receipt_role_labels') or []) or 'unavailable'}, "
-                    f"expected SHA-256 {identity}, phase "
-                    f"{', '.join(component.get('retirement_phases') or []) or 'unavailable'}"
+                source = sources[0] if len(sources) == 1 else "unavailable"
+                source_identity_sha256s = component.get(
+                    "retirement_source_identity_sha256s"
+                ) or []
+                identity = (
+                    expected[0]
+                    if len(expected) == 1
+                    else source_identity_sha256s[0]
+                    if len(source_identity_sha256s) == 1
+                    else retirement_fallback
                 )
+                signature = f"snapshot:receipt-retirement:{source}:{identity}"
+                if component.get("retirement_snapshot_conflict") is True:
+                    signature += ":conflict:" + retirement_fallback
+                summary = ""
             elif invalid and "conversational_confirmed_reply" in roles:
                 category, kind = "conversational_reply_receipt_barrier", "invalid_confirmed_reply_receipt"
                 signature = "snapshot:confirmed-reply-receipt:" + fallback
@@ -5775,13 +6175,34 @@ def summarise_operational_error_health(
                 )
             else:
                 continue
-            snapshot_candidates.append(
-                {**component, "category": category, "blocker_kind": kind,
-                 "signature": signature, "summary": short(summary, 300)}
-            )
+            candidate = {
+                **component,
+                "category": category,
+                "blocker_kind": kind,
+                "blocker_kinds": [kind],
+                "signature": signature,
+                "summary": short(summary, 300),
+            }
+            if kind == "receipt_retirement":
+                candidate["summary"] = retirement_incident_summary(candidate)
+            snapshot_candidates.append(candidate)
         for evidence in snapshot_incident_evidence:
-            if isinstance(evidence, dict) and component_is_related_to_selected_window(evidence):
-                snapshot_candidates.append(dict(evidence))
+            if not isinstance(evidence, dict) or not component_is_related_to_selected_window(evidence):
+                continue
+            blocker = dict(evidence)
+            if str(blocker.get("ledger_state") or "") in {
+                "exchange_staged",
+                "exchange_committed",
+            }:
+                matches = [
+                    item
+                    for item in snapshot_candidates
+                    if retirement_exchange_matches_component(blocker, item)
+                ]
+                if len(matches) == 1:
+                    merge_retirement_evidence(matches[0], blocker)
+                    continue
+            snapshot_candidates.append(blocker)
         for evidence in snapshot_candidates:
             for singular, plural in (("transaction_id", "transaction_ids"),
                                      ("target_id", "target_ids"), ("lane", "lanes")):
@@ -5789,8 +6210,15 @@ def summarise_operational_error_health(
             matches = [item for item in incidents if evidence_matches_incident(evidence, item)]
             if matches:
                 for item in matches:
-                    item["active_artifact_names"] = sorted({*(item.get("active_artifact_names") or []), *(evidence.get("artifact_names") or [])})
-                    item["active_artifact_count"] = len(item["active_artifact_names"])
+                    if evidence.get("blocker_kind") == "receipt_retirement":
+                        merge_retirement_evidence(item, evidence)
+                    else:
+                        names = sorted(
+                            evidence_values(item, "active_artifact_names")
+                            | evidence_values(evidence, "artifact_names")
+                        )
+                        item["active_artifact_names"] = names
+                        item["active_artifact_count"] = len(names)
                 continue
             epoch = evidence.get("recorded_at_epoch")
             observed = datetime.fromtimestamp(epoch) if type(epoch) is int else _event_time({"time": str(safety.get("observed_at") or "")})
@@ -5801,6 +6229,7 @@ def summarise_operational_error_health(
             lanes = evidence.get("lanes") or []
             artifact_names = evidence.get("artifact_names") or []
             incident = {
+                **evidence,
                 "category": evidence["category"], "signature": evidence["signature"],
                 "status": "current_unresolved", "first_seen": dt_text(observed),
                 "last_seen": dt_text(observed), "record_count": 0, "traceback_count": 0,
@@ -5810,13 +6239,10 @@ def summarise_operational_error_health(
                 "target_id": target_ids[0] if len(target_ids) == 1 else "",
                 "lane": lanes[0] if len(lanes) == 1 else "",
                 "active_artifact_names": artifact_names,
-                "active_artifact_count": len(artifact_names), "snapshot_only": True,
+                "active_artifact_count": len(artifact_names),
+                "blocker_kinds": sorted(evidence_blocker_kinds(evidence)),
+                "snapshot_only": True,
             }
-            for key in ("receipt_roles", "receipt_role_labels", "retirement_source_basenames",
-                        "retirement_expected_sha256s", "retirement_expected_sizes", "retirement_phases",
-                        "ledger_state", "ledger_sequence", "ledger_detail", "blocker_kind",
-                        "snapshot_identity_tokens", "selected_window_relationship", "current_health_relationship"):
-                incident[key] = evidence.get(key) or ([] if key.endswith("s") else None)
             incidents.append(incident)
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
     current = [item for item in incidents if item["status"] == "current_unresolved"]
@@ -12822,7 +13248,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     )
             top_level_blockers = safety.get("snapshot_incident_evidence") or []
             if top_level_blockers:
-                out.append("Independent top-level safety blockers:")
+                out.append("Top-level safety blocker evidence:")
                 for item in top_level_blockers:
                     out.append(
                         "- `" + str(item.get("category") or "unavailable")
