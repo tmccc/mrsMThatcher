@@ -11,6 +11,11 @@ frozen boundary:
 2026-08-24T15:08:39Z
 ```
 
+The activation format is deliberately versioned as schema `2`, extractor
+`prospective-conversation-extractor-v2`, and parser
+`prospective-conversation-log-parser-v2`. State, cache entries, manifests,
+status files, and canonical posts must match those versions exactly.
+
 Collection is descriptive. A newly collected conversation is not thereby a
 defective conversation, and a review-candidate signal is not a finding that a
 reply was bad or that it should be repaired. The extractor never decides
@@ -104,6 +109,10 @@ raw contributor ID, credential, or pseudonym key. Content hashes allow a
 renamed rotation with unchanged bytes to be skipped. A changed active prefix is
 parsed again and canonical stable IDs remove duplicate observations.
 
+The source cache is bounded to content hashes in the current retained log
+inventory. Each entry records its parser version; an entry from another parser
+is reparsed and is never mixed into the current canonical snapshot.
+
 ## Reconstruction and prospective status
 
 Conversation identity is established in this order:
@@ -122,15 +131,51 @@ chain establishes that relationship. Missing or conflicting identity produces
 partial, low-confidence reconstruction and an explicit warning rather than an
 invented join.
 
-An observed conversation is `eligible` only when its earliest reliably known
-turn is at or after the frozen boundary. Any reliably reconstructed earlier
-turn makes it `pre_boundary`; a post-boundary continuation does not move that
-start forward. If retained evidence cannot establish the start, the status is
-`start_unknown`. The latter two statuses are excluded from default review
-packs. Warnings state when retained source coverage does not span the boundary.
+Every post separates its X creation time from its retained-log observation
+times. `created_at` comes first from an explicitly registered, timezone-aware
+structured-event field and otherwise from a valid numeric X Snowflake ID. The
+Snowflake calculation uses epoch `1288834974657` milliseconds and accepts only
+decimal IDs 15 through 20 digits long. A decoded time must be representable,
+must not precede the Snowflake epoch, and may be no more than five minutes later
+than the first observation. Invalid or implausible IDs leave creation time
+unavailable and produce a bounded warning. Log headers populate only
+`first_observed_at` and `last_observed_at`; they never establish prospective
+eligibility.
+
+Conversation start time is resolved from an observed root's `created_at`, a
+numeric `root_post_id`, a numeric X conversation/root ID, or a created first
+turn independently confirmed to have no parent, in that order. A reliably
+dated start before the boundary is `pre_boundary`; a reliably dated start at or
+after it is `eligible`; an undateable true start is `start_unknown`. A delayed
+poll or backlog drain therefore cannot turn an older X post into a prospective
+conversation. `pre_boundary` and `start_unknown` are excluded from default
+review packs. Warnings state when retained source coverage does not span the
+boundary.
 
 Canonical log timestamps are interpreted as Europe/London production time and
 converted to UTC. Human-readable output uses a trailing `Z`.
+
+## Publication evidence and structured-event registry
+
+A published account turn requires either a registered structured confirmation
+containing both target and reply IDs or the production log's confirmed
+conversational receipt-promotion record. Each account turn records
+`publication_authority` and inspectable, hashed-record publication evidence. A
+generic `Created X post successfully` line is diagnostic transport evidence
+only and can never create or publish an account turn.
+
+Conversational transport attempts are keyed by their 64-character transaction
+ID and target, retained on the target post across scans and rotations, and
+bounded to the newest five attempts. A create line from another lane clears the
+transient generic-success association. Confirmed receipt evidence can recover
+the final attempted text later; if authoritative confirmation exists without
+recoverable text, the account identity is retained with null text and an
+explicit partial-reconstruction warning.
+
+Structured events use a small event-kind registry defining permitted target,
+text, author, identity, parent, creation-time, and publication fields. A bare
+generic `id` is not a target. Unknown events are ignored and represented only
+by bounded aggregate counts in `source-manifest.json`.
 
 ## Open and quiescent conversations
 
@@ -165,6 +210,27 @@ from these reason codes:
 Correction phrases are surface cues only. A contributor's allegation of a
 misunderstanding is not treated as proof that the account misunderstood them.
 The collector does not assign proposition-substitution or repair labels.
+Clarification detection also recognises bounded evidential forms such as
+"Which unemployment measure and period are you using?", "What source are you
+relying on?", and "Which law do you mean?" It does not treat general questions
+such as "Which party will win?" as clarification requests.
+
+## Retention and free-space safety
+
+Automatic snapshots are pruned under the exclusive extractor lock. The
+collector always retains `current`, every batch referenced by a valid review
+pack, all batches from the newest 72 hours, and the newest batch for each UTC
+calendar day in the newest 90 days. Older unreferenced batches are deleted only
+after their path, name, directory type, exact regular-file contents, manifest,
+and review-pack references validate. A malformed or unreadable review pack
+blocks pruning; review packs themselves are never pruned or rewritten.
+
+Changed and unchanged scans both apply retention. Status reports the batches
+pruned by the latest scan, retained batch count, retained automatic bytes,
+review-pack bytes, and total extractor bytes. Before a changed snapshot creates
+a temporary directory, the collector calculates its projected bytes and
+requires that amount plus 512 MiB of free-space headroom. A refusal reports the
+free, projected, and required byte counts without exposing a partial batch.
 
 ## Command-line use
 
@@ -222,6 +288,31 @@ overwritten. A pack contains `manifest.json`, `conversations.jsonl`,
 `review-candidates.jsonl`, and `review-pack.md`; no label, model judgement, or
 repair decision is added.
 
+The pack manifest records the actual UTC freeze time separately from
+`source_batch_creation_timestamp`, while retaining the source batch ID and
+snapshot hash.
+
+## Non-destructive parser-version rebuild
+
+An extractor or parser version mismatch fails before prior canonical posts or
+cache entries are reused. It is never silently upgraded in place. If a future
+version needs to reconstruct retained logs while preserving contributor
+pseudonyms, use a separate nonexistent destination:
+
+```bash
+python3 tools/extract_prospective_conversations.py rebuild-to-new-root \
+  --project-dir /disks/disk1/etc/mrsMThatcher \
+  --source-output-root /path/to/old-root \
+  --new-output-root /path/to/new-empty-root \
+  --until 2026-09-01T00:00:00Z
+```
+
+The command holds a shared lock on the old root, reads its boundary,
+quiescence policy, and 32-byte pseudonym key, requires retained logs to span the
+boundary, and reparses them from scratch with no canonical/cache reuse. It
+validates the complete new root and never changes, switches to, or deletes the
+old root. It does not alter the installed service output path.
+
 ## Atomicity, locking, and recovery
 
 Scans take a non-blocking exclusive lock at `state/extractor.lock`. A second
@@ -233,7 +324,7 @@ is flushed, hashed, and validated before an atomic rename. The relative
 `current` symlink is replaced atomically and extractor state is replaced last.
 If state publication fails, the previous `current` link is restored and the new
 unpublished batch is removed. An unchanged canonical snapshot creates no
-duplicate batch; only private scan bookkeeping changes.
+duplicate batch; retention and private scan bookkeeping still run.
 
 On a failure, inspect the journal, then run `status` and `validate`. Do not edit
 immutable batches or state to make validation pass. Correct the external cause

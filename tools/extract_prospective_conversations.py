@@ -32,10 +32,20 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 
-SCHEMA_VERSION = 1
-EXTRACTOR_VERSION = "prospective-conversation-extractor-v1"
+SCHEMA_VERSION = 2
+EXTRACTOR_VERSION = "prospective-conversation-extractor-v2"
+PARSER_VERSION = "prospective-conversation-log-parser-v2"
 HASH_BLOCK_SIZE = 1024 * 1024
+X_SNOWFLAKE_EPOCH_MS = 1_288_834_974_657
+X_SNOWFLAKE_MIN_DIGITS = 15
+X_SNOWFLAKE_MAX_DIGITS = 20
+X_SNOWFLAKE_FUTURE_SKEW = timedelta(minutes=5)
+MAX_SEND_ATTEMPTS_PER_TARGET = 5
+RECENT_BATCH_RETENTION = timedelta(hours=72)
+DAILY_BATCH_RETENTION = timedelta(days=90)
+DISK_RESERVED_HEADROOM_BYTES = 512 * 1024 * 1024
 LOG_BASENAME_RE = re.compile(r"mrsMThatcher\.log(?:\.([0-9]+))?\Z")
+BATCH_ID_RE = re.compile(r"\d{8}T\d{6}Z-[0-9a-f]{12}\Z")
 LOG_HEADER_RE = re.compile(
     rb"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
     rb"(?P<level>[A-Z]+)\s+(?P<src>.+?)(?::(?P<line>\d+))? - "
@@ -96,15 +106,23 @@ PROMOTED_RE = re.compile(
     r"Promoted conversational reply receipt to confirmed source=([^\s]+) "
     r"target_id=([^\s]+) reply_post_id=([^\s]+)"
 )
-CREATE_REPLY_RE = re.compile(
+CREATE_ATTEMPT_RE = re.compile(
     r"Creating X post with durable transport journal\..*?"
-    r"\blane=conversational_reply\b.*?\breply_to_id=([^\s]+).*?\btext=(.*)$",
+    r"\blane=([^\s]+)\s+transaction_id=([0-9a-f]{64})\s+"
+    r"reply_to_id=([^\s]+).*?\btext=(.*)$",
     re.S,
 )
 CREATED_ID_RE = re.compile(
     r"Created X post successfully\. response=.*?(?:'id'|\"id\")\s*:\s*"
     r"(?:'|\")([^'\"\s,}]+)(?:'|\")",
     re.S,
+)
+FAILED_GENERATED_REPLY_RE = re.compile(
+    r"(?:Unexpected failure posting generated reply|Failed to post generated reply)"
+)
+REMOVED_SENDING_RECEIPT_RE = re.compile(
+    r"Removed conversational reply sending receipt disposition=([^\s]+) "
+    r"source=([^\s]+) target_id=([^\s]+)"
 )
 
 CORRECTION_CUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -526,9 +544,9 @@ class LogRecord:
 
     def provenance(self) -> dict[str, str]:
         return {
+            "observed_at": self.timestamp,
             "record_fingerprint": self.record_fingerprint,
             "source": self.source,
-            "timestamp": self.timestamp,
         }
 
 
@@ -704,6 +722,109 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+def decode_x_snowflake_time(
+    post_id: Any,
+    *,
+    first_observed_at: Any = None,
+) -> tuple[datetime | None, str | None]:
+    """Decode one plausible X post ID without accepting arbitrary integers."""
+    candidate = str(post_id or "").strip()
+    if (
+        not candidate.isdecimal()
+        or not X_SNOWFLAKE_MIN_DIGITS <= len(candidate) <= X_SNOWFLAKE_MAX_DIGITS
+    ):
+        return None, "x_snowflake_id_invalid"
+    try:
+        value = int(candidate)
+        timestamp_ms = (value >> 22) + X_SNOWFLAKE_EPOCH_MS
+        if timestamp_ms < X_SNOWFLAKE_EPOCH_MS:
+            return None, "x_snowflake_before_epoch"
+        decoded = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+    except (OverflowError, OSError, ValueError):
+        return None, "x_snowflake_timestamp_unrepresentable"
+    observed = parse_optional_timestamp(first_observed_at)
+    if observed is not None and decoded > observed + X_SNOWFLAKE_FUTURE_SKEW:
+        return None, "x_snowflake_materially_after_first_observation"
+    return decoded, None
+
+
+def _set_snowflake_creation_time(post: dict[str, Any]) -> None:
+    if post.get("creation_time_source") == "structured_event":
+        return
+    decoded, warning = decode_x_snowflake_time(
+        post.get("post_id"), first_observed_at=post.get("first_observed_at")
+    )
+    if decoded is None:
+        if post.get("creation_time_source") == "x_snowflake":
+            post["created_at"] = None
+            post["creation_time_confidence"] = "unavailable"
+            post["creation_time_source"] = "unavailable"
+        if warning:
+            _record_warning(post, warning)
+        return
+    post["created_at"] = format_utc(decoded)
+    post["creation_time_confidence"] = "high"
+    post["creation_time_source"] = "x_snowflake"
+    post["creation_time_provenance"] = [
+        {
+            "post_id_field": "post_id",
+            "source": "x_snowflake",
+        }
+    ]
+
+
+def _set_explicit_creation_time(
+    post: dict[str, Any],
+    event: Mapping[str, Any],
+    fields: Sequence[str],
+    record: LogRecord,
+    *,
+    subject: str,
+) -> None:
+    supplied = [
+        (field, str(event[field]).strip())
+        for field in fields
+        if event.get(field) is not None and str(event[field]).strip()
+    ]
+    if not supplied:
+        _set_snowflake_creation_time(post)
+        return
+    if len({value for _field, value in supplied}) > 1:
+        _record_warning(post, f"conflicting_explicit_{subject}_creation_times")
+        _set_snowflake_creation_time(post)
+        return
+    field, value = supplied[0]
+    try:
+        parsed = parse_aware_timestamp(value, option=f"structured {field}")
+    except ExtractorError:
+        _record_warning(post, f"invalid_explicit_{subject}_creation_time")
+        _set_snowflake_creation_time(post)
+        return
+    first_observed = parse_optional_timestamp(post.get("first_observed_at"))
+    if (
+        first_observed is not None
+        and parsed > first_observed + X_SNOWFLAKE_FUTURE_SKEW
+    ):
+        _record_warning(post, f"implausible_explicit_{subject}_creation_time")
+        _set_snowflake_creation_time(post)
+        return
+    post["created_at"] = format_utc(parsed)
+    post["creation_time_confidence"] = "high"
+    post["creation_time_source"] = "structured_event"
+    post["creation_time_provenance"] = _merge_unique_objects(
+        list(post.get("creation_time_provenance") or []),
+        [
+            {
+                "event_kind": str(event.get("event") or event.get("kind") or ""),
+                "field": field,
+                "observed_at": record.timestamp,
+                "record_fingerprint": record.record_fingerprint,
+                "source": "structured_event",
+            }
+        ],
+    )
+
+
 def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[str, Any]:
     namespace = "account" if author_role == "account" else "unknown"
     raw_identity = "mrsMThatcher-account" if author_role == "account" else post_id
@@ -713,22 +834,32 @@ def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[
         "author_role": author_role,
         "canonical_event_id": stable_id("post", post_id),
         "conversation_id": None,
+        "created_at": None,
+        "creation_time_confidence": "unavailable",
+        "creation_time_provenance": [],
+        "creation_time_source": "unavailable",
+        "derivation_parser_version": PARSER_VERSION,
+        "first_observed_at": None,
+        "generated_reply_text": None,
         "lane": "other conversational lane",
+        "last_observed_at": None,
         "parent_observation_status": "unavailable",
         "parent_post_id": None,
         "pipeline_stage_summaries": [],
         "post_id": post_id,
-        "publication_status": "published" if author_role == "account" else "observed",
+        "publication_authority": None,
+        "publication_evidence": [],
+        "publication_status": "unavailable" if author_role == "account" else "observed",
         "reconstruction_confidence": "low",
         "reply_requirement": None,
         "root_post_id": None,
         "route_source": None,
         "schema_version": SCHEMA_VERSION,
+        "send_attempts": [],
         "source_provenance": [],
         "tested_pipeline_stage_summaries": [],
         "text": None,
         "thread_id": None,
-        "timestamp": None,
         "trusted_fact_count": None,
         "trusted_fact_ids": [],
         "warnings": [],
@@ -754,10 +885,19 @@ def _touch_post(post: dict[str, Any], record: LogRecord) -> None:
     post["source_provenance"] = _merge_unique_objects(
         list(post.get("source_provenance") or []), [record.provenance()]
     )
-    if post.get("timestamp") is None or record.timestamp < str(post["timestamp"]):
-        post["timestamp"] = record.timestamp
+    if (
+        post.get("first_observed_at") is None
+        or record.timestamp < str(post["first_observed_at"])
+    ):
+        post["first_observed_at"] = record.timestamp
+    if (
+        post.get("last_observed_at") is None
+        or record.timestamp > str(post["last_observed_at"])
+    ):
+        post["last_observed_at"] = record.timestamp
     for warning in record.warnings:
         _record_warning(post, warning)
+    _set_snowflake_creation_time(post)
 
 
 def _set_text(post: dict[str, Any], text: Any) -> None:
@@ -794,20 +934,6 @@ def _set_identity(post: dict[str, Any], field: str, value: Any) -> None:
     post[field] = candidate
 
 
-def _target_from_event(event: Mapping[str, Any]) -> str:
-    for field in (
-        "target_id",
-        "mention_id",
-        "hot_post_reply_id",
-        "quote_tweet_id",
-        "id",
-    ):
-        value = str(event.get(field) or "")
-        if value:
-            return value
-    return ""
-
-
 PIPELINE_EVENT_KINDS = frozenset(
     {
         "ai_reply_pipeline_decision",
@@ -822,6 +948,113 @@ PIPELINE_EVENT_KINDS = frozenset(
         "reply_strategy_rejection",
     }
 )
+
+
+@dataclass(frozen=True)
+class StructuredEventContract:
+    target_fields: tuple[str, ...]
+    incoming_text_fields: tuple[str, ...] = ()
+    author_fields: tuple[str, ...] = ()
+    identity_fields: tuple[str, ...] = ()
+    parent_fields: tuple[str, ...] = ()
+    target_creation_fields: tuple[str, ...] = ()
+    reply_creation_fields: tuple[str, ...] = ()
+    confirms_publication: bool = False
+
+
+_PIPELINE_CONTRACT = StructuredEventContract(
+    target_fields=("target_id",),
+    incoming_text_fields=("incoming_text", "incoming_contribution"),
+    author_fields=("author_id",),
+    identity_fields=("conversation_id", "root_post_id", "thread_id"),
+    parent_fields=("parent_post_id", "replied_to_post_id", "in_reply_to_status_id"),
+    target_creation_fields=(
+        "target_created_at",
+        "post_created_at",
+        "tweet_created_at",
+    ),
+)
+
+STRUCTURED_CONVERSATION_EVENT_FIELDS: dict[str, StructuredEventContract] = {
+    kind: _PIPELINE_CONTRACT for kind in PIPELINE_EVENT_KINDS
+}
+STRUCTURED_CONVERSATION_EVENT_FIELDS.update(
+    {
+        "reply_posted": StructuredEventContract(
+            target_fields=("target_id",),
+            incoming_text_fields=("incoming_text", "incoming_contribution"),
+            author_fields=("author_id",),
+            identity_fields=("conversation_id", "root_post_id", "thread_id"),
+            parent_fields=("parent_post_id", "replied_to_post_id", "in_reply_to_status_id"),
+            target_creation_fields=(
+                "target_created_at",
+                "post_created_at",
+                "tweet_created_at",
+            ),
+            reply_creation_fields=("reply_created_at",),
+            confirms_publication=True,
+        ),
+        "mention_reply_posted": StructuredEventContract(
+            target_fields=("mention_id", "target_id"),
+            incoming_text_fields=("incoming_text", "incoming_contribution"),
+            author_fields=("author_id",),
+            identity_fields=("conversation_id", "root_post_id", "thread_id"),
+            parent_fields=("parent_post_id", "replied_to_post_id", "in_reply_to_status_id"),
+            target_creation_fields=("target_created_at", "tweet_created_at"),
+            reply_creation_fields=("reply_created_at",),
+            confirms_publication=True,
+        ),
+        "hot_post_reply_posted": StructuredEventContract(
+            target_fields=("hot_post_reply_id", "target_id"),
+            incoming_text_fields=("incoming_text", "incoming_contribution"),
+            author_fields=("author_id",),
+            identity_fields=("conversation_id", "root_post_id", "thread_id"),
+            parent_fields=("parent_post_id", "replied_to_post_id", "in_reply_to_status_id"),
+            target_creation_fields=("target_created_at", "tweet_created_at"),
+            reply_creation_fields=("reply_created_at",),
+            confirms_publication=True,
+        ),
+        "quote_tweet_reply_posted": StructuredEventContract(
+            target_fields=("quote_tweet_id", "target_id"),
+            incoming_text_fields=("incoming_text", "incoming_contribution"),
+            author_fields=("author_id",),
+            identity_fields=("conversation_id", "root_post_id", "thread_id"),
+            parent_fields=("parent_post_id", "replied_to_post_id", "in_reply_to_status_id"),
+            target_creation_fields=("target_created_at", "tweet_created_at"),
+            reply_creation_fields=("reply_created_at",),
+            confirms_publication=True,
+        ),
+        "clarification_reply_used": StructuredEventContract(
+            target_fields=("target_id",),
+            identity_fields=("conversation_id", "root_post_id", "thread_id"),
+            parent_fields=("parent_post_id", "replied_to_post_id", "in_reply_to_status_id"),
+            target_creation_fields=("target_created_at",),
+            reply_creation_fields=("reply_created_at",),
+            confirms_publication=True,
+        ),
+        "repair_reply_completed": StructuredEventContract(
+            target_fields=("target_id",),
+            identity_fields=("conversation_id", "root_post_id", "thread_id"),
+            parent_fields=("parent_post_id", "replied_to_post_id", "in_reply_to_status_id"),
+            target_creation_fields=("target_created_at",),
+            reply_creation_fields=("reply_created_at",),
+            confirms_publication=True,
+        ),
+    }
+)
+
+
+def _registered_value(
+    event: Mapping[str, Any], fields: Sequence[str]
+) -> tuple[str, bool]:
+    values = {
+        str(event[field]).strip()
+        for field in fields
+        if event.get(field) is not None and str(event[field]).strip()
+    }
+    if len(values) > 1:
+        return "", True
+    return (next(iter(values)) if values else ""), False
 
 PIPELINE_SUMMARY_FIELDS = (
     "claim_audit_outcomes",
@@ -862,7 +1095,7 @@ def _pipeline_summary(kind: str, event: Mapping[str, Any], record: LogRecord) ->
     result: dict[str, Any] = {
         "event_id": record.record_fingerprint,
         "event_kind": kind,
-        "timestamp": record.timestamp,
+        "observed_at": record.timestamp,
     }
     for field in PIPELINE_SUMMARY_FIELDS:
         if field in event:
@@ -880,22 +1113,162 @@ def _looks_like_clarification_request(text: Any) -> bool:
             r"can you specify|could you specify|what exactly|which (?:part|point|claim))\b",
             candidate,
         )
+        or re.search(
+            r"\bwhich\s+(?:[a-z][a-z-]*\s+){0,3}"
+            r"(?:measure|series|definition|source|period|law|statistic|metric|dataset|data)\b",
+            candidate,
+        )
+        or re.search(
+            r"\bwhat\s+(?:source|period|definition|measure|series|law|statistic|metric|dataset|data)\b",
+            candidate,
+        )
     )
+
+
+_ATTEMPT_STATUS_RANK = {
+    "started": 0,
+    "remote_success_observed": 1,
+    "failed": 2,
+    "retired": 3,
+    "confirmed": 4,
+}
+
+
+def _bounded_attempts(post: Mapping[str, Any]) -> list[dict[str, Any]]:
+    attempts = [
+        copy.deepcopy(dict(value))
+        for value in post.get("send_attempts") or []
+        if isinstance(value, dict) and value.get("transaction_id")
+    ]
+    attempts.sort(
+        key=lambda value: (
+            str(value.get("first_observed_at") or ""),
+            str(value.get("transaction_id") or ""),
+        )
+    )
+    return attempts[-MAX_SEND_ATTEMPTS_PER_TARGET:]
+
+
+def _upsert_send_attempt(
+    post: dict[str, Any],
+    *,
+    transaction_id: str,
+    target_post_id: str,
+    lane: str,
+    text: str | None,
+    record: LogRecord,
+) -> None:
+    attempts = _bounded_attempts(post)
+    existing = next(
+        (
+            value
+            for value in attempts
+            if value.get("transaction_id") == transaction_id
+        ),
+        None,
+    )
+    if existing is None:
+        existing = {
+            "first_observed_at": record.timestamp,
+            "lane": lane,
+            "last_observed_status": "started",
+            "status_observed_at": record.timestamp,
+            "target_post_id": target_post_id,
+            "text": text,
+            "transaction_id": transaction_id,
+        }
+        attempts.append(existing)
+    else:
+        existing["first_observed_at"] = min(
+            str(existing.get("first_observed_at") or record.timestamp),
+            record.timestamp,
+        )
+        if text:
+            existing["text"] = text
+        if existing.get("last_observed_status") != "confirmed":
+            existing["last_observed_status"] = "started"
+            existing["status_observed_at"] = record.timestamp
+    attempts.sort(
+        key=lambda value: (
+            str(value.get("first_observed_at") or ""),
+            str(value.get("transaction_id") or ""),
+        )
+    )
+    post["send_attempts"] = attempts[-MAX_SEND_ATTEMPTS_PER_TARGET:]
+
+
+def _mark_send_attempt(
+    post: dict[str, Any],
+    *,
+    record: LogRecord,
+    status_value: str,
+    transaction_id: str | None = None,
+    reply_post_id: str | None = None,
+    require_unambiguous: bool = False,
+) -> dict[str, Any] | None:
+    attempts = _bounded_attempts(post)
+    matches = [
+        value
+        for value in attempts
+        if transaction_id is None or value.get("transaction_id") == transaction_id
+    ]
+    if reply_post_id:
+        exact = [
+            value
+            for value in matches
+            if value.get("remote_post_id_observed") == reply_post_id
+        ]
+        if exact:
+            matches = exact
+    if require_unambiguous and len(matches) != 1:
+        post["send_attempts"] = attempts
+        return None
+    if not matches:
+        post["send_attempts"] = attempts
+        return None
+    selected = max(
+        matches,
+        key=lambda value: (
+            str(value.get("first_observed_at") or ""),
+            str(value.get("transaction_id") or ""),
+        ),
+    )
+    existing_status = str(selected.get("last_observed_status") or "started")
+    if (
+        status_value == "confirmed"
+        or _ATTEMPT_STATUS_RANK.get(status_value, 0)
+        >= _ATTEMPT_STATUS_RANK.get(existing_status, 0)
+    ):
+        selected["last_observed_status"] = status_value
+        selected["status_observed_at"] = record.timestamp
+    if reply_post_id:
+        selected["remote_post_id_observed"] = reply_post_id
+    post["send_attempts"] = attempts[-MAX_SEND_ATTEMPTS_PER_TARGET:]
+    return selected
 
 
 def normalise_canonical_posts(
     records: Sequence[LogRecord],
     prior_posts: Sequence[Mapping[str, Any]],
     pseudonym_key: bytes,
+    *,
+    parser_statistics: dict[str, int] | None = None,
 ) -> list[dict[str, Any]]:
     """Merge legacy and structured observations into stable canonical posts."""
+    statistics = parser_statistics if parser_statistics is not None else {}
+    for name in (
+        "ignored_structured_event_count",
+        "ignored_target_like_event_count",
+        "ambiguous_registered_event_count",
+        "registered_event_missing_target_count",
+    ):
+        statistics.setdefault(name, 0)
     posts: dict[str, dict[str, Any]] = {
         str(row["post_id"]): copy.deepcopy(dict(row))
         for row in prior_posts
         if row.get("post_id")
     }
-    generated_replies: dict[str, str] = {}
-    pending_create_target: str | None = None
+    active_attempt: tuple[str, str] | None = None
 
     def get_user(target_id: str) -> dict[str, Any]:
         row = posts.setdefault(target_id, _blank_post(target_id, pseudonym_key))
@@ -911,7 +1284,10 @@ def normalise_canonical_posts(
         reply_post_id: str,
         record: LogRecord,
         *,
+        authority: str,
+        evidence_kind: str,
         event: Mapping[str, Any] | None = None,
+        contract: StructuredEventContract | None = None,
     ) -> dict[str, Any]:
         target = get_user(target_id)
         row = posts.setdefault(
@@ -922,6 +1298,20 @@ def normalise_canonical_posts(
         row["author_key"] = _pseudonym(
             pseudonym_key, "account", "mrsMThatcher-account"
         )
+        if authority == "structured_confirmation" or not row.get(
+            "publication_authority"
+        ):
+            row["publication_authority"] = authority
+        row["publication_evidence"] = _merge_unique_objects(
+            list(row.get("publication_evidence") or []),
+            [
+                {
+                    "event_kind": evidence_kind,
+                    "observed_at": record.timestamp,
+                    "record_fingerprint": record.record_fingerprint,
+                }
+            ],
+        )
         row["publication_status"] = "published"
         row["parent_post_id"] = target_id
         row["parent_observation_status"] = "observed"
@@ -929,16 +1319,47 @@ def normalise_canonical_posts(
         for field in ("conversation_id", "root_post_id", "thread_id"):
             if target.get(field):
                 row[field] = target[field]
-        _set_text(row, generated_replies.get(target_id))
         _touch_post(row, record)
+        selected_attempt = _mark_send_attempt(
+            target,
+            record=record,
+            status_value="confirmed",
+            reply_post_id=reply_post_id,
+            require_unambiguous=True,
+        )
+        target_attempts = _bounded_attempts(target)
+        final_text = (
+            str(selected_attempt.get("text"))
+            if selected_attempt is not None and selected_attempt.get("text")
+            else (
+                str(target.get("generated_reply_text") or "")
+                if not target_attempts
+                else ""
+            )
+        )
+        _set_text(row, final_text)
+        if selected_attempt is None and len(target_attempts) > 1:
+            _record_warning(row, "ambiguous_confirmed_reply_attempt_text")
         if event:
-            for field in ("conversation_id", "root_post_id", "thread_id"):
+            for field in (contract.identity_fields if contract else ()):
                 _set_identity(row, field, event.get(field))
+            if contract:
+                _set_explicit_creation_time(
+                    row,
+                    event,
+                    contract.reply_creation_fields,
+                    record,
+                    subject="reply",
+                )
             if event.get("route_source"):
                 row["route_source"] = str(event["route_source"])
             if event.get("reply_requirement"):
                 row["reply_requirement"] = str(event["reply_requirement"])
-        row["reconstruction_confidence"] = "high"
+        if row.get("text") is None:
+            _record_warning(row, "confirmed_account_reply_text_unavailable")
+            row["reconstruction_confidence"] = "medium"
+        else:
+            row["reconstruction_confidence"] = "high"
         row["account_turn_asked_for_clarification"] = _looks_like_clarification_request(
             row.get("text")
         )
@@ -1008,44 +1429,131 @@ def normalise_canonical_posts(
         match = GENERATED_RE.search(message)
         if match:
             target_id = match.group(2)
-            generated_replies[target_id] = decode_literal(match.group(3))
             row = get_user(target_id)
+            row["generated_reply_text"] = decode_literal(match.group(3))
+            row["generated_reply_text_observed_at"] = record.timestamp
             row["lane"] = normalise_lane(match.group(1))
             _touch_post(row, record)
 
         match = GENERATED_QUOTE_RE.search(message)
         if match:
             target_id = match.group(1)
-            generated_replies[target_id] = decode_literal(match.group(2))
             row = get_user(target_id)
+            row["generated_reply_text"] = decode_literal(match.group(2))
+            row["generated_reply_text_observed_at"] = record.timestamp
             row["lane"] = "quote-tweet reply"
             _touch_post(row, record)
 
-        match = CREATE_REPLY_RE.search(message)
-        if match and match.group(1).casefold() not in {"none", "null"}:
-            pending_create_target = match.group(1)
-            generated_replies.setdefault(
-                pending_create_target, decode_literal(match.group(2))
-            )
-            _touch_post(get_user(pending_create_target), record)
+        match = CREATE_ATTEMPT_RE.search(message)
+        if match:
+            lane = match.group(1)
+            transaction_id = match.group(2)
+            target_id = match.group(3)
+            active_attempt = None
+            if (
+                lane == "conversational_reply"
+                and target_id.casefold() not in {"none", "null"}
+            ):
+                target = get_user(target_id)
+                text_value = decode_literal(match.group(4))
+                _touch_post(target, record)
+                target["generated_reply_text"] = text_value
+                target["generated_reply_text_observed_at"] = record.timestamp
+                _upsert_send_attempt(
+                    target,
+                    transaction_id=transaction_id,
+                    target_post_id=target_id,
+                    lane=lane,
+                    text=text_value,
+                    record=record,
+                )
+                active_attempt = (target_id, transaction_id)
 
         match = CREATED_ID_RE.search(message)
-        if match and pending_create_target:
-            publish_account(pending_create_target, match.group(1), record)
-            pending_create_target = None
+        if match:
+            if active_attempt is not None:
+                target_id, transaction_id = active_attempt
+                _mark_send_attempt(
+                    get_user(target_id),
+                    record=record,
+                    status_value="remote_success_observed",
+                    transaction_id=transaction_id,
+                    reply_post_id=match.group(1),
+                )
+            active_attempt = None
+
+        if FAILED_GENERATED_REPLY_RE.search(message) and active_attempt is not None:
+            target_id, transaction_id = active_attempt
+            _mark_send_attempt(
+                get_user(target_id),
+                record=record,
+                status_value="failed",
+                transaction_id=transaction_id,
+            )
+            active_attempt = None
+
+        match = REMOVED_SENDING_RECEIPT_RE.search(message)
+        if match:
+            target_id = match.group(3)
+            target = get_user(target_id)
+            open_attempts = [
+                attempt
+                for attempt in _bounded_attempts(target)
+                if attempt.get("last_observed_status")
+                in {"started", "remote_success_observed"}
+            ]
+            if len(open_attempts) == 1:
+                _mark_send_attempt(
+                    target,
+                    record=record,
+                    status_value="retired",
+                    transaction_id=str(open_attempts[0]["transaction_id"]),
+                )
+            elif open_attempts:
+                _record_warning(target, "ambiguous_send_attempt_retirement")
 
         match = PROMOTED_RE.search(message)
         if match:
             target_id = match.group(2)
             get_user(target_id)["lane"] = normalise_lane(match.group(1))
-            publish_account(target_id, match.group(3), record)
+            publish_account(
+                target_id,
+                match.group(3),
+                record,
+                authority="confirmed_receipt_promotion",
+                evidence_kind="confirmed_receipt_promotion",
+            )
 
         event = record.structured_event
         if not isinstance(event, dict):
             continue
         kind = str(event.get("event") or event.get("kind") or "")
-        target_id = _target_from_event(event)
+        contract = STRUCTURED_CONVERSATION_EVENT_FIELDS.get(kind)
+        if contract is None:
+            statistics["ignored_structured_event_count"] += 1
+            if any(
+                event.get(field) is not None
+                for field in (
+                    "id",
+                    "target_id",
+                    "mention_id",
+                    "hot_post_reply_id",
+                    "quote_tweet_id",
+                    "author_id",
+                    "incoming_text",
+                    "incoming_contribution",
+                )
+            ):
+                statistics["ignored_target_like_event_count"] += 1
+            continue
+        target_id, target_ambiguous = _registered_value(
+            event, contract.target_fields
+        )
+        if target_ambiguous:
+            statistics["ambiguous_registered_event_count"] += 1
+            continue
         if not target_id:
+            statistics["registered_event_missing_target_count"] += 1
             continue
         target = get_user(target_id)
         _touch_post(target, record)
@@ -1053,22 +1561,37 @@ def normalise_canonical_posts(
             target["lane"] = normalise_lane(
                 event.get("lane") or event.get("candidate_source") or event.get("source")
             )
-        _set_author(target, pseudonym_key, event.get("author_id"))
-        for field in ("conversation_id", "root_post_id", "thread_id"):
-            _set_identity(target, field, event.get(field))
-        parent_value = (
-            event.get("parent_post_id")
-            or event.get("replied_to_post_id")
-            or event.get("in_reply_to_status_id")
+        raw_author, author_ambiguous = _registered_value(
+            event, contract.author_fields
         )
-        if parent_value:
+        if author_ambiguous:
+            _record_warning(target, "conflicting_registered_author_fields")
+        elif raw_author:
+            _set_author(target, pseudonym_key, raw_author)
+        for field in contract.identity_fields:
+            _set_identity(target, field, event.get(field))
+        parent_value, parent_ambiguous = _registered_value(
+            event, contract.parent_fields
+        )
+        if parent_ambiguous:
+            _record_warning(target, "conflicting_registered_parent_fields")
+            target["parent_observation_status"] = "ambiguous"
+            target["reconstruction_confidence"] = "low"
+        elif parent_value:
             _set_identity(target, "parent_post_id", parent_value)
             target["parent_observation_status"] = "observed"
             target["reconstruction_confidence"] = "high"
-        for text_field in ("incoming_text", "incoming_contribution"):
+        for text_field in contract.incoming_text_fields:
             if event.get(text_field):
                 _set_text(target, event[text_field])
                 break
+        _set_explicit_creation_time(
+            target,
+            event,
+            contract.target_creation_fields,
+            record,
+            subject="target",
+        )
         if event.get("route_source") is not None:
             target["route_source"] = str(event["route_source"])
         if event.get("reply_requirement") is not None:
@@ -1091,18 +1614,17 @@ def normalise_canonical_posts(
                     list(target.get("tested_pipeline_stage_summaries") or []), [summary]
                 )
 
-        reply_post_id = str(event.get("reply_post_id") or "")
-        published = (
-            kind in {"reply_posted", "mention_reply_posted", "hot_post_reply_posted", "quote_tweet_reply_posted"}
-            or kind in {"clarification_reply_used", "repair_reply_completed"}
-            or (
-                kind in {"ai_reply_pipeline_outcome", "reply_strategy_outcome"}
-                and str(event.get("status") or "").casefold()
-                in {"confirmed", "posted", "published"}
+        reply_post_id = str(event.get("reply_post_id") or "").strip()
+        if contract.confirms_publication and reply_post_id:
+            publish_account(
+                target_id,
+                reply_post_id,
+                record,
+                authority="structured_confirmation",
+                evidence_kind=kind,
+                event=event,
+                contract=contract,
             )
-        )
-        if reply_post_id and published:
-            publish_account(target_id, reply_post_id, record, event=event)
 
     for post in posts.values():
         post["source_provenance"] = _merge_unique_objects(
@@ -1116,6 +1638,13 @@ def normalise_canonical_posts(
         )
         post["warnings"] = sorted(set(post.get("warnings") or []))
         post["trusted_fact_ids"] = sorted(set(post.get("trusted_fact_ids") or []))
+        post["creation_time_provenance"] = _merge_unique_objects(
+            [], post.get("creation_time_provenance") or []
+        )
+        post["publication_evidence"] = _merge_unique_objects(
+            [], post.get("publication_evidence") or []
+        )
+        post["send_attempts"] = _bounded_attempts(post)
         if post.get("author_role") == "account":
             post["account_turn_asked_for_clarification"] = _looks_like_clarification_request(
                 post.get("text")
@@ -1123,10 +1652,15 @@ def normalise_canonical_posts(
         if not post.get("canonical_event_id"):
             post["canonical_event_id"] = stable_id("post", post["post_id"])
         post["schema_version"] = SCHEMA_VERSION
+        post["derivation_parser_version"] = PARSER_VERSION
     return sorted(
         posts.values(),
         key=lambda row: (
-            str(row.get("timestamp") or "9999"),
+            str(
+                row.get("created_at")
+                or row.get("first_observed_at")
+                or "9999"
+            ),
             str(row.get("post_id") or ""),
         ),
     )
@@ -1247,27 +1781,118 @@ def _conversation_key(
     return stable_id("conversation", basis)
 
 
-def _start_is_reliable(
+def _turn_order_key(turn: Mapping[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(turn.get("created_at") or turn.get("first_observed_at") or "9999"),
+        str(turn.get("post_id") or ""),
+        str(turn.get("canonical_event_id") or ""),
+    )
+
+
+@dataclass(frozen=True)
+class ConversationStart:
+    value: datetime | None
+    source: str
+    root_post_id: str | None
+    warning: str | None = None
+
+
+def _resolve_conversation_start(
     turns: Sequence[Mapping[str, Any]],
-    component_ids: set[str],
     root_ids: set[str],
     conversation_ids: set[str],
-) -> bool:
+) -> ConversationStart:
     if not turns:
-        return False
-    if len(root_ids) == 1 and next(iter(root_ids)) in component_ids:
-        return True
-    if len(conversation_ids) == 1 and next(iter(conversation_ids)) in component_ids:
-        return True
-    first = turns[0]
-    if first.get("root_post_id") == first.get("post_id"):
-        return True
-    if first.get("conversation_id") == first.get("post_id"):
-        return True
-    return (
-        first.get("parent_observation_status") == "confirmed_none"
-        and not first.get("parent_post_id")
+        return ConversationStart(None, "unavailable", None)
+    by_id = {str(turn.get("post_id")): turn for turn in turns}
+    earliest_observation = min(
+        (
+            value
+            for turn in turns
+            if (value := parse_optional_timestamp(turn.get("first_observed_at")))
+            is not None
+        ),
+        default=None,
     )
+    root_post_id = next(iter(root_ids)) if len(root_ids) == 1 else None
+    conversation_id = (
+        next(iter(conversation_ids)) if len(conversation_ids) == 1 else None
+    )
+
+    for identity in (root_post_id, conversation_id):
+        if identity and identity in by_id:
+            created = parse_optional_timestamp(by_id[identity].get("created_at"))
+            if created is not None:
+                return ConversationStart(created, "root_post", identity)
+
+    if root_post_id:
+        decoded, warning = decode_x_snowflake_time(
+            root_post_id,
+            first_observed_at=format_utc(earliest_observation),
+        )
+        if decoded is not None:
+            return ConversationStart(
+                decoded, "root_post_id_snowflake", root_post_id
+            )
+        root_warning = f"root_post_id_{warning}" if warning else None
+    else:
+        root_warning = None
+
+    if conversation_id:
+        decoded, warning = decode_x_snowflake_time(
+            conversation_id,
+            first_observed_at=format_utc(earliest_observation),
+        )
+        if decoded is not None:
+            return ConversationStart(
+                decoded,
+                "conversation_id_snowflake",
+                root_post_id or conversation_id,
+            )
+        conversation_warning = (
+            f"conversation_id_{warning}" if warning else None
+        )
+    else:
+        conversation_warning = None
+
+    first = min(turns, key=_turn_order_key)
+    first_created = parse_optional_timestamp(first.get("created_at"))
+    if (
+        first_created is not None
+        and first.get("parent_observation_status") == "confirmed_none"
+        and not first.get("parent_post_id")
+    ):
+        return ConversationStart(
+            first_created,
+            "confirmed_root_turn",
+            root_post_id or str(first.get("post_id") or "") or None,
+        )
+    return ConversationStart(
+        None,
+        "unavailable",
+        root_post_id,
+        root_warning or conversation_warning,
+    )
+
+
+def _resolve_last_activity(
+    turns: Sequence[Mapping[str, Any]],
+) -> tuple[datetime | None, str]:
+    values: list[tuple[datetime, int, str]] = []
+    for turn in turns:
+        created = parse_optional_timestamp(turn.get("created_at"))
+        if created is not None:
+            values.append((created, 1, "post_created_at"))
+            continue
+        observed = parse_optional_timestamp(
+            turn.get("last_observed_at") or turn.get("first_observed_at")
+        )
+        if observed is not None:
+            values.append((observed, 0, "observation_fallback"))
+    if not values:
+        return None, "observation_fallback"
+    value, _priority, source = max(values, key=lambda item: (item[0], item[1]))
+    return value, source
 
 
 def _sibling_branch_activity(turns: Sequence[Mapping[str, Any]]) -> bool:
@@ -1351,20 +1976,18 @@ def build_conversations(
     for component_ids_list in components.values():
         component_ids = set(component_ids_list)
         raw_turns = [by_id[post_id] for post_id in component_ids]
-        raw_turns.sort(
-            key=lambda row: (
-                str(row.get("timestamp") or "9999"),
-                str(row.get("post_id") or ""),
-                str(row.get("canonical_event_id") or ""),
-            )
-        )
+        raw_turns.sort(key=_turn_order_key)
         if not raw_turns:
             continue
-        latest_text = max(
-            (str(turn.get("timestamp")) for turn in raw_turns if turn.get("timestamp")),
+        latest_observation = max(
+            (
+                str(turn.get("last_observed_at"))
+                for turn in raw_turns
+                if turn.get("last_observed_at")
+            ),
             default="",
         )
-        if not latest_text or latest_text < boundary_text:
+        if not latest_observation or latest_observation < boundary_text:
             continue
         conversation_ids = {
             str(turn["conversation_id"])
@@ -1376,27 +1999,18 @@ def build_conversations(
             for turn in raw_turns
             if turn.get("root_post_id")
         }
-        reliable_start = _start_is_reliable(
-            raw_turns, component_ids, root_ids, conversation_ids
+        start = _resolve_conversation_start(
+            raw_turns, root_ids, conversation_ids
         )
-        timestamps = [
-            parse_optional_timestamp(turn.get("timestamp")) for turn in raw_turns
-        ]
-        timestamp_values = [value for value in timestamps if value is not None]
-        start_value = min(timestamp_values) if timestamp_values else None
-        last_value = max(timestamp_values) if timestamp_values else None
+        start_value = start.value
+        last_value, last_activity_source = _resolve_last_activity(raw_turns)
         if start_value is not None and start_value < boundary:
             prospective_status = "pre_boundary"
-        elif reliable_start and start_value is not None:
+        elif start_value is not None:
             prospective_status = "eligible"
         else:
             prospective_status = "start_unknown"
-        if len(root_ids) == 1:
-            root_post_id: str | None = next(iter(root_ids))
-        elif reliable_start:
-            root_post_id = str(raw_turns[0]["post_id"])
-        else:
-            root_post_id = None
+        root_post_id = start.root_post_id
         conversation_id = next(iter(conversation_ids)) if len(conversation_ids) == 1 else None
         conversation_key = _conversation_key(
             raw_turns, conversation_ids, root_ids, root_post_id
@@ -1419,7 +2033,9 @@ def build_conversations(
             if parent and parent not in component_ids:
                 warnings.add("missing_parent_post")
         if prospective_status == "start_unknown":
-            warnings.add("conversation_start_not_reliably_observed")
+            warnings.add("conversation_start_time_unavailable")
+        if start.warning:
+            warnings.add(start.warning)
         if len(conversation_ids) > 1:
             warnings.add("ambiguous_conversation_identity")
         if len(root_ids) > 1:
@@ -1434,7 +2050,7 @@ def build_conversations(
                 "ambiguous_conversation_identity",
                 "ambiguous_parentage",
                 "ambiguous_root_identity",
-                "conversation_start_not_reliably_observed",
+                "conversation_start_time_unavailable",
                 "missing_parent_post",
             })
         )
@@ -1480,12 +2096,14 @@ def build_conversations(
             "conversation_key": conversation_key,
             "lane_sequence": lane_sequence,
             "last_activity_time": format_utc(last_value),
+            "last_activity_time_source": last_activity_source,
             "prospective_status": prospective_status,
             "reconstruction_confidence": confidence,
             "root_post_id": root_post_id,
             "schema_version": SCHEMA_VERSION,
             "source_provenance": provenance,
             "start_time": format_utc(start_value),
+            "start_time_source": start.source,
             "substantive_turn_count": len(substantive_turns),
             "turns": turns,
             "user_turn_count": len(user_turns),
@@ -1678,6 +2296,16 @@ def read_extractor_state(root: Path, *, missing_ok: bool = True) -> dict[str, An
         raise ExtractorError(
             f"unsupported extractor state schema: {value.get('schema_version')!r}"
         )
+    if value.get("extractor_version") != EXTRACTOR_VERSION:
+        raise ExtractorError(
+            "extractor state version mismatch: stored "
+            f"{value.get('extractor_version')!r}, running {EXTRACTOR_VERSION!r}"
+        )
+    if value.get("parser_version") != PARSER_VERSION:
+        raise ExtractorError(
+            "extractor parser version mismatch: stored "
+            f"{value.get('parser_version')!r}, running {PARSER_VERSION!r}"
+        )
     boundary = value.get("prospective_boundary")
     if not isinstance(boundary, str):
         raise ExtractorError("extractor state lacks a prospective boundary")
@@ -1690,29 +2318,38 @@ def read_extractor_state(root: Path, *, missing_ok: bool = True) -> dict[str, An
 
 def _atomic_write_state(root: Path, state_value: Mapping[str, Any]) -> None:
     state_dir = root / "state"
-    data = canonical_json_bytes(dict(state_value))
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=".extractor-state.json.tmp-", dir=state_dir
-    )
-    temporary = Path(temporary_name)
-    try:
-        os.fchmod(descriptor, 0o600)
-        offset = 0
-        while offset < len(data):
-            offset += os.write(descriptor, data[offset:])
-        os.fsync(descriptor)
-        os.close(descriptor)
-        descriptor = -1
-        os.replace(temporary, state_dir / "extractor-state.json")
-        _fsync_directory(state_dir)
-    except Exception:
-        if descriptor >= 0:
-            os.close(descriptor)
+    value = dict(state_value)
+    for _attempt in range(4):
+        data = canonical_json_bytes(value)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=".extractor-state.json.tmp-", dir=state_dir
+        )
+        temporary = Path(temporary_name)
         try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
-        raise
+            os.fchmod(descriptor, 0o600)
+            offset = 0
+            while offset < len(data):
+                offset += os.write(descriptor, data[offset:])
+            os.fsync(descriptor)
+            os.close(descriptor)
+            descriptor = -1
+            os.replace(temporary, state_dir / "extractor-state.json")
+            _fsync_directory(state_dir)
+        except Exception:
+            if descriptor >= 0:
+                os.close(descriptor)
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+            raise
+        if "total_extractor_bytes" not in value:
+            return
+        observed_total = _path_tree_bytes(root)
+        if value.get("total_extractor_bytes") == observed_total:
+            return
+        value["total_extractor_bytes"] = observed_total
+    raise ExtractorError("extractor state size accounting did not stabilise")
 
 
 @contextmanager
@@ -1818,7 +2455,23 @@ def _load_prior_posts(root: Path, state_value: Mapping[str, Any] | None) -> list
     expected_batch = str(state_value.get("last_successful_batch") or "")
     if batch.name != expected_batch:
         raise ExtractorError("extractor state and current snapshot disagree")
-    return _load_jsonl(batch / "canonical-posts.jsonl")
+    problems = _validate_batch_directory(
+        batch,
+        require_immutable=True,
+        expected_boundary=str(state_value.get("prospective_boundary") or ""),
+    )
+    if problems:
+        raise ExtractorError(
+            "current snapshot is incompatible or corrupt: " + "; ".join(problems)
+        )
+    posts = _load_jsonl(batch / "canonical-posts.jsonl")
+    if any(
+        post.get("schema_version") != SCHEMA_VERSION
+        or post.get("derivation_parser_version") != PARSER_VERSION
+        for post in posts
+    ):
+        raise ExtractorError("current snapshot contains mixed parser/schema versions")
+    return posts
 
 
 @dataclass(frozen=True)
@@ -1841,7 +2494,7 @@ def parse_incremental_sources(
     prior_cache = copy.deepcopy(
         dict((prior_state or {}).get("source_file_cache") or {})
     )
-    cache = prior_cache
+    cache: dict[str, Any] = {}
     records_by_hash: dict[str, list[LogRecord]] = {}
     output_records: list[LogRecord] = []
     parse_warnings: list[dict[str, Any]] = []
@@ -1851,7 +2504,15 @@ def parse_incremental_sources(
 
     for source in inventory.files:
         digest = source.content_sha256
-        entry = cache.get(digest)
+        prior_entry = prior_cache.get(digest)
+        entry = (
+            copy.deepcopy(prior_entry)
+            if isinstance(prior_entry, dict)
+            and prior_entry.get("parser_version") == PARSER_VERSION
+            else None
+        )
+        if entry is not None:
+            cache[digest] = entry
         should_parse = not isinstance(entry, dict)
         if isinstance(entry, dict):
             processed_cutoff = str(entry.get("processed_cutoff") or "")
@@ -1878,6 +2539,7 @@ def parse_incremental_sources(
                 "earliest_record_timestamp": min(timestamps) if timestamps else None,
                 "incomplete_trailing_line_ignored": source.incomplete_trailing_line_ignored,
                 "latest_record_timestamp": max(timestamps) if timestamps else None,
+                "parser_version": PARSER_VERSION,
                 "processed_cutoff": cutoff_text,
                 "record_count": len(parsed),
                 "size": source.size,
@@ -1983,6 +2645,7 @@ def _snapshot_hash(
                 "canonical_posts_sha256": canonical_posts_hash,
                 "conversations_sha256": conversations_hash,
                 "extractor_version": EXTRACTOR_VERSION,
+                "parser_version": PARSER_VERSION,
                 "review_candidates_sha256": review_candidates_hash,
                 "schema_version": SCHEMA_VERSION,
             },
@@ -2081,6 +2744,197 @@ def _remove_new_tree(directory: Path) -> None:
     _fsync_directory(directory.parent)
 
 
+@dataclass(frozen=True)
+class RetentionResult:
+    pruned_batch_ids: tuple[str, ...]
+    retained_batch_count: int
+    retained_automatic_bytes: int
+    review_pack_bytes: int
+    total_extractor_bytes: int
+
+    def as_state_fields(self) -> dict[str, Any]:
+        return {
+            "pruned_batch_ids": list(self.pruned_batch_ids),
+            "retained_automatic_bytes": self.retained_automatic_bytes,
+            "retained_batch_count": self.retained_batch_count,
+            "review_pack_bytes": self.review_pack_bytes,
+            "total_extractor_bytes": self.total_extractor_bytes,
+        }
+
+
+def measure_retained_storage(root: Path) -> RetentionResult:
+    batches = [
+        path
+        for path in (root / "batches").iterdir()
+        if BATCH_ID_RE.fullmatch(path.name)
+    ]
+    packs = list((root / "review-packs").iterdir())
+    return RetentionResult(
+        pruned_batch_ids=(),
+        retained_batch_count=len(batches),
+        retained_automatic_bytes=sum(_path_tree_bytes(path) for path in batches),
+        review_pack_bytes=sum(_path_tree_bytes(path) for path in packs),
+        total_extractor_bytes=_path_tree_bytes(root),
+    )
+
+
+def _path_tree_bytes(path: Path) -> int:
+    total = 0
+    stack = [path]
+    while stack:
+        current = stack.pop()
+        info = current.lstat()
+        if stat.S_ISLNK(info.st_mode) or stat.S_ISREG(info.st_mode):
+            total += int(info.st_size)
+        elif stat.S_ISDIR(info.st_mode):
+            total += int(info.st_size)
+            stack.extend(current.iterdir())
+        else:
+            raise ExtractorError(f"unsupported filesystem object in output root: {current}")
+    return total
+
+
+def _review_pack_batch_references(
+    root: Path,
+    *,
+    expected_boundary: str,
+) -> tuple[set[str], int]:
+    references: set[str] = set()
+    total_bytes = 0
+    for pack in sorted((root / "review-packs").iterdir(), key=lambda item: item.name):
+        problems = _validate_pack_directory(
+            pack,
+            require_immutable=True,
+            expected_boundary=expected_boundary,
+        )
+        if problems:
+            raise ExtractorError(
+                "review-pack provenance is invalid; retention is blocked: "
+                + "; ".join(problems)
+            )
+        manifest = _strict_read_json(pack / "manifest.json")
+        if not isinstance(manifest, dict):
+            raise ExtractorError(
+                f"review-pack manifest is not an object; retention is blocked: {pack}"
+            )
+        source_batch = str(manifest.get("source_batch_id") or "")
+        if not BATCH_ID_RE.fullmatch(source_batch):
+            raise ExtractorError(
+                f"review-pack source batch is invalid; retention is blocked: {pack}"
+            )
+        references.add(source_batch)
+        total_bytes += _path_tree_bytes(pack)
+    return references, total_bytes
+
+
+def _delete_retained_batch(batch: Path) -> None:
+    """Delete one already-validated automatic batch without following anything."""
+    if batch.parent.name != "batches" or not BATCH_ID_RE.fullmatch(batch.name):
+        raise ExtractorError(f"refusing unsafe retention target: {batch}")
+    info = batch.lstat()
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise ExtractorError(f"refusing non-directory retention target: {batch}")
+    names = sorted(path.name for path in batch.iterdir())
+    if names != sorted(BATCH_FILES):
+        raise ExtractorError(f"refusing batch with unexpected contents: {batch}")
+    os.chmod(batch, 0o700, follow_symlinks=False)
+    for name in BATCH_FILES:
+        path = batch / name
+        item = path.lstat()
+        if stat.S_ISLNK(item.st_mode) or not stat.S_ISREG(item.st_mode):
+            raise ExtractorError(f"refusing unsafe batch member: {path}")
+        os.chmod(path, 0o600, follow_symlinks=False)
+        path.unlink()
+    batch.rmdir()
+    _fsync_directory(batch.parent)
+
+
+def apply_batch_retention(
+    root: Path,
+    *,
+    now: datetime,
+    expected_boundary: str,
+) -> RetentionResult:
+    """Apply the fixed recent/daily retention policy under the scan lock."""
+    current_target = _current_link_target(root, required=False)
+    current_batch = Path(current_target).name if current_target else None
+    review_references, review_bytes = _review_pack_batch_references(
+        root, expected_boundary=expected_boundary
+    )
+    batch_rows: list[tuple[Path, datetime]] = []
+    for batch in sorted((root / "batches").iterdir(), key=lambda item: item.name):
+        if not BATCH_ID_RE.fullmatch(batch.name):
+            raise ExtractorError(
+                f"malformed or temporary batch blocks retention: {batch.name}"
+            )
+        problems = _validate_batch_directory(
+            batch,
+            require_immutable=True,
+            expected_boundary=expected_boundary,
+        )
+        if problems:
+            raise ExtractorError(
+                "invalid automatic batch blocks retention: " + "; ".join(problems)
+            )
+        manifest = _strict_read_json(batch / "manifest.json")
+        assert isinstance(manifest, dict)
+        created = parse_aware_timestamp(
+            str(manifest.get("creation_timestamp") or ""),
+            option=f"batch {batch.name} creation timestamp",
+        )
+        batch_rows.append((batch, created))
+    missing_references = review_references - {path.name for path, _ in batch_rows}
+    if missing_references:
+        raise ExtractorError(
+            "review pack references missing automatic batch; retention is blocked"
+        )
+
+    protected = set(review_references)
+    if current_batch:
+        protected.add(current_batch)
+    recent_floor = now - RECENT_BATCH_RETENTION
+    daily_floor = now - DAILY_BATCH_RETENTION
+    older_daily: dict[str, tuple[Path, datetime]] = {}
+    for batch, created in batch_rows:
+        if created >= recent_floor:
+            protected.add(batch.name)
+        elif created >= daily_floor:
+            day = created.strftime("%Y-%m-%d")
+            previous = older_daily.get(day)
+            if previous is None or (created, batch.name) > (
+                previous[1],
+                previous[0].name,
+            ):
+                older_daily[day] = (batch, created)
+    protected.update(batch.name for batch, _created in older_daily.values())
+
+    candidates = [
+        batch for batch, _created in batch_rows if batch.name not in protected
+    ]
+    for batch in candidates:
+        if batch.name == current_batch or batch.name in review_references:
+            raise ExtractorError(f"internal retention protection failure: {batch.name}")
+    for batch in candidates:
+        _delete_retained_batch(batch)
+
+    retained = sorted(
+        (
+            path
+            for path in (root / "batches").iterdir()
+            if BATCH_ID_RE.fullmatch(path.name)
+        ),
+        key=lambda item: item.name,
+    )
+    automatic_bytes = sum(_path_tree_bytes(path) for path in retained)
+    return RetentionResult(
+        pruned_batch_ids=tuple(batch.name for batch in candidates),
+        retained_batch_count=len(retained),
+        retained_automatic_bytes=automatic_bytes,
+        review_pack_bytes=review_bytes,
+        total_extractor_bytes=_path_tree_bytes(root),
+    )
+
+
 def _build_extraction_report(
     *,
     boundary: str,
@@ -2177,9 +3031,23 @@ def _validate_batch_directory(
         return errors
     if manifest.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"unsupported batch manifest schema in {batch}")
-    if require_immutable and not re.fullmatch(
-        r"\d{8}T\d{6}Z-[0-9a-f]{12}", batch.name
-    ):
+    if manifest.get("extractor_version") != EXTRACTOR_VERSION:
+        errors.append(f"batch extractor version mismatch in {batch}")
+    if manifest.get("parser_version") != PARSER_VERSION:
+        errors.append(f"batch parser version mismatch in {batch}")
+    if source_manifest.get("schema_version") != SCHEMA_VERSION:
+        errors.append(f"source manifest schema mismatch in {batch}")
+    if source_manifest.get("extractor_version") != EXTRACTOR_VERSION:
+        errors.append(f"source manifest extractor version mismatch in {batch}")
+    if source_manifest.get("parser_version") != PARSER_VERSION:
+        errors.append(f"source manifest parser version mismatch in {batch}")
+    if status_value.get("schema_version") != SCHEMA_VERSION:
+        errors.append(f"batch status schema mismatch in {batch}")
+    if status_value.get("extractor_version") != EXTRACTOR_VERSION:
+        errors.append(f"batch status extractor version mismatch in {batch}")
+    if status_value.get("parser_version") != PARSER_VERSION:
+        errors.append(f"batch status parser version mismatch in {batch}")
+    if require_immutable and not BATCH_ID_RE.fullmatch(batch.name):
         errors.append(f"batch directory name is invalid: {batch.name}")
     if (batch / "manifest.json").read_bytes() != canonical_json_bytes(manifest):
         errors.append(f"batch manifest is not in canonical JSON form in {batch}")
@@ -2264,12 +3132,43 @@ def _validate_batch_directory(
         for index, value in enumerate(values, start=1):
             for problem in _walk_forbidden_keys(value):
                 errors.append(f"{batch.name}/{name}:{index}: {problem}")
-    post_order = [
-        (str(row.get("timestamp") or "9999"), str(row.get("post_id") or ""))
-        for row in posts
-    ]
+    post_order = [_turn_order_key(row)[:2] for row in posts]
     if post_order != sorted(post_order):
         errors.append(f"canonical post ordering is invalid in {batch}")
+    for post in posts:
+        post_id = str(post.get("post_id") or "")
+        if post.get("schema_version") != SCHEMA_VERSION:
+            errors.append(f"canonical post schema mismatch for {post_id} in {batch}")
+        if post.get("derivation_parser_version") != PARSER_VERSION:
+            errors.append(f"canonical post parser mismatch for {post_id} in {batch}")
+        if "timestamp" in post:
+            errors.append(f"ambiguous canonical timestamp retained for {post_id} in {batch}")
+        if post.get("creation_time_source") not in {
+            "structured_event",
+            "x_snowflake",
+            "unavailable",
+        }:
+            errors.append(f"invalid creation-time source for {post_id} in {batch}")
+        if post.get("creation_time_source") == "unavailable":
+            if post.get("created_at") is not None:
+                errors.append(f"unavailable creation time has a value for {post_id}")
+        elif parse_optional_timestamp(post.get("created_at")) is None:
+            errors.append(f"authoritative creation time is missing for {post_id}")
+        if post.get("publication_status") == "published" and post.get(
+            "author_role"
+        ) == "account":
+            if post.get("publication_authority") not in {
+                "structured_confirmation",
+                "confirmed_receipt_promotion",
+            }:
+                errors.append(
+                    f"published account post lacks authoritative publication source: {post_id}"
+                )
+            evidence = post.get("publication_evidence")
+            if not isinstance(evidence, list) or not evidence:
+                errors.append(
+                    f"published account post lacks publication evidence: {post_id}"
+                )
     conversation_order = [
         (str(row.get("start_time") or ""), str(row.get("conversation_key") or ""))
         for row in conversations
@@ -2278,14 +3177,7 @@ def _validate_batch_directory(
         errors.append(f"conversation ordering is invalid in {batch}")
     for conversation in conversations:
         turns = list(conversation.get("turns") or [])
-        order = [
-            (
-                str(turn.get("timestamp") or "9999"),
-                str(turn.get("post_id") or ""),
-                str(turn.get("canonical_event_id") or ""),
-            )
-            for turn in turns
-        ]
+        order = [_turn_order_key(turn) for turn in turns]
         if order != sorted(order):
             errors.append(
                 f"turn ordering is invalid for {conversation.get('conversation_key')} in {batch}"
@@ -2297,6 +3189,13 @@ def _validate_batch_directory(
         }:
             errors.append(
                 f"invalid prospective status for {conversation.get('conversation_key')}"
+            )
+        if conversation.get("prospective_status") == "eligible" and (
+            not conversation.get("start_time")
+            or conversation.get("start_time_source") == "unavailable"
+        ):
+            errors.append(
+                f"eligible conversation lacks authoritative start time in {batch}"
             )
     for candidate in candidates:
         if candidate.get("prospective_status") != "eligible":
@@ -2343,6 +3242,7 @@ def _publish_batch(
     batch_id: str,
     files: Mapping[str, bytes],
     state_value: Mapping[str, Any],
+    finalise_state: Callable[[], Mapping[str, Any]] | None = None,
 ) -> None:
     batches_dir = root / "batches"
     temporary = Path(
@@ -2370,7 +3270,10 @@ def _publish_batch(
         _make_tree_read_only(final)
         _set_current(root, new_target)
         try:
-            _atomic_write_state(root, state_value)
+            final_state = dict(state_value)
+            if finalise_state is not None:
+                final_state.update(finalise_state())
+            _atomic_write_state(root, final_state)
         except Exception:
             _restore_current(root, previous_target, new_target)
             _remove_new_tree(final)
@@ -2457,8 +3360,12 @@ def run_scan(
             parsed = parse_incremental_sources(
                 inventory, state_value, cutoff=cutoff
             )
+            parser_statistics: dict[str, int] = {}
             posts = normalise_canonical_posts(
-                parsed.records, prior_posts, pseudonym_key
+                parsed.records,
+                prior_posts,
+                pseudonym_key,
+                parser_statistics=parser_statistics,
             )
             conversations, candidates = build_conversations(
                 posts,
@@ -2487,6 +3394,26 @@ def run_scan(
                 warnings.append("retained_source_coverage_does_not_span_prospective_boundary")
             warnings = sorted(set(warnings))
 
+            try:
+                retention_before = apply_batch_retention(
+                    root,
+                    now=started,
+                    expected_boundary=boundary_text,
+                )
+            except ExtractorError as exc:
+                if state_value is not None:
+                    failed_state = copy.deepcopy(dict(state_value))
+                    failed_warnings = set(failed_state.get("warnings") or [])
+                    failed_warnings.add("automatic_batch_retention_failed")
+                    failed_state["warnings"] = sorted(failed_warnings)
+                    failed_state["last_retention_error"] = str(exc)
+                    failed_state["last_scan_start"] = str(format_utc(started))
+                    failed_state["last_scan_completion"] = str(
+                        format_utc(datetime.now(timezone.utc).replace(microsecond=0))
+                    )
+                    _atomic_write_state(root, failed_state)
+                raise
+
             canonical_data = jsonl_bytes(posts)
             conversations_data = jsonl_bytes(conversations)
             candidates_data = jsonl_bytes(candidates)
@@ -2507,11 +3434,13 @@ def run_scan(
                 str((state_value or {}).get("last_successful_batch") or "") or None
             )
             batch_id = f"{compact_utc(cutoff)}-{snapshot_hash[:12]}"
+            filesystem_free_bytes = int(shutil.disk_usage(root).free)
 
             next_state = {
                 "counts": counts,
                 "current_snapshot_hash": snapshot_hash,
                 "extractor_version": EXTRACTOR_VERSION,
+                "filesystem_free_bytes": filesystem_free_bytes,
                 "last_scan_completion": completed_text,
                 "last_scan_cutoff": cutoff_text,
                 "last_scan_start": started_text,
@@ -2523,12 +3452,17 @@ def run_scan(
                 ),
                 "last_successful_completion": completed_text,
                 "latest_source_timestamp": parsed.latest_source_timestamp,
+                "last_retention_error": None,
+                "parser_version": PARSER_VERSION,
+                "projected_batch_bytes": 0,
                 "prospective_boundary": boundary_text,
                 "quiescence_hours": float(quiescence_hours),
+                "required_free_bytes": 0,
                 "schema_version": SCHEMA_VERSION,
                 "source_file_cache": parsed.source_cache,
                 "source_file_count": len(inventory.files),
                 "warnings": warnings,
+                **retention_before.as_state_fields(),
             }
 
             unchanged = bool(
@@ -2546,8 +3480,10 @@ def run_scan(
                 }
 
             source_manifest_value = {
+                "extractor_version": EXTRACTOR_VERSION,
                 "inventory_retry_count": inventory.retry_count,
                 "ordering": "mrsMThatcher.log.100 through .1, then mrsMThatcher.log",
+                "parser_version": PARSER_VERSION,
                 "parse_warnings": list(parsed.warnings),
                 "parsed_source_hash_count": parsed.parsed_source_hash_count,
                 "prospective_boundary": boundary_text,
@@ -2555,12 +3491,15 @@ def run_scan(
                 "schema_version": SCHEMA_VERSION,
                 "source_files": [source.manifest_row() for source in inventory.files],
                 "source_warnings": [warning.as_json() for warning in inventory.warnings],
+                "structured_event_statistics": dict(sorted(parser_statistics.items())),
             }
             source_manifest_data = canonical_json_bytes(source_manifest_value)
             status_value = {
                 **counts,
                 "current_snapshot_hash": snapshot_hash,
+                "extractor_version": EXTRACTOR_VERSION,
                 "latest_source_timestamp": parsed.latest_source_timestamp,
+                "parser_version": PARSER_VERSION,
                 "prospective_boundary": boundary_text,
                 "scan_cutoff": cutoff_text,
                 "schema_version": SCHEMA_VERSION,
@@ -2592,6 +3531,7 @@ def run_scan(
                 "creation_timestamp": started_text,
                 "extractor_version": EXTRACTOR_VERSION,
                 "output_file_hashes": output_hashes,
+                "parser_version": PARSER_VERSION,
                 "previous_batch_id": previous_batch,
                 "prospective_boundary": boundary_text,
                 "quiescence_hours": float(quiescence_hours),
@@ -2606,11 +3546,59 @@ def run_scan(
                 **non_manifest_files,
                 "manifest.json": canonical_json_bytes(manifest_value),
             }
+            projected_batch_bytes = sum(len(data) for data in all_files.values())
+            filesystem_free_bytes = int(shutil.disk_usage(root).free)
+            required_free_bytes = (
+                projected_batch_bytes + DISK_RESERVED_HEADROOM_BYTES
+            )
+            next_state.update(
+                {
+                    "filesystem_free_bytes": filesystem_free_bytes,
+                    "projected_batch_bytes": projected_batch_bytes,
+                    "required_free_bytes": required_free_bytes,
+                }
+            )
+            if filesystem_free_bytes < required_free_bytes:
+                if state_value is not None:
+                    failed_state = copy.deepcopy(dict(state_value))
+                    failed_warnings = set(failed_state.get("warnings") or [])
+                    failed_warnings.add("disk_space_preflight_failed")
+                    failed_state.update(retention_before.as_state_fields())
+                    failed_state.update(
+                        {
+                            "filesystem_free_bytes": filesystem_free_bytes,
+                            "last_scan_completion": completed_text,
+                            "last_scan_start": started_text,
+                            "projected_batch_bytes": projected_batch_bytes,
+                            "required_free_bytes": required_free_bytes,
+                            "warnings": sorted(failed_warnings),
+                        }
+                    )
+                    _atomic_write_state(root, failed_state)
+                raise ExtractorError(
+                    "insufficient free space for prospective snapshot: "
+                    f"filesystem_free_bytes={filesystem_free_bytes} "
+                    f"projected_batch_bytes={projected_batch_bytes} "
+                    f"required_free_bytes={required_free_bytes}"
+                )
+
+            def finalise_published_state() -> Mapping[str, Any]:
+                retained = apply_batch_retention(
+                    root,
+                    now=started,
+                    expected_boundary=boundary_text,
+                )
+                return {
+                    **retained.as_state_fields(),
+                    "filesystem_free_bytes": int(shutil.disk_usage(root).free),
+                }
+
             _publish_batch(
                 root,
                 batch_id=batch_id,
                 files=all_files,
                 state_value=next_state,
+                finalise_state=finalise_published_state,
             )
             return {
                 "batch": batch_id,
@@ -2625,19 +3613,29 @@ def uninitialised_status() -> dict[str, Any]:
     return {
         "canonical_post_count": 0,
         "current_snapshot_hash": None,
+        "extractor_version": EXTRACTOR_VERSION,
+        "filesystem_free_bytes": None,
         "initialised": False,
         "last_scan_completion": None,
         "last_scan_start": None,
         "last_successful_batch": None,
         "latest_source_timestamp": None,
         "open_conversation_count": 0,
+        "parser_version": PARSER_VERSION,
+        "projected_batch_bytes": 0,
+        "pruned_batch_ids": [],
         "prospective_boundary": None,
         "prospective_eligible_conversation_count": 0,
         "quiescent_conversation_count": 0,
         "reconstructed_conversation_count": 0,
+        "required_free_bytes": 0,
+        "retained_automatic_bytes": 0,
+        "retained_batch_count": 0,
         "review_candidate_count": 0,
+        "review_pack_bytes": 0,
         "schema_version": SCHEMA_VERSION,
         "source_file_count": 0,
+        "total_extractor_bytes": 0,
         "warnings": [],
     }
 
@@ -2659,6 +3657,8 @@ def get_status(output_root: Path) -> dict[str, Any]:
         {
             "canonical_post_count": int(counts.get("canonical_post_count") or 0),
             "current_snapshot_hash": state_value.get("current_snapshot_hash"),
+            "extractor_version": state_value.get("extractor_version"),
+            "filesystem_free_bytes": state_value.get("filesystem_free_bytes"),
             "initialised": True,
             "last_scan_completion": state_value.get("last_scan_completion"),
             "last_scan_start": state_value.get("last_scan_start"),
@@ -2667,6 +3667,11 @@ def get_status(output_root: Path) -> dict[str, Any]:
             "open_conversation_count": int(
                 counts.get("open_conversation_count") or 0
             ),
+            "parser_version": state_value.get("parser_version"),
+            "projected_batch_bytes": int(
+                state_value.get("projected_batch_bytes") or 0
+            ),
+            "pruned_batch_ids": list(state_value.get("pruned_batch_ids") or []),
             "prospective_boundary": state_value.get("prospective_boundary"),
             "prospective_eligible_conversation_count": int(
                 counts.get("prospective_eligible_conversation_count") or 0
@@ -2680,7 +3685,20 @@ def get_status(output_root: Path) -> dict[str, Any]:
             "review_candidate_count": int(
                 counts.get("review_candidate_count") or 0
             ),
+            "required_free_bytes": int(
+                state_value.get("required_free_bytes") or 0
+            ),
+            "retained_automatic_bytes": int(
+                state_value.get("retained_automatic_bytes") or 0
+            ),
+            "retained_batch_count": int(
+                state_value.get("retained_batch_count") or 0
+            ),
+            "review_pack_bytes": int(state_value.get("review_pack_bytes") or 0),
             "source_file_count": int(state_value.get("source_file_count") or 0),
+            "total_extractor_bytes": int(
+                state_value.get("total_extractor_bytes") or 0
+            ),
             "warnings": list(state_value.get("warnings") or []),
         }
     )
@@ -2745,6 +3763,21 @@ def _validate_pack_directory(
         return [f"review pack manifest is not an object: {pack}"]
     if manifest.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"unsupported review pack schema: {pack}")
+    if manifest.get("extractor_version") != EXTRACTOR_VERSION:
+        errors.append(f"review pack extractor version mismatch: {pack}")
+    if manifest.get("parser_version") != PARSER_VERSION:
+        errors.append(f"review pack parser version mismatch: {pack}")
+    try:
+        parse_aware_timestamp(
+            str(manifest.get("creation_timestamp") or ""),
+            option="review pack creation timestamp",
+        )
+        parse_aware_timestamp(
+            str(manifest.get("source_batch_creation_timestamp") or ""),
+            option="review pack source batch creation timestamp",
+        )
+    except ExtractorError as exc:
+        errors.append(str(exc))
     if (pack / "manifest.json").read_bytes() != canonical_json_bytes(manifest):
         errors.append(f"review pack manifest is not in canonical JSON form: {pack}")
     if expected_boundary and manifest.get("prospective_boundary") != expected_boundary:
@@ -2760,6 +3793,8 @@ def _validate_pack_directory(
             canonical_json_bytes(
                 {
                     "conversations_sha256": hashes.get("conversations.jsonl"),
+                    "extractor_version": EXTRACTOR_VERSION,
+                    "parser_version": PARSER_VERSION,
                     "review_candidates_sha256": hashes.get(
                         "review-candidates.jsonl"
                     ),
@@ -2900,13 +3935,45 @@ def _validate_root_unlocked(root: Path) -> dict[str, Any]:
                     errors.append("source cache contains an invalid content hash key")
                 if not isinstance(entry, dict):
                     errors.append(f"source cache entry is not an object: {digest}")
+                elif entry.get("parser_version") != PARSER_VERSION:
+                    errors.append(f"source cache parser version mismatch: {digest}")
         for problem in _walk_forbidden_keys(state_value):
             errors.append(f"extractor state: {problem}")
+    retained_automatic_bytes = 0
+    review_pack_bytes = 0
+    total_extractor_bytes = 0
+    try:
+        retained_automatic_bytes = sum(
+            _path_tree_bytes(path)
+            for path in batch_dirs
+            if path.exists() and not path.is_symlink()
+        )
+        review_pack_bytes = sum(
+            _path_tree_bytes(path)
+            for path in pack_dirs
+            if path.exists() and not path.is_symlink()
+        )
+        total_extractor_bytes = _path_tree_bytes(root)
+    except (ExtractorError, OSError) as exc:
+        errors.append(f"cannot account extractor storage: {exc}")
+    if state_value is not None:
+        expected_storage = {
+            "retained_automatic_bytes": retained_automatic_bytes,
+            "retained_batch_count": len(batch_dirs),
+            "review_pack_bytes": review_pack_bytes,
+            "total_extractor_bytes": total_extractor_bytes,
+        }
+        for field, observed in expected_storage.items():
+            if state_value.get(field) != observed:
+                errors.append(f"extractor state storage field is inaccurate: {field}")
     return {
         "batch_count": len(batch_dirs),
         "errors": sorted(set(errors)),
+        "retained_automatic_bytes": retained_automatic_bytes,
         "review_pack_count": len(pack_dirs),
+        "review_pack_bytes": review_pack_bytes,
         "schema_version": SCHEMA_VERSION,
+        "total_extractor_bytes": total_extractor_bytes,
         "valid": not errors,
         "warnings": warnings,
     }
@@ -2961,6 +4028,7 @@ def freeze_review_pack(
     since: str,
     until: str,
     include_open: bool = False,
+    frozen_at: datetime | None = None,
 ) -> dict[str, Any]:
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", pack_name):
         raise ExtractorError(
@@ -2974,6 +4042,10 @@ def freeze_review_pack(
         raise ExtractorError("--until must be later than --since")
     since_text = str(format_utc(since_value))
     until_text = str(format_utc(until_value))
+    creation_value = (
+        frozen_at or datetime.now(timezone.utc)
+    ).astimezone(timezone.utc).replace(microsecond=0)
+    creation_text = str(format_utc(creation_value))
     root = _absolute_without_following(output_root)
     _require_real_directory(root, label="output root")
     final = root / "review-packs" / pack_name
@@ -3048,6 +4120,8 @@ def freeze_review_pack(
                 canonical_json_bytes(
                     {
                         "conversations_sha256": output_hashes["conversations.jsonl"],
+                        "extractor_version": EXTRACTOR_VERSION,
+                        "parser_version": PARSER_VERSION,
                         "review_candidates_sha256": output_hashes[
                             "review-candidates.jsonl"
                         ],
@@ -3059,15 +4133,20 @@ def freeze_review_pack(
             )
             manifest_value = {
                 "conversation_count": len(selected_conversations),
-                "creation_timestamp": batch_manifest.get("creation_timestamp"),
+                "creation_timestamp": creation_text,
+                "extractor_version": EXTRACTOR_VERSION,
                 "include_open": include_open,
                 "output_file_hashes": output_hashes,
                 "pack_content_sha256": pack_hash,
                 "pack_name": pack_name,
+                "parser_version": PARSER_VERSION,
                 "prospective_boundary": batch_manifest.get("prospective_boundary"),
                 "review_candidate_count": len(selected_candidates),
                 "schema_version": SCHEMA_VERSION,
                 "since": since_text,
+                "source_batch_creation_timestamp": batch_manifest.get(
+                    "creation_timestamp"
+                ),
                 "source_batch_id": batch.name,
                 "source_snapshot_sha256": batch_manifest.get(
                     "canonical_snapshot_sha256"
@@ -3102,6 +4181,15 @@ def freeze_review_pack(
                 moved = True
                 _fsync_directory(final.parent)
                 _make_tree_read_only(final)
+                current_state = read_extractor_state(root, missing_ok=False)
+                assert current_state is not None
+                storage = measure_retained_storage(root)
+                next_state = copy.deepcopy(current_state)
+                next_state.update(storage.as_state_fields())
+                next_state["filesystem_free_bytes"] = int(
+                    shutil.disk_usage(root).free
+                )
+                _atomic_write_state(root, next_state)
                 committed = True
             finally:
                 if temporary.exists():
@@ -3114,6 +4202,129 @@ def freeze_review_pack(
                 "review_candidate_count": len(selected_candidates),
                 "status": "frozen",
             }
+
+
+def _read_existing_pseudonym_key(path: Path) -> bytes:
+    descriptor = _open_regular_nofollow(path, os.O_RDONLY)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o600:
+            raise ExtractorError("source pseudonym key must be a mode-0600 regular file")
+        data = os.read(descriptor, 33)
+    finally:
+        os.close(descriptor)
+    if len(data) != 32:
+        raise ExtractorError("source pseudonym key must contain exactly 32 bytes")
+    return data
+
+
+def _write_existing_pseudonym_key(root: Path, key: bytes) -> None:
+    path = root / "state" / "pseudonym-key"
+    descriptor = _open_regular_nofollow(
+        path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+    )
+    try:
+        offset = 0
+        while offset < len(key):
+            offset += os.write(descriptor, key[offset:])
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    _fsync_directory(path.parent)
+
+
+def rebuild_to_new_root(
+    *,
+    project_dir: Path,
+    source_output_root: Path,
+    new_output_root: Path,
+    until: str,
+) -> dict[str, Any]:
+    """Reparse retained logs into a new root without mutating the old root."""
+    project = _absolute_without_following(project_dir)
+    source_root = _absolute_without_following(source_output_root)
+    new_root = _absolute_without_following(new_output_root)
+    _require_real_directory(project, label="project directory")
+    _require_real_directory(source_root, label="source output root")
+    if new_root.exists() or new_root.is_symlink():
+        raise ExtractorError("--new-output-root must not already exist")
+    _require_real_directory(new_root.parent, label="new output parent")
+    if _is_within(new_root, project):
+        raise ExtractorError("--new-output-root must not be inside the project directory")
+    if _is_within(new_root, source_root) or _is_within(source_root, new_root):
+        raise ExtractorError("source and new output roots must be separate trees")
+    cutoff = parse_aware_timestamp(until, option="--until")
+
+    with extractor_lock(
+        source_root,
+        exclusive=False,
+        nonblocking=False,
+        create=False,
+    ) as acquired:
+        if not acquired:
+            raise ExtractorError("could not acquire source-root shared lock")
+        raw_state = _strict_read_json(
+            source_root / "state" / "extractor-state.json"
+        )
+        if not isinstance(raw_state, dict):
+            raise ExtractorError("source extractor state must be a JSON object")
+        boundary_text = str(raw_state.get("prospective_boundary") or "")
+        boundary = parse_aware_timestamp(
+            boundary_text, option="source prospective boundary"
+        )
+        quiescence = raw_state.get("quiescence_hours")
+        if (
+            not isinstance(quiescence, (int, float))
+            or isinstance(quiescence, bool)
+            or quiescence <= 0
+        ):
+            raise ExtractorError("source state has an invalid quiescence policy")
+        if cutoff < boundary:
+            raise ExtractorError("--until precedes the frozen prospective boundary")
+        key = _read_existing_pseudonym_key(
+            source_root / "state" / "pseudonym-key"
+        )
+        inventory = collect_source_inventory(project)
+        observed_times: list[datetime] = []
+        for source in inventory.files:
+            parsed_records, _warnings = parse_log_records(source.complete_data)
+            observed_times.extend(
+                record.timestamp_value
+                for record in parsed_records
+                if record.timestamp_value <= cutoff
+            )
+        if (
+            not observed_times
+            or min(observed_times) > boundary
+            or max(observed_times) < boundary
+        ):
+            raise ExtractorError(
+                "retained production logs do not span the frozen prospective boundary"
+            )
+
+        with _private_umask():
+            ensure_private_layout(new_root)
+            _write_existing_pseudonym_key(new_root, key)
+        result = run_scan(
+            project_dir=project,
+            output_root=new_root,
+            prospective_start=boundary_text,
+            until=str(format_utc(cutoff)),
+            quiescence_hours=float(quiescence),
+        )
+        validation = validate_output_root(new_root)
+        if not validation.get("valid"):
+            raise ExtractorError(
+                "rebuilt output root failed validation: "
+                + "; ".join(validation.get("errors") or [])
+            )
+        return {
+            "new_output_root": str(new_root),
+            "prospective_boundary": boundary_text,
+            "scan": result,
+            "status": "rebuilt",
+            "validation": validation,
+        }
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -3141,6 +4352,15 @@ def _build_parser() -> argparse.ArgumentParser:
     freeze_parser.add_argument("--since", required=True)
     freeze_parser.add_argument("--until", required=True)
     freeze_parser.add_argument("--include-open", action="store_true")
+
+    rebuild_parser = subparsers.add_parser(
+        "rebuild-to-new-root",
+        help="reparse retained logs into a separate empty output root",
+    )
+    rebuild_parser.add_argument("--project-dir", type=Path, required=True)
+    rebuild_parser.add_argument("--source-output-root", type=Path, required=True)
+    rebuild_parser.add_argument("--new-output-root", type=Path, required=True)
+    rebuild_parser.add_argument("--until", required=True)
     return parser
 
 
@@ -3172,6 +4392,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 since=arguments.since,
                 until=arguments.until,
                 include_open=arguments.include_open,
+            )
+            sys.stdout.buffer.write(canonical_json_bytes(result))
+            return 0
+        if arguments.command == "rebuild-to-new-root":
+            result = rebuild_to_new_root(
+                project_dir=arguments.project_dir,
+                source_output_root=arguments.source_output_root,
+                new_output_root=arguments.new_output_root,
+                until=arguments.until,
             )
             sys.stdout.buffer.write(canonical_json_bytes(result))
             return 0

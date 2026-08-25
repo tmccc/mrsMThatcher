@@ -5,11 +5,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -18,6 +21,26 @@ from tools import extract_prospective_conversations as extractor
 
 BOUNDARY = "2026-08-24T15:08:39Z"
 DEFAULT_UNTIL = "2026-08-27T18:00:00Z"
+
+
+def snowflake_id(value: str | datetime, sequence: int = 0) -> str:
+    instant = (
+        extractor.parse_aware_timestamp(value, option="test snowflake")
+        if isinstance(value, str)
+        else value.astimezone(timezone.utc)
+    )
+    milliseconds = int(instant.timestamp() * 1000)
+    return str(
+        ((milliseconds - extractor.X_SNOWFLAKE_EPOCH_MS) << 22)
+        | (sequence & ((1 << 22) - 1))
+    )
+
+
+def local_minute_as_utc(local_prefix: str) -> str:
+    value = datetime.strptime(local_prefix, "%Y-%m-%d %H:%M").replace(
+        tzinfo=ZoneInfo("Europe/London")
+    )
+    return str(extractor.format_utc(value.astimezone(timezone.utc)))
 
 
 def log_line(
@@ -72,6 +95,7 @@ def first_exchange(
                 target_id=root_id,
                 author_id=author_id,
                 reply_post_id=reply_id,
+                target_created_at=local_minute_as_utc(local_prefix),
             ),
         ]
     )
@@ -116,6 +140,106 @@ def publish_reply(
             ),
         ]
     )
+
+
+def create_attempt(
+    target_id: str,
+    transaction_id: str,
+    *,
+    text: str = "A durable attempted reply.",
+    lane: str = "conversational_reply",
+    local_time: str = "2026-08-24 16:12:00",
+) -> str:
+    reply_to = target_id if lane == "conversational_reply" else "None"
+    return log_line(
+        local_time,
+        "Creating X post with durable transport journal. "
+        f"lane={lane} transaction_id={transaction_id} reply_to_id={reply_to} "
+        f"media_count=0 made_with_ai=False text={text!r}",
+    )
+
+
+def generic_success(
+    reply_id: str,
+    *,
+    local_time: str = "2026-08-24 16:12:01",
+) -> str:
+    return log_line(
+        local_time,
+        f"Created X post successfully. response={{'data': {{'id': '{reply_id}'}}}}",
+    )
+
+
+def receipt_promotion(
+    target_id: str,
+    reply_id: str,
+    *,
+    local_time: str = "2026-08-24 16:12:02",
+) -> str:
+    return log_line(
+        local_time,
+        "Promoted conversational reply receipt to confirmed "
+        f"source=mention target_id={target_id} reply_post_id={reply_id} "
+        "path=/private/confirmed_reply_receipt.json",
+        level="WARNING",
+    )
+
+
+def rewrite_private_json(path: Path, value: object, *, mode: int = 0o400) -> None:
+    os.chmod(path, 0o600)
+    path.write_bytes(extractor.canonical_json_bytes(value))
+    os.chmod(path, mode)
+
+
+def rewrite_batch_posts_and_hashes(batch: Path, posts: list[dict[str, object]]) -> None:
+    canonical = batch / "canonical-posts.jsonl"
+    os.chmod(canonical, 0o600)
+    canonical.write_bytes(extractor.jsonl_bytes(posts))
+    os.chmod(canonical, 0o400)
+    manifest_path = batch / "manifest.json"
+    manifest = extractor._strict_read_json(manifest_path)
+    assert isinstance(manifest, dict)
+    hashes = dict(manifest["output_file_hashes"])
+    hashes["canonical-posts.jsonl"] = extractor.sha256_file(canonical)
+    manifest["output_file_hashes"] = hashes
+    manifest["canonical_snapshot_sha256"] = extractor._snapshot_hash(
+        hashes["canonical-posts.jsonl"],
+        hashes["conversations.jsonl"],
+        hashes["review-candidates.jsonl"],
+    )
+    rewrite_private_json(manifest_path, manifest)
+
+
+def set_batch_creation_time(batch: Path, value: str) -> None:
+    manifest_path = batch / "manifest.json"
+    manifest = extractor._strict_read_json(manifest_path)
+    assert isinstance(manifest, dict)
+    manifest["creation_timestamp"] = value
+    rewrite_private_json(manifest_path, manifest)
+
+
+def append_independent_root(
+    active: Path,
+    *,
+    created_at: str,
+    local_time: str,
+    author: str,
+) -> str:
+    post_id = snowflake_id(created_at)
+    with active.open("a", encoding="utf-8") as handle:
+        handle.write(
+            log_line(
+                local_time,
+                f"Considering mention id={post_id} author_id={author} text='Independent substantive root'",
+            )
+        )
+        handle.write(
+            log_line(
+                str(datetime.strptime(local_time, "%Y-%m-%d %H:%M:%S") + timedelta(seconds=1)),
+                f"Built AI reply context for mention {post_id}. chain_items=0 immediate_parent=None quoted=False",
+            )
+        )
+    return post_id
 
 
 def write_active(project: Path, text: str) -> Path:
@@ -309,6 +433,199 @@ def test_parser_preserves_multiline_record_and_uses_london_to_utc() -> None:
     assert records[0].message == "first\ncontinuation\n"
 
 
+def test_pre_boundary_creation_observed_after_boundary_is_not_prospective(
+    tmp_path: Path,
+) -> None:
+    root_id = snowflake_id("2026-08-24T14:00:00Z")
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        log_line(
+            "2026-08-24 20:00:00",
+            f"Considering mention id={root_id} author_id=delayed-user text='A delayed question'",
+        )
+        + log_line(
+            "2026-08-24 20:00:01",
+            f"Built AI reply context for mention {root_id}. chain_items=0 immediate_parent=None quoted=False",
+        ),
+    )
+
+    run_scan(project, output)
+
+    post = rows(output, "canonical-posts.jsonl")[0]
+    conversation = rows(output, "conversations.jsonl")[0]
+    assert post["created_at"] == "2026-08-24T14:00:00Z"
+    assert post["creation_time_source"] == "x_snowflake"
+    assert post["first_observed_at"] == "2026-08-24T19:00:00Z"
+    assert conversation["prospective_status"] == "pre_boundary"
+    assert conversation["start_time_source"] == "confirmed_root_turn"
+
+
+def test_delayed_backlog_and_genuinely_new_post_use_snowflake_creation_time(
+    tmp_path: Path,
+) -> None:
+    old_id = snowflake_id("2026-08-24T10:00:00Z")
+    new_id = snowflake_id("2026-08-24T15:30:00Z", 1)
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        "".join(
+            [
+                log_line("2026-08-24 20:00:00", f"Considering mention id={old_id} author_id=a text='Old backlog item'"),
+                log_line("2026-08-24 20:00:01", f"Built AI reply context for mention {old_id}. chain_items=0 immediate_parent=None quoted=False"),
+                log_line("2026-08-24 20:01:00", f"Considering mention id={new_id} author_id=b text='New post-boundary item'"),
+                log_line("2026-08-24 20:01:01", f"Built AI reply context for mention {new_id}. chain_items=0 immediate_parent=None quoted=False"),
+            ]
+        ),
+    )
+
+    run_scan(project, output)
+    by_root = {
+        row["root_post_id"]: row for row in rows(output, "conversations.jsonl")
+    }
+
+    assert by_root[old_id]["prospective_status"] == "pre_boundary"
+    assert by_root[new_id]["prospective_status"] == "eligible"
+
+
+def test_pre_boundary_root_and_missing_numeric_root_date_later_continuations(
+    tmp_path: Path,
+) -> None:
+    root_id = snowflake_id("2026-08-24T14:30:00Z")
+    continuation_id = snowflake_id("2026-08-24T16:00:00Z")
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        event_line(
+            "2026-08-24 17:01:00",
+            "ai_reply_pipeline_decision",
+            target_id=continuation_id,
+            root_post_id=root_id,
+            parent_post_id=snowflake_id("2026-08-24T15:45:00Z"),
+            incoming_text="A post-boundary continuation",
+        ),
+    )
+
+    run_scan(project, output)
+    conversation = rows(output, "conversations.jsonl")[0]
+
+    assert conversation["root_post_id"] == root_id
+    assert conversation["start_time"] == "2026-08-24T14:30:00Z"
+    assert conversation["start_time_source"] == "root_post_id_snowflake"
+    assert conversation["prospective_status"] == "pre_boundary"
+
+
+def test_missing_undateable_root_stays_start_unknown(tmp_path: Path) -> None:
+    target_id = snowflake_id("2026-08-24T16:00:00Z")
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        event_line(
+            "2026-08-24 17:01:00",
+            "ai_reply_pipeline_decision",
+            target_id=target_id,
+            root_post_id="opaque-root",
+            parent_post_id="opaque-parent",
+            incoming_text="Continuation with no dateable root",
+        ),
+    )
+
+    run_scan(project, output)
+    conversation = rows(output, "conversations.jsonl")[0]
+
+    assert conversation["start_time"] is None
+    assert conversation["start_time_source"] == "unavailable"
+    assert conversation["prospective_status"] == "start_unknown"
+
+
+def test_explicit_creation_time_precedes_snowflake_and_malformed_value_falls_back() -> None:
+    key = b"t" * 32
+    snowflake = snowflake_id("2026-08-24T15:00:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            event_line(
+                "2026-08-24 16:20:00",
+                "ai_reply_pipeline_decision",
+                target_id=snowflake,
+                target_created_at="2026-08-24T15:10:00Z",
+            )
+            + event_line(
+                "2026-08-24 16:21:00",
+                "ai_reply_pipeline_decision",
+                target_id=snowflake_id("2026-08-24T15:05:00Z", 1),
+                target_created_at="not-a-time",
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], key)
+
+    by_id = {post["post_id"]: post for post in posts}
+    assert by_id[snowflake]["created_at"] == "2026-08-24T15:10:00Z"
+    assert by_id[snowflake]["creation_time_source"] == "structured_event"
+    fallback = by_id[snowflake_id("2026-08-24T15:05:00Z", 1)]
+    assert fallback["created_at"] == "2026-08-24T15:05:00Z"
+    assert fallback["creation_time_source"] == "x_snowflake"
+    assert "invalid_explicit_target_creation_time" in fallback["warnings"]
+
+
+def test_future_snowflake_is_unavailable_and_observations_track_first_and_last() -> None:
+    key = b"u" * 32
+    future_id = snowflake_id("2026-08-25T00:00:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            log_line("2026-08-24 16:10:00", f"Considering mention id={future_id} author_id=u text='First observation'")
+            + log_line("2026-08-24 17:10:00", f"Considering mention id={future_id} author_id=u text='First observation'")
+        ).encode()
+    )
+
+    post = extractor.normalise_canonical_posts(records, [], key)[0]
+
+    assert post["created_at"] is None
+    assert post["creation_time_source"] == "unavailable"
+    assert post["first_observed_at"] == "2026-08-24T15:10:00Z"
+    assert post["last_observed_at"] == "2026-08-24T16:10:00Z"
+    assert "x_snowflake_materially_after_first_observation" in post["warnings"]
+
+
+def test_account_reply_creation_time_comes_from_reply_id_not_confirmation_log(
+    tmp_path: Path,
+) -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:12:00Z")
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        log_line("2026-08-24 21:00:00", f"Considering mention id={target_id} author_id=u text='Question?'"),
+    )
+    active = project / "mrsMThatcher.log"
+    with active.open("a", encoding="utf-8") as handle:
+        handle.write(
+            event_line(
+                "2026-08-24 21:00:01",
+                "reply_posted",
+                target_id=target_id,
+                reply_post_id=reply_id,
+            )
+        )
+
+    run_scan(project, output)
+    account = next(
+        row
+        for row in rows(output, "canonical-posts.jsonl")
+        if row["author_role"] == "account"
+    )
+
+    assert account["created_at"] == "2026-08-24T15:12:00Z"
+    assert account["creation_time_source"] == "x_snowflake"
+    assert account["first_observed_at"] == "2026-08-24T20:00:01Z"
+
+
 def test_first_scan_initialises_state_second_unchanged_scan_has_no_duplicate_batch(
     tmp_path: Path,
 ) -> None:
@@ -360,6 +677,308 @@ def test_append_creates_one_snapshot_duplicate_event_deduplicates_and_late_turn_
     assert conversations[0]["user_turn_count"] == 2
 
 
+def test_failed_conversational_attempt_cannot_consume_unrelated_generic_success() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    unrelated_id = snowflake_id("2026-08-24T15:12:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            log_line("2026-08-24 16:10:00", f"Considering mention id={target_id} author_id=u text='Question?'")
+            + create_attempt(target_id, "a" * 64)
+            + log_line("2026-08-24 16:12:01", "Failed to post generated reply")
+            + create_attempt("ignored", "b" * 64, lane="quote_image", local_time="2026-08-24 16:13:00")
+            + generic_success(unrelated_id, local_time="2026-08-24 16:13:01")
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"p" * 32)
+
+    assert all(post["author_role"] != "account" for post in posts)
+    target = next(post for post in posts if post["post_id"] == target_id)
+    assert target["send_attempts"][0]["last_observed_status"] == "failed"
+
+
+def test_generic_success_without_confirmation_never_publishes_account_turn() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:12:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            create_attempt(target_id, "c" * 64)
+            + generic_success(reply_id)
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"q" * 32)
+
+    assert [post for post in posts if post["author_role"] == "account"] == []
+    assert posts[0]["send_attempts"][0]["last_observed_status"] == "remote_success_observed"
+
+
+def test_receipt_promotion_publishes_with_attempt_text_and_authority() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:12:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            create_attempt(target_id, "d" * 64, text="Confirmed attempt text")
+            + generic_success(reply_id)
+            + receipt_promotion(target_id, reply_id)
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"r" * 32)
+    account = next(post for post in posts if post["author_role"] == "account")
+    target = next(post for post in posts if post["post_id"] == target_id)
+
+    assert account["text"] == "Confirmed attempt text"
+    assert account["publication_authority"] == "confirmed_receipt_promotion"
+    assert account["publication_evidence"][0]["event_kind"] == "confirmed_receipt_promotion"
+    assert target["send_attempts"][0]["last_observed_status"] == "confirmed"
+
+
+def test_structured_confirmation_deduplicates_with_receipt_evidence() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:12:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            log_line("2026-08-24 16:10:00", f"Generated reply to mention {target_id}: 'Final text'")
+            + receipt_promotion(target_id, reply_id)
+            + event_line(
+                "2026-08-24 16:13:00",
+                "reply_posted",
+                target_id=target_id,
+                reply_post_id=reply_id,
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"s" * 32)
+    accounts = [post for post in posts if post["author_role"] == "account"]
+
+    assert len(accounts) == 1
+    assert accounts[0]["text"] == "Final text"
+    assert accounts[0]["publication_authority"] == "structured_confirmation"
+    assert {value["event_kind"] for value in accounts[0]["publication_evidence"]} == {
+        "confirmed_receipt_promotion",
+        "reply_posted",
+    }
+
+
+def test_generated_text_survives_scan_and_rotation_until_confirmation(
+    tmp_path: Path,
+) -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:12:00Z")
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(
+        project,
+        log_line("2026-08-24 16:10:00", f"Considering mention id={target_id} author_id=u text='Question?'")
+        + log_line("2026-08-24 16:10:01", f"Built AI reply context for mention {target_id}. chain_items=0 immediate_parent=None quoted=False")
+        + log_line("2026-08-24 16:11:00", f"Generated reply to mention {target_id}: 'Cross-scan final text'")
+        + create_attempt(target_id, "e" * 64, text="Cross-scan final text"),
+    )
+    run_scan(project, output)
+    active.replace(project / "mrsMThatcher.log.1")
+    write_active(project, receipt_promotion(target_id, reply_id))
+
+    run_scan(project, output, until="2026-08-28T18:00:00Z")
+    account = next(
+        post
+        for post in rows(output, "canonical-posts.jsonl")
+        if post["author_role"] == "account"
+    )
+
+    assert account["text"] == "Cross-scan final text"
+    assert account["publication_authority"] == "confirmed_receipt_promotion"
+
+
+def test_confirmation_without_recoverable_text_is_partial_and_never_invents_text() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:12:00Z")
+    records, _ = extractor.parse_log_records(
+        receipt_promotion(target_id, reply_id).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"v" * 32)
+    account = next(post for post in posts if post["author_role"] == "account")
+
+    assert account["text"] is None
+    assert account["reconstruction_confidence"] == "medium"
+    assert "confirmed_account_reply_text_unavailable" in account["warnings"]
+
+
+def test_confirmation_with_multiple_unbound_attempts_does_not_guess_reply_text() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:15:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            create_attempt(target_id, "2" * 64, text="First possible draft")
+            + create_attempt(
+                target_id,
+                "3" * 64,
+                text="Second possible draft",
+                local_time="2026-08-24 16:14:00",
+            )
+            + receipt_promotion(
+                target_id, reply_id, local_time="2026-08-24 16:15:00"
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"m" * 32)
+    account = next(post for post in posts if post["author_role"] == "account")
+
+    assert account["text"] is None
+    assert "ambiguous_confirmed_reply_attempt_text" in account["warnings"]
+    assert "confirmed_account_reply_text_unavailable" in account["warnings"]
+
+
+def test_failed_draft_is_not_an_account_turn_or_review_candidate(tmp_path: Path) -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        log_line("2026-08-24 16:10:00", f"Considering mention id={target_id} author_id=u text='Question?'")
+        + log_line("2026-08-24 16:10:01", f"Built AI reply context for mention {target_id}. chain_items=0 immediate_parent=None quoted=False")
+        + create_attempt(target_id, "f" * 64)
+        + log_line("2026-08-24 16:12:01", "Unexpected failure posting generated reply"),
+    )
+
+    run_scan(project, output)
+    conversation = rows(output, "conversations.jsonl")[0]
+
+    assert conversation["account_turn_count"] == 0
+    assert rows(output, "review-candidates.jsonl") == []
+
+
+def test_validation_rejects_published_account_without_authoritative_evidence(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    batch = current_batch(output)
+    posts = rows(output, "canonical-posts.jsonl")
+    account = next(post for post in posts if post["author_role"] == "account")
+    account["publication_authority"] = None
+    account["publication_evidence"] = []
+    rewrite_batch_posts_and_hashes(batch, posts)
+
+    problems = extractor._validate_batch_directory(
+        batch,
+        require_immutable=False,
+        expected_boundary=BOUNDARY,
+    )
+
+    assert any("lacks authoritative publication" in value for value in problems)
+
+
+def test_structured_event_registry_ignores_generic_and_target_like_unknown_events() -> None:
+    records, _ = extractor.parse_log_records(
+        (
+            event_line("2026-08-24 16:10:00", "unrelated_event", id="123")
+            + event_line(
+                "2026-08-24 16:11:00",
+                "other_event",
+                id="456",
+                author_id="raw-user",
+                incoming_text="Should not become a post",
+            )
+        ).encode()
+    )
+    statistics: dict[str, int] = {}
+
+    posts = extractor.normalise_canonical_posts(
+        records, [], b"w" * 32, parser_statistics=statistics
+    )
+
+    assert posts == []
+    assert statistics["ignored_structured_event_count"] == 2
+    assert statistics["ignored_target_like_event_count"] == 2
+
+
+def test_ignored_structured_event_counts_are_aggregated_in_source_manifest(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        first_exchange()
+        + "".join(
+            event_line(
+                f"2026-08-24 16:{30 + index:02d}:00",
+                "unrelated_event",
+                id=str(index),
+            )
+            for index in range(5)
+        ),
+    )
+
+    run_scan(project, output)
+    source_manifest = extractor._strict_read_json(
+        current_batch(output) / "source-manifest.json"
+    )
+    assert isinstance(source_manifest, dict)
+
+    assert source_manifest["structured_event_statistics"][
+        "ignored_structured_event_count"
+    ] == 5
+    assert source_manifest["structured_event_statistics"][
+        "ignored_target_like_event_count"
+    ] == 5
+    assert source_manifest["source_warnings"] == []
+
+
+def test_registered_event_fields_fail_closed_on_missing_or_conflicting_target() -> None:
+    target_a = snowflake_id("2026-08-24T15:10:00Z")
+    target_b = snowflake_id("2026-08-24T15:11:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            event_line(
+                "2026-08-24 16:10:00",
+                "mention_reply_posted",
+                mention_id=target_a,
+                target_id=target_b,
+                reply_post_id=snowflake_id("2026-08-24T15:12:00Z"),
+            )
+            + event_line(
+                "2026-08-24 16:11:00",
+                "ai_reply_pipeline_decision",
+                id="generic-only",
+            )
+        ).encode()
+    )
+    statistics: dict[str, int] = {}
+
+    posts = extractor.normalise_canonical_posts(
+        records, [], b"x" * 32, parser_statistics=statistics
+    )
+
+    assert posts == []
+    assert statistics["ambiguous_registered_event_count"] == 1
+    assert statistics["registered_event_missing_target_count"] == 1
+
+
+def test_every_registered_contract_rejects_unregistered_generic_id_field() -> None:
+    lines = "".join(
+        event_line(
+            f"2026-08-24 16:{index:02d}:00",
+            kind,
+            id=str(10_000 + index),
+        )
+        for index, kind in enumerate(
+            extractor.STRUCTURED_CONVERSATION_EVENT_FIELDS, start=1
+        )
+    )
+    records, _ = extractor.parse_log_records(lines.encode())
+
+    posts = extractor.normalise_canonical_posts(records, [], b"y" * 32)
+
+    assert posts == []
+
+
 def test_rotation_with_same_content_is_cached_and_does_not_change_snapshot(
     tmp_path: Path,
 ) -> None:
@@ -375,6 +994,426 @@ def test_rotation_with_same_content_is_cached_and_does_not_change_snapshot(
 
     assert result["status"] == "no_change"
     assert current_target(output) == before
+
+
+def test_retention_keeps_current_recent_and_newest_daily_and_prunes_expired(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    cutoffs = [
+        "2026-08-27T19:00:00Z",
+        "2026-08-27T20:00:00Z",
+        "2026-08-27T21:00:00Z",
+        "2026-08-27T22:00:00Z",
+        "2026-08-27T23:00:00Z",
+    ]
+    for index, cutoff in enumerate(cutoffs, start=1):
+        append_independent_root(
+            active,
+            created_at=f"2026-08-24T{15 + index:02d}:30:00Z",
+            local_time=f"2026-08-24 {16 + index:02d}:30:00",
+            author=f"user-{index}",
+        )
+        run_scan(project, output, until=cutoff)
+    batches = sorted((output / "batches").iterdir(), key=lambda path: path.name)
+    assert len(batches) == 6
+    current = current_batch(output).name
+    now = extractor.parse_aware_timestamp("2026-12-01T12:00:00Z", option="test")
+    assigned = {
+        batches[0].name: "2026-11-30T10:00:00Z",
+        batches[1].name: "2026-11-25T08:00:00Z",
+        batches[2].name: "2026-11-25T20:00:00Z",
+        batches[3].name: "2026-10-15T12:00:00Z",
+        batches[4].name: "2026-08-01T12:00:00Z",
+        batches[5].name: "2026-07-01T12:00:00Z",
+    }
+    for batch in batches:
+        set_batch_creation_time(batch, assigned[batch.name])
+
+    result = extractor.apply_batch_retention(
+        output, now=now, expected_boundary=BOUNDARY
+    )
+    retained = {path.name for path in (output / "batches").iterdir()}
+
+    assert current in retained
+    assert batches[0].name in retained
+    assert batches[2].name in retained
+    assert batches[3].name in retained
+    assert batches[1].name not in retained
+    assert batches[4].name not in retained
+    assert set(result.pruned_batch_ids) == {batches[1].name, batches[4].name}
+
+
+def test_review_pack_reference_protects_old_batch_and_pack_bytes(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange() + continuation())
+    run_scan(project, output)
+    referenced = current_batch(output)
+    extractor.freeze_review_pack(
+        output_root=output,
+        pack_name="reference-protection",
+        since=BOUNDARY,
+        until="2026-08-28T00:00:00Z",
+        include_open=True,
+        frozen_at=extractor.parse_aware_timestamp(
+            "2026-08-28T00:00:00Z", option="test"
+        ),
+    )
+    pack = output / "review-packs" / "reference-protection"
+    before_pack = {
+        path.name: path.read_bytes() for path in pack.iterdir() if path.is_file()
+    }
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    set_batch_creation_time(referenced, "2026-01-01T00:00:00Z")
+    set_batch_creation_time(current_batch(output), "2026-01-02T00:00:00Z")
+
+    extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-12-01T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    assert referenced.exists()
+    assert before_pack == {
+        path.name: path.read_bytes() for path in pack.iterdir() if path.is_file()
+    }
+
+
+def test_invalid_review_pack_and_malformed_batch_fail_closed_without_deletion(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange() + continuation())
+    run_scan(project, output)
+    extractor.freeze_review_pack(
+        output_root=output,
+        pack_name="corrupt-pack",
+        since=BOUNDARY,
+        until="2026-08-28T00:00:00Z",
+        include_open=True,
+    )
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    old = sorted((output / "batches").iterdir())[0]
+    set_batch_creation_time(old, "2026-01-01T00:00:00Z")
+    pack_manifest = output / "review-packs" / "corrupt-pack" / "manifest.json"
+    os.chmod(pack_manifest, 0o600)
+    pack_manifest.write_text("{}\n", encoding="utf-8")
+    os.chmod(pack_manifest, 0o400)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    malicious = output / "batches" / "20260101T000000Z-aaaaaaaaaaaa"
+    malicious.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(extractor.ExtractorError, match="review-pack provenance"):
+        extractor.apply_batch_retention(
+            output,
+            now=extractor.parse_aware_timestamp(
+                "2026-12-01T00:00:00Z", option="test"
+            ),
+            expected_boundary=BOUNDARY,
+        )
+
+    assert old.exists()
+    assert malicious.is_symlink()
+    assert outside.exists()
+
+
+def test_unchanged_scan_applies_retention_and_compacts_source_cache(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    old = sorted((output / "batches").iterdir())[0]
+    set_batch_creation_time(old, "2025-01-01T00:00:00Z")
+    active.replace(project / "mrsMThatcher.log.1")
+    write_active(project, "")
+    run_scan(project, output, until="2026-08-28T20:00:00Z")
+    state = extractor.read_extractor_state(output, missing_ok=False)
+    assert state is not None
+    assert len(state["source_file_cache"]) == 2
+    (project / "mrsMThatcher.log.1").unlink()
+
+    result = run_scan(project, output, until="2026-08-28T21:00:00Z")
+    state = extractor.read_extractor_state(output, missing_ok=False)
+    assert state is not None
+
+    assert result["status"] == "no_change"
+    assert not old.exists()
+    assert len(state["source_file_cache"]) == 1
+    assert all(
+        entry["parser_version"] == extractor.PARSER_VERSION
+        for entry in state["source_file_cache"].values()
+    )
+
+
+def test_disk_preflight_refuses_before_temporary_batch_is_exposed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    before_current = current_target(output)
+    before_batches = {path.name for path in (output / "batches").iterdir()}
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    usage_type = type(shutil.disk_usage(output))
+    monkeypatch.setattr(
+        extractor.shutil,
+        "disk_usage",
+        lambda _path: usage_type(10_000, 9_999, 1),
+    )
+
+    with pytest.raises(extractor.ExtractorError, match="filesystem_free_bytes=1"):
+        run_scan(project, output, until="2026-08-28T19:00:00Z")
+
+    assert current_target(output) == before_current
+    assert {path.name for path in (output / "batches").iterdir()} == before_batches
+    assert not any(
+        path.name.startswith(".tmp-") for path in (output / "batches").iterdir()
+    )
+
+
+def test_status_and_validation_account_retained_storage_accurately(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+
+    status = extractor.get_status(output)
+    validation = extractor.validate_output_root(output)
+
+    assert status["retained_batch_count"] == 1
+    assert status["retained_automatic_bytes"] > 0
+    assert status["total_extractor_bytes"] >= status["retained_automatic_bytes"]
+    assert validation["valid"] is True
+    assert validation["retained_automatic_bytes"] == status["retained_automatic_bytes"]
+    assert validation["total_extractor_bytes"] == status["total_extractor_bytes"]
+
+
+def test_malformed_batch_symlink_blocks_retention_and_is_never_followed(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "sentinel"
+    sentinel.write_text("untouched", encoding="utf-8")
+    malicious = output / "batches" / "20260101T000000Z-bbbbbbbbbbbb"
+    malicious.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(extractor.ExtractorError, match="invalid automatic batch"):
+        extractor.apply_batch_retention(
+            output,
+            now=extractor.parse_aware_timestamp(
+                "2026-12-01T00:00:00Z", option="test"
+            ),
+            expected_boundary=BOUNDARY,
+        )
+
+    assert malicious.is_symlink()
+    assert sentinel.read_text(encoding="utf-8") == "untouched"
+
+
+def test_send_attempt_history_is_bounded_per_target() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    lines = "".join(
+        create_attempt(
+            target_id,
+            f"{index:064x}",
+            local_time=f"2026-08-24 16:{10 + index:02d}:00",
+        )
+        for index in range(1, 8)
+    )
+    records, _ = extractor.parse_log_records(lines.encode())
+
+    post = extractor.normalise_canonical_posts(records, [], b"z" * 32)[0]
+
+    assert len(post["send_attempts"]) == extractor.MAX_SEND_ATTEMPTS_PER_TARGET
+    assert [attempt["transaction_id"] for attempt in post["send_attempts"]] == [
+        f"{index:064x}" for index in range(3, 8)
+    ]
+
+
+def test_state_version_mismatch_fails_before_prior_canonical_data_is_loaded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    state_path = output / "state" / "extractor-state.json"
+    state = extractor._strict_read_json(state_path)
+    assert isinstance(state, dict)
+    state["extractor_version"] = "older-extractor"
+    rewrite_private_json(state_path, state, mode=0o600)
+    monkeypatch.setattr(
+        extractor,
+        "_load_prior_posts",
+        lambda *_args, **_kwargs: pytest.fail("prior canonical data was loaded"),
+    )
+
+    with pytest.raises(extractor.ExtractorError, match="version mismatch"):
+        run_scan(project, output)
+
+
+def test_parser_version_mismatch_forces_source_reparse(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    write_active(project, first_exchange())
+    inventory = extractor.collect_source_inventory(project)
+    digest = inventory.files[0].content_sha256
+    prior_state = {
+        "source_file_cache": {
+            digest: {
+                "earliest_record_timestamp": "2026-08-24T15:10:00Z",
+                "latest_record_timestamp": "2026-08-24T15:10:04Z",
+                "parser_version": "old-parser",
+                "processed_cutoff": DEFAULT_UNTIL,
+            }
+        }
+    }
+
+    parsed = extractor.parse_incremental_sources(
+        inventory,
+        prior_state,
+        cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+    )
+
+    assert parsed.parsed_source_hash_count == 1
+    assert parsed.source_cache[digest]["parser_version"] == extractor.PARSER_VERSION
+
+
+def test_validation_rejects_mixed_parser_versions_in_canonical_snapshot(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    batch = current_batch(output)
+    posts = rows(output, "canonical-posts.jsonl")
+    posts[0]["derivation_parser_version"] = "different-parser"
+    rewrite_batch_posts_and_hashes(batch, posts)
+
+    problems = extractor._validate_batch_directory(
+        batch,
+        require_immutable=False,
+        expected_boundary=BOUNDARY,
+    )
+
+    assert any("canonical post parser mismatch" in value for value in problems)
+
+
+def test_rebuild_to_new_root_preserves_key_pseudonyms_and_old_root(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    old_root = tmp_path / "old-root"
+    new_root = tmp_path / "new-root"
+    write_active(
+        project,
+        log_line("2026-08-24 15:00:00", "Unrelated pre-boundary coverage record")
+        + first_exchange(author_id="stable-rebuild-user"),
+    )
+    run_scan(project, old_root)
+    old_key = (old_root / "state" / "pseudonym-key").read_bytes()
+    old_author = next(
+        post["author_key"]
+        for post in rows(old_root, "canonical-posts.jsonl")
+        if post["author_role"] == "user"
+    )
+    before = {
+        str(path.relative_to(old_root)): path.read_bytes()
+        for path in old_root.rglob("*")
+        if path.is_file()
+    }
+
+    result = extractor.rebuild_to_new_root(
+        project_dir=project,
+        source_output_root=old_root,
+        new_output_root=new_root,
+        until=DEFAULT_UNTIL,
+    )
+    new_author = next(
+        post["author_key"]
+        for post in rows(new_root, "canonical-posts.jsonl")
+        if post["author_role"] == "user"
+    )
+
+    assert result["status"] == "rebuilt"
+    assert (new_root / "state" / "pseudonym-key").read_bytes() == old_key
+    assert new_author == old_author
+    assert extractor.validate_output_root(new_root)["valid"] is True
+    assert before == {
+        str(path.relative_to(old_root)): path.read_bytes()
+        for path in old_root.rglob("*")
+        if path.is_file()
+    }
+
+
+def test_rebuild_refuses_existing_destination_and_insufficient_boundary_coverage(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    old_root = tmp_path / "old-root"
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    write_active(project, first_exchange())
+    run_scan(project, old_root)
+
+    with pytest.raises(extractor.ExtractorError, match="must not already exist"):
+        extractor.rebuild_to_new_root(
+            project_dir=project,
+            source_output_root=old_root,
+            new_output_root=existing,
+            until=DEFAULT_UNTIL,
+        )
+    missing_coverage_root = tmp_path / "missing-coverage"
+    with pytest.raises(extractor.ExtractorError, match="do not span"):
+        extractor.rebuild_to_new_root(
+            project_dir=project,
+            source_output_root=old_root,
+            new_output_root=missing_coverage_root,
+            until=DEFAULT_UNTIL,
+        )
+    assert not missing_coverage_root.exists()
 
 
 def test_identical_text_with_distinct_post_ids_remains_distinct(tmp_path: Path) -> None:
@@ -426,8 +1465,8 @@ def test_explicit_conversation_id_groups_posts() -> None:
     key = b"a" * 32
     records, _ = extractor.parse_log_records(
         (
-            event_line("2026-08-24 16:10:00", "candidate_observed", target_id="301", conversation_id="conv-x", incoming_text="First meaningful turn")
-            + event_line("2026-08-24 16:11:00", "candidate_observed", target_id="302", conversation_id="conv-x", incoming_text="Second meaningful turn")
+            event_line("2026-08-24 16:10:00", "ai_reply_pipeline_decision", target_id="301", conversation_id="conv-x", incoming_text="First meaningful turn", target_created_at="2026-08-24T15:10:00Z")
+            + event_line("2026-08-24 16:11:00", "ai_reply_pipeline_decision", target_id="302", conversation_id="conv-x", incoming_text="Second meaningful turn", target_created_at="2026-08-24T15:11:00Z")
         ).encode()
     )
     posts = extractor.normalise_canonical_posts(records, [], key)
@@ -447,10 +1486,10 @@ def test_root_and_parent_grouping_siblings_but_different_roots_stay_separate() -
     key = b"b" * 32
     data = "".join(
         [
-            event_line("2026-08-24 16:10:00", "candidate_observed", target_id="400", root_post_id="400", incoming_text="Root one"),
-            event_line("2026-08-24 16:11:00", "candidate_observed", target_id="401", root_post_id="400", parent_post_id="400", incoming_text="Branch one"),
-            event_line("2026-08-24 16:12:00", "candidate_observed", target_id="402", root_post_id="400", parent_post_id="400", incoming_text="Branch two"),
-            event_line("2026-08-24 16:13:00", "candidate_observed", target_id="403", root_post_id="403", incoming_text="Separate root"),
+            event_line("2026-08-24 16:10:00", "ai_reply_pipeline_decision", target_id="400", root_post_id="400", incoming_text="Root one", target_created_at="2026-08-24T15:10:00Z"),
+            event_line("2026-08-24 16:11:00", "ai_reply_pipeline_decision", target_id="401", root_post_id="400", parent_post_id="400", incoming_text="Branch one", target_created_at="2026-08-24T15:11:00Z"),
+            event_line("2026-08-24 16:12:00", "ai_reply_pipeline_decision", target_id="402", root_post_id="400", parent_post_id="400", incoming_text="Branch two", target_created_at="2026-08-24T15:12:00Z"),
+            event_line("2026-08-24 16:13:00", "ai_reply_pipeline_decision", target_id="403", root_post_id="403", incoming_text="Separate root", target_created_at="2026-08-24T15:13:00Z"),
         ]
     )
     records, _ = extractor.parse_log_records(data.encode())
@@ -496,19 +1535,21 @@ def test_same_author_with_explicit_different_roots_remains_separate() -> None:
         [
             event_line(
                 "2026-08-24 16:10:00",
-                "candidate_observed",
+                "ai_reply_pipeline_decision",
                 target_id="550",
                 root_post_id="550",
                 author_id="same-author",
                 incoming_text="First root",
+                target_created_at="2026-08-24T15:10:00Z",
             ),
             event_line(
                 "2026-08-24 16:11:00",
-                "candidate_observed",
+                "ai_reply_pipeline_decision",
                 target_id="551",
                 root_post_id="551",
                 author_id="same-author",
                 incoming_text="Second root",
+                target_created_at="2026-08-24T15:11:00Z",
             ),
         ]
     )
@@ -791,7 +1832,7 @@ def test_status_is_read_only_and_valid_when_uninitialised(tmp_path: Path) -> Non
     status = extractor.get_status(output)
 
     assert status["initialised"] is False
-    assert status["schema_version"] == 1
+    assert status["schema_version"] == 2
     assert set(tmp_path.iterdir()) == before
 
 
@@ -867,6 +1908,118 @@ def test_freeze_pack_filters_open_by_default_is_immutable_and_refuses_overwrite(
             until="2026-08-25T00:00:00Z",
             include_open=True,
         )
+
+
+def test_review_pack_has_its_own_creation_time_and_preserves_source_time(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange() + continuation())
+    source_created = extractor.parse_aware_timestamp(
+        "2026-08-25T10:00:00Z", option="test"
+    )
+    extractor.run_scan(
+        project_dir=project,
+        output_root=output,
+        prospective_start=BOUNDARY,
+        until=DEFAULT_UNTIL,
+        quiescence_hours=48,
+        scan_start=source_created,
+    )
+    first_time = extractor.parse_aware_timestamp(
+        "2026-08-26T12:00:00Z", option="test"
+    )
+    second_time = extractor.parse_aware_timestamp(
+        "2026-08-26T13:00:00Z", option="test"
+    )
+    for name, frozen_at in (("pack-one", first_time), ("pack-two", second_time)):
+        extractor.freeze_review_pack(
+            output_root=output,
+            pack_name=name,
+            since=BOUNDARY,
+            until="2026-08-28T00:00:00Z",
+            include_open=True,
+            frozen_at=frozen_at,
+        )
+    pack_one = output / "review-packs" / "pack-one"
+    pack_two = output / "review-packs" / "pack-two"
+    first_manifest = extractor._strict_read_json(pack_one / "manifest.json")
+    second_manifest = extractor._strict_read_json(pack_two / "manifest.json")
+    assert isinstance(first_manifest, dict) and isinstance(second_manifest, dict)
+
+    assert first_manifest["creation_timestamp"] == "2026-08-26T12:00:00Z"
+    assert second_manifest["creation_timestamp"] == "2026-08-26T13:00:00Z"
+    assert first_manifest["source_batch_creation_timestamp"] == "2026-08-25T10:00:00Z"
+    assert second_manifest["source_batch_creation_timestamp"] == "2026-08-25T10:00:00Z"
+    assert (pack_one / "conversations.jsonl").read_bytes() == (
+        pack_two / "conversations.jsonl"
+    ).read_bytes()
+    assert (pack_one / "review-candidates.jsonl").read_bytes() == (
+        pack_two / "review-candidates.jsonl"
+    ).read_bytes()
+    assert extractor.validate_output_root(output)["valid"] is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Which unemployment measure and period are you using?",
+        "Which unemployment series should anchor the comparison?",
+        "What source are you relying on?",
+        "Which law do you mean?",
+        "Could you clarify which period you mean?",
+    ],
+)
+def test_evidential_clarification_forms_are_detected(text: str) -> None:
+    assert extractor._looks_like_clarification_request(text) is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Which party will win?",
+        "What happened next?",
+        "Which policy is best?",
+        "What do you think?",
+    ],
+)
+def test_general_questions_are_not_misclassified_as_clarification(text: str) -> None:
+    assert extractor._looks_like_clarification_request(text) is False
+
+
+def test_continuation_after_evidential_clarification_is_descriptive_candidate(
+    tmp_path: Path,
+) -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:12:00Z")
+    continuation_id = snowflake_id("2026-08-24T15:20:00Z")
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        log_line("2026-08-24 16:10:00", f"Considering mention id={target_id} author_id=u text='The rate changed.'")
+        + log_line("2026-08-24 16:10:01", f"Built AI reply context for mention {target_id}. chain_items=0 immediate_parent=None quoted=False")
+        + create_attempt(
+            target_id,
+            "1" * 64,
+            text="Which unemployment measure and period are you using?",
+        )
+        + generic_success(reply_id)
+        + receipt_promotion(target_id, reply_id)
+        + log_line("2026-08-24 16:20:00", f"Considering mention id={continuation_id} author_id=u text='The claimant count from July.'")
+        + log_line("2026-08-24 16:20:01", f"Built AI reply context for mention {continuation_id}. chain_items=2 immediate_parent={reply_id} quoted=False"),
+    )
+
+    run_scan(project, output)
+    candidate = rows(output, "review-candidates.jsonl")[0]
+
+    assert "post_clarification_continuation" in candidate["review_reason_codes"]
+    assert not set(candidate["review_reason_codes"]) & {
+        "defect",
+        "repair_required",
+        "bad_reply",
+    }
 
 
 def test_digest_runtime_config_and_production_log_isolation(
