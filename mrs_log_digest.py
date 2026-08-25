@@ -814,6 +814,8 @@ def _group_active_remote_write_artifacts(
         return bool(
             len(component_values(left, "transaction_id") | component_values(right, "transaction_id")) <= 1
             and len(component_values(left, "target_id") | component_values(right, "target_id")) <= 1
+            and len(component_values(left, "receipt_role") | component_values(right, "receipt_role")) <= 1
+            and len(component_values(left, "retirement_source_basename") | component_values(right, "retirement_source_basename")) <= 1
         )
 
     def union_matching(fields: Tuple[str, ...]) -> None:
@@ -830,7 +832,14 @@ def _group_active_remote_write_artifacts(
     # hashes are the next strongest binding; filenames are deliberately not
     # identity because every transaction reuses the same small namespace.
     union_matching(("transaction_id",))
-    union_matching(("document_sha256", "source_receipt_sha256"))
+    union_matching(
+        (
+            "document_sha256",
+            "artifact_sha256",
+            "source_receipt_sha256",
+            "retirement_expected_sha256",
+        )
+    )
 
     # Lane plus target is the final fallback.  A marker may omit its lane, so
     # permit that member only where the target has one compatible lane family
@@ -862,19 +871,36 @@ def _group_active_remote_write_artifacts(
 
     grouped: List[Dict[str, Any]] = []
     for rows in components.values():
-        transaction_ids = sorted(
-            {str(item.get("transaction_id")) for item in rows if item.get("transaction_id")}
-        )
-        target_ids = sorted(
-            {str(item.get("target_id")) for item in rows if item.get("target_id")}
-        )
-        lanes = sorted({str(item.get("lane")) for item in rows if item.get("lane")})
+        def values(field: str) -> List[str]:
+            return sorted({str(item[field]) for item in rows if item.get(field)})
+
+        transaction_ids = values("transaction_id")
+        target_ids = values("target_id")
+        lanes = values("lane")
         recorded_epochs = [
             item.get("recorded_at_epoch")
             for item in rows
             if type(item.get("recorded_at_epoch")) is int
         ]
-        receipt_roles = sorted({str(item.get("receipt_role")) for item in rows if item.get("receipt_role")})
+        receipt_roles = values("receipt_role")
+        document_sha256s = values("document_sha256")
+        artifact_sha256s = values("artifact_sha256")
+        source_receipt_sha256s = values("source_receipt_sha256")
+        retirement_expected_sha256s = values("retirement_expected_sha256")
+        retirement_source_basenames = values("retirement_source_basename")
+        retirement_phases = values("retirement_phase")
+        snapshot_identity_tokens = [
+            *("document_sha256:" + value for value in document_sha256s),
+            *("artifact_sha256:" + value for value in artifact_sha256s),
+            *(
+                "retirement_expected_sha256:"
+                + source
+                + ":"
+                + expected
+                for source in retirement_source_basenames
+                for expected in retirement_expected_sha256s
+            ),
+        ]
         invalid_artifact_names = sorted(
             {
                 str(item.get("name"))
@@ -884,26 +910,74 @@ def _group_active_remote_write_artifacts(
                 or item.get("artifact_error")
             }
         )
+        inspection_error_identities = sorted(
+            {
+                str(item.get("name") or "unavailable")
+                + ":"
+                + str(error).split(":", 1)[0]
+                + ":"
+                + hashlib.sha256(
+                    str(error).encode("utf-8", errors="replace")
+                ).hexdigest()
+                for item in rows
+                for error in (
+                    item.get("identity_error"),
+                    item.get("artifact_error"),
+                    item.get("reason")
+                    if item.get("safe_regular") is False
+                    else None,
+                )
+                if error
+            }
+        )
         grouped.append(
             {
                 "transaction_ids": transaction_ids,
                 "target_ids": target_ids,
                 "lanes": lanes,
-                "artifact_names": sorted(
-                    {str(item.get("name")) for item in rows if item.get("name")}
-                ),
-                "artifact_kinds": sorted(
-                    {str(item.get("kind")) for item in rows if item.get("kind")}
-                ),
+                "artifact_names": values("name"),
+                "artifact_kinds": values("kind"),
                 "receipt_roles": receipt_roles,
                 "receipt_role_labels": [
                     REMOTE_WRITE_RECEIPT_ROLE_LABELS.get(role, role)
                     for role in receipt_roles
                 ],
-                "transaction_states": sorted({str(item.get("transaction_state")) for item in rows if item.get("transaction_state")}),
+                "transaction_states": values("transaction_state"),
                 "invalid_artifact_names": invalid_artifact_names,
+                "inspection_error_identities": inspection_error_identities,
+                "document_sha256s": document_sha256s,
+                "artifact_sha256s": artifact_sha256s,
+                "source_receipt_sha256s": source_receipt_sha256s,
+                "retirement_source_basenames": retirement_source_basenames,
+                "retirement_expected_sha256s": retirement_expected_sha256s,
+                "retirement_expected_sizes": sorted(
+                    {
+                        int(item["retirement_expected_size"])
+                        for item in rows
+                        if type(item.get("retirement_expected_size")) is int
+                    }
+                ),
+                "retirement_phases": retirement_phases,
+                "retirement_source_identities": [
+                    item["retirement_source_identity"]
+                    for item in rows
+                    if isinstance(item.get("retirement_source_identity"), dict)
+                ],
+                "snapshot_identity_tokens": snapshot_identity_tokens,
                 "recorded_at_epoch": min(recorded_epochs) if recorded_epochs else None,
-                "identity_available": bool(transaction_ids or target_ids),
+                "attribution_identity_available": bool(
+                    transaction_ids or target_ids or lanes
+                ),
+                "stable_incident_identity_available": bool(
+                    document_sha256s
+                    or artifact_sha256s
+                    or source_receipt_sha256s
+                    or retirement_expected_sha256s
+                    or any(item.get("name") for item in rows)
+                ),
+                # Retain the established field for JSON consumers while
+                # keeping attribution separate from stable incident identity.
+                "identity_available": bool(transaction_ids or target_ids or lanes),
             }
         )
     return sorted(
@@ -965,6 +1039,8 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         kind: str,
         *,
         receipt_role: Optional[str] = None,
+        retirement_source_basename: str = "",
+        retirement_path_phase: str = "",
     ) -> None:
         path = project_dir / name
         try:
@@ -977,6 +1053,8 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                     "name": name,
                     "kind": kind,
                     "receipt_role": receipt_role,
+                    "retirement_source_basename": retirement_source_basename,
+                    "retirement_phase": retirement_path_phase,
                     "safe_regular": False,
                     "reason": f"{type(exc).__name__}: {exc}",
                 }
@@ -986,6 +1064,8 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
             "name": name,
             "kind": kind,
             "receipt_role": receipt_role,
+            "retirement_source_basename": retirement_source_basename,
+            "retirement_phase": retirement_path_phase,
             "safe_regular": stat.S_ISREG(metadata.st_mode),
             "mode": oct(stat.S_IMODE(metadata.st_mode)),
             "size": int(metadata.st_size),
@@ -996,9 +1076,44 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                     path,
                     maximum=REMOTE_WRITE_SNAPSHOT_MAX_BYTES,
                 )
+                entry["artifact_sha256"] = hashlib.sha256(data).hexdigest()
                 document = _strict_json_object(data, label=name)
                 entry.update(_remote_write_document_identity(document))
-                entry["document_sha256"] = hashlib.sha256(data).hexdigest()
+                entry["document_sha256"] = entry["artifact_sha256"]
+                if kind == "receipt_retirement_auxiliary":
+                    payload_source = document.get("source_basename")
+                    if (
+                        isinstance(payload_source, str)
+                        and payload_source
+                        and payload_source != retirement_source_basename
+                    ):
+                        raise ValueError(
+                            "retirement source basename does not match its "
+                            "canonical auxiliary path"
+                        )
+                    expected_sha256 = document.get("expected_sha256")
+                    if (
+                        isinstance(expected_sha256, str)
+                        and re.fullmatch(r"[0-9a-f]{64}", expected_sha256)
+                    ):
+                        entry["retirement_expected_sha256"] = expected_sha256
+                    elif retirement_path_phase == "cleanup":
+                        # A cleanup entry without a marker binding is the
+                        # displaced exact source receipt itself.
+                        entry["retirement_expected_sha256"] = entry[
+                            "document_sha256"
+                        ]
+                    expected_size = document.get("expected_size")
+                    if type(expected_size) is int and expected_size > 0:
+                        entry["retirement_expected_size"] = expected_size
+                    elif retirement_path_phase == "cleanup":
+                        entry["retirement_expected_size"] = len(data)
+                    phase = document.get("phase")
+                    if isinstance(phase, str) and phase:
+                        entry["retirement_phase"] = phase
+                    source_identity = document.get("source_identity")
+                    if isinstance(source_identity, dict):
+                        entry["retirement_source_identity"] = source_identity
             except Exception as exc:
                 entry["identity_error"] = f"{type(exc).__name__}: {exc}"
         active_entries.append(entry)
@@ -1035,7 +1150,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         }
 
     ledger_rows: List[Dict[str, Any]] = []
-    retirement_auxiliaries: List[str] = []
+    retirement_auxiliaries: List[Dict[str, str]] = []
     try:
         from exact_receipt_retirement import (
             inspect_retirement_ledger,
@@ -1048,20 +1163,40 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
             ledger_rows.append(
                 {
                     "source": name,
+                    "receipt_role": REMOTE_WRITE_SOURCE_RECEIPT_ROLES[name],
                     "valid": inspection.valid,
                     "blocking": inspection.blocking,
                     "state": inspection.state,
                     "sequence": inspection.sequence,
                     "record_sha256": inspection.record_sha256,
                     "detail": inspection.detail,
+                    "ledger_path": inspection.ledger_path,
+                    "exchange_path": inspection.exchange_path,
                 }
             )
-            for path in retirement_auxiliary_paths(source):
+            auxiliary_phases = (
+                "prepared",
+                "committed",
+                "cleanup",
+                "prepared",
+                "committed",
+            )
+            for path, phase in zip(
+                retirement_auxiliary_paths(source),
+                auxiliary_phases,
+            ):
                 try:
                     os.lstat(path)
                 except FileNotFoundError:
                     continue
-                retirement_auxiliaries.append(path.name)
+                retirement_auxiliaries.append(
+                    {
+                        "name": path.name,
+                        "source_basename": name,
+                        "receipt_role": REMOTE_WRITE_SOURCE_RECEIPT_ROLES[name],
+                        "phase": phase,
+                    }
+                )
     except Exception as exc:
         ledger_rows.append(
             {
@@ -1074,8 +1209,14 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                 "detail": f"{type(exc).__name__}: {exc}",
             }
         )
-    for name in retirement_auxiliaries:
-        observe_name(name, "receipt_retirement_auxiliary")
+    for auxiliary in retirement_auxiliaries:
+        observe_name(
+            auxiliary["name"],
+            "receipt_retirement_auxiliary",
+            receipt_role=auxiliary["receipt_role"],
+            retirement_source_basename=auxiliary["source_basename"],
+            retirement_path_phase=auxiliary["phase"],
+        )
 
     transport_artifact: Optional[Dict[str, Any]] = None
     try:
@@ -1214,6 +1355,118 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         )
         or reconciliation_reference == media_reconciliation.get("audit_path")
     )
+
+    def error_identity(value: Any) -> str:
+        detail = str(value or "unavailable")
+        return (detail.split(":", 1)[0].strip() or "unavailable") + ":" + hashlib.sha256(
+            detail.encode("utf-8", errors="replace")
+        ).hexdigest()
+
+    snapshot_incident_evidence: List[Dict[str, Any]] = []
+
+    def add_blocker(
+        category: str,
+        kind: str,
+        identity: str,
+        summary: str,
+        **detail: Any,
+    ) -> None:
+        snapshot_incident_evidence.append(
+            {
+                "category": category,
+                "blocker_kind": kind,
+                "signature": f"snapshot:{kind.replace('_', '-')}:{identity}",
+                "summary": summary,
+                "snapshot_identity_tokens": [f"{kind}:{identity}"],
+                **detail,
+            }
+        )
+
+    if protocol.get("valid") is not True:
+        protocol_identity = str(
+            protocol.get("sha256")
+            or protocol.get("audit_sha256")
+            or error_identity(protocol.get("reason"))
+        )
+        add_blocker(
+            "remote_write_protocol_barrier",
+            "protocol_activation",
+            str(protocol.get("status") or "invalid") + ":" + protocol_identity,
+            "Remote-write protocol activation is invalid or missing: "
+            + str(protocol.get("reason") or protocol.get("status") or "unavailable"),
+            artifact_names=[
+                ".mrs_remote_write_safety_protocol_v2",
+                ".mrs_remote_write_safety_protocol_v2.activation_audit.json",
+            ],
+        )
+    for ledger in ledger_rows:
+        if ledger.get("valid") is True and ledger.get("blocking") is not True:
+            continue
+        source_basename = str(ledger.get("source") or "inspection")
+        receipt_role = REMOTE_WRITE_SOURCE_RECEIPT_ROLES.get(source_basename, "")
+        ledger_identity = str(
+            ledger.get("record_sha256")
+            or error_identity(ledger.get("detail"))
+        )
+        add_blocker(
+            "remote_write_transaction_barrier",
+            "retirement_ledger",
+            source_basename + ":" + ledger_identity,
+            "Permanent receipt-retirement ledger blocks remote writes: "
+            f"{source_basename}, state {ledger.get('state') or 'unavailable'}, "
+            f"sequence {ledger.get('sequence', 'unavailable')}, detail "
+            + str(ledger.get("detail") or "unavailable"),
+            retirement_source_basenames=[source_basename],
+            receipt_roles=[receipt_role] if receipt_role else [],
+            receipt_role_labels=[REMOTE_WRITE_RECEIPT_ROLE_LABELS[receipt_role]]
+            if receipt_role
+            else [],
+            ledger_state=ledger.get("state"),
+            ledger_sequence=ledger.get("sequence"),
+            ledger_detail=ledger.get("detail"),
+            ledger_record_sha256=ledger.get("record_sha256"),
+            artifact_names=[
+                Path(str(path)).name
+                for path in (ledger.get("ledger_path"), ledger.get("exchange_path"))
+                if path
+            ],
+        )
+    if transport.get("classification") in {
+        "inspection_unavailable",
+        "directory_unavailable",
+        "invalid",
+    }:
+        transport_errors = ",".join(transport.get("errors") or [])
+        transport_identity = str(
+            transport.get("document_sha256")
+            or error_identity(transport_errors)
+        )
+        add_blocker(
+            "remote_write_transaction_barrier",
+            "transport_inspection",
+            str(transport.get("classification") or "invalid") + ":" + transport_identity,
+            "Remote-write transport-journal inspection failed: "
+            + str(transport.get("classification") or "unavailable")
+            + ("; " + transport_errors if transport_errors else ""),
+            transaction_id=str(transport.get("transaction_id") or ""),
+            lane=str(transport.get("lane") or ""),
+            document_sha256s=[transport["document_sha256"]]
+            if transport.get("document_sha256")
+            else [],
+            artifact_names=[REMOTE_TRANSPORT_JOURNAL_BASENAME, REMOTE_TRANSPORT_FENCE_BASENAME],
+        )
+    if media.get("classification") == "invalid" or media.get("reason"):
+        media_identity = error_identity(media.get("reason"))
+        add_blocker(
+            "remote_write_transaction_barrier",
+            "media_inspection",
+            media_identity,
+            "Remote-media receipt inspection failed: "
+            + str(media.get("reason") or media.get("classification") or "unavailable"),
+            transaction_id=str(media.get("transaction_id") or ""),
+            lane=str(media.get("lane") or ""),
+            artifact_names=[REMOTE_MEDIA_RECEIPT_BASENAME, REMOTE_MEDIA_FENCE_BASENAME],
+        )
     identity_artifacts = [dict(item) for item in active_entries]
     if transport_artifact is not None and transport.get("blocking") is True:
         identity_artifacts.append(transport_artifact)
@@ -1240,6 +1493,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         "active_entries": active_entries,
         "active_marker_names": active_marker_names,
         "active_transaction_identities": active_transaction_identities,
+        "snapshot_incident_evidence": snapshot_incident_evidence,
         "identity_snapshot_available": True,
         "protocol": protocol,
         "retirement_ledgers": ledger_rows,
@@ -1260,6 +1514,8 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
 def annotate_remote_write_snapshot_window(
     safety: Dict[str, Any],
     selected_window_end: Optional[datetime],
+    *,
+    current_snapshot_authoritative: bool = False,
 ) -> None:
     """Describe, without backdating, how current artefacts relate to a log window."""
 
@@ -1283,6 +1539,9 @@ def annotate_remote_write_snapshot_window(
     else:
         snapshot_relationship = "snapshot_observed_within_selected_window"
     safety["selected_window_relationship"] = snapshot_relationship
+    safety["current_health_snapshot_authoritative"] = bool(
+        current_snapshot_authoritative
+    )
 
     def annotate(item: Dict[str, Any]) -> None:
         recorded_epoch = item.get("recorded_at_epoch")
@@ -1315,6 +1574,11 @@ def annotate_remote_write_snapshot_window(
             )
         item["selected_window_relationship"] = relationship
         item["selected_window_relationship_reason"] = reason
+        item["current_health_relationship"] = (
+            "authoritative_current_snapshot"
+            if current_snapshot_authoritative
+            else relationship
+        )
 
     for entry in safety.get("active_entries") or []:
         if isinstance(entry, dict):
@@ -1322,6 +1586,9 @@ def annotate_remote_write_snapshot_window(
     for component in safety.get("active_transaction_identities") or []:
         if isinstance(component, dict):
             annotate(component)
+    for blocker in safety.get("snapshot_incident_evidence") or []:
+        if isinstance(blocker, dict):
+            annotate(blocker)
 
 
 def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str, Any]:
@@ -3947,6 +4214,7 @@ def summarise_operational_error_health(
     current_remote_write_safety: Optional[Dict[str, Any]] = None,
     generation_time: Optional[datetime] = None,
     selected_window_end: Optional[datetime] = None,
+    current_snapshot_authoritative: bool = False,
 ) -> Dict[str, Any]:
     """Group traceback cascades and distinguish recovered from current incidents."""
     generated_at = generation_time or datetime.now()
@@ -4597,10 +4865,19 @@ def summarise_operational_error_health(
 
     safety = current_remote_write_safety or {}
     if current_remote_write_safety is not None:
-        annotate_remote_write_snapshot_window(safety, selected_window_end)
+        annotate_remote_write_snapshot_window(
+            safety,
+            selected_window_end,
+            current_snapshot_authoritative=current_snapshot_authoritative,
+        )
     active_remote_components = (
         safety.get("active_transaction_identities")
         if isinstance(safety.get("active_transaction_identities"), list)
+        else []
+    )
+    snapshot_incident_evidence = (
+        safety.get("snapshot_incident_evidence")
+        if isinstance(safety.get("snapshot_incident_evidence"), list)
         else []
     )
     identity_snapshot_available = bool(
@@ -4626,22 +4903,63 @@ def summarise_operational_error_health(
         component_transactions = component.get("transaction_ids") or []
         if transaction_id and component_transactions:
             return transaction_id in component_transactions
-        return bool(
-            target_id and target_id in (component.get("target_ids") or [])
+        if target_id and target_id in (component.get("target_ids") or []):
+            identity_lane = _normalise_lane(identity.get("lane"))
+            component_lanes = {
+                _normalise_lane(value)
+                for value in component.get("lanes") or []
+            } - {"unavailable"}
+            if (
+                identity_lane == "unavailable"
+                or not component_lanes
+                or identity_lane in component_lanes
+            ):
+                return True
+        component_tokens = set(component.get("snapshot_identity_tokens") or [])
+        component_tokens.update(
+            "document_sha256:" + str(value)
+            for value in component.get("document_sha256s") or []
         )
+        component_tokens.update(
+            "retirement_expected_sha256:"
+            + str(source)
+            + ":"
+            + str(expected)
+            for source in component.get("retirement_source_basenames") or []
+            for expected in component.get("retirement_expected_sha256s") or []
+        )
+        identity_tokens = set(identity.get("snapshot_identity_tokens") or [])
+        identity_tokens.update(
+            "document_sha256:" + str(value)
+            for value in identity.get("document_sha256s") or []
+        )
+        identity_tokens.update(
+            "retirement_expected_sha256:"
+            + str(source)
+            + ":"
+            + str(expected)
+            for source in identity.get("retirement_source_basenames") or []
+            for expected in identity.get("retirement_expected_sha256s") or []
+        )
+        return bool(component_tokens & identity_tokens)
 
     def component_is_related_to_selected_window(
         component: Dict[str, Any],
     ) -> bool:
-        return component.get("selected_window_relationship") in {
+        return bool(
+            current_snapshot_authoritative
+            or component.get("selected_window_relationship") in {
             "recorded_at_or_before_selected_window_end",
             "snapshot_observed_at_or_before_selected_window_end",
-        }
+            }
+        )
 
     def component_is_relevant_to_category(
         component: Dict[str, Any],
         category: str,
     ) -> bool:
+        if category == "remote_write_ambiguity_barrier":
+            return "ambiguity_marker" in (component.get("artifact_kinds") or [])
         if category != "conversational_reply_receipt_barrier":
             return True
         return "conversational_confirmed_reply" in (
@@ -5369,107 +5687,137 @@ def summarise_operational_error_health(
             )
         incidents.append(incident)
 
+    def evidence_matches_incident(
+        evidence: Dict[str, Any],
+        incident: Dict[str, Any],
+    ) -> bool:
+        if evidence.get("category") != incident.get("category"):
+            return False
+        if (evidence.get("signature") == incident.get("signature")
+                or component_matches_identity(evidence, incident)):
+            return True
+        blocker_kind = str(evidence.get("blocker_kind") or "")
+        incident_summary = str(incident.get("summary") or "").lower()
+        if blocker_kind == "ambiguity_marker":
+            hashes = evidence.get("document_sha256s") or evidence.get("artifact_sha256s") or []
+            return any(str(value).lower() in incident_summary for value in hashes)
+        if blocker_kind == "protocol_activation":
+            return True
+        if blocker_kind == "transport_inspection":
+            return "transport" in incident_summary and "journal" in incident_summary
+        if blocker_kind == "media_inspection":
+            return "media" in incident_summary and "receipt" in incident_summary
+        if blocker_kind == "retirement_ledger":
+            sources = evidence.get("retirement_source_basenames") or []
+            detail = str(evidence.get("ledger_detail") or "").lower()
+            return len(sources) == 1 and sources[0].lower() in incident_summary and detail in incident_summary
+        if blocker_kind == "receipt_retirement":
+            sources = evidence.get("retirement_source_basenames") or []
+            expected = evidence.get("retirement_expected_sha256s") or []
+            return len(sources) == len(expected) == 1 and sources[0].lower() in incident_summary and expected[0] in incident_summary
+        return False
+
     if identity_snapshot_available:
+        snapshot_candidates: List[Dict[str, Any]] = []
         for component in active_remote_components:
             if not component_is_related_to_selected_window(component):
-                # The component remains visible in the current safety
-                # snapshot, but cannot be projected into an earlier cut-off.
                 continue
-            recorded_epoch = component.get("recorded_at_epoch")
-            recorded_time = (
-                datetime.fromtimestamp(recorded_epoch)
-                if type(recorded_epoch) is int
-                else None
+            kinds = set(component.get("artifact_kinds") or [])
+            roles = set(component.get("receipt_roles") or [])
+            states = set(component.get("transaction_states") or [])
+            invalid = component.get("invalid_artifact_names") or []
+            hashes = (
+                component.get("document_sha256s")
+                or component.get("artifact_sha256s")
+                or []
             )
-            transaction_ids = component.get("transaction_ids") or []
-            target_ids = component.get("target_ids") or []
-            already_represented = any(
-                component_matches_identity(component, incident)
-                for incident in incidents
-            )
-            if already_represented:
-                continue
-            artifact_kinds = set(component.get("artifact_kinds") or [])
-            receipt_roles = set(component.get("receipt_roles") or [])
-            transaction_states = set(component.get("transaction_states") or [])
-            invalid_artifacts = component.get("invalid_artifact_names") or []
-            if "ambiguity_marker" in artifact_kinds:
-                category = "remote_write_ambiguity_barrier"
-            elif (
-                invalid_artifacts
-                and "conversational_confirmed_reply" in receipt_roles
-            ):
-                category = "conversational_reply_receipt_barrier"
-            elif (
-                invalid_artifacts
-                or "receipt_retirement_auxiliary" in artifact_kinds
-                or transaction_states
-                & {
-                    "invalid",
-                    "incomplete_pair",
-                    "directory_unavailable",
-                }
-            ):
-                category = "remote_write_transaction_barrier"
-            else:
-                # A valid source receipt and an ordinary in-progress transport
-                # journal remain fail-closed safety state, not an independent
-                # operational error solely because they exist in this snapshot.
-                continue
-            if component.get("identity_available") is not True:
-                continue
-            transaction_text = ", ".join(transaction_ids) or "unavailable"
-            target_text = ", ".join(target_ids) or "unavailable"
-            lane_text = ", ".join(component.get("lanes") or []) or "unavailable"
-            observed_time = recorded_time
-            if observed_time is None:
-                observed_time = _event_time(
-                    {"time": str(safety.get("observed_at") or "")}
+            names = component.get("artifact_names") or []
+            sources = component.get("retirement_source_basenames") or []
+            expected = component.get("retirement_expected_sha256s") or []
+            transactions = component.get("transaction_ids") or []
+            targets = component.get("target_ids") or []
+            lanes = component.get("lanes") or []
+            fallback = hashlib.sha256(
+                "|".join([*hashes, *names, *(component.get("inspection_error_identities") or [])]).encode("utf-8")
+            ).hexdigest()
+            if "ambiguity_marker" in kinds:
+                category, kind = "remote_write_ambiguity_barrier", "ambiguity_marker"
+                identity = hashes[0] if len(hashes) == 1 else fallback
+                signature = "snapshot:ambiguity-marker:" + identity
+                summary = (
+                    "Active remote-write ambiguity marker: transaction "
+                    f"{', '.join(transactions) or 'unavailable'}, lane {', '.join(lanes) or 'unavailable'}, "
+                    f"target {', '.join(targets) or 'unavailable'}, marker/document SHA-256 "
+                    f"{identity[:16]}, artefacts {', '.join(names)}"
                 )
-            if observed_time is None:
+            elif "receipt_retirement_auxiliary" in kinds:
+                category, kind = "remote_write_transaction_barrier", "receipt_retirement"
+                source = ", ".join(sources) or "unavailable"
+                identity = expected[0] if len(expected) == 1 else fallback
+                signature = f"snapshot:receipt-retirement:{source}:{identity}"
+                summary = (
+                    f"Interrupted exact receipt retirement: source {source}, role "
+                    f"{', '.join(component.get('receipt_role_labels') or []) or 'unavailable'}, "
+                    f"expected SHA-256 {identity}, phase "
+                    f"{', '.join(component.get('retirement_phases') or []) or 'unavailable'}"
+                )
+            elif invalid and "conversational_confirmed_reply" in roles:
+                category, kind = "conversational_reply_receipt_barrier", "invalid_confirmed_reply_receipt"
+                signature = "snapshot:confirmed-reply-receipt:" + fallback
+                summary = "Invalid conversational confirmed-reply receipt blocks remote writes: " + ", ".join(names)
+            elif invalid or states & {"invalid", "incomplete_pair", "directory_unavailable"}:
+                category, kind = "remote_write_transaction_barrier", "invalid_transaction_artifact"
+                signature = "snapshot:transaction:" + transactions[0] if len(transactions) == 1 else "snapshot:target:" + targets[0] if len(targets) == 1 else "snapshot:artifacts:" + fallback
+                summary = (
+                    "Active invalid remote-write transaction barrier: transaction "
+                    f"{', '.join(transactions) or 'unavailable'}, lane {', '.join(lanes) or 'unavailable'}, "
+                    f"target {', '.join(targets) or 'unavailable'}"
+                )
+            else:
                 continue
-            incidents.append(
-                {
-                    "category": category,
-                    "signature": (
-                        "snapshot:transaction:" + transaction_text
-                        if transaction_ids
-                        else "snapshot:target:" + target_text
-                        if target_ids
-                        else "snapshot:artifacts:"
-                        + ",".join(component.get("artifact_names") or [])
-                    ),
-                    "status": "current_unresolved",
-                    "first_seen": dt_text(observed_time),
-                    "last_seen": dt_text(observed_time),
-                    "record_count": 0,
-                    "traceback_count": 0,
-                    "affected_locations": ["current filesystem snapshot"],
-                    "summary": short(
-                        "Active remote-write barrier: transaction "
-                        f"{transaction_text}, lane {lane_text}, target {target_text}",
-                        300,
-                    ),
-                    "resolution_reason": "",
-                    "resolution_time": None,
-                    "transaction_id": transaction_ids[0] if len(transaction_ids) == 1 else "",
-                    "target_id": target_ids[0] if len(target_ids) == 1 else "",
-                    "lane": (component.get("lanes") or [""])[0],
-                    "receipt_roles": sorted(receipt_roles),
-                    "receipt_role_labels": component.get(
-                        "receipt_role_labels"
-                    )
-                    or [],
-                    "active_artifact_names": component.get("artifact_names") or [],
-                    "active_artifact_count": len(
-                        component.get("artifact_names") or []
-                    ),
-                    "snapshot_only": True,
-                    "selected_window_relationship": component.get(
-                        "selected_window_relationship"
-                    ),
-                }
+            snapshot_candidates.append(
+                {**component, "category": category, "blocker_kind": kind,
+                 "signature": signature, "summary": short(summary, 300)}
             )
+        for evidence in snapshot_incident_evidence:
+            if isinstance(evidence, dict) and component_is_related_to_selected_window(evidence):
+                snapshot_candidates.append(dict(evidence))
+        for evidence in snapshot_candidates:
+            for singular, plural in (("transaction_id", "transaction_ids"),
+                                     ("target_id", "target_ids"), ("lane", "lanes")):
+                evidence.setdefault(plural, [evidence[singular]] if evidence.get(singular) else [])
+            matches = [item for item in incidents if evidence_matches_incident(evidence, item)]
+            if matches:
+                for item in matches:
+                    item["active_artifact_names"] = sorted({*(item.get("active_artifact_names") or []), *(evidence.get("artifact_names") or [])})
+                    item["active_artifact_count"] = len(item["active_artifact_names"])
+                continue
+            epoch = evidence.get("recorded_at_epoch")
+            observed = datetime.fromtimestamp(epoch) if type(epoch) is int else _event_time({"time": str(safety.get("observed_at") or "")})
+            if observed is None:
+                continue
+            transaction_ids = evidence.get("transaction_ids") or []
+            target_ids = evidence.get("target_ids") or []
+            lanes = evidence.get("lanes") or []
+            artifact_names = evidence.get("artifact_names") or []
+            incident = {
+                "category": evidence["category"], "signature": evidence["signature"],
+                "status": "current_unresolved", "first_seen": dt_text(observed),
+                "last_seen": dt_text(observed), "record_count": 0, "traceback_count": 0,
+                "affected_locations": ["current filesystem snapshot"], "summary": evidence["summary"],
+                "resolution_reason": "", "resolution_time": None,
+                "transaction_id": transaction_ids[0] if len(transaction_ids) == 1 else "",
+                "target_id": target_ids[0] if len(target_ids) == 1 else "",
+                "lane": lanes[0] if len(lanes) == 1 else "",
+                "active_artifact_names": artifact_names,
+                "active_artifact_count": len(artifact_names), "snapshot_only": True,
+            }
+            for key in ("receipt_roles", "receipt_role_labels", "retirement_source_basenames",
+                        "retirement_expected_sha256s", "retirement_expected_sizes", "retirement_phases",
+                        "ledger_state", "ledger_sequence", "ledger_detail", "blocker_kind",
+                        "snapshot_identity_tokens", "selected_window_relationship", "current_health_relationship"):
+                incident[key] = evidence.get(key) or ([] if key.endswith("s") else None)
+            incidents.append(incident)
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
     current = [item for item in incidents if item["status"] == "current_unresolved"]
     resolved = [item for item in incidents if item["status"] == "historical_resolved"]
@@ -5508,6 +5856,9 @@ def summarise_operational_error_health(
             dt_text(selected_window_end) if selected_window_end else None
         ),
         "safety_snapshot_observed_at": safety.get("observed_at"),
+        "current_health_snapshot_authoritative": bool(
+            current_snapshot_authoritative
+        ),
     }
 
 
@@ -8501,6 +8852,7 @@ def analyse(
     current_remote_write_safety: Optional[Dict[str, Any]] = None,
     generation_time: Optional[datetime] = None,
     selected_window_end: Optional[datetime] = None,
+    current_snapshot_authoritative: bool = False,
 ) -> Dict[str, Any]:
     """Aggregate parsed production records into digest metrics."""
     if selected_window_end is None:
@@ -10842,6 +11194,7 @@ def analyse(
         current_remote_write_safety=current_remote_write_safety,
         generation_time=generation_time,
         selected_window_end=selected_window_end,
+        current_snapshot_authoritative=current_snapshot_authoritative,
     )
     durably_reconciled_reply_receipts: List[Dict[str, Any]] = []
     for incident in error_health.get("historical_resolved_incidents") or []:
@@ -12343,6 +12696,15 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 ).replace("_", " ")
                 + "**)."
             )
+            out.append(
+                "Current filesystem evidence is "
+                + (
+                    "**authoritative for current-health classification** "
+                    "because no explicit historical `--until` was supplied."
+                    if safety.get("current_health_snapshot_authoritative") is True
+                    else "kept separate from the explicit historical cut-off unless reliable in-window evidence connects it."
+                )
+            )
             protocol = safety.get("protocol") or {}
             control = safety.get("control") or {}
             transport = safety.get("transport") or {}
@@ -12457,6 +12819,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
                                 ", ".join(item.get("artifact_names") or []),
                             ]
                         )
+                    )
+            top_level_blockers = safety.get("snapshot_incident_evidence") or []
+            if top_level_blockers:
+                out.append("Independent top-level safety blockers:")
+                for item in top_level_blockers:
+                    out.append(
+                        "- `" + str(item.get("category") or "unavailable")
+                        + "`: " + str(item.get("summary") or "unavailable")
+                        + " (selected-window relationship: "
+                        + str(item.get("selected_window_relationship") or "unavailable").replace("_", " ")
+                        + ")"
                     )
             archive = safety.get("reconciliation_archive") or {}
             if archive.get("present") is True and archive.get("valid") is not True:
@@ -16067,6 +16440,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         current_remote_write_safety=current_remote_write_safety,
         generation_time=generation_time,
         selected_window_end=report_window_end,
+        current_snapshot_authoritative=until is None,
     )
     report["generation_time"] = dt_text(generation_time)
     report["generation_epoch"] = int(generation_time.timestamp())
