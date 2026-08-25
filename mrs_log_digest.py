@@ -9795,6 +9795,129 @@ def analyse(
         ),
         "parse_errors": xai_usage_parse_errors,
     }
+    tested_decisions = int(
+        pipeline_stage_quality.get("tested_pipeline_decision_count", 0) or 0
+    )
+    cost_candidates = provider_usage["cost_summary"].get("candidates") or []
+    deterministic_stage_by_target: Dict[
+        Tuple[str, str], Dict[str, Any]
+    ] = {}
+    for event in events:
+        if event.get("kind") != "reply_pipeline_stage_summary":
+            continue
+        key = (
+            _normalise_lane(event.get("lane")),
+            str(event.get("target_id") or ""),
+        )
+        if not key[1]:
+            continue
+        model_call_count = optional_int_usage_value(
+            event.get("model_call_count")
+        )
+        if model_call_count == 0 and (
+            event.get("route_source") == "deterministic_suppression"
+            or event.get("deterministic_suppressed") is True
+        ):
+            deterministic_stage_by_target[key] = event
+
+    decline_event_fields = {
+        "mention_grok_skip": ("mention", "mention_id"),
+        "hot_post_reply_grok_skip": ("hot-post", "hot_post_reply_id"),
+        "quote_tweet_grok_skip": ("quote-tweet", "quote_tweet_id"),
+    }
+    decline_event_by_target: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    for event in events:
+        lane_and_field = decline_event_fields.get(str(event.get("kind") or ""))
+        if lane_and_field is None:
+            continue
+        lane, target_field = lane_and_field
+        target_id = str(event.get(target_field) or "")
+        if target_id:
+            decline_event_by_target[(lane, target_id)] = event
+
+    deterministic_suppressions: List[Dict[str, Any]] = []
+    for key, decision in strategy_decisions_by_target.items():
+        stage = deterministic_stage_by_target.get(key)
+        model_call_count = optional_int_usage_value(
+            decision.get("model_call_count")
+        )
+        if model_call_count is None and stage is not None:
+            model_call_count = optional_int_usage_value(
+                stage.get("model_call_count")
+            )
+        route_source = (
+            decision.get("route_source")
+            or (stage or {}).get("route_source")
+        )
+        explicitly_deterministic = (
+            route_source == "deterministic_suppression"
+            or (stage or {}).get("deterministic_suppressed") is True
+        )
+        if not explicitly_deterministic or model_call_count != 0:
+            continue
+        decline_event = decline_event_by_target.get(key) or {}
+        deterministic_suppressions.append({
+            "time": decline_event.get("time") or decision.get("time") or "",
+            "lane": key[0],
+            "target_id": key[1],
+            "author_id": decline_event.get("author_id") or "",
+            "original_post_id": decline_event.get("original_post_id") or "",
+            "incoming_text": (
+                decline_event.get("incoming_text")
+                or decision.get("incoming_contribution")
+                or ""
+            ),
+            "route_source": route_source,
+            "model_call_count": model_call_count,
+            "reason": (
+                decision.get("reason")
+                or decision.get("no_reply_reason")
+                or (stage or {}).get("deterministic_reason")
+                or (stage or {}).get("pipeline_stage_reason")
+                or ""
+            ),
+        })
+    deterministic_suppressions.sort(
+        key=lambda row: (
+            str(row.get("time") or ""),
+            str(row.get("lane") or ""),
+            str(row.get("target_id") or ""),
+        )
+    )
+
+    review_classification_available = bool(
+        cost_candidates or deterministic_suppressions
+    )
+    if review_classification_available:
+        ai_reviewed_decline_outcomes = {
+            "deliberately_declined",
+            "terminal_repetition_rejection",
+            "terminal_clarification_mode_rejection",
+        }
+        ai_reviewed_decline_count = sum(
+            str(candidate.get("outcome") or "")
+            in ai_reviewed_decline_outcomes
+            for candidate in cost_candidates
+        )
+        deliberately_declined_count = sum(
+            candidate.get("outcome") == "deliberately_declined"
+            for candidate in cost_candidates
+        )
+        strategy_quality.update({
+            "conversational_candidate_count": int(
+                provider_usage["cost_summary"].get("candidate_count", 0) or 0
+            ),
+            "deliberately_declined_count": deliberately_declined_count,
+            "ai_reviewed_decline_count": ai_reviewed_decline_count,
+            "deterministic_suppression_count": len(
+                deterministic_suppressions
+            ),
+            "terminal_no_reply_decision_count": (
+                ai_reviewed_decline_count + len(deterministic_suppressions)
+            ),
+            "review_classification_available": True,
+            "deterministic_suppressions": deterministic_suppressions,
+        })
     headline = [
         item for item in headline
         if not item.endswith("Grok skip") and not item.endswith("Grok skips")
@@ -9802,9 +9925,6 @@ def analyse(
     health_index = next(
         (index for index, item in enumerate(headline) if item.startswith("current health:")),
         len(headline),
-    )
-    tested_decisions = int(
-        pipeline_stage_quality.get("tested_pipeline_decision_count", 0) or 0
     )
     if tested_decisions:
         latest_version = str(
@@ -9834,14 +9954,28 @@ def analyse(
         )
         or 0
     )
-    if candidates:
-        headline.insert(
-            health_index,
+    deterministic_suppression_count = int(
+        strategy_quality.get("deterministic_suppression_count", 0) or 0
+    )
+    if candidates or deterministic_suppression_count:
+        candidate_summary = (
             f"{plural_count(candidates, 'conversational candidate')} AI-reviewed; "
             f"{plural_count(posted_replies, 'reply', 'replies')} posted; "
             f"{plural_count(repetition_rejections, 'terminal repetition rejection')}; "
-            f"{plural_count(clarification_rejections, 'terminal clarification-mode rejection')}; "
-            f"{declined} deliberately declined",
+            f"{plural_count(clarification_rejections, 'terminal clarification-mode rejection')}"
+        )
+        if strategy_quality.get("review_classification_available"):
+            candidate_summary += (
+                f"; {plural_count(strategy_quality.get('ai_reviewed_decline_count', 0), 'AI-reviewed decline')} total "
+                f"({declined} deliberately declined); "
+                f"{plural_count(deterministic_suppression_count, 'deterministic suppression')}; "
+                f"{plural_count(strategy_quality.get('terminal_no_reply_decision_count', 0), 'terminal no-reply decision')}"
+            )
+        else:
+            candidate_summary += f"; {declined} deliberately declined"
+        headline.insert(
+            health_index,
+            candidate_summary,
         )
     routine_reason_map = {
         "Daily generated/replied cap reached": "daily_cap",
@@ -12542,13 +12676,25 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     strategy = report.get("reply_strategy") or {}
     out.append("## Conversational reply strategy")
-    out.append(
+    strategy_summary = (
         f"**{plural_count(strategy.get('conversational_candidate_count', 0), 'conversational candidate')} "
         f"AI-reviewed; {plural_count(strategy.get('confirmed_outcome_count', 0), 'reply', 'replies')} posted; "
         f"{plural_count(strategy.get('terminal_repetition_rejection_count', 0), 'terminal repetition rejection')}; "
-        f"{plural_count(strategy.get('terminal_clarification_mode_rejection_count', 0), 'terminal clarification-mode rejection')}; "
-        f"{strategy.get('deliberately_declined_count', 0)} deliberately declined.**"
+        f"{plural_count(strategy.get('terminal_clarification_mode_rejection_count', 0), 'terminal clarification-mode rejection')}"
     )
+    if strategy.get("review_classification_available"):
+        strategy_summary += (
+            f"; {plural_count(strategy.get('ai_reviewed_decline_count', 0), 'AI-reviewed decline')} total "
+            f"({strategy.get('deliberately_declined_count', 0)} deliberately declined); "
+            f"{plural_count(strategy.get('deterministic_suppression_count', 0), 'deterministic suppression')}; "
+            f"{plural_count(strategy.get('terminal_no_reply_decision_count', 0), 'terminal no-reply decision')}.**"
+        )
+    else:
+        strategy_summary += (
+            f"; {strategy.get('deliberately_declined_count', 0)} "
+            "deliberately declined.**"
+        )
+    out.append(strategy_summary)
     pipeline_stages = report.get("reply_pipeline_stages") or {}
     if pipeline_stages.get("tested_pipeline_decision_count"):
         out.append(
@@ -13010,6 +13156,41 @@ def render_markdown(report: Dict[str, Any]) -> str:
     for ev in events:
         by_kind.setdefault(ev["kind"], []).append(ev)
 
+    if strategy.get("review_classification_available"):
+        usage_report = (
+            report.get("provider_usage") or report.get("xai_usage") or {}
+        )
+        reviewed_decline_keys = {
+            (
+                normalise_reply_lane(candidate.get("lane")),
+                str(candidate.get("context_id") or ""),
+            )
+            for candidate in (
+                (usage_report.get("cost_summary") or {}).get("candidates")
+                or []
+            )
+            if candidate.get("outcome") in {
+                "deliberately_declined",
+                "terminal_repetition_rejection",
+                "terminal_clarification_mode_rejection",
+            }
+        }
+        decline_sections = {
+            "mention_grok_skip": ("mention", "mention_id"),
+            "hot_post_reply_grok_skip": (
+                "hot-post",
+                "hot_post_reply_id",
+            ),
+            "quote_tweet_grok_skip": ("quote-tweet", "quote_tweet_id"),
+        }
+        for kind, (lane, target_field) in decline_sections.items():
+            by_kind[kind] = [
+                row
+                for row in (by_kind.get(kind) or [])
+                if (lane, str(row.get(target_field) or ""))
+                in reviewed_decline_keys
+            ]
+
     def section(
         kind: str,
         title: str,
@@ -13125,37 +13306,50 @@ def render_markdown(report: Dict[str, Any]) -> str:
         str(row.get("parent_post_id") or "")
         for row in (by_kind.get("historical_context_obligation") or [])
         if row.get("context_reply_state") in {
-            "context_reply_confirmed", "context_reply_failed_terminal"
+            "context_reply_confirmed",
+            "context_reply_not_required",
+            "context_reply_failed_terminal",
         }
     }
     transaction_rows = by_kind.get("posting_transaction_state") or []
-    superseded_pending = [
+    resolved_pending = [
         row for row in transaction_rows
         if row.get("context_reply_state") == "context_reply_pending"
         and str(row.get("parent_post_id") or "") in terminal_context_parents
     ]
-    if superseded_pending:
+    outstanding_transaction_rows = [
+        row for row in transaction_rows
+        if row not in resolved_pending
+        and row.get("context_reply_state") not in {
+            "context_reply_confirmed",
+            "context_reply_not_required",
+            "context_reply_failed_terminal",
+        }
+    ]
+    if resolved_pending or outstanding_transaction_rows:
         out.append("## Confirmed-main/context transaction states")
-        out.append(
-            f"**{len(superseded_pending)}** intermediate `context_reply_pending` "
-            "states subsequently reached a terminal outbox state; they are not outstanding."
-        )
+        if resolved_pending:
+            out.append(
+                f"**{len(resolved_pending)}** intermediate `context_reply_pending` "
+                "states subsequently reached a terminal outbox state; they are not outstanding."
+            )
+        if outstanding_transaction_rows:
+            out.append("Outstanding intermediate states:")
+            transaction_columns = [
+                "time",
+                "parent_post_id",
+                "main_post_state",
+                "context_reply_state",
+                "context_state_persisted",
+                "reason",
+            ]
+            out.append(md_table_row(transaction_columns))
+            out.append(md_table_row(["---"] * len(transaction_columns)))
+            for row in outstanding_transaction_rows:
+                out.append(md_table_row([
+                    row.get(column, "") for column in transaction_columns
+                ]))
         out.append("")
-        by_kind["posting_transaction_state"] = [
-            row for row in transaction_rows if row not in superseded_pending
-        ]
-    section(
-        "posting_transaction_state",
-        "Confirmed-main/context transaction states",
-        [
-            "time",
-            "parent_post_id",
-            "main_post_state",
-            "context_reply_state",
-            "context_state_persisted",
-            "reason",
-        ],
-    )
     section(
         "historical_context_obligation",
         "Historical-context outbox obligations",
@@ -13235,6 +13429,27 @@ def render_markdown(report: Dict[str, Any]) -> str:
         ["time", "lane", "target_id", "outcome", "reason"],
     )
     section("hot_post_search_result", "Hot-post recent-search results", ["time", "original_post_id", "candidates"])
+    deterministic_rows = strategy.get("deterministic_suppressions") or []
+    if deterministic_rows:
+        out.append("## Deterministic suppressions (no AI/provider review)")
+        deterministic_columns = [
+            "time",
+            "lane",
+            "target_id",
+            "author_id",
+            "original_post_id",
+            "incoming_text",
+            "route_source",
+            "model_call_count",
+            "reason",
+        ]
+        out.append(md_table_row(deterministic_columns))
+        out.append(md_table_row(["---"] * len(deterministic_columns)))
+        for row in deterministic_rows:
+            out.append(md_table_row([
+                row.get(column, "") for column in deterministic_columns
+            ]))
+        out.append("")
     section("mention_grok_skip", "Mention AI-reviewed declines", ["time", "mention_id", "author_id", "incoming_text"])
     section("hot_post_reply_grok_skip", "Hot-post AI-reviewed declines", ["time", "hot_post_reply_id", "author_id", "incoming_text"])
     section("quote_tweet_grok_skip", "Quote-tweet AI-reviewed declines", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text"])
