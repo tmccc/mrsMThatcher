@@ -440,6 +440,10 @@ def reconciliation_archive_snapshot(project_dir: Path) -> Dict[str, Any]:
                 expected_hash = value.get("marker_sha256")
                 archived_at_epoch = value.get("archived_at_epoch")
                 reconciliation_reference = value.get("reconciliation_reference")
+                marker_data = _read_readonly_archive_bytes(
+                    project_dir,
+                    value.get("archive_path"),
+                )
                 if (
                     value.get("schema_version") != 3
                     or type(archived_at_epoch) is not int
@@ -457,15 +461,89 @@ def reconciliation_archive_snapshot(project_dir: Path) -> Dict[str, Any]:
                         "successful_return_requires_all_active_barriers_absent"
                     )
                     is not True
-                    or hashlib.sha256(
-                        _read_readonly_archive_bytes(
-                            project_dir,
-                            value.get("archive_path"),
-                        )
-                    ).hexdigest()
-                    != expected_hash
+                    or hashlib.sha256(marker_data).hexdigest() != expected_hash
                 ):
                     raise ValueError("marker audit/archive binding is invalid")
+                marker_identity: Dict[str, Any] = {}
+                try:
+                    marker = _strict_json_object(
+                        marker_data,
+                        label=str(value.get("archive_path") or "archived marker"),
+                    )
+                    marker_identity = {
+                        "target_id": str(
+                            marker.get("reply_to_id")
+                            or marker.get("target_id")
+                            or ""
+                        ),
+                        "transaction_id": str(
+                            marker.get("transaction_id")
+                            or marker.get("attempt_id")
+                            or ""
+                        ),
+                    }
+                except Exception as exc:
+                    marker_identity["identity_error"] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                try:
+                    resolution = _strict_json_object(
+                        _read_readonly_archive_bytes(
+                            project_dir,
+                            reconciliation_reference,
+                        ),
+                        label=reconciliation_reference,
+                    )
+                    resolution_transaction_id = resolution.get("transaction_id")
+                    resolution_target_id = resolution.get("target_id")
+                    if (
+                        resolution.get("schema_version") != 1
+                        or resolution.get("operation")
+                        != "offline_verified_definite_non_success_reply_archive"
+                        or resolution.get("remote_disposition")
+                        != "definite_non_success"
+                        or resolution.get("audit_receipt_path")
+                        != reconciliation_reference
+                        or resolution.get("marker_sha256") != expected_hash
+                        or not isinstance(resolution_transaction_id, str)
+                        or re.fullmatch(
+                            r"[0-9a-f]{64}", resolution_transaction_id
+                        )
+                        is None
+                        or not isinstance(resolution_target_id, str)
+                        or re.fullmatch(r"\d+", resolution_target_id) is None
+                        or resolution.get(
+                            "active_marker_preserved_after_transaction_reconciliation"
+                        )
+                        is not True
+                        or resolution.get(
+                            "successful_return_requires_active_transaction_pair_absent"
+                        )
+                        is not True
+                        or (
+                            marker_identity.get("target_id")
+                            and marker_identity["target_id"]
+                            != resolution_target_id
+                        )
+                        or (
+                            marker_identity.get("transaction_id")
+                            and marker_identity["transaction_id"]
+                            != resolution_transaction_id
+                        )
+                    ):
+                        raise ValueError(
+                            "definite-non-success audit identity is invalid"
+                        )
+                    marker_identity.update(
+                        {
+                            "target_id": resolution_target_id,
+                            "transaction_id": resolution_transaction_id,
+                        }
+                    )
+                except Exception as exc:
+                    marker_identity["reference_identity_error"] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
                 valid_marker.append(
                     {
                         "audit_path": str(path.relative_to(project_dir)),
@@ -473,6 +551,7 @@ def reconciliation_archive_snapshot(project_dir: Path) -> Dict[str, Any]:
                         "archived_at_epoch": archived_at_epoch,
                         "marker_sha256": expected_hash,
                         "reconciliation_reference": reconciliation_reference,
+                        **marker_identity,
                     }
                 )
             elif operation == "offline_unattached_media_upload_archive":
@@ -580,6 +659,175 @@ def reconciliation_archive_snapshot(project_dir: Path) -> Dict[str, Any]:
     }
 
 
+def _remote_write_document_identity(
+    document: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Extract non-secret transaction identity from one active barrier document."""
+
+    reply_context = document.get("reply_context")
+    if not isinstance(reply_context, dict):
+        reply_context = {}
+    remote_payload = document.get("remote_payload")
+    if not isinstance(remote_payload, dict):
+        remote_payload = {}
+    remote_reply = remote_payload.get("reply")
+    if not isinstance(remote_reply, dict):
+        remote_reply = {}
+    source_receipt = document.get("source_receipt")
+    if not isinstance(source_receipt, dict):
+        source_receipt = {}
+
+    def text_value(*values: Any) -> str:
+        for value in values:
+            if isinstance(value, (str, int)) and not isinstance(value, bool):
+                rendered = str(value).strip()
+                if rendered:
+                    return rendered
+        return ""
+
+    epochs = [
+        value
+        for value in (
+            document.get("recorded_at_epoch"),
+            document.get("attempt_epoch"),
+            document.get("reply_epoch"),
+            document.get("created_at_epoch"),
+        )
+        if type(value) is int and value >= 0
+    ]
+    return {
+        "transaction_id": text_value(
+            document.get("transaction_id"),
+            document.get("attempt_id"),
+            document.get("media_transaction_id"),
+        ),
+        "lane": text_value(
+            document.get("lane"),
+            document.get("candidate_source"),
+            reply_context.get("lane"),
+        ),
+        "target_id": text_value(
+            document.get("target_id"),
+            document.get("reply_to_id"),
+            remote_reply.get("in_reply_to_tweet_id"),
+            reply_context.get("target_id"),
+        ),
+        "source_receipt_name": text_value(source_receipt.get("basename")),
+        "source_receipt_sha256": text_value(source_receipt.get("sha256")),
+        "recorded_at_epoch": min(epochs) if epochs else None,
+    }
+
+
+def _group_active_remote_write_artifacts(
+    artifacts: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Group active files only when their payload identities explicitly connect."""
+
+    if not artifacts:
+        return []
+    parents = list(range(len(artifacts)))
+
+    def root(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = root(left)
+        right_root = root(right)
+        if left_root != right_root:
+            parents[right_root] = left_root
+
+    token_owner: Dict[str, int] = {}
+    for index, artifact in enumerate(artifacts):
+        tokens = []
+        for prefix, field in (
+            ("transaction", "transaction_id"),
+            ("sha256", "document_sha256"),
+            ("sha256", "source_receipt_sha256"),
+            ("name", "name"),
+            ("name", "source_receipt_name"),
+        ):
+            value = str(artifact.get(field) or "").strip()
+            if value:
+                tokens.append(f"{prefix}:{value}")
+        for token in tokens:
+            previous = token_owner.setdefault(token, index)
+            union(index, previous)
+
+    # A shared target is a useful fallback only when it does not contradict
+    # stronger transaction identities.  If two active components name
+    # different transactions for the same target, leave unbound artefacts
+    # separate instead of bridging those transactions through the target.
+    roots_by_target: Dict[str, set[int]] = {}
+    transactions_by_root: Dict[int, set[str]] = {}
+    for index, artifact in enumerate(artifacts):
+        component_root = root(index)
+        target_id = str(artifact.get("target_id") or "").strip()
+        transaction_id = str(artifact.get("transaction_id") or "").strip()
+        if target_id:
+            roots_by_target.setdefault(target_id, set()).add(component_root)
+        if transaction_id:
+            transactions_by_root.setdefault(component_root, set()).add(
+                transaction_id
+            )
+    for component_roots in roots_by_target.values():
+        explicit_transactions = {
+            transaction_id
+            for component_root in component_roots
+            for transaction_id in transactions_by_root.get(component_root, set())
+        }
+        if len(explicit_transactions) > 1:
+            continue
+        first_root = min(component_roots)
+        for component_root in component_roots:
+            union(first_root, component_root)
+
+    components: Dict[int, List[Dict[str, Any]]] = {}
+    for index, artifact in enumerate(artifacts):
+        components.setdefault(root(index), []).append(artifact)
+
+    grouped: List[Dict[str, Any]] = []
+    for rows in components.values():
+        transaction_ids = sorted(
+            {str(item.get("transaction_id")) for item in rows if item.get("transaction_id")}
+        )
+        target_ids = sorted(
+            {str(item.get("target_id")) for item in rows if item.get("target_id")}
+        )
+        lanes = sorted({str(item.get("lane")) for item in rows if item.get("lane")})
+        recorded_epochs = [
+            item.get("recorded_at_epoch")
+            for item in rows
+            if type(item.get("recorded_at_epoch")) is int
+        ]
+        grouped.append(
+            {
+                "transaction_ids": transaction_ids,
+                "target_ids": target_ids,
+                "lanes": lanes,
+                "artifact_names": sorted(
+                    {str(item.get("name")) for item in rows if item.get("name")}
+                ),
+                "artifact_kinds": sorted(
+                    {str(item.get("kind")) for item in rows if item.get("kind")}
+                ),
+                "recorded_at_epoch": min(recorded_epochs) if recorded_epochs else None,
+                "identity_available": bool(transaction_ids or target_ids),
+            }
+        )
+    return sorted(
+        grouped,
+        key=lambda item: (
+            item.get("recorded_at_epoch") if item.get("recorded_at_epoch") is not None else -1,
+            item.get("transaction_ids") or [],
+            item.get("target_ids") or [],
+            item.get("artifact_names") or [],
+        ),
+    )
+
+
 def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
     """Inspect every current v2 remote-write barrier without mutating state."""
 
@@ -637,15 +885,25 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                 }
             )
             return
-        active_entries.append(
-            {
-                "name": name,
-                "kind": kind,
-                "safe_regular": stat.S_ISREG(metadata.st_mode),
-                "mode": oct(stat.S_IMODE(metadata.st_mode)),
-                "size": int(metadata.st_size),
-            }
-        )
+        entry = {
+            "name": name,
+            "kind": kind,
+            "safe_regular": stat.S_ISREG(metadata.st_mode),
+            "mode": oct(stat.S_IMODE(metadata.st_mode)),
+            "size": int(metadata.st_size),
+        }
+        if entry["safe_regular"]:
+            try:
+                data = read_stable_regular_bytes(
+                    path,
+                    maximum=REMOTE_WRITE_SNAPSHOT_MAX_BYTES,
+                )
+                document = _strict_json_object(data, label=name)
+                entry.update(_remote_write_document_identity(document))
+                entry["document_sha256"] = hashlib.sha256(data).hexdigest()
+            except Exception as exc:
+                entry["identity_error"] = f"{type(exc).__name__}: {exc}"
+        active_entries.append(entry)
 
     for name in REMOTE_WRITE_MARKER_BASENAMES:
         observe_name(name, "ambiguity_marker")
@@ -717,6 +975,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
     for name in retirement_auxiliaries:
         observe_name(name, "receipt_retirement_auxiliary")
 
+    transport_artifact: Optional[Dict[str, Any]] = None
     try:
         from remote_write_transport_journal import inspect_transport_state
 
@@ -732,6 +991,23 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
             ),
             "errors": list(transport_state.errors),
         }
+        transport_snapshot_name = REMOTE_TRANSPORT_JOURNAL_BASENAME
+        transport_snapshot = transport_state.journal
+        if transport_snapshot is None and transport_state.fence is not None:
+            transport_snapshot_name = "remote_write_transport_fence.json"
+            transport_snapshot = transport_state.fence
+        if transport_snapshot is not None:
+            transport_identity = _remote_write_document_identity(
+                transport_snapshot.document
+            )
+            transport.update(transport_identity)
+            transport["document_sha256"] = transport_snapshot.sha256
+            transport_artifact = {
+                "name": transport_snapshot_name,
+                "kind": "transport_journal",
+                **transport_identity,
+                "document_sha256": transport["document_sha256"],
+            }
     except Exception as exc:
         transport = {
             "classification": "inspection_unavailable",
@@ -835,6 +1111,22 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         )
         or reconciliation_reference == media_reconciliation.get("audit_path")
     )
+    identity_artifacts = [dict(item) for item in active_entries]
+    if transport_artifact is not None and transport.get("blocking") is True:
+        identity_artifacts.append(transport_artifact)
+    if media.get("blocking") is True:
+        identity_artifacts.append(
+            {
+                "name": REMOTE_MEDIA_RECEIPT_BASENAME,
+                "kind": "media_receipt",
+                "transaction_id": str(media.get("transaction_id") or ""),
+                "lane": str(media.get("lane") or ""),
+                "target_id": "",
+            }
+        )
+    active_transaction_identities = _group_active_remote_write_artifacts(
+        identity_artifacts
+    )
     return {
         "configured": True,
         "available": True,
@@ -844,6 +1136,8 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         "ready_for_remote_writes": not blocking and not global_pause and not control_invalid,
         "active_entries": active_entries,
         "active_marker_names": active_marker_names,
+        "active_transaction_identities": active_transaction_identities,
+        "identity_snapshot_available": True,
         "protocol": protocol,
         "retirement_ledgers": ledger_rows,
         "transport": transport,
@@ -3318,6 +3612,11 @@ def classify_operational_error(message: str) -> str:
         return "quote_pagination_protocol_anomaly"
     if is_deleted_or_inaccessible_tweet_403(text):
         return "deleted_or_inaccessible_tweet"
+    if (
+        "remoteoperationspaused" in lowered
+        or "global runtime control pause blocks remote operation" in lowered
+    ):
+        return "remote_operations_paused"
     if any(
         marker in lowered
         for marker in (
@@ -3402,11 +3701,18 @@ def summarise_operational_error_health(
     events: List[Dict[str, Any]],
     receipt_events: List[Dict[str, Any]],
     lifecycle: Iterable[Dict[str, Any]] = (),
+    remote_write_transactions: Iterable[Dict[str, Any]] = (),
+    handled_api_restrictions: Iterable[Dict[str, Any]] = (),
+    confirmed_reply_receipt_events: Iterable[Dict[str, Any]] = (),
     current_remote_write_safety: Optional[Dict[str, Any]] = None,
     generation_time: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Group traceback cascades and distinguish recovered from current incidents."""
     generated_at = generation_time or datetime.now()
+    lifecycle = list(lifecycle)
+    remote_write_transactions = list(remote_write_transactions)
+    handled_api_restrictions = list(handled_api_restrictions)
+    confirmed_reply_receipt_events = list(confirmed_reply_receipt_events)
     serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
     operational = [
         item
@@ -3528,6 +3834,7 @@ def summarise_operational_error_health(
         "historical_context_reply_failure",
         "legacy_regular_receipt_barrier",
         "conversational_reply_receipt_barrier",
+        "remote_operations_paused",
         "process_crash",
         "remote_write_ambiguity_barrier",
         "remote_write_protocol_barrier",
@@ -3547,7 +3854,32 @@ def summarise_operational_error_health(
         == "remote_write_ambiguity_barrier"
     ]
     ambiguity_times = [item for item in ambiguity_times if item is not None]
-    ambiguous_reply_outcomes: List[Tuple[datetime, str, str]] = []
+    transport_attempts: List[Dict[str, Any]] = []
+    for transaction in remote_write_transactions:
+        if (
+            transaction.get("kind") != "tweet_transport"
+            or transaction.get("phase") != "request_started"
+        ):
+            continue
+        transaction_time = _event_time(transaction)
+        target_id = str(transaction.get("reply_to_id") or "")
+        transaction_id = str(transaction.get("transaction_id") or "")
+        if (
+            transaction_time is None
+            or not target_id
+            or target_id.lower() in {"none", "null"}
+        ):
+            continue
+        transport_attempts.append(
+            {
+                "time": transaction_time,
+                "target_id": target_id,
+                "transaction_id": transaction_id,
+                "lane": str(transaction.get("lane") or ""),
+            }
+        )
+
+    ambiguous_reply_outcomes: List[Dict[str, Any]] = []
     for event in events:
         if (
             event.get("kind") != "reply_strategy_outcome"
@@ -3565,7 +3897,148 @@ def summarise_operational_error_health(
             for root_time in ambiguity_times
         ):
             continue
-        ambiguous_reply_outcomes.append((outcome_time, lane, target_id))
+        matching_attempts = [
+            attempt
+            for attempt in transport_attempts
+            if attempt["target_id"] == target_id
+            and 0 <= (outcome_time - attempt["time"]).total_seconds() <= 10
+        ]
+        matching_attempts.sort(
+            key=lambda attempt: (
+                (outcome_time - attempt["time"]).total_seconds(),
+                attempt["transaction_id"],
+            )
+        )
+        transaction_id = (
+            matching_attempts[0]["transaction_id"] if matching_attempts else ""
+        )
+        ambiguous_reply_outcomes.append(
+            {
+                "time": outcome_time,
+                "lane": lane,
+                "target_id": target_id,
+                "transaction_id": transaction_id,
+            }
+        )
+
+    ambiguous_media_outcomes: List[Dict[str, Any]] = []
+    for transaction in remote_write_transactions:
+        if (
+            transaction.get("kind") != "media_upload"
+            or transaction.get("phase") != "ambiguous"
+        ):
+            continue
+        transaction_time = _event_time(transaction)
+        if transaction_time is None:
+            continue
+        ambiguous_media_outcomes.append(
+            {
+                "time": transaction_time,
+                "image": str(transaction.get("image") or ""),
+            }
+        )
+
+    def matching_ambiguity_identity(
+        raw: str,
+        item_time: Optional[datetime],
+    ) -> Optional[Dict[str, Any]]:
+        """Return the strongest uniquely associated ambiguity identity."""
+
+        if item_time is None:
+            return None
+        direct = re.search(r"\blane=([^\s]+) target_id=([^\s]+)", raw)
+        if direct is not None:
+            lane = _normalise_lane(direct.group(1))
+            target_id = direct.group(2)
+            matches = [
+                outcome
+                for outcome in ambiguous_reply_outcomes
+                if outcome["lane"] == lane and outcome["target_id"] == target_id
+                and seconds_between(item_time, outcome["time"]) <= 300
+            ]
+            if matches:
+                return min(
+                    matches,
+                    key=lambda outcome: seconds_between(item_time, outcome["time"]),
+                )
+            attempts = [
+                attempt
+                for attempt in transport_attempts
+                if attempt["target_id"] == target_id
+                and seconds_between(item_time, attempt["time"]) <= 300
+            ]
+            attempt = min(
+                attempts,
+                key=lambda value: seconds_between(item_time, value["time"]),
+                default={},
+            )
+            return {
+                "time": item_time,
+                "lane": lane,
+                "target_id": target_id,
+                "transaction_id": str(attempt.get("transaction_id") or ""),
+            }
+
+        transaction_match = re.search(
+            r"\btransaction_id=([0-9a-f]{64})\b", raw
+        )
+        if transaction_match is not None:
+            transaction_id = transaction_match.group(1)
+            for outcome in ambiguous_reply_outcomes:
+                if outcome.get("transaction_id") == transaction_id:
+                    return outcome
+
+        near_reply = [
+            outcome
+            for outcome in ambiguous_reply_outcomes
+            if seconds_between(item_time, outcome["time"]) <= 10
+        ]
+        if near_reply:
+            nearest_delta = min(
+                seconds_between(item_time, outcome["time"])
+                for outcome in near_reply
+            )
+            nearest = [
+                outcome
+                for outcome in near_reply
+                if seconds_between(item_time, outcome["time"]) == nearest_delta
+            ]
+            identities = {
+                (
+                    str(outcome.get("transaction_id") or ""),
+                    outcome["lane"],
+                    outcome["target_id"],
+                )
+                for outcome in nearest
+            }
+            if len(identities) == 1:
+                return nearest[0]
+
+        near_media = [
+            outcome
+            for outcome in ambiguous_media_outcomes
+            if seconds_between(item_time, outcome["time"]) <= 10
+        ]
+        if len(near_media) == 1:
+            return near_media[0]
+
+        first_line = raw.splitlines()[0].strip() if raw else ""
+        persistent_barrier = bool(
+            "All remote posting and reply lanes are paused by the durable "
+            "remote-write safety barrier" in first_line
+            or "lane stopped by the global remote-write safety barrier" in first_line
+            or "reply stopped after an ambiguous remote outcome" in first_line
+            or "lane created an ambiguous-post barrier" in first_line
+        )
+        if persistent_barrier:
+            prior = [
+                outcome
+                for outcome in [*ambiguous_reply_outcomes, *ambiguous_media_outcomes]
+                if outcome["time"] <= item_time
+            ]
+            if prior:
+                return max(prior, key=lambda outcome: outcome["time"])
+        return None
 
     def is_subordinate_remote_write_symptom(
         *,
@@ -3587,13 +4060,12 @@ def summarise_operational_error_health(
             lane = _normalise_lane(identity.group(1))
             target_id = identity.group(2)
             return any(
-                outcome_lane == lane
-                and outcome_target == target_id
+                outcome["lane"] == lane
+                and outcome["target_id"] == target_id
                 and 0
-                <= (outcome_time - item_time).total_seconds()
+                <= (outcome["time"] - item_time).total_seconds()
                 <= 300
-                for outcome_time, outcome_lane, outcome_target
-                in ambiguous_reply_outcomes
+                for outcome in ambiguous_reply_outcomes
             )
         if category == "remote_write_transaction_barrier":
             return any(
@@ -3625,8 +4097,8 @@ def summarise_operational_error_health(
         if not exact_lane_barrier:
             return False
         return any(
-            0 <= (item_time - outcome_time).total_seconds() <= 5
-            for outcome_time, _lane, _target_id in ambiguous_reply_outcomes
+            0 <= (item_time - outcome["time"]).total_seconds() <= 5
+            for outcome in ambiguous_reply_outcomes
         )
 
     for item in operational:
@@ -3664,7 +4136,55 @@ def summarise_operational_error_health(
                     }
             category = "remote_write_ambiguity_barrier"
         root = (_incident_exception_line(raw) or raw.splitlines()[0]) if raw else category
-        if category == "xai_provider_timeout" and item_time is not None:
+        remote_identity: Optional[Dict[str, Any]] = None
+        if category == "remote_write_ambiguity_barrier":
+            remote_identity = matching_ambiguity_identity(raw, item_time)
+        elif category == "conversational_reply_receipt_barrier":
+            remote_identity = matching_ambiguity_identity(raw, item_time)
+        if remote_identity is not None:
+            item["_remote_write_identity"] = {
+                "transaction_id": str(
+                    remote_identity.get("transaction_id") or ""
+                ),
+                "lane": str(remote_identity.get("lane") or ""),
+                "target_id": str(remote_identity.get("target_id") or ""),
+                "image": str(remote_identity.get("image") or ""),
+            }
+            if remote_identity.get("transaction_id"):
+                signature = "transaction:" + str(
+                    remote_identity["transaction_id"]
+                )
+            elif remote_identity.get("target_id"):
+                signature = (
+                    "reply:"
+                    + str(remote_identity.get("lane") or "unavailable")
+                    + ":"
+                    + str(remote_identity["target_id"])
+                )
+                if category == "conversational_reply_receipt_barrier":
+                    signature += ":" + dt_text(item_time)
+            else:
+                signature = (
+                    "media:"
+                    + str(remote_identity.get("image") or "unavailable")
+                    + ":"
+                    + dt_text(remote_identity.get("time"))
+                )
+        elif category == "remote_write_ambiguity_barrier" and item_time is not None:
+            signature = f"{category}:{dt_text(item_time)}"
+            for (candidate_category, candidate_signature), rows in reversed(
+                list(groups.items())
+            ):
+                previous_time = _event_time(rows[-1])
+                if (
+                    candidate_category == category
+                    and previous_time is not None
+                    and seconds_between(item_time, previous_time) <= 10
+                    and not rows[-1].get("_remote_write_identity")
+                ):
+                    signature = candidate_signature
+                    break
+        elif category == "xai_provider_timeout" and item_time is not None:
             signature = ""
             for (candidate_category, candidate_signature), rows in reversed(
                 list(groups.items())
@@ -3711,12 +4231,199 @@ def summarise_operational_error_health(
         if ts is not None:
             receipt_removed_times.append(ts)
     successful_restart_times: List[datetime] = []
+    remote_pause_cleared_times: List[datetime] = []
     for item in lifecycle:
-        if "Bot started successfully" not in str(item.get("message") or ""):
+        message = str(item.get("message") or "")
+        ts = _event_time(item)
+        if ts is not None and "Bot started successfully" in message:
+            successful_restart_times.append(ts)
+        if ts is not None and "runtime control pause cleared" in message.lower():
+            remote_pause_cleared_times.append(ts)
+
+    remote_write_success_times = sorted(
+        ts
+        for kind in (
+            "remote_write_succeeded",
+            "daily_meme_posted",
+            "quote_image_posted",
+            "mention_reply_posted",
+            "hot_post_reply_posted",
+            "quote_tweet_reply_posted",
+        )
+        for ts in event_times.get(kind, [])
+    )
+    terminal_reply_receipts: List[Dict[str, Any]] = []
+    for item in confirmed_reply_receipt_events:
+        if item.get("kind") not in {
+            "sending_removed",
+            "confirmed_state_fallback_removed",
+            "removed",
+        }:
             continue
         ts = _event_time(item)
         if ts is not None:
-            successful_restart_times.append(ts)
+            terminal_reply_receipts.append({**item, "_time": ts})
+
+    safety = current_remote_write_safety or {}
+    active_remote_components = (
+        safety.get("active_transaction_identities")
+        if isinstance(safety.get("active_transaction_identities"), list)
+        else []
+    )
+    identity_snapshot_available = bool(
+        safety.get("configured") is True
+        and safety.get("available") is True
+        and safety.get("identity_snapshot_available") is True
+    )
+    identity_snapshot_explicitly_unavailable = bool(
+        current_remote_write_safety is not None
+        and not identity_snapshot_available
+        and (
+            safety.get("configured") is False
+            or safety.get("available") is False
+        )
+    )
+
+    def component_matches_identity(
+        component: Dict[str, Any],
+        identity: Dict[str, Any],
+    ) -> bool:
+        transaction_id = str(identity.get("transaction_id") or "")
+        target_id = str(identity.get("target_id") or "")
+        component_transactions = component.get("transaction_ids") or []
+        if transaction_id and component_transactions:
+            return transaction_id in component_transactions
+        return bool(
+            target_id and target_id in (component.get("target_ids") or [])
+        )
+
+    def active_component_matches(identity: Dict[str, Any]) -> bool:
+        return any(
+            component_matches_identity(component, identity)
+            for component in active_remote_components
+        )
+
+    def remote_write_recovery_status(
+        category: str,
+        identity: Dict[str, Any],
+        first_time: datetime,
+        last_time: datetime,
+    ) -> Tuple[str, str, Optional[datetime]]:
+        """Reconcile one identified receipt/ambiguity transaction conservatively."""
+
+        if identity_snapshot_available and active_component_matches(identity):
+            return "current_unresolved", "", None
+        unidentified_active = any(
+            component.get("identity_available") is not True
+            for component in active_remote_components
+        )
+        if identity_snapshot_available and unidentified_active:
+            return (
+                "resolution_unavailable",
+                "current barrier artefacts lack enough identity to establish whether they match this transaction",
+                None,
+            )
+        if identity_snapshot_explicitly_unavailable:
+            return (
+                "resolution_unavailable",
+                "current status cannot be established from retained evidence because no usable filesystem snapshot is available",
+                None,
+            )
+        if not identity_snapshot_available:
+            return "legacy_fallback", "", None
+
+        transaction_id = str(identity.get("transaction_id") or "")
+        target_id = str(identity.get("target_id") or "")
+        lane = _normalise_lane(identity.get("lane"))
+        archive = safety.get("reconciliation_archive") or {}
+        marker_audits = archive.get("marker_reconciliations") or []
+        if not marker_audits:
+            latest_audit = archive.get("latest_marker_reconciliation")
+            marker_audits = [latest_audit] if latest_audit else []
+        def audit_matches(audit: Dict[str, Any]) -> bool:
+            audit_epoch = audit.get("archived_at_epoch")
+            if (
+                archive.get("valid") is not True
+                or type(audit_epoch) is not int
+                or audit_epoch < int(last_time.timestamp())
+            ):
+                return False
+            audit_transaction_id = str(audit.get("transaction_id") or "")
+            audit_target_id = str(audit.get("target_id") or "")
+            if transaction_id and audit_transaction_id:
+                return bool(
+                    transaction_id == audit_transaction_id
+                    and (
+                        not target_id
+                        or not audit_target_id
+                        or target_id == audit_target_id
+                    )
+                )
+            return bool(
+                target_id
+                and audit_target_id == target_id
+                and audit_epoch
+                <= int((last_time + timedelta(hours=6)).timestamp())
+            )
+
+        matching_audits = [audit for audit in marker_audits if audit_matches(audit)]
+        if category == "remote_write_ambiguity_barrier" and matching_audits:
+            resolution_audit = min(
+                matching_audits,
+                key=lambda audit: (
+                    audit["archived_at_epoch"],
+                    str(audit.get("audit_path") or ""),
+                ),
+            )
+            return (
+                "historical_resolved",
+                "matching durable offline reconciliation audit retired this transaction; current active barriers belong to another identity",
+                datetime.fromtimestamp(resolution_audit["archived_at_epoch"]),
+            )
+
+        terminal_matches = [
+            item
+            for item in terminal_reply_receipts
+            if str(item.get("target_id") or "") == target_id
+            and (
+                lane == "unavailable"
+                or _normalise_lane(item.get("lane")) == lane
+            )
+            and item["_time"] >= first_time
+        ]
+        handled_deleted = [
+            item
+            for item in handled_api_restrictions
+            if item.get("restriction_kind") == "deleted_or_inaccessible_tweet"
+            and str(item.get("target_id") or "") == target_id
+            and (
+                lane == "unavailable"
+                or _normalise_lane(item.get("lane")) == lane
+            )
+            and (restriction_time := _event_time(item)) is not None
+            # The handled 403 is logged immediately before the ambiguity
+            # wrapper, so allow it to precede the root record narrowly.
+            and first_time - timedelta(minutes=5)
+            <= restriction_time
+            <= last_time + timedelta(minutes=5)
+        ]
+        if terminal_matches and handled_deleted:
+            terminal_time = min(item["_time"] for item in terminal_matches)
+            later_successes = [
+                ts for ts in remote_write_success_times if ts > terminal_time
+            ]
+            if later_successes:
+                return (
+                    "historical_resolved",
+                    "deleted/inaccessible target was handled, its sending receipt was retired, and a later remote write succeeded",
+                    terminal_time,
+                )
+
+        return (
+            "resolution_unavailable",
+            "no matching active artefact remains, but terminal resolution is unavailable from retained evidence",
+            None,
+        )
 
     def pipeline_recovered_after(
         identity: Tuple[str, str], last_time: datetime
@@ -3836,6 +4543,33 @@ def summarise_operational_error_health(
                 "quote_lane_activity_succeeded",
                 "quote_pagination_repeated_token",
             )
+        elif category == "remote_operations_paused":
+            later_restarts = [ts for ts in successful_restart_times if ts > last_time]
+            later_clears = [ts for ts in remote_pause_cleared_times if ts > last_time]
+            recovery_gates = [*later_restarts, *later_clears]
+            later_remote_writes = [
+                ts
+                for ts in remote_write_success_times
+                if ts > last_time
+                and (not recovery_gates or any(gate <= ts for gate in recovery_gates))
+            ]
+            control = safety.get("control") or {}
+            current_control_clear = bool(
+                safety.get("available") is True
+                and control.get("valid") is True
+                and control.get("global_pause_active") is False
+            )
+            explicit_log_recovery = bool(later_clears and later_remote_writes)
+            if (
+                later_remote_writes
+                and recovery_gates
+                and (current_control_clear or explicit_log_recovery)
+            ):
+                return (
+                    True,
+                    "later startup/control recovery and successful remote-write activity prove the pause cleared",
+                    min(later_remote_writes),
+                )
         elif category == "process_crash":
             candidates.extend(
                 (ts, "later successful bot startup observed")
@@ -3852,7 +4586,6 @@ def summarise_operational_error_health(
             "remote_write_ambiguity_barrier",
             "remote_write_protocol_barrier",
         }:
-            safety = current_remote_write_safety or {}
             if safety.get("configured") is True and safety.get("available") is True:
                 protocol_valid = (
                     (safety.get("protocol") or {}).get("valid") is True
@@ -3943,6 +4676,22 @@ def summarise_operational_error_health(
         ]
         first_time = min(evidence_times) if evidence_times else datetime.min
         last_time = max(evidence_times) if evidence_times else first_time
+        remote_identities = [
+            identity
+            for item in ordered
+            if isinstance(identity := item.get("_remote_write_identity"), dict)
+        ]
+        remote_identity: Dict[str, Any] = {}
+        for field in ("transaction_id", "lane", "target_id", "image"):
+            values = sorted(
+                {
+                    str(identity.get(field) or "")
+                    for identity in remote_identities
+                    if identity.get(field)
+                }
+            )
+            if values:
+                remote_identity[field] = values[0]
         transient_observation = category in {
             "x_api_transient_failure",
             "xai_provider_timeout",
@@ -3991,10 +4740,63 @@ def summarise_operational_error_health(
         elif transient_observation:
             resolved, resolution_reason, resolution_time = False, "", None
             status = "transient_observation_recovery_unverified"
+        elif category in {
+            "remote_write_ambiguity_barrier",
+            "conversational_reply_receipt_barrier",
+        } and remote_identity:
+            status, resolution_reason, resolution_time = remote_write_recovery_status(
+                category,
+                remote_identity,
+                first_time,
+                last_time,
+            )
+            if status == "legacy_fallback":
+                resolved, resolution_reason, resolution_time = recovered_after(
+                    category, last_time
+                )
+                status = (
+                    "historical_resolved" if resolved else "current_unresolved"
+                )
+            else:
+                resolved = status == "historical_resolved"
+        elif (
+            category
+            in {
+                "remote_write_ambiguity_barrier",
+                "conversational_reply_receipt_barrier",
+            }
+            and identity_snapshot_explicitly_unavailable
+        ):
+            resolved, resolution_time = False, None
+            status = "resolution_unavailable"
+            resolution_reason = (
+                "current status cannot be established from retained evidence "
+                "because no usable filesystem snapshot is available"
+            )
         else:
             resolved, resolution_reason, resolution_time = recovered_after(category, last_time)
             status = "historical_resolved" if resolved else "current_unresolved"
-        if pipeline_identity is not None:
+        if remote_identity and category in {
+            "remote_write_ambiguity_barrier",
+            "conversational_reply_receipt_barrier",
+        }:
+            identity_parts = []
+            if remote_identity.get("transaction_id"):
+                identity_parts.append(
+                    f"transaction {remote_identity['transaction_id']}"
+                )
+            if remote_identity.get("lane"):
+                identity_parts.append(f"lane {remote_identity['lane']}")
+            if remote_identity.get("target_id"):
+                identity_parts.append(f"target {remote_identity['target_id']}")
+            if remote_identity.get("image"):
+                identity_parts.append(f"media {remote_identity['image']}")
+            representative = (
+                "Remote-write ambiguity: "
+                if category == "remote_write_ambiguity_barrier"
+                else "Conversational reply receipt: "
+            ) + ", ".join(identity_parts)
+        elif pipeline_identity is not None:
             reasons = Counter(
                 str(event.get("reason") or "unknown_pipeline_failure")
                 for event in pipeline_failure_events
@@ -4086,6 +4888,27 @@ def summarise_operational_error_health(
             incident["correlated_reply_receipt_events"] = (
                 subordinate_reply_events
             )
+        if remote_identity:
+            incident.update(
+                {
+                    key: value
+                    for key, value in remote_identity.items()
+                    if value
+                }
+            )
+            matching_components = [
+                component
+                for component in active_remote_components
+                if component_matches_identity(component, remote_identity)
+            ]
+            if matching_components:
+                incident["active_artifact_names"] = sorted(
+                    {
+                        name
+                        for component in matching_components
+                        for name in component.get("artifact_names") or []
+                    }
+                )
         if pipeline_identity is not None:
             incident.update(
                 {
@@ -4101,9 +4924,100 @@ def summarise_operational_error_health(
                 }
             )
         incidents.append(incident)
+
+    selected_end_candidates = [
+        ts
+        for collection in (
+            serious,
+            events,
+            list(lifecycle),
+            list(confirmed_reply_receipt_events),
+        )
+        for item in collection
+        if (ts := _event_time(item)) is not None
+    ]
+    selected_evidence_end = max(selected_end_candidates, default=None)
+    if identity_snapshot_available:
+        for component in active_remote_components:
+            recorded_epoch = component.get("recorded_at_epoch")
+            recorded_time = (
+                datetime.fromtimestamp(recorded_epoch)
+                if type(recorded_epoch) is int
+                else None
+            )
+            if (
+                selected_evidence_end is not None
+                and recorded_time is not None
+                and recorded_time > selected_evidence_end
+            ):
+                # The authoritative snapshot post-dates this historical focus
+                # window; display it under safety without rewriting that window.
+                continue
+            transaction_ids = component.get("transaction_ids") or []
+            target_ids = component.get("target_ids") or []
+            already_represented = any(
+                incident.get("status") == "current_unresolved"
+                and component_matches_identity(component, incident)
+                for incident in incidents
+            )
+            if already_represented:
+                continue
+            artifact_kinds = set(component.get("artifact_kinds") or [])
+            category = (
+                "remote_write_ambiguity_barrier"
+                if "ambiguity_marker" in artifact_kinds
+                else "conversational_reply_receipt_barrier"
+                if "source_receipt" in artifact_kinds
+                else "remote_write_transaction_barrier"
+            )
+            transaction_text = ", ".join(transaction_ids) or "unavailable"
+            target_text = ", ".join(target_ids) or "unavailable"
+            lane_text = ", ".join(component.get("lanes") or []) or "unavailable"
+            observed_time = recorded_time
+            if observed_time is None:
+                observed_time = _event_time(
+                    {"time": str(safety.get("observed_at") or "")}
+                ) or generated_at
+            incidents.append(
+                {
+                    "category": category,
+                    "signature": (
+                        "snapshot:transaction:" + transaction_text
+                        if transaction_ids
+                        else "snapshot:target:" + target_text
+                        if target_ids
+                        else "snapshot:artifacts:"
+                        + ",".join(component.get("artifact_names") or [])
+                    ),
+                    "status": "current_unresolved",
+                    "first_seen": dt_text(observed_time),
+                    "last_seen": dt_text(observed_time),
+                    "record_count": 0,
+                    "traceback_count": 0,
+                    "affected_locations": ["current filesystem snapshot"],
+                    "summary": short(
+                        "Active remote-write barrier: transaction "
+                        f"{transaction_text}, lane {lane_text}, target {target_text}",
+                        300,
+                    ),
+                    "resolution_reason": "",
+                    "resolution_time": None,
+                    "transaction_id": transaction_ids[0] if len(transaction_ids) == 1 else "",
+                    "target_id": target_ids[0] if len(target_ids) == 1 else "",
+                    "lane": (component.get("lanes") or [""])[0],
+                    "active_artifact_names": component.get("artifact_names") or [],
+                    "active_artifact_count": len(
+                        component.get("artifact_names") or []
+                    ),
+                    "snapshot_only": True,
+                }
+            )
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
     current = [item for item in incidents if item["status"] == "current_unresolved"]
     resolved = [item for item in incidents if item["status"] == "historical_resolved"]
+    resolution_unavailable = [
+        item for item in incidents if item["status"] == "resolution_unavailable"
+    ]
     transient_provider_observations = [
         item
         for item in incidents
@@ -4117,6 +5031,7 @@ def summarise_operational_error_health(
     return {
         "current_independent_incident_count": len(current),
         "historical_resolved_incident_count": len(resolved),
+        "resolution_unavailable_incident_count": len(resolution_unavailable),
         "raw_serious_error_record_count": len(serious),
         "raw_traceback_count": sum(item.get("traceback_count", 0) for item in incidents),
         "transient_provider_timeout_count": len(transient_provider_timeouts),
@@ -4129,6 +5044,7 @@ def summarise_operational_error_health(
         ),
         "current_incidents": current,
         "historical_resolved_incidents": resolved,
+        "resolution_unavailable_incidents": resolution_unavailable,
         "transient_provider_observations": transient_provider_observations,
     }
 
@@ -7416,6 +8332,8 @@ def analyse(
             msg == "Bot starting"
             or msg == "Bot started successfully"
             or "Bot stopped by KeyboardInterrupt" in msg
+            or "Global runtime control pause cleared; resuming scheduled lanes"
+            in msg
         ):
             lifecycle.append({"time": r.ts.strftime("%Y-%m-%d %H:%M:%S"), "level": r.level, "message": msg.splitlines()[0]})
 
@@ -9021,6 +9939,8 @@ def analyse(
             post_id, post_text = try_parse_response_id_text(msg)
             last_created_post = {"time": r.ts, "post_id": post_id, "post_text": post_text}
             stats["created_x_posts"] += 1
+            if post_id and re.fullmatch(r"\d+", post_id):
+                add_event("remote_write_succeeded", r.ts, post_id=post_id)
             continue
 
         # Normal mention lane, including synthetic hot-post reply candidates.
@@ -9411,6 +10331,9 @@ def analyse(
         events,
         receipt_events,
         lifecycle,
+        remote_write_transactions=remote_write_transactions,
+        handled_api_restrictions=handled_api_restrictions,
+        confirmed_reply_receipt_events=confirmed_reply_receipts,
         current_remote_write_safety=current_remote_write_safety,
         generation_time=generation_time,
     )
@@ -9442,6 +10365,60 @@ def analyse(
                     "resolution_reason": incident.get("resolution_reason"),
                 }
             )
+    status_unavailable_reply_receipts: List[Dict[str, Any]] = []
+    for incident in error_health.get("resolution_unavailable_incidents") or []:
+        receipt_evidence = list(
+            incident.get("correlated_reply_receipt_events") or []
+        )
+        if (
+            not receipt_evidence
+            and incident.get("target_id")
+            and incident.get("lane")
+        ):
+            receipt_evidence = [
+                {
+                    "lane": str(item.get("lane") or ""),
+                    "target_id": str(item.get("target_id") or ""),
+                    "source_time": str(item.get("time") or ""),
+                }
+                for item in confirmed_reply_receipts
+                if item.get("kind") == "sending"
+                and str(item.get("target_id") or "")
+                == str(incident.get("target_id") or "")
+                and _normalise_lane(item.get("lane"))
+                == _normalise_lane(incident.get("lane"))
+            ]
+        for receipt_event in receipt_evidence:
+            status_unavailable_reply_receipts.append(
+                {
+                    "lane": str(receipt_event.get("lane") or ""),
+                    "target_id": str(receipt_event.get("target_id") or ""),
+                    "source_time": str(receipt_event.get("source_time") or ""),
+                    "reason": incident.get("resolution_reason"),
+                }
+            )
+    active_snapshot_reply_receipts: List[Dict[str, Any]] = []
+    for component in (
+        (current_remote_write_safety or {}).get(
+            "active_transaction_identities", []
+        )
+        or []
+    ):
+        if "source_receipt" not in (component.get("artifact_kinds") or []):
+            continue
+        lanes = [
+            str(lane)
+            for lane in component.get("lanes") or []
+            if str(lane) != "conversational_reply"
+        ] or [str(lane) for lane in component.get("lanes") or []]
+        active_snapshot_reply_receipts.append(
+            {
+                "transaction_ids": component.get("transaction_ids") or [],
+                "target_ids": component.get("target_ids") or [],
+                "lane": lanes[0] if len(lanes) == 1 else ", ".join(lanes),
+                "artifact_names": component.get("artifact_names") or [],
+            }
+        )
 
     # Build a short automatic headline around current health, not raw traceback volume.
     headline = []
@@ -9468,6 +10445,9 @@ def analyse(
     )
     current_incidents = int(error_health["current_independent_incident_count"])
     resolved_incidents = int(error_health["historical_resolved_incident_count"])
+    unavailable_incidents = int(
+        error_health.get("resolution_unavailable_incident_count", 0)
+    )
     transient_provider_timeouts = int(
         error_health.get("transient_provider_timeout_count", 0)
     )
@@ -9479,8 +10459,18 @@ def analyse(
                 "unresolved operational incident",
             )
         )
+    elif unavailable_incidents:
+        headline.append("current health: no active incident established")
     else:
         headline.append("current health: no unresolved operational incidents")
+    if unavailable_incidents:
+        headline.append(
+            plural_count(
+                unavailable_incidents,
+                "incident with current status unavailable from retained evidence",
+                "incidents with current status unavailable from retained evidence",
+            )
+        )
     if transient_provider_timeouts:
         headline.append(
             f"{plural_count(transient_provider_timeouts, 'transient provider timeout')} "
@@ -10085,6 +11075,8 @@ def analyse(
             "durably_reconciled_ambiguity_receipts": (
                 durably_reconciled_reply_receipts
             ),
+            "status_unavailable_receipts": status_unavailable_reply_receipts,
+            "active_snapshot_receipts": active_snapshot_reply_receipts,
         },
         "historical_context_replies": {
             "events": [item for item in events if item.get("kind") == "historical_context_reply"],
@@ -10241,10 +11233,18 @@ def refresh_current_health_headline(report: Dict[str, Any]) -> None:
         )
         or 0
     )
+    unavailable_incidents = int(
+        (report.get("error_health") or {}).get(
+            "resolution_unavailable_incident_count", 0
+        )
+        or 0
+    )
     health_claim = (
         "current health: "
         + plural_count(current_incidents, "unresolved operational incident")
         if current_incidents
+        else "current health: no active incident established"
+        if unavailable_incidents
         else "current health: no unresolved operational incidents"
     )
     rebuilt_base = [
@@ -10856,8 +11856,21 @@ def render_markdown(report: Dict[str, Any]) -> str:
             active_entries = safety.get("active_entries") or []
             if active_entries:
                 out.append("Active blockers:")
-                out.append(md_table_row(["name", "kind", "safe regular", "mode", "size"]))
-                out.append(md_table_row(["---", "---", "---", "---", "---"]))
+                out.append(
+                    md_table_row(
+                        [
+                            "name",
+                            "kind",
+                            "safe regular",
+                            "mode",
+                            "size",
+                            "transaction/attempt",
+                            "lane",
+                            "target",
+                        ]
+                    )
+                )
+                out.append(md_table_row(["---"] * 8))
                 for item in active_entries:
                     out.append(
                         md_table_row(
@@ -10867,6 +11880,29 @@ def render_markdown(report: Dict[str, Any]) -> str:
                                 item.get("safe_regular", ""),
                                 item.get("mode", ""),
                                 item.get("size", ""),
+                                item.get("transaction_id", ""),
+                                item.get("lane", ""),
+                                item.get("target_id", ""),
+                            ]
+                        )
+                    )
+            active_identities = safety.get("active_transaction_identities") or []
+            if active_identities:
+                out.append("Active logical remote-write incidents:")
+                out.append(
+                    md_table_row(
+                        ["transaction/attempt", "lane", "target", "artefacts"]
+                    )
+                )
+                out.append(md_table_row(["---"] * 4))
+                for item in active_identities:
+                    out.append(
+                        md_table_row(
+                            [
+                                ", ".join(item.get("transaction_ids") or []),
+                                ", ".join(item.get("lanes") or []),
+                                ", ".join(item.get("target_ids") or []),
+                                ", ".join(item.get("artifact_names") or []),
                             ]
                         )
                     )
@@ -13522,6 +14558,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
     reconciled_ambiguity_receipts = (
         reply_recovery.get("durably_reconciled_ambiguity_receipts") or []
     )
+    unavailable_receipts = reply_recovery.get("status_unavailable_receipts") or []
+    active_snapshot_receipts = reply_recovery.get("active_snapshot_receipts") or []
     reconciled_ambiguity_event_counts = Counter(
         (
             _normalise_lane(item.get("lane")),
@@ -13534,7 +14572,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
         and item.get("target_id")
         and item.get("source_time")
     )
-    if reply_receipt_events or reply_recovery_warnings:
+    unavailable_receipt_event_counts = Counter(
+        (
+            _normalise_lane(item.get("lane")),
+            str(item.get("target_id") or ""),
+            str(item.get("source_time") or ""),
+        )
+        for item in unavailable_receipts
+        if isinstance(item, dict)
+        and item.get("lane")
+        and item.get("target_id")
+        and item.get("source_time")
+    )
+    if reply_receipt_events or reply_recovery_warnings or active_snapshot_receipts:
         pending_sending_receipts: Dict[
             Tuple[str, str], List[Dict[str, Any]]
         ] = {}
@@ -13543,6 +14593,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
             Tuple[Tuple[str, str, str], Dict[str, Any]]
         ] = []
         unmatched_reply_receipts: List[Dict[str, Any]] = []
+        unavailable_reply_receipt_rows: List[Dict[str, Any]] = []
         normal_reply_pairs = 0
         terminal_reply_removals_outside_window = 0
         definite_non_success_clears = 0
@@ -13647,6 +14698,21 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     reconciled_ambiguity_event_counts[event_identity] -= 1
                     reconciled_ambiguity_sending_receipts += 1
                     continue
+                if unavailable_receipt_event_counts[event_identity] > 0:
+                    unavailable_receipt_event_counts[event_identity] -= 1
+                    unavailable_reply_receipt_rows.append(
+                        {
+                            **source,
+                            "lane": lane,
+                            "target_id": target_id,
+                            "kind": "current_status_unavailable",
+                            "message": (
+                                "Present receipt status cannot be established "
+                                "from retained evidence"
+                            ),
+                        }
+                    )
+                    continue
                 unresolved_reply_receipts.append(
                     {
                         **source,
@@ -13711,6 +14777,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
         has_actual_recovery = bool(
             reply_recovery_warnings
             or unresolved_reply_receipts
+            or unavailable_reply_receipt_rows
+            or active_snapshot_receipts
             or confirmed_state_fallback_clears
         )
         out.append(
@@ -13718,6 +14786,25 @@ def render_markdown(report: Dict[str, Any]) -> str:
             if has_actual_recovery
             else "## Confirmed-reply receipt lifecycle"
         )
+        if active_snapshot_receipts:
+            out.append("Active confirmed-reply receipt identities in the current snapshot:")
+            out.append(
+                md_table_row(
+                    ["transaction/attempt", "lane", "target", "artefacts"]
+                )
+            )
+            out.append(md_table_row(["---"] * 4))
+            for item in active_snapshot_receipts:
+                out.append(
+                    md_table_row(
+                        [
+                            ", ".join(item.get("transaction_ids") or []),
+                            item.get("lane", ""),
+                            ", ".join(item.get("target_ids") or []),
+                            ", ".join(item.get("artifact_names") or []),
+                        ]
+                    )
+                )
         if reply_receipt_events:
             out.append(
                 f"Routine confirmed-reply receipt write/remove pairs completed: "
@@ -13759,6 +14846,29 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("reply_post_id", ""),
                     item.get("message", ""),
                 ]))
+            if unavailable_reply_receipt_rows:
+                out.append(
+                    "Confirmed-reply receipt starts whose current status cannot "
+                    "be established from retained evidence:"
+                )
+                out.append(
+                    md_table_row(
+                        ["time", "lane", "kind", "target_id", "message"]
+                    )
+                )
+                out.append(md_table_row(["---"] * 5))
+                for item in unavailable_reply_receipt_rows:
+                    out.append(
+                        md_table_row(
+                            [
+                                item.get("time", ""),
+                                item.get("lane", ""),
+                                item.get("kind", ""),
+                                item.get("target_id", ""),
+                                item.get("message", ""),
+                            ]
+                        )
+                    )
             out.append("")
         if reply_recovery_warnings:
             out.append("Confirmed replies with local recovery/persistence trouble:")
@@ -13913,6 +15023,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
     error_health = report.get("error_health") or {}
     current_incidents = error_health.get("current_incidents") or []
     historical_incidents = error_health.get("historical_resolved_incidents") or []
+    resolution_unavailable_incidents = (
+        error_health.get("resolution_unavailable_incidents") or []
+    )
     transient_observations = error_health.get("transient_provider_observations") or []
     out.append("## Transient provider observations")
     if not transient_observations:
@@ -13984,6 +15097,41 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 )
             )
     out.append("")
+
+    if resolution_unavailable_incidents:
+        out.append("## Incident status unavailable from retained evidence")
+        out.append(
+            "These historical observations are not asserted to be current or "
+            "resolved because neither retained terminal evidence nor an "
+            "authoritative current snapshot is available."
+        )
+        out.append(
+            md_table_row(
+                [
+                    "category",
+                    "first seen",
+                    "last seen",
+                    "error records",
+                    "locations",
+                    "status evidence",
+                ]
+            )
+        )
+        out.append(md_table_row(["---"] * 6))
+        for incident in resolution_unavailable_incidents:
+            out.append(
+                md_table_row(
+                    [
+                        str(incident.get("category") or "").replace("_", " "),
+                        incident.get("first_seen", ""),
+                        incident.get("last_seen", ""),
+                        incident.get("record_count", 0),
+                        ", ".join(incident.get("affected_locations") or []),
+                        incident.get("resolution_reason", ""),
+                    ]
+                )
+            )
+        out.append("")
 
     out.append("## Historical/resolved incident errors")
     if not historical_incidents:
