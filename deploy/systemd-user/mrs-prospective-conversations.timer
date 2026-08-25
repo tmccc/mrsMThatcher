@@ -1,0 +1,14 @@
+[Unit]
+Description=Run MrsMThatcher prospective conversation extraction hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+AccuracySec=1m
+Unit=mrs-prospective-conversations.service
+
+[Install]
+WantedBy=timers.target
+
+# User unit. Install as ~/.config/systemd/user/mrs-prospective-conversations.timer.

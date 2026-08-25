@@ -56,6 +56,12 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     shadow_timer = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.timer").read_text(encoding="utf-8")
     openai_cost = (SYSTEMD_DIR / "mrs-openai-cost-cache.service").read_text(encoding="utf-8")
     openai_timer = (SYSTEMD_DIR / "mrs-openai-cost-cache.timer").read_text(encoding="utf-8")
+    prospective = (SYSTEMD_DIR / "mrs-prospective-conversations.service").read_text(
+        encoding="utf-8"
+    )
+    prospective_timer = (SYSTEMD_DIR / "mrs-prospective-conversations.timer").read_text(
+        encoding="utf-8"
+    )
 
     assert "ExecStart=/disks/disk1/etc/mrsMThatcher/runMrsMThatcher2" in main
     assert "Restart=on-failure" in main
@@ -94,7 +100,47 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert "RandomizedDelaySec=60" in openai_timer
     assert "Unit=mrs-openai-cost-cache.service" in openai_timer
 
-    combined = main + analytics + timer + shadow_health + shadow_timer + openai_cost + openai_timer
+    expected_exec = (
+        "ExecStart=/usr/bin/python3 "
+        "/disks/disk1/etc/mrsMThatcher/tools/extract_prospective_conversations.py "
+        "scan --project-dir /disks/disk1/etc/mrsMThatcher "
+        "--output-root /disks/disk1/research/mrsMThatcher-prospective-conversations "
+        "--prospective-start 2026-08-24T15:08:39Z --quiescence-hours 48"
+    )
+    assert expected_exec in prospective
+    assert "ConditionPathExists=/disks/disk1/etc/mrsMThatcher/mrsMThatcher.log" in prospective
+    assert "EnvironmentFile=" not in prospective
+    assert "source " not in prospective
+    assert prospective.count("mrsMThatcher.env") == 1
+    assert "RestrictAddressFamilies=AF_UNIX" in prospective
+    assert "AF_INET" not in prospective
+    read_write_lines = [
+        line for line in prospective.splitlines() if line.startswith("ReadWritePaths=")
+    ]
+    assert read_write_lines == [
+        "ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations"
+    ]
+    assert "ProtectSystem=strict" in prospective
+    assert "UMask=0077" in prospective
+    assert "StandardOutput=journal" in prospective
+    assert "StandardError=journal" in prospective
+    assert "OnCalendar=hourly" in prospective_timer
+    assert "Persistent=true" in prospective_timer
+    assert "RandomizedDelaySec=5m" in prospective_timer
+    assert "AccuracySec=1m" in prospective_timer
+    assert "Unit=mrs-prospective-conversations.service" in prospective_timer
+
+    combined = (
+        main
+        + analytics
+        + timer
+        + shadow_health
+        + shadow_timer
+        + openai_cost
+        + openai_timer
+        + prospective
+        + prospective_timer
+    )
     assert not re.search(r"(?i)(api[_-]?key|access[_-]?token|client[_-]?secret)\s*=\s*\S+", combined)
 
 
@@ -111,6 +157,14 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     assert '"${OPENAI_COST_DIR}"' in installer
     assert 'SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"' in installer
     assert 'OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"' in installer
+    assert (
+        'PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-'
+        '/disks/disk1/research/mrsMThatcher-prospective-conversations}"'
+        in installer
+    )
+    assert '"${PROSPECTIVE_CONVERSATION_DIR}/state"' in installer
+    assert '"${PROSPECTIVE_CONVERSATION_DIR}/batches"' in installer
+    assert '"${PROSPECTIVE_CONVERSATION_DIR}/review-packs"' in installer
     assert "MRS_SEMANTIC_VETO_HEALTH_DIR" not in installer
     assert '"${ANALYTICS_PROGRAM}" status --project-dir "${RUNTIME_PROJECT_DIR}"' in installer
     assert "initialise --project-dir %q" in installer
@@ -130,6 +184,10 @@ def test_user_unit_installer_prepares_and_gates_scheduled_tasks() -> None:
     ):
         assert f"systemctl --user enable {unit}" in installer
     assert "systemctl --user enable --now mrs-openai-cost-cache.timer" in installer
+    assert "systemctl --user enable --now mrs-prospective-conversations.timer" in installer
+    assert "systemctl --user start mrs-prospective-conversations.service" in installer
+    assert "mrs-prospective-conversations.service" in installer
+    assert "mrs-prospective-conversations.timer" in installer
 
 
 @pytest.mark.parametrize(
@@ -177,6 +235,7 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
     for command in (fake_bin / "systemd-analyze", fake_bin / "systemctl"):
         command.chmod(0o755)
     calls = tmp_path / "systemctl.calls"
+    prospective_dir = tmp_path / "prospective-conversations"
     env = os.environ.copy()
     env.update(
         {
@@ -184,6 +243,7 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
             "EXPECTED_PROJECT": str(runtime_project),
             "HOME": str(tmp_path / "home"),
             "MRS_RUNTIME_PROJECT_DIR": str(runtime_project),
+            "MRS_PROSPECTIVE_CONVERSATION_DIR": str(prospective_dir),
             "MRS_TEST_MODE": "1",
             "PATH": f"{fake_bin}:{env.get('PATH', '')}",
             "SYSTEMCTL_CALLS": str(calls),
@@ -217,6 +277,8 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
         "mrs-engagement-analytics.timer",
         "mrs-openai-cost-cache.service",
         "mrs-openai-cost-cache.timer",
+        "mrs-prospective-conversations.service",
+        "mrs-prospective-conversations.timer",
         "mrs-semantic-veto-shadow-health.service",
         "mrs-semantic-veto-shadow-health.timer",
     ):
@@ -226,6 +288,16 @@ def test_user_unit_installer_reports_runtime_readiness_without_activating_units(
     assert (health_dir / "history").stat().st_mode & 0o777 == 0o700
     cost_dir = tmp_path / "home" / ".local" / "state" / "mrsMThatcher" / "openai-costs"
     assert cost_dir.stat().st_mode & 0o777 == 0o700
+    for directory in (
+        prospective_dir,
+        prospective_dir / "state",
+        prospective_dir / "batches",
+        prospective_dir / "review-packs",
+    ):
+        assert directory.stat().st_mode & 0o777 == 0o700
+    assert not (prospective_dir / "current").exists()
+    assert "enable --now mrs-prospective-conversations.timer" in result.stdout
+    assert "start mrs-prospective-conversations.service" in result.stdout
     assert "enable each desired unit separately" in result.stdout
     if analytics_status == "initialised":
         assert "analytics database is initialised" in result.stdout
@@ -259,6 +331,26 @@ def test_user_unit_installer_rejects_production_runtime_override(tmp_path: Path)
 
     assert result.returncode == 2
     assert "MRS_RUNTIME_PROJECT_DIR is test-only" in result.stderr
+
+
+def test_user_unit_installer_rejects_prospective_output_override_without_test_mode(
+    tmp_path: Path,
+) -> None:
+    env = os.environ.copy()
+    env.pop("MRS_TEST_MODE", None)
+    env["MRS_PROSPECTIVE_CONVERSATION_DIR"] = str(tmp_path / "output")
+
+    result = subprocess.run(
+        [str(SYSTEMD_DIR / "install.sh"), "--check"],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "MRS_PROSPECTIVE_CONVERSATION_DIR is test-only" in result.stderr
 
 
 def test_all_tracked_user_units_pass_systemd_verify() -> None:
