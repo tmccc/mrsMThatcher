@@ -82,6 +82,20 @@ REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES = (
     "confirmed_reply_receipt.json",
     "historical_context_reply_receipt.json",
 )
+REMOTE_WRITE_SOURCE_RECEIPT_ROLES = {
+    "regular_post_receipt.json": "regular_quote_image_main_post",
+    "meme_post_receipt.json": "daily_meme_main_post",
+    "confirmed_reply_receipt.json": "conversational_confirmed_reply",
+    "historical_context_reply_receipt.json": "historical_context_reply",
+}
+REMOTE_WRITE_RECEIPT_ROLE_LABELS = {
+    "regular_quote_image_main_post": "regular quote/image main-post receipt",
+    "daily_meme_main_post": "daily-meme main-post receipt",
+    "conversational_confirmed_reply": (
+        "conversational confirmed/sending reply receipt"
+    ),
+    "historical_context_reply": "historical-context reply receipt",
+}
 REMOTE_MEDIA_RECEIPT_BASENAME = "remote_media_upload_receipt.json"
 REMOTE_MEDIA_FENCE_BASENAME = "remote_media_upload_receipt.json.fence.json"
 REMOTE_TRANSPORT_JOURNAL_BASENAME = "remote_write_transport_journal.json"
@@ -114,6 +128,53 @@ REMOTE_WRITE_CONTROL_ALLOWED_KEYS = (
     | REMOTE_WRITE_CONTROL_TIME_KEYS
     | {"generation"}
 )
+REMOTE_OPERATION_SCOPE_LABELS = {
+    "all_remote_writes": "all remote writes",
+    "all_replies": "all replies",
+    "normal_replies": "normal replies (mention and hot-post)",
+    "hot_post_replies": "hot-post replies",
+    "quote_replies": "quote-tweet replies",
+    "quote_image_posts": "regular quote/image posts",
+    "daily_meme_posts": "daily-meme posts",
+    "historical_context_replies": "historical-context replies",
+    "unknown": "unknown",
+}
+REMOTE_CONTROL_SCOPE_BY_KEY = {
+    "disable_all": "all_remote_writes",
+    "pause_all": "all_remote_writes",
+    "disable_replies": "all_replies",
+    "pause_replies": "all_replies",
+    "disable_normal_replies": "normal_replies",
+    "pause_normal_replies": "normal_replies",
+    "disable_hot_post_replies": "hot_post_replies",
+    "pause_hot_post_replies": "hot_post_replies",
+    "disable_quote_replies": "quote_replies",
+    "pause_quote_replies": "quote_replies",
+    "disable_quote_posts": "quote_image_posts",
+    "pause_quote_posts": "quote_image_posts",
+    "disable_meme_posts": "daily_meme_posts",
+    "pause_meme_posts": "daily_meme_posts",
+}
+REMOTE_LANE_SCOPE = {
+    "mention": "normal_replies",
+    "mention_reply": "normal_replies",
+    "normal": "normal_replies",
+    "normal_reply": "normal_replies",
+    "normal_replies": "normal_replies",
+    "hot_post": "hot_post_replies",
+    "hot_post_reply": "hot_post_replies",
+    "quote_tweet": "quote_replies",
+    "quote_tweet_reply": "quote_replies",
+    "quote_reply": "quote_replies",
+    "conversational_reply": "all_replies",
+    "replies": "all_replies",
+    "quote_image": "quote_image_posts",
+    "regular_post": "quote_image_posts",
+    "daily_meme": "daily_meme_posts",
+    "meme": "daily_meme_posts",
+    "historical_context": "historical_context_replies",
+    "historical_context_reply": "historical_context_replies",
+}
 MAJORITY_REVIEW_FAMILIES = (
     "reply_necessity",
     "allegation_review",
@@ -739,50 +800,61 @@ def _group_active_remote_write_artifacts(
         if left_root != right_root:
             parents[right_root] = left_root
 
-    token_owner: Dict[str, int] = {}
-    for index, artifact in enumerate(artifacts):
-        tokens = []
-        for prefix, field in (
-            ("transaction", "transaction_id"),
-            ("sha256", "document_sha256"),
-            ("sha256", "source_receipt_sha256"),
-            ("name", "name"),
-            ("name", "source_receipt_name"),
-        ):
-            value = str(artifact.get(field) or "").strip()
-            if value:
-                tokens.append(f"{prefix}:{value}")
-        for token in tokens:
-            previous = token_owner.setdefault(token, index)
-            union(index, previous)
-
-    # A shared target is a useful fallback only when it does not contradict
-    # stronger transaction identities.  If two active components name
-    # different transactions for the same target, leave unbound artefacts
-    # separate instead of bridging those transactions through the target.
-    roots_by_target: Dict[str, set[int]] = {}
-    transactions_by_root: Dict[int, set[str]] = {}
-    for index, artifact in enumerate(artifacts):
-        component_root = root(index)
-        target_id = str(artifact.get("target_id") or "").strip()
-        transaction_id = str(artifact.get("transaction_id") or "").strip()
-        if target_id:
-            roots_by_target.setdefault(target_id, set()).add(component_root)
-        if transaction_id:
-            transactions_by_root.setdefault(component_root, set()).add(
-                transaction_id
-            )
-    for component_roots in roots_by_target.values():
-        explicit_transactions = {
-            transaction_id
-            for component_root in component_roots
-            for transaction_id in transactions_by_root.get(component_root, set())
+    def component_values(index: int, *fields: str) -> set[str]:
+        component = root(index)
+        return {
+            str(item.get(field) or "").strip()
+            for item_index, item in enumerate(artifacts)
+            if root(item_index) == component
+            for field in fields
+            if str(item.get(field) or "").strip()
         }
-        if len(explicit_transactions) > 1:
+
+    def compatible(left: int, right: int) -> bool:
+        return bool(
+            len(component_values(left, "transaction_id") | component_values(right, "transaction_id")) <= 1
+            and len(component_values(left, "target_id") | component_values(right, "target_id")) <= 1
+        )
+
+    def union_matching(fields: Tuple[str, ...]) -> None:
+        for left in range(len(artifacts)):
+            for right in range(left):
+                if (
+                    component_values(left, *fields)
+                    & component_values(right, *fields)
+                    and compatible(left, right)
+                ):
+                    union(left, right)
+
+    # Transaction IDs are authoritative.  Exact document/source-receipt
+    # hashes are the next strongest binding; filenames are deliberately not
+    # identity because every transaction reuses the same small namespace.
+    union_matching(("transaction_id",))
+    union_matching(("document_sha256", "source_receipt_sha256"))
+
+    # Lane plus target is the final fallback.  A marker may omit its lane, so
+    # permit that member only where the target has one compatible lane family
+    # and no competing transaction ID.
+    roots_by_target: Dict[str, set[int]] = {}
+    for index, artifact in enumerate(artifacts):
+        target_id = str(artifact.get("target_id") or "").strip()
+        if target_id:
+            roots_by_target.setdefault(target_id, set()).add(root(index))
+    for target_roots in roots_by_target.values():
+        transaction_ids = set().union(
+            *(component_values(index, "transaction_id") for index in target_roots)
+        )
+        lanes = set().union(
+            *(component_values(index, "lane") for index in target_roots)
+        )
+        specific_lanes = lanes - {"conversational_reply"}
+        if len(transaction_ids) > 1 or len(specific_lanes) > 1 or not lanes:
             continue
-        first_root = min(component_roots)
-        for component_root in component_roots:
-            union(first_root, component_root)
+        ordered_roots = sorted(target_roots)
+        first_root = ordered_roots[0]
+        for component_root in ordered_roots[1:]:
+            if compatible(first_root, component_root):
+                union(first_root, component_root)
 
     components: Dict[int, List[Dict[str, Any]]] = {}
     for index, artifact in enumerate(artifacts):
@@ -802,6 +874,16 @@ def _group_active_remote_write_artifacts(
             for item in rows
             if type(item.get("recorded_at_epoch")) is int
         ]
+        receipt_roles = sorted({str(item.get("receipt_role")) for item in rows if item.get("receipt_role")})
+        invalid_artifact_names = sorted(
+            {
+                str(item.get("name"))
+                for item in rows
+                if item.get("safe_regular") is False
+                or item.get("identity_error")
+                or item.get("artifact_error")
+            }
+        )
         grouped.append(
             {
                 "transaction_ids": transaction_ids,
@@ -813,6 +895,13 @@ def _group_active_remote_write_artifacts(
                 "artifact_kinds": sorted(
                     {str(item.get("kind")) for item in rows if item.get("kind")}
                 ),
+                "receipt_roles": receipt_roles,
+                "receipt_role_labels": [
+                    REMOTE_WRITE_RECEIPT_ROLE_LABELS.get(role, role)
+                    for role in receipt_roles
+                ],
+                "transaction_states": sorted({str(item.get("transaction_state")) for item in rows if item.get("transaction_state")}),
+                "invalid_artifact_names": invalid_artifact_names,
                 "recorded_at_epoch": min(recorded_epochs) if recorded_epochs else None,
                 "identity_available": bool(transaction_ids or target_ids),
             }
@@ -832,6 +921,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
     """Inspect every current v2 remote-write barrier without mutating state."""
 
     project_dir = Path(project_dir)
+    observed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     control = runtime_control_snapshot(project_dir)
     archive = reconciliation_archive_snapshot(project_dir)
     configured_names = [
@@ -861,6 +951,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         return {
             "configured": False,
             "available": False,
+            "observed_at": observed_at,
             "status": "not_configured",
             "blocking": False,
             "control": control,
@@ -869,7 +960,12 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
 
     active_entries: List[Dict[str, Any]] = []
 
-    def observe_name(name: str, kind: str) -> None:
+    def observe_name(
+        name: str,
+        kind: str,
+        *,
+        receipt_role: Optional[str] = None,
+    ) -> None:
         path = project_dir / name
         try:
             metadata = os.lstat(path)
@@ -880,6 +976,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
                 {
                     "name": name,
                     "kind": kind,
+                    "receipt_role": receipt_role,
                     "safe_regular": False,
                     "reason": f"{type(exc).__name__}: {exc}",
                 }
@@ -888,6 +985,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         entry = {
             "name": name,
             "kind": kind,
+            "receipt_role": receipt_role,
             "safe_regular": stat.S_ISREG(metadata.st_mode),
             "mode": oct(stat.S_IMODE(metadata.st_mode)),
             "size": int(metadata.st_size),
@@ -908,7 +1006,11 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
     for name in REMOTE_WRITE_MARKER_BASENAMES:
         observe_name(name, "ambiguity_marker")
     for name in REMOTE_WRITE_SOURCE_RECEIPT_BASENAMES:
-        observe_name(name, "source_receipt")
+        observe_name(
+            name,
+            "source_receipt",
+            receipt_role=REMOTE_WRITE_SOURCE_RECEIPT_ROLES[name],
+        )
 
     protocol: Dict[str, Any]
     try:
@@ -1005,6 +1107,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
             transport_artifact = {
                 "name": transport_snapshot_name,
                 "kind": "transport_journal",
+                "transaction_state": transport_state.classification,
                 **transport_identity,
                 "document_sha256": transport["document_sha256"],
             }
@@ -1130,7 +1233,7 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
     return {
         "configured": True,
         "available": True,
-        "observed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "observed_at": observed_at,
         "status": status,
         "blocking": blocking,
         "ready_for_remote_writes": not blocking and not global_pause and not control_invalid,
@@ -1152,6 +1255,73 @@ def remote_write_safety_snapshot(project_dir: Path) -> Dict[str, Any]:
         ),
         "media_reconciliation_proven": media_reconciliation_proven,
     }
+
+
+def annotate_remote_write_snapshot_window(
+    safety: Dict[str, Any],
+    selected_window_end: Optional[datetime],
+) -> None:
+    """Describe, without backdating, how current artefacts relate to a log window."""
+
+    safety["selected_window_end"] = (
+        selected_window_end.strftime("%Y-%m-%d %H:%M:%S")
+        if selected_window_end is not None
+        else None
+    )
+    try:
+        snapshot_observed_at = datetime.strptime(
+            str(safety.get("observed_at") or ""),
+            "%Y-%m-%d %H:%M:%S",
+        )
+    except ValueError:
+        snapshot_observed_at = None
+
+    if selected_window_end is None or snapshot_observed_at is None:
+        snapshot_relationship = "unavailable"
+    elif snapshot_observed_at > selected_window_end:
+        snapshot_relationship = "snapshot_postdates_selected_window"
+    else:
+        snapshot_relationship = "snapshot_observed_within_selected_window"
+    safety["selected_window_relationship"] = snapshot_relationship
+
+    def annotate(item: Dict[str, Any]) -> None:
+        recorded_epoch = item.get("recorded_at_epoch")
+        recorded_at = (
+            datetime.fromtimestamp(recorded_epoch)
+            if type(recorded_epoch) is int
+            else None
+        )
+        if selected_window_end is None:
+            relationship = "unavailable"
+            reason = "selected report-window end is unavailable"
+        elif recorded_at is not None:
+            if recorded_at <= selected_window_end:
+                relationship = "recorded_at_or_before_selected_window_end"
+                reason = "reliable transaction time falls inside the selected window"
+            else:
+                relationship = "recorded_after_selected_window_end"
+                reason = "reliable transaction time post-dates the selected window"
+        elif (
+            snapshot_observed_at is not None
+            and snapshot_observed_at <= selected_window_end
+        ):
+            relationship = "snapshot_observed_at_or_before_selected_window_end"
+            reason = "the read-only snapshot itself was observed by the selected cut-off"
+        else:
+            relationship = "unavailable"
+            reason = (
+                "current artefact has no reliable transaction time and the "
+                "filesystem snapshot post-dates the selected window"
+            )
+        item["selected_window_relationship"] = relationship
+        item["selected_window_relationship_reason"] = reason
+
+    for entry in safety.get("active_entries") or []:
+        if isinstance(entry, dict):
+            annotate(entry)
+    for component in safety.get("active_transaction_identities") or []:
+        if isinstance(component, dict):
+            annotate(component)
 
 
 def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str, Any]:
@@ -3696,6 +3866,76 @@ def _event_time(value: Dict[str, Any]) -> Optional[datetime]:
         return None
 
 
+def _base_remote_control_key(value: Any) -> str:
+    """Return a recognised runtime-control key without its timed suffix."""
+
+    key = str(value or "").strip().lower()
+    if key.endswith("_until"):
+        key = key.removesuffix("_until")
+    return key if key in REMOTE_CONTROL_SCOPE_BY_KEY else ""
+
+
+def _remote_control_scope(value: Any) -> str:
+    """Map one exact control key to the operation scope it pauses."""
+
+    return REMOTE_CONTROL_SCOPE_BY_KEY.get(
+        _base_remote_control_key(value),
+        "unknown",
+    )
+
+
+def _remote_operation_scope_for_lane(value: Any) -> str:
+    """Map one runtime/log lane to its successful-operation scope."""
+
+    lane = str(value or "").strip().lower().replace("-", "_")
+    return REMOTE_LANE_SCOPE.get(lane, "unknown")
+
+
+def _explicit_remote_pause_scope(
+    message: Any,
+) -> Tuple[str, str, List[str]]:
+    """Extract an explicit control key or operation lane from one exception."""
+
+    lowered = str(message or "").lower()
+    key_matches = [
+        match.group(0).lower()
+        for match in re.finditer(
+            r"\b(?:disable|pause)_(?:all|replies|normal_replies|"
+            r"quote_replies|hot_post_replies|quote_posts|meme_posts)"
+            r"(?:_until)?\b",
+            lowered,
+        )
+    ]
+    if key_matches:
+        keys = sorted({_base_remote_control_key(key) for key in key_matches})
+        return _remote_control_scope(keys[0]), f"explicit control key {key_matches[0]}", keys
+    if "global runtime control pause" in lowered:
+        return "all_remote_writes", "explicit global runtime-control wording", []
+    lane_match = re.search(
+        r"\b(?:lane|source)\s*[=:]\s*([a-z][a-z0-9_-]*)",
+        lowered,
+    )
+    if lane_match is not None:
+        scope = _remote_operation_scope_for_lane(lane_match.group(1))
+        if scope != "unknown":
+            return scope, f"explicit lane {lane_match.group(1)} in the exception", []
+    for phrase, scope in {
+        "historical context": "historical_context_replies",
+        "historical-context": "historical_context_replies",
+        "quote/image": "quote_image_posts",
+        "quote image": "quote_image_posts",
+        "daily meme": "daily_meme_posts",
+        "quote-tweet reply": "quote_replies",
+        "quote tweet reply": "quote_replies",
+        "hot-post reply": "hot_post_replies",
+        "hot post reply": "hot_post_replies",
+        "mention reply": "normal_replies",
+    }.items():
+        if phrase in lowered:
+            return scope, f"explicit {phrase} wording in the exception", []
+    return "unknown", "", []
+
+
 def summarise_operational_error_health(
     errors: List[Dict[str, Any]],
     events: List[Dict[str, Any]],
@@ -3706,6 +3946,7 @@ def summarise_operational_error_health(
     confirmed_reply_receipt_events: Iterable[Dict[str, Any]] = (),
     current_remote_write_safety: Optional[Dict[str, Any]] = None,
     generation_time: Optional[datetime] = None,
+    selected_window_end: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Group traceback cascades and distinguish recovered from current incidents."""
     generated_at = generation_time or datetime.now()
@@ -4101,6 +4342,69 @@ def summarise_operational_error_health(
             for outcome in ambiguous_reply_outcomes
         )
 
+    def pause_scope_for_item(
+        item: Dict[str, Any],
+    ) -> Tuple[str, str, List[str]]:
+        """Use ordered, transaction-local evidence to scope one pause error."""
+
+        raw = str(item.get("_raw_message") or item.get("message") or "")
+        explicit = _explicit_remote_pause_scope(raw)
+        if explicit[0] != "unknown":
+            return explicit
+
+        item_time = _event_time(item)
+        if item_time is not None:
+            nearby = sorted(
+                (
+                    (abs((item_time - event_time).total_seconds()), event)
+                    for event in events
+                    if event.get("kind") == "runtime_control_pause"
+                    and (event_time := _event_time(event)) is not None
+                    and abs((item_time - event_time).total_seconds()) <= 60
+                ),
+                key=lambda pair: (pair[0], str(pair[1].get("time") or "")),
+            )
+        else:
+            nearby = []
+        for _distance, event in nearby:
+            key = _base_remote_control_key(event.get("key"))
+            if key:
+                return _remote_control_scope(key), "nearby structured runtime_control_pause event", [key]
+            raw_lanes = event.get("control_lanes") or event.get("lanes")
+            lanes = (
+                raw_lanes
+                if isinstance(raw_lanes, list)
+                else re.split(r"\s*,\s*", str(raw_lanes or ""))
+            )
+            event_scopes = set()
+            for lane in lanes:
+                scope = _remote_control_scope(lane)
+                event_scopes.add(
+                    _remote_operation_scope_for_lane(lane)
+                    if scope == "unknown"
+                    else scope
+                )
+            event_scopes.discard("unknown")
+            if len(event_scopes) == 1:
+                return event_scopes.pop(), "nearby structured runtime_control_pause lane", []
+
+        pending_lane = str(item.get("_pause_pending_lane") or "")
+        pending_scope = _remote_operation_scope_for_lane(pending_lane)
+        if pending_scope != "unknown":
+            return pending_scope, f"exact pending lane {pending_lane} associated with the exception", []
+
+        if item_time is not None:
+            attempt_scopes = {
+                _remote_operation_scope_for_lane(attempt.get("lane"))
+                for attempt in transport_attempts
+                if 0
+                <= (item_time - attempt["time"]).total_seconds()
+                <= 10
+            } - {"unknown"}
+            if len(attempt_scopes) == 1:
+                return attempt_scopes.pop(), "exact pending transport-request lane associated with the exception", []
+        return "unknown", "scope unavailable from retained evidence", []
+
     for item in operational:
         raw = str(item.get("_raw_message") or item.get("message") or "")
         pipeline_evidence = raw_pipeline_evidence.get(id(item))
@@ -4201,6 +4505,12 @@ def summarise_operational_error_health(
                 signature = f"{category}:{dt_text(item_time)}"
         elif evidence_identity is not None:
             signature = f"{evidence_identity[0]}:{evidence_identity[1]}"
+        elif category == "remote_operations_paused":
+            pause_scope, pause_evidence, pause_keys = pause_scope_for_item(item)
+            item["_pause_scope"] = pause_scope
+            item["_pause_scope_evidence"] = pause_evidence
+            item["_pause_control_keys"] = pause_keys
+            signature = f"{category}:{pause_scope}"
         else:
             signature = (
                 category
@@ -4231,14 +4541,11 @@ def summarise_operational_error_health(
         if ts is not None:
             receipt_removed_times.append(ts)
     successful_restart_times: List[datetime] = []
-    remote_pause_cleared_times: List[datetime] = []
     for item in lifecycle:
         message = str(item.get("message") or "")
         ts = _event_time(item)
         if ts is not None and "Bot started successfully" in message:
             successful_restart_times.append(ts)
-        if ts is not None and "runtime control pause cleared" in message.lower():
-            remote_pause_cleared_times.append(ts)
 
     remote_write_success_times = sorted(
         ts
@@ -4252,6 +4559,30 @@ def summarise_operational_error_health(
         )
         for ts in event_times.get(kind, [])
     )
+    remote_operation_successes: List[Dict[str, Any]] = []
+    success_scopes = {
+        "daily_meme_posted": {"daily_meme_posts", "all_remote_writes"},
+        "quote_image_posted": {"quote_image_posts", "all_remote_writes"},
+        "mention_reply_posted": {"normal_replies", "all_replies", "all_remote_writes"},
+        "hot_post_reply_posted": {"hot_post_replies", "normal_replies", "all_replies", "all_remote_writes"},
+        "quote_tweet_reply_posted": {"quote_replies", "all_replies", "all_remote_writes"},
+        # This generic transport confirmation has no lane identity.  It can
+        # prove only that a process-wide pause cleared, never a lane pause.
+        "remote_write_succeeded": {"all_remote_writes"},
+    }
+    for event in events:
+        event_time = _event_time(event)
+        kind = str(event.get("kind") or "")
+        scopes = success_scopes.get(kind)
+        if (
+            kind == "historical_context_reply"
+            and event.get("status") in {"completed", "already_completed"}
+        ):
+            scopes = {"historical_context_replies", "all_replies", "all_remote_writes"}
+        if event_time is not None and scopes:
+            remote_operation_successes.append(
+                {"time": event_time, "kind": kind, "scopes": scopes}
+            )
     terminal_reply_receipts: List[Dict[str, Any]] = []
     for item in confirmed_reply_receipt_events:
         if item.get("kind") not in {
@@ -4265,6 +4596,8 @@ def summarise_operational_error_health(
             terminal_reply_receipts.append({**item, "_time": ts})
 
     safety = current_remote_write_safety or {}
+    if current_remote_write_safety is not None:
+        annotate_remote_write_snapshot_window(safety, selected_window_end)
     active_remote_components = (
         safety.get("active_transaction_identities")
         if isinstance(safety.get("active_transaction_identities"), list)
@@ -4297,9 +4630,32 @@ def summarise_operational_error_health(
             target_id and target_id in (component.get("target_ids") or [])
         )
 
-    def active_component_matches(identity: Dict[str, Any]) -> bool:
+    def component_is_related_to_selected_window(
+        component: Dict[str, Any],
+    ) -> bool:
+        return component.get("selected_window_relationship") in {
+            "recorded_at_or_before_selected_window_end",
+            "snapshot_observed_at_or_before_selected_window_end",
+        }
+
+    def component_is_relevant_to_category(
+        component: Dict[str, Any],
+        category: str,
+    ) -> bool:
+        if category != "conversational_reply_receipt_barrier":
+            return True
+        return "conversational_confirmed_reply" in (
+            component.get("receipt_roles") or []
+        )
+
+    def active_component_matches(
+        category: str,
+        identity: Dict[str, Any],
+    ) -> bool:
         return any(
-            component_matches_identity(component, identity)
+            component_is_related_to_selected_window(component)
+            and component_is_relevant_to_category(component, category)
+            and component_matches_identity(component, identity)
             for component in active_remote_components
         )
 
@@ -4311,11 +4667,16 @@ def summarise_operational_error_health(
     ) -> Tuple[str, str, Optional[datetime]]:
         """Reconcile one identified receipt/ambiguity transaction conservatively."""
 
-        if identity_snapshot_available and active_component_matches(identity):
+        if identity_snapshot_available and active_component_matches(
+            category,
+            identity,
+        ):
             return "current_unresolved", "", None
         unidentified_active = any(
             component.get("identity_available") is not True
             for component in active_remote_components
+            if component_is_related_to_selected_window(component)
+            and component_is_relevant_to_category(component, category)
         )
         if identity_snapshot_available and unidentified_active:
             return (
@@ -4494,6 +4855,71 @@ def summarise_operational_error_health(
         recovery_time, reason = min(candidates, key=lambda item: (item[0], item[1]))
         return True, reason, recovery_time
 
+    def remote_pause_recovery_status(
+        scope: str,
+        control_keys: List[str],
+        last_time: datetime,
+    ) -> Tuple[str, str, Optional[datetime]]:
+        """Require both scope-matched control clearance and later success."""
+
+        if scope == "unknown":
+            return (
+                "resolution_unavailable",
+                "affected pause scope is unavailable from retained evidence; unrelated remote-write success cannot establish recovery",
+                None,
+            )
+
+        normalised_keys = {key for value in control_keys if (key := _base_remote_control_key(value))}
+        control = safety.get("control") or {}
+        current_control_clear = bool(
+            safety.get("available") is True
+            and control.get("valid") is True
+            and not any(
+                _remote_control_scope(value)
+                in (
+                    {scope}
+                    if normalised_keys
+                    else {
+                        "all_remote_writes": {"all_remote_writes"},
+                        "all_replies": {"all_remote_writes", "all_replies"},
+                        "normal_replies": {"all_remote_writes", "all_replies", "normal_replies"},
+                        "hot_post_replies": {"all_remote_writes", "all_replies", "normal_replies", "hot_post_replies"},
+                        "quote_replies": {"all_remote_writes", "all_replies", "quote_replies"},
+                        "quote_image_posts": {"all_remote_writes", "quote_image_posts"},
+                        "daily_meme_posts": {"all_remote_writes", "daily_meme_posts"},
+                        "historical_context_replies": {"all_remote_writes", "all_replies", "historical_context_replies"},
+                    }.get(scope, set())
+                )
+                for value in control.get("active_keys") or []
+            )
+        )
+
+        explicit_clears = []
+        for item in [*events, *lifecycle]:
+            clear_time = _event_time(item)
+            message = str(item.get("message") or "")
+            if item.get("kind") == "runtime_control_clear":
+                clear_scope = _remote_control_scope(item.get("key"))
+            elif "runtime control pause cleared" in message.lower():
+                clear_scope = _explicit_remote_pause_scope(message)[0]
+            else:
+                continue
+            if clear_time is not None and clear_time > last_time and clear_scope == scope:
+                explicit_clears.append(clear_time)
+
+        for recovery in sorted(remote_operation_successes, key=lambda item: (item["time"], item["kind"])):
+            if recovery["time"] <= last_time or scope not in recovery["scopes"]:
+                continue
+            if current_control_clear or any(clear <= recovery["time"] for clear in explicit_clears):
+                return (
+                    "historical_resolved",
+                    "the affected control scope cleared and later successful "
+                    + str(recovery["kind"]).replace("_", " ")
+                    + " occurred in the same scope",
+                    recovery["time"],
+                )
+        return "current_unresolved", "", None
+
     def recovered_after(category: str, last_time: datetime) -> Tuple[bool, str, Optional[datetime]]:
         candidates: List[Tuple[datetime, str]] = []
         recovery_kinds: Tuple[str, ...] = ()
@@ -4543,33 +4969,6 @@ def summarise_operational_error_health(
                 "quote_lane_activity_succeeded",
                 "quote_pagination_repeated_token",
             )
-        elif category == "remote_operations_paused":
-            later_restarts = [ts for ts in successful_restart_times if ts > last_time]
-            later_clears = [ts for ts in remote_pause_cleared_times if ts > last_time]
-            recovery_gates = [*later_restarts, *later_clears]
-            later_remote_writes = [
-                ts
-                for ts in remote_write_success_times
-                if ts > last_time
-                and (not recovery_gates or any(gate <= ts for gate in recovery_gates))
-            ]
-            control = safety.get("control") or {}
-            current_control_clear = bool(
-                safety.get("available") is True
-                and control.get("valid") is True
-                and control.get("global_pause_active") is False
-            )
-            explicit_log_recovery = bool(later_clears and later_remote_writes)
-            if (
-                later_remote_writes
-                and recovery_gates
-                and (current_control_clear or explicit_log_recovery)
-            ):
-                return (
-                    True,
-                    "later startup/control recovery and successful remote-write activity prove the pause cleared",
-                    min(later_remote_writes),
-                )
         elif category == "process_crash":
             candidates.extend(
                 (ts, "later successful bot startup observed")
@@ -4692,6 +5091,29 @@ def summarise_operational_error_health(
             )
             if values:
                 remote_identity[field] = values[0]
+        pause_scopes = {
+            str(item.get("_pause_scope") or "unknown") for item in ordered
+        }
+        pause_scope = (
+            next(iter(pause_scopes))
+            if len(pause_scopes) == 1
+            else "unknown"
+        )
+        pause_scope_evidence = sorted(
+            {
+                str(item.get("_pause_scope_evidence") or "")
+                for item in ordered
+                if item.get("_pause_scope_evidence")
+            }
+        )
+        pause_control_keys = sorted(
+            {
+                str(key)
+                for item in ordered
+                for key in item.get("_pause_control_keys") or []
+                if key
+            }
+        )
         transient_observation = category in {
             "x_api_transient_failure",
             "xai_provider_timeout",
@@ -4740,6 +5162,15 @@ def summarise_operational_error_health(
         elif transient_observation:
             resolved, resolution_reason, resolution_time = False, "", None
             status = "transient_observation_recovery_unverified"
+        elif category == "remote_operations_paused":
+            status, resolution_reason, resolution_time = (
+                remote_pause_recovery_status(
+                    pause_scope,
+                    pause_control_keys,
+                    last_time,
+                )
+            )
+            resolved = status == "historical_resolved"
         elif category in {
             "remote_write_ambiguity_barrier",
             "conversational_reply_receipt_barrier",
@@ -4796,6 +5227,11 @@ def summarise_operational_error_health(
                 if category == "remote_write_ambiguity_barrier"
                 else "Conversational reply receipt: "
             ) + ", ".join(identity_parts)
+        elif category == "remote_operations_paused":
+            representative = (
+                "Remote operations paused for "
+                + REMOTE_OPERATION_SCOPE_LABELS.get(pause_scope, pause_scope)
+            )
         elif pipeline_identity is not None:
             reasons = Counter(
                 str(event.get("reason") or "unknown_pipeline_failure")
@@ -4888,6 +5324,14 @@ def summarise_operational_error_health(
             incident["correlated_reply_receipt_events"] = (
                 subordinate_reply_events
             )
+        if category == "remote_operations_paused":
+            incident["pause_scope"] = pause_scope
+            incident["pause_scope_label"] = REMOTE_OPERATION_SCOPE_LABELS.get(
+                pause_scope,
+                pause_scope,
+            )
+            incident["pause_scope_evidence"] = pause_scope_evidence
+            incident["pause_control_keys"] = pause_control_keys
         if remote_identity:
             incident.update(
                 {
@@ -4925,51 +5369,55 @@ def summarise_operational_error_health(
             )
         incidents.append(incident)
 
-    selected_end_candidates = [
-        ts
-        for collection in (
-            serious,
-            events,
-            list(lifecycle),
-            list(confirmed_reply_receipt_events),
-        )
-        for item in collection
-        if (ts := _event_time(item)) is not None
-    ]
-    selected_evidence_end = max(selected_end_candidates, default=None)
     if identity_snapshot_available:
         for component in active_remote_components:
+            if not component_is_related_to_selected_window(component):
+                # The component remains visible in the current safety
+                # snapshot, but cannot be projected into an earlier cut-off.
+                continue
             recorded_epoch = component.get("recorded_at_epoch")
             recorded_time = (
                 datetime.fromtimestamp(recorded_epoch)
                 if type(recorded_epoch) is int
                 else None
             )
-            if (
-                selected_evidence_end is not None
-                and recorded_time is not None
-                and recorded_time > selected_evidence_end
-            ):
-                # The authoritative snapshot post-dates this historical focus
-                # window; display it under safety without rewriting that window.
-                continue
             transaction_ids = component.get("transaction_ids") or []
             target_ids = component.get("target_ids") or []
             already_represented = any(
-                incident.get("status") == "current_unresolved"
-                and component_matches_identity(component, incident)
+                component_matches_identity(component, incident)
                 for incident in incidents
             )
             if already_represented:
                 continue
             artifact_kinds = set(component.get("artifact_kinds") or [])
-            category = (
-                "remote_write_ambiguity_barrier"
-                if "ambiguity_marker" in artifact_kinds
-                else "conversational_reply_receipt_barrier"
-                if "source_receipt" in artifact_kinds
-                else "remote_write_transaction_barrier"
-            )
+            receipt_roles = set(component.get("receipt_roles") or [])
+            transaction_states = set(component.get("transaction_states") or [])
+            invalid_artifacts = component.get("invalid_artifact_names") or []
+            if "ambiguity_marker" in artifact_kinds:
+                category = "remote_write_ambiguity_barrier"
+            elif (
+                invalid_artifacts
+                and "conversational_confirmed_reply" in receipt_roles
+            ):
+                category = "conversational_reply_receipt_barrier"
+            elif (
+                invalid_artifacts
+                or "receipt_retirement_auxiliary" in artifact_kinds
+                or transaction_states
+                & {
+                    "invalid",
+                    "incomplete_pair",
+                    "directory_unavailable",
+                }
+            ):
+                category = "remote_write_transaction_barrier"
+            else:
+                # A valid source receipt and an ordinary in-progress transport
+                # journal remain fail-closed safety state, not an independent
+                # operational error solely because they exist in this snapshot.
+                continue
+            if component.get("identity_available") is not True:
+                continue
             transaction_text = ", ".join(transaction_ids) or "unavailable"
             target_text = ", ".join(target_ids) or "unavailable"
             lane_text = ", ".join(component.get("lanes") or []) or "unavailable"
@@ -4977,7 +5425,9 @@ def summarise_operational_error_health(
             if observed_time is None:
                 observed_time = _event_time(
                     {"time": str(safety.get("observed_at") or "")}
-                ) or generated_at
+                )
+            if observed_time is None:
+                continue
             incidents.append(
                 {
                     "category": category,
@@ -5005,11 +5455,19 @@ def summarise_operational_error_health(
                     "transaction_id": transaction_ids[0] if len(transaction_ids) == 1 else "",
                     "target_id": target_ids[0] if len(target_ids) == 1 else "",
                     "lane": (component.get("lanes") or [""])[0],
+                    "receipt_roles": sorted(receipt_roles),
+                    "receipt_role_labels": component.get(
+                        "receipt_role_labels"
+                    )
+                    or [],
                     "active_artifact_names": component.get("artifact_names") or [],
                     "active_artifact_count": len(
                         component.get("artifact_names") or []
                     ),
                     "snapshot_only": True,
+                    "selected_window_relationship": component.get(
+                        "selected_window_relationship"
+                    ),
                 }
             )
     incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
@@ -5046,6 +5504,10 @@ def summarise_operational_error_health(
         "historical_resolved_incidents": resolved,
         "resolution_unavailable_incidents": resolution_unavailable,
         "transient_provider_observations": transient_provider_observations,
+        "selected_window_end": (
+            dt_text(selected_window_end) if selected_window_end else None
+        ),
+        "safety_snapshot_observed_at": safety.get("observed_at"),
     }
 
 
@@ -8038,8 +8500,14 @@ def analyse(
     initial_pending_qt: Optional[Dict[str, Any]] = None,
     current_remote_write_safety: Optional[Dict[str, Any]] = None,
     generation_time: Optional[datetime] = None,
+    selected_window_end: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Aggregate parsed production records into digest metrics."""
+    if selected_window_end is None:
+        selected_window_end = max(
+            (record.ts for record in records),
+            default=None,
+        )
     stats = Counter()
     events: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
@@ -8332,8 +8800,7 @@ def analyse(
             msg == "Bot starting"
             or msg == "Bot started successfully"
             or "Bot stopped by KeyboardInterrupt" in msg
-            or "Global runtime control pause cleared; resuming scheduled lanes"
-            in msg
+            or "runtime control pause cleared" in msg.lower()
         ):
             lifecycle.append({"time": r.ts.strftime("%Y-%m-%d %H:%M:%S"), "level": r.level, "message": msg.splitlines()[0]})
 
@@ -8484,14 +8951,35 @@ def analyse(
             # "marking skipped without consuming quota" are expected handling.
             pass
         elif r.level in {"ERROR", "CRITICAL"} or (r.level == "WARNING" and "Bot stopped by KeyboardInterrupt" not in msg):
-            errors.append({
+            error_item = {
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "level": r.level,
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
                 "_raw_message": msg,
                 "_fingerprint": record_fingerprint(r),
-            })
+            }
+            if classify_operational_error(msg) == "remote_operations_paused":
+                source = str(r.src or "").lower()
+                pending_lane = ""
+                if "historical_context" in source:
+                    pending_lane = "historical_context_reply"
+                elif "quote_tweet" in source and pending_qt:
+                    pending_lane = "quote_tweet"
+                elif (
+                    any(token in source for token in ("mention", "normal", "reply"))
+                    and pending_mention
+                ):
+                    pending_lane = str(
+                        pending_mention.get("source") or "mention"
+                    )
+                elif "meme" in source and pending_meme:
+                    pending_lane = "daily_meme"
+                elif "quote" in source and pending_quote:
+                    pending_lane = "quote_image"
+                if pending_lane:
+                    error_item["_pause_pending_lane"] = pending_lane
+            errors.append(error_item)
 
         if r.src == "ask_grok_for_reply" and msg.startswith("Asking Grok for reply."):
             active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
@@ -8682,9 +9170,26 @@ def analyse(
                     lanes=", ".join(str(item) for item in lanes)
                     if isinstance(lanes, list)
                     else "",
+                    control_lanes=[str(item) for item in lanes]
+                    if isinstance(lanes, list)
+                    else [],
                     until_epoch=event_obj.get("until_epoch"),
                 )
                 stats["runtime_control_pause"] += 1
+            elif event_obj and event_obj.get("event") == "runtime_control_clear":
+                lanes = event_obj.get("lanes")
+                add_event(
+                    "runtime_control_clear",
+                    r.ts,
+                    key=event_obj.get("key") or "unavailable",
+                    lanes=", ".join(str(item) for item in lanes)
+                    if isinstance(lanes, list)
+                    else "",
+                    control_lanes=[str(item) for item in lanes]
+                    if isinstance(lanes, list)
+                    else [],
+                )
+                stats["runtime_control_clear"] += 1
             elif event_obj and event_obj.get("event") == "clarification_reply_cap_override":
                 add_event(
                     "clarification_reply_cap_override",
@@ -10336,6 +10841,7 @@ def analyse(
         confirmed_reply_receipt_events=confirmed_reply_receipts,
         current_remote_write_safety=current_remote_write_safety,
         generation_time=generation_time,
+        selected_window_end=selected_window_end,
     )
     durably_reconciled_reply_receipts: List[Dict[str, Any]] = []
     for incident in error_health.get("historical_resolved_incidents") or []:
@@ -10404,7 +10910,9 @@ def analyse(
         )
         or []
     ):
-        if "source_receipt" not in (component.get("artifact_kinds") or []):
+        if "conversational_confirmed_reply" not in (
+            component.get("receipt_roles") or []
+        ):
             continue
         lanes = [
             str(lane)
@@ -10417,6 +10925,13 @@ def analyse(
                 "target_ids": component.get("target_ids") or [],
                 "lane": lanes[0] if len(lanes) == 1 else ", ".join(lanes),
                 "artifact_names": component.get("artifact_names") or [],
+                "receipt_role": "conversational_confirmed_reply",
+                "receipt_role_label": REMOTE_WRITE_RECEIPT_ROLE_LABELS[
+                    "conversational_confirmed_reply"
+                ],
+                "selected_window_relationship": component.get(
+                    "selected_window_relationship"
+                ),
             }
         )
 
@@ -11095,6 +11610,7 @@ def analyse(
                     "historical_context_runtime",
                     "reply_evidence_unavailable",
                     "runtime_control_pause",
+                    "runtime_control_clear",
                     "clarification_reply_cap_override",
                     "clarification_reply_used",
                     "repair_reply_completed",
@@ -11815,6 +12331,18 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     else "; no active transaction safety barrier is present."
                 )
             )
+            out.append(
+                "Snapshot observed at `"
+                + str(safety.get("observed_at") or "unavailable")
+                + "`; selected report-window end `"
+                + str(safety.get("selected_window_end") or "unavailable")
+                + "` (relationship: **"
+                + str(
+                    safety.get("selected_window_relationship")
+                    or "unavailable"
+                ).replace("_", " ")
+                + "**)."
+            )
             protocol = safety.get("protocol") or {}
             control = safety.get("control") or {}
             transport = safety.get("transport") or {}
@@ -11861,40 +12389,57 @@ def render_markdown(report: Dict[str, Any]) -> str:
                         [
                             "name",
                             "kind",
+                            "receipt role",
                             "safe regular",
                             "mode",
                             "size",
                             "transaction/attempt",
                             "lane",
                             "target",
+                            "selected-window relationship",
                         ]
                     )
                 )
-                out.append(md_table_row(["---"] * 8))
+                out.append(md_table_row(["---"] * 10))
                 for item in active_entries:
                     out.append(
                         md_table_row(
                             [
                                 item.get("name", ""),
                                 item.get("kind", ""),
+                                REMOTE_WRITE_RECEIPT_ROLE_LABELS.get(
+                                    str(item.get("receipt_role") or ""),
+                                    item.get("receipt_role", ""),
+                                ),
                                 item.get("safe_regular", ""),
                                 item.get("mode", ""),
                                 item.get("size", ""),
                                 item.get("transaction_id", ""),
                                 item.get("lane", ""),
                                 item.get("target_id", ""),
+                                str(
+                                    item.get("selected_window_relationship")
+                                    or "unavailable"
+                                ).replace("_", " "),
                             ]
                         )
                     )
             active_identities = safety.get("active_transaction_identities") or []
             if active_identities:
-                out.append("Active logical remote-write incidents:")
+                out.append("Active logical remote-write safety components:")
                 out.append(
                     md_table_row(
-                        ["transaction/attempt", "lane", "target", "artefacts"]
+                        [
+                            "transaction/attempt",
+                            "lane",
+                            "target",
+                            "receipt roles",
+                            "selected-window relationship",
+                            "artefacts",
+                        ]
                     )
                 )
-                out.append(md_table_row(["---"] * 4))
+                out.append(md_table_row(["---"] * 6))
                 for item in active_identities:
                     out.append(
                         md_table_row(
@@ -11902,6 +12447,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
                                 ", ".join(item.get("transaction_ids") or []),
                                 ", ".join(item.get("lanes") or []),
                                 ", ".join(item.get("target_ids") or []),
+                                ", ".join(
+                                    item.get("receipt_role_labels") or []
+                                ),
+                                str(
+                                    item.get("selected_window_relationship")
+                                    or "unavailable"
+                                ).replace("_", " "),
                                 ", ".join(item.get("artifact_names") or []),
                             ]
                         )
@@ -14790,15 +15342,22 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("Active confirmed-reply receipt identities in the current snapshot:")
             out.append(
                 md_table_row(
-                    ["transaction/attempt", "lane", "target", "artefacts"]
+                    [
+                        "transaction/attempt",
+                        "receipt role",
+                        "lane",
+                        "target",
+                        "artefacts",
+                    ]
                 )
             )
-            out.append(md_table_row(["---"] * 4))
+            out.append(md_table_row(["---"] * 5))
             for item in active_snapshot_receipts:
                 out.append(
                     md_table_row(
                         [
                             ", ".join(item.get("transaction_ids") or []),
+                            item.get("receipt_role_label", ""),
                             item.get("lane", ""),
                             ", ".join(item.get("target_ids") or []),
                             ", ".join(item.get("artifact_names") or []),
@@ -15489,10 +16048,15 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         current_remote_write_safety = {
             "configured": True,
             "available": False,
+            "observed_at": dt_text(generation_time),
             "status": "inspection_failed",
             "blocking": None,
             "reason": f"{type(exc).__name__}: {exc}",
         }
+    report_window_end = until or max(
+        (record.ts for record in records),
+        default=None,
+    )
     report = analyse(
         records,
         max_text=args.max_text,
@@ -15502,11 +16066,11 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         initial_pending_qt=initial_pending_qt,
         current_remote_write_safety=current_remote_write_safety,
         generation_time=generation_time,
+        selected_window_end=report_window_end,
     )
     report["generation_time"] = dt_text(generation_time)
     report["generation_epoch"] = int(generation_time.timestamp())
     report["remote_write_safety"] = current_remote_write_safety
-    report_window_end = until or (max((record.ts for record in records), default=None))
 
     report["log_files"] = [str(p) for p in logs]
     report["input_files"] = input_files
