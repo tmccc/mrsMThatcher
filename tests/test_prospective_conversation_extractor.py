@@ -133,12 +133,12 @@ def legacy_account_pair(
     context_id: str,
     *,
     local_prefix: str = "2026-08-25 00:08",
+    quote_id: str = "e" * 64,
 ) -> str:
     """Literal, identity-redacted form of the audited retained sequence."""
     attempt_id = "b" * 64
     root_transaction = "c" * 64
     context_transaction = "d" * 64
-    quote_id = "e" * 64
     root_text = "A source-faithful visible quotation."
     context_text = "Context — verified historical context."
     return "".join(
@@ -212,6 +212,63 @@ def legacy_account_pair(
     )
 
 
+def legacy_main_publication(
+    root_id: str,
+    *,
+    lane: str = "quote_image",
+    text: str = "A source-faithful visible quotation.",
+    local_prefix: str = "2026-08-25 00:18",
+    quote_id: str = "a" * 64,
+) -> str:
+    attempt_id = "6" * 64
+    transaction_id = "7" * 64
+    return "".join(
+        [
+            log_line(
+                f"{local_prefix}:00",
+                f"Wrote main-post sending receipt lane={lane} "
+                f"attempt_id={attempt_id} path=<private-path>",
+                level="WARNING",
+            ),
+            log_line(
+                f"{local_prefix}:01",
+                f"Promoted main-post receipt to attempting lane={lane} "
+                f"attempt_id={attempt_id} path=<private-path>",
+                level="WARNING",
+            ),
+            create_attempt(
+                root_id,
+                transaction_id,
+                lane=lane,
+                text=text,
+                local_time=f"{local_prefix}:02",
+            ),
+            generic_success(root_id, local_time=f"{local_prefix}:03"),
+            log_line(
+                f"{local_prefix}:04",
+                "Promoted main-post attempt to confirmed pending-schedule receipt "
+                f"lane={lane} attempt_id={attempt_id} post_id={root_id} "
+                "path=<private-path>",
+                level="WARNING",
+            ),
+            log_line(
+                f"{local_prefix}:05",
+                "Finalised confirmed pending-schedule receipt "
+                f"lane={lane} post_id={root_id} path=<private-path>",
+                level="WARNING",
+            ),
+            event_line(
+                f"{local_prefix}:06",
+                "main_post_posted",
+                lane=lane,
+                post_id=root_id,
+                quote_hash=quote_id,
+                image_basename="redacted-image.jpg",
+            ),
+        ]
+    )
+
+
 def branch_turn(
     post_id: str,
     parent_post_id: str | None,
@@ -239,6 +296,22 @@ def branch_turn(
         "substantive": bool(text),
         "text": text,
         "text_source": "public_text" if text else "unavailable",
+        "warnings": [],
+    }
+
+
+def branch_conversation(
+    turns: list[dict[str, object]], *, key: str
+) -> dict[str, object]:
+    return {
+        "activity_status": "quiescent",
+        "completeness": "complete",
+        "conversation_key": key,
+        "prospective_status": "eligible",
+        "reconstruction_confidence": "high",
+        "root_post_id": "root",
+        "start_time": "2026-08-25T00:00:00Z",
+        "turns": turns,
         "warnings": [],
     }
 
@@ -385,6 +458,27 @@ def rewrite_batch_posts_and_hashes(batch: Path, posts: list[dict[str, object]]) 
     assert isinstance(manifest, dict)
     hashes = dict(manifest["output_file_hashes"])
     hashes["canonical-posts.jsonl"] = extractor.sha256_file(canonical)
+    manifest["output_file_hashes"] = hashes
+    manifest["canonical_snapshot_sha256"] = extractor._snapshot_hash(
+        hashes["canonical-posts.jsonl"],
+        hashes["conversations.jsonl"],
+        hashes["review-candidates.jsonl"],
+    )
+    rewrite_private_json(manifest_path, manifest)
+
+
+def rewrite_batch_candidates_and_hashes(
+    batch: Path, candidates: list[dict[str, object]]
+) -> None:
+    candidate_path = batch / "review-candidates.jsonl"
+    os.chmod(candidate_path, 0o600)
+    candidate_path.write_bytes(extractor.jsonl_bytes(candidates))
+    os.chmod(candidate_path, 0o400)
+    manifest_path = batch / "manifest.json"
+    manifest = extractor._strict_read_json(manifest_path)
+    assert isinstance(manifest, dict)
+    hashes = dict(manifest["output_file_hashes"])
+    hashes["review-candidates.jsonl"] = extractor.sha256_file(candidate_path)
     manifest["output_file_hashes"] = hashes
     manifest["canonical_snapshot_sha256"] = extractor._snapshot_hash(
         hashes["canonical-posts.jsonl"],
@@ -3429,6 +3523,320 @@ def test_duplicate_account_events_deduplicate_and_unavailable_text_is_partial() 
     assert "confirmed_account_root_text_unavailable" in posts[0]["warnings"]
 
 
+def test_daily_meme_structured_image_summary_survives_empty_legacy_text() -> None:
+    root_id = "2093000000000000001"
+    logs = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+        public_text=None,
+        image_summary="A visible daily-meme description.",
+        lane="daily_meme",
+    ) + legacy_main_publication(
+        root_id,
+        lane="daily_meme",
+        text="",
+    )
+    records, _warnings = extractor.parse_log_records(logs.encode())
+
+    post = extractor.normalise_canonical_posts(records, [], b"m" * 32)[0]
+
+    assert post["text"] == "A visible daily-meme description."
+    assert post["text_source"] == "image_summary"
+    assert post["visible_media_text"] == "A visible daily-meme description."
+    assert post["publication_authority"] == "structured_confirmation"
+    assert post["graph_evidence_authority"] == "structured_confirmation"
+    assert post["content_evidence_authority"] == "structured_confirmation"
+    assert post["reconstruction_confidence"] == "high"
+    assert not extractor.ACCOUNT_UNAVAILABLE_TEXT_WARNINGS & set(post["warnings"])
+
+
+def test_matching_structured_and_legacy_quote_content_merges_without_conflict() -> None:
+    root_id = "2093000000000000002"
+    quotation = "The same source-faithful visible quotation."
+    logs = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+        public_text=None,
+        quote_text=quotation,
+    ) + legacy_main_publication(root_id, text=quotation)
+    records, _warnings = extractor.parse_log_records(logs.encode())
+
+    post = extractor.normalise_canonical_posts(records, [], b"n" * 32)[0]
+
+    assert post["text"] == quotation
+    assert post["text_source"] == "image_quote_text"
+    assert post["publication_authority"] == "structured_confirmation"
+    assert post["content_evidence_authority"] == "structured_confirmation"
+    assert post["account_content_conflicts"] == []
+    assert {row["authority"] for row in post["publication_evidence"]} == {
+        "legacy_confirmed_sequence",
+        "structured_confirmation",
+    }
+
+
+def test_richer_structured_root_content_wins_over_poorer_legacy_content() -> None:
+    root_id = "2093000000000000003"
+    logs = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+        public_text=None,
+        quote_text="The authoritative structured quotation.",
+    ) + legacy_main_publication(root_id, text="A poorer legacy reconstruction.")
+    records, _warnings = extractor.parse_log_records(logs.encode())
+
+    post = extractor.normalise_canonical_posts(records, [], b"o" * 32)[0]
+
+    assert post["text"] == "The authoritative structured quotation."
+    assert post["text_source"] == "image_quote_text"
+    assert post["content_evidence_authority"] == "structured_confirmation"
+    assert post["publication_authority"] == "structured_confirmation"
+    assert "lower_priority_account_content_conflict" in post["warnings"]
+    assert {
+        row["text"]["excerpt"] for row in post["account_content_conflicts"]
+    } == {"A poorer legacy reconstruction."}
+
+
+def test_legacy_content_fills_structured_unavailable_without_lowering_publication() -> None:
+    root_id = "2093000000000000004"
+    legacy_text = "Legacy text from a complete durable publication chain."
+    logs = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+        public_text=None,
+    ) + legacy_main_publication(root_id, text=legacy_text)
+    records, _warnings = extractor.parse_log_records(logs.encode())
+
+    post = extractor.normalise_canonical_posts(records, [], b"p" * 32)[0]
+
+    assert post["text"] == legacy_text
+    assert post["text_source"] == "public_text"
+    assert post["publication_authority"] == "structured_confirmation"
+    assert post["graph_evidence_authority"] == "structured_confirmation"
+    assert post["content_evidence_authority"] == "legacy_confirmed_sequence"
+    assert post["reconstruction_confidence"] == "high"
+    assert not extractor.ACCOUNT_UNAVAILABLE_TEXT_WARNINGS & set(post["warnings"])
+
+
+def test_structured_historical_context_content_survives_legacy_replay() -> None:
+    root_id = "2093000000000000005"
+    reply_id = "2093000000000000006"
+    logs = "".join(
+        [
+            account_root_posted(
+                root_id,
+                created_at="2026-08-25T00:07:00Z",
+                local_time="2026-08-25 00:07:00",
+                public_text=None,
+                quote_text="A source-faithful visible quotation.",
+            ),
+            historical_context_posted(
+                root_id,
+                reply_id,
+                created_at="2026-08-25T00:07:01Z",
+                local_time="2026-08-25 00:07:01",
+                reply_text="Structured historical context.",
+            ),
+            legacy_account_pair(root_id, reply_id, quote_id="a" * 64),
+        ]
+    )
+    records, _warnings = extractor.parse_log_records(logs.encode())
+    by_id = {
+        post["post_id"]: post
+        for post in extractor.normalise_canonical_posts(records, [], b"q" * 32)
+    }
+
+    context = by_id[reply_id]
+    assert context["text"] == "Structured historical context."
+    assert context["text_source"] == "historical_context_reply"
+    assert context["parent_post_id"] == root_id
+    assert context["root_post_id"] == root_id
+    assert context["conversation_id"] == root_id
+    assert context["graph_evidence_authority"] == "structured_confirmation"
+    assert context["content_evidence_authority"] == "structured_confirmation"
+    assert context["publication_authority"] == "structured_confirmation"
+    assert len(context["account_content_conflicts"]) == 1
+
+
+def test_lower_priority_identity_disagreement_cannot_reparent_account_reply() -> None:
+    legacy_root = "2093000000000000007"
+    structured_root = "2093000000000000008"
+    reply_id = "2093000000000000009"
+    logs = "".join(
+        [
+            account_root_posted(
+                structured_root,
+                created_at="2026-08-25T00:07:00Z",
+                local_time="2026-08-25 00:07:00",
+            ),
+            historical_context_posted(
+                structured_root,
+                reply_id,
+                created_at="2026-08-25T00:07:01Z",
+                local_time="2026-08-25 00:07:01",
+                reply_text="Structured parent identity.",
+            ),
+            legacy_account_pair(legacy_root, reply_id),
+        ]
+    )
+    records, _warnings = extractor.parse_log_records(logs.encode())
+    by_id = {
+        post["post_id"]: post
+        for post in extractor.normalise_canonical_posts(records, [], b"r" * 32)
+    }
+
+    context = by_id[reply_id]
+    assert context["parent_post_id"] == structured_root
+    assert context["root_post_id"] == structured_root
+    assert context["conversation_id"] == structured_root
+    assert context["graph_evidence_authority"] == "structured_confirmation"
+    assert "lower_priority_account_graph_conflict" in context["warnings"]
+    assert any(
+        row["parent_post_id"] == legacy_root
+        and row["disposition"] == "rejected_lower_priority"
+        for row in context["account_graph_conflicts"]
+    )
+
+
+def test_structured_and_legacy_merge_is_semantically_order_independent() -> None:
+    root_id = "2093000000000000010"
+    structured = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+        public_text=None,
+        quote_text="Structured visible content.",
+    )
+    legacy = legacy_main_publication(root_id, text="Different legacy content.")
+    structured_records, _warnings = extractor.parse_log_records(structured.encode())
+    legacy_records, _warnings = extractor.parse_log_records(legacy.encode())
+    combined_records, _warnings = extractor.parse_log_records(
+        (structured + legacy).encode()
+    )
+
+    legacy_first = extractor.normalise_canonical_posts(
+        structured_records,
+        extractor.normalise_canonical_posts(legacy_records, [], b"s" * 32),
+        b"s" * 32,
+    )[0]
+    structured_first = extractor.normalise_canonical_posts(
+        legacy_records,
+        extractor.normalise_canonical_posts(structured_records, [], b"s" * 32),
+        b"s" * 32,
+    )[0]
+    combined = extractor.normalise_canonical_posts(
+        combined_records, [], b"s" * 32
+    )[0]
+    semantic_fields = (
+        "author_role",
+        "author_key",
+        "lane",
+        "publication_status",
+        "publication_authority",
+        "parent_post_id",
+        "root_post_id",
+        "conversation_id",
+        "text",
+        "text_source",
+        "public_text",
+        "visible_media_text",
+        "graph_evidence_authority",
+        "content_evidence_authority",
+        "reconstruction_confidence",
+        "account_graph_conflicts",
+        "account_content_conflicts",
+    )
+
+    expected = {field: combined[field] for field in semantic_fields}
+    assert {field: legacy_first[field] for field in semantic_fields} == expected
+    assert {field: structured_first[field] for field in semantic_fields} == expected
+
+
+def test_duplicate_equal_structured_account_observations_merge_cleanly() -> None:
+    root_id = "2093000000000000011"
+    logs = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+        public_text="Identical structured content.",
+    ) + account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:01",
+        public_text="Identical structured content.",
+    )
+    records, _warnings = extractor.parse_log_records(logs.encode())
+
+    post = extractor.normalise_canonical_posts(records, [], b"t" * 32)[0]
+
+    assert post["text"] == "Identical structured content."
+    assert post["account_graph_conflicts"] == []
+    assert post["account_content_conflicts"] == []
+    assert len(post["publication_evidence"]) == 2
+
+
+def test_conflicting_equal_structured_content_fails_closed_order_independently() -> None:
+    root_id = "2093000000000000012"
+    first = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+        public_text="First equally authoritative content.",
+    )
+    second = account_root_posted(
+        root_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:01",
+        public_text="Second equally authoritative content.",
+    )
+    records, _warnings = extractor.parse_log_records((first + second).encode())
+
+    forward = extractor.normalise_canonical_posts(records, [], b"u" * 32)[0]
+    reverse = extractor.normalise_canonical_posts(
+        list(reversed(records)), [], b"u" * 32
+    )[0]
+
+    assert forward["text"] is None
+    assert forward["text_source"] == "unavailable"
+    assert forward["content_evidence_authority"] is None
+    assert forward["account_content_ambiguity_authority"] == "structured_confirmation"
+    assert forward["reconstruction_confidence"] == "medium"
+    assert len(forward["account_content_conflicts"]) == 2
+    assert forward["account_content_conflicts"] == reverse[
+        "account_content_conflicts"
+    ]
+    assert "equal_authority_account_content_conflict" in forward["warnings"]
+
+
+def test_conflicting_equal_structured_graph_observations_fail_closed() -> None:
+    post_id = "2093000000000000013"
+    parent_id = "2093000000000000014"
+    logs = account_root_posted(
+        post_id,
+        created_at="2026-08-25T00:17:00Z",
+        local_time="2026-08-25 00:17:00",
+    ) + historical_context_posted(
+        parent_id,
+        post_id,
+        created_at="2026-08-25T00:17:01Z",
+        local_time="2026-08-25 00:17:01",
+    )
+    records, _warnings = extractor.parse_log_records(logs.encode())
+
+    post = extractor.normalise_canonical_posts(records, [], b"v" * 32)[0]
+
+    assert post["account_graph_kind"] == "ambiguous"
+    assert post["parent_post_id"] is None
+    assert post["root_post_id"] is None
+    assert post["conversation_id"] is None
+    assert post["reconstruction_confidence"] == "low"
+    assert len(post["account_graph_conflicts"]) == 2
+    assert "equal_authority_account_graph_conflict" in post["warnings"]
+
+
 def test_context_confirmation_without_root_authority_retains_start_unknown() -> None:
     root_id = "2092026402438627782"
     context_id = "2092026406586753468"
@@ -3659,6 +4067,239 @@ def test_divergent_same_author_paths_are_maximal_and_context_stays_sibling() -> 
     by_tip = {row["branch_tip_post_id"]: row for row in candidates}
     assert by_tip["left"]["correction_cues"] == ["you misunderstood"]
     assert by_tip["right"]["correction_cues"] == []
+
+
+def test_linear_external_author_handoff_creates_isolated_segments() -> None:
+    conversation = branch_conversation(
+        [
+            branch_turn("root", None, "account", "account-a", 0),
+            branch_turn("a1", "root", "user", "user-a", 1),
+            branch_turn("account-a", "a1", "account", "account-a", 2),
+            branch_turn("b1", "account-a", "user", "user-b", 3),
+            branch_turn("account-b", "b1", "account", "account-a", 4),
+        ],
+        key="linear-handoff",
+    )
+
+    candidates = extractor.build_review_candidates(conversation)
+    by_author = {row["principal_author_key"]: row for row in candidates}
+
+    assert set(by_author) == {"user-a", "user-b"}
+    assert [turn["post_id"] for turn in by_author["user-a"]["path_turns"]] == [
+        "root",
+        "a1",
+        "account-a",
+    ]
+    assert [turn["post_id"] for turn in by_author["user-b"]["path_turns"]] == [
+        "account-a",
+        "b1",
+        "account-b",
+    ]
+    assert by_author["user-a"]["account_turn_count_on_path"] == 2
+    assert by_author["user-b"]["same_author_user_turn_count"] == 1
+    assert {
+        turn["author_key"]
+        for candidate in candidates
+        for turn in candidate["path_turns"]
+        if turn["author_role"] == "user"
+    } == {"user-a", "user-b"}
+    for candidate in candidates:
+        assert {
+            turn["author_key"]
+            for turn in candidate["path_turns"]
+            if turn["author_role"] == "user"
+        } == {candidate["principal_author_key"]}
+        assert candidate["handoff_context_refs"]
+        assert "external_author_handoff_context" in candidate[
+            "review_reason_codes"
+        ]
+    assert {row["post_id"] for row in by_author["user-a"]["handoff_context_refs"]} == {
+        "b1"
+    }
+    assert {row["post_id"] for row in by_author["user-b"]["handoff_context_refs"]} == {
+        "a1"
+    }
+
+
+def test_external_author_reentry_creates_distinct_stable_segments() -> None:
+    conversation = branch_conversation(
+        [
+            branch_turn("root", None, "account", "account-a", 0),
+            branch_turn("a1", "root", "user", "user-a", 1),
+            branch_turn("account-1", "a1", "account", "account-a", 2),
+            branch_turn("b1", "account-1", "user", "user-b", 3),
+            branch_turn("account-2", "b1", "account", "account-a", 4),
+            branch_turn("a2", "account-2", "user", "user-a", 5),
+            branch_turn("account-3", "a2", "account", "account-a", 6),
+        ],
+        key="author-reentry",
+    )
+
+    first = extractor.build_review_candidates(conversation)
+    second = extractor.build_review_candidates(conversation)
+    a_candidates = [row for row in first if row["principal_author_key"] == "user-a"]
+
+    assert first == second
+    assert len(first) == 3
+    assert len(a_candidates) == 2
+    assert len({row["branch_key"] for row in a_candidates}) == 2
+    assert {row["segment_start_post_id"] for row in a_candidates} == {
+        "root",
+        "account-2",
+    }
+    assert {row["branch_tip_post_id"] for row in a_candidates} == {
+        "account-1",
+        "account-3",
+    }
+
+
+def test_repeated_single_author_account_alternation_remains_one_segment() -> None:
+    conversation = branch_conversation(
+        [
+            branch_turn("root", None, "account", "account-a", 0),
+            branch_turn("a1", "root", "user", "user-a", 1),
+            branch_turn("account-1", "a1", "account", "account-a", 2),
+            branch_turn("a2", "account-1", "user", "user-a", 3),
+            branch_turn("account-2", "a2", "account", "account-a", 4),
+        ],
+        key="single-author-alternation",
+    )
+
+    candidates = extractor.build_review_candidates(conversation)
+
+    assert len(candidates) == 1
+    assert [turn["post_id"] for turn in candidates[0]["path_turns"]] == [
+        "root",
+        "a1",
+        "account-1",
+        "a2",
+        "account-2",
+    ]
+    assert candidates[0]["same_author_continuation_depth"] == 1
+    assert candidates[0]["handoff_context_refs"] == []
+
+
+def test_handoff_correction_cues_are_scoped_to_the_principal_segment() -> None:
+    conversation = branch_conversation(
+        [
+            branch_turn("root", None, "account", "account-a", 0),
+            branch_turn("a1", "root", "user", "user-a", 1),
+            branch_turn("account-a", "a1", "account", "account-a", 2),
+            branch_turn(
+                "b1",
+                "account-a",
+                "user",
+                "user-b",
+                3,
+                correction_cues=["not what i said"],
+            ),
+            branch_turn("account-b", "b1", "account", "account-a", 4),
+        ],
+        key="handoff-correction",
+    )
+
+    by_author = {
+        row["principal_author_key"]: row
+        for row in extractor.build_review_candidates(conversation)
+    }
+
+    assert by_author["user-a"]["correction_cues"] == []
+    assert "explicit_correction_cue" not in by_author["user-a"][
+        "review_reason_codes"
+    ]
+    assert by_author["user-b"]["correction_cues"] == ["not what i said"]
+    assert "explicit_correction_cue" in by_author["user-b"][
+        "review_reason_codes"
+    ]
+
+
+def test_handoff_clarification_continuation_is_scoped_to_matching_segment() -> None:
+    conversation = branch_conversation(
+        [
+            branch_turn("root", None, "account", "account-a", 0),
+            branch_turn("a1", "root", "user", "user-a", 1),
+            branch_turn(
+                "account-a",
+                "a1",
+                "account",
+                "account-a",
+                2,
+                clarification=True,
+            ),
+            branch_turn("b1", "account-a", "user", "user-b", 3),
+            branch_turn("account-b", "b1", "account", "account-a", 4),
+        ],
+        key="handoff-clarification",
+    )
+
+    by_author = {
+        row["principal_author_key"]: row
+        for row in extractor.build_review_candidates(conversation)
+    }
+
+    assert "post_clarification_continuation" not in by_author["user-a"][
+        "review_reason_codes"
+    ]
+    assert "post_clarification_continuation" in by_author["user-b"][
+        "review_reason_codes"
+    ]
+
+
+def test_validation_rejects_candidate_path_with_foreign_user_author(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        first_exchange() + continuation() + publish_reply("102", "103"),
+    )
+    run_scan(project, output)
+    batch = current_batch(output)
+    candidates = rows(output, "review-candidates.jsonl")
+    foreign_turn = next(
+        turn
+        for turn in candidates[0]["path_turns"]
+        if turn["author_role"] == "user"
+    )
+    foreign_turn["author_key"] = "user-foreign"
+    rewrite_batch_candidates_and_hashes(batch, candidates)
+
+    problems = extractor._validate_batch_directory(
+        batch,
+        require_immutable=False,
+        expected_boundary=BOUNDARY,
+    )
+
+    assert any("foreign user author" in problem for problem in problems)
+
+
+def test_unrelated_sibling_order_does_not_change_segment_identities() -> None:
+    turns = [
+        branch_turn("root", None, "account", "account-a", 0),
+        branch_turn("a1", "root", "user", "user-a", 1),
+        branch_turn("account-a", "a1", "account", "account-a", 2),
+        branch_turn("b1", "account-a", "user", "user-b", 3),
+        branch_turn("account-b", "b1", "account", "account-a", 4),
+        branch_turn("sibling", "root", "user", "user-c", 5),
+        branch_turn("sibling-account", "sibling", "account", "account-a", 6),
+    ]
+    forward = extractor.build_review_candidates(
+        branch_conversation(turns, key="sibling-order")
+    )
+    reverse = extractor.build_review_candidates(
+        branch_conversation(list(reversed(turns)), key="sibling-order")
+    )
+
+    def identity(row: dict[str, object]) -> tuple[object, object, object, object]:
+        return (
+            row["branch_key"],
+            row["candidate_key"],
+            row["segment_start_post_id"],
+            row["branch_tip_post_id"],
+        )
+
+    assert sorted(map(identity, forward)) == sorted(map(identity, reverse))
 
 
 def test_ignored_event_histogram_is_bounded_ordered_and_has_exact_remainder() -> None:

@@ -199,6 +199,29 @@ authoritative text, and does not create a contributor pseudonym. Conversely,
 surface text, a `Context —` prefix, Snowflake proximity, and account-looking
 prose never promote a user post to the account role.
 
+Account roots and historical-context replies use the fixed evidence order
+`structured_confirmation > legacy_confirmed_sequence > mention_observation`.
+The order is applied independently to graph identity, selected visible
+content, publication authority, and reconstruction confidence. Canonical rows
+expose `graph_evidence_authority`, `content_evidence_authority`, and per-field
+graph authority. Lower evidence may fill a genuinely absent value, but cannot
+reparent a post, replace its root or conversation, turn a root into a reply,
+lower publication status, or reduce confidence.
+
+The four visible-content fields (`text`, `text_source`, `public_text`, and
+`visible_media_text`) are merged as one coherent candidate. Null evidence
+never clears existing content. Higher-authority content replaces lower
+content; lower-authority disagreement is retained in bounded,
+deterministically ordered `account_content_conflicts` while the authoritative
+candidate remains selected. Matching visible text from structured and legacy
+evidence merges without a false conflict. At equal authority, direct public
+text outranks a derived image summary. An otherwise irreconcilable equal-rank
+disagreement fails closed, records both candidates, marks the row partial, and
+never chooses by record order, string length, or lexical order. Equivalent
+bounded graph-conflict metadata records rejected reparenting or identity
+claims. Unavailable-text warnings are removed when later valid evidence fills
+the canonical text.
+
 Version 3 also recovers retained legacy publications only from complete,
 unambiguous chains. A main root requires one account-owned lane and attempt,
 its attempting transition, one root/no-parent transport transaction, one exact
@@ -255,14 +278,24 @@ one-word greeting or thanks. Questions, criticism, disagreement, corrections,
 distress, positive expressive messages, and short meaningful distinctions are
 retained as substantive.
 
-The complete root conversation remains in `conversations.jsonl`, but a review
-candidate is one principal external author on one maximal exact parent path.
-Its stable `branch_key` binds the conversation key, principal pseudonym and
-branch-tip post ID. Strict path prefixes for the same author are suppressed;
-two genuinely divergent branches remain separate. The root account post starts
-every complete eligible path. Historical context is a path turn only when it
-is an ancestor; otherwise it appears in bounded, deterministically ordered
-`sibling_context_refs` with no effect on path counts.
+The complete root conversation remains in `conversations.jsonl`. Review
+candidates are derived by walking each maximal parent path and splitting it
+whenever a different external author enters. A focused segment starts with the
+immediately preceding account turn when one exists, otherwise with the
+principal author's first turn. It ends at that author's last contribution
+before the hand-off, including its immediate account response when present.
+Only account turns and user turns whose `author_key` equals the principal are
+included. If the same author returns after another contributor intervenes, the
+return starts a new segment and candidate.
+
+The stable `branch_key` binds the conversation key, principal pseudonym,
+`segment_start_post_id`, and segment tip. `source_branch_tip_post_id` retains
+the underlying maximal path identity without determining the candidate key.
+Omitted adjacent turns are represented through bounded `handoff_context_refs`;
+off-path branches remain in bounded, deterministic `sibling_context_refs`.
+Neither context collection contributes to path counts, cues, clarification
+signals, or continuation depth. Historical context is a path turn only when it
+is actually inside the focused parent-linked segment.
 
 `same_author_user_turn_count` counts only the principal author's user turns on
 that path. `account_turn_count_on_path` and
@@ -279,6 +312,7 @@ reason codes:
 - `third_or_later_substantive_path_turn`
 - `explicit_correction_cue`
 - `post_clarification_continuation`
+- `external_author_handoff_context`
 - `sibling_branch_context`
 - `partial_path_reconstruction`
 - `ambiguous_parentage`
