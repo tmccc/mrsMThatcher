@@ -16,7 +16,7 @@ readonly RUNTIME_PROJECT_DIR="${MRS_RUNTIME_PROJECT_DIR:-/disks/disk1/etc/mrsMTh
 readonly TARGET_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
 readonly SHADOW_HEALTH_DIR="${HOME}/.local/state/mrsMThatcher/semantic-veto-health"
 readonly OPENAI_COST_DIR="${HOME}/.local/state/mrsMThatcher/openai-costs"
-readonly PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-/disks/disk1/research/mrsMThatcher-prospective-conversations}"
+readonly PROSPECTIVE_CONVERSATION_DIR="${MRS_PROSPECTIVE_CONVERSATION_DIR:-/disks/disk1/research/mrsMThatcher-prospective-conversations-v3}"
 readonly ANALYTICS_PROGRAM="${RUNTIME_PROJECT_DIR}/mrs_engagement_analytics.py"
 readonly UNITS=(
   mrsMThatcher.service
@@ -35,7 +35,7 @@ usage() {
 Usage: deploy/systemd-user/install.sh --check|--install
 
   --check    Validate tracked units and report drift from the user installation.
-  --install  Copy tracked units, prepare private state, and reload systemd.
+  --install  Copy tracked units, prepare non-migration state, and reload systemd.
 
 Installation does not enable, disable, start, stop, or restart any unit. It
 reports analytics readiness and prints separate operator activation commands.
@@ -103,24 +103,38 @@ print_enable_commands() {
     '  systemctl --user enable mrs-semantic-veto-shadow-health.timer' \
     '  systemctl --user enable mrs-engagement-analytics.timer' \
     '  systemctl --user enable --now mrs-openai-cost-cache.timer' \
-    '  systemctl --user enable --now mrs-prospective-conversations.timer' \
-    'suggested prospective-conversation first run:' \
-    '  systemctl --user start mrs-prospective-conversations.service'
+    'prospective-conversation activation is deliberately omitted; complete the documented v2-to-v3 rebuild, validation, manual oneshot, and corpus inspection first'
 }
 
 prepare_scheduled_task_state() {
   install -d -m 0700 -- \
     "${SHADOW_HEALTH_DIR}" \
     "${SHADOW_HEALTH_DIR}/history" \
-    "${OPENAI_COST_DIR}" \
-    "${PROSPECTIVE_CONVERSATION_DIR}" \
-    "${PROSPECTIVE_CONVERSATION_DIR}/state" \
-    "${PROSPECTIVE_CONVERSATION_DIR}/batches" \
-    "${PROSPECTIVE_CONVERSATION_DIR}/review-packs"
+    "${OPENAI_COST_DIR}"
   printf 'prepared private semantic-veto health state: %s\n' "${SHADOW_HEALTH_DIR}"
   printf 'prepared private OpenAI cost state: %s\n' "${OPENAI_COST_DIR}"
-  printf 'prepared private prospective conversation state: %s\n' \
-    "${PROSPECTIVE_CONVERSATION_DIR}"
+  if [[ -L "${PROSPECTIVE_CONVERSATION_DIR}" ]]; then
+    printf 'prospective conversation root must not be a symlink: %s\n' \
+      "${PROSPECTIVE_CONVERSATION_DIR}" >&2
+    return 1
+  fi
+  if [[ -e "${PROSPECTIVE_CONVERSATION_DIR}" ]]; then
+    if [[ ! -d "${PROSPECTIVE_CONVERSATION_DIR}" ]]; then
+      printf 'prospective conversation root is not a directory: %s\n' \
+        "${PROSPECTIVE_CONVERSATION_DIR}" >&2
+      return 1
+    fi
+    install -d -m 0700 -- \
+      "${PROSPECTIVE_CONVERSATION_DIR}" \
+      "${PROSPECTIVE_CONVERSATION_DIR}/state" \
+      "${PROSPECTIVE_CONVERSATION_DIR}/batches" \
+      "${PROSPECTIVE_CONVERSATION_DIR}/review-packs"
+    printf 'prepared existing private prospective conversation state: %s\n' \
+      "${PROSPECTIVE_CONVERSATION_DIR}"
+  else
+    printf 'left prospective conversation v3 root absent for registered rebuild: %s\n' \
+      "${PROSPECTIVE_CONVERSATION_DIR}"
+  fi
 }
 
 install_units() {

@@ -32,15 +32,27 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 
-SCHEMA_VERSION = 2
-EXTRACTOR_VERSION = "prospective-conversation-extractor-v2"
-PARSER_VERSION = "prospective-conversation-log-parser-v2"
+SCHEMA_VERSION = 3
+EXTRACTOR_VERSION = "prospective-conversation-extractor-v3"
+PARSER_VERSION = "prospective-conversation-log-parser-v3"
+REGISTERED_REBUILD_SOURCE = (
+    2,
+    "prospective-conversation-extractor-v2",
+    "prospective-conversation-log-parser-v2",
+)
 HASH_BLOCK_SIZE = 1024 * 1024
 X_SNOWFLAKE_EPOCH_MS = 1_288_834_974_657
 X_SNOWFLAKE_MIN_DIGITS = 15
 X_SNOWFLAKE_MAX_DIGITS = 20
 X_SNOWFLAKE_FUTURE_SKEW = timedelta(minutes=5)
 MAX_SEND_ATTEMPTS_PER_TARGET = 5
+MAX_IGNORED_STRUCTURED_EVENT_KINDS = 64
+MAX_SIBLING_CONTEXT_REFS = 32
+MAX_SIBLING_CONTEXT_TEXT_CHARS = 500
+MAX_HANDOFF_CONTEXT_REFS = 8
+MAX_ACCOUNT_EVIDENCE_CONFLICTS = 32
+MAX_ACCOUNT_CONFLICT_TEXT_CHARS = 500
+SOURCE_STALE_WARNING_SECONDS = 6 * 60 * 60
 RECENT_BATCH_RETENTION = timedelta(hours=72)
 DAILY_BATCH_RETENTION = timedelta(days=90)
 MAX_AUTOMATIC_BATCH_BYTES = 10 * 1024 * 1024 * 1024
@@ -125,6 +137,23 @@ REMOVED_SENDING_RECEIPT_RE = re.compile(
     r"Removed conversational reply sending receipt disposition=([^\s]+) "
     r"source=([^\s]+) target_id=([^\s]+)"
 )
+MAIN_ATTEMPT_WRITTEN_RE = re.compile(
+    r"Wrote main-post sending receipt lane=(quote_image|daily_meme) "
+    r"attempt_id=([0-9a-f]{64})\b"
+)
+MAIN_ATTEMPT_ATTEMPTING_RE = re.compile(
+    r"Promoted main-post receipt to attempting lane=(quote_image|daily_meme) "
+    r"attempt_id=([0-9a-f]{64})\b"
+)
+MAIN_ATTEMPT_CONFIRMED_RE = re.compile(
+    r"Promoted main-post attempt to confirmed pending-schedule receipt "
+    r"lane=(quote_image|daily_meme) attempt_id=([0-9a-f]{64}) "
+    r"post_id=(\d+)\b"
+)
+MAIN_SCHEDULE_FINALISED_RE = re.compile(
+    r"Finalised confirmed pending-schedule receipt lane=(quote_image|daily_meme) "
+    r"post_id=(\d+)\b"
+)
 
 CORRECTION_CUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("not what i said", re.compile(r"\bnot what i said\b", re.I)),
@@ -151,15 +180,43 @@ CORRECTION_CUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 REVIEW_REASON_ORDER = (
-    "same_chain_user_continuation",
-    "multiple_substantive_user_turns",
-    "multiple_account_replies",
-    "third_or_later_substantive_turn",
+    "same_author_path_continuation",
+    "multiple_account_replies_on_path",
+    "third_or_later_substantive_path_turn",
     "explicit_correction_cue",
     "post_clarification_continuation",
-    "sibling_branch_activity",
-    "partial_reconstruction",
+    "external_author_handoff_context",
+    "sibling_branch_context",
+    "partial_path_reconstruction",
     "ambiguous_parentage",
+)
+
+ACCOUNT_EVIDENCE_AUTHORITY_RANK = {
+    "mention_observation": 0,
+    "legacy_confirmed_sequence": 1,
+    "structured_confirmation": 2,
+}
+ACCOUNT_GRAPH_FIELDS = (
+    "lane",
+    "parent_post_id",
+    "parent_observation_status",
+    "root_post_id",
+    "conversation_id",
+    "quote_id",
+)
+ACCOUNT_CONTENT_FIELDS = (
+    "text",
+    "text_source",
+    "public_text",
+    "visible_media_text",
+)
+ACCOUNT_UNAVAILABLE_TEXT_WARNINGS = frozenset(
+    {
+        "confirmed_account_root_text_unavailable",
+        "legacy_account_root_text_unavailable",
+        "confirmed_historical_context_text_unavailable",
+        "legacy_historical_context_text_unavailable",
+    }
 )
 
 
@@ -655,6 +712,13 @@ def normalise_lane(value: Any) -> str:
     return lane or "other conversational lane"
 
 
+def normalise_account_lane(value: Any) -> str:
+    lane = str(value or "").strip().casefold().replace("-", "_")
+    if lane in {"quote_image", "daily_meme", "historical_context_reply"}:
+        return lane
+    return "other_account_post"
+
+
 def _pseudonym(key: bytes, namespace: str, raw_value: str) -> str:
     digest = hmac.new(
         key,
@@ -932,10 +996,19 @@ def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[
     raw_identity = "mrsMThatcher-account" if author_role == "account" else post_id
     return {
         "account_turn_asked_for_clarification": False,
+        "account_content_ambiguity_authority": None,
+        "account_content_conflict_other_count": 0,
+        "account_content_conflicts": [],
+        "account_graph_ambiguity_authority": None,
+        "account_graph_ambiguous_fields": [],
+        "account_graph_conflict_other_count": 0,
+        "account_graph_conflicts": [],
+        "account_graph_kind": None,
         "author_key": _pseudonym(key, namespace, raw_identity),
         "author_role": author_role,
         "canonical_event_id": stable_id("post", post_id),
         "conversation_id": None,
+        "content_evidence_authority": None,
         "created_at": None,
         "creation_time_conflict": False,
         "creation_time_conflicts": [],
@@ -945,6 +1018,8 @@ def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[
         "derivation_parser_version": PARSER_VERSION,
         "first_observed_at": None,
         "generated_reply_text": None,
+        "graph_evidence_authority": None,
+        "graph_field_evidence_authorities": {},
         "lane": "other conversational lane",
         "last_observed_at": None,
         "parent_observation_status": "unavailable",
@@ -960,12 +1035,17 @@ def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[
         "route_source": None,
         "schema_version": SCHEMA_VERSION,
         "send_attempts": [],
+        "self_observation_count": 0,
+        "self_observation_last_observed_at": None,
         "source_provenance": [],
         "tested_pipeline_stage_summaries": [],
         "text": None,
+        "text_source": "unavailable",
         "thread_id": None,
         "trusted_fact_count": None,
         "trusted_fact_ids": [],
+        "public_text": None,
+        "visible_media_text": None,
         "warnings": [],
     }
 
@@ -1004,18 +1084,580 @@ def _touch_post(post: dict[str, Any], record: LogRecord) -> None:
     _set_snowflake_creation_time(post)
 
 
-def _set_text(post: dict[str, Any], text: Any) -> None:
+TEXT_SOURCE_RANK = {
+    "unavailable": 0,
+    "mention_observation": 10,
+    "image_summary": 30,
+    "image_quote_text": 40,
+    "public_text": 50,
+    "historical_context_reply": 50,
+}
+
+
+def _set_text(
+    post: dict[str, Any],
+    text: Any,
+    *,
+    source: str = "mention_observation",
+    public_text: bool = True,
+    visible_media_text: bool = False,
+) -> None:
+    """Set the best source-faithful visible review text by explicit provenance."""
     candidate = str(text or "")
     if not candidate:
         return
     current = str(post.get("text") or "")
     if current and current != candidate:
         _record_warning(post, "conflicting_text_observations")
-    if not current or len(candidate) > len(current):
+    current_source = str(post.get("text_source") or "unavailable")
+    candidate_rank = TEXT_SOURCE_RANK.get(source, 0)
+    current_rank = TEXT_SOURCE_RANK.get(current_source, 0)
+    if (
+        not current
+        or candidate_rank > current_rank
+        or (candidate_rank == current_rank and len(candidate) > len(current))
+    ):
         post["text"] = candidate
+        post["text_source"] = source
+    if public_text:
+        current_public = str(post.get("public_text") or "")
+        if not current_public or len(candidate) > len(current_public):
+            post["public_text"] = candidate
+    if visible_media_text:
+        current_media = str(post.get("visible_media_text") or "")
+        if not current_media or len(candidate) > len(current_media):
+            post["visible_media_text"] = candidate
+
+
+def _account_authority_rank(value: Any) -> int:
+    return ACCOUNT_EVIDENCE_AUTHORITY_RANK.get(str(value or ""), -1)
+
+
+def _raise_reconstruction_confidence(post: dict[str, Any], value: str) -> None:
+    if _confidence_rank(value) > _confidence_rank(post.get("reconstruction_confidence")):
+        post["reconstruction_confidence"] = value
+
+
+def _remove_warnings(post: dict[str, Any], warnings: Iterable[str]) -> None:
+    removed = set(warnings)
+    post["warnings"] = sorted(
+        warning
+        for warning in set(post.get("warnings") or [])
+        if warning not in removed
+    )
+
+
+def _bounded_conflict_text(value: Any) -> dict[str, Any] | None:
+    if value is None or str(value) == "":
+        return None
+    text = str(value)
+    return {
+        "excerpt": text[:MAX_ACCOUNT_CONFLICT_TEXT_CHARS],
+        "length": len(text),
+        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "truncated": len(text) > MAX_ACCOUNT_CONFLICT_TEXT_CHARS,
+    }
+
+
+def _merge_bounded_account_conflicts(
+    post: dict[str, Any],
+    field: str,
+    additions: Iterable[Mapping[str, Any]],
+) -> None:
+    existing = [
+        copy.deepcopy(dict(value))
+        for value in post.get(field) or []
+        if isinstance(value, dict)
+    ]
+    merged = _merge_unique_objects(existing, additions)
+    overflow_field = f"{field[:-1]}_other_count"
+    previous_overflow = int(post.get(overflow_field) or 0)
+    post[field] = merged[:MAX_ACCOUNT_EVIDENCE_CONFLICTS]
+    post[overflow_field] = previous_overflow + max(
+        0, len(merged) - MAX_ACCOUNT_EVIDENCE_CONFLICTS
+    )
+
+
+def _content_conflict_entry(
+    candidate: Mapping[str, Any],
+    *,
+    authority: str,
+    disposition: str,
+) -> dict[str, Any]:
+    return {
+        "authority": authority,
+        "disposition": disposition,
+        "public_text": _bounded_conflict_text(candidate.get("public_text")),
+        "text": _bounded_conflict_text(candidate.get("text")),
+        "text_source": str(candidate.get("text_source") or "unavailable"),
+        "visible_media_text": _bounded_conflict_text(
+            candidate.get("visible_media_text")
+        ),
+    }
+
+
+def _graph_conflict_entry(
+    candidate: Mapping[str, Any],
+    *,
+    authority: str,
+    disposition: str,
+) -> dict[str, Any]:
+    return {
+        "account_graph_kind": candidate.get("account_graph_kind"),
+        "authority": authority,
+        "conversation_id": candidate.get("conversation_id"),
+        "disposition": disposition,
+        "lane": candidate.get("lane"),
+        "parent_observation_status": candidate.get("parent_observation_status"),
+        "parent_post_id": candidate.get("parent_post_id"),
+        "quote_id": candidate.get("quote_id"),
+        "root_post_id": candidate.get("root_post_id"),
+    }
+
+
+def _normalise_account_content_candidate(
+    *,
+    text: Any,
+    text_source: str,
+    public_text: Any,
+    visible_media_text: Any,
+) -> dict[str, Any]:
+    selected_value = str(text or "")
+    public_value = str(public_text or "")
+    media_value = str(visible_media_text or "")
+    selected = selected_value if selected_value.strip() else None
+    return {
+        "public_text": public_value if public_value.strip() else None,
+        "text": selected,
+        "text_source": text_source if selected else "unavailable",
+        "visible_media_text": media_value if media_value.strip() else None,
+    }
+
+
+def _current_account_content(post: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        field: copy.deepcopy(post.get(field)) for field in ACCOUNT_CONTENT_FIELDS
+    }
+
+
+def _assign_account_content(
+    post: dict[str, Any], candidate: Mapping[str, Any], authority: str
+) -> None:
+    for field in ACCOUNT_CONTENT_FIELDS:
+        post[field] = copy.deepcopy(candidate.get(field))
+    post["content_evidence_authority"] = authority
+    post["account_content_ambiguity_authority"] = None
+    _remove_warnings(post, ACCOUNT_UNAVAILABLE_TEXT_WARNINGS)
+    _raise_reconstruction_confidence(post, "high")
+
+
+def _record_content_conflict(
+    post: dict[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    authority: str,
+    disposition: str,
+) -> None:
+    _merge_bounded_account_conflicts(
+        post,
+        "account_content_conflicts",
+        (
+            _content_conflict_entry(
+                candidate,
+                authority=authority,
+                disposition=disposition,
+            ),
+        ),
+    )
+    _record_warning(post, "account_content_conflict")
+
+
+def _merge_account_content_evidence(
+    post: dict[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    authority: str,
+) -> None:
+    """Merge one coherent account visible-content candidate by authority."""
+    incoming = _normalise_account_content_candidate(
+        text=candidate.get("text"),
+        text_source=str(candidate.get("text_source") or "unavailable"),
+        public_text=candidate.get("public_text"),
+        visible_media_text=candidate.get("visible_media_text"),
+    )
+    incoming_text = incoming.get("text")
+    if not incoming_text:
+        return
+
+    incoming_rank = _account_authority_rank(authority)
+    ambiguity_authority = str(
+        post.get("account_content_ambiguity_authority") or ""
+    )
+    if ambiguity_authority:
+        ambiguity_rank = _account_authority_rank(ambiguity_authority)
+        if incoming_rank > ambiguity_rank:
+            _assign_account_content(post, incoming, authority)
+        else:
+            disposition = (
+                "equal_authority_ambiguous"
+                if incoming_rank == ambiguity_rank
+                else "rejected_lower_priority"
+            )
+            _record_content_conflict(
+                post,
+                incoming,
+                authority=authority,
+                disposition=disposition,
+            )
+            if incoming_rank == ambiguity_rank:
+                _record_warning(post, "equal_authority_account_content_conflict")
+            else:
+                _record_warning(post, "lower_priority_account_content_conflict")
+        return
+
+    current = _current_account_content(post)
+    current_text = str(current.get("text") or "") or None
+    if current_text is None:
+        _assign_account_content(post, incoming, authority)
+        return
+
+    current_authority = str(post.get("content_evidence_authority") or "")
+    if not current_authority:
+        current_authority = str(post.get("publication_authority") or "")
+    current_rank = _account_authority_rank(current_authority)
+
+    if current_text == incoming_text:
+        if incoming_rank > current_rank:
+            _assign_account_content(post, incoming, authority)
+            return
+        if incoming_rank < current_rank:
+            return
+        current_source = str(current.get("text_source") or "unavailable")
+        incoming_source = str(incoming.get("text_source") or "unavailable")
+        if TEXT_SOURCE_RANK.get(incoming_source, 0) > TEXT_SOURCE_RANK.get(
+            current_source, 0
+        ):
+            _assign_account_content(post, incoming, authority)
+            return
+        if TEXT_SOURCE_RANK.get(incoming_source, 0) < TEXT_SOURCE_RANK.get(
+            current_source, 0
+        ):
+            return
+        for field in ("public_text", "visible_media_text"):
+            if post.get(field) is None and incoming.get(field) is not None:
+                post[field] = incoming[field]
+        post["content_evidence_authority"] = authority
+        _remove_warnings(post, ACCOUNT_UNAVAILABLE_TEXT_WARNINGS)
+        _raise_reconstruction_confidence(post, "high")
+        return
+
+    if incoming_rank > current_rank:
+        _record_content_conflict(
+            post,
+            current,
+            authority=current_authority,
+            disposition="rejected_lower_priority",
+        )
+        _record_warning(post, "lower_priority_account_content_conflict")
+        _assign_account_content(post, incoming, authority)
+        return
+    if incoming_rank < current_rank:
+        _record_content_conflict(
+            post,
+            incoming,
+            authority=authority,
+            disposition="rejected_lower_priority",
+        )
+        _record_warning(post, "lower_priority_account_content_conflict")
+        return
+
+    current_source_rank = TEXT_SOURCE_RANK.get(
+        str(current.get("text_source") or "unavailable"), 0
+    )
+    incoming_source_rank = TEXT_SOURCE_RANK.get(
+        str(incoming.get("text_source") or "unavailable"), 0
+    )
+    if incoming_source_rank != current_source_rank:
+        if incoming_source_rank > current_source_rank:
+            rejected = current
+            rejected_authority = current_authority
+            selected = incoming
+            selected_authority = authority
+        else:
+            rejected = incoming
+            rejected_authority = authority
+            selected = current
+            selected_authority = current_authority
+        _record_content_conflict(
+            post,
+            rejected,
+            authority=rejected_authority,
+            disposition="rejected_equal_authority_source_preference",
+        )
+        _record_warning(post, "equal_authority_account_content_conflict")
+        _assign_account_content(post, selected, selected_authority)
+        return
+
+    _record_content_conflict(
+        post,
+        current,
+        authority=current_authority,
+        disposition="equal_authority_ambiguous",
+    )
+    _record_content_conflict(
+        post,
+        incoming,
+        authority=authority,
+        disposition="equal_authority_ambiguous",
+    )
+    for field in ACCOUNT_CONTENT_FIELDS:
+        post[field] = None if field != "text_source" else "unavailable"
+    post["content_evidence_authority"] = None
+    post["account_content_ambiguity_authority"] = authority
+    post["reconstruction_confidence"] = "medium"
+    _record_warning(post, "equal_authority_account_content_conflict")
+
+
+def _current_account_graph(post: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "account_graph_kind": post.get("account_graph_kind"),
+        **{field: copy.deepcopy(post.get(field)) for field in ACCOUNT_GRAPH_FIELDS},
+    }
+
+
+def _graph_disagreement_fields(
+    current: Mapping[str, Any], incoming: Mapping[str, Any]
+) -> list[str]:
+    fields: list[str] = []
+    if current.get("account_graph_kind") != incoming.get("account_graph_kind"):
+        fields.append("account_graph_kind")
+        fields.extend(
+            field
+            for field in ACCOUNT_GRAPH_FIELDS
+            if current.get(field) != incoming.get(field)
+        )
+        return sorted(set(fields))
+    for field in ACCOUNT_GRAPH_FIELDS:
+        existing = current.get(field)
+        candidate = incoming.get(field)
+        if existing is None or candidate is None:
+            continue
+        if field == "lane" and existing == "other conversational lane":
+            continue
+        if existing != candidate:
+            fields.append(field)
+    return sorted(set(fields))
+
+
+def _assign_account_graph(
+    post: dict[str, Any], candidate: Mapping[str, Any], authority: str
+) -> None:
+    post["account_graph_kind"] = candidate.get("account_graph_kind")
+    field_authorities: dict[str, str] = {}
+    for field in ACCOUNT_GRAPH_FIELDS:
+        post[field] = copy.deepcopy(candidate.get(field))
+        if candidate.get(field) is not None or (
+            field == "parent_post_id"
+            and candidate.get("account_graph_kind") == "root"
+        ):
+            field_authorities[field] = authority
+    post["graph_evidence_authority"] = authority
+    post["graph_field_evidence_authorities"] = field_authorities
+    post["account_graph_ambiguity_authority"] = None
+    post["account_graph_ambiguous_fields"] = []
+    _raise_reconstruction_confidence(post, "medium")
+
+
+def _record_graph_conflict(
+    post: dict[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    authority: str,
+    disposition: str,
+) -> None:
+    _merge_bounded_account_conflicts(
+        post,
+        "account_graph_conflicts",
+        (
+            _graph_conflict_entry(
+                candidate,
+                authority=authority,
+                disposition=disposition,
+            ),
+        ),
+    )
+    _record_warning(post, "account_graph_conflict")
+
+
+def _fill_absent_account_graph_fields(
+    post: dict[str, Any], candidate: Mapping[str, Any], authority: str
+) -> None:
+    if post.get("account_graph_kind") != candidate.get("account_graph_kind"):
+        return
+    field_authorities = dict(post.get("graph_field_evidence_authorities") or {})
+    for field in ACCOUNT_GRAPH_FIELDS:
+        if field == "parent_post_id" and post.get("account_graph_kind") == "root":
+            continue
+        existing = post.get(field)
+        missing = existing is None or (
+            field == "lane" and existing == "other conversational lane"
+        )
+        if missing and candidate.get(field) is not None:
+            post[field] = copy.deepcopy(candidate[field])
+            field_authorities[field] = authority
+    post["graph_field_evidence_authorities"] = field_authorities
+
+
+def _merge_account_graph_evidence(
+    post: dict[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    authority: str,
+) -> None:
+    """Merge account graph identity without lower-priority reparenting."""
+    incoming = {
+        "account_graph_kind": candidate.get("account_graph_kind"),
+        **{field: copy.deepcopy(candidate.get(field)) for field in ACCOUNT_GRAPH_FIELDS},
+    }
+    incoming_rank = _account_authority_rank(authority)
+    ambiguity_authority = str(post.get("account_graph_ambiguity_authority") or "")
+    if ambiguity_authority:
+        ambiguity_rank = _account_authority_rank(ambiguity_authority)
+        if incoming_rank > ambiguity_rank:
+            _assign_account_graph(post, incoming, authority)
+        else:
+            disposition = (
+                "equal_authority_ambiguous"
+                if incoming_rank == ambiguity_rank
+                else "rejected_lower_priority"
+            )
+            _record_graph_conflict(
+                post,
+                incoming,
+                authority=authority,
+                disposition=disposition,
+            )
+            if incoming_rank == ambiguity_rank:
+                _record_warning(post, "equal_authority_account_graph_conflict")
+            else:
+                _record_warning(post, "lower_priority_account_graph_conflict")
+        return
+
+    current_authority = str(post.get("graph_evidence_authority") or "")
+    if not current_authority:
+        _assign_account_graph(post, incoming, authority)
+        return
+    current = _current_account_graph(post)
+    current_rank = _account_authority_rank(current_authority)
+    disagreements = _graph_disagreement_fields(current, incoming)
+
+    if incoming_rank > current_rank:
+        if disagreements:
+            _record_graph_conflict(
+                post,
+                current,
+                authority=current_authority,
+                disposition="rejected_lower_priority",
+            )
+            _record_warning(post, "lower_priority_account_graph_conflict")
+        same_kind = (
+            current.get("account_graph_kind") == incoming.get("account_graph_kind")
+        )
+        _assign_account_graph(post, incoming, authority)
+        if same_kind:
+            _fill_absent_account_graph_fields(post, current, current_authority)
+        return
+    if incoming_rank < current_rank:
+        if disagreements:
+            _record_graph_conflict(
+                post,
+                incoming,
+                authority=authority,
+                disposition="rejected_lower_priority",
+            )
+            _record_warning(post, "lower_priority_account_graph_conflict")
+        _fill_absent_account_graph_fields(post, incoming, authority)
+        return
+    if not disagreements:
+        _fill_absent_account_graph_fields(post, incoming, authority)
+        return
+
+    _record_graph_conflict(
+        post,
+        current,
+        authority=current_authority,
+        disposition="equal_authority_ambiguous",
+    )
+    _record_graph_conflict(
+        post,
+        incoming,
+        authority=authority,
+        disposition="equal_authority_ambiguous",
+    )
+    post["graph_evidence_authority"] = authority
+    post["account_graph_ambiguity_authority"] = authority
+    post["account_graph_ambiguous_fields"] = disagreements
+    field_authorities = dict(post.get("graph_field_evidence_authorities") or {})
+    if "account_graph_kind" in disagreements:
+        post["account_graph_kind"] = "ambiguous"
+    for field in disagreements:
+        if field == "account_graph_kind":
+            continue
+        if field == "lane":
+            post[field] = "other conversational lane"
+        elif field == "parent_observation_status":
+            post[field] = "ambiguous"
+        else:
+            post[field] = None
+        field_authorities.pop(field, None)
+    if "parent_post_id" in disagreements:
+        post["parent_observation_status"] = "ambiguous"
+        field_authorities.pop("parent_observation_status", None)
+    post["graph_field_evidence_authorities"] = field_authorities
+    post["reconstruction_confidence"] = "low"
+    _record_warning(post, "equal_authority_account_graph_conflict")
+
+
+def _ensure_account_evidence_defaults(post: dict[str, Any]) -> None:
+    post.setdefault("account_content_ambiguity_authority", None)
+    post.setdefault("account_content_conflict_other_count", 0)
+    post.setdefault("account_content_conflicts", [])
+    post.setdefault("account_graph_ambiguity_authority", None)
+    post.setdefault("account_graph_ambiguous_fields", [])
+    post.setdefault("account_graph_conflict_other_count", 0)
+    post.setdefault("account_graph_conflicts", [])
+    post.setdefault("account_graph_kind", None)
+    post.setdefault("content_evidence_authority", None)
+    post.setdefault("graph_evidence_authority", None)
+    post.setdefault("graph_field_evidence_authorities", {})
+    if post.get("author_role") != "account":
+        return
+    publication_authority = str(post.get("publication_authority") or "")
+    if publication_authority not in ACCOUNT_EVIDENCE_AUTHORITY_RANK:
+        return
+    lane = str(post.get("lane") or "")
+    if lane in {"quote_image", "daily_meme"}:
+        post["account_graph_kind"] = post.get("account_graph_kind") or "root"
+    elif lane == "historical_context_reply":
+        post["account_graph_kind"] = post.get("account_graph_kind") or "reply"
+    else:
+        return
+    if not post.get("graph_evidence_authority"):
+        post["graph_evidence_authority"] = publication_authority
+    if not post.get("graph_field_evidence_authorities"):
+        post["graph_field_evidence_authorities"] = {
+            field: publication_authority
+            for field in ACCOUNT_GRAPH_FIELDS
+            if post.get(field) is not None
+            or (field == "parent_post_id" and post["account_graph_kind"] == "root")
+        }
+    if post.get("text") and not post.get("content_evidence_authority"):
+        post["content_evidence_authority"] = publication_authority
 
 
 def _set_author(post: dict[str, Any], key: bytes, raw_author_id: Any) -> None:
+    if post.get("author_role") == "account":
+        return
     raw = str(raw_author_id or "")
     if not raw:
         return
@@ -1025,6 +1667,19 @@ def _set_author(post: dict[str, Any], key: bytes, raw_author_id: Any) -> None:
         _record_warning(post, "conflicting_pseudonymous_author_observations")
         return
     post["author_key"] = candidate
+
+
+def _record_account_self_observation(
+    post: dict[str, Any], record: LogRecord
+) -> None:
+    post["self_observation_count"] = min(
+        2_147_483_647,
+        int(post.get("self_observation_count") or 0) + 1,
+    )
+    current = str(post.get("self_observation_last_observed_at") or "")
+    if not current or record.timestamp > current:
+        post["self_observation_last_observed_at"] = record.timestamp
+    _record_warning(post, "account_post_observed_by_mention_poll")
 
 
 def _set_identity(post: dict[str, Any], field: str, value: Any) -> None:
@@ -1145,6 +1800,10 @@ STRUCTURED_CONVERSATION_EVENT_FIELDS.update(
             confirms_publication=True,
         ),
     }
+)
+
+LEGACY_ACCOUNT_SEQUENCE_EVENT_KINDS = frozenset(
+    {"main_post_posted", "historical_context_reply", "historical_context_obligation"}
 )
 
 
@@ -1413,12 +2072,285 @@ def _bind_confirmed_send_attempt(
     return selected, tuple(warnings)
 
 
+@dataclass(frozen=True)
+class LegacyAccountPublication:
+    post_id: str
+    lane: str
+    parent_post_id: str | None
+    root_post_id: str
+    conversation_id: str
+    text: str | None
+    text_source: str
+    public_text: str | None
+    visible_media_text: str | None
+    quote_id: str | None
+    evidence_kind: str
+    evidence_records: tuple[LogRecord, ...]
+    warnings: tuple[str, ...] = ()
+
+
+def _valid_account_root_event(event: Mapping[str, Any]) -> bool:
+    post_id = str(event.get("post_id") or "").strip()
+    return bool(
+        event.get("event_version") == 1
+        and re.fullmatch(r"\d{1,30}", post_id)
+        and str(event.get("root_post_id") or "") == post_id
+        and str(event.get("conversation_id") or "") == post_id
+        and normalise_account_lane(event.get("lane")) in {"quote_image", "daily_meme"}
+        and event.get("publication_authority") == "confirmed_transport"
+    )
+
+
+def _valid_historical_context_event(event: Mapping[str, Any]) -> bool:
+    parent_id = str(event.get("parent_post_id") or "").strip()
+    reply_id = str(event.get("reply_post_id") or "").strip()
+    return bool(
+        event.get("event_version") == 1
+        and re.fullmatch(r"\d{1,30}", parent_id)
+        and re.fullmatch(r"\d{1,30}", reply_id)
+        and str(event.get("root_post_id") or "") == parent_id
+        and str(event.get("conversation_id") or "") == parent_id
+        and normalise_account_lane(event.get("lane")) == "historical_context_reply"
+        and event.get("publication_authority") == "confirmed_transport"
+    )
+
+
+def _authoritative_account_ids(
+    records: Sequence[LogRecord],
+    legacy_publications: Mapping[str, LegacyAccountPublication] | None = None,
+) -> set[str]:
+    result: set[str] = set()
+    for record in records:
+        event = record.structured_event
+        if not isinstance(event, dict):
+            continue
+        kind = str(event.get("event") or event.get("kind") or "")
+        if kind == "account_root_posted" and _valid_account_root_event(event):
+            result.add(str(event["post_id"]))
+        elif (
+            kind == "historical_context_reply_posted"
+            and _valid_historical_context_event(event)
+        ):
+            result.add(str(event["reply_post_id"]))
+    result.update(legacy_publications or _legacy_account_publications(records))
+    return result
+
+
+def _legacy_account_publications(
+    records: Sequence[LogRecord],
+) -> dict[str, LegacyAccountPublication]:
+    """Recover only complete, unambiguous retained account-publication chains."""
+    pending_main: dict[str, dict[str, Any]] = {}
+    active_transport: dict[str, Any] | None = None
+    last_remote_success: dict[str, Any] | None = None
+    completed_context: dict[str, Any] | None = None
+    publications: dict[str, LegacyAccountPublication] = {}
+
+    for record in records:
+        message = record.message
+        match = MAIN_ATTEMPT_WRITTEN_RE.search(message)
+        if match:
+            lane = match.group(1)
+            pending_main[lane] = {
+                "attempt_id": match.group(2),
+                "attempting": False,
+                "records": [record],
+            }
+
+        match = MAIN_ATTEMPT_ATTEMPTING_RE.search(message)
+        if match:
+            lane, attempt_id = match.groups()
+            state = pending_main.get(lane)
+            if state is None or state.get("attempt_id") != attempt_id:
+                pending_main.pop(lane, None)
+            else:
+                state["attempting"] = True
+                state["records"].append(record)
+
+        match = CREATE_ATTEMPT_RE.search(message)
+        if match:
+            lane = match.group(1)
+            parent_id = match.group(3)
+            active_transport = None
+            last_remote_success = None
+            completed_context = None
+            text_value = decode_literal(match.group(4))
+            if lane in {"quote_image", "daily_meme"}:
+                state = pending_main.get(lane)
+                if (
+                    parent_id.casefold() in {"none", "null"}
+                    and state is not None
+                    and state.get("attempting") is True
+                ):
+                    active_transport = {
+                        "kind": "main",
+                        "lane": lane,
+                        "transaction_id": match.group(2),
+                        "text": text_value or None,
+                        "record": record,
+                        "main_state": state,
+                    }
+            elif (
+                lane == "historical_context_reply"
+                and re.fullmatch(r"\d{1,30}", parent_id)
+            ):
+                active_transport = {
+                    "kind": "historical_context",
+                    "lane": lane,
+                    "transaction_id": match.group(2),
+                    "parent_post_id": parent_id,
+                    "text": text_value or None,
+                    "record": record,
+                }
+
+        match = CREATED_ID_RE.search(message)
+        if match:
+            if active_transport is not None:
+                last_remote_success = {
+                    **active_transport,
+                    "post_id": match.group(1),
+                    "success_record": record,
+                }
+                if active_transport["kind"] == "main":
+                    state = active_transport["main_state"]
+                    state["transport"] = last_remote_success
+                    state["records"].extend(
+                        [active_transport["record"], record]
+                    )
+            active_transport = None
+
+        match = MAIN_ATTEMPT_CONFIRMED_RE.search(message)
+        if match:
+            lane, attempt_id, post_id = match.groups()
+            state = pending_main.get(lane)
+            transport = state.get("transport") if state is not None else None
+            if (
+                state is None
+                or state.get("attempt_id") != attempt_id
+                or not isinstance(transport, dict)
+                or transport.get("post_id") != post_id
+            ):
+                pending_main.pop(lane, None)
+            else:
+                state["confirmed_post_id"] = post_id
+                state["records"].append(record)
+
+        match = MAIN_SCHEDULE_FINALISED_RE.search(message)
+        if match:
+            lane, post_id = match.groups()
+            state = pending_main.get(lane)
+            if state is None or state.get("confirmed_post_id") != post_id:
+                pending_main.pop(lane, None)
+            else:
+                state["finalised"] = True
+                state["records"].append(record)
+
+        event = record.structured_event
+        if not isinstance(event, dict):
+            continue
+        kind = str(event.get("event") or event.get("kind") or "")
+        if kind == "main_post_posted":
+            lane = str(event.get("lane") or "")
+            post_id = str(event.get("post_id") or "")
+            state = pending_main.get(lane)
+            transport = state.get("transport") if state is not None else None
+            if (
+                lane in {"quote_image", "daily_meme"}
+                and re.fullmatch(r"\d{1,30}", post_id)
+                and state is not None
+                and state.get("finalised") is True
+                and state.get("confirmed_post_id") == post_id
+                and isinstance(transport, dict)
+                and transport.get("post_id") == post_id
+            ):
+                text = transport.get("text")
+                warnings = () if text else ("legacy_account_root_text_unavailable",)
+                publications[post_id] = LegacyAccountPublication(
+                    post_id=post_id,
+                    lane=normalise_account_lane(lane),
+                    parent_post_id=None,
+                    root_post_id=post_id,
+                    conversation_id=post_id,
+                    text=str(text) if text else None,
+                    text_source="public_text" if text else "unavailable",
+                    public_text=str(text) if text else None,
+                    visible_media_text=(
+                        str(text) if text and lane == "quote_image" else None
+                    ),
+                    quote_id=str(event.get("quote_hash") or "") or None,
+                    evidence_kind="legacy_confirmed_main_post_sequence",
+                    evidence_records=tuple([*state["records"], record]),
+                    warnings=warnings,
+                )
+            pending_main.pop(lane, None)
+            continue
+
+        if kind == "historical_context_reply":
+            parent_id = str(event.get("parent_post_id") or "")
+            if (
+                str(event.get("status") or "") in {"completed", "already_completed"}
+                and isinstance(last_remote_success, dict)
+                and last_remote_success.get("kind") == "historical_context"
+                and last_remote_success.get("parent_post_id") == parent_id
+            ):
+                completed_context = {
+                    **last_remote_success,
+                    "quote_id": str(event.get("quote_id") or "") or None,
+                    "completion_record": record,
+                }
+            else:
+                completed_context = None
+            continue
+
+        if kind == "historical_context_obligation":
+            parent_id = str(event.get("parent_post_id") or "")
+            if (
+                str(event.get("status") or "") in {"completed", "already_completed"}
+                and str(event.get("context_reply_state") or "")
+                == "context_reply_confirmed"
+                and isinstance(completed_context, dict)
+                and completed_context.get("parent_post_id") == parent_id
+            ):
+                reply_id = str(completed_context["post_id"])
+                reply_text = completed_context.get("text")
+                publications[reply_id] = LegacyAccountPublication(
+                    post_id=reply_id,
+                    lane="historical_context_reply",
+                    parent_post_id=parent_id,
+                    root_post_id=parent_id,
+                    conversation_id=parent_id,
+                    text=str(reply_text) if reply_text else None,
+                    text_source=(
+                        "historical_context_reply" if reply_text else "unavailable"
+                    ),
+                    public_text=str(reply_text) if reply_text else None,
+                    visible_media_text=None,
+                    quote_id=completed_context.get("quote_id"),
+                    evidence_kind="legacy_confirmed_historical_context_sequence",
+                    evidence_records=(
+                        completed_context["record"],
+                        completed_context["success_record"],
+                        completed_context["completion_record"],
+                        record,
+                    ),
+                    warnings=(
+                        ()
+                        if reply_text
+                        else ("legacy_historical_context_text_unavailable",)
+                    ),
+                )
+            completed_context = None
+            last_remote_success = None
+
+    return publications
+
+
 def normalise_canonical_posts(
     records: Sequence[LogRecord],
     prior_posts: Sequence[Mapping[str, Any]],
     pseudonym_key: bytes,
     *,
-    parser_statistics: dict[str, int] | None = None,
+    parser_statistics: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Merge legacy and structured observations into stable canonical posts."""
     statistics = parser_statistics if parser_statistics is not None else {}
@@ -1429,6 +2361,8 @@ def normalise_canonical_posts(
         "registered_event_missing_target_count",
     ):
         statistics.setdefault(name, 0)
+    statistics.setdefault("ignored_structured_event_kinds_by_kind", {})
+    statistics.setdefault("ignored_target_like_event_kinds_by_kind", {})
     posts: dict[str, dict[str, Any]] = {
         str(row["post_id"]): copy.deepcopy(dict(row))
         for row in prior_posts
@@ -1437,15 +2371,224 @@ def normalise_canonical_posts(
     for post in posts.values():
         post.setdefault("creation_time_conflict", False)
         post.setdefault("creation_time_conflicts", [])
+        post.setdefault("public_text", None)
+        post.setdefault("self_observation_count", 0)
+        post.setdefault("self_observation_last_observed_at", None)
+        post.setdefault("text_source", "unavailable")
+        post.setdefault("visible_media_text", None)
+        _ensure_account_evidence_defaults(post)
+
+    deduplicated: dict[str, LogRecord] = {}
+    for record in records:
+        deduplicated.setdefault(record.record_fingerprint, record)
+    ordered_records = sorted(
+        deduplicated.values(),
+        key=lambda item: (
+            item.timestamp,
+            item.ordinal,
+            item.record_fingerprint,
+            item.source,
+            item.line if item.line is not None else -1,
+        ),
+    )
+    legacy_publications = _legacy_account_publications(ordered_records)
+    authoritative_account_ids = _authoritative_account_ids(
+        ordered_records, legacy_publications
+    )
     active_attempt: tuple[str, str] | None = None
 
     def get_user(target_id: str) -> dict[str, Any]:
-        row = posts.setdefault(target_id, _blank_post(target_id, pseudonym_key))
-        if row.get("author_role") not in {None, "user"}:
-            _record_warning(row, "post_observed_with_conflicting_author_roles")
+        account_proved = target_id in authoritative_account_ids
+        row = posts.setdefault(
+            target_id,
+            _blank_post(
+                target_id,
+                pseudonym_key,
+                author_role="account" if account_proved else "user",
+            ),
+        )
+        if row.get("author_role") == "account" or account_proved:
+            row["author_role"] = "account"
+            row["author_key"] = _pseudonym(
+                pseudonym_key, "account", "mrsMThatcher-account"
+            )
         else:
             row["author_role"] = "user"
             row["publication_status"] = "observed"
+        return row
+
+    def claim_account_role(post_id: str) -> dict[str, Any]:
+        row = posts.setdefault(
+            post_id,
+            _blank_post(post_id, pseudonym_key, author_role="account"),
+        )
+        row["author_role"] = "account"
+        row["author_key"] = _pseudonym(
+            pseudonym_key, "account", "mrsMThatcher-account"
+        )
+        _ensure_account_evidence_defaults(row)
+        return row
+
+    def record_publication_evidence(
+        row: dict[str, Any],
+        *,
+        authority: str,
+        evidence_kind: str,
+        evidence_records: Sequence[LogRecord],
+    ) -> None:
+        existing_authority = str(row.get("publication_authority") or "")
+        if (
+            not existing_authority
+            or authority == "structured_confirmation"
+            or _account_authority_rank(authority)
+            > _account_authority_rank(existing_authority)
+        ):
+            row["publication_authority"] = authority
+        row["publication_status"] = "published"
+        row["publication_evidence"] = _merge_unique_objects(
+            list(row.get("publication_evidence") or []),
+            (
+                {
+                    "authority": authority,
+                    "event_kind": evidence_kind,
+                    "observed_at": evidence_record.timestamp,
+                    "record_fingerprint": evidence_record.record_fingerprint,
+                }
+                for evidence_record in evidence_records
+            ),
+        )
+        for evidence_record in evidence_records:
+            _touch_post(row, evidence_record)
+
+    def publish_account_root(
+        *,
+        post_id: str,
+        record: LogRecord,
+        lane: str,
+        text: str | None,
+        text_source: str,
+        public_text: str | None,
+        visible_media_text: str | None,
+        quote_id: str | None,
+        authority: str,
+        evidence_kind: str,
+        evidence_records: Sequence[LogRecord],
+        event: Mapping[str, Any] | None = None,
+        warnings: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        row = claim_account_role(post_id)
+        record_publication_evidence(
+            row,
+            authority=authority,
+            evidence_kind=evidence_kind,
+            evidence_records=evidence_records,
+        )
+        _merge_account_graph_evidence(
+            row,
+            {
+                "account_graph_kind": "root",
+                "conversation_id": post_id,
+                "lane": lane,
+                "parent_observation_status": "confirmed_none",
+                "parent_post_id": None,
+                "quote_id": quote_id,
+                "root_post_id": post_id,
+            },
+            authority=authority,
+        )
+        _merge_account_content_evidence(
+            row,
+            {
+                "public_text": public_text,
+                "text": text,
+                "text_source": text_source,
+                "visible_media_text": visible_media_text,
+            },
+            authority=authority,
+        )
+        if row.get("text") is None:
+            _record_warning(row, "confirmed_account_root_text_unavailable")
+            if not row.get("account_content_ambiguity_authority"):
+                _raise_reconstruction_confidence(row, "medium")
+        if event is not None:
+            _set_explicit_creation_time(
+                row,
+                event,
+                ("post_created_at",),
+                record,
+                subject="root",
+            )
+        for warning in warnings:
+            if warning not in ACCOUNT_UNAVAILABLE_TEXT_WARNINGS or row.get("text") is None:
+                _record_warning(row, warning)
+        return row
+
+    def publish_historical_context(
+        *,
+        reply_id: str,
+        parent_id: str,
+        record: LogRecord,
+        text: str | None,
+        quote_id: str | None,
+        authority: str,
+        evidence_kind: str,
+        evidence_records: Sequence[LogRecord],
+        event: Mapping[str, Any] | None = None,
+        warnings: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        root_is_authoritative = parent_id in authoritative_account_ids
+        if root_is_authoritative:
+            claim_account_role(parent_id)
+        row = claim_account_role(reply_id)
+        record_publication_evidence(
+            row,
+            authority=authority,
+            evidence_kind=evidence_kind,
+            evidence_records=evidence_records,
+        )
+        _merge_account_graph_evidence(
+            row,
+            {
+                "account_graph_kind": "reply",
+                "conversation_id": parent_id,
+                "lane": "historical_context_reply",
+                "parent_observation_status": "observed",
+                "parent_post_id": parent_id,
+                "quote_id": quote_id,
+                "root_post_id": parent_id,
+            },
+            authority=authority,
+        )
+        _merge_account_content_evidence(
+            row,
+            {
+                "public_text": text,
+                "text": text,
+                "text_source": "historical_context_reply" if text else "unavailable",
+                "visible_media_text": None,
+            },
+            authority=authority,
+        )
+        # The publication contract proves the reply's graph identity even when
+        # retained evidence for the parent root is unavailable.  It does not,
+        # by itself, promote that absent parent to an account-authored post.
+        if not root_is_authoritative:
+            _record_warning(row, "authoritative_account_root_unavailable")
+        if row.get("text") is None:
+            _record_warning(row, "confirmed_historical_context_text_unavailable")
+            if not row.get("account_content_ambiguity_authority"):
+                _raise_reconstruction_confidence(row, "medium")
+        if event is not None:
+            _set_explicit_creation_time(
+                row,
+                event,
+                ("reply_created_at",),
+                record,
+                subject="reply",
+            )
+        for warning in warnings:
+            if warning not in ACCOUNT_UNAVAILABLE_TEXT_WARNINGS or row.get("text") is None:
+                _record_warning(row, warning)
         return row
 
     def publish_account(
@@ -1459,36 +2602,19 @@ def normalise_canonical_posts(
         contract: StructuredEventContract | None = None,
     ) -> dict[str, Any]:
         target = get_user(target_id)
-        row = posts.setdefault(
-            reply_post_id,
-            _blank_post(reply_post_id, pseudonym_key, author_role="account"),
+        row = claim_account_role(reply_post_id)
+        record_publication_evidence(
+            row,
+            authority=authority,
+            evidence_kind=evidence_kind,
+            evidence_records=(record,),
         )
-        row["author_role"] = "account"
-        row["author_key"] = _pseudonym(
-            pseudonym_key, "account", "mrsMThatcher-account"
-        )
-        if authority == "structured_confirmation" or not row.get(
-            "publication_authority"
-        ):
-            row["publication_authority"] = authority
-        row["publication_evidence"] = _merge_unique_objects(
-            list(row.get("publication_evidence") or []),
-            [
-                {
-                    "event_kind": evidence_kind,
-                    "observed_at": record.timestamp,
-                    "record_fingerprint": record.record_fingerprint,
-                }
-            ],
-        )
-        row["publication_status"] = "published"
         row["parent_post_id"] = target_id
         row["parent_observation_status"] = "observed"
         row["lane"] = target.get("lane") or "other conversational lane"
         for field in ("conversation_id", "root_post_id", "thread_id"):
             if target.get(field):
                 row[field] = target[field]
-        _touch_post(row, record)
         selected_attempt, binding_warnings = _bind_confirmed_send_attempt(
             target,
             record=record,
@@ -1504,7 +2630,7 @@ def normalise_canonical_posts(
                 else ""
             )
         )
-        _set_text(row, final_text)
+        _set_text(row, final_text, source="public_text", public_text=True)
         for warning in binding_warnings:
             _record_warning(row, warning)
         if event:
@@ -1532,29 +2658,23 @@ def normalise_canonical_posts(
         )
         return row
 
-    deduplicated: dict[str, LogRecord] = {}
-    for record in records:
-        deduplicated.setdefault(record.record_fingerprint, record)
-    ordered_records = sorted(
-        deduplicated.values(),
-        key=lambda item: (
-            item.timestamp,
-            item.ordinal,
-            item.record_fingerprint,
-            item.source,
-            item.line if item.line is not None else -1,
-        ),
-    )
-
     for record in ordered_records:
         message = record.message
         match = CONSIDER_RE.search(message)
         if match:
             target_id = match.group(2)
             row = get_user(target_id)
-            row["lane"] = normalise_lane(match.group(1))
-            _set_author(row, pseudonym_key, match.group(3))
-            _set_text(row, decode_literal(match.group(4)))
+            if row.get("author_role") == "account":
+                _record_account_self_observation(row, record)
+            else:
+                row["lane"] = normalise_lane(match.group(1))
+                _set_author(row, pseudonym_key, match.group(3))
+                _set_text(
+                    row,
+                    decode_literal(match.group(4)),
+                    source="mention_observation",
+                    public_text=True,
+                )
             _touch_post(row, record)
             if _confidence_rank(row.get("reconstruction_confidence")) < 1:
                 row["reconstruction_confidence"] = "medium"
@@ -1563,12 +2683,20 @@ def normalise_canonical_posts(
         if match:
             target_id = match.group(1)
             row = get_user(target_id)
-            row["lane"] = "quote-tweet reply"
-            _set_author(row, pseudonym_key, match.group(2))
-            _set_text(row, decode_literal(match.group(4)))
-            row["quoted_post_id"] = match.group(3)
-            row["parent_observation_status"] = "confirmed_none"
-            row["reconstruction_confidence"] = "high"
+            if row.get("author_role") == "account":
+                _record_account_self_observation(row, record)
+            else:
+                row["lane"] = "quote-tweet reply"
+                _set_author(row, pseudonym_key, match.group(2))
+                _set_text(
+                    row,
+                    decode_literal(match.group(4)),
+                    source="mention_observation",
+                    public_text=True,
+                )
+                row["quoted_post_id"] = match.group(3)
+                row["parent_observation_status"] = "confirmed_none"
+                row["reconstruction_confidence"] = "high"
             _touch_post(row, record)
 
         match = CONTEXT_RE.search(message)
@@ -1577,7 +2705,9 @@ def normalise_canonical_posts(
             row = get_user(target_id)
             parent = match.group(3)
             chain_items = int(match.group(2))
-            if parent.casefold() in {"none", "null", "unavailable", ""}:
+            if row.get("author_role") == "account":
+                _record_account_self_observation(row, record)
+            elif parent.casefold() in {"none", "null", "unavailable", ""}:
                 if chain_items == 0:
                     row["parent_post_id"] = None
                     row["parent_observation_status"] = "confirmed_none"
@@ -1590,25 +2720,32 @@ def normalise_canonical_posts(
                 _set_identity(row, "parent_post_id", parent)
                 row["parent_observation_status"] = "observed"
                 row["reconstruction_confidence"] = "high"
-            row["parent_thread_entry_count"] = chain_items
+            if row.get("author_role") != "account":
+                row["parent_thread_entry_count"] = chain_items
             _touch_post(row, record)
 
         match = GENERATED_RE.search(message)
         if match:
             target_id = match.group(2)
             row = get_user(target_id)
-            row["generated_reply_text"] = decode_literal(match.group(3))
-            row["generated_reply_text_observed_at"] = record.timestamp
-            row["lane"] = normalise_lane(match.group(1))
+            if row.get("author_role") == "account":
+                _record_account_self_observation(row, record)
+            else:
+                row["generated_reply_text"] = decode_literal(match.group(3))
+                row["generated_reply_text_observed_at"] = record.timestamp
+                row["lane"] = normalise_lane(match.group(1))
             _touch_post(row, record)
 
         match = GENERATED_QUOTE_RE.search(message)
         if match:
             target_id = match.group(1)
             row = get_user(target_id)
-            row["generated_reply_text"] = decode_literal(match.group(2))
-            row["generated_reply_text_observed_at"] = record.timestamp
-            row["lane"] = "quote-tweet reply"
+            if row.get("author_role") == "account":
+                _record_account_self_observation(row, record)
+            else:
+                row["generated_reply_text"] = decode_literal(match.group(2))
+                row["generated_reply_text_observed_at"] = record.timestamp
+                row["lane"] = "quote-tweet reply"
             _touch_post(row, record)
 
         match = CREATE_ATTEMPT_RE.search(message)
@@ -1682,7 +2819,9 @@ def normalise_canonical_posts(
         match = PROMOTED_RE.search(message)
         if match:
             target_id = match.group(2)
-            get_user(target_id)["lane"] = normalise_lane(match.group(1))
+            target = get_user(target_id)
+            if target.get("author_role") != "account":
+                target["lane"] = normalise_lane(match.group(1))
             publish_account(
                 target_id,
                 match.group(3),
@@ -1695,10 +2834,72 @@ def normalise_canonical_posts(
         if not isinstance(event, dict):
             continue
         kind = str(event.get("event") or event.get("kind") or "")
+        if kind == "account_root_posted":
+            if not _valid_account_root_event(event):
+                statistics["ambiguous_registered_event_count"] += 1
+                continue
+            post_id = str(event["post_id"])
+            public = str(event.get("public_text") or "").strip() or None
+            quote = str(event.get("quote_text") or "").strip() or None
+            image_summary = str(event.get("image_summary") or "").strip() or None
+            if public:
+                visible = public
+                source = "public_text"
+            elif quote:
+                visible = quote
+                source = "image_quote_text"
+            elif image_summary:
+                visible = image_summary
+                source = "image_summary"
+            else:
+                visible = None
+                source = "unavailable"
+            declared_visible = str(event.get("visible_text") or "").strip() or None
+            declared_source = str(event.get("visible_text_source") or "")
+            row = publish_account_root(
+                post_id=post_id,
+                record=record,
+                lane=normalise_account_lane(event.get("lane")),
+                text=visible,
+                text_source=source,
+                public_text=public,
+                visible_media_text=quote or image_summary,
+                quote_id=str(event.get("quote_id") or "") or None,
+                authority="structured_confirmation",
+                evidence_kind=kind,
+                evidence_records=(record,),
+                event=event,
+            )
+            if declared_visible != visible or declared_source != source:
+                _record_warning(row, "account_root_visible_text_contract_mismatch")
+            continue
+        if kind == "historical_context_reply_posted":
+            if not _valid_historical_context_event(event):
+                statistics["ambiguous_registered_event_count"] += 1
+                continue
+            publish_historical_context(
+                reply_id=str(event["reply_post_id"]),
+                parent_id=str(event["parent_post_id"]),
+                record=record,
+                text=str(event.get("reply_text") or "").strip() or None,
+                quote_id=str(event.get("quote_id") or "") or None,
+                authority="structured_confirmation",
+                evidence_kind=kind,
+                evidence_records=(record,),
+                event=event,
+            )
+            continue
         contract = STRUCTURED_CONVERSATION_EVENT_FIELDS.get(kind)
         if contract is None:
+            if kind in LEGACY_ACCOUNT_SEQUENCE_EVENT_KINDS:
+                continue
             statistics["ignored_structured_event_count"] += 1
-            if any(
+            histogram_kind = kind or "unavailable"
+            kind_counts = statistics["ignored_structured_event_kinds_by_kind"]
+            kind_counts[histogram_kind] = int(
+                kind_counts.get(histogram_kind, 0)
+            ) + 1
+            target_like = any(
                 event.get(field) is not None
                 for field in (
                     "id",
@@ -1710,8 +2911,15 @@ def normalise_canonical_posts(
                     "incoming_text",
                     "incoming_contribution",
                 )
-            ):
+            )
+            if target_like:
                 statistics["ignored_target_like_event_count"] += 1
+                target_counts = statistics[
+                    "ignored_target_like_event_kinds_by_kind"
+                ]
+                target_counts[histogram_kind] = int(
+                    target_counts.get(histogram_kind, 0)
+                ) + 1
             continue
         target_id, target_ambiguous = _registered_value(
             event, contract.target_fields
@@ -1724,34 +2932,44 @@ def normalise_canonical_posts(
             continue
         target = get_user(target_id)
         _touch_post(target, record)
-        if event.get("lane") or event.get("candidate_source") or event.get("source"):
+        account_self_observation = target.get("author_role") == "account"
+        if account_self_observation:
+            _record_account_self_observation(target, record)
+        elif event.get("lane") or event.get("candidate_source") or event.get("source"):
             target["lane"] = normalise_lane(
                 event.get("lane") or event.get("candidate_source") or event.get("source")
             )
-        raw_author, author_ambiguous = _registered_value(
-            event, contract.author_fields
-        )
-        if author_ambiguous:
-            _record_warning(target, "conflicting_registered_author_fields")
-        elif raw_author:
-            _set_author(target, pseudonym_key, raw_author)
-        for field in contract.identity_fields:
-            _set_identity(target, field, event.get(field))
-        parent_value, parent_ambiguous = _registered_value(
-            event, contract.parent_fields
-        )
-        if parent_ambiguous:
-            _record_warning(target, "conflicting_registered_parent_fields")
-            target["parent_observation_status"] = "ambiguous"
-            target["reconstruction_confidence"] = "low"
-        elif parent_value:
-            _set_identity(target, "parent_post_id", parent_value)
-            target["parent_observation_status"] = "observed"
-            target["reconstruction_confidence"] = "high"
-        for text_field in contract.incoming_text_fields:
-            if event.get(text_field):
-                _set_text(target, event[text_field])
-                break
+        if not account_self_observation:
+            raw_author, author_ambiguous = _registered_value(
+                event, contract.author_fields
+            )
+            if author_ambiguous:
+                _record_warning(target, "conflicting_registered_author_fields")
+            elif raw_author:
+                _set_author(target, pseudonym_key, raw_author)
+        if not account_self_observation:
+            for field in contract.identity_fields:
+                _set_identity(target, field, event.get(field))
+            parent_value, parent_ambiguous = _registered_value(
+                event, contract.parent_fields
+            )
+            if parent_ambiguous:
+                _record_warning(target, "conflicting_registered_parent_fields")
+                target["parent_observation_status"] = "ambiguous"
+                target["reconstruction_confidence"] = "low"
+            elif parent_value:
+                _set_identity(target, "parent_post_id", parent_value)
+                target["parent_observation_status"] = "observed"
+                target["reconstruction_confidence"] = "high"
+            for text_field in contract.incoming_text_fields:
+                if event.get(text_field):
+                    _set_text(
+                        target,
+                        event[text_field],
+                        source="mention_observation",
+                        public_text=True,
+                    )
+                    break
         _set_explicit_creation_time(
             target,
             event,
@@ -1793,7 +3011,41 @@ def normalise_canonical_posts(
                 contract=contract,
             )
 
+    for publication in sorted(
+        legacy_publications.values(),
+        key=lambda item: (item.evidence_records[-1].timestamp, item.post_id),
+    ):
+        record = publication.evidence_records[-1]
+        if publication.parent_post_id is None:
+            publish_account_root(
+                post_id=publication.post_id,
+                record=record,
+                lane=publication.lane,
+                text=publication.text,
+                text_source=publication.text_source,
+                public_text=publication.public_text,
+                visible_media_text=publication.visible_media_text,
+                quote_id=publication.quote_id,
+                authority="legacy_confirmed_sequence",
+                evidence_kind=publication.evidence_kind,
+                evidence_records=publication.evidence_records,
+                warnings=publication.warnings,
+            )
+        else:
+            publish_historical_context(
+                reply_id=publication.post_id,
+                parent_id=publication.parent_post_id,
+                record=record,
+                text=publication.text,
+                quote_id=publication.quote_id,
+                authority="legacy_confirmed_sequence",
+                evidence_kind=publication.evidence_kind,
+                evidence_records=publication.evidence_records,
+                warnings=publication.warnings,
+            )
+
     for post in posts.values():
+        _ensure_account_evidence_defaults(post)
         post["source_provenance"] = _merge_unique_objects(
             [], post.get("source_provenance") or []
         )
@@ -1817,7 +3069,27 @@ def normalise_canonical_posts(
         post["publication_evidence"] = _merge_unique_objects(
             [], post.get("publication_evidence") or []
         )
+        _merge_bounded_account_conflicts(post, "account_graph_conflicts", ())
+        _merge_bounded_account_conflicts(post, "account_content_conflicts", ())
+        post["account_graph_ambiguous_fields"] = sorted(
+            set(post.get("account_graph_ambiguous_fields") or [])
+        )
+        post["graph_field_evidence_authorities"] = {
+            str(field): str(authority)
+            for field, authority in sorted(
+                dict(post.get("graph_field_evidence_authorities") or {}).items()
+            )
+        }
+        if post.get("text") is not None:
+            _remove_warnings(post, ACCOUNT_UNAVAILABLE_TEXT_WARNINGS)
+        if post.get("account_graph_ambiguity_authority"):
+            post["reconstruction_confidence"] = "low"
+        elif post.get("account_content_ambiguity_authority"):
+            post["reconstruction_confidence"] = "medium"
         post["send_attempts"] = _bounded_attempts(post)
+        post["self_observation_count"] = int(
+            post.get("self_observation_count") or 0
+        )
         if post.get("author_role") == "account":
             post["account_turn_asked_for_clarification"] = _looks_like_clarification_request(
                 post.get("text")
@@ -1836,6 +3108,50 @@ def normalise_canonical_posts(
             ),
             str(row.get("post_id") or ""),
         ),
+    )
+
+
+def ignored_structured_event_histogram(
+    statistics: Mapping[str, Any],
+    *,
+    maximum_kinds: int = MAX_IGNORED_STRUCTURED_EVENT_KINDS,
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Return a bounded count-first deterministic ignored-event histogram."""
+    if maximum_kinds < 0:
+        raise ValueError("maximum_kinds must be non-negative")
+    raw_counts = statistics.get("ignored_structured_event_kinds_by_kind")
+    raw_target_counts = statistics.get(
+        "ignored_target_like_event_kinds_by_kind"
+    )
+    counts = {
+        str(kind): int(count)
+        for kind, count in (raw_counts.items() if isinstance(raw_counts, dict) else [])
+        if type(count) is int and count > 0
+    }
+    target_counts = {
+        str(kind): int(count)
+        for kind, count in (
+            raw_target_counts.items()
+            if isinstance(raw_target_counts, dict)
+            else []
+        )
+        if type(count) is int and count > 0
+    }
+    ordered = sorted(counts, key=lambda kind: (-counts[kind], kind))
+    retained = ordered[:maximum_kinds]
+    omitted = ordered[maximum_kinds:]
+    rows = [
+        {
+            "count": counts[kind],
+            "event_kind": kind,
+            "target_like_count": target_counts.get(kind, 0),
+        }
+        for kind in retained
+    ]
+    return (
+        rows,
+        sum(counts[kind] for kind in omitted),
+        sum(target_counts.get(kind, 0) for kind in omitted),
     )
 
 
@@ -1992,6 +3308,22 @@ def _resolve_conversation_start(
         next(iter(conversation_ids)) if len(conversation_ids) == 1 else None
     )
 
+    if (
+        any(
+            "authoritative_account_root_unavailable"
+            in set(turn.get("warnings") or [])
+            for turn in turns
+        )
+        and root_post_id
+        and root_post_id not in by_id
+    ):
+        return ConversationStart(
+            None,
+            "unavailable",
+            root_post_id,
+            "authoritative_account_root_unavailable",
+        )
+
     for identity in (root_post_id, conversation_id):
         if identity and identity in by_id:
             created = parse_optional_timestamp(by_id[identity].get("created_at"))
@@ -2066,21 +3398,6 @@ def _resolve_last_activity(
         return None, "observation_fallback"
     value, _priority, source = max(values, key=lambda item: (item[0], item[1]))
     return value, source
-
-
-def _sibling_branch_activity(turns: Sequence[Mapping[str, Any]]) -> bool:
-    by_id = {str(turn["post_id"]): turn for turn in turns}
-    user_children: dict[str, set[str]] = defaultdict(set)
-    account_targets: set[str] = set()
-    for turn in turns:
-        parent = str(turn.get("parent_post_id") or "")
-        if turn.get("author_role") == "user" and parent:
-            user_children[parent].add(str(turn["post_id"]))
-        elif turn.get("author_role") == "account" and parent in by_id:
-            account_targets.add(parent)
-    return any(
-        len(children & account_targets) >= 2 for children in user_children.values()
-    )
 
 
 def build_conversations(
@@ -2283,15 +3600,19 @@ def build_conversations(
             "warnings": sorted(warnings),
         }
         conversations.append(conversation)
-        candidate = build_review_candidate(conversation)
-        if candidate is not None:
-            candidates.append(candidate)
+        candidates.extend(build_review_candidates(conversation))
 
     conversations.sort(
         key=lambda row: (str(row.get("start_time") or ""), row["conversation_key"])
     )
     candidates.sort(
-        key=lambda row: (str(row.get("start_time") or ""), row["conversation_key"])
+        key=lambda row: (
+            str(row.get("start_time") or ""),
+            row["conversation_key"],
+            row["principal_author_key"],
+            row["segment_start_post_id"],
+            row["branch_tip_post_id"],
+        )
     )
     return conversations, candidates
 
@@ -2307,130 +3628,385 @@ def _flatten_pipeline_summaries(turns: Sequence[Mapping[str, Any]]) -> list[dict
     )
 
 
-def build_review_candidate(conversation: Mapping[str, Any]) -> dict[str, Any] | None:
-    if conversation.get("prospective_status") != "eligible":
-        return None
-    turns = list(conversation.get("turns") or [])
-    user_turns = [turn for turn in turns if turn.get("author_role") == "user"]
-    account_turns = [turn for turn in turns if turn.get("author_role") == "account"]
-    substantive_user_turns = [turn for turn in user_turns if turn.get("substantive")]
-    account_by_id = {str(turn["post_id"]): turn for turn in account_turns}
-    same_chain = any(
-        str(turn.get("parent_post_id") or "") in account_by_id for turn in user_turns
-    )
-    post_clarification = any(
-        account_by_id[str(turn.get("parent_post_id"))].get(
-            "account_turn_asked_for_clarification"
-        )
-        for turn in user_turns
-        if str(turn.get("parent_post_id") or "") in account_by_id
-    )
-    cues = sorted(
-        {
-            cue
-            for turn in user_turns
-            for cue in turn.get("correction_cues") or []
-        }
-    )
-    reasons: set[str] = set()
-    if same_chain:
-        reasons.add("same_chain_user_continuation")
-    if len(substantive_user_turns) >= 2 and account_turns:
-        reasons.add("multiple_substantive_user_turns")
-    if len(account_turns) >= 2:
-        reasons.add("multiple_account_replies")
-    if int(conversation.get("substantive_turn_count") or 0) >= 3:
-        reasons.add("third_or_later_substantive_turn")
-    if cues:
-        reasons.add("explicit_correction_cue")
-    if post_clarification:
-        reasons.add("post_clarification_continuation")
-    if _sibling_branch_activity(turns):
-        reasons.add("sibling_branch_activity")
-    if conversation.get("completeness") == "partial":
-        reasons.add("partial_reconstruction")
-    if any("ambiguous" in str(value) for value in conversation.get("warnings") or []):
-        reasons.add("ambiguous_parentage")
-    if not reasons:
-        return None
-    ordered_reasons = [reason for reason in REVIEW_REASON_ORDER if reason in reasons]
-    summaries = _flatten_pipeline_summaries(turns)
-    route_sources = sorted(
-        {
-            str(turn["route_source"])
-            for turn in turns
-            if turn.get("route_source")
-        }
-        | {
-            str(summary["route_source"])
-            for summary in summaries
-            if summary.get("route_source")
-        }
-    )
-    reply_requirements = sorted(
-        {
-            str(turn["reply_requirement"])
-            for turn in turns
-            if turn.get("reply_requirement")
-        }
-        | {
-            str(summary["reply_requirement"])
-            for summary in summaries
-            if summary.get("reply_requirement")
-        }
-    )
-    trusted_fact_counts = sorted(
-        {
-            int(value)
-            for value in [
-                *(turn.get("trusted_fact_count") for turn in turns),
-                *(summary.get("trusted_facts_supplied_count") for summary in summaries),
-            ]
-            if type(value) is int and value >= 0
-        }
-    )
-    trusted_fact_ids = sorted(
-        {
-            str(value)
-            for turn in turns
-            for value in turn.get("trusted_fact_ids") or []
-        }
-        | {
-            str(value)
-            for summary in summaries
-            for value in summary.get("trusted_fact_ids_supplied") or []
-        }
-    )
-    principal = str(conversation.get("author_key") or "")
-    same_author_depth = sum(
-        turn.get("author_role") == "user" and turn.get("author_key") == principal
+def _parent_path_to_tip(
+    by_id: Mapping[str, Mapping[str, Any]], tip_id: str
+) -> tuple[list[dict[str, Any]], list[str]]:
+    reverse_path: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    seen: set[str] = set()
+    current = tip_id
+    while current in by_id:
+        if current in seen:
+            warnings.append("ambiguous_parentage")
+            break
+        seen.add(current)
+        turn = copy.deepcopy(dict(by_id[current]))
+        reverse_path.append(turn)
+        parent = str(turn.get("parent_post_id") or "")
+        if not parent:
+            break
+        if parent not in by_id:
+            warnings.append("missing_parent_post")
+            break
+        current = parent
+    reverse_path.reverse()
+    return reverse_path, sorted(set(warnings))
+
+
+def _bounded_sibling_context_refs(
+    turns: Sequence[Mapping[str, Any]],
+    path: Sequence[Mapping[str, Any]],
+    *,
+    excluded_post_ids: Iterable[str] = (),
+) -> list[dict[str, Any]]:
+    path_ids = {str(turn.get("post_id") or "") for turn in path}
+    excluded_ids = {str(value) for value in excluded_post_ids}
+    relevant = [
+        turn
         for turn in turns
-    )
+        if str(turn.get("post_id") or "") not in path_ids
+        and str(turn.get("post_id") or "") not in excluded_ids
+        and str(turn.get("parent_post_id") or "") in path_ids
+    ]
+    relevant.sort(key=_turn_order_key)
+    result: list[dict[str, Any]] = []
+    for turn in relevant[:MAX_SIBLING_CONTEXT_REFS]:
+        text = str(turn.get("text") or "")
+        excerpt = text[:MAX_SIBLING_CONTEXT_TEXT_CHARS] if text else None
+        result.append(
+            {
+                "author_key": turn.get("author_key"),
+                "author_role": turn.get("author_role"),
+                "created_at": turn.get("created_at"),
+                "lane": turn.get("lane"),
+                "parent_post_id": turn.get("parent_post_id"),
+                "post_id": turn.get("post_id"),
+                "text_excerpt": excerpt,
+                "text_source": turn.get("text_source"),
+            }
+        )
+    return result
+
+
+def _handoff_context_ref(
+    turn: Mapping[str, Any], *, position: str
+) -> dict[str, Any]:
+    text = str(turn.get("text") or "")
     return {
-        "account_turn_count": int(conversation.get("account_turn_count") or 0),
-        "activity_status": conversation.get("activity_status"),
-        "author_key": principal,
-        "conversation_key": conversation["conversation_key"],
-        "correction_cues": cues,
-        "last_activity_time": conversation.get("last_activity_time"),
-        "pipeline_stage_summaries": summaries,
-        "prospective_status": "eligible",
-        "reconstruction_confidence": conversation.get("reconstruction_confidence"),
-        "reply_requirements": reply_requirements,
-        "review_reason_codes": ordered_reasons,
-        "route_sources": route_sources,
-        "same_author_continuation_depth": same_author_depth,
-        "schema_version": SCHEMA_VERSION,
-        "start_time": conversation.get("start_time"),
-        "substantive_turn_count": int(
-            conversation.get("substantive_turn_count") or 0
-        ),
-        "trusted_fact_counts": trusted_fact_counts,
-        "trusted_fact_ids": trusted_fact_ids,
-        "turns": copy.deepcopy(turns),
-        "user_turn_count": int(conversation.get("user_turn_count") or 0),
-        "warnings": list(conversation.get("warnings") or []),
+        "author_key": turn.get("author_key"),
+        "author_role": turn.get("author_role"),
+        "created_at": turn.get("created_at"),
+        "lane": turn.get("lane"),
+        "parent_post_id": turn.get("parent_post_id"),
+        "position": position,
+        "post_id": turn.get("post_id"),
+        "text_excerpt": text[:MAX_SIBLING_CONTEXT_TEXT_CHARS] if text else None,
+        "text_source": turn.get("text_source"),
     }
+
+
+def _focused_author_segments(
+    source_path: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Split a maximal parent path at each external-author hand-off."""
+    user_turns = [
+        (index, str(turn.get("author_key") or ""))
+        for index, turn in enumerate(source_path)
+        if turn.get("author_role") == "user" and turn.get("author_key")
+    ]
+    if not user_turns:
+        return []
+    grouped: list[list[tuple[int, str]]] = []
+    for indexed_turn in user_turns:
+        if not grouped or grouped[-1][-1][1] != indexed_turn[1]:
+            grouped.append([indexed_turn])
+        else:
+            grouped[-1].append(indexed_turn)
+
+    segments: list[dict[str, Any]] = []
+    for group in grouped:
+        first_user_index = group[0][0]
+        last_user_index = group[-1][0]
+        start_index = first_user_index
+        if (
+            first_user_index > 0
+            and source_path[first_user_index - 1].get("author_role") == "account"
+        ):
+            start_index -= 1
+        end_index = last_user_index
+        if (
+            last_user_index + 1 < len(source_path)
+            and source_path[last_user_index + 1].get("author_role") == "account"
+        ):
+            end_index += 1
+        focused_path = [
+            copy.deepcopy(dict(turn))
+            for turn in source_path[start_index : end_index + 1]
+        ]
+        context_refs: list[dict[str, Any]] = []
+        if start_index > 0:
+            context_refs.append(
+                _handoff_context_ref(
+                    source_path[start_index - 1], position="before_segment"
+                )
+            )
+        if end_index + 1 < len(source_path):
+            context_refs.append(
+                _handoff_context_ref(
+                    source_path[end_index + 1], position="after_segment"
+                )
+            )
+        segments.append(
+            {
+                "handoff_context_refs": context_refs[:MAX_HANDOFF_CONTEXT_REFS],
+                "path_turns": focused_path,
+                "principal_author_key": group[0][1],
+                "segment_start_post_id": str(focused_path[0]["post_id"]),
+                "segment_tip_post_id": str(focused_path[-1]["post_id"]),
+            }
+        )
+    return segments
+
+
+def _same_author_continuation_depth(
+    path: Sequence[Mapping[str, Any]], principal_author_key: str
+) -> int:
+    substantive_indices = [
+        index
+        for index, turn in enumerate(path)
+        if turn.get("author_role") == "user"
+        and turn.get("author_key") == principal_author_key
+        and turn.get("substantive") is True
+    ]
+    depth = 0
+    for previous, current in zip(substantive_indices, substantive_indices[1:]):
+        if any(
+            turn.get("author_role") == "account"
+            for turn in path[previous + 1 : current]
+        ):
+            depth += 1
+    return depth
+
+
+def build_review_candidates(
+    conversation: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """Build focused contiguous author segments from maximal parent paths."""
+    if conversation.get("prospective_status") != "eligible":
+        return []
+    turns = [
+        copy.deepcopy(dict(turn))
+        for turn in conversation.get("turns") or []
+        if isinstance(turn, dict) and turn.get("post_id")
+    ]
+    by_id = {str(turn["post_id"]): turn for turn in turns}
+    children: dict[str, set[str]] = defaultdict(set)
+    for turn in turns:
+        parent = str(turn.get("parent_post_id") or "")
+        if parent in by_id:
+            children[parent].add(str(turn["post_id"]))
+    tips = sorted(post_id for post_id in by_id if not children.get(post_id))
+    if not tips:
+        tips = sorted(by_id)
+    unique_paths: dict[tuple[str, ...], tuple[list[dict[str, Any]], list[str]]] = {}
+    for tip_id in tips:
+        path, path_warnings = _parent_path_to_tip(by_id, tip_id)
+        identity = tuple(str(turn["post_id"]) for turn in path)
+        unique_paths.setdefault(identity, (path, path_warnings))
+
+    root_post_id = str(conversation.get("root_post_id") or "") or None
+    segment_entries: dict[tuple[str, tuple[str, ...]], dict[str, Any]] = {}
+    for _identity, (source_path, path_warnings) in sorted(unique_paths.items()):
+        if not source_path:
+            continue
+        if root_post_id and str(source_path[0].get("post_id") or "") != root_post_id:
+            path_warnings = sorted(
+                set([*path_warnings, "root_not_reached_by_parent_path"])
+            )
+        source_path_ids = {
+            str(turn.get("post_id") or "") for turn in source_path
+        }
+        source_branch_tip = str(source_path[-1]["post_id"])
+        for segment in _focused_author_segments(source_path):
+            path = list(segment["path_turns"])
+            principal = str(segment["principal_author_key"])
+            segment_identity = tuple(str(turn["post_id"]) for turn in path)
+            key = (principal, segment_identity)
+            sibling_refs = _bounded_sibling_context_refs(
+                turns,
+                path,
+                excluded_post_ids=source_path_ids,
+            )
+            entry = segment_entries.setdefault(
+                key,
+                {
+                    "chain_warnings": set(),
+                    "handoff_context_refs": [],
+                    "path_turns": path,
+                    "principal_author_key": principal,
+                    "segment_start_post_id": segment["segment_start_post_id"],
+                    "segment_tip_post_id": segment["segment_tip_post_id"],
+                    "sibling_context_refs": [],
+                    "source_branch_tip_post_ids": set(),
+                },
+            )
+            entry["chain_warnings"].update(path_warnings)
+            entry["handoff_context_refs"] = _merge_unique_objects(
+                list(entry["handoff_context_refs"]),
+                segment["handoff_context_refs"],
+            )[:MAX_HANDOFF_CONTEXT_REFS]
+            entry["sibling_context_refs"] = _merge_unique_objects(
+                list(entry["sibling_context_refs"]), sibling_refs
+            )[:MAX_SIBLING_CONTEXT_REFS]
+            entry["source_branch_tip_post_ids"].add(source_branch_tip)
+
+    results: list[dict[str, Any]] = []
+    for _key, entry in sorted(segment_entries.items()):
+        path = list(entry["path_turns"])
+        principal = str(entry["principal_author_key"])
+        chain_warnings = sorted(entry["chain_warnings"])
+        principal_turns = [
+            turn
+            for turn in path
+            if turn.get("author_role") == "user"
+            and turn.get("author_key") == principal
+        ]
+        if not principal_turns:
+            continue
+        account_turns = [
+            turn for turn in path if turn.get("author_role") == "account"
+        ]
+        substantive_turns = [turn for turn in path if turn.get("substantive")]
+        continuation_depth = _same_author_continuation_depth(path, principal)
+        cues = sorted(
+            {
+                cue
+                for turn in principal_turns
+                for cue in turn.get("correction_cues") or []
+            }
+        )
+        account_by_id = {
+            str(turn["post_id"]): turn for turn in account_turns
+        }
+        post_clarification = any(
+            account_by_id[parent_id].get("account_turn_asked_for_clarification")
+            for turn in principal_turns
+            if (parent_id := str(turn.get("parent_post_id") or ""))
+            in account_by_id
+        )
+        sibling_refs = list(entry["sibling_context_refs"])
+        handoff_refs = list(entry["handoff_context_refs"])
+        warnings = {
+            str(warning)
+            for turn in path
+            for warning in turn.get("warnings") or []
+        }
+        warnings.update(chain_warnings)
+        if any(
+            "ambiguous" in str(warning)
+            for warning in conversation.get("warnings") or []
+        ):
+            warnings.add("ambiguous_parentage")
+        partial = bool(
+            any(turn.get("text") is None for turn in path)
+            or warnings
+            & {
+                "ambiguous_parentage",
+                "missing_parent_post",
+                "root_not_reached_by_parent_path",
+            }
+        )
+        reasons: set[str] = set()
+        if continuation_depth:
+            reasons.add("same_author_path_continuation")
+        if len(account_turns) >= 2:
+            reasons.add("multiple_account_replies_on_path")
+        if len(substantive_turns) >= 3:
+            reasons.add("third_or_later_substantive_path_turn")
+        if cues:
+            reasons.add("explicit_correction_cue")
+        if post_clarification:
+            reasons.add("post_clarification_continuation")
+        if handoff_refs:
+            reasons.add("external_author_handoff_context")
+        if sibling_refs:
+            reasons.add("sibling_branch_context")
+        if partial:
+            reasons.add("partial_path_reconstruction")
+        if "ambiguous_parentage" in warnings:
+            reasons.add("ambiguous_parentage")
+        if not reasons:
+            continue
+        ordered_reasons = [
+            reason for reason in REVIEW_REASON_ORDER if reason in reasons
+        ]
+        path_last, _path_last_source = _resolve_last_activity(path)
+        confidence = _component_min_confidence(path)
+        if partial and confidence == "high":
+            confidence = "medium"
+        segment_start_post_id = str(entry["segment_start_post_id"])
+        branch_tip_post_id = str(entry["segment_tip_post_id"])
+        source_branch_tip_post_ids = sorted(entry["source_branch_tip_post_ids"])
+        source_branch_tip_post_id = source_branch_tip_post_ids[0]
+        conversation_key = str(conversation["conversation_key"])
+        branch_key = stable_id(
+            "branch",
+            conversation_key,
+            principal,
+            segment_start_post_id,
+            branch_tip_post_id,
+        )
+        summaries = _flatten_pipeline_summaries(path)
+        results.append(
+            {
+                "account_turn_count_on_path": len(account_turns),
+                "activity_status": conversation.get("activity_status"),
+                "branch_key": branch_key,
+                "branch_tip_post_id": branch_tip_post_id,
+                "candidate_key": stable_id("candidate", branch_key),
+                "conversation_key": conversation_key,
+                "correction_cues": cues,
+                "handoff_context_refs": handoff_refs,
+                "last_activity_time": format_utc(path_last),
+                "path_turns": path,
+                "pipeline_stage_summaries": summaries,
+                "principal_author_key": principal,
+                "prospective_status": "eligible",
+                "reconstruction_confidence": confidence,
+                "review_reason_codes": ordered_reasons,
+                "root_post_id": root_post_id,
+                "same_author_continuation_depth": continuation_depth,
+                "same_author_user_turn_count": len(principal_turns),
+                "schema_version": SCHEMA_VERSION,
+                "segment_start_post_id": segment_start_post_id,
+                "sibling_context_refs": sibling_refs,
+                "source_branch_tip_post_id": source_branch_tip_post_id,
+                "source_branch_tip_post_ids": source_branch_tip_post_ids,
+                "start_time": path[0].get("created_at")
+                or conversation.get("start_time"),
+                "substantive_turn_count": len(substantive_turns),
+                "substantive_turn_count_on_path": len(substantive_turns),
+                "warnings": sorted(warnings),
+            }
+        )
+    results.sort(
+        key=lambda row: (
+            str(row.get("start_time") or ""),
+            str(row.get("conversation_key") or ""),
+            str(row.get("principal_author_key") or ""),
+            str(row.get("segment_start_post_id") or ""),
+            str(row.get("branch_tip_post_id") or ""),
+        )
+    )
+    return results
+
+
+def build_review_candidate(
+    conversation: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """Compatibility wrapper returning the first deterministic branch candidate."""
+    candidates = build_review_candidates(conversation)
+    return candidates[0] if candidates else None
 
 
 def _strict_read_json(path: Path) -> Any:
@@ -2796,6 +4372,36 @@ def _read_repository_commit(project_dir: Path) -> str | None:
     except (OSError, UnicodeError, RuntimeError):
         return None
     return None
+
+
+def _extractor_code_provenance(
+    script_path: Path | None = None,
+) -> dict[str, str | None]:
+    """Describe the exact extractor source file without invoking Git."""
+    try:
+        script = (script_path or Path(__file__)).resolve(strict=True)
+    except OSError as exc:
+        raise ExtractorError(f"cannot resolve extractor script path: {exc}") from exc
+    repository_root = script.parent.parent
+    try:
+        relative_path = script.relative_to(repository_root).as_posix()
+    except ValueError as exc:
+        raise ExtractorError("extractor script is outside its repository root") from exc
+    if relative_path != "tools/extract_prospective_conversations.py":
+        raise ExtractorError(
+            "extractor script repository path is unexpected: " + relative_path
+        )
+    try:
+        script_sha256 = sha256_file(script)
+    except OSError as exc:
+        raise ExtractorError(f"cannot hash extractor script: {exc}") from exc
+    return {
+        "extractor_repository_commit_sha": _read_repository_commit(
+            repository_root
+        ),
+        "extractor_script_path": relative_path,
+        "extractor_script_sha256": script_sha256,
+    }
 
 
 def _snapshot_hash(
@@ -3330,6 +4936,7 @@ def _build_extraction_report(
     cutoff: str,
     counts: Mapping[str, int],
     coverage: bool,
+    source_lag_seconds: int,
     warnings: Sequence[str],
 ) -> bytes:
     lines = [
@@ -3342,6 +4949,7 @@ def _build_extraction_report(
         f"- Prospective boundary: `{boundary}`",
         f"- Scan cut-off: `{cutoff}`",
         f"- Source coverage reaches boundary: `{str(coverage).lower()}`",
+        f"- Retained source lag: `{source_lag_seconds}` seconds",
         f"- Canonical posts: `{counts['canonical_post_count']}`",
         f"- Reconstructed conversations: `{counts['reconstructed_conversation_count']}`",
         f"- Prospective-eligible conversations: `{counts['prospective_eligible_conversation_count']}`",
@@ -3424,6 +5032,23 @@ def _validate_batch_directory(
         errors.append(f"batch extractor version mismatch in {batch}")
     if manifest.get("parser_version") != PARSER_VERSION:
         errors.append(f"batch parser version mismatch in {batch}")
+    extractor_commit = manifest.get("extractor_repository_commit_sha")
+    if extractor_commit is not None and (
+        not isinstance(extractor_commit, str)
+        or not re.fullmatch(r"[0-9a-f]{40,64}", extractor_commit)
+    ):
+        errors.append(f"extractor repository commit is invalid in {batch}")
+    if manifest.get("repository_commit_sha") != extractor_commit:
+        errors.append(f"legacy repository commit alias is inconsistent in {batch}")
+    if manifest.get("extractor_script_path") != (
+        "tools/extract_prospective_conversations.py"
+    ):
+        errors.append(f"extractor script path is invalid in {batch}")
+    extractor_script_sha256 = manifest.get("extractor_script_sha256")
+    if not isinstance(extractor_script_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", extractor_script_sha256
+    ):
+        errors.append(f"extractor script hash is invalid in {batch}")
     if source_manifest.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"source manifest schema mismatch in {batch}")
     if source_manifest.get("extractor_version") != EXTRACTOR_VERSION:
@@ -3637,6 +5262,7 @@ def _validate_batch_directory(
             if post.get("publication_authority") not in {
                 "structured_confirmation",
                 "confirmed_receipt_promotion",
+                "legacy_confirmed_sequence",
             }:
                 errors.append(
                     f"published account post lacks authoritative publication source: {post_id}"
@@ -3646,6 +5272,51 @@ def _validate_batch_directory(
                 errors.append(
                     f"published account post lacks publication evidence: {post_id}"
                 )
+            graph_authority = post.get("graph_evidence_authority")
+            if post.get("lane") in {
+                "quote_image",
+                "daily_meme",
+                "historical_context_reply",
+            } or graph_authority:
+                if graph_authority not in ACCOUNT_EVIDENCE_AUTHORITY_RANK:
+                    errors.append(
+                        f"account graph evidence authority is invalid for {post_id}"
+                    )
+                content_authority = post.get("content_evidence_authority")
+                if post.get("text") is not None and (
+                    content_authority not in ACCOUNT_EVIDENCE_AUTHORITY_RANK
+                ):
+                    errors.append(
+                        f"account content evidence authority is invalid for {post_id}"
+                    )
+                if post.get("text") is not None and ACCOUNT_UNAVAILABLE_TEXT_WARNINGS & set(
+                    post.get("warnings") or []
+                ):
+                    errors.append(
+                        f"account post retains a stale unavailable-text warning: {post_id}"
+                    )
+                for conflict_field in (
+                    "account_graph_conflicts",
+                    "account_content_conflicts",
+                ):
+                    conflict_rows = post.get(conflict_field)
+                    if (
+                        not isinstance(conflict_rows, list)
+                        or len(conflict_rows) > MAX_ACCOUNT_EVIDENCE_CONFLICTS
+                        or not all(isinstance(row, dict) for row in conflict_rows)
+                    ):
+                        errors.append(
+                            f"{conflict_field} is invalid for account post {post_id}"
+                        )
+                    elif conflict_rows != _merge_unique_objects([], conflict_rows):
+                        errors.append(
+                            f"{conflict_field} ordering is invalid for account post {post_id}"
+                        )
+                    overflow = post.get(f"{conflict_field[:-1]}_other_count")
+                    if type(overflow) is not int or overflow < 0:
+                        errors.append(
+                            f"{conflict_field} overflow is invalid for account post {post_id}"
+                        )
     conversation_order = [
         (str(row.get("start_time") or ""), str(row.get("conversation_key") or ""))
         for row in conversations
@@ -3675,8 +5346,148 @@ def _validate_batch_directory(
                 f"eligible conversation lacks authoritative start time in {batch}"
             )
     for candidate in candidates:
+        required_candidate_fields = {
+            "schema_version",
+            "candidate_key",
+            "conversation_key",
+            "branch_key",
+            "root_post_id",
+            "branch_tip_post_id",
+            "segment_start_post_id",
+            "source_branch_tip_post_id",
+            "source_branch_tip_post_ids",
+            "principal_author_key",
+            "start_time",
+            "last_activity_time",
+            "activity_status",
+            "prospective_status",
+            "same_author_user_turn_count",
+            "same_author_continuation_depth",
+            "account_turn_count_on_path",
+            "substantive_turn_count_on_path",
+            "review_reason_codes",
+            "correction_cues",
+            "path_turns",
+            "handoff_context_refs",
+            "sibling_context_refs",
+            "reconstruction_confidence",
+            "warnings",
+        }
+        if not required_candidate_fields <= set(candidate):
+            errors.append(f"review candidate schema is incomplete in {batch}")
+            continue
+        if candidate.get("schema_version") != SCHEMA_VERSION:
+            errors.append(f"review candidate schema version is invalid in {batch}")
         if candidate.get("prospective_status") != "eligible":
             errors.append(f"non-eligible review candidate in {batch}")
+        path_turns = candidate.get("path_turns")
+        if not isinstance(path_turns, list) or not path_turns:
+            errors.append(f"review candidate path is empty in {batch}")
+        elif not all(isinstance(turn, dict) for turn in path_turns):
+            errors.append(f"review candidate path contains a non-object in {batch}")
+        else:
+            if candidate.get("branch_tip_post_id") != path_turns[-1].get("post_id"):
+                errors.append(f"review candidate branch tip is inconsistent in {batch}")
+            principal = candidate.get("principal_author_key")
+            conversation_key = str(candidate.get("conversation_key") or "")
+            branch_tip = str(candidate.get("branch_tip_post_id") or "")
+            segment_start = str(candidate.get("segment_start_post_id") or "")
+            expected_branch_key = stable_id(
+                "branch",
+                conversation_key,
+                str(principal or ""),
+                segment_start,
+                branch_tip,
+            )
+            if candidate.get("branch_key") != expected_branch_key:
+                errors.append(f"review candidate branch key is invalid in {batch}")
+            if candidate.get("candidate_key") != stable_id(
+                "candidate", expected_branch_key
+            ):
+                errors.append(f"review candidate key is invalid in {batch}")
+            if path_turns[0].get("post_id") != segment_start:
+                errors.append(f"review candidate segment start is inconsistent in {batch}")
+            if any(
+                child.get("parent_post_id") != parent.get("post_id")
+                for parent, child in zip(path_turns, path_turns[1:])
+            ):
+                errors.append(f"review candidate path is not parent-linked in {batch}")
+            if any(
+                turn.get("author_role") == "user"
+                and turn.get("author_key") != principal
+                for turn in path_turns
+            ):
+                errors.append(
+                    f"review candidate path contains a foreign user author in {batch}"
+                )
+            observed_principal_turns = sum(
+                turn.get("author_role") == "user"
+                and turn.get("author_key") == principal
+                for turn in path_turns
+            )
+            if candidate.get("same_author_user_turn_count") != observed_principal_turns:
+                errors.append(f"review candidate author turn count is invalid in {batch}")
+            observed_account_turns = sum(
+                turn.get("author_role") == "account"
+                for turn in path_turns
+            )
+            if candidate.get("account_turn_count_on_path") != observed_account_turns:
+                errors.append(f"review candidate account turn count is invalid in {batch}")
+            expected_depth = _same_author_continuation_depth(path_turns, str(principal or ""))
+            if candidate.get("same_author_continuation_depth") != expected_depth:
+                errors.append(f"review candidate continuation depth is invalid in {batch}")
+            observed_substantive_turns = sum(
+                turn.get("substantive") is True for turn in path_turns
+            )
+            if (
+                candidate.get("substantive_turn_count_on_path")
+                != observed_substantive_turns
+            ):
+                errors.append(f"review candidate substantive turn count is invalid in {batch}")
+        sibling_refs = candidate.get("sibling_context_refs")
+        if (
+            not isinstance(sibling_refs, list)
+            or len(sibling_refs) > MAX_SIBLING_CONTEXT_REFS
+            or not all(isinstance(row, dict) for row in sibling_refs)
+        ):
+            errors.append(f"review candidate sibling context is invalid in {batch}")
+        handoff_refs = candidate.get("handoff_context_refs")
+        if (
+            not isinstance(handoff_refs, list)
+            or len(handoff_refs) > MAX_HANDOFF_CONTEXT_REFS
+            or not all(isinstance(row, dict) for row in handoff_refs)
+        ):
+            errors.append(f"review candidate hand-off context is invalid in {batch}")
+            handoff_refs = []
+        source_tips = candidate.get("source_branch_tip_post_ids")
+        if (
+            not isinstance(source_tips, list)
+            or not source_tips
+            or source_tips != sorted(set(str(value) for value in source_tips))
+            or candidate.get("source_branch_tip_post_id") != source_tips[0]
+        ):
+            errors.append(f"review candidate source branch tips are invalid in {batch}")
+        if isinstance(path_turns, list) and path_turns:
+            first_parent = str(path_turns[0].get("parent_post_id") or "")
+            if (
+                first_parent
+                and path_turns[0].get("post_id") != candidate.get("root_post_id")
+                and first_parent
+                not in {str(row.get("post_id") or "") for row in handoff_refs}
+            ):
+                errors.append(
+                    f"review candidate external first parent lacks hand-off context in {batch}"
+                )
+        reasons = candidate.get("review_reason_codes")
+        if not isinstance(reasons, list) or reasons != [
+            reason for reason in REVIEW_REASON_ORDER if reason in set(reasons or [])
+        ]:
+            errors.append(f"review candidate reason ordering is invalid in {batch}")
+        if isinstance(reasons, list) and (
+            bool(handoff_refs)
+            != ("external_author_handoff_context" in reasons)
+        ):
+            errors.append(f"review candidate hand-off reason is invalid in {batch}")
         prohibited = {
             "defect",
             "bad_reply",
@@ -3686,6 +5497,88 @@ def _validate_batch_directory(
         }
         if prohibited & set(candidate.get("review_reason_codes") or []):
             errors.append(f"prohibited adjudicative review reason in {batch}")
+    ignored_kinds = source_manifest.get("ignored_structured_event_kinds")
+    if (
+        not isinstance(ignored_kinds, list)
+        or len(ignored_kinds) > MAX_IGNORED_STRUCTURED_EVENT_KINDS
+    ):
+        errors.append(f"ignored structured-event histogram is invalid in {batch}")
+        ignored_kinds = []
+    else:
+        histogram_order: list[tuple[int, str]] = []
+        for row in ignored_kinds:
+            if not isinstance(row, dict) or set(row) != {
+                "event_kind",
+                "count",
+                "target_like_count",
+            }:
+                errors.append(f"ignored structured-event histogram row is invalid in {batch}")
+                continue
+            if (
+                not isinstance(row.get("event_kind"), str)
+                or not row.get("event_kind")
+                or type(row.get("count")) is not int
+                or int(row["count"]) < 0
+                or type(row.get("target_like_count")) is not int
+                or int(row["target_like_count"]) < 0
+                or int(row["target_like_count"]) > int(row["count"])
+            ):
+                errors.append(f"ignored structured-event histogram values are invalid in {batch}")
+                continue
+            histogram_order.append((-int(row["count"]), str(row["event_kind"])))
+        if histogram_order != sorted(histogram_order):
+            errors.append(f"ignored structured-event histogram ordering is invalid in {batch}")
+    for field in (
+        "ignored_structured_event_other_count",
+        "ignored_target_like_event_other_count",
+    ):
+        if type(source_manifest.get(field)) is not int or int(source_manifest[field]) < 0:
+            errors.append(f"{field} is invalid in {batch}")
+    structured_statistics = source_manifest.get("structured_event_statistics")
+    if not isinstance(structured_statistics, dict):
+        errors.append(f"structured-event statistics are invalid in {batch}")
+    elif (
+        type(structured_statistics.get("ignored_structured_event_count")) is int
+        and type(structured_statistics.get("ignored_target_like_event_count")) is int
+        and type(source_manifest.get("ignored_structured_event_other_count")) is int
+        and type(source_manifest.get("ignored_target_like_event_other_count")) is int
+    ):
+        retained_ignored = sum(
+            int(row.get("count") or 0)
+            for row in ignored_kinds
+            if isinstance(row, dict) and type(row.get("count")) is int
+        )
+        retained_target_like = sum(
+            int(row.get("target_like_count") or 0)
+            for row in ignored_kinds
+            if isinstance(row, dict)
+            and type(row.get("target_like_count")) is int
+        )
+        if (
+            retained_ignored
+            + int(source_manifest["ignored_structured_event_other_count"])
+            != structured_statistics["ignored_structured_event_count"]
+        ):
+            errors.append(f"ignored structured-event remainder is inaccurate in {batch}")
+        if (
+            retained_target_like
+            + int(source_manifest["ignored_target_like_event_other_count"])
+            != structured_statistics["ignored_target_like_event_count"]
+        ):
+            errors.append(f"ignored target-like event remainder is inaccurate in {batch}")
+    lag = status_value.get("source_lag_seconds")
+    if type(lag) is not int or lag < 0:
+        errors.append(f"source lag is invalid in {batch}")
+    else:
+        status_warnings = status_value.get("warnings")
+        if not isinstance(status_warnings, list):
+            errors.append(f"batch status warnings are invalid in {batch}")
+        elif (
+            lag > SOURCE_STALE_WARNING_SECONDS
+            and "retained_source_stale_relative_to_scan_cutoff"
+            not in status_warnings
+        ):
+            errors.append(f"stale source lag warning is missing in {batch}")
     observed_counts = {
         "canonical_post_count": len(posts),
         "open_conversation_count": sum(
@@ -3803,6 +5696,7 @@ def run_scan(
     if cutoff < boundary_value:
         raise ExtractorError("--until must be at or after --prospective-start")
     project, root = validate_root_relationship(project_dir, output_root)
+    extractor_code_provenance = _extractor_code_provenance()
 
     with _private_umask():
         ensure_private_layout(root)
@@ -3837,7 +5731,7 @@ def run_scan(
             parsed = parse_incremental_sources(
                 inventory, state_value, cutoff=cutoff
             )
-            parser_statistics: dict[str, int] = {}
+            parser_statistics: dict[str, Any] = {}
             posts = normalise_canonical_posts(
                 parsed.records,
                 prior_posts,
@@ -3856,6 +5750,17 @@ def run_scan(
                 and str(parsed.earliest_source_timestamp) <= boundary_text
                 <= str(parsed.latest_source_timestamp)
             )
+            latest_source_value = parse_optional_timestamp(
+                parsed.latest_source_timestamp
+            )
+            source_lag_seconds = int(
+                max(
+                    0.0,
+                    (cutoff - latest_source_value).total_seconds()
+                    if latest_source_value is not None
+                    else 0.0,
+                )
+            )
             warnings: list[str] = []
             warnings.extend(
                 f"{warning.kind}:{warning.basename}" for warning in inventory.warnings
@@ -3869,7 +5774,20 @@ def run_scan(
                 warnings.append(f"log_parse_warning_count:{len(parsed.warnings)}")
             if not coverage:
                 warnings.append("retained_source_coverage_does_not_span_prospective_boundary")
+            if source_lag_seconds > SOURCE_STALE_WARNING_SECONDS:
+                warnings.append("retained_source_stale_relative_to_scan_cutoff")
             warnings = sorted(set(warnings))
+
+            (
+                ignored_event_kinds,
+                ignored_event_other_count,
+                ignored_target_like_other_count,
+            ) = ignored_structured_event_histogram(parser_statistics)
+            scalar_parser_statistics = {
+                key: value
+                for key, value in sorted(parser_statistics.items())
+                if type(value) is int
+            }
 
             canonical_data = jsonl_bytes(posts)
             conversations_data = jsonl_bytes(conversations)
@@ -3968,6 +5886,7 @@ def run_scan(
                         else MIN_FILESYSTEM_FREE_BYTES
                     ),
                     "schema_version": SCHEMA_VERSION,
+                    "source_lag_seconds": source_lag_seconds,
                     "source_file_cache": parsed.source_cache,
                     "source_file_count": len(inventory.files),
                     "warnings": warnings,
@@ -4002,12 +5921,16 @@ def run_scan(
                     "counts": counts,
                     "message": "prospective conversation corpus unchanged",
                     "snapshot_hash": snapshot_hash,
+                    "source_lag_seconds": source_lag_seconds,
                     "status": "no_change",
                 }
 
             source_manifest_value = {
                 "extractor_version": EXTRACTOR_VERSION,
                 "inventory_retry_count": inventory.retry_count,
+                "ignored_structured_event_kinds": ignored_event_kinds,
+                "ignored_structured_event_other_count": ignored_event_other_count,
+                "ignored_target_like_event_other_count": ignored_target_like_other_count,
                 "ordering": "mrsMThatcher.log.100 through .1, then mrsMThatcher.log",
                 "parser_version": PARSER_VERSION,
                 "parse_warnings": list(parsed.warnings),
@@ -4017,7 +5940,7 @@ def run_scan(
                 "schema_version": SCHEMA_VERSION,
                 "source_files": [source.manifest_row() for source in inventory.files],
                 "source_warnings": [warning.as_json() for warning in inventory.warnings],
-                "structured_event_statistics": dict(sorted(parser_statistics.items())),
+                "structured_event_statistics": scalar_parser_statistics,
             }
             source_manifest_data = canonical_json_bytes(source_manifest_value)
             status_value = {
@@ -4029,6 +5952,7 @@ def run_scan(
                 "prospective_boundary": boundary_text,
                 "scan_cutoff": cutoff_text,
                 "schema_version": SCHEMA_VERSION,
+                "source_lag_seconds": source_lag_seconds,
                 "warnings": warnings,
             }
             status_data = canonical_json_bytes(status_value)
@@ -4037,6 +5961,7 @@ def run_scan(
                 cutoff=cutoff_text,
                 counts=counts,
                 coverage=coverage,
+                source_lag_seconds=source_lag_seconds,
                 warnings=warnings,
             )
             non_manifest_files = {
@@ -4051,19 +5976,27 @@ def run_scan(
                 name: sha256_bytes(non_manifest_files[name])
                 for name in BATCH_HASHED_FILES
             }
+            if _extractor_code_provenance() != extractor_code_provenance:
+                raise ExtractorError(
+                    "extractor code provenance changed during the scan"
+                )
             manifest_value = {
                 "canonical_snapshot_sha256": snapshot_hash,
                 "counts": counts,
                 "creation_timestamp": started_text,
+                **extractor_code_provenance,
                 "extractor_version": EXTRACTOR_VERSION,
                 "output_file_hashes": output_hashes,
                 "parser_version": PARSER_VERSION,
                 "previous_batch_id": previous_batch,
                 "prospective_boundary": boundary_text,
                 "quiescence_hours": float(quiescence_hours),
-                "repository_commit_sha": _read_repository_commit(project),
+                "repository_commit_sha": extractor_code_provenance[
+                    "extractor_repository_commit_sha"
+                ],
                 "scan_cutoff": cutoff_text,
                 "schema_version": SCHEMA_VERSION,
+                "source_lag_seconds": source_lag_seconds,
                 "source_coverage_reaches_prospective_boundary": coverage,
                 "source_manifest_sha256": output_hashes["source-manifest.json"],
                 "warnings": warnings,
@@ -4153,6 +6086,7 @@ def run_scan(
                 "counts": counts,
                 "message": "published new prospective conversation snapshot",
                 "snapshot_hash": snapshot_hash,
+                "source_lag_seconds": source_lag_seconds,
                 "status": "published",
             }
 
@@ -4191,6 +6125,7 @@ def uninitialised_status() -> dict[str, Any]:
         "review_pack_bytes": 0,
         "schema_version": SCHEMA_VERSION,
         "source_file_count": 0,
+        "source_lag_seconds": None,
         "total_extractor_bytes": 0,
         "warnings": [],
     }
@@ -4289,6 +6224,11 @@ def get_status(output_root: Path) -> dict[str, Any]:
                 ),
                 "source_file_count": int(
                     state_value.get("source_file_count") or 0
+                ),
+                "source_lag_seconds": (
+                    int(state_value["source_lag_seconds"])
+                    if type(state_value.get("source_lag_seconds")) is int
+                    else None
                 ),
                 "warnings": sorted(status_warnings),
                 **telemetry_fields,
@@ -4877,6 +6817,16 @@ def rebuild_to_new_root(
         )
         if not isinstance(raw_state, dict):
             raise ExtractorError("source extractor state must be a JSON object")
+        source_tuple = (
+            raw_state.get("schema_version"),
+            raw_state.get("extractor_version"),
+            raw_state.get("parser_version"),
+        )
+        if source_tuple != REGISTERED_REBUILD_SOURCE:
+            raise ExtractorError(
+                "unsupported rebuild source version tuple: "
+                f"{source_tuple!r}; expected {REGISTERED_REBUILD_SOURCE!r}"
+            )
         boundary_text = str(raw_state.get("prospective_boundary") or "")
         boundary = parse_aware_timestamp(
             boundary_text, option="source prospective boundary"
