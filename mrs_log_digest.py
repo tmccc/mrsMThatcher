@@ -8280,13 +8280,23 @@ def reply_visual_context_report(
             grouped_media.get((lane, target_id), []),
             key=lambda item: (str(item.get("time") or ""), int(item["index"])),
         )
-        attempts = sorted(
+        visual_events_for_target = sorted(
             grouped_visual.get((lane, target_id), []),
             key=lambda item: (str(item.get("time") or ""), int(item["index"])),
         )
         latest_collection = collections[-1] if collections else None
-        latest_attempt = attempts[-1] if attempts else None
-        successful = [item for item in attempts if item.get("status") == "analysed"]
+        latest_visual_event = (
+            visual_events_for_target[-1] if visual_events_for_target else None
+        )
+        analysis_attempt_count = sum(
+            int(item.get("visual_analysis_call_count") or 0)
+            for item in visual_events_for_target
+        )
+        successful = [
+            item
+            for item in visual_events_for_target
+            if item.get("status") == "analysed"
+        ]
         successful_hashes = sorted(
             {
                 str(item["description_sha256"])
@@ -8300,7 +8310,10 @@ def reply_visual_context_report(
         )
         native_photo_count_max = max(
             [int(item.get("photo_count") or 0) for item in collections]
-            + [int(item.get("supplied_image_count") or 0) for item in attempts]
+            + [
+                int(item.get("supplied_image_count") or 0)
+                for item in visual_events_for_target
+            ]
             + [0]
         )
         collected_native_photo_count_max = max(
@@ -8313,8 +8326,10 @@ def reply_visual_context_report(
         )
         if successful:
             analysis_observation_status = "analysed"
-        elif attempts:
+        elif analysis_attempt_count > 0:
             analysis_observation_status = "attempted_not_analysed"
+        elif visual_events_for_target:
+            analysis_observation_status = "not_attempted"
         elif supplied_observed:
             analysis_observation_status = "not_observed_in_selected_window"
         else:
@@ -8325,17 +8340,19 @@ def reply_visual_context_report(
             if latest_collection
             else "not_observed_in_selected_window"
         )
-        if not collections and attempts:
+        if not collections and visual_events_for_target:
             correlation_status = "analysis_observed_collection_not_observed_in_selected_window"
         elif latest_collection_status == "unavailable":
             correlation_status = "collection_unavailable"
         elif supplied_observed and successful:
             correlation_status = "collection_supplied_analysis_analysed"
-        elif supplied_observed and attempts:
+        elif supplied_observed and analysis_attempt_count > 0:
             correlation_status = "collection_supplied_analysis_unsuccessful"
+        elif supplied_observed and visual_events_for_target:
+            correlation_status = "collection_supplied_analysis_not_attempted"
         elif supplied_observed:
             correlation_status = "collection_supplied_analysis_not_observed_in_selected_window"
-        elif attempts:
+        elif visual_events_for_target:
             correlation_status = "collection_observed_analysis_observed"
         else:
             correlation_status = "collection_observed_analysis_not_applicable"
@@ -8346,7 +8363,7 @@ def reply_visual_context_report(
                 "analysis_schema_versions": sorted(
                     {
                         int(item["analysis_schema_version"])
-                        for item in attempts
+                        for item in visual_events_for_target
                     }
                 ),
                 "collected_native_photo_count_max": collected_native_photo_count_max,
@@ -8362,19 +8379,17 @@ def reply_visual_context_report(
                     successful[-1].get("description_sha256") if successful else None
                 ),
                 "latest_visual_analysis_status": (
-                    str(latest_attempt.get("status"))
-                    if latest_attempt
+                    str(latest_visual_event.get("status"))
+                    if latest_visual_event
                     else "not_observed_in_selected_window"
                 ),
                 "native_photo_count_max": native_photo_count_max,
                 "successful_analysis_count": len(successful),
                 "successful_description_sha256s": successful_hashes,
                 "target_id": target_id,
-                "visual_analysis_attempt_count": len(attempts),
-                "visual_analysis_call_count": sum(
-                    int(item.get("visual_analysis_call_count") or 0)
-                    for item in attempts
-                ),
+                "visual_analysis_attempt_count": analysis_attempt_count,
+                "visual_analysis_call_count": analysis_attempt_count,
+                "visual_analysis_event_count": len(visual_events_for_target),
             }
         )
 
@@ -8386,12 +8401,22 @@ def reply_visual_context_report(
         "target_count": len(rows),
         "targets_with_analysis_but_no_collection_observation_in_selected_window": sum(
             row["collection_observation_status"] == "not_observed_in_selected_window"
-            and row["visual_analysis_attempt_count"] > 0
+            and row["visual_analysis_event_count"] > 0
+            for row in rows
+        ),
+        "targets_with_visual_events_but_no_collection_observation_in_selected_window": sum(
+            row["collection_observation_status"] == "not_observed_in_selected_window"
+            and row["visual_analysis_event_count"] > 0
             for row in rows
         ),
         "targets_with_attempted_but_unsuccessful_analysis": sum(
             row["visual_analysis_attempt_count"] > 0
             and row["successful_analysis_count"] == 0
+            for row in rows
+        ),
+        "targets_with_visual_events_but_no_analysis_call": sum(
+            row["visual_analysis_event_count"] > 0
+            and row["visual_analysis_attempt_count"] == 0
             for row in rows
         ),
         "targets_with_collection_unavailable": sum(
@@ -8414,6 +8439,10 @@ def reply_visual_context_report(
             row["collected_native_photo_count_max"] > 0 for row in rows
         ),
         "visual_analysis_call_count": sum(
+            int(item.get("visual_analysis_call_count") or 0)
+            for item in visual_events
+        ),
+        "visual_analysis_attempt_count": sum(
             int(item.get("visual_analysis_call_count") or 0)
             for item in visual_events
         ),
@@ -16625,6 +16654,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"**{reply_visual_summary.get('targets_with_successful_visual_analysis', 0)}**; "
             "attempted but unsuccessful: "
             f"**{reply_visual_summary.get('targets_with_attempted_but_unsuccessful_analysis', 0)}**; "
+            "visual events but no analysis call: "
+            f"**{reply_visual_summary.get('targets_with_visual_events_but_no_analysis_call', 0)}**; "
             "no visual-analysis event observed in the selected window: "
             f"**{reply_visual_summary.get('targets_with_no_analysis_event_observed_in_selected_window', 0)}**."
         )
@@ -16633,15 +16664,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"**{reply_visual_summary.get('targets_with_more_than_one_analysis_attempt', 0)}**; "
             "targets with more than one distinct successful description hash: "
             f"**{reply_visual_summary.get('targets_with_more_than_one_distinct_successful_description_hash', 0)}**; "
-            "analysis observed without a collection line in the selected window: "
-            f"**{reply_visual_summary.get('targets_with_analysis_but_no_collection_observation_in_selected_window', 0)}**; "
+            "visual lifecycle event observed without a collection line in the selected window: "
+            f"**{reply_visual_summary.get('targets_with_visual_events_but_no_collection_observation_in_selected_window', 0)}**; "
             "collection unavailable: "
             f"**{reply_visual_summary.get('targets_with_collection_unavailable', 0)}**."
         )
         out.append(
             "Visual-analysis status counts: **"
             f"{compact_counts(reply_visual_summary.get('visual_analysis_status_counts') or {})}"
-            "**; malformed structured events safely omitted: "
+            "**; valid lifecycle events: "
+            f"**{reply_visual_summary.get('visual_analysis_event_count', 0)}**; "
+            "analysis calls reported by those events: "
+            f"**{reply_visual_summary.get('visual_analysis_attempt_count', 0)}**; "
+            "malformed structured events safely omitted: "
             f"**{reply_visual_summary.get('malformed_visual_description_event_count', 0)}**."
         )
         out.append(
@@ -16656,13 +16691,14 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 "target_id",
                 "native photos",
                 "collection",
-                "latest analysis",
-                "attempts",
+                "latest visual status",
+                "visual events",
+                "analysis calls",
                 "successful",
                 "distinct hashes",
                 "latest successful hash",
             ]))
-            out.append(md_table_row(["---"] * 9))
+            out.append(md_table_row(["---"] * 10))
             for item in reply_visual_targets:
                 collection = item.get("collection_status", "")
                 if collection == "not_observed_in_selected_window":
@@ -16681,6 +16717,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("native_photo_count_max", 0),
                     collection,
                     analysis,
+                    item.get("visual_analysis_event_count", 0),
                     item.get("visual_analysis_attempt_count", 0),
                     item.get("successful_analysis_count", 0),
                     item.get("distinct_successful_description_count", 0),

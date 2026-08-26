@@ -73,6 +73,27 @@ def test_reply_visual_description_contract_rejects_unsafe_shapes() -> None:
         "target_id": "123",
         "visual_analysis_call_count": 1,
     }
+    paused = digest.parse_reply_visual_description_event(
+        {
+            **valid,
+            "description_sha256": "",
+            "status": "paused",
+            "visual_analysis_call_count": 0,
+        }
+    )
+    invalid_media = digest.parse_reply_visual_description_event(
+        {
+            **valid,
+            "description_sha256": None,
+            "status": "invalid_supplied_media",
+            "supplied_image_count": 0,
+            "visual_analysis_call_count": 0,
+        }
+    )
+    assert paused is not None and paused["visual_analysis_call_count"] == 0
+    assert invalid_media is not None and invalid_media[
+        "visual_analysis_call_count"
+    ] == 0
     malformed = [
         {**valid, "supplied_image_count": True},
         {**valid, "visual_analysis_call_count": False},
@@ -82,6 +103,13 @@ def test_reply_visual_description_contract_rejects_unsafe_shapes() -> None:
         {**valid, "image_url": "https://private.invalid/image.jpg"},
         {**valid, "lane": "unknown"},
         {**valid, "target_id": ""},
+        {**valid, "description_sha256": "", "status": "paused"},
+        {
+            **valid,
+            "description_sha256": "",
+            "status": "provider_error",
+            "visual_analysis_call_count": 0,
+        },
     ]
     assert all(
         digest.parse_reply_visual_description_event(event) is None

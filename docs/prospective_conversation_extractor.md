@@ -273,8 +273,11 @@ collector never emits one warning per ignored event.
 Version 4 also retains bounded reply-image lifecycle metadata. The exact
 supplied/unavailable `Reply media context` lines contribute at most 16 newest
 deterministic collection observations per target. The registered
-`reply_visual_description` event contributes at most 16 newest attempts and is
-preliminary visual context, not a tested-pipeline stage summary. Canonical
+`reply_visual_description` event contributes at most 16 newest lifecycle events
+and is preliminary visual context, not a tested-pipeline stage summary. Each
+retained row is a visual lifecycle event; only its
+`visual_analysis_call_count` records whether a provider analysis call was
+actually attempted. Canonical
 posts retain only observation time, record fingerprint, normalised lane,
 status, mode, native-photo counts, schema versions, call counts, and successful
 description SHA-256 values. Omitted older observation counts remain explicit.
@@ -283,9 +286,14 @@ No image description, OCR text, image URL, media key, provider prompt, or
 hidden reasoning is retained. `analysis_observation_status: not_observed`
 means supplied native photos were retained but no visual-description event was
 retained; it is not proof that analysis did not happen outside the available
-log evidence. Collection status, the latest analysis status, attempt and
-success counts, and objective distinct hash values propagate into conversation
-turns, bounded candidate summaries, and compact private review-pack lines.
+log evidence. `not_attempted` means retained lifecycle events report no
+analysis call. `history_incomplete` prevents omitted older events from being
+summarised as a definitive failure when no success remains in the newest
+bounded history. Collection status, the latest analysis status, retained event,
+call, and success counts, objective distinct hash values, and explicit history
+completeness propagate into conversation turns, bounded candidate summaries,
+and compact private review-pack lines. These counts describe the retained
+bounded history, not guaranteed lifetime totals.
 This metadata is reviewer evidence only: image presence or a missing, failed,
 or repeated analysis does not itself classify a reply as defective and does
 not create a review reason.

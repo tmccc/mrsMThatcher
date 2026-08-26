@@ -537,6 +537,27 @@ def rewrite_batch_candidates_and_hashes(
     rewrite_private_json(manifest_path, manifest)
 
 
+def rewrite_batch_conversations_and_hashes(
+    batch: Path, conversations: list[dict[str, object]]
+) -> None:
+    conversation_path = batch / "conversations.jsonl"
+    os.chmod(conversation_path, 0o600)
+    conversation_path.write_bytes(extractor.jsonl_bytes(conversations))
+    os.chmod(conversation_path, 0o400)
+    manifest_path = batch / "manifest.json"
+    manifest = extractor._strict_read_json(manifest_path)
+    assert isinstance(manifest, dict)
+    hashes = dict(manifest["output_file_hashes"])
+    hashes["conversations.jsonl"] = extractor.sha256_file(conversation_path)
+    manifest["output_file_hashes"] = hashes
+    manifest["canonical_snapshot_sha256"] = extractor._snapshot_hash(
+        hashes["canonical-posts.jsonl"],
+        hashes["conversations.jsonl"],
+        hashes["review-candidates.jsonl"],
+    )
+    rewrite_private_json(manifest_path, manifest)
+
+
 def set_batch_creation_time(batch: Path, value: str) -> None:
     manifest_path = batch / "manifest.json"
     manifest = extractor._strict_read_json(manifest_path)
@@ -1699,14 +1720,19 @@ def test_reply_media_context_and_visual_event_attach_only_safe_metadata() -> Non
     assert attempt["description_sha256"] == "b" * 64
     assert post["reply_visual_context_summary"] == {
         "analysis_attempt_count": 1,
+        "analysis_history_complete": True,
         "analysis_observation_status": "analysed",
         "analysis_schema_versions": [1],
+        "collection_history_complete": True,
         "distinct_successful_description_count": 1,
         "latest_analysis_status": "analysed",
         "latest_collection_status": "supplied",
         "native_photo_count_max": 2,
+        "omitted_media_observation_count": 0,
+        "omitted_visual_event_count": 0,
         "successful_analysis_count": 1,
         "successful_description_sha256s": ["b" * 64],
+        "visual_event_count": 1,
     }
     assert statistics["ignored_structured_event_count"] == 0
     assert statistics["ignored_target_like_event_count"] == 0
@@ -1787,6 +1813,7 @@ def test_reply_visual_attempt_history_preserves_failures_successes_and_hashes() 
     assert summary["analysis_observation_status"] == "analysed"
     assert summary["latest_analysis_status"] == "analysed"
     assert summary["analysis_attempt_count"] == 4
+    assert summary["visual_event_count"] == 4
     assert summary["successful_analysis_count"] == 3
     assert summary["distinct_successful_description_count"] == 2
     assert summary["successful_description_sha256s"] == [first_hash, second_hash]
@@ -1822,9 +1849,25 @@ def test_reply_visual_failed_statuses_are_retained_without_success(
     assert post["reply_visual_description_attempts"][0][
         "description_sha256"
     ] is None
-    assert summary["analysis_observation_status"] == "attempted_not_analysed"
+    assert summary["analysis_observation_status"] == (
+        "attempted_not_analysed" if call_count else "not_attempted"
+    )
+    assert summary["visual_event_count"] == 1
+    assert summary["analysis_attempt_count"] == call_count
     assert summary["latest_analysis_status"] == status
     assert summary["successful_analysis_count"] == 0
+    rendered = extractor._review_visual_context_line(summary)
+    if call_count:
+        assert "1 analysis call" in rendered
+        assert "no successful description" in rendered
+    else:
+        expected = (
+            "analysis paused; no analysis call attempted"
+            if status == "paused"
+            else "supplied media invalid; no analysis call attempted"
+        )
+        assert expected in rendered
+        assert "successful description" not in rendered
 
 
 def test_reply_visual_malformed_events_do_not_fabricate_metadata_or_leak() -> None:
@@ -1901,9 +1944,313 @@ def test_reply_visual_observation_bounds_and_duplicate_records_are_deterministic
         "2026-08-24T15:11:02Z"
     )
     assert post["reply_visual_context_summary"]["analysis_attempt_count"] == 16
+    assert post["reply_visual_context_summary"]["visual_event_count"] == 16
+    assert post["reply_visual_context_summary"][
+        "omitted_visual_event_count"
+    ] == 2
+    assert post["reply_visual_context_summary"][
+        "analysis_history_complete"
+    ] is False
+    assert post["reply_visual_context_summary"][
+        "omitted_media_observation_count"
+    ] == 2
+    assert post["reply_visual_context_summary"][
+        "collection_history_complete"
+    ] is False
     assert post["reply_visual_context_summary"][
         "distinct_successful_description_count"
     ] == 1
+    rendered = extractor._review_visual_context_line(
+        post["reply_visual_context_summary"]
+    )
+    assert "2 older media observations were omitted" in rendered
+
+
+def test_reply_visual_bounded_history_qualifies_omitted_successes() -> None:
+    omitted_success_lines = [
+        reply_visual_description_line(
+            "2026-08-24 16:11:00",
+            "bounded-a",
+            description_sha256="5" * 64,
+        ),
+        *[
+            reply_visual_description_line(
+                f"2026-08-24 16:11:{index:02d}",
+                "bounded-a",
+                status="provider_error",
+            )
+            for index in range(1, 17)
+        ],
+    ]
+    retained_success_lines = [
+        reply_visual_description_line(
+            "2026-08-24 16:12:00",
+            "bounded-b",
+            status="provider_error",
+        ),
+        reply_visual_description_line(
+            "2026-08-24 16:12:01",
+            "bounded-b",
+            description_sha256="6" * 64,
+        ),
+        *[
+            reply_visual_description_line(
+                f"2026-08-24 16:12:{index:02d}",
+                "bounded-b",
+                status="provider_error",
+            )
+            for index in range(2, 17)
+        ],
+    ]
+    records, _ = extractor.parse_log_records(
+        "".join(omitted_success_lines + retained_success_lines).encode()
+    )
+
+    posts = {
+        post["post_id"]: post
+        for post in extractor.normalise_canonical_posts(records, [], b"v" * 32)
+    }
+    omitted = posts["bounded-a"]["reply_visual_context_summary"]
+    retained = posts["bounded-b"]["reply_visual_context_summary"]
+
+    assert len(posts["bounded-a"]["reply_visual_description_attempts"]) == 16
+    assert omitted["omitted_visual_event_count"] == 1
+    assert omitted["analysis_history_complete"] is False
+    assert omitted["visual_event_count"] == 16
+    assert omitted["analysis_attempt_count"] == 16
+    assert omitted["successful_analysis_count"] == 0
+    assert omitted["analysis_observation_status"] == "history_incomplete"
+    omitted_line = extractor._review_visual_context_line(omitted)
+    assert "retained visual history is incomplete" in omitted_line
+    assert "1 older visual event was omitted" in omitted_line
+    assert (
+        "no successful description is present among the retained events"
+        in omitted_line
+    )
+
+    assert retained["omitted_visual_event_count"] == 1
+    assert retained["analysis_history_complete"] is False
+    assert retained["successful_analysis_count"] == 1
+    assert retained["analysis_observation_status"] == "analysed"
+    retained_line = extractor._review_visual_context_line(retained)
+    assert "1 retained successful description" in retained_line
+    assert "retained visual history is incomplete" in retained_line
+
+
+def test_reply_media_and_visual_events_touch_canonical_observation_times() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            reply_media_context_line("2026-08-24 16:10:01", target_id)
+            + reply_visual_description_line(
+                "2026-08-24 16:10:02",
+                target_id,
+                description_sha256="7" * 64,
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"v" * 32)
+    post = posts[0]
+    conversations, _ = extractor.build_conversations(
+        posts,
+        boundary=extractor.parse_aware_timestamp(BOUNDARY, option="test"),
+        cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+        quiescence_hours=48,
+    )
+
+    assert post["first_observed_at"] == "2026-08-24T15:10:01Z"
+    assert post["last_observed_at"] == "2026-08-24T15:10:02Z"
+    assert {
+        item["record_fingerprint"] for item in post["source_provenance"]
+    } == {record.record_fingerprint for record in records}
+    assert len(conversations) == 1
+    assert conversations[0]["turns"][0]["post_id"] == target_id
+
+
+def test_v4_validation_rejects_corrupt_canonical_visual_metadata(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        first_exchange()
+        + reply_media_context_line("2026-08-24 16:10:05", "100")
+        + reply_visual_description_line(
+            "2026-08-24 16:10:06", "100", description_sha256="8" * 64
+        )
+        + continuation(),
+    )
+    run_scan(project, output)
+    batch = current_batch(output)
+    original_posts = rows(output, "canonical-posts.jsonl")
+
+    cases = (
+        ("media_not_list", "reply media context observations are not a list"),
+        ("visual_not_list", "reply visual event history is not a list"),
+        ("missing_summary", "reply visual metadata fields are missing"),
+        ("duplicate_media_fingerprint", "fingerprints are duplicated"),
+        ("invalid_visual_fingerprint", "visual event fingerprint is invalid"),
+        ("invalid_status_call", "visual event contract is invalid"),
+        ("invalid_hash", "visual event contract is invalid"),
+        ("negative_media_overflow", "media context overflow count is invalid"),
+        ("boolean_visual_overflow", "visual event overflow count is invalid"),
+        ("incorrect_overflow", "media context overflow count is inconsistent"),
+        ("summary_mismatch", "visual context summary is inconsistent"),
+    )
+    for case, expected_problem in cases:
+        posts = json.loads(json.dumps(original_posts))
+        post = next(row for row in posts if row["post_id"] == "100")
+        if case == "media_not_list":
+            post["reply_media_context_observations"] = {}
+        elif case == "visual_not_list":
+            post["reply_visual_description_attempts"] = {}
+        elif case == "missing_summary":
+            post.pop("reply_visual_context_summary")
+        elif case == "duplicate_media_fingerprint":
+            post["reply_media_context_observations"].append(
+                dict(post["reply_media_context_observations"][0])
+            )
+        elif case == "invalid_visual_fingerprint":
+            post["reply_visual_description_attempts"][0][
+                "record_fingerprint"
+            ] = "A" * 64
+        elif case == "invalid_status_call":
+            event = post["reply_visual_description_attempts"][0]
+            event["status"] = "paused"
+            event["description_sha256"] = None
+            event["visual_analysis_call_count"] = 1
+        elif case == "invalid_hash":
+            post["reply_visual_description_attempts"][0][
+                "description_sha256"
+            ] = "A" * 64
+        elif case == "negative_media_overflow":
+            post["reply_media_context_other_count"] = -1
+        elif case == "boolean_visual_overflow":
+            post["reply_visual_description_other_count"] = True
+        elif case == "incorrect_overflow":
+            post["reply_media_context_other_count"] = 1
+        elif case == "summary_mismatch":
+            post["reply_visual_context_summary"]["analysis_attempt_count"] = 0
+        rewrite_batch_posts_and_hashes(batch, posts)
+
+        problems = extractor._validate_batch_directory(
+            batch,
+            require_immutable=False,
+            expected_boundary=BOUNDARY,
+        )
+
+        assert any(expected_problem in problem for problem in problems), (
+            case,
+            problems,
+        )
+
+
+def test_v4_validation_rejects_conversation_visual_metadata_mismatch(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        first_exchange()
+        + reply_media_context_line("2026-08-24 16:10:05", "100")
+        + reply_visual_description_line("2026-08-24 16:10:06", "100")
+        + continuation(),
+    )
+    run_scan(project, output)
+    batch = current_batch(output)
+    conversations = rows(output, "conversations.jsonl")
+    turn = next(
+        turn
+        for turn in conversations[0]["turns"]
+        if turn["post_id"] == "100"
+    )
+    turn["reply_media_context_observations"][0]["photo_count"] = 1
+    turn["reply_visual_context_summary"] = (
+        extractor._derive_reply_visual_context_summary(turn)
+    )
+    rewrite_batch_conversations_and_hashes(batch, conversations)
+
+    problems = extractor._validate_batch_directory(
+        batch,
+        require_immutable=False,
+        expected_boundary=BOUNDARY,
+    )
+
+    assert any(
+        "conversation turn visual metadata disagrees with canonical post"
+        in problem
+        for problem in problems
+    )
+
+
+def test_v4_validation_rejects_candidate_visual_metadata_corruption(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        first_exchange()
+        + reply_media_context_line("2026-08-24 16:10:05", "100")
+        + reply_visual_description_line("2026-08-24 16:10:06", "100")
+        + continuation(),
+    )
+    run_scan(project, output)
+    batch = current_batch(output)
+    original_candidates = rows(output, "review-candidates.jsonl")
+    assert original_candidates
+
+    for case, expected_problem in (
+        ("missing_summaries", "review candidate schema is incomplete"),
+        ("inconsistent_summary", "visual summaries are inconsistent"),
+        ("duplicate_summary", "visual summary post IDs are duplicated"),
+        (
+            "path_turn_mismatch",
+            "path turn visual metadata disagrees with canonical post",
+        ),
+    ):
+        candidates = json.loads(json.dumps(original_candidates))
+        candidate = candidates[0]
+        if case == "missing_summaries":
+            candidate.pop("reply_visual_context_summaries")
+        elif case == "inconsistent_summary":
+            candidate["reply_visual_context_summaries"][0][
+                "analysis_attempt_count"
+            ] = 0
+        elif case == "duplicate_summary":
+            candidate["reply_visual_context_summaries"].append(
+                dict(candidate["reply_visual_context_summaries"][0])
+            )
+        elif case == "path_turn_mismatch":
+            turn = next(
+                turn
+                for turn in candidate["path_turns"]
+                if turn["post_id"] == "100"
+            )
+            turn["reply_media_context_observations"][0]["photo_count"] = 1
+            turn["reply_visual_context_summary"] = (
+                extractor._derive_reply_visual_context_summary(turn)
+            )
+            candidate["reply_visual_context_summaries"] = (
+                extractor._reply_visual_context_summaries(
+                    candidate["path_turns"]
+                )
+            )
+        rewrite_batch_candidates_and_hashes(batch, candidates)
+
+        problems = extractor._validate_batch_directory(
+            batch,
+            require_immutable=False,
+            expected_boundary=BOUNDARY,
+        )
+
+        assert any(expected_problem in problem for problem in problems), (
+            case,
+            problems,
+        )
 
 
 def test_reply_media_context_omitted_counts_stay_exact_across_reparsed_appends(
@@ -2052,15 +2399,75 @@ def test_reply_visual_metadata_propagates_without_changing_candidate_selection(
 
     assert (
         "Visual context: 2 native photos; collection supplied; analysis analysed; "
-        "1 attempt; 1 successful description; 1 distinct hash; hash 444444444444."
+        "1 analysis call; 1 successful description; 1 distinct hash; hash 444444444444."
         in markdown
     )
     assert "no visual-analysis event observed" in markdown
-    assert "analysis provider_error; 1 attempt; no successful description" in markdown
+    assert (
+        "analysis provider_error; 1 analysis call; no successful description"
+        in markdown
+    )
     assert "4" * 64 not in markdown
     for forbidden in (secret_url, secret_description, raw_author):
         assert forbidden not in markdown
         assert forbidden not in canonical_material
+
+
+def test_review_pack_qualifies_incomplete_and_not_attempted_visual_history(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    root_visual_events = reply_visual_description_line(
+        "2026-08-24 16:10:06",
+        "100",
+        description_sha256="9" * 64,
+    ) + "".join(
+        reply_visual_description_line(
+            f"2026-08-24 16:10:{second:02d}",
+            "100",
+            status="provider_error",
+        )
+        for second in range(7, 23)
+    )
+    write_active(
+        project,
+        first_exchange()
+        + reply_media_context_line("2026-08-24 16:10:05", "100")
+        + root_visual_events
+        + continuation()
+        + reply_media_context_line("2026-08-24 16:20:02", "102", photo_count=1)
+        + reply_visual_description_line(
+            "2026-08-24 16:20:03",
+            "102",
+            status="paused",
+            supplied_image_count=1,
+        ),
+    )
+    run_scan(project, output)
+
+    extractor.freeze_review_pack(
+        output_root=output,
+        pack_name="bounded-visual-context",
+        since=BOUNDARY,
+        until="2026-08-28T00:00:00Z",
+        include_open=True,
+    )
+    markdown = (
+        output
+        / "review-packs"
+        / "bounded-visual-context"
+        / "review-pack.md"
+    ).read_text(encoding="utf-8")
+
+    assert "retained visual history is incomplete" in markdown
+    assert "1 older visual event was omitted" in markdown
+    assert (
+        "no successful description is present among the retained events"
+        in markdown
+    )
+    assert "analysis paused; no analysis call attempted" in markdown
+    assert "analysis paused; 1 analysis call" not in markdown
 
 
 def test_ignored_structured_event_counts_are_aggregated_in_source_manifest(

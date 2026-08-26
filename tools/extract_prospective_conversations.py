@@ -81,6 +81,65 @@ REPLY_VISUAL_DESCRIPTION_STATUSES = frozenset(
 REPLY_VISUAL_LANES = frozenset(
     {"mention", "hot-post reply", "quote-tweet reply"}
 )
+REPLY_MEDIA_CONTEXT_OBSERVATION_FIELDS = frozenset(
+    {
+        "lane",
+        "mode",
+        "observed_at",
+        "photo_count",
+        "record_fingerprint",
+        "status",
+    }
+)
+REPLY_VISUAL_DESCRIPTION_OBSERVATION_FIELDS = frozenset(
+    {
+        "analysis_schema_version",
+        "description_sha256",
+        "lane",
+        "observed_at",
+        "record_fingerprint",
+        "status",
+        "supplied_image_count",
+        "visual_analysis_call_count",
+    }
+)
+REPLY_VISUAL_CONTEXT_SUMMARY_FIELDS = frozenset(
+    {
+        "analysis_attempt_count",
+        "analysis_history_complete",
+        "analysis_observation_status",
+        "analysis_schema_versions",
+        "collection_history_complete",
+        "distinct_successful_description_count",
+        "latest_analysis_status",
+        "latest_collection_status",
+        "native_photo_count_max",
+        "omitted_media_observation_count",
+        "omitted_visual_event_count",
+        "successful_analysis_count",
+        "successful_description_sha256s",
+        "visual_event_count",
+    }
+)
+REPLY_VISUAL_METADATA_FIELDS = frozenset(
+    {
+        "reply_media_context_observations",
+        "reply_media_context_other_count",
+        "reply_visual_context_summary",
+        "reply_visual_description_attempts",
+        "reply_visual_description_other_count",
+    }
+)
+REPLY_VISUAL_ANALYSIS_OBSERVATION_STATUSES = frozenset(
+    {
+        "analysed",
+        "attempted_not_analysed",
+        "history_incomplete",
+        "not_applicable",
+        "not_attempted",
+        "not_observed",
+    }
+)
 SOURCE_STALE_WARNING_SECONDS = 6 * 60 * 60
 RECENT_BATCH_RETENTION = timedelta(hours=72)
 DAILY_BATCH_RETENTION = timedelta(days=90)
@@ -812,28 +871,21 @@ def parse_reply_media_context_observation(
     )
 
 
-def parse_reply_visual_description_attempt(
-    event: Mapping[str, Any], record: LogRecord
-) -> tuple[str | None, dict[str, Any] | None]:
-    """Validate the registered visual event and return only safe metadata."""
-    raw_target_id = event.get("target_id")
-    target_id = (
-        raw_target_id.strip()
-        if isinstance(raw_target_id, str) and raw_target_id.strip()
-        else None
-    )
-    if (
-        event.get("event") != "reply_visual_description"
-        or set(event) - REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS
-        or target_id is None
-        or not isinstance(event.get("lane"), str)
-    ):
-        return target_id, None
-    lane = normalise_lane(event.get("lane"))
-    status = event.get("status")
-    supplied_image_count = event.get("supplied_image_count")
-    schema_version = event.get("analysis_schema_version")
-    call_count = event.get("visual_analysis_call_count")
+def _validated_reply_visual_description_metadata(
+    value: Mapping[str, Any],
+    *,
+    normalise_lane_value: bool,
+    allow_empty_hash: bool,
+) -> dict[str, Any] | None:
+    """Apply the producer's status-specific visual metadata contract once."""
+    raw_lane = value.get("lane")
+    if not isinstance(raw_lane, str):
+        return None
+    lane = normalise_lane(raw_lane) if normalise_lane_value else raw_lane
+    status = value.get("status")
+    supplied_image_count = value.get("supplied_image_count")
+    schema_version = value.get("analysis_schema_version")
+    call_count = value.get("visual_analysis_call_count")
     if (
         lane not in REPLY_VISUAL_LANES
         or status not in REPLY_VISUAL_DESCRIPTION_STATUSES
@@ -847,14 +899,14 @@ def parse_reply_visual_description_attempt(
         or call_count < 0
         or call_count > 1
     ):
-        return target_id, None
-    raw_hash = event.get("description_sha256")
-    if raw_hash in (None, ""):
+        return None
+    raw_hash = value.get("description_sha256")
+    if raw_hash is None or (allow_empty_hash and raw_hash == ""):
         description_sha256: str | None = None
     elif isinstance(raw_hash, str) and re.fullmatch(r"[0-9a-f]{64}", raw_hash):
         description_sha256 = raw_hash
     else:
-        return target_id, None
+        return None
 
     if status == "analysed":
         valid_shape = (
@@ -877,18 +929,46 @@ def parse_reply_visual_description_attempt(
     else:
         valid_shape = status == "invalid_supplied_media" and call_count == 0
     if not valid_shape:
+        return None
+    return {
+        "analysis_schema_version": schema_version,
+        "description_sha256": description_sha256,
+        "lane": lane,
+        "status": status,
+        "supplied_image_count": supplied_image_count,
+        "visual_analysis_call_count": call_count,
+    }
+
+
+def parse_reply_visual_description_attempt(
+    event: Mapping[str, Any], record: LogRecord
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Validate the registered visual event and return only safe metadata."""
+    raw_target_id = event.get("target_id")
+    target_id = (
+        raw_target_id.strip()
+        if isinstance(raw_target_id, str) and raw_target_id.strip()
+        else None
+    )
+    if (
+        event.get("event") != "reply_visual_description"
+        or set(event) - REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS
+        or target_id is None
+    ):
+        return target_id, None
+    metadata = _validated_reply_visual_description_metadata(
+        event,
+        normalise_lane_value=True,
+        allow_empty_hash=True,
+    )
+    if metadata is None:
         return target_id, None
     return (
         target_id,
         {
-            "analysis_schema_version": schema_version,
-            "description_sha256": description_sha256,
-            "lane": lane,
+            **metadata,
             "observed_at": record.timestamp,
             "record_fingerprint": record.record_fingerprint,
-            "status": status,
-            "supplied_image_count": supplied_image_count,
-            "visual_analysis_call_count": call_count,
         },
     )
 
@@ -1218,14 +1298,19 @@ def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[
         "reply_requirement": None,
         "reply_visual_context_summary": {
             "analysis_attempt_count": 0,
+            "analysis_history_complete": True,
             "analysis_observation_status": "not_applicable",
             "analysis_schema_versions": [],
+            "collection_history_complete": True,
             "distinct_successful_description_count": 0,
             "latest_analysis_status": None,
             "latest_collection_status": None,
             "native_photo_count_max": 0,
+            "omitted_media_observation_count": 0,
+            "omitted_visual_event_count": 0,
             "successful_analysis_count": 0,
             "successful_description_sha256s": [],
+            "visual_event_count": 0,
         },
         "reply_visual_description_attempts": [],
         "reply_visual_description_other_count": 0,
@@ -1332,7 +1417,7 @@ def _derive_reply_visual_context_summary(
         ),
         key=_reply_observation_order_key,
     )
-    attempts = sorted(
+    visual_events = sorted(
         (
             dict(item)
             for item in post.get("reply_visual_description_attempts") or []
@@ -1340,7 +1425,9 @@ def _derive_reply_visual_context_summary(
         ),
         key=_reply_observation_order_key,
     )
-    successful = [item for item in attempts if item.get("status") == "analysed"]
+    successful = [
+        item for item in visual_events if item.get("status") == "analysed"
+    ]
     successful_hashes = sorted(
         {
             str(item["description_sha256"])
@@ -1361,39 +1448,71 @@ def _derive_reply_visual_context_summary(
         if type(item.get("photo_count")) is int and item["photo_count"] >= 0
     ] + [
         int(item["supplied_image_count"])
-        for item in attempts
+        for item in visual_events
         if type(item.get("supplied_image_count")) is int
         and item["supplied_image_count"] >= 0
     ]
+    omitted_media_observation_count = post.get(
+        "reply_media_context_other_count"
+    )
+    if (
+        type(omitted_media_observation_count) is not int
+        or omitted_media_observation_count < 0
+    ):
+        omitted_media_observation_count = 0
+    omitted_visual_event_count = post.get(
+        "reply_visual_description_other_count"
+    )
+    if (
+        type(omitted_visual_event_count) is not int
+        or omitted_visual_event_count < 0
+    ):
+        omitted_visual_event_count = 0
+    analysis_attempt_count = sum(
+        int(item["visual_analysis_call_count"])
+        for item in visual_events
+        if type(item.get("visual_analysis_call_count")) is int
+        and item["visual_analysis_call_count"] >= 0
+    )
+    visual_event_count = len(visual_events)
     if successful:
         observation_status = "analysed"
-    elif attempts:
+    elif omitted_visual_event_count > 0:
+        observation_status = "history_incomplete"
+    elif analysis_attempt_count > 0:
         observation_status = "attempted_not_analysed"
+    elif visual_event_count > 0:
+        observation_status = "not_attempted"
     elif supplied_observed:
         observation_status = "not_observed"
     else:
         observation_status = "not_applicable"
     return {
-        "analysis_attempt_count": len(attempts),
+        "analysis_attempt_count": analysis_attempt_count,
+        "analysis_history_complete": omitted_visual_event_count == 0,
         "analysis_observation_status": observation_status,
         "analysis_schema_versions": sorted(
             {
                 int(item["analysis_schema_version"])
-                for item in attempts
+                for item in visual_events
                 if type(item.get("analysis_schema_version")) is int
                 and item["analysis_schema_version"] > 0
             }
         ),
+        "collection_history_complete": omitted_media_observation_count == 0,
         "distinct_successful_description_count": len(successful_hashes),
         "latest_analysis_status": (
-            str(attempts[-1].get("status")) if attempts else None
+            str(visual_events[-1].get("status")) if visual_events else None
         ),
         "latest_collection_status": (
             str(media[-1].get("status")) if media else None
         ),
         "native_photo_count_max": max(native_counts, default=0),
+        "omitted_media_observation_count": omitted_media_observation_count,
+        "omitted_visual_event_count": omitted_visual_event_count,
         "successful_analysis_count": len(successful),
         "successful_description_sha256s": successful_hashes,
+        "visual_event_count": visual_event_count,
     }
 
 
@@ -3023,10 +3142,7 @@ def normalise_canonical_posts(
                 additions=(media_observation,),
                 maximum=MAX_REPLY_MEDIA_CONTEXT_OBSERVATIONS,
             )
-            media_target["source_provenance"] = _merge_unique_objects(
-                list(media_target.get("source_provenance") or []),
-                [record.provenance()],
-            )
+            _touch_post(media_target, record)
 
         match = CONSIDER_RE.search(message)
         if match:
@@ -3225,10 +3341,7 @@ def normalise_canonical_posts(
                     additions=(visual_attempt,),
                     maximum=MAX_REPLY_VISUAL_DESCRIPTION_ATTEMPTS,
                 )
-                visual_target["source_provenance"] = _merge_unique_objects(
-                    list(visual_target.get("source_provenance") or []),
-                    [record.provenance()],
-                )
+                _touch_post(visual_target, record)
             continue
         if kind == "account_root_posted":
             if not _valid_account_root_event(event):
@@ -5433,6 +5546,236 @@ def _walk_forbidden_keys(value: Any, *, location: str = "$") -> list[str]:
     return errors
 
 
+def _is_canonical_utc_timestamp(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    parsed = parse_optional_timestamp(value)
+    return parsed is not None and format_utc(parsed) == value
+
+
+def _is_lower_sha256(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _validate_reply_visual_context_summary_shape(
+    value: Any,
+    *,
+    location: str,
+    include_post_id: bool = False,
+) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(value, dict):
+        return [f"reply visual context summary is not an object at {location}"]
+    expected_fields = set(REPLY_VISUAL_CONTEXT_SUMMARY_FIELDS)
+    if include_post_id:
+        expected_fields.add("post_id")
+    if set(value) != expected_fields:
+        errors.append(
+            f"reply visual context summary fields are invalid at {location}"
+        )
+    if include_post_id and (
+        not isinstance(value.get("post_id"), str) or not value.get("post_id")
+    ):
+        errors.append(f"reply visual context summary post ID is invalid at {location}")
+    for field in (
+        "analysis_attempt_count",
+        "distinct_successful_description_count",
+        "native_photo_count_max",
+        "omitted_media_observation_count",
+        "omitted_visual_event_count",
+        "successful_analysis_count",
+        "visual_event_count",
+    ):
+        field_value = value.get(field)
+        if type(field_value) is not int or field_value < 0:
+            errors.append(f"{field} is invalid at {location}")
+    if (
+        type(value.get("native_photo_count_max")) is int
+        and value["native_photo_count_max"] > MAX_REPLY_VISUAL_REPORTED_IMAGES
+    ):
+        errors.append(f"native_photo_count_max is invalid at {location}")
+    for field in ("analysis_history_complete", "collection_history_complete"):
+        if type(value.get(field)) is not bool:
+            errors.append(f"{field} is invalid at {location}")
+    if (
+        value.get("analysis_observation_status")
+        not in REPLY_VISUAL_ANALYSIS_OBSERVATION_STATUSES
+    ):
+        errors.append(f"analysis observation status is invalid at {location}")
+    latest_analysis_status = value.get("latest_analysis_status")
+    if (
+        latest_analysis_status is not None
+        and latest_analysis_status not in REPLY_VISUAL_DESCRIPTION_STATUSES
+    ):
+        errors.append(f"latest analysis status is invalid at {location}")
+    latest_collection_status = value.get("latest_collection_status")
+    if latest_collection_status is not None and latest_collection_status not in {
+        "supplied",
+        "unavailable",
+    }:
+        errors.append(f"latest collection status is invalid at {location}")
+    schema_versions = value.get("analysis_schema_versions")
+    if (
+        not isinstance(schema_versions, list)
+        or any(
+            type(item) is not int
+            or item <= 0
+            or item > MAX_REPLY_VISUAL_SCHEMA_VERSION
+            for item in schema_versions
+        )
+        or schema_versions != sorted(set(schema_versions))
+    ):
+        errors.append(f"analysis schema versions are invalid at {location}")
+    hashes = value.get("successful_description_sha256s")
+    if (
+        not isinstance(hashes, list)
+        or any(not _is_lower_sha256(item) for item in hashes)
+        or hashes != sorted(set(hashes))
+    ):
+        errors.append(f"successful description hashes are invalid at {location}")
+    return errors
+
+
+def _validate_reply_visual_metadata(
+    value: Mapping[str, Any], *, location: str
+) -> list[str]:
+    """Validate one post/turn's complete version-4 visual metadata."""
+    errors: list[str] = []
+    missing_fields = REPLY_VISUAL_METADATA_FIELDS - set(value)
+    if missing_fields:
+        errors.append(f"reply visual metadata fields are missing at {location}")
+
+    media = value.get("reply_media_context_observations")
+    media_valid_for_derivation = isinstance(media, list)
+    if not isinstance(media, list):
+        errors.append(f"reply media context observations are not a list at {location}")
+        media = []
+    elif len(media) > MAX_REPLY_MEDIA_CONTEXT_OBSERVATIONS:
+        errors.append(f"reply media context observation bound is exceeded at {location}")
+    media_fingerprints: list[str] = []
+    media_rows_are_objects = all(isinstance(item, dict) for item in media)
+    for index, item in enumerate(media):
+        item_location = f"{location}.reply_media_context_observations[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"reply media context observation is not an object at {item_location}")
+            media_valid_for_derivation = False
+            continue
+        if set(item) != REPLY_MEDIA_CONTEXT_OBSERVATION_FIELDS:
+            errors.append(f"reply media context observation fields are invalid at {item_location}")
+        if not _is_canonical_utc_timestamp(item.get("observed_at")):
+            errors.append(f"reply media context observation time is invalid at {item_location}")
+        fingerprint = item.get("record_fingerprint")
+        if not _is_lower_sha256(fingerprint):
+            errors.append(f"reply media context fingerprint is invalid at {item_location}")
+        else:
+            media_fingerprints.append(fingerprint)
+        if item.get("lane") not in REPLY_VISUAL_LANES:
+            errors.append(f"reply media context lane is invalid at {item_location}")
+        if item.get("mode") != "multimodal":
+            errors.append(f"reply media context mode is invalid at {item_location}")
+        if item.get("status") not in {"supplied", "unavailable"}:
+            errors.append(f"reply media context status is invalid at {item_location}")
+        photo_count = item.get("photo_count")
+        if (
+            type(photo_count) is not int
+            or photo_count <= 0
+            or photo_count > MAX_REPLY_VISUAL_REPORTED_IMAGES
+        ):
+            errors.append(f"reply media context photo count is invalid at {item_location}")
+    if len(media_fingerprints) != len(set(media_fingerprints)):
+        errors.append(f"reply media context fingerprints are duplicated at {location}")
+    if media_rows_are_objects and media != sorted(
+        media, key=_reply_observation_order_key
+    ):
+        errors.append(f"reply media context ordering is invalid at {location}")
+
+    visual_events = value.get("reply_visual_description_attempts")
+    visual_valid_for_derivation = isinstance(visual_events, list)
+    if not isinstance(visual_events, list):
+        errors.append(f"reply visual event history is not a list at {location}")
+        visual_events = []
+    elif len(visual_events) > MAX_REPLY_VISUAL_DESCRIPTION_ATTEMPTS:
+        errors.append(f"reply visual event history bound is exceeded at {location}")
+    visual_fingerprints: list[str] = []
+    visual_rows_are_objects = all(isinstance(item, dict) for item in visual_events)
+    for index, item in enumerate(visual_events):
+        item_location = f"{location}.reply_visual_description_attempts[{index}]"
+        if not isinstance(item, dict):
+            errors.append(f"reply visual event is not an object at {item_location}")
+            visual_valid_for_derivation = False
+            continue
+        if set(item) != REPLY_VISUAL_DESCRIPTION_OBSERVATION_FIELDS:
+            errors.append(f"reply visual event fields are invalid at {item_location}")
+        if not _is_canonical_utc_timestamp(item.get("observed_at")):
+            errors.append(f"reply visual event time is invalid at {item_location}")
+        fingerprint = item.get("record_fingerprint")
+        if not _is_lower_sha256(fingerprint):
+            errors.append(f"reply visual event fingerprint is invalid at {item_location}")
+        else:
+            visual_fingerprints.append(fingerprint)
+        if _validated_reply_visual_description_metadata(
+            item,
+            normalise_lane_value=False,
+            allow_empty_hash=False,
+        ) is None:
+            errors.append(f"reply visual event contract is invalid at {item_location}")
+    if len(visual_fingerprints) != len(set(visual_fingerprints)):
+        errors.append(f"reply visual event fingerprints are duplicated at {location}")
+    if visual_rows_are_objects and visual_events != sorted(
+        visual_events, key=_reply_observation_order_key
+    ):
+        errors.append(f"reply visual event ordering is invalid at {location}")
+
+    media_other = value.get("reply_media_context_other_count")
+    if type(media_other) is not int or media_other < 0:
+        errors.append(f"reply media context overflow count is invalid at {location}")
+        media_valid_for_derivation = False
+    elif (
+        media_other > 0
+        and isinstance(media, list)
+        and len(media) < MAX_REPLY_MEDIA_CONTEXT_OBSERVATIONS
+    ):
+        errors.append(f"reply media context overflow count is inconsistent at {location}")
+    visual_other = value.get("reply_visual_description_other_count")
+    if type(visual_other) is not int or visual_other < 0:
+        errors.append(f"reply visual event overflow count is invalid at {location}")
+        visual_valid_for_derivation = False
+    elif (
+        visual_other > 0
+        and isinstance(visual_events, list)
+        and len(visual_events) < MAX_REPLY_VISUAL_DESCRIPTION_ATTEMPTS
+    ):
+        errors.append(f"reply visual event overflow count is inconsistent at {location}")
+
+    summary = value.get("reply_visual_context_summary")
+    errors.extend(
+        _validate_reply_visual_context_summary_shape(
+            summary,
+            location=f"{location}.reply_visual_context_summary",
+        )
+    )
+    if (
+        isinstance(summary, dict)
+        and media_valid_for_derivation
+        and visual_valid_for_derivation
+    ):
+        expected_summary = _derive_reply_visual_context_summary(value)
+        if summary != expected_summary:
+            errors.append(f"reply visual context summary is inconsistent at {location}")
+    return errors
+
+
+def _reply_visual_metadata_matches(
+    value: Mapping[str, Any], canonical_post: Mapping[str, Any]
+) -> bool:
+    return all(
+        field in value
+        and field in canonical_post
+        and value[field] == canonical_post[field]
+        for field in REPLY_VISUAL_METADATA_FIELDS
+    )
+
+
 def _validate_batch_directory(
     batch: Path,
     *,
@@ -5603,12 +5946,22 @@ def _validate_batch_directory(
     post_order = [_turn_order_key(row)[:2] for row in posts]
     if post_order != sorted(post_order):
         errors.append(f"canonical post ordering is invalid in {batch}")
+    canonical_post_lookup: dict[str, Mapping[str, Any]] = {}
+    for post in posts:
+        post_id = str(post.get("post_id") or "")
+        canonical_post_lookup.setdefault(post_id, post)
     for post in posts:
         post_id = str(post.get("post_id") or "")
         if post.get("schema_version") != SCHEMA_VERSION:
             errors.append(f"canonical post schema mismatch for {post_id} in {batch}")
         if post.get("derivation_parser_version") != PARSER_VERSION:
             errors.append(f"canonical post parser mismatch for {post_id} in {batch}")
+        errors.extend(
+            _validate_reply_visual_metadata(
+                post,
+                location=f"canonical post {post_id} in {batch}",
+            )
+        )
         if "timestamp" in post:
             errors.append(f"ambiguous canonical timestamp retained for {post_id} in {batch}")
         if post.get("creation_time_source") not in {
@@ -5778,9 +6131,23 @@ def _validate_batch_directory(
     if conversation_order != sorted(conversation_order):
         errors.append(f"conversation ordering is invalid in {batch}")
     for conversation in conversations:
-        turns = list(conversation.get("turns") or [])
-        order = [_turn_order_key(turn) for turn in turns]
-        if order != sorted(order):
+        raw_turns = conversation.get("turns")
+        if not isinstance(raw_turns, list):
+            errors.append(
+                f"conversation turns are not a list for {conversation.get('conversation_key')} in {batch}"
+            )
+            turns: list[Any] = []
+        else:
+            turns = raw_turns
+        turn_rows_are_objects = all(isinstance(turn, dict) for turn in turns)
+        if not turn_rows_are_objects:
+            errors.append(
+                f"conversation turns contain a non-object for {conversation.get('conversation_key')} in {batch}"
+            )
+        order = [
+            _turn_order_key(turn) for turn in turns if isinstance(turn, dict)
+        ]
+        if turn_rows_are_objects and order != sorted(order):
             errors.append(
                 f"turn ordering is invalid for {conversation.get('conversation_key')} in {batch}"
             )
@@ -5799,6 +6166,26 @@ def _validate_batch_directory(
             errors.append(
                 f"eligible conversation lacks authoritative start time in {batch}"
             )
+        for index, turn in enumerate(turns):
+            turn_location = (
+                f"conversation {conversation.get('conversation_key')} turn {index} in {batch}"
+            )
+            if not isinstance(turn, dict):
+                errors.append(f"conversation turn is not an object at {turn_location}")
+                continue
+            errors.extend(
+                _validate_reply_visual_metadata(turn, location=turn_location)
+            )
+            turn_post_id = str(turn.get("post_id") or "")
+            canonical_post = canonical_post_lookup.get(turn_post_id)
+            if canonical_post is None:
+                errors.append(
+                    f"conversation turn has no canonical post at {turn_location}"
+                )
+            elif not _reply_visual_metadata_matches(turn, canonical_post):
+                errors.append(
+                    f"conversation turn visual metadata disagrees with canonical post at {turn_location}"
+                )
     for candidate in candidates:
         required_candidate_fields = {
             "schema_version",
@@ -5825,6 +6212,7 @@ def _validate_batch_directory(
             "handoff_context_refs",
             "sibling_context_refs",
             "reconstruction_confidence",
+            "reply_visual_context_summaries",
             "warnings",
         }
         if not required_candidate_fields <= set(candidate):
@@ -5840,6 +6228,24 @@ def _validate_batch_directory(
         elif not all(isinstance(turn, dict) for turn in path_turns):
             errors.append(f"review candidate path contains a non-object in {batch}")
         else:
+            for index, turn in enumerate(path_turns):
+                turn_location = (
+                    f"review candidate {candidate.get('candidate_key')} path turn {index} in {batch}"
+                )
+                errors.extend(
+                    _validate_reply_visual_metadata(turn, location=turn_location)
+                )
+                turn_post_id = str(turn.get("post_id") or "")
+                canonical_post = canonical_post_lookup.get(turn_post_id)
+                if canonical_post is None:
+                    errors.append(
+                        f"review candidate path turn has no canonical post at {turn_location}"
+                    )
+                elif not _reply_visual_metadata_matches(turn, canonical_post):
+                    errors.append(
+                        "review candidate path turn visual metadata disagrees "
+                        f"with canonical post at {turn_location}"
+                    )
             if candidate.get("branch_tip_post_id") != path_turns[-1].get("post_id"):
                 errors.append(f"review candidate branch tip is inconsistent in {batch}")
             principal = candidate.get("principal_author_key")
@@ -5898,6 +6304,34 @@ def _validate_batch_directory(
                 != observed_substantive_turns
             ):
                 errors.append(f"review candidate substantive turn count is invalid in {batch}")
+        visual_summaries = candidate.get("reply_visual_context_summaries")
+        if not isinstance(visual_summaries, list):
+            errors.append(f"review candidate visual summaries are not a list in {batch}")
+        else:
+            summary_post_ids: list[str] = []
+            for index, summary in enumerate(visual_summaries):
+                summary_location = (
+                    f"review candidate {candidate.get('candidate_key')} visual summary {index} in {batch}"
+                )
+                errors.extend(
+                    _validate_reply_visual_context_summary_shape(
+                        summary,
+                        location=summary_location,
+                        include_post_id=True,
+                    )
+                )
+                if isinstance(summary, dict) and isinstance(
+                    summary.get("post_id"), str
+                ):
+                    summary_post_ids.append(summary["post_id"])
+            if len(summary_post_ids) != len(set(summary_post_ids)):
+                errors.append(f"review candidate visual summary post IDs are duplicated in {batch}")
+            if (
+                isinstance(path_turns, list)
+                and all(isinstance(turn, dict) for turn in path_turns)
+                and visual_summaries != _reply_visual_context_summaries(path_turns)
+            ):
+                errors.append(f"review candidate visual summaries are inconsistent in {batch}")
         sibling_refs = candidate.get("sibling_context_refs")
         if (
             not isinstance(sibling_refs, list)
@@ -7007,8 +7441,17 @@ def _review_visual_context_line(summary: Mapping[str, Any]) -> str:
     collection_status = summary.get("latest_collection_status")
     if collection_status:
         parts.append(f"collection {collection_status}")
-    elif summary.get("analysis_attempt_count"):
+    elif summary.get("visual_event_count"):
         parts.append("no collection observation retained")
+    omitted_media_count = int(
+        summary.get("omitted_media_observation_count") or 0
+    )
+    if not summary.get("collection_history_complete", True):
+        parts.append(
+            "collection history is incomplete; "
+            f"{omitted_media_count} older media "
+            f"{'observation was' if omitted_media_count == 1 else 'observations were'} omitted"
+        )
     observation_status = str(summary.get("analysis_observation_status") or "")
     attempt_count = int(summary.get("analysis_attempt_count") or 0)
     successful_count = int(summary.get("successful_analysis_count") or 0)
@@ -7017,20 +7460,50 @@ def _review_visual_context_line(summary: Mapping[str, Any]) -> str:
     )
     if observation_status == "not_observed":
         parts.append("no visual-analysis event observed")
-    elif observation_status in {"analysed", "attempted_not_analysed"}:
+    elif observation_status == "not_attempted":
+        latest_status = str(summary.get("latest_analysis_status") or "")
+        if latest_status == "paused":
+            parts.append("analysis paused")
+        elif latest_status == "invalid_supplied_media":
+            parts.append("supplied media invalid")
+        else:
+            parts.append(f"analysis {latest_status}")
+        parts.append("no analysis call attempted")
+    elif observation_status in {
+        "analysed",
+        "attempted_not_analysed",
+        "history_incomplete",
+    }:
+        history_complete = bool(summary.get("analysis_history_complete"))
+        retained_label = "" if history_complete else "retained "
         parts.extend(
             [
                 f"analysis {summary.get('latest_analysis_status')}",
-                f"{attempt_count} {'attempt' if attempt_count == 1 else 'attempts'}",
+                f"{attempt_count} {retained_label}"
+                f"{'analysis call' if attempt_count == 1 else 'analysis calls'}",
                 (
-                    f"{successful_count} successful description"
+                    f"{successful_count} {retained_label}successful description"
                     + ("s" if successful_count != 1 else "")
                     if successful_count
-                    else "no successful description"
+                    else (
+                        "no successful description is present among the retained events"
+                        if not history_complete
+                        else "no successful description"
+                    )
                 ),
-                f"{distinct_count} distinct {'hash' if distinct_count == 1 else 'hashes'}",
+                f"{distinct_count} {retained_label}distinct "
+                f"{'hash' if distinct_count == 1 else 'hashes'}",
             ]
         )
+        if not history_complete:
+            omitted_visual_count = int(
+                summary.get("omitted_visual_event_count") or 0
+            )
+            parts.append(
+                "retained visual history is incomplete; "
+                f"{omitted_visual_count} older visual "
+                f"{'event was' if omitted_visual_count == 1 else 'events were'} omitted"
+            )
         safe_hashes = [
             value[:12]
             for value in summary.get("successful_description_sha256s") or []

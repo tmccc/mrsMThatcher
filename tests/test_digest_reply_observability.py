@@ -3026,6 +3026,9 @@ def test_reply_visual_context_correlates_collection_and_window_gaps_safely():
     assert summary[
         "targets_with_analysis_but_no_collection_observation_in_selected_window"
     ] == 1
+    assert summary[
+        "targets_with_visual_events_but_no_collection_observation_in_selected_window"
+    ] == 1
 
     rendered = digest.render_markdown(report)
     assert "no visual-analysis event observed in the selected window" in rendered
@@ -3057,21 +3060,28 @@ def test_reply_visual_failure_statuses_and_repeated_hashes_are_objective():
         ),
         reply_visual_record(
             3,
+            message=(
+                "Reply media context lane=mention target_id=203 photos=1 "
+                "mode=multimodal status=supplied"
+            ),
+        ),
+        reply_visual_record(
+            4,
             reply_visual_payload(
                 "203", status="paused", supplied_image_count=1
             ),
         ),
         reply_visual_record(
-            4, reply_visual_payload("204", description_sha256="5" * 64)
-        ),
-        reply_visual_record(
             5, reply_visual_payload("204", description_sha256="5" * 64)
         ),
         reply_visual_record(
-            6, reply_visual_payload("205", description_sha256="6" * 64)
+            6, reply_visual_payload("204", description_sha256="5" * 64)
         ),
         reply_visual_record(
-            7, reply_visual_payload("205", description_sha256="7" * 64)
+            7, reply_visual_payload("205", description_sha256="6" * 64)
+        ),
+        reply_visual_record(
+            8, reply_visual_payload("205", description_sha256="7" * 64)
         ),
     ]
 
@@ -3084,20 +3094,35 @@ def test_reply_visual_failure_statuses_and_repeated_hashes_are_objective():
     for target_id, status in {
         "200": "provider_error",
         "201": "invalid_response",
-        "202": "invalid_supplied_media",
-        "203": "paused",
     }.items():
         assert by_target[target_id]["latest_visual_analysis_status"] == status
         assert by_target[target_id]["successful_analysis_count"] == 0
         assert by_target[target_id]["analysis_observation_status"] == (
             "attempted_not_analysed"
         )
+        assert by_target[target_id]["visual_analysis_event_count"] == 1
+        assert by_target[target_id]["visual_analysis_attempt_count"] == 1
+    for target_id, status in {
+        "202": "invalid_supplied_media",
+        "203": "paused",
+    }.items():
+        assert by_target[target_id]["latest_visual_analysis_status"] == status
+        assert by_target[target_id]["successful_analysis_count"] == 0
+        assert by_target[target_id]["analysis_observation_status"] == (
+            "not_attempted"
+        )
+        assert by_target[target_id]["visual_analysis_event_count"] == 1
+        assert by_target[target_id]["visual_analysis_attempt_count"] == 0
+    assert by_target["203"]["correlation_status"] == (
+        "collection_supplied_analysis_not_attempted"
+    )
     assert by_target["204"]["visual_analysis_attempt_count"] == 2
     assert by_target["204"]["successful_analysis_count"] == 2
     assert by_target["204"]["distinct_successful_description_count"] == 1
     assert by_target["205"]["visual_analysis_attempt_count"] == 2
     assert by_target["205"]["distinct_successful_description_count"] == 2
-    assert summary["targets_with_attempted_but_unsuccessful_analysis"] == 4
+    assert summary["targets_with_attempted_but_unsuccessful_analysis"] == 2
+    assert summary["targets_with_visual_events_but_no_analysis_call"] == 2
     assert summary["targets_with_more_than_one_analysis_attempt"] == 2
     assert summary[
         "targets_with_more_than_one_distinct_successful_description_hash"
@@ -3109,6 +3134,23 @@ def test_reply_visual_failure_statuses_and_repeated_hashes_are_objective():
         "paused": 1,
         "provider_error": 1,
     }
+    assert summary["visual_analysis_event_count"] == 8
+    assert summary["visual_analysis_attempt_count"] == 6
+
+    rendered = digest.render_markdown(report)
+    paused_row = next(
+        line
+        for line in rendered.splitlines()
+        if "| 203 |" in line and "| paused |" in line
+    )
+    invalid_media_row = next(
+        line
+        for line in rendered.splitlines()
+        if "| 202 |" in line and "| invalid_supplied_media |" in line
+    )
+    assert "| visual events | analysis calls |" in rendered
+    assert "| paused | 1 | 0 |" in paused_row
+    assert "| invalid_supplied_media | 1 | 0 |" in invalid_media_row
 
 
 def test_reply_visual_malformed_shapes_fail_safely_without_raw_material():
@@ -3225,4 +3267,7 @@ def test_reply_visual_events_do_not_change_provider_or_pipeline_call_accounting(
     assert stage["model_call_count"] == 2
     assert with_visual["reply_visual_context_summary"][
         "visual_analysis_call_count"
+    ] == 1
+    assert with_visual["reply_visual_context_summary"][
+        "visual_analysis_attempt_count"
     ] == 1
