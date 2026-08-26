@@ -251,6 +251,7 @@ def strict_json_loads(value: str | bytes) -> Any:
 
 
 def canonical_json_bytes(value: Any, *, newline: bool = True) -> bytes:
+    """Serialize a value as canonical UTF-8 JSON with an optional newline."""
     text = json.dumps(
         value,
         ensure_ascii=False,
@@ -262,14 +263,17 @@ def canonical_json_bytes(value: Any, *, newline: bool = True) -> bytes:
 
 
 def jsonl_bytes(rows: Iterable[Mapping[str, Any]]) -> bytes:
+    """Serialize mapping rows as canonical newline-terminated JSON Lines."""
     return b"".join(canonical_json_bytes(dict(row)) for row in rows)
 
 
 def sha256_bytes(value: bytes) -> str:
+    """Return the lowercase SHA-256 hexadecimal digest of bytes."""
     return hashlib.sha256(value).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest of a file read in bounded chunks."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(HASH_BLOCK_SIZE), b""):
@@ -278,6 +282,7 @@ def sha256_file(path: Path) -> str:
 
 
 def stable_id(prefix: str, *values: object) -> str:
+    """Derive a stable prefixed identifier from ordered values."""
     material = "\x1f".join(str(value) for value in values).encode(
         "utf-8", "surrogatepass"
     )
@@ -285,6 +290,7 @@ def stable_id(prefix: str, *values: object) -> str:
 
 
 def parse_aware_timestamp(value: str, *, option: str) -> datetime:
+    """Parse an aware ISO-8601 timestamp and normalize it to UTC."""
     candidate = value.strip()
     if candidate.endswith(("Z", "z")):
         candidate = candidate[:-1] + "+00:00"
@@ -298,6 +304,7 @@ def parse_aware_timestamp(value: str, *, option: str) -> datetime:
 
 
 def parse_optional_timestamp(value: Any, *, assume_london: bool = False) -> datetime | None:
+    """Parse an optional timestamp to UTC, returning ``None`` if unusable."""
     text = str(value or "").strip()
     if not text:
         return None
@@ -312,6 +319,7 @@ def parse_optional_timestamp(value: Any, *, assume_london: bool = False) -> date
 
 
 def format_utc(value: datetime | None) -> str | None:
+    """Format an optional aware datetime as an ISO-8601 UTC timestamp."""
     if value is None:
         return None
     normalised = value.astimezone(timezone.utc)
@@ -323,6 +331,7 @@ def format_utc(value: datetime | None) -> str | None:
 
 
 def compact_utc(value: datetime) -> str:
+    """Format a datetime as a compact second-resolution UTC timestamp."""
     return value.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
@@ -348,6 +357,7 @@ def _require_real_directory(path: Path, *, label: str) -> None:
 
 
 def validate_root_relationship(project_dir: Path, output_root: Path) -> tuple[Path, Path]:
+    """Validate that the output root lies outside the production project."""
     project = _absolute_without_following(project_dir)
     root = _absolute_without_following(output_root)
     _require_real_directory(project, label="project directory")
@@ -366,6 +376,7 @@ def _mkdir_private(path: Path) -> None:
 
 
 def ensure_private_layout(root: Path) -> None:
+    """Create or secure the extractor's private output directory layout."""
     parent = root.parent
     _require_real_directory(parent, label="output parent")
     if root.exists() or root.is_symlink():
@@ -393,6 +404,7 @@ def _source_number(name: str) -> int | None:
 
 
 def source_sort_key(path: Path) -> tuple[int, str]:
+    """Return deterministic precedence for active and rotated log files."""
     number = _source_number(path.name)
     if number is None:
         return (1, path.name)
@@ -401,16 +413,21 @@ def source_sort_key(path: Path) -> tuple[int, str]:
 
 @dataclass(frozen=True)
 class SourceWarning:
+    """Describe a non-fatal source discovery or read warning."""
+
     basename: str
     kind: str
     detail: str
 
     def as_json(self) -> dict[str, str]:
+        """Return the warning as a stable JSON-compatible mapping."""
         return {"basename": self.basename, "detail": self.detail, "kind": self.kind}
 
 
 @dataclass(frozen=True)
 class SourceRead:
+    """Hold one coherently read retained-log source and its identity."""
+
     path: Path
     basename: str
     device: int
@@ -424,6 +441,7 @@ class SourceRead:
     inventory_retry_required: bool
 
     def manifest_row(self) -> dict[str, Any]:
+        """Return source identity and completeness fields for a manifest."""
         return {
             "absolute_path": str(self.path),
             "basename": self.basename,
@@ -439,6 +457,8 @@ class SourceRead:
 
 @dataclass(frozen=True)
 class SourceInventory:
+    """Hold a coherent retained-log inventory and its scan warnings."""
+
     files: tuple[SourceRead, ...]
     warnings: tuple[SourceWarning, ...]
     retry_count: int
@@ -588,6 +608,8 @@ def collect_source_inventory(project_dir: Path) -> SourceInventory:
 
 @dataclass(frozen=True)
 class LogRecord:
+    """Represent one canonical parsed production-log record."""
+
     timestamp: str
     timestamp_value: datetime
     original_timestamp_text: str
@@ -601,6 +623,7 @@ class LogRecord:
     warnings: tuple[str, ...]
 
     def provenance(self) -> dict[str, str]:
+        """Return stable source provenance for derived evidence."""
         return {
             "observed_at": self.timestamp,
             "record_fingerprint": self.record_fingerprint,
@@ -693,6 +716,7 @@ def parse_log_records(data: bytes) -> tuple[list[LogRecord], list[dict[str, Any]
 
 
 def decode_literal(value: str) -> str:
+    """Decode a Python string literal when possible, otherwise return input."""
     candidate = value.strip()
     try:
         decoded = ast.literal_eval(candidate)
@@ -702,6 +726,7 @@ def decode_literal(value: str) -> str:
 
 
 def normalise_lane(value: Any) -> str:
+    """Map observed conversational lane labels to canonical display names."""
     lane = str(value or "other").strip().casefold().replace("_", "-")
     if "hot-post" in lane:
         return "hot-post reply"
@@ -713,6 +738,7 @@ def normalise_lane(value: Any) -> str:
 
 
 def normalise_account_lane(value: Any) -> str:
+    """Map account-publication lane labels to canonical internal names."""
     lane = str(value or "").strip().casefold().replace("-", "_")
     if lane in {"quote_image", "daily_meme", "historical_context_reply"}:
         return lane
@@ -738,6 +764,7 @@ def _open_regular_nofollow(path: Path, flags: int, mode: int = 0o600) -> int:
 
 
 def load_or_create_pseudonym_key(root: Path) -> bytes:
+    """Load the private pseudonym key, creating it atomically if absent."""
     path = root / "state" / "pseudonym-key"
     if not path.exists() and not path.is_symlink():
         data = secrets.token_bytes(32)
@@ -1711,6 +1738,8 @@ PIPELINE_EVENT_KINDS = frozenset(
 
 @dataclass(frozen=True)
 class StructuredEventContract:
+    """Declare fields and publication semantics for a structured event."""
+
     target_fields: tuple[str, ...]
     incoming_text_fields: tuple[str, ...] = ()
     author_fields: tuple[str, ...] = ()
@@ -2074,6 +2103,8 @@ def _bind_confirmed_send_attempt(
 
 @dataclass(frozen=True)
 class LegacyAccountPublication:
+    """Represent an account publication reconstructed from legacy logs."""
+
     post_id: str
     lane: str
     parent_post_id: str | None
@@ -3157,6 +3188,8 @@ def ignored_structured_event_histogram(
 
 @dataclass(frozen=True)
 class SubstantiveResult:
+    """Describe whether text is substantive and the deterministic reason."""
+
     substantive: bool
     reason: str
 
@@ -3191,6 +3224,7 @@ def substantive_result(text: Any) -> SubstantiveResult:
 
 
 def correction_cues(text: Any) -> list[str]:
+    """Return deterministic correction-cue labels found in text."""
     candidate = str(text or "")
     return [
         label
@@ -3280,6 +3314,8 @@ def _turn_order_key(turn: Mapping[str, Any]) -> tuple[str, str, str]:
 
 @dataclass(frozen=True)
 class ConversationStart:
+    """Describe the resolved conversation start time and its provenance."""
+
     value: datetime | None
     source: str
     root_post_id: str | None
@@ -4033,6 +4069,7 @@ def _strict_read_json(path: Path) -> Any:
 
 
 def read_extractor_state(root: Path, *, missing_ok: bool = True) -> dict[str, Any] | None:
+    """Read and validate extractor state, optionally allowing its absence."""
     path = root / "state" / "extractor-state.json"
     if not path.exists() and not path.is_symlink():
         if missing_ok:
@@ -4100,6 +4137,7 @@ def extractor_lock(
     nonblocking: bool,
     create: bool,
 ) -> Iterator[bool]:
+    """Acquire and yield a shared or exclusive advisory extractor lock."""
     path = root / "state" / "extractor.lock"
     flags = os.O_RDWR | (os.O_CREAT if create else 0)
     try:
@@ -4216,6 +4254,8 @@ def _load_prior_posts(root: Path, state_value: Mapping[str, Any] | None) -> list
 
 @dataclass(frozen=True)
 class IncrementalParse:
+    """Hold records, cache state, warnings, and incremental reuse counts."""
+
     records: tuple[LogRecord, ...]
     source_cache: dict[str, Any]
     earliest_source_timestamp: str | None
@@ -4231,6 +4271,7 @@ def parse_incremental_sources(
     *,
     cutoff: datetime,
 ) -> IncrementalParse:
+    """Parse inventory sources using validated entries from the prior cache."""
     prior_cache = copy.deepcopy(
         dict((prior_state or {}).get("source_file_cache") or {})
     )
@@ -4516,6 +4557,8 @@ def _remove_new_tree(directory: Path) -> None:
 
 @dataclass(frozen=True)
 class RetentionResult:
+    """Describe retained storage, pruning, validation counts, and warnings."""
+
     pruned_batch_ids: tuple[str, ...]
     retained_batch_count: int
     retained_automatic_bytes: int
@@ -4527,6 +4570,7 @@ class RetentionResult:
     storage_warnings: tuple[str, ...] = ()
 
     def as_state_fields(self) -> dict[str, Any]:
+        """Return retention metrics suitable for persisted extractor state."""
         return {
             "pruned_batch_ids": list(self.pruned_batch_ids),
             "protected_automatic_bytes": self.protected_automatic_bytes,
@@ -4545,6 +4589,8 @@ class RetentionResult:
 
 @dataclass(frozen=True)
 class RetentionBatchMetadata:
+    """Hold trusted creation time and size metadata for an automatic batch."""
+
     path: Path
     created_at: datetime
     size_bytes: int
@@ -4714,6 +4760,7 @@ def measure_retained_storage(
     *,
     expected_boundary: str | None = None,
 ) -> RetentionResult:
+    """Measure retained batches, review packs, and protected storage bytes."""
     batches = sorted(
         (
             path
@@ -6092,6 +6139,7 @@ def run_scan(
 
 
 def uninitialised_status() -> dict[str, Any]:
+    """Return the stable status schema for an uninitialised output root."""
     return {
         "automatic_batch_budget_bytes": MAX_AUTOMATIC_BATCH_BYTES,
         "canonical_post_count": 0,
@@ -6579,6 +6627,7 @@ def freeze_review_pack(
     include_open: bool = False,
     frozen_at: datetime | None = None,
 ) -> dict[str, Any]:
+    """Freeze an immutable private review pack from the current snapshot."""
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", pack_name):
         raise ExtractorError(
             "--pack-name must contain only letters, digits, dot, underscore, or hyphen"
@@ -6924,6 +6973,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the selected extractor command and return its process exit status."""
     parser = _build_parser()
     arguments = parser.parse_args(argv)
     try:

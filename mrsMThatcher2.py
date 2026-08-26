@@ -7272,9 +7272,23 @@ def x_request(
                 decoded=decoded,
                 json_error=json_error,
             )
+            if reason == "json_decode_error":
+                outcome_summary = (
+                    "X may have accepted the post but returned a non-JSON "
+                    "successful response"
+                )
+            elif reason == "decoded_top_level_not_object":
+                outcome_summary = (
+                    "X may have accepted the post but its successful response "
+                    f"was not a JSON object: {type(decoded).__name__}"
+                )
+            else:
+                outcome_summary = (
+                    "X may have accepted the post but its successful response "
+                    "could not confirm a valid numeric data.id"
+                )
             error = AmbiguousRemotePostOutcome(
-                "X may have accepted the post but its successful response "
-                "could not confirm a valid numeric data.id; "
+                f"{outcome_summary}; "
                 f"reason={reason} "
                 f"diagnostic_event={X_CREATE_RESPONSE_ANOMALY_EVENT} "
                 f"diagnostic_sha256={diagnostic['diagnostic_sha256']}",
