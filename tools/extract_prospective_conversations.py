@@ -1372,6 +1372,12 @@ def _bind_confirmed_send_attempt(
         if attempt.get("remote_post_id_observed") == reply_post_id
     ]
     warnings: list[str] = []
+    if any(
+        attempt.get("remote_post_id_observed")
+        and attempt.get("remote_post_id_observed") != reply_post_id
+        for attempt in correctly_scoped
+    ):
+        warnings.append("confirmed_reply_known_remote_id_mismatch")
     selected: dict[str, Any] | None = None
     if len(exact) == 1:
         selected = exact[0]
@@ -1382,8 +1388,8 @@ def _bind_confirmed_send_attempt(
         eligible = [
             attempt
             for attempt in correctly_scoped
-            if attempt.get("last_observed_status")
-            in {"started", "remote_success_observed"}
+            if attempt.get("last_observed_status") == "started"
+            and not attempt.get("remote_post_id_observed")
         ]
         if len(eligible) == 1:
             selected = eligible[0]

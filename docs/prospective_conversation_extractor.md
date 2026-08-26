@@ -179,10 +179,12 @@ bounded to the newest five attempts. A create line from another lane clears the
 transient generic-success association. Confirmed receipt evidence can recover
 the final attempted text later. An exact observed remote reply ID can bind an
 attempt in any later local status. Without that exact proof, only one uniquely
-eligible `started` or `remote_success_observed` attempt may supply text;
-`failed` and `retired` drafts are deliberately excluded. Zero or multiple
-eligible attempts leave the confirmed account turn's text null, preserve the
-graph edge and publication evidence, and add a precise binding warning.
+eligible `started` attempt with no observed remote ID may supply text. An
+attempt carrying a different known remote ID, or an unmatched `failed`,
+`retired`, or `remote_success_observed` attempt, is deliberately excluded and
+is not mutated by confirmation. Zero or multiple eligible attempts leave the
+confirmed account turn's text null, preserve the graph edge and publication
+evidence, and add a precise binding warning.
 
 Structured events use a small event-kind registry defining permitted target,
 text, author, identity, parent, creation-time, and publication fields. A bare

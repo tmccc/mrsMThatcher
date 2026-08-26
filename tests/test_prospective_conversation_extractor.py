@@ -1152,7 +1152,7 @@ def test_single_started_attempt_may_supply_confirmation_text() -> None:
     assert account["text"] == "Sole active draft"
 
 
-def test_single_remote_success_attempt_may_supply_unmatched_confirmation_text() -> None:
+def test_known_remote_id_mismatch_never_supplies_confirmation_text() -> None:
     target_id = snowflake_id("2026-08-24T15:10:00Z")
     observed_reply_id = snowflake_id("2026-08-24T15:14:00Z")
     confirmed_reply_id = snowflake_id("2026-08-24T15:15:00Z")
@@ -1170,11 +1170,24 @@ def test_single_remote_success_attempt_may_supply_unmatched_confirmation_text() 
 
     posts = extractor.normalise_canonical_posts(records, [], b"p" * 32)
     account = next(post for post in posts if post["author_role"] == "account")
+    target = next(post for post in posts if post["post_id"] == target_id)
+    attempt = target["send_attempts"][0]
 
-    assert account["text"] == "Sole remote-success draft"
+    assert account["text"] is None
+    assert account["parent_post_id"] == target_id
+    assert account["publication_authority"] == "confirmed_receipt_promotion"
+    assert "confirmed_reply_known_remote_id_mismatch" in account["warnings"]
+    assert "confirmed_reply_no_eligible_attempt_text" in account["warnings"]
+    assert "confirmed_account_reply_text_unavailable" in account["warnings"]
+    assert attempt["remote_post_id_observed"] == observed_reply_id
+    assert attempt["last_observed_status"] == "remote_success_observed"
+    assert attempt["status_observed_at"] == "2026-08-24T15:12:01Z"
 
 
-def test_exact_reply_id_recovers_text_from_later_failed_attempt_status() -> None:
+@pytest.mark.parametrize("terminal_status", ["failed", "retired"])
+def test_exact_reply_id_recovers_text_from_later_terminal_attempt_status(
+    terminal_status: str,
+) -> None:
     target_id = snowflake_id("2026-08-24T15:10:00Z")
     reply_id = snowflake_id("2026-08-24T15:15:00Z")
     initial_records, _ = extractor.parse_log_records(
@@ -1185,7 +1198,7 @@ def test_exact_reply_id_recovers_text_from_later_failed_attempt_status() -> None
     )
     prior = extractor.normalise_canonical_posts(initial_records, [], b"q" * 32)
     target = next(post for post in prior if post["post_id"] == target_id)
-    target["send_attempts"][0]["last_observed_status"] = "failed"
+    target["send_attempts"][0]["last_observed_status"] = terminal_status
     confirmation_records, _ = extractor.parse_log_records(
         receipt_promotion(
             target_id, reply_id, local_time="2026-08-24 16:15:00"
