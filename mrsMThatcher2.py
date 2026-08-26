@@ -20915,6 +20915,7 @@ def xai_structured_reply_call(
     timeout_seconds: int,
     max_output_tokens: int,
     media_context: dict | None,
+    log_request_payload: bool = True,
 ) -> object:
     """Send one isolated structured xAI call for an AI-first pipeline stage."""
     payload = {
@@ -20935,7 +20936,8 @@ def xai_structured_reply_call(
         },
     }
     log.info("Calling AI-first reply stage=%s model=%s", stage, model)
-    log_json_debug("xAI structured reply request", redact_xai_payload_for_log(payload))
+    if log_request_payload:
+        log_json_debug("xAI structured reply request", redact_xai_payload_for_log(payload))
     require_remote_operation_unpaused(f"xAI reply stage {stage}")
     try:
         response = requests.post(
@@ -20989,6 +20991,151 @@ def xai_structured_reply_call(
             service="xai",
         )
     return content
+
+
+def describe_reply_media_for_tested_pipeline(
+    context: dict[str, object],
+    media_context: dict | None,
+    *,
+    config: dict,
+) -> dict | None:
+    """Describe supplied photos once and return URL-free untrusted context."""
+    if not isinstance(media_context, dict) or media_context.get("status") != "supplied":
+        return media_context
+
+    from reply_strategy import validate_reply_context
+    from tested_reply_pipeline import (
+        VISUAL_DESCRIPTION_MAX_IMAGES,
+        VISUAL_DESCRIPTION_MAX_OUTPUT_TOKENS,
+        VISUAL_DESCRIPTION_PROMPT,
+        VISUAL_DESCRIPTION_SCHEMA,
+        VISUAL_DESCRIPTION_SCHEMA_VERSION,
+        VISUAL_DESCRIPTION_TRUST,
+        validate_visual_description,
+    )
+
+    lane = str(context.get("lane") or "")
+    target_id = str(context.get("target_id") or "")
+    photos = media_context.get("photos")
+    supplied_image_count = len(photos) if isinstance(photos, list) else 0
+
+    def record(status: str, *, call_count: int, description_sha256: str = "") -> None:
+        log_event(
+            "reply_visual_description",
+            lane=lane,
+            target_id=target_id,
+            supplied_image_count=supplied_image_count,
+            status=status,
+            analysis_schema_version=VISUAL_DESCRIPTION_SCHEMA_VERSION,
+            description_sha256=description_sha256,
+            visual_analysis_call_count=call_count,
+        )
+
+    if VISUAL_DESCRIPTION_MAX_IMAGES != MAX_REPLY_CONTEXT_PHOTOS:
+        raise RuntimeError("visual description photo limit differs from reply media limit")
+    if (
+        not isinstance(photos, list)
+        or not 1 <= len(photos) <= MAX_REPLY_CONTEXT_PHOTOS
+        or any(
+            not isinstance(photo, dict)
+            or not isinstance(photo.get("url"), str)
+            or not str(photo["url"]).strip()
+            for photo in photos
+        )
+    ):
+        record("invalid_supplied_media", call_count=0)
+        raise ApiError(
+            "supplied reply media is invalid for visual description",
+            service="xai",
+        )
+
+    clean_context = validate_reply_context(context)
+    quoted_post = clean_context.get("quoted_post")
+    visual_input = {
+        "incoming_contribution": clean_context["incoming_contribution"],
+        "quoted_post_text": (
+            str(quoted_post.get("text") or "")
+            if isinstance(quoted_post, dict)
+            else ""
+        ),
+        "parent_thread_text": [
+            str(item.get("text") or "")
+            for item in clean_context["parent_thread"]
+            if isinstance(item, dict)
+        ],
+    }
+    source_urls = [str(photo["url"]).strip() for photo in photos]
+    visual_media = {
+        "status": "supplied",
+        "photos": [{"url": url} for url in source_urls],
+    }
+    try:
+        raw = xai_structured_reply_call(
+            stage="tested_pipeline_visual_description",
+            model=str(config["xai_model"]),
+            system_prompt=VISUAL_DESCRIPTION_PROMPT,
+            user_prompt=json.dumps(
+                visual_input,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            response_schema=copy.deepcopy(VISUAL_DESCRIPTION_SCHEMA),
+            timeout_seconds=int(config["timeout_seconds"]),
+            max_output_tokens=VISUAL_DESCRIPTION_MAX_OUTPUT_TOKENS,
+            media_context=visual_media,
+            log_request_payload=False,
+        )
+    except RemoteOperationsPaused:
+        record("paused", call_count=0)
+        raise
+    except ApiError as exc:
+        record("provider_error", call_count=1)
+        raise ApiError(
+            "xAI visual description provider request failed",
+            service="xai",
+            status_code=exc.status_code,
+            reset_epoch=exc.reset_epoch,
+        ) from None
+    except Exception:
+        record("provider_error", call_count=1)
+        raise
+
+    try:
+        analysis = validate_visual_description(
+            raw,
+            supplied_image_count=supplied_image_count,
+        )
+        canonical_analysis = json.dumps(
+            analysis,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        folded_analysis = canonical_analysis.casefold()
+        if any(url.casefold() in folded_analysis for url in source_urls):
+            raise ValueError("visual description echoed a source image URL")
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
+        record("invalid_response", call_count=1)
+        raise ApiError(
+            "xAI visual description failed local schema validation",
+            service="xai",
+        ) from None
+
+    description_sha256 = hashlib.sha256(
+        canonical_analysis.encode("utf-8")
+    ).hexdigest()
+    record(
+        "analysed",
+        call_count=1,
+        description_sha256=description_sha256,
+    )
+    return {
+        "status": "analysed",
+        "trust": VISUAL_DESCRIPTION_TRUST,
+        "image_count": supplied_image_count,
+        "analysis": analysis,
+    }
 
 
 def tested_pipeline_structured_call(
@@ -21144,6 +21291,11 @@ def generate_ai_first_reply(
         target_id = str(context.get("target_id") or "")
         log.info("Running tested reply pipeline lane=%s target_id=%s", lane, target_id)
         repository = reply_evidence_repository()
+        analysed_media_context = describe_reply_media_for_tested_pipeline(
+            context,
+            media_context,
+            config=tested_reply_pipeline,
+        )
         result = run_reply_pipeline(
             context=context,
             config=tested_reply_pipeline,
@@ -21151,7 +21303,7 @@ def generate_ai_first_reply(
             transport=tested_pipeline_structured_call,
             maximum_reply_length=MAX_REPLY_CHARS,
             recent_replies=recent_replies,
-            media_context=media_context,
+            media_context=analysed_media_context,
         )
         pipeline_stage_status = result.status
         pipeline_stage_reason = result.reason
@@ -21184,7 +21336,7 @@ def generate_ai_first_reply(
                 transport=tested_pipeline_structured_call,
                 maximum_reply_length=MAX_REPLY_CHARS,
                 recent_replies=recent_replies,
-                media_context=media_context,
+                media_context=analysed_media_context,
             )
             repair_attempted = repair.attempted
             repair_outcome = repair.outcome

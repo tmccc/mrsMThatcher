@@ -485,6 +485,36 @@ def fake_server_post_replies(server: FakeApiServer) -> list[str]:
     ]
 
 
+def enable_tested_reply_pipeline_fixture(base_dir: Path) -> None:
+    import tested_reply_pipeline as pipeline
+
+    config = read_json(base_dir / "mrsMThatcher.local.json")
+    config["ai_first_reply_strategy"]["enabled"] = False
+    tested_config = pipeline.default_config()
+    tested_config["enabled"] = True
+    config["tested_reply_pipeline"] = tested_config
+    write_json(base_dir / "mrsMThatcher.local.json", config)
+
+
+def integration_visual_description() -> dict:
+    return {
+        "images": [
+            {
+                "index": 1,
+                "literal_description": "A road sign stands beneath a clear sky.",
+                "visible_text": ["AUSTRALIA"],
+                "salient_elements": ["road sign", "blue sky"],
+                "apparent_message": "The photograph appears to invite a comparison.",
+                "uncertainties": ["The location cannot be confirmed visually."],
+            }
+        ],
+        "combined_context": "The photograph presents a roadside comparison.",
+        "relationship_to_contribution": (
+            "It appears to illustrate the phrase 'Just like Australia' without proving it."
+        ),
+    }
+
+
 @pytest.fixture
 def fake_server(request):
     scenario = load_scenario(SCENARIOS / request.param)
@@ -4986,6 +5016,282 @@ def test_x_read_cooldown_does_not_block_due_daily_meme(tmp_path: Path) -> None:
             except subprocess.TimeoutExpired:
                 proc.kill()
         assert any(post.get("text") == "meme" for post in server.posts)
+    finally:
+        server.stop()
+
+
+def test_tested_pipeline_native_photo_is_analysed_once_before_downstream_stages(
+    tmp_path: Path,
+) -> None:
+    photo_url = "https://pbs.twimg.com/media/integration-native-photo.jpg"
+    analysis = integration_visual_description()
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "@MrsMThatcher Just like Australia. https://t.co/photo",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-08-26T10:00:00Z",
+                "attachments": {"media_keys": ["3_100"]},
+            }
+        ],
+        "mentions_extra": {
+            "includes": {
+                "media": [
+                    {
+                        "media_key": "3_100",
+                        "type": "photo",
+                        "url": photo_url,
+                    }
+                ]
+            }
+        },
+        "xai_responses": [
+            {
+                "status": 200,
+                "body": {
+                    "choices": [
+                        {"message": {"content": json.dumps(analysis)}}
+                    ],
+                    "usage": {"total_tokens": 12},
+                },
+            },
+            {
+                "status": 200,
+                "body": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "decision": "reply",
+                                        "reply": "PRIVATE GATE CANDIDATE",
+                                    }
+                                )
+                            }
+                        }
+                    ],
+                    "usage": {"total_tokens": 12},
+                },
+            },
+            {
+                "status": 200,
+                "body": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "status": "reply",
+                                        "reply": (
+                                            "A comparison is useful only when its principle is clear."
+                                        ),
+                                    }
+                                )
+                            }
+                        }
+                    ],
+                    "usage": {"total_tokens": 12},
+                },
+            },
+        ],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"last_reply_epoch": 0},
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+            },
+        )
+        enable_tested_reply_pipeline_fixture(base_dir)
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-cycle",
+            extra_env={
+                "MRS_FAKE_NOW_EPOCH": str(fixed_epoch),
+                "OPENAI_API_KEY": "dummy",
+                "OPENAI_API_BASE_URL": f"{server.url}/v1",
+            },
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(server.xai_requests) == 3
+        requests_by_schema = {
+            request["response_format"]["json_schema"]["name"]: request
+            for request in server.xai_requests
+        }
+        assert set(requests_by_schema) == {
+            "ai_reply_tested_pipeline_visual_description",
+            "mrs_tested_candidate_backed_engagement",
+            "mrs_tested_writer_v3_initial",
+        }
+        visual_request = requests_by_schema[
+            "ai_reply_tested_pipeline_visual_description"
+        ]
+        visual_content = visual_request["messages"][1]["content"]
+        assert isinstance(visual_content, list)
+        assert visual_content == [
+            {
+                "type": "text",
+                "text": visual_content[0]["text"],
+            },
+            {
+                "type": "image_url",
+                "image_url": {"url": photo_url},
+            },
+        ]
+        visual_text = json.loads(visual_content[0]["text"])
+        assert visual_text["incoming_contribution"].startswith(
+            "@MrsMThatcher Just like Australia."
+        )
+        assert set(visual_text) == {
+            "incoming_contribution",
+            "quoted_post_text",
+            "parent_thread_text",
+        }
+        assert "detail" not in json.dumps(visual_request, sort_keys=True)
+
+        expected_media = {
+            "status": "analysed",
+            "trust": "untrusted_user_supplied_visual_context",
+            "image_count": 1,
+            "analysis": analysis,
+        }
+        downstream_payloads = []
+        for name in (
+            "mrs_tested_candidate_backed_engagement",
+            "mrs_tested_writer_v3_initial",
+        ):
+            payload = json.loads(requests_by_schema[name]["messages"][1]["content"])
+            downstream_payloads.append(payload)
+            assert payload["media_context"] == expected_media
+            assert payload["trusted_facts"] != expected_media
+        downstream = json.dumps(downstream_payloads, sort_keys=True)
+        for forbidden in (
+            photo_url,
+            "pbs.twimg.com",
+            "3_100",
+            "media_key",
+            "preview_image_url",
+            '"image_url"',
+        ):
+            assert forbidden not in downstream
+
+        events = event_payloads(base_dir)
+        visual_events = [
+            event
+            for event in events
+            if event.get("event") == "reply_visual_description"
+        ]
+        assert len(visual_events) == 1
+        assert visual_events[0]["status"] == "analysed"
+        assert visual_events[0]["supplied_image_count"] == 1
+        assert visual_events[0]["visual_analysis_call_count"] == 1
+        assert len(visual_events[0]["description_sha256"]) == 64
+        visual_event_text = json.dumps(visual_events[0], sort_keys=True)
+        assert photo_url not in visual_event_text
+        assert analysis["images"][0]["literal_description"] not in visual_event_text
+        decision = next(
+            event
+            for event in events
+            if event.get("event") == "ai_reply_pipeline_decision"
+        )
+        assert decision["model_call_count"] == 2
+        assert fake_server_post_replies(server) == ["100"]
+    finally:
+        server.stop()
+
+
+def test_native_photo_visual_provider_error_keeps_candidate_retryable(
+    tmp_path: Path,
+) -> None:
+    photo_url = "https://pbs.twimg.com/media/integration-failure.jpg"
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "@MrsMThatcher This depends on the photograph.",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-08-26T10:00:00Z",
+                "attachments": {"media_keys": ["3_100"]},
+            }
+        ],
+        "mentions_extra": {
+            "includes": {
+                "media": [
+                    {
+                        "media_key": "3_100",
+                        "type": "photo",
+                        "url": photo_url,
+                    }
+                ]
+            }
+        },
+        "xai_responses": [
+            {"status": 503, "body": {"error": "visual provider unavailable"}}
+        ],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"last_reply_epoch": 0, "daily_reply_count": 0},
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+            },
+        )
+        enable_tested_reply_pipeline_fixture(base_dir)
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-cycle",
+            extra_env={
+                "MRS_FAKE_NOW_EPOCH": str(fixed_epoch),
+                "OPENAI_API_KEY": "dummy",
+                "OPENAI_API_BASE_URL": f"{server.url}/v1",
+            },
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.path_counts.get("/v1/chat/completions", 0) == 1
+        assert server.xai_requests == []
+        assert server.posts == []
+        state = read_json(base_dir / "bot_state.json")
+        assert len(state["xai_error_epochs"]) == 1
+        assert state["daily_reply_count"] == 0
+        assert state["replied_to_ids"] == []
+        assert state["pending_ai_reply_drafts"] == {}
+        assert "100" in state["mention_pending_candidates"]
+        assert state.get("reply_evaluation_records", {}).get("100") is None
+        assert not (base_dir / "confirmed_reply_receipt.json").exists()
+        events = event_payloads(base_dir)
+        visual_events = [
+            event
+            for event in events
+            if event.get("event") == "reply_visual_description"
+        ]
+        assert len(visual_events) == 1
+        assert visual_events[0]["status"] == "provider_error"
+        assert visual_events[0]["visual_analysis_call_count"] == 1
+        assert not any(
+            event.get("event") in {
+                "ai_reply_pipeline_stage_summary",
+                "ai_reply_pipeline_decision",
+            }
+            for event in events
+        )
+        assert photo_url not in json.dumps(visual_events[0], sort_keys=True)
     finally:
         server.stop()
 

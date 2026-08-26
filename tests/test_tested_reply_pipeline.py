@@ -96,6 +96,503 @@ def enabled_config() -> dict:
     return value
 
 
+def visual_description(image_count: int = 1) -> dict:
+    return {
+        "images": [
+            {
+                "index": index,
+                "literal_description": f"Photograph {index} shows a public sign beside a road.",
+                "visible_text": [f"LEGIBLE WORDS {index}"],
+                "salient_elements": [f"road sign {index}", "open sky"],
+                "apparent_message": "The photograph appears to invite a comparison.",
+                "uncertainties": ["The location is not visually identifiable."],
+            }
+            for index in range(1, image_count + 1)
+        ],
+        "combined_context": "The photographs show related roadside scenes.",
+        "relationship_to_contribution": (
+            "They appear to illustrate the contributor's phrase without establishing its truth."
+        ),
+    }
+
+
+def analysed_media_context(image_count: int = 1) -> dict:
+    return {
+        "status": "analysed",
+        "trust": pipeline.VISUAL_DESCRIPTION_TRUST,
+        "image_count": image_count,
+        "analysis": visual_description(image_count),
+    }
+
+
+def supplied_media_context(*urls: str) -> dict:
+    return {
+        "lane": "mention",
+        "target_id": "100",
+        "mode": "multimodal",
+        "status": "supplied",
+        "photos_expected": len(urls),
+        "photos": [
+            {"media_key": f"3_{index}", "url": url}
+            for index, url in enumerate(urls, 1)
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "urls",
+    [
+        ("https://pbs.twimg.com/media/one.jpg",),
+        (
+            "https://pbs.twimg.com/media/one.jpg",
+            "https://pbs.twimg.com/media/two.jpg",
+        ),
+    ],
+    ids=["one_native_photo", "two_native_photos"],
+)
+def test_visual_description_uses_one_genuine_multimodal_xai_request(
+    monkeypatch: pytest.MonkeyPatch,
+    urls: tuple[str, ...],
+) -> None:
+    import mrsMThatcher2 as bot
+
+    analysis = visual_description(len(urls))
+    requests_seen: list[dict] = []
+    events: list[tuple[str, dict]] = []
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json() -> dict:
+            return {
+                "choices": [
+                    {"message": {"content": json.dumps(analysis)}}
+                ],
+                "usage": {"total_tokens": 12},
+            }
+
+    def post(url: str, **kwargs) -> Response:
+        requests_seen.append({"url": url, **kwargs})
+        return Response()
+
+    monkeypatch.setattr(bot.requests, "post", post)
+    monkeypatch.setattr(
+        bot, "require_remote_operation_unpaused", lambda _operation: None
+    )
+    monkeypatch.setattr(bot, "XAI_BASE", "https://xai.invalid/v1")
+    monkeypatch.setattr(bot, "XAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+
+    result = bot.describe_reply_media_for_tested_pipeline(
+        context("Just like Australia"),
+        supplied_media_context(*urls),
+        config=enabled_config(),
+    )
+
+    assert result == analysed_media_context(len(urls))
+    assert len(requests_seen) == 1
+    request_call = requests_seen[0]
+    assert request_call["url"] == "https://xai.invalid/v1/chat/completions"
+    assert request_call["timeout"] == enabled_config()["timeout_seconds"]
+    request = request_call["json"]
+    assert request["model"] == enabled_config()["xai_model"]
+    assert request["max_tokens"] == pipeline.VISUAL_DESCRIPTION_MAX_OUTPUT_TOKENS
+    assert request["response_format"]["json_schema"]["schema"] == (
+        pipeline.VISUAL_DESCRIPTION_SCHEMA
+    )
+    content = request["messages"][1]["content"]
+    assert isinstance(content, list)
+    assert [part["type"] for part in content] == [
+        "text",
+        *("image_url" for _url in urls),
+    ]
+    assert json.loads(content[0]["text"]) == {
+        "incoming_contribution": "Just like Australia",
+        "parent_thread_text": ["Freedom requires responsibility."],
+        "quoted_post_text": "",
+    }
+    assert [part["image_url"]["url"] for part in content[1:]] == list(urls)
+    assert "detail" not in json.dumps(request, sort_keys=True)
+    assert "media_key" not in json.dumps(request, sort_keys=True)
+
+    assert [name for name, _fields in events] == ["reply_visual_description"]
+    event = events[0][1]
+    canonical = json.dumps(
+        analysis,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    assert event == {
+        "lane": "mention",
+        "target_id": "100",
+        "supplied_image_count": len(urls),
+        "status": "analysed",
+        "analysis_schema_version": pipeline.VISUAL_DESCRIPTION_SCHEMA_VERSION,
+        "description_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
+        "visual_analysis_call_count": 1,
+    }
+    logged = json.dumps(events, sort_keys=True)
+    assert all(url not in logged for url in urls)
+    assert analysis["images"][0]["literal_description"] not in logged
+
+
+def test_text_only_tested_pipeline_makes_no_visual_call_and_keeps_stage_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    transport = Transport()
+    events: list[tuple[str, dict]] = []
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(bot, "tested_pipeline_structured_call", transport)
+    monkeypatch.setattr(
+        bot,
+        "xai_structured_reply_call",
+        lambda **_kwargs: pytest.fail("text-only candidate must not start visual analysis"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+    no_media = {
+        "lane": "mention",
+        "target_id": "100",
+        "mode": "none",
+        "status": "none",
+        "photos_expected": 0,
+        "photos": [],
+    }
+
+    reply = bot.generate_ai_first_reply(
+        context("Thank you!"),
+        no_media,
+        recent_replies=[],
+    )
+
+    assert str(reply) == "Thank you — that is kind of you."
+    assert [call["stage"] for call in transport.calls] == [
+        "candidate_backed_engagement",
+        "writer_v3_initial",
+    ]
+    assert transport.calls[0]["payload"] == {
+        "context": context("Thank you!"),
+        "recent_replies": [],
+        "trusted_facts": [],
+        "media_context": [],
+    }
+    assert transport.calls[1]["payload"]["media_context"] == []
+    assert not any(name == "reply_visual_description" for name, _fields in events)
+    assert reply.pipeline_metadata["model_call_count"] == 2
+
+
+def test_analysed_visual_context_reaches_every_invoked_pipeline_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    raw_url = "https://pbs.twimg.com/media/original-photo.jpg"
+    raw_media = supplied_media_context(raw_url)
+    canonical_media = analysed_media_context()
+    visual_calls: list[tuple[dict, dict | None, dict]] = []
+    model_calls: list[dict] = []
+
+    def describe(value: dict, media: dict | None, *, config: dict) -> dict:
+        visual_calls.append((value, media, config))
+        return copy.deepcopy(canonical_media)
+
+    def transport(**kwargs):
+        model_calls.append(kwargs)
+        stage = kwargs["stage"]
+        if stage == "candidate_backed_engagement":
+            return {"decision": "no_reply", "reply": ""}
+        if stage.startswith("reply_necessity_"):
+            return {"outcome": "require_claim_free_reply"}
+        if stage == "writer_v3_initial":
+            return {"status": "reply", "reply": "It was introduced in 1979."}
+        if stage == "narrow_claim_audit":
+            return {"outcome": "rewrite_claim_free"}
+        if stage == "bounded_claim_cleanup":
+            return {
+                "status": "reply",
+                "reply": "The principle is responsibility rather than privilege.",
+            }
+        raise AssertionError(stage)
+
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(bot, "describe_reply_media_for_tested_pipeline", describe)
+    monkeypatch.setattr(bot, "tested_pipeline_structured_call", transport)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    reply = bot.generate_ai_first_reply(
+        context("Just like Australia"),
+        raw_media,
+        recent_replies=[],
+    )
+
+    assert str(reply) == "The principle is responsibility rather than privilege."
+    assert len(visual_calls) == 1
+    assert visual_calls[0][1] == raw_media
+    assert [call["stage"] for call in model_calls] == [
+        "candidate_backed_engagement",
+        "reply_necessity_1",
+        "reply_necessity_2",
+        "writer_v3_initial",
+        "narrow_claim_audit",
+        "bounded_claim_cleanup",
+    ]
+    for call in model_calls:
+        assert call["payload"]["media_context"] == canonical_media
+        if "trusted_facts" in call["payload"]:
+            assert call["payload"]["trusted_facts"] == []
+    downstream = json.dumps(
+        [call["payload"] for call in model_calls],
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    assert raw_url not in downstream
+    for forbidden in (
+        "pbs.twimg.com",
+        "media_key",
+        "preview_image_url",
+        '"image_url"',
+        "3_1",
+    ):
+        assert forbidden not in downstream
+    assert canonical_media["trust"] == (
+        "untrusted_user_supplied_visual_context"
+    )
+    assert reply.pipeline_metadata["model_call_count"] == len(model_calls)
+
+
+def test_direct_answer_repair_reuses_the_same_analysed_visual_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    canonical_media = analysed_media_context()
+    visual_calls: list[str] = []
+    model_calls: list[dict] = []
+
+    def describe(*_args, **_kwargs) -> dict:
+        visual_calls.append("called")
+        return copy.deepcopy(canonical_media)
+
+    def transport(**kwargs):
+        model_calls.append(kwargs)
+        stage = kwargs["stage"]
+        if stage == "candidate_backed_engagement":
+            return {"decision": "reply", "reply": "PRIVATE GATE CANDIDATE"}
+        if stage == "writer_v3_initial":
+            return {
+                "status": "reply",
+                "reply": "Demand must be matched by confidence and enterprise.",
+            }
+        if stage == "direct_answer_repair":
+            return {
+                "status": "reply",
+                "reply": (
+                    "Consumers and businesses create demand through spending and investment."
+                ),
+            }
+        if stage == "direct_answer_repair_claim_audit":
+            return {"outcome": "pass"}
+        raise AssertionError(stage)
+
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: Repository(True))
+    monkeypatch.setattr(bot, "describe_reply_media_for_tested_pipeline", describe)
+    monkeypatch.setattr(bot, "tested_pipeline_structured_call", transport)
+    monkeypatch.setattr(bot, "log_event", lambda *_args, **_kwargs: None)
+
+    reply = bot.generate_ai_first_reply(
+        clarification_context(),
+        supplied_media_context("https://pbs.twimg.com/media/repair.jpg"),
+        recent_replies=[],
+    )
+
+    assert reply is not None
+    assert reply.draft_record["mode"] == "direct_factual_answer"
+    assert visual_calls == ["called"]
+    assert [call["stage"] for call in model_calls] == [
+        "candidate_backed_engagement",
+        "writer_v3_initial",
+        "direct_answer_repair",
+        "direct_answer_repair_claim_audit",
+    ]
+    assert all(
+        call["payload"]["media_context"] == canonical_media
+        for call in model_calls
+    )
+    assert reply.pipeline_metadata["model_call_count"] == len(model_calls)
+
+
+def test_malformed_visual_description_stops_before_tested_pipeline_stages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    visual_calls: list[dict] = []
+    stage_calls: list[dict] = []
+    events: list[tuple[str, dict]] = []
+
+    def malformed_visual(**kwargs):
+        visual_calls.append(kwargs)
+        return visual_description(1)
+
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(bot, "xai_structured_reply_call", malformed_visual)
+    monkeypatch.setattr(
+        bot,
+        "tested_pipeline_structured_call",
+        lambda **kwargs: stage_calls.append(kwargs),
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+
+    with pytest.raises(bot.ApiError, match="local schema validation"):
+        bot.generate_ai_first_reply(
+            context("These two photographs make the point."),
+            supplied_media_context(
+                "https://pbs.twimg.com/media/one.jpg",
+                "https://pbs.twimg.com/media/two.jpg",
+            ),
+        )
+
+    assert len(visual_calls) == 1
+    assert stage_calls == []
+    assert events[-1][0] == "reply_visual_description"
+    assert events[-1][1]["status"] == "invalid_response"
+    assert events[-1][1]["visual_analysis_call_count"] == 1
+
+
+def test_visual_provider_error_stops_before_tested_pipeline_stages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    provider_calls: list[str] = []
+    stage_calls: list[dict] = []
+    events: list[tuple[str, dict]] = []
+
+    def fail_visual(**_kwargs):
+        provider_calls.append("called")
+        raise bot.ApiError("visual provider unavailable", service="xai", status_code=503)
+
+    monkeypatch.setattr(bot, "tested_reply_pipeline", enabled_config())
+    monkeypatch.setattr(bot, "reply_evidence_repository", Repository)
+    monkeypatch.setattr(bot, "xai_structured_reply_call", fail_visual)
+    monkeypatch.setattr(
+        bot,
+        "tested_pipeline_structured_call",
+        lambda **kwargs: stage_calls.append(kwargs),
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda name, **fields: events.append((name, fields)),
+    )
+
+    with pytest.raises(bot.ApiError, match="visual description provider request failed"):
+        bot.generate_ai_first_reply(
+            context("This photograph is the point."),
+            supplied_media_context("https://pbs.twimg.com/media/one.jpg"),
+        )
+
+    assert provider_calls == ["called"]
+    assert stage_calls == []
+    assert events[-1][1]["status"] == "provider_error"
+    assert events[-1][1]["visual_analysis_call_count"] == 1
+
+
+def test_raw_supplied_photo_metadata_fails_before_pipeline_transport() -> None:
+    transport_calls: list[dict] = []
+
+    with pytest.raises(ValueError, match="raw media|raw supplied media"):
+        pipeline.run_reply_pipeline(
+            context=context("Look at this photograph."),
+            config=enabled_config(),
+            repository=Repository(),
+            transport=lambda **kwargs: transport_calls.append(kwargs),
+            maximum_reply_length=270,
+            media_context=supplied_media_context(
+                "https://pbs.twimg.com/media/raw.jpg"
+            ),
+        )
+
+    assert transport_calls == []
+
+
+@pytest.mark.parametrize(
+    "raw_media",
+    [
+        [{"url": "https://example.invalid/photo.jpg"}],
+        {"status": "none", "preview_image_url": "https://example.invalid/p.jpg"},
+        {"status": "none", "media_key": "3_1"},
+        [{"type": "image_url"}],
+        {"status": "none", "source": "https://pbs.twimg.com/media/raw.jpg"},
+    ],
+)
+def test_media_payload_rejects_every_raw_transport_shape(raw_media: object) -> None:
+    with pytest.raises(ValueError, match="raw|image_url"):
+        pipeline._media_payload(raw_media)
+
+
+def test_visual_description_contract_is_strictly_locally_validated() -> None:
+    assert pipeline.VISUAL_DESCRIPTION_SCHEMA["additionalProperties"] is False
+    image_schema = pipeline.VISUAL_DESCRIPTION_SCHEMA["properties"]["images"]["items"]
+    assert image_schema["additionalProperties"] is False
+    valid = visual_description(2)
+    assert pipeline.validate_visual_description(
+        valid,
+        supplied_image_count=2,
+    ) == valid
+
+    missing_field = copy.deepcopy(valid)
+    missing_field["images"][0].pop("uncertainties")
+    extra_field = copy.deepcopy(valid)
+    extra_field["images"][0]["extra"] = "not allowed"
+    wrong_index = copy.deepcopy(valid)
+    wrong_index["images"][1]["index"] = 1
+    blank_description = copy.deepcopy(valid)
+    blank_description["images"][0]["literal_description"] = "  "
+    control_character = copy.deepcopy(valid)
+    control_character["combined_context"] = "line one\nline two"
+    too_many_items = copy.deepcopy(valid)
+    too_many_items["images"][0]["visible_text"] = [
+        f"text {index}" for index in range(9)
+    ]
+    invalid_values = [
+        (visual_description(1), 2),
+        (valid, 1),
+        (missing_field, 2),
+        (extra_field, 2),
+        (wrong_index, 2),
+        (blank_description, 2),
+        (control_character, 2),
+        (too_many_items, 2),
+    ]
+    for value, supplied_count in invalid_values:
+        with pytest.raises(ValueError):
+            pipeline.validate_visual_description(
+                value,
+                supplied_image_count=supplied_count,
+            )
+
+
 REGRESSION_TARGET_ID = "2089755083861098981"
 
 
