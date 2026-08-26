@@ -63,6 +63,55 @@ def event_line(local_time: str, event: str, **fields: object) -> str:
     return log_line(local_time, f"EVENT {payload}")
 
 
+def reply_media_context_line(
+    local_time: str,
+    target_id: str,
+    *,
+    lane: str = "mention",
+    photo_count: int = 2,
+    status: str = "supplied",
+) -> str:
+    unavailable = " unavailable" if status == "unavailable" else ""
+    count_field = "photos_expected" if status == "unavailable" else "photos"
+    return log_line(
+        local_time,
+        f"Reply media context{unavailable} lane={lane} target_id={target_id} "
+        f"{count_field}={photo_count} mode=multimodal status={status}",
+        level="WARNING" if status == "unavailable" else "INFO",
+    )
+
+
+def reply_visual_description_line(
+    local_time: str,
+    target_id: str,
+    *,
+    lane: str = "mention",
+    status: str = "analysed",
+    supplied_image_count: object = 2,
+    description_sha256: object | None = None,
+    visual_analysis_call_count: object | None = None,
+    **extra: object,
+) -> str:
+    if description_sha256 is None:
+        description_sha256 = "a" * 64 if status == "analysed" else ""
+    if visual_analysis_call_count is None:
+        visual_analysis_call_count = (
+            1 if status in {"analysed", "provider_error", "invalid_response"} else 0
+        )
+    return event_line(
+        local_time,
+        "reply_visual_description",
+        lane=lane,
+        target_id=target_id,
+        supplied_image_count=supplied_image_count,
+        status=status,
+        analysis_schema_version=1,
+        description_sha256=description_sha256,
+        visual_analysis_call_count=visual_analysis_call_count,
+        **extra,
+    )
+
+
 def account_root_posted(
     post_id: str,
     *,
@@ -555,15 +604,15 @@ def state_bytes(output: Path) -> bytes:
     return (output / "state" / "extractor-state.json").read_bytes()
 
 
-def mark_state_as_registered_v2(output: Path) -> None:
+def mark_state_as_registered_v3(output: Path) -> None:
     state_path = output / "state" / "extractor-state.json"
     state = extractor._strict_read_json(state_path)
     assert isinstance(state, dict)
     state.update(
         {
-            "schema_version": 2,
-            "extractor_version": "prospective-conversation-extractor-v2",
-            "parser_version": "prospective-conversation-log-parser-v2",
+            "schema_version": 3,
+            "extractor_version": "prospective-conversation-extractor-v3",
+            "parser_version": "prospective-conversation-log-parser-v3",
         }
     )
     rewrite_private_json(state_path, state, mode=0o600)
@@ -1605,6 +1654,415 @@ def test_structured_event_registry_ignores_generic_and_target_like_unknown_event
     assert statistics["ignored_target_like_event_count"] == 2
 
 
+def test_reply_media_context_and_visual_event_attach_only_safe_metadata() -> None:
+    records, _ = extractor.parse_log_records(
+        (
+            log_line(
+                "2026-08-24 16:10:00",
+                "Considering mention id=900 author_id=raw-user "
+                "text='What is shown here?'",
+            )
+            + reply_media_context_line("2026-08-24 16:10:01", "900")
+            + reply_visual_description_line(
+                "2026-08-24 16:10:02", "900", description_sha256="b" * 64
+            )
+        ).encode()
+    )
+    statistics: dict[str, object] = {}
+
+    posts = extractor.normalise_canonical_posts(
+        records, [], b"v" * 32, parser_statistics=statistics
+    )
+    post = next(row for row in posts if row["post_id"] == "900")
+
+    assert post["reply_media_context_observations"] == [
+        {
+            "lane": "mention",
+            "mode": "multimodal",
+            "observed_at": "2026-08-24T15:10:01Z",
+            "photo_count": 2,
+            "record_fingerprint": records[1].record_fingerprint,
+            "status": "supplied",
+        }
+    ]
+    attempt = post["reply_visual_description_attempts"][0]
+    assert set(attempt) == {
+        "analysis_schema_version",
+        "description_sha256",
+        "lane",
+        "observed_at",
+        "record_fingerprint",
+        "status",
+        "supplied_image_count",
+        "visual_analysis_call_count",
+    }
+    assert attempt["description_sha256"] == "b" * 64
+    assert post["reply_visual_context_summary"] == {
+        "analysis_attempt_count": 1,
+        "analysis_observation_status": "analysed",
+        "analysis_schema_versions": [1],
+        "distinct_successful_description_count": 1,
+        "latest_analysis_status": "analysed",
+        "latest_collection_status": "supplied",
+        "native_photo_count_max": 2,
+        "successful_analysis_count": 1,
+        "successful_description_sha256s": ["b" * 64],
+    }
+    assert statistics["ignored_structured_event_count"] == 0
+    assert statistics["ignored_target_like_event_count"] == 0
+    assert "image_url" not in json.dumps(post)
+
+
+def test_reply_media_context_unavailable_and_pre_feature_supplied_are_distinct() -> None:
+    records, _ = extractor.parse_log_records(
+        (
+            log_line(
+                "2026-08-24 16:10:00",
+                "Considering mention id=901 author_id=u text='Unavailable media'",
+            )
+            + reply_media_context_line(
+                "2026-08-24 16:10:01", "901", status="unavailable"
+            )
+            + log_line(
+                "2026-08-24 16:11:00",
+                "Considering mention id=902 author_id=u text='Historical photo'",
+            )
+            + reply_media_context_line("2026-08-24 16:11:01", "902")
+        ).encode()
+    )
+
+    posts = {
+        row["post_id"]: row
+        for row in extractor.normalise_canonical_posts(records, [], b"v" * 32)
+    }
+
+    assert posts["901"]["reply_media_context_observations"][0]["status"] == (
+        "unavailable"
+    )
+    assert posts["901"]["reply_visual_context_summary"][
+        "latest_collection_status"
+    ] == "unavailable"
+    assert posts["901"]["reply_visual_context_summary"][
+        "analysis_observation_status"
+    ] == "not_applicable"
+    assert posts["902"]["reply_visual_context_summary"][
+        "analysis_observation_status"
+    ] == "not_observed"
+    assert posts["902"]["reply_visual_description_attempts"] == []
+
+
+def test_reply_visual_attempt_history_preserves_failures_successes_and_hashes() -> None:
+    first_hash = "1" * 64
+    second_hash = "2" * 64
+    records, _ = extractor.parse_log_records(
+        (
+            reply_media_context_line("2026-08-24 16:10:00", "903")
+            + reply_visual_description_line(
+                "2026-08-24 16:10:01", "903", status="provider_error"
+            )
+            + reply_visual_description_line(
+                "2026-08-24 16:10:02",
+                "903",
+                description_sha256=first_hash,
+            )
+            + reply_visual_description_line(
+                "2026-08-24 16:10:03",
+                "903",
+                description_sha256=first_hash,
+            )
+            + reply_visual_description_line(
+                "2026-08-24 16:10:04",
+                "903",
+                description_sha256=second_hash,
+            )
+        ).encode()
+    )
+
+    post = extractor.normalise_canonical_posts(records, [], b"v" * 32)[0]
+    summary = post["reply_visual_context_summary"]
+
+    assert [
+        attempt["status"] for attempt in post["reply_visual_description_attempts"]
+    ] == ["provider_error", "analysed", "analysed", "analysed"]
+    assert summary["analysis_observation_status"] == "analysed"
+    assert summary["latest_analysis_status"] == "analysed"
+    assert summary["analysis_attempt_count"] == 4
+    assert summary["successful_analysis_count"] == 3
+    assert summary["distinct_successful_description_count"] == 2
+    assert summary["successful_description_sha256s"] == [first_hash, second_hash]
+
+
+@pytest.mark.parametrize(
+    ("status", "call_count"),
+    [
+        ("provider_error", 1),
+        ("invalid_response", 1),
+        ("invalid_supplied_media", 0),
+        ("paused", 0),
+    ],
+)
+def test_reply_visual_failed_statuses_are_retained_without_success(
+    status: str, call_count: int
+) -> None:
+    supplied_count = 0 if status == "invalid_supplied_media" else 1
+    records, _ = extractor.parse_log_records(
+        reply_visual_description_line(
+            "2026-08-24 16:10:00",
+            "904",
+            status=status,
+            supplied_image_count=supplied_count,
+            visual_analysis_call_count=call_count,
+        ).encode()
+    )
+
+    post = extractor.normalise_canonical_posts(records, [], b"v" * 32)[0]
+    summary = post["reply_visual_context_summary"]
+
+    assert post["reply_visual_description_attempts"][0]["status"] == status
+    assert post["reply_visual_description_attempts"][0][
+        "description_sha256"
+    ] is None
+    assert summary["analysis_observation_status"] == "attempted_not_analysed"
+    assert summary["latest_analysis_status"] == status
+    assert summary["successful_analysis_count"] == 0
+
+
+def test_reply_visual_malformed_events_do_not_fabricate_metadata_or_leak() -> None:
+    secret_url = "https://private.invalid/photo.jpg"
+    records, _ = extractor.parse_log_records(
+        (
+            reply_media_context_line("2026-08-24 16:10:00", "905", photo_count=1)
+            + reply_visual_description_line(
+                "2026-08-24 16:10:01",
+                "905",
+                supplied_image_count=True,
+            )
+            + reply_visual_description_line(
+                "2026-08-24 16:10:02",
+                "905",
+                description_sha256="A" * 64,
+            )
+            + reply_visual_description_line(
+                "2026-08-24 16:10:03",
+                "905",
+                image_url=secret_url,
+            )
+        ).encode()
+    )
+    statistics: dict[str, object] = {}
+
+    post = extractor.normalise_canonical_posts(
+        records, [], b"v" * 32, parser_statistics=statistics
+    )[0]
+    rendered = json.dumps(post)
+
+    assert post["reply_visual_description_attempts"] == []
+    assert post["reply_visual_context_summary"][
+        "analysis_observation_status"
+    ] == "not_observed"
+    assert statistics["ambiguous_registered_event_count"] == 3
+    assert statistics["ignored_structured_event_count"] == 0
+    assert statistics["ignored_target_like_event_count"] == 0
+    assert "malformed_reply_visual_description_event" in post["warnings"]
+    assert secret_url not in rendered
+
+
+def test_reply_visual_observation_bounds_and_duplicate_records_are_deterministic() -> None:
+    media_lines = [
+        reply_media_context_line(
+            f"2026-08-24 16:10:{index:02d}", "906", photo_count=1
+        )
+        for index in range(18)
+    ]
+    visual_lines = [
+        reply_visual_description_line(
+            f"2026-08-24 16:11:{index:02d}",
+            "906",
+            supplied_image_count=1,
+            description_sha256="3" * 64,
+        )
+        for index in range(18)
+    ]
+    duplicated = media_lines[-1] + visual_lines[-1]
+    records, _ = extractor.parse_log_records(
+        ("".join(media_lines + visual_lines) + duplicated).encode()
+    )
+
+    post = extractor.normalise_canonical_posts(records, [], b"v" * 32)[0]
+
+    assert len(post["reply_media_context_observations"]) == 16
+    assert post["reply_media_context_other_count"] == 2
+    assert len(post["reply_visual_description_attempts"]) == 16
+    assert post["reply_visual_description_other_count"] == 2
+    assert post["reply_media_context_observations"][0]["observed_at"] == (
+        "2026-08-24T15:10:02Z"
+    )
+    assert post["reply_visual_description_attempts"][0]["observed_at"] == (
+        "2026-08-24T15:11:02Z"
+    )
+    assert post["reply_visual_context_summary"]["analysis_attempt_count"] == 16
+    assert post["reply_visual_context_summary"][
+        "distinct_successful_description_count"
+    ] == 1
+
+
+def test_reply_media_context_omitted_counts_stay_exact_across_reparsed_appends(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    coverage = log_line("2026-08-24 16:00:00", "Boundary coverage")
+    observations = [
+        reply_media_context_line(
+            f"2026-08-24 16:10:{index:02d}", "907", photo_count=1
+        )
+        for index in range(18)
+    ]
+    path = write_active(project, coverage + "".join(observations))
+    run_scan(project, output)
+    assert rows(output, "canonical-posts.jsonl")[0][
+        "reply_media_context_other_count"
+    ] == 2
+
+    new_observation = reply_media_context_line(
+        "2026-08-24 16:12:00", "907", photo_count=1
+    )
+    path.write_text(
+        coverage + "".join(observations) + new_observation,
+        encoding="utf-8",
+    )
+    run_scan(project, output)
+    assert rows(output, "canonical-posts.jsonl")[0][
+        "reply_media_context_other_count"
+    ] == 3
+
+    path.write_text(
+        coverage + "".join(observations) + new_observation + observations[0],
+        encoding="utf-8",
+    )
+    run_scan(project, output)
+    post = rows(output, "canonical-posts.jsonl")[0]
+    assert len(post["reply_media_context_observations"]) == 16
+    assert post["reply_media_context_other_count"] == 3
+
+
+def test_reply_visual_metadata_propagates_without_changing_candidate_selection(
+    tmp_path: Path,
+) -> None:
+    raw_author = "raw-user-visual-private"
+    base = (
+        first_exchange(author_id=raw_author)
+        + continuation(author_id=raw_author)
+        + publish_reply("102", "103", author_id=raw_author)
+        + continuation(
+            author_id=raw_author,
+            post_id="104",
+            parent_id="103",
+            text="One more substantive continuation.",
+            local_time="2026-08-24 16:30",
+        )
+    )
+    secret_url = "https://private.invalid/source-photo.jpg"
+    secret_description = "PRIVATE VISUAL DESCRIPTION"
+    with_metadata = (
+        first_exchange(author_id=raw_author)
+        + reply_media_context_line("2026-08-24 16:10:05", "100")
+        + reply_visual_description_line(
+            "2026-08-24 16:10:06",
+            "100",
+            description_sha256="4" * 64,
+        )
+        + reply_visual_description_line(
+            "2026-08-24 16:10:07",
+            "100",
+            image_url=secret_url,
+            visual_description=secret_description,
+        )
+        + continuation(author_id=raw_author)
+        + reply_media_context_line(
+            "2026-08-24 16:20:02", "102", photo_count=2
+        )
+        + publish_reply("102", "103", author_id=raw_author)
+        + continuation(
+            author_id=raw_author,
+            post_id="104",
+            parent_id="103",
+            text="One more substantive continuation.",
+            local_time="2026-08-24 16:30",
+        )
+        + reply_media_context_line(
+            "2026-08-24 16:30:02", "104", photo_count=1
+        )
+        + reply_visual_description_line(
+            "2026-08-24 16:30:03",
+            "104",
+            status="provider_error",
+            supplied_image_count=1,
+        )
+    )
+    base_project = tmp_path / "base-project"
+    visual_project = tmp_path / "visual-project"
+    base_output = tmp_path / "base-output"
+    visual_output = tmp_path / "visual-output"
+    write_active(base_project, base)
+    write_active(visual_project, with_metadata)
+    run_scan(base_project, base_output)
+    run_scan(visual_project, visual_output)
+
+    base_candidates = rows(base_output, "review-candidates.jsonl")
+    visual_candidates = rows(visual_output, "review-candidates.jsonl")
+    assert len(base_candidates) == len(visual_candidates) == 1
+    assert base_candidates[0]["review_reason_codes"] == visual_candidates[0][
+        "review_reason_codes"
+    ]
+    summaries = visual_candidates[0]["reply_visual_context_summaries"]
+    assert [summary["post_id"] for summary in summaries] == ["100", "102", "104"]
+    assert [summary["analysis_observation_status"] for summary in summaries] == [
+        "analysed",
+        "not_observed",
+        "attempted_not_analysed",
+    ]
+    conversation = rows(visual_output, "conversations.jsonl")[0]
+    summary_by_post = {
+        turn["post_id"]: turn["reply_visual_context_summary"]
+        for turn in conversation["turns"]
+        if turn["post_id"] in {"100", "102", "104"}
+    }
+    assert summary_by_post["100"]["successful_description_sha256s"] == [
+        "4" * 64
+    ]
+
+    extractor.freeze_review_pack(
+        output_root=visual_output,
+        pack_name="visual-context",
+        since=BOUNDARY,
+        until="2026-08-28T00:00:00Z",
+        include_open=True,
+    )
+    markdown = (
+        visual_output / "review-packs" / "visual-context" / "review-pack.md"
+    ).read_text(encoding="utf-8")
+    canonical_material = json.dumps(
+        {
+            "posts": rows(visual_output, "canonical-posts.jsonl"),
+            "conversations": rows(visual_output, "conversations.jsonl"),
+            "candidates": visual_candidates,
+        }
+    )
+
+    assert (
+        "Visual context: 2 native photos; collection supplied; analysis analysed; "
+        "1 attempt; 1 successful description; 1 distinct hash; hash 444444444444."
+        in markdown
+    )
+    assert "no visual-analysis event observed" in markdown
+    assert "analysis provider_error; 1 attempt; no successful description" in markdown
+    assert "4" * 64 not in markdown
+    for forbidden in (secret_url, secret_description, raw_author):
+        assert forbidden not in markdown
+        assert forbidden not in canonical_material
+
+
 def test_ignored_structured_event_counts_are_aggregated_in_source_manifest(
     tmp_path: Path,
 ) -> None:
@@ -2371,6 +2829,21 @@ def test_send_attempt_history_is_bounded_per_target() -> None:
     ]
 
 
+def test_prospective_version_4_and_registered_v3_predecessor_are_exact() -> None:
+    assert extractor.SCHEMA_VERSION == 4
+    assert extractor.EXTRACTOR_VERSION == "prospective-conversation-extractor-v4"
+    assert extractor.PARSER_VERSION == "prospective-conversation-log-parser-v4"
+    assert extractor.REGISTERED_REBUILD_SOURCE == (
+        3,
+        "prospective-conversation-extractor-v3",
+        "prospective-conversation-log-parser-v3",
+    )
+    assert "reply_visual_description" in (
+        extractor.STRUCTURED_CONVERSATION_EVENT_FIELDS
+    )
+    assert "reply_visual_description" not in extractor.PIPELINE_EVENT_KINDS
+
+
 def test_state_version_mismatch_fails_before_prior_canonical_data_is_loaded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2440,7 +2913,7 @@ def test_validation_rejects_mixed_parser_versions_in_canonical_snapshot(
     assert any("canonical post parser mismatch" in value for value in problems)
 
 
-def test_rebuild_to_new_root_preserves_key_pseudonyms_and_old_root(
+def test_registered_rebuild_v3_to_v4_preserves_key_pseudonyms_and_old_root(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -2452,7 +2925,7 @@ def test_rebuild_to_new_root_preserves_key_pseudonyms_and_old_root(
         + first_exchange(author_id="stable-rebuild-user"),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v2(old_root)
+    mark_state_as_registered_v3(old_root)
     old_key = (old_root / "state" / "pseudonym-key").read_bytes()
     old_author = next(
         post["author_key"]
@@ -2488,7 +2961,7 @@ def test_rebuild_to_new_root_preserves_key_pseudonyms_and_old_root(
     }
 
 
-def test_rebuild_refuses_existing_destination_and_insufficient_boundary_coverage(
+def test_registered_rebuild_refuses_existing_destination_and_insufficient_boundary_coverage(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -2497,7 +2970,7 @@ def test_rebuild_refuses_existing_destination_and_insufficient_boundary_coverage
     existing.mkdir()
     write_active(project, first_exchange())
     run_scan(project, old_root)
-    mark_state_as_registered_v2(old_root)
+    mark_state_as_registered_v3(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="must not already exist"):
         extractor.rebuild_to_new_root(
@@ -2978,7 +3451,7 @@ def test_status_is_read_only_and_valid_when_uninitialised(tmp_path: Path) -> Non
     status = extractor.get_status(output)
 
     assert status["initialised"] is False
-    assert status["schema_version"] == 3
+    assert status["schema_version"] == 4
     assert status["last_retention_error"] is None
     assert status["automatic_batch_budget_bytes"] == 10 * 1024 * 1024 * 1024
     assert status["minimum_free_bytes"] == 10 * 1024 * 1024 * 1024
@@ -4450,7 +4923,7 @@ def test_source_lag_is_reported_warned_and_does_not_invalidate(tmp_path: Path) -
     assert extractor.validate_output_root(output)["valid"] is True
 
 
-def test_normal_scan_rejects_v2_state_and_rebuild_rejects_unregistered_tuple(
+def test_normal_scan_rejects_v3_state_and_rebuild_rejects_unregistered_tuple(
     tmp_path: Path,
 ) -> None:
     project = tmp_path / "project"
@@ -4460,7 +4933,7 @@ def test_normal_scan_rejects_v2_state_and_rebuild_rejects_unregistered_tuple(
         log_line("2026-08-24 16:00:00", "Boundary coverage") + first_exchange(),
     )
     run_scan(project, old_root)
-    mark_state_as_registered_v2(old_root)
+    mark_state_as_registered_v3(old_root)
 
     with pytest.raises(extractor.ExtractorError, match="unsupported extractor state schema"):
         run_scan(project, old_root)
@@ -4468,7 +4941,7 @@ def test_normal_scan_rejects_v2_state_and_rebuild_rejects_unregistered_tuple(
     state_path = old_root / "state" / "extractor-state.json"
     state = extractor._strict_read_json(state_path)
     assert isinstance(state, dict)
-    state["parser_version"] = "unregistered-v2-parser"
+    state["parser_version"] = "unregistered-v3-parser"
     rewrite_private_json(state_path, state, mode=0o600)
     with pytest.raises(extractor.ExtractorError, match="unsupported rebuild source"):
         extractor.rebuild_to_new_root(

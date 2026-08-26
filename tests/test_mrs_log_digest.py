@@ -50,6 +50,45 @@ def loaded_gate(offset: int) -> digest.Record:
     )
 
 
+def test_reply_visual_description_contract_rejects_unsafe_shapes() -> None:
+    valid = {
+        "event": "reply_visual_description",
+        "lane": "mention_reply",
+        "target_id": "123",
+        "supplied_image_count": 1,
+        "status": "analysed",
+        "analysis_schema_version": 1,
+        "description_sha256": "a" * 64,
+        "visual_analysis_call_count": 1,
+    }
+
+    parsed = digest.parse_reply_visual_description_event(valid)
+
+    assert parsed == {
+        "analysis_schema_version": 1,
+        "description_sha256": "a" * 64,
+        "lane": "mention",
+        "status": "analysed",
+        "supplied_image_count": 1,
+        "target_id": "123",
+        "visual_analysis_call_count": 1,
+    }
+    malformed = [
+        {**valid, "supplied_image_count": True},
+        {**valid, "visual_analysis_call_count": False},
+        {**valid, "analysis_schema_version": True},
+        {**valid, "description_sha256": "A" * 64},
+        {**valid, "status": "provider_error"},
+        {**valid, "image_url": "https://private.invalid/image.jpg"},
+        {**valid, "lane": "unknown"},
+        {**valid, "target_id": ""},
+    ]
+    assert all(
+        digest.parse_reply_visual_description_event(event) is None
+        for event in malformed
+    )
+
+
 def reconciled_remote_write_safety(*, archive_offset: int = 120) -> dict:
     """Return a current clear snapshot with evidence tied to t64.jpg."""
 

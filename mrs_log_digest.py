@@ -191,6 +191,32 @@ MAJORITY_REVIEW_SUMMARY_FIELDS = (
     "reviewer_3_called",
     "reviewer_3_skipped_first_two_agreement",
 )
+REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS = frozenset(
+    {
+        "analysis_schema_version",
+        "description_sha256",
+        "event",
+        "lane",
+        "status",
+        "supplied_image_count",
+        "target_id",
+        "visual_analysis_call_count",
+    }
+)
+REPLY_VISUAL_DESCRIPTION_STATUSES = frozenset(
+    {
+        "analysed",
+        "provider_error",
+        "invalid_response",
+        "invalid_supplied_media",
+        "paused",
+    }
+)
+REPLY_VISUAL_DESCRIPTION_MAX_SUPPORTED_IMAGES = 2
+REPLY_VISUAL_DESCRIPTION_MAX_REPORTED_IMAGES = 2_147_483_647
+REPLY_VISUAL_DESCRIPTION_MAX_CALL_COUNT = 1
+REPLY_VISUAL_DESCRIPTION_MAX_SCHEMA_VERSION = 2_147_483_647
+SHA256_LOWER_RE = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def file_sha256(path: Path) -> str:
@@ -8130,6 +8156,276 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
+def parse_reply_visual_description_event(
+    event: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """Validate and retain only the safe reply-visual event contract."""
+    if set(event) - REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS:
+        return None
+    if event.get("event") != "reply_visual_description":
+        return None
+    target_id = event.get("target_id")
+    if not isinstance(target_id, str) or not target_id.strip():
+        return None
+    if not isinstance(event.get("lane"), str):
+        return None
+    lane = _normalise_lane(event.get("lane"))
+    if lane == "unavailable":
+        return None
+    status = event.get("status")
+    if status not in REPLY_VISUAL_DESCRIPTION_STATUSES:
+        return None
+    supplied_image_count = event.get("supplied_image_count")
+    call_count = event.get("visual_analysis_call_count")
+    schema_version = event.get("analysis_schema_version")
+    if (
+        type(supplied_image_count) is not int
+        or supplied_image_count < 0
+        or supplied_image_count > REPLY_VISUAL_DESCRIPTION_MAX_REPORTED_IMAGES
+        or type(call_count) is not int
+        or call_count < 0
+        or call_count > REPLY_VISUAL_DESCRIPTION_MAX_CALL_COUNT
+        or type(schema_version) is not int
+        or schema_version <= 0
+        or schema_version > REPLY_VISUAL_DESCRIPTION_MAX_SCHEMA_VERSION
+    ):
+        return None
+    raw_hash = event.get("description_sha256")
+    if raw_hash in (None, ""):
+        description_sha256: Optional[str] = None
+    elif isinstance(raw_hash, str) and SHA256_LOWER_RE.fullmatch(raw_hash):
+        description_sha256 = raw_hash
+    else:
+        return None
+
+    if status == "analysed":
+        if (
+            not 1
+            <= supplied_image_count
+            <= REPLY_VISUAL_DESCRIPTION_MAX_SUPPORTED_IMAGES
+            or call_count != 1
+            or description_sha256 is None
+        ):
+            return None
+    elif description_sha256 is not None:
+        return None
+    elif status in {"provider_error", "invalid_response"}:
+        if (
+            not 1
+            <= supplied_image_count
+            <= REPLY_VISUAL_DESCRIPTION_MAX_SUPPORTED_IMAGES
+            or call_count != 1
+        ):
+            return None
+    elif status == "paused":
+        if (
+            not 1
+            <= supplied_image_count
+            <= REPLY_VISUAL_DESCRIPTION_MAX_SUPPORTED_IMAGES
+            or call_count != 0
+        ):
+            return None
+    elif status == "invalid_supplied_media" and call_count != 0:
+        return None
+
+    return {
+        "analysis_schema_version": schema_version,
+        "description_sha256": description_sha256,
+        "lane": lane,
+        "status": status,
+        "supplied_image_count": supplied_image_count,
+        "target_id": target_id.strip(),
+        "visual_analysis_call_count": call_count,
+    }
+
+
+def reply_visual_context_report(
+    media_events: List[Dict[str, Any]],
+    visual_events: List[Dict[str, Any]],
+    *,
+    malformed_event_count: int,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Correlate window-local native-media and preliminary analysis evidence."""
+    grouped_media: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for index, item in enumerate(media_events):
+        target_id = str(item.get("target_id") or "").strip()
+        if not target_id:
+            continue
+        photos_text = str(item.get("photos") or "")
+        photo_count = int(photos_text) if photos_text.isdecimal() else 0
+        key = (_normalise_lane(item.get("lane")), target_id)
+        grouped_media.setdefault(key, []).append(
+            {
+                "index": index,
+                "mode": str(item.get("mode") or ""),
+                "photo_count": photo_count,
+                "status": str(item.get("status") or "unavailable"),
+                "time": str(item.get("time") or ""),
+            }
+        )
+
+    grouped_visual: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for index, item in enumerate(visual_events):
+        key = (
+            _normalise_lane(item.get("lane")),
+            str(item.get("target_id") or ""),
+        )
+        if not key[1]:
+            continue
+        grouped_visual.setdefault(key, []).append({**item, "index": index})
+
+    rows: List[Dict[str, Any]] = []
+    for lane, target_id in sorted(set(grouped_media) | set(grouped_visual)):
+        collections = sorted(
+            grouped_media.get((lane, target_id), []),
+            key=lambda item: (str(item.get("time") or ""), int(item["index"])),
+        )
+        attempts = sorted(
+            grouped_visual.get((lane, target_id), []),
+            key=lambda item: (str(item.get("time") or ""), int(item["index"])),
+        )
+        latest_collection = collections[-1] if collections else None
+        latest_attempt = attempts[-1] if attempts else None
+        successful = [item for item in attempts if item.get("status") == "analysed"]
+        successful_hashes = sorted(
+            {
+                str(item["description_sha256"])
+                for item in successful
+                if item.get("description_sha256")
+            }
+        )
+        supplied_observed = any(
+            item.get("status") == "supplied" and item.get("photo_count", 0) > 0
+            for item in collections
+        )
+        native_photo_count_max = max(
+            [int(item.get("photo_count") or 0) for item in collections]
+            + [int(item.get("supplied_image_count") or 0) for item in attempts]
+            + [0]
+        )
+        collected_native_photo_count_max = max(
+            [
+                int(item.get("photo_count") or 0)
+                for item in collections
+                if item.get("status") == "supplied"
+            ]
+            + [0]
+        )
+        if successful:
+            analysis_observation_status = "analysed"
+        elif attempts:
+            analysis_observation_status = "attempted_not_analysed"
+        elif supplied_observed:
+            analysis_observation_status = "not_observed_in_selected_window"
+        else:
+            analysis_observation_status = "not_applicable"
+
+        latest_collection_status = (
+            str(latest_collection.get("status") or "unavailable")
+            if latest_collection
+            else "not_observed_in_selected_window"
+        )
+        if not collections and attempts:
+            correlation_status = "analysis_observed_collection_not_observed_in_selected_window"
+        elif latest_collection_status == "unavailable":
+            correlation_status = "collection_unavailable"
+        elif supplied_observed and successful:
+            correlation_status = "collection_supplied_analysis_analysed"
+        elif supplied_observed and attempts:
+            correlation_status = "collection_supplied_analysis_unsuccessful"
+        elif supplied_observed:
+            correlation_status = "collection_supplied_analysis_not_observed_in_selected_window"
+        elif attempts:
+            correlation_status = "collection_observed_analysis_observed"
+        else:
+            correlation_status = "collection_observed_analysis_not_applicable"
+
+        rows.append(
+            {
+                "analysis_observation_status": analysis_observation_status,
+                "analysis_schema_versions": sorted(
+                    {
+                        int(item["analysis_schema_version"])
+                        for item in attempts
+                    }
+                ),
+                "collected_native_photo_count_max": collected_native_photo_count_max,
+                "collection_observation_count": len(collections),
+                "collection_observation_status": (
+                    "observed" if collections else "not_observed_in_selected_window"
+                ),
+                "collection_status": latest_collection_status,
+                "correlation_status": correlation_status,
+                "distinct_successful_description_count": len(successful_hashes),
+                "lane": lane,
+                "latest_successful_description_sha256": (
+                    successful[-1].get("description_sha256") if successful else None
+                ),
+                "latest_visual_analysis_status": (
+                    str(latest_attempt.get("status"))
+                    if latest_attempt
+                    else "not_observed_in_selected_window"
+                ),
+                "native_photo_count_max": native_photo_count_max,
+                "successful_analysis_count": len(successful),
+                "successful_description_sha256s": successful_hashes,
+                "target_id": target_id,
+                "visual_analysis_attempt_count": len(attempts),
+                "visual_analysis_call_count": sum(
+                    int(item.get("visual_analysis_call_count") or 0)
+                    for item in attempts
+                ),
+            }
+        )
+
+    status_counts = Counter(
+        str(item.get("status") or "unavailable") for item in visual_events
+    )
+    summary = {
+        "malformed_visual_description_event_count": malformed_event_count,
+        "target_count": len(rows),
+        "targets_with_analysis_but_no_collection_observation_in_selected_window": sum(
+            row["collection_observation_status"] == "not_observed_in_selected_window"
+            and row["visual_analysis_attempt_count"] > 0
+            for row in rows
+        ),
+        "targets_with_attempted_but_unsuccessful_analysis": sum(
+            row["visual_analysis_attempt_count"] > 0
+            and row["successful_analysis_count"] == 0
+            for row in rows
+        ),
+        "targets_with_collection_unavailable": sum(
+            row["collection_status"] == "unavailable" for row in rows
+        ),
+        "targets_with_more_than_one_analysis_attempt": sum(
+            row["visual_analysis_attempt_count"] > 1 for row in rows
+        ),
+        "targets_with_more_than_one_distinct_successful_description_hash": sum(
+            row["distinct_successful_description_count"] > 1 for row in rows
+        ),
+        "targets_with_no_analysis_event_observed_in_selected_window": sum(
+            row["analysis_observation_status"] == "not_observed_in_selected_window"
+            for row in rows
+        ),
+        "targets_with_successful_visual_analysis": sum(
+            row["successful_analysis_count"] > 0 for row in rows
+        ),
+        "targets_with_supplied_native_photos": sum(
+            row["collected_native_photo_count_max"] > 0 for row in rows
+        ),
+        "visual_analysis_call_count": sum(
+            int(item.get("visual_analysis_call_count") or 0)
+            for item in visual_events
+        ),
+        "visual_analysis_event_count": len(visual_events),
+        "visual_analysis_status_counts": dict(sorted(status_counts.items())),
+        "successful_visual_analysis_event_count": sum(
+            item.get("status") == "analysed" for item in visual_events
+        ),
+    }
+    return summary, rows
+
+
 def _terminal_local_rejection_outcome(reason: Any) -> Optional[str]:
     """Return the terminal local outcome represented by a pipeline reason."""
     normalised = str(reason or "").strip().lower()
@@ -9301,6 +9597,7 @@ def analyse(
     confirmed_reply_recovery: List[Dict[str, Any]] = []
     asset_health: List[Dict[str, Any]] = []
     reply_media_context: List[Dict[str, Any]] = []
+    reply_visual_description_events: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
     remote_write_transactions: List[Dict[str, Any]] = []
     x_requests: List[Dict[str, Any]] = []
@@ -9532,6 +9829,25 @@ def analyse(
     for record_index, r in enumerate(records):
         msg = r.msg
         production_record = not is_selftest_log_path(r.path)
+        structured_event_obj = (
+            try_parse_json_object_from_msg(msg)
+            if msg.startswith("EVENT ")
+            else None
+        )
+        is_reply_visual_description_event = bool(
+            (
+                structured_event_obj
+                and structured_event_obj.get("event")
+                == "reply_visual_description"
+            )
+            or (
+                structured_event_obj is None
+                and msg.startswith("EVENT ")
+                and re.search(
+                    r'"event"\s*:\s*"reply_visual_description"', msg
+                )
+            )
+        )
 
         request_start = (
             parse_x_request_start(msg)
@@ -9727,6 +10043,12 @@ def analyse(
             pass
         elif is_reply_media_context and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             pass
+        elif is_reply_visual_description_event and r.level in {
+            "ERROR",
+            "CRITICAL",
+            "WARNING",
+        }:
+            pass
         elif is_handled_reply_restriction and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             # The raw X API 403 is classified below. Follow-up warnings such as
             # "marking skipped without consuming quota" are expected handling.
@@ -9845,8 +10167,24 @@ def analyse(
         # Stable structured EVENT lines are used only to enrich pending state;
         # older human-readable success lines still define the final digest event.
         if msg.startswith("EVENT "):
-            event_obj = try_parse_json_object_from_msg(msg)
-            if event_obj and event_obj.get("event") == "main_post_posted":
+            event_obj = structured_event_obj
+            if is_reply_visual_description_event:
+                visual_event = (
+                    parse_reply_visual_description_event(event_obj)
+                    if event_obj is not None
+                    else None
+                )
+                if visual_event is None:
+                    stats["reply_visual_description_malformed_events"] += 1
+                else:
+                    reply_visual_description_events.append(
+                        {
+                            **visual_event,
+                            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                    )
+                    stats["reply_visual_description_events"] += 1
+            elif event_obj and event_obj.get("event") == "main_post_posted":
                 if event_obj.get("lane") == "quote_image":
                     pending_quote.update({
                         "post_id": event_obj.get("post_id"),
@@ -12319,6 +12657,16 @@ def analyse(
         and type(item.get("pipeline_evaluations_skipped")) is int
         and item["pipeline_evaluations_skipped"] >= 0
     )
+    (
+        reply_visual_context_summary,
+        reply_visual_context_targets,
+    ) = reply_visual_context_report(
+        reply_media_context,
+        reply_visual_description_events,
+        malformed_event_count=int(
+            stats.get("reply_visual_description_malformed_events", 0)
+        ),
+    )
 
     return {
         "summary": {
@@ -12433,6 +12781,8 @@ def analyse(
         "reply_pipeline_stages": pipeline_stage_quality,
         "semantic_veto_load_lifecycle": semantic_veto_load_lifecycle(records),
         "reply_media_context": reply_media_context,
+        "reply_visual_context_summary": reply_visual_context_summary,
+        "reply_visual_context_targets": reply_visual_context_targets,
         "asset_health": asset_health,
         "media_upload": {
             "incidents": media_upload_incidents,
@@ -16245,21 +16595,97 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("")
 
     reply_media_context = report.get("reply_media_context") or []
-    if reply_media_context:
+    reply_visual_summary = report.get("reply_visual_context_summary") or {}
+    reply_visual_targets = report.get("reply_visual_context_targets") or []
+    if reply_media_context or reply_visual_targets or reply_visual_summary.get(
+        "malformed_visual_description_event_count"
+    ):
         out.append("## Reply media context")
-        out.append(md_table_row(["time", "level", "lane", "target_id", "photos", "mode", "status", "http_status"]))
-        out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
-        for item in reply_media_context:
+        if reply_media_context:
+            out.append(md_table_row(["time", "level", "lane", "target_id", "photos", "mode", "status", "http_status"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
+            for item in reply_media_context:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("level", ""),
+                    item.get("lane", ""),
+                    item.get("target_id", ""),
+                    item.get("photos", ""),
+                    item.get("mode", ""),
+                    item.get("status", ""),
+                    item.get("http_status", ""),
+                ]))
+            out.append("")
+        out.append(
+            "Visual-context targets: "
+            f"**{reply_visual_summary.get('target_count', 0)}**; "
+            "supplied native photos: "
+            f"**{reply_visual_summary.get('targets_with_supplied_native_photos', 0)}**; "
+            "successful visual analysis: "
+            f"**{reply_visual_summary.get('targets_with_successful_visual_analysis', 0)}**; "
+            "attempted but unsuccessful: "
+            f"**{reply_visual_summary.get('targets_with_attempted_but_unsuccessful_analysis', 0)}**; "
+            "no visual-analysis event observed in the selected window: "
+            f"**{reply_visual_summary.get('targets_with_no_analysis_event_observed_in_selected_window', 0)}**."
+        )
+        out.append(
+            "Repeated analysis targets: "
+            f"**{reply_visual_summary.get('targets_with_more_than_one_analysis_attempt', 0)}**; "
+            "targets with more than one distinct successful description hash: "
+            f"**{reply_visual_summary.get('targets_with_more_than_one_distinct_successful_description_hash', 0)}**; "
+            "analysis observed without a collection line in the selected window: "
+            f"**{reply_visual_summary.get('targets_with_analysis_but_no_collection_observation_in_selected_window', 0)}**; "
+            "collection unavailable: "
+            f"**{reply_visual_summary.get('targets_with_collection_unavailable', 0)}**."
+        )
+        out.append(
+            "Visual-analysis status counts: **"
+            f"{compact_counts(reply_visual_summary.get('visual_analysis_status_counts') or {})}"
+            "**; malformed structured events safely omitted: "
+            f"**{reply_visual_summary.get('malformed_visual_description_event_count', 0)}**."
+        )
+        out.append(
+            "Structured visual-description events do not create provider-cost calls; "
+            "the existing provider start/usage records remain authoritative. Preliminary "
+            "visual analysis is also separate from tested-pipeline `model_call_count`."
+        )
+        out.append("")
+        if reply_visual_targets:
             out.append(md_table_row([
-                item.get("time", ""),
-                item.get("level", ""),
-                item.get("lane", ""),
-                item.get("target_id", ""),
-                item.get("photos", ""),
-                item.get("mode", ""),
-                item.get("status", ""),
-                item.get("http_status", ""),
+                "lane",
+                "target_id",
+                "native photos",
+                "collection",
+                "latest analysis",
+                "attempts",
+                "successful",
+                "distinct hashes",
+                "latest successful hash",
             ]))
+            out.append(md_table_row(["---"] * 9))
+            for item in reply_visual_targets:
+                collection = item.get("collection_status", "")
+                if collection == "not_observed_in_selected_window":
+                    collection = "no collection observation in the selected window"
+                analysis = item.get("latest_visual_analysis_status", "")
+                if analysis == "not_observed_in_selected_window":
+                    analysis = (
+                        "no visual-analysis event observed in the selected window"
+                    )
+                latest_hash = str(
+                    item.get("latest_successful_description_sha256") or ""
+                )
+                out.append(md_table_row([
+                    item.get("lane", ""),
+                    item.get("target_id", ""),
+                    item.get("native_photo_count_max", 0),
+                    collection,
+                    analysis,
+                    item.get("visual_analysis_attempt_count", 0),
+                    item.get("successful_analysis_count", 0),
+                    item.get("distinct_successful_description_count", 0),
+                    latest_hash[:12],
+                ]))
         out.append("")
 
     asset_health = report.get("asset_health") or []

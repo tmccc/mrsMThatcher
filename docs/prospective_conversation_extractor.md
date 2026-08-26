@@ -11,9 +11,9 @@ frozen boundary:
 2026-08-24T15:08:39Z
 ```
 
-The activation format is deliberately versioned as schema `3`, extractor
-`prospective-conversation-extractor-v3`, and parser
-`prospective-conversation-log-parser-v3`. State, cache entries, manifests,
+The activation format is deliberately versioned as schema `4`, extractor
+`prospective-conversation-extractor-v4`, and parser
+`prospective-conversation-log-parser-v4`. State, cache entries, manifests,
 status files, and canonical posts must match those versions exactly.
 
 Collection is descriptive. A newly collected conversation is not thereby a
@@ -64,13 +64,13 @@ The extractor never reads or changes:
 The scheduled output root is fixed at:
 
 ```text
-/disks/disk1/research/mrsMThatcher-prospective-conversations-v3
+/disks/disk1/research/mrsMThatcher-prospective-conversations-v4
 ```
 
 Its layout is:
 
 ```text
-mrsMThatcher-prospective-conversations-v3/
+mrsMThatcher-prospective-conversations-v4/
 ├── state/
 │   ├── extractor-state.json
 │   ├── pseudonym-key
@@ -182,7 +182,7 @@ converted to UTC. Human-readable output uses a trailing `Z`.
 ## Publication evidence and structured-event registry
 
 A published account turn requires authoritative publication evidence. Version
-3 recognises `account_root_posted` for confirmed `quote_image` and
+4 recognises `account_root_posted` for confirmed `quote_image` and
 `daily_meme` roots, and `historical_context_reply_posted` for the exact
 confirmed historical-context reply ID and parent. Production emits these
 descriptive events only after the existing transport confirmation and required
@@ -231,7 +231,7 @@ bounded graph-conflict metadata records rejected reparenting or identity
 claims. Unavailable-text warnings are removed when later valid evidence fills
 the canonical text.
 
-Version 3 also recovers retained legacy publications only from complete,
+Version 4 also recovers retained legacy publications only from complete,
 unambiguous chains. A main root requires one account-owned lane and attempt,
 its attempting transition, one root/no-parent transport transaction, one exact
 remote post ID, promotion to the confirmed pending-schedule receipt,
@@ -269,6 +269,26 @@ generic `id` is not a target. Unknown events are represented in
 `ignored_structured_event_other_count` and
 `ignored_target_like_event_other_count` fields aggregate the remainder. The
 collector never emits one warning per ignored event.
+
+Version 4 also retains bounded reply-image lifecycle metadata. The exact
+supplied/unavailable `Reply media context` lines contribute at most 16 newest
+deterministic collection observations per target. The registered
+`reply_visual_description` event contributes at most 16 newest attempts and is
+preliminary visual context, not a tested-pipeline stage summary. Canonical
+posts retain only observation time, record fingerprint, normalised lane,
+status, mode, native-photo counts, schema versions, call counts, and successful
+description SHA-256 values. Omitted older observation counts remain explicit.
+
+No image description, OCR text, image URL, media key, provider prompt, or
+hidden reasoning is retained. `analysis_observation_status: not_observed`
+means supplied native photos were retained but no visual-description event was
+retained; it is not proof that analysis did not happen outside the available
+log evidence. Collection status, the latest analysis status, attempt and
+success counts, and objective distinct hash values propagate into conversation
+turns, bounded candidate summaries, and compact private review-pack lines.
+This metadata is reviewer evidence only: image presence or a missing, failed,
+or repeated analysis does not itself classify a reply as defective and does
+not create a review reason.
 
 ## Open and quiescent conversations
 
@@ -375,7 +395,7 @@ Run a scan manually with the production settings:
 ```bash
 python3 tools/extract_prospective_conversations.py scan \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 \
   --prospective-start 2026-08-24T15:08:39Z \
   --quiescence-hours 48
 ```
@@ -389,7 +409,7 @@ Inspect operational status without editing it:
 
 ```bash
 python3 tools/extract_prospective_conversations.py status \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4
 ```
 
 The command is read-only and returns valid JSON even before initialisation,
@@ -402,7 +422,7 @@ the absence of raw-author fields:
 
 ```bash
 python3 tools/extract_prospective_conversations.py validate \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4
 ```
 
 Validation exits non-zero on corruption and never repairs it implicitly.
@@ -411,7 +431,7 @@ Freeze a private review pack manually:
 
 ```bash
 python3 tools/extract_prospective_conversations.py freeze-review-pack \
-  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
+  --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 \
   --pack-name prospective-review-2026-09-01 \
   --since 2026-08-24T15:08:39Z \
   --until 2026-09-01T00:00:00Z
@@ -428,21 +448,21 @@ The pack manifest records the actual UTC freeze time separately from
 `source_batch_creation_timestamp`, while retaining the source batch ID and
 snapshot hash.
 
-## Registered version-2 to version-3 rebuild
+## Registered version-3 to version-4 rebuild
 
 An extractor or parser version mismatch fails before prior canonical posts or
-cache entries are reused. In particular, normal version-3 `scan` rejects a
-version-2 state rather than silently upgrading it. The only registered rebuild
-source tuple is schema 2,
-`prospective-conversation-extractor-v2`, and
-`prospective-conversation-log-parser-v2`. Rebuild into a separate nonexistent
+cache entries are reused. In particular, normal version-4 `scan` rejects a
+version-3 state rather than silently upgrading it. The only registered rebuild
+source tuple is schema 3,
+`prospective-conversation-extractor-v3`, and
+`prospective-conversation-log-parser-v3`. Rebuild into a separate nonexistent
 destination:
 
 ```bash
 python3 tools/extract_prospective_conversations.py rebuild-to-new-root \
   --project-dir /disks/disk1/etc/mrsMThatcher \
-  --source-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations \
-  --new-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
+  --source-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v3 \
+  --new-output-root /disks/disk1/research/mrsMThatcher-prospective-conversations-v4 \
   --until 2026-09-01T00:00:00Z
 ```
 
@@ -450,22 +470,22 @@ The command opens the old root read-only under its shared lock, verifies the
 registered tuple, reads its frozen boundary and quiescence policy, and copies
 the 32-byte pseudonym key without displaying it. The destination must not
 exist. Current retained production logs must span the boundary and are parsed
-from scratch by parser v3; no v2 canonical post or source cache is reused. The
+from scratch by parser v4; no v3 canonical post or source cache is reused. The
 command validates the complete new root and never changes, switches to, or
 deletes the old root. It does not alter the installed service output path.
 
 A later controlled deployment must perform these steps in order:
 
 1. Disable and stop only `mrs-prospective-conversations.timer`.
-2. Update the production checkout to the reviewed version-3 commit.
+2. Update the production checkout to the reviewed version-4 commit.
 3. Install the updated user units without enabling them.
-4. Run the registered rebuild from the exact v2 root into the v3 root.
-5. Run `validate` against the v3 root.
+4. Run the registered rebuild from the exact v3 root into the v4 root.
+5. Run `validate` against the v4 root.
 6. Run one manual `mrs-prospective-conversations.service` oneshot.
-7. Inspect the first v3 corpus and its warnings.
+7. Inspect the first v4 corpus and its warnings.
 8. Only then enable the hourly prospective extractor timer.
 
-Do not point version-3 code at the version-2 root, reuse v2 batches, or switch
+Do not point version-4 code at the version-3 root, reuse v3 batches, or switch
 the timer before validation and inspection.
 
 ## Atomicity, locking, and recovery
@@ -516,9 +536,9 @@ deploy/systemd-user/install.sh --install
 ```
 
 Installation verifies and copies the units, prepares unrelated scheduled-task
-state, and reloads the user manager. For a first version-3 deployment it
-deliberately leaves the v3 root nonexistent so the registered rebuild can
-create it. On later upgrades it verifies and prepares an existing real v3
+state, and reloads the user manager. For a first version-4 deployment it
+deliberately leaves the v4 root nonexistent so the registered rebuild can
+create it. On later upgrades it verifies and prepares an existing real v4
 directory. It does not enable, disable, start, stop, or restart any unit.
 Activate this collector only after completing the controlled rebuild,
 validation, manual oneshot, and corpus inspection described above:

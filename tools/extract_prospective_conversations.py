@@ -32,13 +32,13 @@ from typing import Any, Callable, Iterable, Iterator, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 
-SCHEMA_VERSION = 3
-EXTRACTOR_VERSION = "prospective-conversation-extractor-v3"
-PARSER_VERSION = "prospective-conversation-log-parser-v3"
+SCHEMA_VERSION = 4
+EXTRACTOR_VERSION = "prospective-conversation-extractor-v4"
+PARSER_VERSION = "prospective-conversation-log-parser-v4"
 REGISTERED_REBUILD_SOURCE = (
-    2,
-    "prospective-conversation-extractor-v2",
-    "prospective-conversation-log-parser-v2",
+    3,
+    "prospective-conversation-extractor-v3",
+    "prospective-conversation-log-parser-v3",
 )
 HASH_BLOCK_SIZE = 1024 * 1024
 X_SNOWFLAKE_EPOCH_MS = 1_288_834_974_657
@@ -52,6 +52,35 @@ MAX_SIBLING_CONTEXT_TEXT_CHARS = 500
 MAX_HANDOFF_CONTEXT_REFS = 8
 MAX_ACCOUNT_EVIDENCE_CONFLICTS = 32
 MAX_ACCOUNT_CONFLICT_TEXT_CHARS = 500
+MAX_REPLY_MEDIA_CONTEXT_OBSERVATIONS = 16
+MAX_REPLY_VISUAL_DESCRIPTION_ATTEMPTS = 16
+MAX_REPLY_VISUAL_REPORTED_IMAGES = 2_147_483_647
+MAX_REPLY_VISUAL_SUPPORTED_IMAGES = 2
+MAX_REPLY_VISUAL_SCHEMA_VERSION = 2_147_483_647
+REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS = frozenset(
+    {
+        "analysis_schema_version",
+        "description_sha256",
+        "event",
+        "lane",
+        "status",
+        "supplied_image_count",
+        "target_id",
+        "visual_analysis_call_count",
+    }
+)
+REPLY_VISUAL_DESCRIPTION_STATUSES = frozenset(
+    {
+        "analysed",
+        "provider_error",
+        "invalid_response",
+        "invalid_supplied_media",
+        "paused",
+    }
+)
+REPLY_VISUAL_LANES = frozenset(
+    {"mention", "hot-post reply", "quote-tweet reply"}
+)
 SOURCE_STALE_WARNING_SECONDS = 6 * 60 * 60
 RECENT_BATCH_RETENTION = timedelta(hours=72)
 DAILY_BATCH_RETENTION = timedelta(days=90)
@@ -106,6 +135,13 @@ QUOTE_RE = re.compile(
     r"Considering quote tweet id=(\d+) author_id=([^\s]+) "
     r"original_post_id=(\d+) text=(.*)$",
     re.S,
+)
+REPLY_MEDIA_CONTEXT_RE = re.compile(
+    r"Reply media context(?P<unavailable> unavailable)? "
+    r"lane=(?P<lane>[^\s]+) target_id=(?P<target_id>[^\s]+) "
+    r"(?:(?P<photos>photos)|(?P<photos_expected>photos_expected))="
+    r"(?P<photo_count>\d+) mode=(?P<mode>[^\s]+) "
+    r"status=(?P<status>supplied|unavailable)\Z"
 )
 CONTEXT_RE = re.compile(
     r"Built AI reply context for (?:mention|hot.post.reply) (\d+)\. "
@@ -732,9 +768,129 @@ def normalise_lane(value: Any) -> str:
         return "hot-post reply"
     if lane.startswith("quote"):
         return "quote-tweet reply"
-    if lane in {"mention", "normal", "normal-reply"} or lane.startswith("mention+"):
+    if lane in {"mention", "mention-reply", "normal", "normal-reply"} or lane.startswith("mention+"):
         return "mention"
     return lane or "other conversational lane"
+
+
+def parse_reply_media_context_observation(
+    record: LogRecord,
+) -> tuple[str, dict[str, Any]] | None:
+    """Parse one exact safe supplied/unavailable legacy media observation."""
+    match = REPLY_MEDIA_CONTEXT_RE.fullmatch(record.message)
+    if match is None:
+        return None
+    status = match.group("status")
+    unavailable_form = match.group("unavailable") is not None
+    supplied_count_field = match.group("photos") is not None
+    expected_count_field = match.group("photos_expected") is not None
+    if (
+        match.group("mode") != "multimodal"
+        or (status == "supplied")
+        != (not unavailable_form and supplied_count_field and not expected_count_field)
+        or (status == "unavailable")
+        != (unavailable_form and expected_count_field and not supplied_count_field)
+    ):
+        return None
+    photo_count = int(match.group("photo_count"))
+    if not 1 <= photo_count <= MAX_REPLY_VISUAL_REPORTED_IMAGES:
+        return None
+    target_id = match.group("target_id").strip()
+    lane = normalise_lane(match.group("lane"))
+    if not target_id or lane not in REPLY_VISUAL_LANES:
+        return None
+    return (
+        target_id,
+        {
+            "lane": lane,
+            "mode": "multimodal",
+            "observed_at": record.timestamp,
+            "photo_count": photo_count,
+            "record_fingerprint": record.record_fingerprint,
+            "status": status,
+        },
+    )
+
+
+def parse_reply_visual_description_attempt(
+    event: Mapping[str, Any], record: LogRecord
+) -> tuple[str | None, dict[str, Any] | None]:
+    """Validate the registered visual event and return only safe metadata."""
+    raw_target_id = event.get("target_id")
+    target_id = (
+        raw_target_id.strip()
+        if isinstance(raw_target_id, str) and raw_target_id.strip()
+        else None
+    )
+    if (
+        event.get("event") != "reply_visual_description"
+        or set(event) - REPLY_VISUAL_DESCRIPTION_EVENT_FIELDS
+        or target_id is None
+        or not isinstance(event.get("lane"), str)
+    ):
+        return target_id, None
+    lane = normalise_lane(event.get("lane"))
+    status = event.get("status")
+    supplied_image_count = event.get("supplied_image_count")
+    schema_version = event.get("analysis_schema_version")
+    call_count = event.get("visual_analysis_call_count")
+    if (
+        lane not in REPLY_VISUAL_LANES
+        or status not in REPLY_VISUAL_DESCRIPTION_STATUSES
+        or type(supplied_image_count) is not int
+        or supplied_image_count < 0
+        or supplied_image_count > MAX_REPLY_VISUAL_REPORTED_IMAGES
+        or type(schema_version) is not int
+        or schema_version <= 0
+        or schema_version > MAX_REPLY_VISUAL_SCHEMA_VERSION
+        or type(call_count) is not int
+        or call_count < 0
+        or call_count > 1
+    ):
+        return target_id, None
+    raw_hash = event.get("description_sha256")
+    if raw_hash in (None, ""):
+        description_sha256: str | None = None
+    elif isinstance(raw_hash, str) and re.fullmatch(r"[0-9a-f]{64}", raw_hash):
+        description_sha256 = raw_hash
+    else:
+        return target_id, None
+
+    if status == "analysed":
+        valid_shape = (
+            1 <= supplied_image_count <= MAX_REPLY_VISUAL_SUPPORTED_IMAGES
+            and call_count == 1
+            and description_sha256 is not None
+        )
+    elif description_sha256 is not None:
+        valid_shape = False
+    elif status in {"provider_error", "invalid_response"}:
+        valid_shape = (
+            1 <= supplied_image_count <= MAX_REPLY_VISUAL_SUPPORTED_IMAGES
+            and call_count == 1
+        )
+    elif status == "paused":
+        valid_shape = (
+            1 <= supplied_image_count <= MAX_REPLY_VISUAL_SUPPORTED_IMAGES
+            and call_count == 0
+        )
+    else:
+        valid_shape = status == "invalid_supplied_media" and call_count == 0
+    if not valid_shape:
+        return target_id, None
+    return (
+        target_id,
+        {
+            "analysis_schema_version": schema_version,
+            "description_sha256": description_sha256,
+            "lane": lane,
+            "observed_at": record.timestamp,
+            "record_fingerprint": record.record_fingerprint,
+            "status": status,
+            "supplied_image_count": supplied_image_count,
+            "visual_analysis_call_count": call_count,
+        },
+    )
 
 
 def normalise_account_lane(value: Any) -> str:
@@ -1057,7 +1213,22 @@ def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[
         "publication_evidence": [],
         "publication_status": "unavailable" if author_role == "account" else "observed",
         "reconstruction_confidence": "low",
+        "reply_media_context_observations": [],
+        "reply_media_context_other_count": 0,
         "reply_requirement": None,
+        "reply_visual_context_summary": {
+            "analysis_attempt_count": 0,
+            "analysis_observation_status": "not_applicable",
+            "analysis_schema_versions": [],
+            "distinct_successful_description_count": 0,
+            "latest_analysis_status": None,
+            "latest_collection_status": None,
+            "native_photo_count_max": 0,
+            "successful_analysis_count": 0,
+            "successful_description_sha256s": [],
+        },
+        "reply_visual_description_attempts": [],
+        "reply_visual_description_other_count": 0,
         "root_post_id": None,
         "route_source": None,
         "schema_version": SCHEMA_VERSION,
@@ -1086,6 +1257,144 @@ def _merge_unique_objects(existing: list[Any], additions: Iterable[Any]) -> list
     for item in additions:
         keyed.setdefault(canonical_json_bytes(item, newline=False), item)
     return [keyed[key] for key in sorted(keyed)]
+
+
+def _reply_observation_order_key(
+    observation: Mapping[str, Any],
+) -> tuple[str, str, bytes]:
+    return (
+        str(observation.get("observed_at") or ""),
+        str(observation.get("record_fingerprint") or ""),
+        canonical_json_bytes(dict(observation), newline=False),
+    )
+
+
+def _merge_bounded_reply_observations(
+    post: dict[str, Any],
+    *,
+    field: str,
+    other_count_field: str,
+    additions: Iterable[Mapping[str, Any]],
+    maximum: int,
+) -> None:
+    """Deduplicate by source record and retain the newest deterministic set."""
+    prior_other_count = post.get(other_count_field)
+    if type(prior_other_count) is not int or prior_other_count < 0:
+        prior_other_count = 0
+    by_fingerprint: dict[str, dict[str, Any]] = {}
+    existing = [
+        item for item in post.get(field) or [] if isinstance(item, dict)
+    ]
+    addition_rows = [dict(item) for item in additions]
+    existing_fingerprints = {
+        str(item.get("record_fingerprint") or "")
+        for item in existing
+        if item.get("record_fingerprint")
+    }
+    previously_seen_fingerprints = {
+        str(item.get("record_fingerprint") or "")
+        for item in post.get("source_provenance") or []
+        if isinstance(item, dict) and item.get("record_fingerprint")
+    }
+    new_fingerprints = {
+        str(item.get("record_fingerprint") or "")
+        for item in addition_rows
+        if item.get("record_fingerprint")
+    } - existing_fingerprints - previously_seen_fingerprints
+    for raw in [*existing, *addition_rows]:
+        item = dict(raw)
+        fingerprint = str(item.get("record_fingerprint") or "")
+        if not fingerprint:
+            continue
+        current = by_fingerprint.get(fingerprint)
+        if current is None or canonical_json_bytes(
+            item, newline=False
+        ) < canonical_json_bytes(current, newline=False):
+            by_fingerprint[fingerprint] = item
+    ordered = sorted(by_fingerprint.values(), key=_reply_observation_order_key)
+    post[field] = ordered[-maximum:] if maximum else []
+    total_observation_count = (
+        prior_other_count + len(existing_fingerprints) + len(new_fingerprints)
+    )
+    post[other_count_field] = max(
+        0, total_observation_count - len(post[field])
+    )
+
+
+def _derive_reply_visual_context_summary(
+    post: Mapping[str, Any],
+) -> dict[str, Any]:
+    media = sorted(
+        (
+            dict(item)
+            for item in post.get("reply_media_context_observations") or []
+            if isinstance(item, dict)
+        ),
+        key=_reply_observation_order_key,
+    )
+    attempts = sorted(
+        (
+            dict(item)
+            for item in post.get("reply_visual_description_attempts") or []
+            if isinstance(item, dict)
+        ),
+        key=_reply_observation_order_key,
+    )
+    successful = [item for item in attempts if item.get("status") == "analysed"]
+    successful_hashes = sorted(
+        {
+            str(item["description_sha256"])
+            for item in successful
+            if isinstance(item.get("description_sha256"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", str(item["description_sha256"]))
+        }
+    )
+    supplied_observed = any(
+        item.get("status") == "supplied"
+        and type(item.get("photo_count")) is int
+        and item["photo_count"] > 0
+        for item in media
+    )
+    native_counts = [
+        int(item["photo_count"])
+        for item in media
+        if type(item.get("photo_count")) is int and item["photo_count"] >= 0
+    ] + [
+        int(item["supplied_image_count"])
+        for item in attempts
+        if type(item.get("supplied_image_count")) is int
+        and item["supplied_image_count"] >= 0
+    ]
+    if successful:
+        observation_status = "analysed"
+    elif attempts:
+        observation_status = "attempted_not_analysed"
+    elif supplied_observed:
+        observation_status = "not_observed"
+    else:
+        observation_status = "not_applicable"
+    return {
+        "analysis_attempt_count": len(attempts),
+        "analysis_observation_status": observation_status,
+        "analysis_schema_versions": sorted(
+            {
+                int(item["analysis_schema_version"])
+                for item in attempts
+                if type(item.get("analysis_schema_version")) is int
+                and item["analysis_schema_version"] > 0
+            }
+        ),
+        "distinct_successful_description_count": len(successful_hashes),
+        "latest_analysis_status": (
+            str(attempts[-1].get("status")) if attempts else None
+        ),
+        "latest_collection_status": (
+            str(media[-1].get("status")) if media else None
+        ),
+        "native_photo_count_max": max(native_counts, default=0),
+        "successful_analysis_count": len(successful),
+        "successful_description_sha256s": successful_hashes,
+    }
 
 
 def _record_warning(post: dict[str, Any], warning: str) -> None:
@@ -1828,6 +2137,9 @@ STRUCTURED_CONVERSATION_EVENT_FIELDS.update(
             reply_creation_fields=("reply_created_at",),
             confirms_publication=True,
         ),
+        "reply_visual_description": StructuredEventContract(
+            target_fields=("target_id",),
+        ),
     }
 )
 
@@ -2407,6 +2719,13 @@ def normalise_canonical_posts(
         post.setdefault("self_observation_last_observed_at", None)
         post.setdefault("text_source", "unavailable")
         post.setdefault("visible_media_text", None)
+        post.setdefault("reply_media_context_observations", [])
+        post.setdefault("reply_media_context_other_count", 0)
+        post.setdefault("reply_visual_description_attempts", [])
+        post.setdefault("reply_visual_description_other_count", 0)
+        post["reply_visual_context_summary"] = _derive_reply_visual_context_summary(
+            post
+        )
         _ensure_account_evidence_defaults(post)
 
     deduplicated: dict[str, LogRecord] = {}
@@ -2691,6 +3010,24 @@ def normalise_canonical_posts(
 
     for record in ordered_records:
         message = record.message
+        media_context = parse_reply_media_context_observation(record)
+        if media_context is not None:
+            media_target_id, media_observation = media_context
+            media_target = get_user(media_target_id)
+            if media_target.get("author_role") != "account":
+                media_target["lane"] = str(media_observation["lane"])
+            _merge_bounded_reply_observations(
+                media_target,
+                field="reply_media_context_observations",
+                other_count_field="reply_media_context_other_count",
+                additions=(media_observation,),
+                maximum=MAX_REPLY_MEDIA_CONTEXT_OBSERVATIONS,
+            )
+            media_target["source_provenance"] = _merge_unique_objects(
+                list(media_target.get("source_provenance") or []),
+                [record.provenance()],
+            )
+
         match = CONSIDER_RE.search(message)
         if match:
             target_id = match.group(2)
@@ -2865,6 +3202,34 @@ def normalise_canonical_posts(
         if not isinstance(event, dict):
             continue
         kind = str(event.get("event") or event.get("kind") or "")
+        if kind == "reply_visual_description":
+            visual_target_id, visual_attempt = (
+                parse_reply_visual_description_attempt(event, record)
+            )
+            if visual_target_id is None:
+                statistics["registered_event_missing_target_count"] += 1
+            elif visual_attempt is None:
+                statistics["ambiguous_registered_event_count"] += 1
+                _record_warning(
+                    get_user(visual_target_id),
+                    "malformed_reply_visual_description_event",
+                )
+            else:
+                visual_target = get_user(visual_target_id)
+                if visual_target.get("author_role") != "account":
+                    visual_target["lane"] = str(visual_attempt["lane"])
+                _merge_bounded_reply_observations(
+                    visual_target,
+                    field="reply_visual_description_attempts",
+                    other_count_field="reply_visual_description_other_count",
+                    additions=(visual_attempt,),
+                    maximum=MAX_REPLY_VISUAL_DESCRIPTION_ATTEMPTS,
+                )
+                visual_target["source_provenance"] = _merge_unique_objects(
+                    list(visual_target.get("source_provenance") or []),
+                    [record.provenance()],
+                )
+            continue
         if kind == "account_root_posted":
             if not _valid_account_root_event(event):
                 statistics["ambiguous_registered_event_count"] += 1
@@ -3085,6 +3450,23 @@ def normalise_canonical_posts(
         )
         post["tested_pipeline_stage_summaries"] = _merge_unique_objects(
             [], post.get("tested_pipeline_stage_summaries") or []
+        )
+        _merge_bounded_reply_observations(
+            post,
+            field="reply_media_context_observations",
+            other_count_field="reply_media_context_other_count",
+            additions=(),
+            maximum=MAX_REPLY_MEDIA_CONTEXT_OBSERVATIONS,
+        )
+        _merge_bounded_reply_observations(
+            post,
+            field="reply_visual_description_attempts",
+            other_count_field="reply_visual_description_other_count",
+            additions=(),
+            maximum=MAX_REPLY_VISUAL_DESCRIPTION_ATTEMPTS,
+        )
+        post["reply_visual_context_summary"] = (
+            _derive_reply_visual_context_summary(post)
         )
         post["warnings"] = sorted(set(post.get("warnings") or []))
         post["trusted_fact_ids"] = sorted(set(post.get("trusted_fact_ids") or []))
@@ -3664,6 +4046,29 @@ def _flatten_pipeline_summaries(turns: Sequence[Mapping[str, Any]]) -> list[dict
     )
 
 
+def _reply_visual_context_summaries(
+    turns: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return safe summaries for image-bearing user turns on one path."""
+    rows: list[dict[str, Any]] = []
+    for turn in sorted(turns, key=_turn_order_key):
+        if turn.get("author_role") != "user":
+            continue
+        summary = turn.get("reply_visual_context_summary")
+        if not isinstance(summary, dict):
+            continue
+        native_photo_count = summary.get("native_photo_count_max")
+        if type(native_photo_count) is not int or native_photo_count <= 0:
+            continue
+        rows.append(
+            {
+                "post_id": str(turn.get("post_id") or ""),
+                **copy.deepcopy(summary),
+            }
+        )
+    return rows
+
+
 def _parent_path_to_tip(
     by_id: Mapping[str, Mapping[str, Any]], tip_id: str
 ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -3993,6 +4398,7 @@ def build_review_candidates(
             branch_tip_post_id,
         )
         summaries = _flatten_pipeline_summaries(path)
+        visual_summaries = _reply_visual_context_summaries(path)
         results.append(
             {
                 "account_turn_count_on_path": len(account_turns),
@@ -4009,6 +4415,7 @@ def build_review_candidates(
                 "principal_author_key": principal,
                 "prospective_status": "eligible",
                 "reconstruction_confidence": confidence,
+                "reply_visual_context_summaries": visual_summaries,
                 "review_reason_codes": ordered_reasons,
                 "root_post_id": root_post_id,
                 "same_author_continuation_depth": continuation_depth,
@@ -6590,6 +6997,52 @@ def validate_output_root(output_root: Path) -> dict[str, Any]:
         return _validate_root_unlocked(root)
 
 
+def _review_visual_context_line(summary: Mapping[str, Any]) -> str:
+    """Render one bounded visual-context summary without raw image content."""
+    native_photo_count = int(summary.get("native_photo_count_max") or 0)
+    parts = [
+        f"{native_photo_count} native "
+        f"{'photo' if native_photo_count == 1 else 'photos'}"
+    ]
+    collection_status = summary.get("latest_collection_status")
+    if collection_status:
+        parts.append(f"collection {collection_status}")
+    elif summary.get("analysis_attempt_count"):
+        parts.append("no collection observation retained")
+    observation_status = str(summary.get("analysis_observation_status") or "")
+    attempt_count = int(summary.get("analysis_attempt_count") or 0)
+    successful_count = int(summary.get("successful_analysis_count") or 0)
+    distinct_count = int(
+        summary.get("distinct_successful_description_count") or 0
+    )
+    if observation_status == "not_observed":
+        parts.append("no visual-analysis event observed")
+    elif observation_status in {"analysed", "attempted_not_analysed"}:
+        parts.extend(
+            [
+                f"analysis {summary.get('latest_analysis_status')}",
+                f"{attempt_count} {'attempt' if attempt_count == 1 else 'attempts'}",
+                (
+                    f"{successful_count} successful description"
+                    + ("s" if successful_count != 1 else "")
+                    if successful_count
+                    else "no successful description"
+                ),
+                f"{distinct_count} distinct {'hash' if distinct_count == 1 else 'hashes'}",
+            ]
+        )
+        safe_hashes = [
+            value[:12]
+            for value in summary.get("successful_description_sha256s") or []
+            if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+        ]
+        if safe_hashes:
+            parts.append("hash " + ", ".join(safe_hashes))
+    elif collection_status == "unavailable":
+        parts.append("no supplied visual context retained")
+    return "Visual context: " + "; ".join(parts) + "."
+
+
 def _review_pack_markdown(
     *,
     pack_name: str,
@@ -6599,6 +7052,7 @@ def _review_pack_markdown(
     include_open: bool,
     conversation_count: int,
     candidate_count: int,
+    candidates: Sequence[Mapping[str, Any]],
 ) -> bytes:
     lines = [
         f"# Review pack: {pack_name}",
@@ -6615,6 +7069,27 @@ def _review_pack_markdown(
         "",
         "No labels, model judgements, or repair decisions were added.",
     ]
+    by_post_id: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        for raw_summary in candidate.get("reply_visual_context_summaries") or []:
+            if not isinstance(raw_summary, dict):
+                continue
+            post_id = str(raw_summary.get("post_id") or "")
+            if not post_id:
+                continue
+            summary = dict(raw_summary)
+            current = by_post_id.get(post_id)
+            if current is None or canonical_json_bytes(
+                summary, newline=False
+            ) < canonical_json_bytes(current, newline=False):
+                by_post_id[post_id] = summary
+    if by_post_id:
+        lines.extend(["", "## Reply visual context", ""])
+        for post_id in sorted(by_post_id):
+            lines.append(
+                f"- Turn `{post_id}` — "
+                + _review_visual_context_line(by_post_id[post_id])
+            )
     return ("\n".join(lines) + "\n").encode("utf-8")
 
 
@@ -6705,6 +7180,7 @@ def freeze_review_pack(
                 include_open=include_open,
                 conversation_count=len(selected_conversations),
                 candidate_count=len(selected_candidates),
+                candidates=selected_candidates,
             )
             non_manifest = {
                 "conversations.jsonl": conversations_data,

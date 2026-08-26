@@ -12,6 +12,49 @@ def event(kind, **values):
     return {"kind": kind, "time": "2026-07-15 12:00:00", **values}
 
 
+def reply_visual_record(offset, payload=None, *, message=None, level="INFO"):
+    if message is None:
+        message = "EVENT " + json.dumps(payload, sort_keys=True)
+    return digest.Record(
+        datetime(2026, 8, 26, 12) + timedelta(seconds=offset),
+        level,
+        "log_event",
+        offset + 1,
+        message,
+        "mrsMThatcher.log",
+        offset + 1,
+    )
+
+
+def reply_visual_payload(
+    target_id,
+    *,
+    lane="mention",
+    status="analysed",
+    supplied_image_count=2,
+    description_sha256=None,
+    visual_analysis_call_count=None,
+    **extra,
+):
+    if description_sha256 is None:
+        description_sha256 = "a" * 64 if status == "analysed" else ""
+    if visual_analysis_call_count is None:
+        visual_analysis_call_count = (
+            1 if status in {"analysed", "provider_error", "invalid_response"} else 0
+        )
+    return {
+        "event": "reply_visual_description",
+        "lane": lane,
+        "target_id": target_id,
+        "supplied_image_count": supplied_image_count,
+        "status": status,
+        "analysis_schema_version": 1,
+        "description_sha256": description_sha256,
+        "visual_analysis_call_count": visual_analysis_call_count,
+        **extra,
+    }
+
+
 MAJORITY_TELEMETRY_MISSING = object()
 
 
@@ -2911,3 +2954,275 @@ def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
         "semantic_gate_audit",
         "semantic_review_ledger",
     }
+
+
+def test_reply_visual_context_correlates_collection_and_window_gaps_safely():
+    full_hash = "b" * 64
+    records = [
+        reply_visual_record(
+            0,
+            message=(
+                "Reply media context lane=mention_reply target_id=100 photos=2 "
+                "mode=multimodal status=supplied"
+            ),
+        ),
+        reply_visual_record(
+            1,
+            reply_visual_payload("100", description_sha256=full_hash),
+        ),
+        reply_visual_record(
+            2,
+            message=(
+                "Reply media context lane=mention target_id=101 photos=1 "
+                "mode=multimodal status=supplied"
+            ),
+        ),
+        reply_visual_record(
+            3,
+            reply_visual_payload(
+                "102",
+                lane="quote_tweet",
+                status="provider_error",
+                supplied_image_count=1,
+            ),
+        ),
+        reply_visual_record(
+            4,
+            message=(
+                "Reply media context unavailable lane=mention target_id=103 "
+                "photos_expected=2 mode=multimodal status=unavailable"
+            ),
+            level="WARNING",
+        ),
+    ]
+
+    report = digest.analyse(records)
+    targets = {
+        (row["lane"], row["target_id"]): row
+        for row in report["reply_visual_context_targets"]
+    }
+    summary = report["reply_visual_context_summary"]
+
+    analysed = targets[("mention", "100")]
+    assert analysed["correlation_status"] == (
+        "collection_supplied_analysis_analysed"
+    )
+    assert analysed["latest_successful_description_sha256"] == full_hash
+    assert analysed["successful_description_sha256s"] == [full_hash]
+    assert targets[("mention", "101")]["analysis_observation_status"] == (
+        "not_observed_in_selected_window"
+    )
+    assert targets[("quote-tweet", "102")]["correlation_status"] == (
+        "analysis_observed_collection_not_observed_in_selected_window"
+    )
+    assert targets[("mention", "103")]["correlation_status"] == (
+        "collection_unavailable"
+    )
+    assert summary["targets_with_supplied_native_photos"] == 2
+    assert summary["targets_with_successful_visual_analysis"] == 1
+    assert summary[
+        "targets_with_no_analysis_event_observed_in_selected_window"
+    ] == 1
+    assert summary[
+        "targets_with_analysis_but_no_collection_observation_in_selected_window"
+    ] == 1
+
+    rendered = digest.render_markdown(report)
+    assert "no visual-analysis event observed in the selected window" in rendered
+    assert "no collection observation in the selected window" in rendered
+    assert full_hash[:12] in rendered
+    assert full_hash not in rendered
+    assert full_hash in json.dumps(report)
+
+
+def test_reply_visual_failure_statuses_and_repeated_hashes_are_objective():
+    records = [
+        reply_visual_record(
+            0,
+            reply_visual_payload(
+                "200", status="provider_error", supplied_image_count=1
+            ),
+        ),
+        reply_visual_record(
+            1,
+            reply_visual_payload(
+                "201", status="invalid_response", supplied_image_count=1
+            ),
+        ),
+        reply_visual_record(
+            2,
+            reply_visual_payload(
+                "202", status="invalid_supplied_media", supplied_image_count=0
+            ),
+        ),
+        reply_visual_record(
+            3,
+            reply_visual_payload(
+                "203", status="paused", supplied_image_count=1
+            ),
+        ),
+        reply_visual_record(
+            4, reply_visual_payload("204", description_sha256="5" * 64)
+        ),
+        reply_visual_record(
+            5, reply_visual_payload("204", description_sha256="5" * 64)
+        ),
+        reply_visual_record(
+            6, reply_visual_payload("205", description_sha256="6" * 64)
+        ),
+        reply_visual_record(
+            7, reply_visual_payload("205", description_sha256="7" * 64)
+        ),
+    ]
+
+    report = digest.analyse(records)
+    by_target = {
+        row["target_id"]: row for row in report["reply_visual_context_targets"]
+    }
+    summary = report["reply_visual_context_summary"]
+
+    for target_id, status in {
+        "200": "provider_error",
+        "201": "invalid_response",
+        "202": "invalid_supplied_media",
+        "203": "paused",
+    }.items():
+        assert by_target[target_id]["latest_visual_analysis_status"] == status
+        assert by_target[target_id]["successful_analysis_count"] == 0
+        assert by_target[target_id]["analysis_observation_status"] == (
+            "attempted_not_analysed"
+        )
+    assert by_target["204"]["visual_analysis_attempt_count"] == 2
+    assert by_target["204"]["successful_analysis_count"] == 2
+    assert by_target["204"]["distinct_successful_description_count"] == 1
+    assert by_target["205"]["visual_analysis_attempt_count"] == 2
+    assert by_target["205"]["distinct_successful_description_count"] == 2
+    assert summary["targets_with_attempted_but_unsuccessful_analysis"] == 4
+    assert summary["targets_with_more_than_one_analysis_attempt"] == 2
+    assert summary[
+        "targets_with_more_than_one_distinct_successful_description_hash"
+    ] == 1
+    assert summary["visual_analysis_status_counts"] == {
+        "analysed": 4,
+        "invalid_response": 1,
+        "invalid_supplied_media": 1,
+        "paused": 1,
+        "provider_error": 1,
+    }
+
+
+def test_reply_visual_malformed_shapes_fail_safely_without_raw_material():
+    secret_description = "PRIVATE DESCRIPTION MUST NOT LEAK"
+    secret_ocr = "PRIVATE OCR MUST NOT LEAK"
+    secret_url = "https://private.invalid/image.jpg"
+    invalid_json_secret = "INVALID JSON VISUAL DESCRIPTION"
+    malformed = [
+        reply_visual_payload("300", supplied_image_count=True),
+        reply_visual_payload("300", visual_analysis_call_count=True),
+        reply_visual_payload("300", description_sha256="A" * 64),
+        reply_visual_payload(
+            "300",
+            image_url=secret_url,
+            visual_description=secret_description,
+            ocr_text=secret_ocr,
+            media_key="private-media-key",
+            prompt="private prompt",
+        ),
+    ]
+    records = [
+        reply_visual_record(
+            0,
+            message=(
+                "Reply media context lane=mention target_id=300 photos=1 "
+                "mode=multimodal status=supplied"
+            ),
+        ),
+        *[
+            reply_visual_record(index + 1, payload)
+            for index, payload in enumerate(malformed)
+        ],
+        reply_visual_record(
+            5,
+            message=(
+                "EVENT {\"event\":\"reply_visual_description\","
+                f"\"visual_description\":\"{invalid_json_secret}\""
+            ),
+            level="ERROR",
+        ),
+    ]
+
+    report = digest.analyse(records)
+    rendered_json = json.dumps(report)
+    rendered_markdown = digest.render_markdown(report)
+
+    assert report["reply_visual_context_summary"][
+        "malformed_visual_description_event_count"
+    ] == 5
+    assert report["reply_visual_context_summary"]["visual_analysis_event_count"] == 0
+    assert report["reply_visual_context_targets"][0][
+        "analysis_observation_status"
+    ] == "not_observed_in_selected_window"
+    for forbidden in (
+        secret_description,
+        secret_ocr,
+        secret_url,
+        invalid_json_secret,
+        "private-media-key",
+        "private prompt",
+    ):
+        assert forbidden not in rendered_json
+        assert forbidden not in rendered_markdown
+
+
+def test_reply_visual_events_do_not_change_provider_or_pipeline_call_accounting():
+    stage_payload = {
+        "event": "ai_reply_pipeline_stage_summary",
+        "lane": "mention",
+        "target_id": "400",
+        "status": "approved",
+        "strategy_version": "tested-reply-pipeline-20260817",
+        "model_call_count": 2,
+        "revision_count": 0,
+    }
+    base_records = [
+        reply_visual_record(
+            0,
+            message=(
+                "Tested reply stage=proposer provider=xAI usage="
+                "{'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}"
+            ),
+        ),
+        reply_visual_record(1, stage_payload),
+    ]
+    visual_records = [
+        reply_visual_record(
+            2,
+            message=(
+                "Reply media context lane=mention target_id=400 photos=1 "
+                "mode=multimodal status=supplied"
+            ),
+        ),
+        reply_visual_record(
+            3,
+            reply_visual_payload(
+                "400", supplied_image_count=1, description_sha256="8" * 64
+            ),
+        ),
+    ]
+
+    without_visual = digest.analyse(base_records)
+    with_visual = digest.analyse([*base_records, *visual_records])
+
+    assert with_visual["provider_usage"] == without_visual["provider_usage"]
+    assert with_visual["reply_pipeline_stages"] == without_visual[
+        "reply_pipeline_stages"
+    ]
+    stage = next(
+        event
+        for event in with_visual["events"]
+        if event["kind"] == "reply_pipeline_stage_summary"
+    )
+    assert stage["model_call_count"] == 2
+    assert with_visual["reply_visual_context_summary"][
+        "visual_analysis_call_count"
+    ] == 1

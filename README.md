@@ -731,13 +731,14 @@ installation for drift with:
 deploy/systemd-user/install.sh --check
 ```
 
-The optional network-free version-3 prospective conversation collector
+The optional network-free version-4 prospective conversation collector
 reconstructs account roots, historical-context replies, and exact same-author
 parent paths from the retained production log rotation without touching the
-bot or its state. Its scheduled private root is
-`/disks/disk1/research/mrsMThatcher-prospective-conversations-v3`; the existing
-version-2 root remains a read-only migration source. Its operation, privacy
-model, registered v2-to-v3 rebuild, validation, manual review packs, and
+bot or its state. It also retains bounded, content-free reply-photo collection
+and visual-analysis metadata for review. Its scheduled private root is
+`/disks/disk1/research/mrsMThatcher-prospective-conversations-v4`; the existing
+version-3 root remains a read-only migration source. Its operation, privacy
+model, registered v3-to-v4 rebuild, validation, manual review packs, and
 controlled timer activation are documented in the
 [prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 
@@ -755,7 +756,7 @@ executes the same checked bot script by default.
 
 The installer uses atomic per-file replacement and runs `daemon-reload`, but it
 does not enable, disable, start, stop, or restart any unit. Its non-mutating
-first-v3 installation also leaves the prospective v3 root absent for the
+first-v4 installation also leaves the prospective v4 root absent for the
 registered rebuild; prospective timer activation is intentionally omitted from
 its suggested commands. The non-mutating analytics `status` check always
 targets the runtime checkout at
