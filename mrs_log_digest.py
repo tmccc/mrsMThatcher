@@ -6227,7 +6227,10 @@ def summarise_operational_error_health(
             transaction_ids = evidence.get("transaction_ids") or []
             target_ids = evidence.get("target_ids") or []
             lanes = evidence.get("lanes") or []
-            artifact_names = evidence.get("artifact_names") or []
+            artifact_names = sorted(
+                evidence_values(evidence, "active_artifact_names")
+                | evidence_values(evidence, "artifact_names")
+            )
             incident = {
                 **evidence,
                 "category": evidence["category"], "signature": evidence["signature"],
