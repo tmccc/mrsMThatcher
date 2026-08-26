@@ -169,6 +169,7 @@ deployed as a coherent set:
 - `semantic_alignment_research/quote_research_full_001/research_packets.json`
 - `semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json`
 - `mrs_log_digest.py`
+- `tools/extract_prospective_conversations.py`
 - `openai_cost_cache.py`
 - `runMrsMThatcher2`
 - `deploy/systemd-user/install.sh`
@@ -177,6 +178,8 @@ deployed as a coherent set:
 - `deploy/systemd-user/mrs-engagement-analytics.timer`
 - `deploy/systemd-user/mrs-openai-cost-cache.service`
 - `deploy/systemd-user/mrs-openai-cost-cache.timer`
+- `deploy/systemd-user/mrs-prospective-conversations.service`
+- `deploy/systemd-user/mrs-prospective-conversations.timer`
 - `deploy/systemd-user/mrs-semantic-veto-shadow-health.service`
 - `deploy/systemd-user/mrs-semantic-veto-shadow-health.timer`
 - `mrsMThatcher.env.example`
@@ -679,6 +682,12 @@ installation for drift with:
 ```bash
 deploy/systemd-user/install.sh --check
 ```
+
+The optional network-free prospective conversation collector reconstructs a
+private post-boundary research corpus from the retained production log rotation
+without touching the bot or its state. Its operation, privacy model, validation,
+manual review packs, and explicit timer activation are documented in the
+[prospective conversation extractor runbook](docs/prospective_conversation_extractor.md).
 
 Install updated units as regular files, prepare private scheduled-task state,
 and reload the user manager with:

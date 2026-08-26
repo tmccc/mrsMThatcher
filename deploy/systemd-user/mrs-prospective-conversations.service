@@ -1,0 +1,35 @@
+[Unit]
+Description=MrsMThatcher read-only prospective conversation extractor
+ConditionPathExists=/disks/disk1/etc/mrsMThatcher/mrsMThatcher.log
+
+[Service]
+Type=oneshot
+WorkingDirectory=/disks/disk1/etc/mrsMThatcher
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /disks/disk1/etc/mrsMThatcher/tools/extract_prospective_conversations.py scan --project-dir /disks/disk1/etc/mrsMThatcher --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations --prospective-start 2026-08-24T15:08:39Z --quiescence-hours 48
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectProc=invisible
+ProcSubset=pid
+ReadWritePaths=/disks/disk1/research/mrsMThatcher-prospective-conversations
+InaccessiblePaths=-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env -/disks/disk1/etc/mrsMThatcher/bot_state.json -/disks/disk1/etc/mrsMThatcher/mrsMThatcher.control.json -/disks/disk1/etc/mrsMThatcher/mrsMThatcher.local.json
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=15min
+StandardOutput=journal
+StandardError=journal
+
+# User unit. Install as ~/.config/systemd/user/mrs-prospective-conversations.service.
