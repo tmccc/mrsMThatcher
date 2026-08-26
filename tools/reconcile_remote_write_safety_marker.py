@@ -8,13 +8,17 @@ The default operation archives the active ambiguity marker.  The narrower
 media-only, pre-tweet incident: it proves that no local tweet-create authority
 exists, archives one externally bound sending receipt/fence pair, and retires
 that pair while deliberately preserving the ambiguity marker.  The default
-marker operation must then be run separately.
+marker operation must then be run separately.  The mutually exclusive
+``--adopt-externally-confirmed-reply`` operation accepts exact operator-reviewed
+evidence that one conversational reply was published, durably adopts its
+attempting transport as the ordinary confirmed pair, and archives the marker
+under the same continuously held stopped-daemon lock set.
 
-Both operations prove that the bot's process-lifetime lock is available and
-make private read-only hard-linked archives and audit receipts durable before
-removing an active name.  The last active barrier in each operation is retired
-last.  A hard process loss before archival is complete therefore leaves a
-fail-closed active marker, receipt or fence present.
+All mutating operations prove that the bot's process-lifetime lock is available
+and make private read-only archives and audit receipts durable before removing
+an active name.  The last active barrier in each operation is retired last.  A
+hard process loss before archival is complete therefore leaves a fail-closed
+active marker, receipt or fence present.
 
 The live daemon owns an exclusive lock on the state-directory inode, a
 supplementary directory-identity-bound Linux abstract socket, and BSD plus
@@ -43,7 +47,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -57,6 +61,10 @@ from remote_media_upload_receipt import (  # noqa: E402
     _required_fence_snapshot,
     fence_path_for_receipt,
     inspect_media_upload_receipt,
+)
+import remote_write_transport_journal as transport_journal  # noqa: E402
+from transaction_mutation_authority import (  # noqa: E402
+    issue_transaction_mutation_authority,
 )
 
 
@@ -77,6 +85,20 @@ TWEET_AUTHORITY_BASENAMES = (
 TWEET_AUTHORITY_PREFIXES = (
     ".remote_write_transport_journal.json.transition.",
     ".remote_write_transport_journal.json.retirement-guard.",
+)
+CONFIRMED_REPLY_RECEIPT_BASENAME = "confirmed_reply_receipt.json"
+TRANSPORT_JOURNAL_BASENAME = transport_journal.JOURNAL_BASENAME
+TRANSPORT_FENCE_BASENAME = transport_journal.FENCE_BASENAME
+EXTERNAL_ADOPTION_SCHEMA_VERSION = 1
+EXTERNAL_ADOPTION_OPERATION = "offline_external_confirmed_reply_adoption"
+EXTERNAL_ADOPTION_AUDIT_KIND = (
+    "mrsMThatcher_external_confirmed_reply_adoption_audit"
+)
+EXTERNAL_EVIDENCE_MAX_BYTES = 1024 * 1024
+EXTERNAL_AUDIT_MAX_BYTES = 256 * 1024
+EXTERNAL_EVIDENCE_ARCHIVE_MODE = 0o400
+SUPPORTED_REPLY_CANDIDATE_LANES = frozenset(
+    {"mention", "hot_post_reply", "quote_tweet"}
 )
 MAX_MARKER_BYTES = 64 * 1024
 MAX_LOCK_RECORD_BYTES = 128
@@ -109,6 +131,10 @@ class ArchiveCommitError(MarkerReconciliationError):
 
 class UnattachedMediaReconciliationError(MarkerReconciliationError):
     """The media incident is not the exact offline-abandonment case."""
+
+
+class ExternalReplyAdoptionError(MarkerReconciliationError):
+    """The published conversational reply cannot be adopted exactly."""
 
 
 @dataclass(frozen=True)
@@ -190,6 +216,53 @@ class UnattachedMediaArchiveResult:
         value = asdict(self)
         value["marker_names_preserved"] = list(self.marker_names_preserved)
         return value
+
+
+@dataclass(frozen=True)
+class ExternalReplyAdoptionResult:
+    """Describe one checked or completed external reply adoption."""
+
+    schema_version: int
+    operation: str
+    execution: str
+    adoption_state: str
+    project_root: str
+    project_device: int
+    project_inode: int
+    transaction_id: str
+    transport_lane: str
+    candidate_lane: str
+    target_id: str
+    text_sha256: str
+    canonical_payload_sha256: str
+    confirmed_post_id: str
+    confirmation_epoch: int
+    remote_outcome: str
+    operator_confirmed_external_publication_reviewed: bool
+    reconciliation_reference: str
+    source_receipt: dict[str, object]
+    old_transport: dict[str, object]
+    new_transport: dict[str, object] | None
+    evidence_archive_path: str
+    evidence_sha256: str
+    prepared_audit_path: str
+    prepared_audit_sha256: str | None
+    completed_audit_path: str
+    completed_audit_sha256: str | None
+    marker_archive_path: str | None
+    marker_audit_path: str | None
+    durability: dict[str, bool]
+    final_marker_presence: dict[str, bool]
+    final_transport_classification: str
+    final_source_receipt_present: bool
+    planned_transport_classification: str
+    no_network_request_performed: bool
+    check_only_no_mutation: bool
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a deterministic JSON-compatible representation."""
+
+        return asdict(self)
 
 
 def instance_lock_abstract_socket_name(project_root: Path) -> bytes:
@@ -1205,6 +1278,1937 @@ def _require_bound_readonly_receipt(
         )
 
 
+@dataclass(frozen=True)
+class _OpenedStableFile:
+    """One held descriptor and its byte-exact stable generation."""
+
+    descriptor: int
+    metadata: os.stat_result
+    data: bytes
+    sha256: str
+    basename: str
+
+
+@dataclass(frozen=True)
+class _HeldExternalEvidence:
+    """No-follow evidence path held through adoption preconditions."""
+
+    path: Path
+    parent: Path
+    parent_fd: int
+    parent_identity: os.stat_result
+    file: _OpenedStableFile
+
+    def close(self) -> None:
+        for descriptor in (self.file.descriptor, self.parent_fd):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+
+def _stable_metadata_identity(value: os.stat_result) -> tuple[int, ...]:
+    """Return every metadata field whose drift invalidates one held read."""
+
+    return (
+        int(value.st_dev),
+        int(value.st_ino),
+        int(value.st_mode),
+        int(value.st_nlink),
+        int(value.st_uid),
+        int(value.st_gid),
+        int(value.st_size),
+        int(value.st_ctime_ns),
+        int(value.st_mtime_ns),
+    )
+
+
+def _read_opened_stable_file(
+    directory_fd: int,
+    basename: str,
+    *,
+    label: str,
+    maximum: int,
+    expected_mode: int | None,
+    expected_links: int,
+) -> _OpenedStableFile:
+    """Open and byte-bind one owned regular direct-child entry."""
+
+    descriptor, opened = _open_verified_regular(
+        directory_fd,
+        basename,
+        label=label,
+        flags=os.O_RDONLY,
+        require_single_link=expected_links == 1,
+    )
+    try:
+        data = _read_all(descriptor, maximum=maximum)
+        after_fd = os.fstat(descriptor)
+        after_path = _require_regular_entry(
+            directory_fd,
+            basename,
+            label=label,
+        )
+        if (
+            _stable_metadata_identity(opened)
+            != _stable_metadata_identity(after_fd)
+            or _stable_metadata_identity(opened)
+            != _stable_metadata_identity(after_path)
+            or opened.st_uid != os.geteuid()
+            or opened.st_nlink != expected_links
+            or len(data) != opened.st_size
+            or opened.st_size <= 0
+            or opened.st_size > maximum
+            or (
+                expected_mode is not None
+                and stat.S_IMODE(opened.st_mode) != expected_mode
+            )
+        ):
+            raise UnsafeReconciliationPathError(
+                f"{label} metadata or bytes changed while inspected"
+            )
+        return _OpenedStableFile(
+            descriptor=descriptor,
+            metadata=opened,
+            data=data,
+            sha256=hashlib.sha256(data).hexdigest(),
+            basename=basename,
+        )
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _revalidate_opened_stable_file(
+    directory_fd: int,
+    opened: _OpenedStableFile,
+    *,
+    label: str,
+    maximum: int,
+) -> None:
+    """Re-prove held bytes, metadata and pathname-to-descriptor binding."""
+
+    current_fd = os.fstat(opened.descriptor)
+    current_path = _require_regular_entry(
+        directory_fd,
+        opened.basename,
+        label=label,
+    )
+    data = _read_all(opened.descriptor, maximum=maximum)
+    after_fd = os.fstat(opened.descriptor)
+    expected = _stable_metadata_identity(opened.metadata)
+    if (
+        _stable_metadata_identity(current_fd) != expected
+        or _stable_metadata_identity(after_fd) != expected
+        or _stable_metadata_identity(current_path) != expected
+        or data != opened.data
+        or hashlib.sha256(data).hexdigest() != opened.sha256
+    ):
+        raise ExternalReplyAdoptionError(f"{label} changed after review")
+
+
+def _open_external_evidence(path: Path) -> _HeldExternalEvidence:
+    """Open an external evidence file through a complete no-follow path walk."""
+
+    supplied = Path(path)
+    if not supplied.is_absolute() or ".." in supplied.parts or supplied.name in {
+        "",
+        ".",
+        "..",
+    }:
+        raise UnsafeReconciliationPathError(
+            "external evidence path must be an absolute ordinary pathname"
+        )
+    try:
+        parent, parent_fd = _open_project_directory_without_symlinks(
+            supplied.parent
+        )
+    except OSError as exc:
+        raise UnsafeReconciliationPathError(
+            "external evidence parent could not be opened without following links"
+        ) from exc
+    parent_identity = os.fstat(parent_fd)
+    try:
+        evidence = _read_opened_stable_file(
+            parent_fd,
+            supplied.name,
+            label="external publication evidence",
+            maximum=EXTERNAL_EVIDENCE_MAX_BYTES,
+            expected_mode=None,
+            expected_links=1,
+        )
+        mode = stat.S_IMODE(evidence.metadata.st_mode)
+        if mode & 0o022:
+            raise UnsafeReconciliationPathError(
+                "external publication evidence must not be group/world writable"
+            )
+        return _HeldExternalEvidence(
+            path=supplied,
+            parent=parent,
+            parent_fd=parent_fd,
+            parent_identity=parent_identity,
+            file=evidence,
+        )
+    except BaseException:
+        os.close(parent_fd)
+        raise
+
+
+def _revalidate_external_evidence(evidence: _HeldExternalEvidence) -> None:
+    """Require the reviewed external pathname and descriptor to remain exact."""
+
+    _require_project_path_identity(
+        evidence.parent,
+        evidence.parent_fd,
+        evidence.parent_identity,
+    )
+    _revalidate_opened_stable_file(
+        evidence.parent_fd,
+        evidence.file,
+        label="external publication evidence",
+        maximum=EXTERNAL_EVIDENCE_MAX_BYTES,
+    )
+    if stat.S_IMODE(evidence.file.metadata.st_mode) & 0o022:
+        raise UnsafeReconciliationPathError(
+            "external publication evidence permissions changed"
+        )
+
+
+def _strict_json_object_bytes(data: bytes, *, label: str) -> dict[str, Any]:
+    """Parse one strict object, rejecting duplicate keys and constants."""
+
+    def strict_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        for key, item in pairs:
+            if key in value:
+                raise ExternalReplyAdoptionError(
+                    f"{label} contains duplicate JSON key: {key}"
+                )
+            value[key] = item
+        return value
+
+    def reject_constant(value: str) -> None:
+        raise ExternalReplyAdoptionError(
+            f"{label} contains invalid JSON constant: {value}"
+        )
+
+    try:
+        value = json.loads(
+            data.decode("utf-8"),
+            object_pairs_hook=strict_object,
+            parse_constant=reject_constant,
+        )
+    except ExternalReplyAdoptionError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ExternalReplyAdoptionError(
+            f"{label} is not strict UTF-8 JSON"
+        ) from exc
+    if not isinstance(value, dict):
+        raise ExternalReplyAdoptionError(f"{label} must be a JSON object")
+    return value
+
+
+def _canonical_json_object_bytes(data: bytes, *, label: str) -> dict[str, Any]:
+    """Parse and require the repository's canonical receipt representation."""
+
+    value = _strict_json_object_bytes(data, label=label)
+    if _canonical_json_bytes(value) != data:
+        raise ExternalReplyAdoptionError(f"{label} is not canonical JSON")
+    return value
+
+
+def _identity_record(opened: _OpenedStableFile) -> dict[str, object]:
+    """Return the audit representation of one exact held file."""
+
+    return {
+        "basename": opened.basename,
+        "sha256": opened.sha256,
+        "device": int(opened.metadata.st_dev),
+        "inode": int(opened.metadata.st_ino),
+        "ctime_ns": int(opened.metadata.st_ctime_ns),
+        "size": int(opened.metadata.st_size),
+        "mode": oct(stat.S_IMODE(opened.metadata.st_mode)),
+    }
+
+
+def _transport_snapshot_record(
+    snapshot: transport_journal.JournalSnapshot,
+) -> dict[str, object]:
+    """Return the audit representation of one transport snapshot."""
+
+    return {
+        "sha256": snapshot.sha256,
+        "device": snapshot.device,
+        "inode": snapshot.inode,
+        "ctime_ns": snapshot.ctime_ns,
+        "size": len(snapshot.data),
+        "lifecycle_state": snapshot.document["lifecycle_state"],
+    }
+
+
+def _normalise_post_id(value: str, *, label: str) -> str:
+    candidate = str(value)
+    if not re.fullmatch(r"[0-9]{1,30}", candidate):
+        raise ExternalReplyAdoptionError(f"{label} must be a numeric post ID")
+    return candidate
+
+
+def _normalise_confirmation_epoch(value: int) -> int:
+    if (
+        type(value) is not int
+        or not transport_journal.MIN_CONFIRMATION_EPOCH
+        <= value
+        <= transport_journal.MAX_CONFIRMATION_EPOCH
+    ):
+        raise ExternalReplyAdoptionError(
+            "confirmation epoch is outside the supported range"
+        )
+    return value
+
+
+def _require_expected_opened_identity(
+    opened: _OpenedStableFile,
+    *,
+    expected_sha256: str,
+    expected_device: int,
+    expected_inode: int,
+    expected_ctime_ns: int,
+    expected_size: int,
+    label: str,
+) -> None:
+    """Match every operator-supplied generation value to one held file."""
+
+    expected_hash = _normalise_sha256(expected_sha256)
+    expected_values = (
+        _normalise_identity_integer(
+            expected_device,
+            label=f"{label} device",
+            allow_zero=True,
+        ),
+        _normalise_identity_integer(
+            expected_inode,
+            label=f"{label} inode",
+            allow_zero=False,
+        ),
+        _normalise_identity_integer(
+            expected_ctime_ns,
+            label=f"{label} ctime_ns",
+            allow_zero=True,
+        ),
+        _normalise_identity_integer(
+            expected_size,
+            label=f"{label} size",
+            allow_zero=False,
+        ),
+    )
+    actual_values = (
+        int(opened.metadata.st_dev),
+        int(opened.metadata.st_ino),
+        int(opened.metadata.st_ctime_ns),
+        int(opened.metadata.st_size),
+    )
+    if opened.sha256 != expected_hash or actual_values != expected_values:
+        raise ExternalReplyAdoptionError(
+            f"{label} differs from the exact reviewed identity"
+        )
+
+
+def _reviewed_transport_identity_record(
+    *,
+    sha256: str,
+    device: int,
+    inode: int,
+    ctime_ns: int,
+    size: int,
+    lifecycle_state: str,
+    label: str,
+) -> dict[str, object]:
+    """Validate and format one operator-recorded transport generation."""
+
+    return {
+        "sha256": _normalise_sha256(sha256),
+        "device": _normalise_identity_integer(
+            device,
+            label=f"{label} device",
+            allow_zero=True,
+        ),
+        "inode": _normalise_identity_integer(
+            inode,
+            label=f"{label} inode",
+            allow_zero=False,
+        ),
+        "ctime_ns": _normalise_identity_integer(
+            ctime_ns,
+            label=f"{label} ctime_ns",
+            allow_zero=True,
+        ),
+        "size": _normalise_identity_integer(
+            size,
+            label=f"{label} size",
+            allow_zero=False,
+        ),
+        "lifecycle_state": lifecycle_state,
+    }
+
+
+def _require_transport_snapshot_matches_opened(
+    snapshot: transport_journal.JournalSnapshot,
+    opened: _OpenedStableFile,
+    *,
+    label: str,
+) -> None:
+    """Require module inspection and held-descriptor inspection to agree."""
+
+    if (
+        snapshot.data != opened.data
+        or snapshot.sha256 != opened.sha256
+        or (
+            snapshot.device,
+            snapshot.inode,
+            snapshot.ctime_ns,
+            len(snapshot.data),
+        )
+        != (
+            int(opened.metadata.st_dev),
+            int(opened.metadata.st_ino),
+            int(opened.metadata.st_ctime_ns),
+            int(opened.metadata.st_size),
+        )
+    ):
+        raise ExternalReplyAdoptionError(
+            f"{label} changed between strict inspections"
+        )
+
+
+def _require_external_reply_source_semantics(
+    receipt_bytes: bytes,
+    *,
+    candidate_lane: str,
+    target_id: str,
+    text_sha256: str,
+) -> tuple[dict[str, Any], str]:
+    """Validate the current schema-v4 sending conversational source directly."""
+
+    receipt = _canonical_json_object_bytes(
+        receipt_bytes,
+        label="confirmed reply source receipt",
+    )
+    text_hash = _normalise_sha256(text_sha256)
+    text = receipt.get("reply_text")
+    context = receipt.get("reply_context")
+    draft = receipt.get("ai_reply_draft")
+    if (
+        receipt.get("schema_version") != 4
+        or receipt.get("lifecycle_state") != "sending"
+        or candidate_lane not in SUPPORTED_REPLY_CANDIDATE_LANES
+        or receipt.get("candidate_source") != candidate_lane
+        or receipt.get("target_id") != target_id
+        or type(receipt.get("author_id")) is not str
+        or not re.fullmatch(r"[0-9]{1,30}", receipt["author_id"])
+        or type(receipt.get("conversation_id")) is not str
+        or not re.fullmatch(r"[0-9]{1,30}", receipt["conversation_id"])
+        or type(receipt.get("attempt_epoch")) is not int
+        or type(receipt.get("reply_epoch")) is not int
+        or receipt.get("attempt_epoch") != receipt.get("reply_epoch")
+        or not transport_journal.MIN_CONFIRMATION_EPOCH
+        <= receipt["attempt_epoch"]
+        <= transport_journal.MAX_CONFIRMATION_EPOCH
+        or "confirmation_epoch" in receipt
+        or "reply_post_id" in receipt
+        or type(text) is not str
+        or not text
+        or hashlib.sha256(text.encode("utf-8")).hexdigest() != text_hash
+        or not isinstance(context, dict)
+        or context.get("target_id") != target_id
+        or context.get("thread_id") != receipt["conversation_id"]
+        or context.get("lane") != candidate_lane
+        or not isinstance(draft, dict)
+        or draft.get("target_id") != target_id
+        or draft.get("thread_id") != receipt["conversation_id"]
+        or draft.get("candidate_source") != candidate_lane
+        or draft.get("proposed_reply") != text
+    ):
+        raise ExternalReplyAdoptionError(
+            "confirmed reply source is not the exact supported sending receipt"
+        )
+    return receipt, text
+
+
+def _open_existing_archive_directory(
+    project_fd: int,
+    archive_basename: str,
+) -> tuple[int, os.stat_result] | None:
+    """Open an existing private archive without creating any namespace entry."""
+
+    if _entry_absent(project_fd, archive_basename):
+        return None
+    metadata = _entry_stat(project_fd, archive_basename)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != os.geteuid()
+        or stat.S_IMODE(metadata.st_mode) & 0o077
+    ):
+        raise UnsafeReconciliationPathError(
+            "marker archive directory is not owned and private"
+        )
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.open(archive_basename, flags, dir_fd=project_fd)
+    opened = os.fstat(descriptor)
+    current = _entry_stat(project_fd, archive_basename)
+    if not _same_inode(metadata, opened) or not _same_inode(opened, current):
+        os.close(descriptor)
+        raise UnsafeReconciliationPathError(
+            "marker archive identity changed while opened"
+        )
+    return descriptor, opened
+
+
+def _read_private_archive_entry(
+    archive_fd: int,
+    basename: str,
+    *,
+    label: str,
+    maximum: int,
+) -> _OpenedStableFile | None:
+    """Read one optional exact single-link mode-0400 archive entry."""
+
+    if _entry_absent(archive_fd, basename):
+        return None
+    return _read_opened_stable_file(
+        archive_fd,
+        basename,
+        label=label,
+        maximum=maximum,
+        expected_mode=EXTERNAL_EVIDENCE_ARCHIVE_MODE,
+        expected_links=1,
+    )
+
+
+def _publish_private_archive_bytes(
+    archive_fd: int,
+    basename: str,
+    data: bytes,
+    *,
+    label: str,
+    maximum: int,
+) -> tuple[_OpenedStableFile, bool]:
+    """Publish exact private bytes no-replace, or accept an exact existing file."""
+
+    if type(data) is not bytes or not data or len(data) > maximum:
+        raise ArchiveCommitError(f"{label} bytes are invalid")
+    existing = _read_private_archive_entry(
+        archive_fd,
+        basename,
+        label=label,
+        maximum=maximum,
+    )
+    if existing is not None:
+        if existing.data != data:
+            os.close(existing.descriptor)
+            raise ArchiveCommitError(
+                f"{label} archive-name collision contains different bytes"
+            )
+        return existing, False
+
+    temporary = f".{basename}.tmp.{os.getpid()}"
+    flags = (
+        os.O_RDWR
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    descriptor = os.open(temporary, flags, 0o600, dir_fd=archive_fd)
+    identity: os.stat_result | None = None
+    renamed = False
+    try:
+        view = memoryview(data)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError(f"short write while publishing {label}")
+            view = view[written:]
+        os.fsync(descriptor)
+        os.fchmod(descriptor, EXTERNAL_EVIDENCE_ARCHIVE_MODE)
+        os.fsync(descriptor)
+        identity = os.fstat(descriptor)
+        temporary_stat = _require_regular_entry(
+            archive_fd,
+            temporary,
+            label=f"temporary {label}",
+        )
+        if (
+            not _same_inode(identity, temporary_stat)
+            or identity.st_nlink != 1
+            or identity.st_uid != os.geteuid()
+            or stat.S_IMODE(identity.st_mode)
+            != EXTERNAL_EVIDENCE_ARCHIVE_MODE
+        ):
+            raise ArchiveCommitError(f"temporary {label} identity changed")
+        _rename_noreplace(
+            temporary,
+            basename,
+            source_directory_fd=archive_fd,
+            destination_directory_fd=archive_fd,
+            label=label,
+        )
+        renamed = True
+        _fsync_directory(archive_fd)
+        final = _require_regular_entry(archive_fd, basename, label=label)
+        after_fd = os.fstat(descriptor)
+        if (
+            not _same_inode(identity, final)
+            or not _same_inode(identity, after_fd)
+            or final.st_nlink != 1
+            or final.st_uid != os.geteuid()
+            or stat.S_IMODE(final.st_mode)
+            != EXTERNAL_EVIDENCE_ARCHIVE_MODE
+            or _read_all(descriptor, maximum=maximum) != data
+        ):
+            raise ArchiveCommitError(f"{label} changed during durable publication")
+        return (
+            _OpenedStableFile(
+                descriptor=descriptor,
+                metadata=after_fd,
+                data=data,
+                sha256=hashlib.sha256(data).hexdigest(),
+                basename=basename,
+            ),
+            True,
+        )
+    except BaseException:
+        if not renamed:
+            try:
+                current = _entry_stat(archive_fd, temporary)
+            except OSError:
+                pass
+            else:
+                if identity is None or _same_inode(identity, current):
+                    try:
+                        os.unlink(temporary, dir_fd=archive_fd)
+                        _fsync_directory(archive_fd)
+                    except OSError:
+                        pass
+        os.close(descriptor)
+        raise
+
+
+def _validate_existing_audit(
+    opened: _OpenedStableFile,
+    *,
+    expected_without_epoch: Mapping[str, object],
+    epoch_field: str,
+    expected_state: str,
+    label: str,
+) -> tuple[dict[str, Any], int]:
+    """Validate one canonical idempotent audit whose creation time is retained."""
+
+    audit = _canonical_json_object_bytes(opened.data, label=label)
+    epoch = audit.get(epoch_field)
+    if (
+        type(epoch) is not int
+        or epoch < transport_journal.MIN_CONFIRMATION_EPOCH
+        or epoch > transport_journal.MAX_CONFIRMATION_EPOCH
+        or audit.get("state") != expected_state
+    ):
+        raise ExternalReplyAdoptionError(f"{label} epoch or state is invalid")
+    comparable = dict(audit)
+    comparable.pop(epoch_field, None)
+    if comparable != dict(expected_without_epoch):
+        raise ExternalReplyAdoptionError(
+            f"{label} conflicts with the reviewed adoption inputs"
+        )
+    return audit, epoch
+
+
+def _external_adoption_archive_names(
+    transaction_id: str,
+    post_id: str,
+) -> tuple[str, str, str]:
+    stem = f"external_transport_confirmation.{transaction_id}.{post_id}"
+    return (
+        f"{stem}.evidence.json",
+        f"{stem}.prepared.json",
+        f"{stem}.completed.json",
+    )
+
+
+def _external_prepared_audit_without_epoch(
+    *,
+    locks: _OfflineInstanceLocks,
+    transaction_id: str,
+    transport_lane: str,
+    candidate_lane: str,
+    target_id: str,
+    text_sha256: str,
+    payload_sha256: str,
+    source: _OpenedStableFile,
+    attempting_journal: Mapping[str, object],
+    prepared_fence: Mapping[str, object],
+    marker: _ActiveBarrierSet,
+    marker_sha256: str,
+    evidence_archive_path: str,
+    evidence_sha256: str,
+    confirmed_post_id: str,
+    confirmation_epoch: int,
+    reconciliation_reference: str,
+) -> dict[str, object]:
+    """Build every deterministic prepared-audit field except its creation time."""
+
+    return {
+        "schema_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
+        "operation_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
+        "document_kind": EXTERNAL_ADOPTION_AUDIT_KIND,
+        "operation": EXTERNAL_ADOPTION_OPERATION,
+        "state": "prepared",
+        "project_root": str(locks.project),
+        "project_device": int(locks.project_identity.st_dev),
+        "project_inode": int(locks.project_identity.st_ino),
+        "transaction_id": transaction_id,
+        "transport_lane": transport_lane,
+        "candidate_lane": candidate_lane,
+        "target_id": target_id,
+        "text_sha256": text_sha256,
+        "canonical_payload_sha256": payload_sha256,
+        "source_receipt": _identity_record(source),
+        "source_validator_id": transport_journal.LANE_SOURCE_VALIDATOR_ID,
+        "attempting_journal": dict(attempting_journal),
+        "prepared_fence": dict(prepared_fence),
+        "marker": {
+            "active_names": list(marker.names),
+            "sha256": marker_sha256,
+            "device": int(marker.identity.st_dev),
+            "inode": int(marker.identity.st_ino),
+            "ctime_ns": int(marker.identity.st_ctime_ns),
+            "size": int(marker.identity.st_size),
+            "mode": oct(stat.S_IMODE(marker.identity.st_mode)),
+            "same_inode_and_bytes": True,
+        },
+        "confirmed_post_id": confirmed_post_id,
+        "confirmation_epoch": confirmation_epoch,
+        "external_evidence_archive_path": evidence_archive_path,
+        "external_evidence_sha256": evidence_sha256,
+        "reconciliation_reference": reconciliation_reference,
+        "offline_lock_boundary": {
+            "state_directory_flock_acquired": True,
+            "abstract_socket_acquired": True,
+            "file_flock_acquired": True,
+            "ofd_lock_acquired": True,
+        },
+    }
+
+
+def _external_completion_audit_without_epoch(
+    *,
+    prepared_audit_path: str,
+    prepared_audit_sha256: str,
+    transaction_id: str,
+    confirmed_post_id: str,
+    confirmation_epoch: int,
+    old_journal: Mapping[str, object],
+    old_fence: Mapping[str, object],
+    new_journal: transport_journal.JournalSnapshot,
+    new_fence: transport_journal.JournalSnapshot,
+    source: _OpenedStableFile,
+) -> dict[str, object]:
+    """Build every deterministic completion-audit field except its time."""
+
+    return {
+        "schema_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
+        "operation_version": EXTERNAL_ADOPTION_SCHEMA_VERSION,
+        "document_kind": EXTERNAL_ADOPTION_AUDIT_KIND,
+        "operation": EXTERNAL_ADOPTION_OPERATION,
+        "state": "completed",
+        "prepared_audit_path": prepared_audit_path,
+        "prepared_audit_sha256": prepared_audit_sha256,
+        "transaction_id": transaction_id,
+        "confirmed_post_id": confirmed_post_id,
+        "confirmation_epoch": confirmation_epoch,
+        "old_attempting_journal": dict(old_journal),
+        "old_prepared_fence": dict(old_fence),
+        "new_confirmed_journal": _transport_snapshot_record(new_journal),
+        "new_confirmed_fence": _transport_snapshot_record(new_fence),
+        "source_receipt": _identity_record(source),
+        "source_receipt_still_present_and_exact": True,
+        "transport_classification": "confirmed_pair",
+        "confirmed_pair_inspection_exact": True,
+    }
+
+
+def adopt_externally_confirmed_reply_offline(
+    *,
+    project_root: Path,
+    expected_marker_sha256: str,
+    expected_marker_device: int,
+    expected_marker_inode: int,
+    expected_marker_ctime_ns: int,
+    expected_marker_size: int,
+    expected_source_receipt_basename: str,
+    expected_source_receipt_sha256: str,
+    expected_source_receipt_device: int,
+    expected_source_receipt_inode: int,
+    expected_source_receipt_ctime_ns: int,
+    expected_source_receipt_size: int,
+    expected_source_lifecycle: str,
+    expected_candidate_lane: str,
+    expected_target_id: str,
+    expected_text_sha256: str,
+    expected_transaction_id: str,
+    expected_transport_lane: str,
+    expected_canonical_payload_sha256: str,
+    expected_journal_sha256: str,
+    expected_journal_device: int,
+    expected_journal_inode: int,
+    expected_journal_ctime_ns: int,
+    expected_journal_size: int,
+    expected_fence_sha256: str,
+    expected_fence_device: int,
+    expected_fence_inode: int,
+    expected_fence_ctime_ns: int,
+    expected_fence_size: int,
+    confirmed_post_id: str,
+    confirmation_epoch: int,
+    external_evidence_path: Path,
+    expected_external_evidence_sha256: str,
+    reconciliation_reference: str,
+    confirm_external_publication_reviewed: bool,
+    confirm_offline_reconciliation_complete: bool,
+    check_only: bool,
+    archive_basename: str = DEFAULT_ARCHIVE_BASENAME,
+    now: Callable[[], int] | None = None,
+    _fault_injector: Callable[[str], None] | None = None,
+) -> ExternalReplyAdoptionResult:
+    """Check or adopt one externally established published reply, network-free."""
+
+    if confirm_external_publication_reviewed is not True:
+        raise ExternalReplyAdoptionError(
+            "external reply adoption requires explicit publication review"
+        )
+    if not check_only and confirm_offline_reconciliation_complete is not True:
+        raise ExternalReplyAdoptionError(
+            "mutating external reply adoption requires offline reconciliation acknowledgement"
+        )
+    if type(check_only) is not bool:
+        raise ExternalReplyAdoptionError("check-only selection is invalid")
+    marker_hash = _normalise_sha256(expected_marker_sha256)
+    source_hash = _normalise_sha256(expected_source_receipt_sha256)
+    text_hash = _normalise_sha256(expected_text_sha256)
+    payload_hash = _normalise_sha256(expected_canonical_payload_sha256)
+    journal_hash = _normalise_sha256(expected_journal_sha256)
+    fence_hash = _normalise_sha256(expected_fence_sha256)
+    evidence_hash = _normalise_sha256(expected_external_evidence_sha256)
+    transaction_id = str(expected_transaction_id).strip().lower()
+    if not SHA256_RE.fullmatch(transaction_id):
+        raise ExternalReplyAdoptionError(
+            "transport transaction ID must be 64 lowercase hex digits"
+        )
+    if (
+        expected_source_receipt_basename != CONFIRMED_REPLY_RECEIPT_BASENAME
+        or expected_source_lifecycle != "sending"
+        or expected_transport_lane != "conversational_reply"
+        or expected_candidate_lane not in SUPPORTED_REPLY_CANDIDATE_LANES
+    ):
+        raise ExternalReplyAdoptionError(
+            "external adoption is limited to one sending conversational reply receipt"
+        )
+    target_id = _normalise_post_id(expected_target_id, label="reply target")
+    post_id = _normalise_post_id(confirmed_post_id, label="confirmed reply")
+    confirmed_epoch = _normalise_confirmation_epoch(confirmation_epoch)
+    reference = _normalise_reference(reconciliation_reference)
+    archive_basename = _validate_basename(
+        archive_basename,
+        label="archive directory name",
+    )
+    marker_expected_values = (
+        _normalise_identity_integer(
+            expected_marker_device,
+            label="marker device",
+            allow_zero=True,
+        ),
+        _normalise_identity_integer(
+            expected_marker_inode,
+            label="marker inode",
+            allow_zero=False,
+        ),
+        _normalise_identity_integer(
+            expected_marker_ctime_ns,
+            label="marker ctime_ns",
+            allow_zero=True,
+        ),
+        _normalise_identity_integer(
+            expected_marker_size,
+            label="marker size",
+            allow_zero=False,
+        ),
+    )
+    old_journal_record = _reviewed_transport_identity_record(
+        sha256=journal_hash,
+        device=expected_journal_device,
+        inode=expected_journal_inode,
+        ctime_ns=expected_journal_ctime_ns,
+        size=expected_journal_size,
+        lifecycle_state="attempting",
+        label="attempting journal",
+    )
+    old_fence_record = _reviewed_transport_identity_record(
+        sha256=fence_hash,
+        device=expected_fence_device,
+        inode=expected_fence_inode,
+        ctime_ns=expected_fence_ctime_ns,
+        size=expected_fence_size,
+        lifecycle_state="prepared",
+        label="prepared fence",
+    )
+    evidence_archive_name, prepared_audit_name, completed_audit_name = (
+        _external_adoption_archive_names(transaction_id, post_id)
+    )
+    evidence_archive_path = f"{archive_basename}/{evidence_archive_name}"
+    prepared_audit_path = f"{archive_basename}/{prepared_audit_name}"
+    completed_audit_path = f"{archive_basename}/{completed_audit_name}"
+
+    locks = _acquire_offline_instance_locks(Path(project_root))
+    active_barriers: _ActiveBarrierSet | None = None
+    source: _OpenedStableFile | None = None
+    current_journal_file: _OpenedStableFile | None = None
+    current_fence_file: _OpenedStableFile | None = None
+    evidence: _HeldExternalEvidence | None = None
+    archive_fd: int | None = None
+    archive_stat: os.stat_result | None = None
+    archive_entries: list[_OpenedStableFile] = []
+    try:
+        locks.revalidate()
+        active_barriers = _open_active_barrier_set(locks.project_fd)
+        if active_barriers.names != (
+            MARKER_BASENAME,
+            RESTART_BARRIER_BASENAME,
+        ):
+            raise ExternalReplyAdoptionError(
+                "external reply adoption requires the exact paired ambiguity marker"
+            )
+        marker_data = _read_all(
+            active_barriers.descriptor,
+            maximum=MAX_MARKER_BYTES,
+        )
+        marker_after = os.fstat(active_barriers.descriptor)
+        if (
+            _stable_metadata_identity(active_barriers.identity)
+            != _stable_metadata_identity(marker_after)
+            or hashlib.sha256(marker_data).hexdigest() != marker_hash
+            or (
+                int(active_barriers.identity.st_dev),
+                int(active_barriers.identity.st_ino),
+                int(active_barriers.identity.st_ctime_ns),
+                int(active_barriers.identity.st_size),
+            )
+            != marker_expected_values
+        ):
+            raise ExternalReplyAdoptionError(
+                "ambiguity marker pair differs from the exact reviewed identity"
+            )
+        marker_document = _canonical_json_object_bytes(
+            marker_data,
+            label="ambiguity marker",
+        )
+        if (
+            marker_document.get("schema_version") != 1
+            or marker_document.get("outcome") != "ambiguous_remote_post"
+            or marker_document.get("reply_to_id") != target_id
+            or marker_document.get("text_sha256") != text_hash
+            or marker_document.get("media_ids") != []
+        ):
+            raise ExternalReplyAdoptionError(
+                "ambiguity marker does not bind the reviewed reply target and text"
+            )
+
+        source = _read_opened_stable_file(
+            locks.project_fd,
+            CONFIRMED_REPLY_RECEIPT_BASENAME,
+            label="confirmed reply source receipt",
+            maximum=transport_journal.JOURNAL_MAX_BYTES,
+            expected_mode=transport_journal.JOURNAL_MODE,
+            expected_links=1,
+        )
+        _require_expected_opened_identity(
+            source,
+            expected_sha256=source_hash,
+            expected_device=expected_source_receipt_device,
+            expected_inode=expected_source_receipt_inode,
+            expected_ctime_ns=expected_source_receipt_ctime_ns,
+            expected_size=expected_source_receipt_size,
+            label="confirmed reply source receipt",
+        )
+        source_document, reply_text = _require_external_reply_source_semantics(
+            source.data,
+            candidate_lane=expected_candidate_lane,
+            target_id=target_id,
+            text_sha256=text_hash,
+        )
+
+        current_journal_file = _read_opened_stable_file(
+            locks.project_fd,
+            TRANSPORT_JOURNAL_BASENAME,
+            label="remote-write transport journal",
+            maximum=transport_journal.JOURNAL_MAX_BYTES,
+            expected_mode=transport_journal.JOURNAL_MODE,
+            expected_links=1,
+        )
+        current_fence_file = _read_opened_stable_file(
+            locks.project_fd,
+            TRANSPORT_FENCE_BASENAME,
+            label="remote-write transport fence",
+            maximum=transport_journal.JOURNAL_MAX_BYTES,
+            expected_mode=transport_journal.JOURNAL_MODE,
+            expected_links=1,
+        )
+        journal_path = locks.project / TRANSPORT_JOURNAL_BASENAME
+        transport_state = transport_journal.inspect_transport_state(journal_path)
+        if (
+            transport_state.classification
+            not in {
+                "attempting_pair",
+                "confirmed_pair",
+                "lifecycle_transition_in_progress",
+            }
+            or transport_state.errors
+            or transport_state.retirement_guard_names
+            or transport_state.journal is None
+            or transport_state.fence is None
+            or (
+                transport_state.classification
+                == "lifecycle_transition_in_progress"
+                and len(transport_state.staging_names) != 1
+            )
+            or (
+                transport_state.classification
+                != "lifecycle_transition_in_progress"
+                and transport_state.staging_names
+            )
+        ):
+            raise ExternalReplyAdoptionError(
+                "transport namespace is not one exact attempting, adopted, or resumable pair"
+            )
+        _require_transport_snapshot_matches_opened(
+            transport_state.journal,
+            current_journal_file,
+            label="transport journal",
+        )
+        _require_transport_snapshot_matches_opened(
+            transport_state.fence,
+            current_fence_file,
+            label="transport fence",
+        )
+        if transport_state.journal.document.get("lifecycle_state") == "attempting":
+            _require_expected_opened_identity(
+                current_journal_file,
+                expected_sha256=journal_hash,
+                expected_device=expected_journal_device,
+                expected_inode=expected_journal_inode,
+                expected_ctime_ns=expected_journal_ctime_ns,
+                expected_size=expected_journal_size,
+                label="attempting transport journal",
+            )
+        _require_expected_opened_identity(
+            current_fence_file,
+            expected_sha256=fence_hash,
+            expected_device=expected_fence_device,
+            expected_inode=expected_fence_inode,
+            expected_ctime_ns=expected_fence_ctime_ns,
+            expected_size=expected_fence_size,
+            label="prepared transport fence",
+        )
+        journal_document = transport_state.journal.document
+        fence_document = transport_state.fence.document
+        payload = journal_document.get("remote_payload")
+        if not isinstance(payload, dict):
+            raise ExternalReplyAdoptionError("transport payload is not an object")
+        payload_bytes = transport_journal.canonical_json_bytes(payload)
+        expected_payload_keys = {"text", "reply"}
+        if payload.get("made_with_ai") is True:
+            expected_payload_keys.add("made_with_ai")
+        for document in (journal_document, fence_document):
+            bound_source = document.get("source_receipt")
+            validation = document.get("source_validation")
+            if (
+                document.get("transaction_id") != transaction_id
+                or document.get("lane") != expected_transport_lane
+                or document.get("remote_payload") != payload
+                or document.get("remote_payload_sha256") != payload_hash
+                or not isinstance(bound_source, dict)
+                or bound_source.get("basename")
+                != CONFIRMED_REPLY_RECEIPT_BASENAME
+                or bound_source.get("sha256") != source_hash
+                or bound_source.get("device")
+                != int(source.metadata.st_dev)
+                or bound_source.get("inode")
+                != int(source.metadata.st_ino)
+                or bound_source.get("ctime_ns")
+                != int(source.metadata.st_ctime_ns)
+                or bound_source.get("size") != len(source.data)
+                or not isinstance(validation, dict)
+                or validation.get("validator_id")
+                != transport_journal.LANE_SOURCE_VALIDATOR_ID
+                or validation.get("receipt_sha256") != source_hash
+                or validation.get("payload_sha256") != payload_hash
+            ):
+                raise ExternalReplyAdoptionError(
+                    "transport pair does not bind the exact reviewed source receipt"
+                )
+        if (
+            fence_document.get("lifecycle_state") != "prepared"
+            or set(payload) != expected_payload_keys
+            or payload.get("text") != reply_text
+            or payload.get("reply")
+            != {"in_reply_to_tweet_id": target_id}
+            or hashlib.sha256(payload_bytes).hexdigest() != payload_hash
+        ):
+            raise ExternalReplyAdoptionError(
+                "canonical transport payload differs from the reviewed reply"
+            )
+        if transport_state.journal.document.get("lifecycle_state") == "confirmed" and (
+            journal_document.get("lifecycle_state") != "confirmed"
+            or journal_document.get("remote_post_id") != post_id
+            or journal_document.get("confirmation_epoch") != confirmed_epoch
+        ):
+            raise ExternalReplyAdoptionError(
+                "confirmed transport pair contains another remote result"
+            )
+
+        evidence = _open_external_evidence(Path(external_evidence_path))
+        if evidence.file.sha256 != evidence_hash:
+            raise ExternalReplyAdoptionError(
+                "external publication evidence SHA-256 differs from review"
+            )
+
+        existing_archive = _open_existing_archive_directory(
+            locks.project_fd,
+            archive_basename,
+        )
+        if existing_archive is not None:
+            archive_fd, archive_stat = existing_archive
+            _require_archive_path_identity(
+                locks.project_fd,
+                archive_basename,
+                archive_fd,
+                archive_stat,
+            )
+        existing_evidence: _OpenedStableFile | None = None
+        existing_prepared: _OpenedStableFile | None = None
+        existing_completed: _OpenedStableFile | None = None
+        if archive_fd is not None:
+            expected_external_names = {
+                evidence_archive_name,
+                prepared_audit_name,
+                completed_audit_name,
+            }
+            transaction_prefix = (
+                f"external_transport_confirmation.{transaction_id}."
+            )
+            conflicting_external_names = sorted(
+                name
+                for name in os.listdir(archive_fd)
+                if name.startswith(transaction_prefix)
+                and name not in expected_external_names
+            )
+            if conflicting_external_names:
+                raise ExternalReplyAdoptionError(
+                    "a conflicting external confirmation archive already exists "
+                    "for this transaction"
+                )
+            existing_evidence = _read_private_archive_entry(
+                archive_fd,
+                evidence_archive_name,
+                label="external publication evidence archive",
+                maximum=EXTERNAL_EVIDENCE_MAX_BYTES,
+            )
+            existing_prepared = _read_private_archive_entry(
+                archive_fd,
+                prepared_audit_name,
+                label="external confirmation prepared audit",
+                maximum=EXTERNAL_AUDIT_MAX_BYTES,
+            )
+            existing_completed = _read_private_archive_entry(
+                archive_fd,
+                completed_audit_name,
+                label="external confirmation completion audit",
+                maximum=EXTERNAL_AUDIT_MAX_BYTES,
+            )
+            archive_entries.extend(
+                item
+                for item in (
+                    existing_evidence,
+                    existing_prepared,
+                    existing_completed,
+                )
+                if item is not None
+            )
+            marker_archive_name = f"ambiguous_post_outcome.{marker_hash}.json"
+            marker_receipt_name = f"{marker_archive_name}.reconciliation.json"
+            if not _entry_absent(archive_fd, marker_archive_name) or not _entry_absent(
+                archive_fd,
+                marker_receipt_name,
+            ):
+                raise ExternalReplyAdoptionError(
+                    "marker archival has already begun; preserve and review its fail-closed state"
+                )
+        if existing_evidence is not None and existing_evidence.data != evidence.file.data:
+            raise ExternalReplyAdoptionError(
+                "external evidence archive collision contains different bytes"
+            )
+        if existing_evidence is None and (
+            existing_prepared is not None or existing_completed is not None
+        ):
+            raise ExternalReplyAdoptionError(
+                "external adoption audit exists without its evidence archive"
+            )
+        if existing_prepared is None and existing_completed is not None:
+            raise ExternalReplyAdoptionError(
+                "external completion audit exists without its prepared audit"
+            )
+
+        prepared_without_epoch = _external_prepared_audit_without_epoch(
+            locks=locks,
+            transaction_id=transaction_id,
+            transport_lane=expected_transport_lane,
+            candidate_lane=expected_candidate_lane,
+            target_id=target_id,
+            text_sha256=text_hash,
+            payload_sha256=payload_hash,
+            source=source,
+            attempting_journal=old_journal_record,
+            prepared_fence=old_fence_record,
+            marker=active_barriers,
+            marker_sha256=marker_hash,
+            evidence_archive_path=evidence_archive_path,
+            evidence_sha256=evidence_hash,
+            confirmed_post_id=post_id,
+            confirmation_epoch=confirmed_epoch,
+            reconciliation_reference=reference,
+        )
+        prepared_sha256: str | None = None
+        if existing_prepared is not None:
+            _validate_existing_audit(
+                existing_prepared,
+                expected_without_epoch=prepared_without_epoch,
+                epoch_field="audit_creation_epoch",
+                expected_state="prepared",
+                label="external confirmation prepared audit",
+            )
+            prepared_sha256 = existing_prepared.sha256
+
+        external_binding = journal_document.get("external_confirmation")
+        expected_old_journal_binding = {
+            key: value
+            for key, value in old_journal_record.items()
+            if key != "lifecycle_state"
+        }
+        expected_old_fence_binding = {
+            key: value
+            for key, value in old_fence_record.items()
+            if key != "lifecycle_state"
+        }
+        expected_external_binding = (
+            {
+                "schema_version": (
+                    transport_journal.EXTERNAL_CONFIRMATION_BINDING_SCHEMA_VERSION
+                ),
+                "document_kind": (
+                    transport_journal.EXTERNAL_CONFIRMATION_BINDING_KIND
+                ),
+                "prepared_audit_basename": prepared_audit_name,
+                "prepared_audit_sha256": prepared_sha256,
+                "evidence_archive_basename": evidence_archive_name,
+                "evidence_sha256": evidence_hash,
+                "attempting_journal": expected_old_journal_binding,
+                "prepared_fence": expected_old_fence_binding,
+            }
+            if prepared_sha256 is not None
+            else None
+        )
+        torn_layout = None
+        if (
+            transport_state.classification
+            == "lifecycle_transition_in_progress"
+        ):
+            if (
+                existing_evidence is None
+                or existing_prepared is None
+                or expected_external_binding is None
+            ):
+                raise ExternalReplyAdoptionError(
+                    "a torn external confirmation transition requires its exact evidence archive and prepared audit"
+                )
+            torn_layout = (
+                transport_journal._inspect_exact_external_confirmation_transition(
+                    path=journal_path,
+                    attempting_journal_identity=expected_old_journal_binding,
+                    prepared_fence_identity=expected_old_fence_binding,
+                    confirmed_post_id=post_id,
+                    confirmation_epoch=confirmed_epoch,
+                    external_binding=expected_external_binding,
+                )
+            )
+        elif transport_state.classification == "confirmed_pair":
+            if (
+                existing_prepared is None
+                or prepared_sha256 is None
+                or not isinstance(external_binding, dict)
+                or external_binding.get("prepared_audit_basename")
+                != prepared_audit_name
+                or external_binding.get("prepared_audit_sha256")
+                != prepared_sha256
+                or external_binding.get("evidence_archive_basename")
+                != evidence_archive_name
+                or external_binding.get("evidence_sha256") != evidence_hash
+                or external_binding.get("attempting_journal")
+                != expected_old_journal_binding
+                or external_binding.get("prepared_fence")
+                != expected_old_fence_binding
+            ):
+                raise ExternalReplyAdoptionError(
+                    "confirmed pair lacks the exact durable external-adoption identity"
+                )
+        elif external_binding is not None:
+            raise ExternalReplyAdoptionError(
+                "attempting pair unexpectedly contains external confirmation provenance"
+            )
+
+        completed_sha256: str | None = None
+        if existing_completed is not None:
+            if (
+                transport_state.classification != "confirmed_pair"
+                or prepared_sha256 is None
+            ):
+                raise ExternalReplyAdoptionError(
+                    "completion audit conflicts with an unconfirmed transport pair"
+                )
+            completed_without_epoch = _external_completion_audit_without_epoch(
+                prepared_audit_path=prepared_audit_path,
+                prepared_audit_sha256=prepared_sha256,
+                transaction_id=transaction_id,
+                confirmed_post_id=post_id,
+                confirmation_epoch=confirmed_epoch,
+                old_journal=old_journal_record,
+                old_fence=old_fence_record,
+                new_journal=transport_state.journal,
+                new_fence=transport_state.fence,
+                source=source,
+            )
+            _validate_existing_audit(
+                existing_completed,
+                expected_without_epoch=completed_without_epoch,
+                epoch_field="completion_epoch",
+                expected_state="completed",
+                label="external confirmation completion audit",
+            )
+            completed_sha256 = existing_completed.sha256
+
+        if torn_layout is not None:
+            adoption_state = torn_layout.phase
+        elif existing_completed is not None:
+            adoption_state = "already_complete"
+        elif transport_state.classification == "confirmed_pair":
+            adoption_state = "resumable_after_confirmed_transition"
+        elif existing_prepared is not None:
+            adoption_state = "resumable_after_prepared_audit"
+        elif existing_evidence is not None:
+            adoption_state = "resumable_after_evidence_archive"
+        else:
+            adoption_state = "first_adoption"
+
+        planned_new_transport: dict[str, object] = {
+            "classification": "confirmed_pair",
+            "confirmed_post_id": post_id,
+            "confirmation_epoch": confirmed_epoch,
+            "journal": (
+                _transport_snapshot_record(transport_state.journal)
+                if transport_state.classification == "confirmed_pair"
+                else {
+                    "identity": "published_durably_only_in_apply_mode",
+                    "lifecycle_state": "confirmed",
+                }
+            ),
+            "fence": _transport_snapshot_record(transport_state.fence),
+        }
+
+        def build_result(
+            *,
+            execution: str,
+            state_name: str,
+            final_state: transport_journal.TransportJournalState,
+            marker_result: MarkerArchiveResult | None,
+            prepared_hash_value: str | None,
+            completed_hash_value: str | None,
+            durability: dict[str, bool],
+            no_mutation: bool,
+        ) -> ExternalReplyAdoptionResult:
+            return ExternalReplyAdoptionResult(
+                schema_version=EXTERNAL_ADOPTION_SCHEMA_VERSION,
+                operation=EXTERNAL_ADOPTION_OPERATION,
+                execution=execution,
+                adoption_state=state_name,
+                project_root=str(locks.project),
+                project_device=int(locks.project_identity.st_dev),
+                project_inode=int(locks.project_identity.st_ino),
+                transaction_id=transaction_id,
+                transport_lane=expected_transport_lane,
+                candidate_lane=expected_candidate_lane,
+                target_id=target_id,
+                text_sha256=text_hash,
+                canonical_payload_sha256=payload_hash,
+                confirmed_post_id=post_id,
+                confirmation_epoch=confirmed_epoch,
+                remote_outcome="operator_attested_published",
+                operator_confirmed_external_publication_reviewed=True,
+                reconciliation_reference=reference,
+                source_receipt=_identity_record(source),
+                old_transport={
+                    "classification": "attempting_pair",
+                    "journal": old_journal_record,
+                    "fence": old_fence_record,
+                },
+                new_transport=(
+                    planned_new_transport
+                    if execution == "check_only"
+                    and final_state.classification
+                    in {
+                        "attempting_pair",
+                        "lifecycle_transition_in_progress",
+                    }
+                    else (
+                        {
+                            "classification": final_state.classification,
+                            "journal": _transport_snapshot_record(
+                                final_state.journal
+                            ),
+                            "fence": _transport_snapshot_record(
+                                final_state.fence
+                            ),
+                        }
+                        if final_state.journal is not None
+                        and final_state.fence is not None
+                        else planned_new_transport
+                    )
+                ),
+                evidence_archive_path=evidence_archive_path,
+                evidence_sha256=evidence_hash,
+                prepared_audit_path=prepared_audit_path,
+                prepared_audit_sha256=prepared_hash_value,
+                completed_audit_path=completed_audit_path,
+                completed_audit_sha256=completed_hash_value,
+                marker_archive_path=(
+                    marker_result.archive_path if marker_result is not None else None
+                ),
+                marker_audit_path=(
+                    marker_result.receipt_path if marker_result is not None else None
+                ),
+                durability=durability,
+                final_marker_presence={
+                    MARKER_BASENAME: not _entry_absent(
+                        locks.project_fd,
+                        MARKER_BASENAME,
+                    ),
+                    RESTART_BARRIER_BASENAME: not _entry_absent(
+                        locks.project_fd,
+                        RESTART_BARRIER_BASENAME,
+                    ),
+                },
+                final_transport_classification=final_state.classification,
+                final_source_receipt_present=not _entry_absent(
+                    locks.project_fd,
+                    CONFIRMED_REPLY_RECEIPT_BASENAME,
+                ),
+                planned_transport_classification="confirmed_pair",
+                no_network_request_performed=True,
+                check_only_no_mutation=no_mutation,
+            )
+
+        if check_only:
+            locks.revalidate()
+            _require_active_barrier_identity(
+                locks.project_fd,
+                expected_names=active_barriers.names,
+                expected_identity=active_barriers.identity,
+                opened_descriptor=active_barriers.descriptor,
+                expected_total_links=2,
+            )
+            _revalidate_opened_stable_file(
+                locks.project_fd,
+                source,
+                label="confirmed reply source receipt",
+                maximum=transport_journal.JOURNAL_MAX_BYTES,
+            )
+            _revalidate_opened_stable_file(
+                locks.project_fd,
+                current_journal_file,
+                label="transport journal",
+                maximum=transport_journal.JOURNAL_MAX_BYTES,
+            )
+            _revalidate_opened_stable_file(
+                locks.project_fd,
+                current_fence_file,
+                label="transport fence",
+                maximum=transport_journal.JOURNAL_MAX_BYTES,
+            )
+            _revalidate_external_evidence(evidence)
+            if torn_layout is not None:
+                if (
+                    archive_fd is None
+                    or archive_stat is None
+                    or existing_evidence is None
+                    or existing_prepared is None
+                    or expected_external_binding is None
+                ):
+                    raise ExternalReplyAdoptionError(
+                        "torn external confirmation evidence disappeared during check-only validation"
+                    )
+                _require_archive_path_identity(
+                    locks.project_fd,
+                    archive_basename,
+                    archive_fd,
+                    archive_stat,
+                )
+                _revalidate_opened_stable_file(
+                    archive_fd,
+                    existing_evidence,
+                    label="external publication evidence archive",
+                    maximum=EXTERNAL_EVIDENCE_MAX_BYTES,
+                )
+                _revalidate_opened_stable_file(
+                    archive_fd,
+                    existing_prepared,
+                    label="external confirmation prepared audit",
+                    maximum=EXTERNAL_AUDIT_MAX_BYTES,
+                )
+                final_torn_layout = (
+                    transport_journal._inspect_exact_external_confirmation_transition(
+                        path=journal_path,
+                        attempting_journal_identity=expected_old_journal_binding,
+                        prepared_fence_identity=expected_old_fence_binding,
+                        confirmed_post_id=post_id,
+                        confirmation_epoch=confirmed_epoch,
+                        external_binding=expected_external_binding,
+                    )
+                )
+                if (
+                    final_torn_layout.phase != torn_layout.phase
+                    or final_torn_layout.staging_name
+                    != torn_layout.staging_name
+                    or final_torn_layout.attempting.data
+                    != torn_layout.attempting.data
+                    or final_torn_layout.attempting.device
+                    != torn_layout.attempting.device
+                    or final_torn_layout.attempting.inode
+                    != torn_layout.attempting.inode
+                    or final_torn_layout.attempting.ctime_ns
+                    != torn_layout.attempting.ctime_ns
+                    or final_torn_layout.confirmed.data
+                    != torn_layout.confirmed.data
+                    or final_torn_layout.confirmed.device
+                    != torn_layout.confirmed.device
+                    or final_torn_layout.confirmed.inode
+                    != torn_layout.confirmed.inode
+                    or final_torn_layout.confirmed.ctime_ns
+                    != torn_layout.confirmed.ctime_ns
+                ):
+                    raise ExternalReplyAdoptionError(
+                        "torn external confirmation layout changed during check-only validation"
+                    )
+            return build_result(
+                execution="check_only",
+                state_name=adoption_state,
+                final_state=transport_state,
+                marker_result=None,
+                prepared_hash_value=prepared_sha256,
+                completed_hash_value=completed_sha256,
+                durability={
+                    "evidence_archive_durable": existing_evidence is not None,
+                    "prepared_audit_durable": existing_prepared is not None,
+                    "confirmed_pair_durable": (
+                        transport_state.classification == "confirmed_pair"
+                    ),
+                    "completion_audit_durable": existing_completed is not None,
+                    "marker_archive_durable": False,
+                    "restart_barrier_retired_last": False,
+                },
+                no_mutation=True,
+            )
+
+        if archive_fd is None:
+            archive_fd, archive_stat = _open_or_create_archive_directory(
+                locks.project_fd,
+                archive_basename,
+            )
+        assert archive_stat is not None
+        _require_archive_path_identity(
+            locks.project_fd,
+            archive_basename,
+            archive_fd,
+            archive_stat,
+        )
+        evidence_archive, _evidence_created = _publish_private_archive_bytes(
+            archive_fd,
+            evidence_archive_name,
+            evidence.file.data,
+            label="external publication evidence archive",
+            maximum=EXTERNAL_EVIDENCE_MAX_BYTES,
+        )
+        archive_entries.append(evidence_archive)
+        if _fault_injector is not None:
+            _fault_injector("evidence_archived")
+
+        if existing_prepared is None:
+            audit_epoch = int((now or time.time)())
+            _normalise_confirmation_epoch(audit_epoch)
+            prepared_document = {
+                **prepared_without_epoch,
+                "audit_creation_epoch": audit_epoch,
+            }
+            prepared_bytes = _canonical_json_bytes(prepared_document)
+            prepared_archive, _prepared_created = _publish_private_archive_bytes(
+                archive_fd,
+                prepared_audit_name,
+                prepared_bytes,
+                label="external confirmation prepared audit",
+                maximum=EXTERNAL_AUDIT_MAX_BYTES,
+            )
+            archive_entries.append(prepared_archive)
+            prepared_sha256 = prepared_archive.sha256
+        else:
+            prepared_sha256 = existing_prepared.sha256
+            prepared_archive = existing_prepared
+        assert prepared_sha256 is not None
+        if _fault_injector is not None:
+            _fault_injector("prepared_audit_published")
+
+        transport_was_adopted = False
+
+        def revalidate_pre_transition(operation: str) -> None:
+            nonlocal transport_was_adopted
+            if transport_was_adopted:
+                raise ExternalReplyAdoptionError(
+                    f"{operation} attempted to reuse pre-transition authority"
+                )
+            locks.revalidate()
+            _require_archive_path_identity(
+                locks.project_fd,
+                archive_basename,
+                archive_fd,
+                archive_stat,
+            )
+            _require_active_barrier_identity(
+                locks.project_fd,
+                expected_names=active_barriers.names,
+                expected_identity=active_barriers.identity,
+                opened_descriptor=active_barriers.descriptor,
+                expected_total_links=2,
+            )
+            if _read_all(
+                active_barriers.descriptor,
+                maximum=MAX_MARKER_BYTES,
+            ) != marker_data:
+                raise ExternalReplyAdoptionError(
+                    "ambiguity marker bytes changed before transport adoption"
+                )
+            _revalidate_opened_stable_file(
+                locks.project_fd,
+                source,
+                label="confirmed reply source receipt",
+                maximum=transport_journal.JOURNAL_MAX_BYTES,
+            )
+            _revalidate_opened_stable_file(
+                locks.project_fd,
+                current_fence_file,
+                label="transport fence",
+                maximum=transport_journal.JOURNAL_MAX_BYTES,
+            )
+            _revalidate_external_evidence(evidence)
+            _revalidate_opened_stable_file(
+                archive_fd,
+                evidence_archive,
+                label="external publication evidence archive",
+                maximum=EXTERNAL_EVIDENCE_MAX_BYTES,
+            )
+            _revalidate_opened_stable_file(
+                archive_fd,
+                prepared_archive,
+                label="external confirmation prepared audit",
+                maximum=EXTERNAL_AUDIT_MAX_BYTES,
+            )
+            if operation.endswith("displaced cleanup"):
+                transition_state = transport_journal.inspect_transport_state(
+                    journal_path
+                )
+                transition_document = (
+                    transition_state.journal.document
+                    if transition_state.journal is not None
+                    else {}
+                )
+                transition_binding = transition_document.get(
+                    "external_confirmation"
+                )
+                if (
+                    transition_state.classification
+                    != "lifecycle_transition_in_progress"
+                    or len(transition_state.staging_names) != 1
+                    or transition_state.retirement_guard_names
+                    or transition_state.journal is None
+                    or transition_state.fence is None
+                    or transition_document.get("transaction_id")
+                    != transaction_id
+                    or transition_document.get("lifecycle_state")
+                    != "confirmed"
+                    or transition_document.get("remote_post_id") != post_id
+                    or transition_document.get("confirmation_epoch")
+                    != confirmed_epoch
+                    or not isinstance(transition_binding, dict)
+                    or transition_binding.get("prepared_audit_basename")
+                    != prepared_audit_name
+                    or transition_binding.get("prepared_audit_sha256")
+                    != prepared_sha256
+                    or transition_binding.get("evidence_archive_basename")
+                    != evidence_archive_name
+                    or transition_binding.get("evidence_sha256")
+                    != evidence_hash
+                    or (
+                        torn_layout is not None
+                        and (
+                            transition_state.staging_names
+                            != (torn_layout.staging_name,)
+                            or transition_state.journal.data
+                            != torn_layout.confirmed.data
+                            or transition_state.journal.device
+                            != torn_layout.confirmed.device
+                            or transition_state.journal.inode
+                            != torn_layout.confirmed.inode
+                        )
+                    )
+                ):
+                    raise ExternalReplyAdoptionError(
+                        "transport transition changed before displaced cleanup"
+                    )
+            else:
+                _revalidate_opened_stable_file(
+                    locks.project_fd,
+                    current_journal_file,
+                    label="transport journal",
+                    maximum=transport_journal.JOURNAL_MAX_BYTES,
+                )
+
+        mutation_authority = issue_transaction_mutation_authority(
+            revalidate_pre_transition,
+            operation="offline external reply adoption",
+        )
+        adoption = transport_journal.adopt_externally_confirmed_transport_transaction(
+            path=journal_path,
+            receipt_path=locks.project / CONFIRMED_REPLY_RECEIPT_BASENAME,
+            mutation_authority=mutation_authority,
+            expected_transaction_id=transaction_id,
+            expected_lane=expected_transport_lane,
+            expected_source_receipt_bytes=source.data,
+            expected_source_receipt_sha256=source_hash,
+            expected_source_receipt_device=int(source.metadata.st_dev),
+            expected_source_receipt_inode=int(source.metadata.st_ino),
+            expected_source_receipt_ctime_ns=int(source.metadata.st_ctime_ns),
+            expected_source_receipt_size=len(source.data),
+            expected_source_validator_id=transport_journal.LANE_SOURCE_VALIDATOR_ID,
+            expected_payload_bytes=payload_bytes,
+            expected_payload_sha256=payload_hash,
+            expected_reply_target_id=target_id,
+            expected_journal_sha256=journal_hash,
+            expected_journal_device=expected_journal_device,
+            expected_journal_inode=expected_journal_inode,
+            expected_journal_ctime_ns=expected_journal_ctime_ns,
+            expected_journal_size=expected_journal_size,
+            expected_fence_sha256=fence_hash,
+            expected_fence_device=expected_fence_device,
+            expected_fence_inode=expected_fence_inode,
+            expected_fence_ctime_ns=expected_fence_ctime_ns,
+            expected_fence_size=expected_fence_size,
+            confirmed_post_id=post_id,
+            confirmation_epoch=confirmed_epoch,
+            prepared_audit_basename=prepared_audit_name,
+            prepared_audit_sha256=prepared_sha256,
+            evidence_archive_basename=evidence_archive_name,
+            evidence_sha256=evidence_hash,
+        )
+        transport_was_adopted = True
+        if _fault_injector is not None:
+            _fault_injector("transport_confirmed")
+
+        final_transport = transport_journal.inspect_transport_state(journal_path)
+        if (
+            final_transport.classification != "confirmed_pair"
+            or final_transport.errors
+            or final_transport.staging_names
+            or final_transport.retirement_guard_names
+            or final_transport.journal is None
+            or final_transport.fence is None
+            or adoption.confirmed.post_id != post_id
+            or adoption.confirmed.confirmation_epoch != confirmed_epoch
+        ):
+            raise ExternalReplyAdoptionError(
+                "adopted transport pair failed exact completion inspection"
+            )
+        _revalidate_opened_stable_file(
+            locks.project_fd,
+            source,
+            label="confirmed reply source receipt",
+            maximum=transport_journal.JOURNAL_MAX_BYTES,
+        )
+        completed_without_epoch = _external_completion_audit_without_epoch(
+            prepared_audit_path=prepared_audit_path,
+            prepared_audit_sha256=prepared_sha256,
+            transaction_id=transaction_id,
+            confirmed_post_id=post_id,
+            confirmation_epoch=confirmed_epoch,
+            old_journal=old_journal_record,
+            old_fence=old_fence_record,
+            new_journal=final_transport.journal,
+            new_fence=final_transport.fence,
+            source=source,
+        )
+        if existing_completed is None:
+            completion_epoch = int((now or time.time)())
+            _normalise_confirmation_epoch(completion_epoch)
+            completion_document = {
+                **completed_without_epoch,
+                "completion_epoch": completion_epoch,
+            }
+            completed_archive, _completed_created = _publish_private_archive_bytes(
+                archive_fd,
+                completed_audit_name,
+                _canonical_json_bytes(completion_document),
+                label="external confirmation completion audit",
+                maximum=EXTERNAL_AUDIT_MAX_BYTES,
+            )
+            archive_entries.append(completed_archive)
+            completed_sha256 = completed_archive.sha256
+        else:
+            _validate_existing_audit(
+                existing_completed,
+                expected_without_epoch=completed_without_epoch,
+                epoch_field="completion_epoch",
+                expected_state="completed",
+                label="external confirmation completion audit",
+            )
+            completed_archive = existing_completed
+            completed_sha256 = existing_completed.sha256
+        assert completed_sha256 is not None
+        _fsync_directory(archive_fd)
+        _revalidate_opened_stable_file(
+            archive_fd,
+            completed_archive,
+            label="external confirmation completion audit",
+            maximum=EXTERNAL_AUDIT_MAX_BYTES,
+        )
+        if _fault_injector is not None:
+            _fault_injector("completed_audit_published")
+
+        locks.revalidate()
+        _revalidate_opened_stable_file(
+            locks.project_fd,
+            source,
+            label="confirmed reply source receipt",
+            maximum=transport_journal.JOURNAL_MAX_BYTES,
+        )
+        marker_reference = (
+            "external-confirmation-completed "
+            f"path={completed_audit_path} sha256={completed_sha256}"
+        )
+        if _fault_injector is not None:
+            _fault_injector("before_marker_archival")
+        marker_result = reconcile_marker_offline(
+            project_root=locks.project,
+            expected_marker_sha256=marker_hash,
+            reconciliation_reference=marker_reference,
+            archive_basename=archive_basename,
+            now=now,
+            _held_locks=locks,
+        )
+        final_transport = transport_journal.inspect_transport_state(journal_path)
+        if (
+            not _entry_absent(locks.project_fd, MARKER_BASENAME)
+            or not _entry_absent(locks.project_fd, RESTART_BARRIER_BASENAME)
+            or final_transport.classification != "confirmed_pair"
+            or final_transport.journal is None
+            or final_transport.fence is None
+            or _entry_absent(
+                locks.project_fd,
+                CONFIRMED_REPLY_RECEIPT_BASENAME,
+            )
+        ):
+            raise ExternalReplyAdoptionError(
+                "external reply adoption final verification failed"
+            )
+        return build_result(
+            execution="applied",
+            state_name=(
+                adoption.disposition
+                if adoption.disposition
+                in {
+                    "resumable_before_transport_exchange",
+                    "resumable_after_transport_exchange",
+                }
+                else (
+                    "first_adoption"
+                    if adoption_state == "first_adoption"
+                    else "resumed"
+                )
+            ),
+            final_state=final_transport,
+            marker_result=marker_result,
+            prepared_hash_value=prepared_sha256,
+            completed_hash_value=completed_sha256,
+            durability={
+                "evidence_archive_durable": True,
+                "prepared_audit_durable": True,
+                "confirmed_pair_durable": True,
+                "completion_audit_durable": True,
+                "marker_archive_durable": True,
+                "restart_barrier_retired_last": True,
+            },
+            no_mutation=False,
+        )
+    except transport_journal.TransportJournalError as exc:
+        raise ExternalReplyAdoptionError(
+            f"transport adoption refused: {exc}"
+        ) from exc
+    finally:
+        seen_descriptors: set[int] = set()
+        for opened in (
+            *archive_entries,
+            current_fence_file,
+            current_journal_file,
+            source,
+        ):
+            if opened is None or opened.descriptor in seen_descriptors:
+                continue
+            seen_descriptors.add(opened.descriptor)
+            try:
+                os.close(opened.descriptor)
+            except OSError:
+                pass
+        if archive_fd is not None:
+            try:
+                os.close(archive_fd)
+            except OSError:
+                pass
+        if evidence is not None:
+            evidence.close()
+        if active_barriers is not None:
+            try:
+                os.close(active_barriers.descriptor)
+            except OSError:
+                pass
+        locks.close()
+
+
 def reconcile_unattached_media_upload_offline(
     *,
     project_root: Path,
@@ -1854,6 +3858,7 @@ def reconcile_marker_offline(
     reconciliation_reference: str,
     archive_basename: str = DEFAULT_ARCHIVE_BASENAME,
     now: Callable[[], int] | None = None,
+    _held_locks: _OfflineInstanceLocks | None = None,
 ) -> MarkerArchiveResult:
     """Retire the complete active barrier set after durable archival.
 
@@ -1876,16 +3881,20 @@ def reconcile_marker_offline(
         raise MarkerReconciliationError(
             "reconciliation reference must be one non-empty line of at most 500 characters"
         )
-    try:
-        project, project_fd = _open_project_directory_without_symlinks(
-            Path(project_root)
-        )
-    except OSError as exc:
-        raise UnsafeReconciliationPathError(
-            "project-root component could not be opened without following links"
-        ) from exc
-    instance_socket: socket.socket | None = None
-    lock_fd: int | None = None
+    owns_locks = _held_locks is None
+    locks = (
+        _acquire_offline_instance_locks(Path(project_root))
+        if _held_locks is None
+        else _held_locks
+    )
+    locks.revalidate()
+    project = locks.project
+    project_fd = locks.project_fd
+    project_identity = locks.project_identity
+    instance_socket = locks.instance_socket
+    socket_name = locks.socket_name
+    lock_fd = locks.lock_fd
+    lock_stat = locks.lock_identity
     marker_fd: int | None = None
     initial_active_names: tuple[str, ...] = ()
     source_name = MARKER_BASENAME
@@ -1898,76 +3907,6 @@ def reconcile_marker_offline(
     archive_link_created = False
     marker_mode: int | None = None
     try:
-        try:
-            fcntl.flock(
-                project_fd,
-                fcntl.LOCK_EX | fcntl.LOCK_NB,
-            )
-        except BlockingIOError as exc:
-            raise BotStillRunningError(
-                "bot state-directory lock is held; stop the service and wait "
-                "for the process to exit"
-            ) from exc
-        project_identity = os.fstat(project_fd)
-        _require_project_path_identity(project, project_fd, project_identity)
-        if not _descriptor_owns_exclusive_flock(
-            project_fd,
-            expected_device=int(project_identity.st_dev),
-            expected_inode=int(project_identity.st_ino),
-        ):
-            raise BotStillRunningError(
-                "state-directory flock acquisition could not be proved"
-            )
-        instance_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        socket_name = instance_lock_abstract_socket_name_for_identity(
-            int(project_identity.st_dev),
-            int(project_identity.st_ino),
-        )
-        try:
-            instance_socket.bind(socket_name)
-        except OSError as exc:
-            if exc.errno == errno.EADDRINUSE:
-                raise BotStillRunningError(
-                    "bot process singleton is active; stop the service and "
-                    "wait for the process to exit"
-                ) from exc
-            raise
-
-        lock_fd, lock_stat = _open_verified_regular(
-            project_fd,
-            LOCK_BASENAME,
-            label="bot instance lock",
-            flags=os.O_RDWR,
-            require_single_link=True,
-        )
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise BotStillRunningError(
-                "bot instance lock is held; stop the service and wait for the process to exit"
-            ) from exc
-        if not _descriptor_owns_exclusive_flock(
-            lock_fd,
-            expected_device=int(lock_stat.st_dev),
-            expected_inode=int(lock_stat.st_ino),
-        ):
-            raise BotStillRunningError(
-                "file-instance flock acquisition could not be proved"
-            )
-        try:
-            fcntl.fcntl(
-                lock_fd,
-                fcntl.F_OFD_SETLK,
-                _ofd_lock_record(fcntl.F_WRLCK),
-            )
-        except OSError as exc:
-            if exc.errno in {errno.EACCES, errno.EAGAIN}:
-                raise BotStillRunningError(
-                    "bot OFD instance lock is held; stop the service and wait "
-                    "for the process to exit"
-                ) from exc
-            raise
-
         active_barriers = _open_active_barrier_set(project_fd)
         marker_fd = active_barriers.descriptor
         marker_stat = active_barriers.identity
@@ -2403,19 +4342,14 @@ def reconcile_marker_offline(
             receipt_verification_fd,
             archive_fd,
             marker_fd,
-            lock_fd,
-            project_fd,
         ):
             if descriptor is not None:
                 try:
                     os.close(descriptor)
                 except OSError:
                     pass
-        if instance_socket is not None:
-            try:
-                instance_socket.close()
-            except OSError:
-                pass
+        if owns_locks:
+            locks.close()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2433,12 +4367,21 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="SHA-256 independently recorded during manual reconciliation.",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--reconcile-unattached-media-upload",
         action="store_true",
         help=(
             "Archive and retire one exact sending media pair while preserving "
             "the active ambiguity marker."
+        ),
+    )
+    mode.add_argument(
+        "--adopt-externally-confirmed-reply",
+        action="store_true",
+        help=(
+            "Adopt one operator-reviewed published conversational reply into "
+            "the ordinary confirmed transport pair before marker archival."
         ),
     )
     parser.add_argument("--expected-media-receipt-sha256")
@@ -2450,6 +4393,53 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-media-fence-device", type=int)
     parser.add_argument("--expected-media-fence-inode", type=int)
     parser.add_argument("--expected-media-fence-ctime-ns", type=int)
+    parser.add_argument("--expected-marker-device", type=int)
+    parser.add_argument("--expected-marker-inode", type=int)
+    parser.add_argument("--expected-marker-ctime-ns", type=int)
+    parser.add_argument("--expected-marker-size", type=int)
+    parser.add_argument("--expected-source-receipt-basename")
+    parser.add_argument("--expected-source-receipt-sha256")
+    parser.add_argument("--expected-source-receipt-device", type=int)
+    parser.add_argument("--expected-source-receipt-inode", type=int)
+    parser.add_argument("--expected-source-receipt-ctime-ns", type=int)
+    parser.add_argument("--expected-source-receipt-size", type=int)
+    parser.add_argument("--expected-source-lifecycle")
+    parser.add_argument("--expected-candidate-lane")
+    parser.add_argument("--expected-target-id")
+    parser.add_argument("--expected-text-sha256")
+    parser.add_argument("--expected-transport-transaction-id")
+    parser.add_argument("--expected-transport-lane")
+    parser.add_argument("--expected-canonical-payload-sha256")
+    parser.add_argument("--expected-journal-sha256")
+    parser.add_argument("--expected-journal-device", type=int)
+    parser.add_argument("--expected-journal-inode", type=int)
+    parser.add_argument("--expected-journal-ctime-ns", type=int)
+    parser.add_argument("--expected-journal-size", type=int)
+    parser.add_argument("--expected-fence-sha256")
+    parser.add_argument("--expected-fence-device", type=int)
+    parser.add_argument("--expected-fence-inode", type=int)
+    parser.add_argument("--expected-fence-ctime-ns", type=int)
+    parser.add_argument("--expected-fence-size", type=int)
+    parser.add_argument("--confirmed-post-id")
+    parser.add_argument("--confirmation-epoch", type=int)
+    parser.add_argument("--external-evidence-path", type=Path)
+    parser.add_argument("--expected-external-evidence-sha256")
+    parser.add_argument(
+        "--confirm-external-publication-reviewed",
+        action="store_true",
+        help=(
+            "Attest that authenticated read-only evidence conclusively proves "
+            "the exact reply was published."
+        ),
+    )
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help=(
+            "Acquire the complete stopped-daemon boundary and validate the "
+            "external adoption without changing any file."
+        ),
+    )
     parser.add_argument(
         "--confirm-no-tweet-create-attempted",
         action="store_true",
@@ -2493,7 +4483,153 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--expected-media-fence-inode": args.expected_media_fence_inode,
         "--expected-media-fence-ctime-ns": args.expected_media_fence_ctime_ns,
     }
+    external_values = {
+        "--expected-marker-device": args.expected_marker_device,
+        "--expected-marker-inode": args.expected_marker_inode,
+        "--expected-marker-ctime-ns": args.expected_marker_ctime_ns,
+        "--expected-marker-size": args.expected_marker_size,
+        "--expected-source-receipt-basename": (
+            args.expected_source_receipt_basename
+        ),
+        "--expected-source-receipt-sha256": args.expected_source_receipt_sha256,
+        "--expected-source-receipt-device": args.expected_source_receipt_device,
+        "--expected-source-receipt-inode": args.expected_source_receipt_inode,
+        "--expected-source-receipt-ctime-ns": (
+            args.expected_source_receipt_ctime_ns
+        ),
+        "--expected-source-receipt-size": args.expected_source_receipt_size,
+        "--expected-source-lifecycle": args.expected_source_lifecycle,
+        "--expected-candidate-lane": args.expected_candidate_lane,
+        "--expected-target-id": args.expected_target_id,
+        "--expected-text-sha256": args.expected_text_sha256,
+        "--expected-transport-transaction-id": (
+            args.expected_transport_transaction_id
+        ),
+        "--expected-transport-lane": args.expected_transport_lane,
+        "--expected-canonical-payload-sha256": (
+            args.expected_canonical_payload_sha256
+        ),
+        "--expected-journal-sha256": args.expected_journal_sha256,
+        "--expected-journal-device": args.expected_journal_device,
+        "--expected-journal-inode": args.expected_journal_inode,
+        "--expected-journal-ctime-ns": args.expected_journal_ctime_ns,
+        "--expected-journal-size": args.expected_journal_size,
+        "--expected-fence-sha256": args.expected_fence_sha256,
+        "--expected-fence-device": args.expected_fence_device,
+        "--expected-fence-inode": args.expected_fence_inode,
+        "--expected-fence-ctime-ns": args.expected_fence_ctime_ns,
+        "--expected-fence-size": args.expected_fence_size,
+        "--confirmed-post-id": args.confirmed_post_id,
+        "--confirmation-epoch": args.confirmation_epoch,
+        "--external-evidence-path": args.external_evidence_path,
+        "--expected-external-evidence-sha256": (
+            args.expected_external_evidence_sha256
+        ),
+    }
+    if args.adopt_externally_confirmed_reply:
+        if any(value is not None for value in media_values.values()) or (
+            args.confirm_no_tweet_create_attempted
+            or args.confirm_unattached_media_abandoned
+        ):
+            print(
+                "refusing media-specific options during external reply adoption",
+                file=sys.stderr,
+            )
+            return 2
+        missing = [name for name, value in external_values.items() if value is None]
+        if missing:
+            print(
+                "refusing external reply adoption without: "
+                + ", ".join(missing),
+                file=sys.stderr,
+            )
+            return 2
+        if not args.confirm_external_publication_reviewed:
+            print(
+                "refusing external reply adoption without "
+                "--confirm-external-publication-reviewed",
+                file=sys.stderr,
+            )
+            return 2
+        if not args.check_only and not args.confirm_offline_reconciliation_complete:
+            print(
+                "refusing mutating external reply adoption without "
+                "--confirm-offline-reconciliation-complete",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            external_result = adopt_externally_confirmed_reply_offline(
+                project_root=args.project_root,
+                expected_marker_sha256=args.expected_marker_sha256,
+                expected_marker_device=args.expected_marker_device,
+                expected_marker_inode=args.expected_marker_inode,
+                expected_marker_ctime_ns=args.expected_marker_ctime_ns,
+                expected_marker_size=args.expected_marker_size,
+                expected_source_receipt_basename=(
+                    args.expected_source_receipt_basename
+                ),
+                expected_source_receipt_sha256=(
+                    args.expected_source_receipt_sha256
+                ),
+                expected_source_receipt_device=(
+                    args.expected_source_receipt_device
+                ),
+                expected_source_receipt_inode=args.expected_source_receipt_inode,
+                expected_source_receipt_ctime_ns=(
+                    args.expected_source_receipt_ctime_ns
+                ),
+                expected_source_receipt_size=args.expected_source_receipt_size,
+                expected_source_lifecycle=args.expected_source_lifecycle,
+                expected_candidate_lane=args.expected_candidate_lane,
+                expected_target_id=args.expected_target_id,
+                expected_text_sha256=args.expected_text_sha256,
+                expected_transaction_id=(
+                    args.expected_transport_transaction_id
+                ),
+                expected_transport_lane=args.expected_transport_lane,
+                expected_canonical_payload_sha256=(
+                    args.expected_canonical_payload_sha256
+                ),
+                expected_journal_sha256=args.expected_journal_sha256,
+                expected_journal_device=args.expected_journal_device,
+                expected_journal_inode=args.expected_journal_inode,
+                expected_journal_ctime_ns=args.expected_journal_ctime_ns,
+                expected_journal_size=args.expected_journal_size,
+                expected_fence_sha256=args.expected_fence_sha256,
+                expected_fence_device=args.expected_fence_device,
+                expected_fence_inode=args.expected_fence_inode,
+                expected_fence_ctime_ns=args.expected_fence_ctime_ns,
+                expected_fence_size=args.expected_fence_size,
+                confirmed_post_id=args.confirmed_post_id,
+                confirmation_epoch=args.confirmation_epoch,
+                external_evidence_path=args.external_evidence_path,
+                expected_external_evidence_sha256=(
+                    args.expected_external_evidence_sha256
+                ),
+                reconciliation_reference=args.reconciliation_reference,
+                confirm_external_publication_reviewed=True,
+                confirm_offline_reconciliation_complete=(
+                    args.confirm_offline_reconciliation_complete
+                ),
+                check_only=args.check_only,
+                archive_basename=args.archive_directory_name,
+            )
+        except MarkerReconciliationError as exc:
+            print(f"external reply adoption refused: {exc}", file=sys.stderr)
+            return 2
+        sys.stdout.buffer.write(_canonical_json_bytes(external_result.to_dict()))
+        return 0
     if args.reconcile_unattached_media_upload:
+        if any(value is not None for value in external_values.values()) or (
+            args.confirm_external_publication_reviewed or args.check_only
+        ):
+            print(
+                "refusing external-reply options with "
+                "--reconcile-unattached-media-upload",
+                file=sys.stderr,
+            )
+            return 2
         missing = [name for name, value in media_values.items() if value is None]
         if missing:
             print(
@@ -2559,6 +4695,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             "refusing media-specific options without "
             "--reconcile-unattached-media-upload",
+            file=sys.stderr,
+        )
+        return 2
+    if any(value is not None for value in external_values.values()) or (
+        args.confirm_external_publication_reviewed or args.check_only
+    ):
+        print(
+            "refusing external-reply options without "
+            "--adopt-externally-confirmed-reply",
             file=sys.stderr,
         )
         return 2
