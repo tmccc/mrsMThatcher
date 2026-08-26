@@ -4374,6 +4374,36 @@ def _read_repository_commit(project_dir: Path) -> str | None:
     return None
 
 
+def _extractor_code_provenance(
+    script_path: Path | None = None,
+) -> dict[str, str | None]:
+    """Describe the exact extractor source file without invoking Git."""
+    try:
+        script = (script_path or Path(__file__)).resolve(strict=True)
+    except OSError as exc:
+        raise ExtractorError(f"cannot resolve extractor script path: {exc}") from exc
+    repository_root = script.parent.parent
+    try:
+        relative_path = script.relative_to(repository_root).as_posix()
+    except ValueError as exc:
+        raise ExtractorError("extractor script is outside its repository root") from exc
+    if relative_path != "tools/extract_prospective_conversations.py":
+        raise ExtractorError(
+            "extractor script repository path is unexpected: " + relative_path
+        )
+    try:
+        script_sha256 = sha256_file(script)
+    except OSError as exc:
+        raise ExtractorError(f"cannot hash extractor script: {exc}") from exc
+    return {
+        "extractor_repository_commit_sha": _read_repository_commit(
+            repository_root
+        ),
+        "extractor_script_path": relative_path,
+        "extractor_script_sha256": script_sha256,
+    }
+
+
 def _snapshot_hash(
     canonical_posts_hash: str,
     conversations_hash: str,
@@ -5002,6 +5032,23 @@ def _validate_batch_directory(
         errors.append(f"batch extractor version mismatch in {batch}")
     if manifest.get("parser_version") != PARSER_VERSION:
         errors.append(f"batch parser version mismatch in {batch}")
+    extractor_commit = manifest.get("extractor_repository_commit_sha")
+    if extractor_commit is not None and (
+        not isinstance(extractor_commit, str)
+        or not re.fullmatch(r"[0-9a-f]{40,64}", extractor_commit)
+    ):
+        errors.append(f"extractor repository commit is invalid in {batch}")
+    if manifest.get("repository_commit_sha") != extractor_commit:
+        errors.append(f"legacy repository commit alias is inconsistent in {batch}")
+    if manifest.get("extractor_script_path") != (
+        "tools/extract_prospective_conversations.py"
+    ):
+        errors.append(f"extractor script path is invalid in {batch}")
+    extractor_script_sha256 = manifest.get("extractor_script_sha256")
+    if not isinstance(extractor_script_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", extractor_script_sha256
+    ):
+        errors.append(f"extractor script hash is invalid in {batch}")
     if source_manifest.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"source manifest schema mismatch in {batch}")
     if source_manifest.get("extractor_version") != EXTRACTOR_VERSION:
@@ -5649,6 +5696,7 @@ def run_scan(
     if cutoff < boundary_value:
         raise ExtractorError("--until must be at or after --prospective-start")
     project, root = validate_root_relationship(project_dir, output_root)
+    extractor_code_provenance = _extractor_code_provenance()
 
     with _private_umask():
         ensure_private_layout(root)
@@ -5928,17 +5976,24 @@ def run_scan(
                 name: sha256_bytes(non_manifest_files[name])
                 for name in BATCH_HASHED_FILES
             }
+            if _extractor_code_provenance() != extractor_code_provenance:
+                raise ExtractorError(
+                    "extractor code provenance changed during the scan"
+                )
             manifest_value = {
                 "canonical_snapshot_sha256": snapshot_hash,
                 "counts": counts,
                 "creation_timestamp": started_text,
+                **extractor_code_provenance,
                 "extractor_version": EXTRACTOR_VERSION,
                 "output_file_hashes": output_hashes,
                 "parser_version": PARSER_VERSION,
                 "previous_batch_id": previous_batch,
                 "prospective_boundary": boundary_text,
                 "quiescence_hours": float(quiescence_hours),
-                "repository_commit_sha": _read_repository_commit(project),
+                "repository_commit_sha": extractor_code_provenance[
+                    "extractor_repository_commit_sha"
+                ],
                 "scan_cutoff": cutoff_text,
                 "schema_version": SCHEMA_VERSION,
                 "source_lag_seconds": source_lag_seconds,

@@ -3072,6 +3072,104 @@ def test_validate_detects_manifest_hash_corruption(tmp_path: Path) -> None:
     )
 
 
+def test_extractor_code_provenance_uses_the_script_repository(tmp_path: Path) -> None:
+    repository = tmp_path / "extractor-repository"
+    script = repository / "tools" / "extract_prospective_conversations.py"
+    script.parent.mkdir(parents=True)
+    script.write_bytes(b"print('exact extractor source')\n")
+    git_dir = repository / ".git"
+    git_dir.mkdir()
+    commit = "a" * 40
+    (git_dir / "HEAD").write_text(commit + "\n", encoding="ascii")
+
+    provenance = extractor._extractor_code_provenance(script)
+
+    assert provenance == {
+        "extractor_repository_commit_sha": commit,
+        "extractor_script_path": "tools/extract_prospective_conversations.py",
+        "extractor_script_sha256": hashlib.sha256(script.read_bytes()).hexdigest(),
+    }
+
+
+def test_batch_manifest_records_extractor_code_not_project_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    project_git = project / ".git"
+    project_git.mkdir()
+    (project_git / "HEAD").write_text("b" * 40 + "\n", encoding="ascii")
+    expected = {
+        "extractor_repository_commit_sha": "a" * 40,
+        "extractor_script_path": "tools/extract_prospective_conversations.py",
+        "extractor_script_sha256": "c" * 64,
+    }
+    monkeypatch.setattr(
+        extractor,
+        "_extractor_code_provenance",
+        lambda: dict(expected),
+    )
+
+    run_scan(project, output)
+    manifest = extractor._strict_read_json(current_batch(output) / "manifest.json")
+
+    assert isinstance(manifest, dict)
+    assert {
+        field: manifest[field] for field in expected
+    } == expected
+    assert manifest["repository_commit_sha"] == expected[
+        "extractor_repository_commit_sha"
+    ]
+    assert manifest["repository_commit_sha"] != "b" * 40
+    assert extractor.validate_output_root(output)["valid"] is True
+
+
+def test_batch_manifest_matches_the_loaded_extractor_file(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+
+    run_scan(project, output)
+    manifest = extractor._strict_read_json(current_batch(output) / "manifest.json")
+    script = Path(extractor.__file__).resolve(strict=True)
+
+    assert isinstance(manifest, dict)
+    assert manifest["extractor_script_sha256"] == extractor.sha256_file(script)
+    assert manifest["extractor_repository_commit_sha"] == (
+        extractor._read_repository_commit(script.parent.parent)
+    )
+    assert manifest["repository_commit_sha"] == manifest[
+        "extractor_repository_commit_sha"
+    ]
+
+
+def test_validation_rejects_invalid_extractor_code_provenance(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    manifest_path = current_batch(output) / "manifest.json"
+    manifest = extractor._strict_read_json(manifest_path)
+    assert isinstance(manifest, dict)
+    manifest["extractor_script_sha256"] = "not-a-sha256"
+    manifest["repository_commit_sha"] = "f" * 40
+    rewrite_private_json(manifest_path, manifest)
+
+    validation = extractor.validate_output_root(output)
+
+    assert validation["valid"] is False
+    assert any(
+        "extractor script hash is invalid" in error
+        for error in validation["errors"]
+    )
+    assert any(
+        "repository commit alias is inconsistent" in error
+        for error in validation["errors"]
+    )
+
+
 def test_freeze_pack_filters_open_by_default_is_immutable_and_refuses_overwrite(
     tmp_path: Path,
 ) -> None:

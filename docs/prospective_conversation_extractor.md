@@ -102,6 +102,15 @@ Review packs receive the same immutable permissions. Conversation text remains
 private beneath the mode-`0700` root and is never written to a separate
 application log.
 
+Each batch manifest identifies the code which actually created that batch,
+independently of `--project-dir`. `extractor_repository_commit_sha` is read
+from the repository containing the running
+`tools/extract_prospective_conversations.py`; `repository_commit_sha` is a
+compatibility alias for the same value. `extractor_script_sha256` hashes the
+exact script file and `extractor_script_path` records its repository-relative
+path. A change to the script or its repository commit during a scan causes the
+scan to fail before batch publication.
+
 The state file contains only operational resume data: the frozen boundary,
 scan times, latest batch and snapshot hash, counts, warnings, latest source
 timestamp, and a content-hash source cache. It contains no conversation text,
