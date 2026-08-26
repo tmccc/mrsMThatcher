@@ -202,7 +202,10 @@ def test_visual_description_uses_one_genuine_multimodal_xai_request(
     assert request_call["timeout"] == enabled_config()["timeout_seconds"]
     request = request_call["json"]
     assert request["model"] == enabled_config()["xai_model"]
+    assert request["reasoning_effort"] == enabled_config()["xai_reasoning_effort"]
+    assert request["reasoning_effort"] == "low"
     assert request["max_tokens"] == pipeline.VISUAL_DESCRIPTION_MAX_OUTPUT_TOKENS
+    assert "store" not in request
     assert request["response_format"]["json_schema"]["schema"] == (
         pipeline.VISUAL_DESCRIPTION_SCHEMA
     )
@@ -241,6 +244,58 @@ def test_visual_description_uses_one_genuine_multimodal_xai_request(
     logged = json.dumps(events, sort_keys=True)
     assert all(url not in logged for url in urls)
     assert analysis["images"][0]["literal_description"] not in logged
+
+
+def test_ordinary_xai_structured_reply_call_omits_optional_reasoning_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    captured: dict = {}
+
+    class Response:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json() -> dict:
+            return {
+                "choices": [{"message": {"content": {"status": "ok"}}}],
+            }
+
+    def post(url: str, **kwargs) -> Response:
+        captured.update({"url": url, **kwargs})
+        return Response()
+
+    monkeypatch.setattr(bot.requests, "post", post)
+    monkeypatch.setattr(
+        bot, "require_remote_operation_unpaused", lambda _operation: None
+    )
+    monkeypatch.setattr(bot, "XAI_BASE", "https://xai.invalid/v1")
+    monkeypatch.setattr(bot, "XAI_API_KEY", "test-key")
+
+    result = bot.xai_structured_reply_call(
+        stage="ordinary_existing_caller",
+        model="unit-model",
+        system_prompt="system policy",
+        user_prompt="visible user material",
+        response_schema={"type": "object", "additionalProperties": False},
+        timeout_seconds=5,
+        max_output_tokens=100,
+        media_context=None,
+    )
+
+    assert result == {"status": "ok"}
+    request = captured["json"]
+    assert "reasoning_effort" not in request
+    assert "store" not in request
+    assert set(request) == {
+        "model",
+        "messages",
+        "temperature",
+        "max_tokens",
+        "response_format",
+    }
 
 
 def test_text_only_tested_pipeline_makes_no_visual_call_and_keeps_stage_shape(
@@ -555,11 +610,29 @@ def test_visual_description_contract_is_strictly_locally_validated() -> None:
     assert pipeline.VISUAL_DESCRIPTION_SCHEMA["additionalProperties"] is False
     image_schema = pipeline.VISUAL_DESCRIPTION_SCHEMA["properties"]["images"]["items"]
     assert image_schema["additionalProperties"] is False
+    pending: list[object] = [pipeline.VISUAL_DESCRIPTION_SCHEMA]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            assert "uniqueItems" not in value
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
     valid = visual_description(2)
     assert pipeline.validate_visual_description(
         valid,
         supplied_image_count=2,
     ) == valid
+
+    for field in ("visible_text", "salient_elements", "uncertainties"):
+        duplicate = copy.deepcopy(valid)
+        repeated = duplicate["images"][0][field][0]
+        duplicate["images"][0][field] = [repeated, repeated]
+        with pytest.raises(ValueError, match="duplicates"):
+            pipeline.validate_visual_description(
+                duplicate,
+                supplied_image_count=2,
+            )
 
     missing_field = copy.deepcopy(valid)
     missing_field["images"][0].pop("uncertainties")

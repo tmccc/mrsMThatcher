@@ -5135,6 +5135,13 @@ def test_tested_pipeline_native_photo_is_analysed_once_before_downstream_stages(
         visual_request = requests_by_schema[
             "ai_reply_tested_pipeline_visual_description"
         ]
+        assert sum(
+            request["response_format"]["json_schema"]["name"]
+            == "ai_reply_tested_pipeline_visual_description"
+            for request in server.xai_requests
+        ) == 1
+        assert visual_request["reasoning_effort"] == "low"
+        assert "store" not in visual_request
         visual_content = visual_request["messages"][1]["content"]
         assert isinstance(visual_content, list)
         assert visual_content == [

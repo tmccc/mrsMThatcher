@@ -20916,6 +20916,7 @@ def xai_structured_reply_call(
     max_output_tokens: int,
     media_context: dict | None,
     log_request_payload: bool = True,
+    reasoning_effort: str | None = None,
 ) -> object:
     """Send one isolated structured xAI call for an AI-first pipeline stage."""
     payload = {
@@ -20935,6 +20936,8 @@ def xai_structured_reply_call(
             },
         },
     }
+    if reasoning_effort is not None:
+        payload["reasoning_effort"] = reasoning_effort
     log.info("Calling AI-first reply stage=%s model=%s", stage, model)
     if log_request_payload:
         log_json_debug("xAI structured reply request", redact_xai_payload_for_log(payload))
@@ -21085,6 +21088,7 @@ def describe_reply_media_for_tested_pipeline(
             max_output_tokens=VISUAL_DESCRIPTION_MAX_OUTPUT_TOKENS,
             media_context=visual_media,
             log_request_payload=False,
+            reasoning_effort=str(config["xai_reasoning_effort"]),
         )
     except RemoteOperationsPaused:
         record("paused", call_count=0)
