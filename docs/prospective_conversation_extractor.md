@@ -142,6 +142,15 @@ unavailable and produce a bounded warning. Log headers populate only
 `first_observed_at` and `last_observed_at`; they never establish prospective
 eligibility.
 
+Repeated structured creation times within one second merge their provenance
+without changing the canonical instant. Materially different structured times
+are retained in `creation_time_conflicts` and never use last-event-wins
+semantics. A plausible Snowflake then supplies the canonical time while the
+conflict remains inspectable; without one, creation time becomes unavailable.
+A conflicted structured time cannot by itself make a conversation prospective,
+although an independent, reliable root or conversation identity may still date
+the start.
+
 Conversation start time is resolved from an observed root's `created_at`, a
 numeric `root_post_id`, a numeric X conversation/root ID, or a created first
 turn independently confirmed to have no parent, in that order. A reliably
@@ -168,9 +177,12 @@ Conversational transport attempts are keyed by their 64-character transaction
 ID and target, retained on the target post across scans and rotations, and
 bounded to the newest five attempts. A create line from another lane clears the
 transient generic-success association. Confirmed receipt evidence can recover
-the final attempted text later; if authoritative confirmation exists without
-recoverable text, the account identity is retained with null text and an
-explicit partial-reconstruction warning.
+the final attempted text later. An exact observed remote reply ID can bind an
+attempt in any later local status. Without that exact proof, only one uniquely
+eligible `started` or `remote_success_observed` attempt may supply text;
+`failed` and `retired` drafts are deliberately excluded. Zero or multiple
+eligible attempts leave the confirmed account turn's text null, preserve the
+graph edge and publication evidence, and add a precise binding warning.
 
 Structured events use a small event-kind registry defining permitted target,
 text, author, identity, parent, creation-time, and publication fields. A bare
@@ -221,16 +233,33 @@ Automatic snapshots are pruned under the exclusive extractor lock. The
 collector always retains `current`, every batch referenced by a valid review
 pack, all batches from the newest 72 hours, and the newest batch for each UTC
 calendar day in the newest 90 days. Older unreferenced batches are deleted only
-after their path, name, directory type, exact regular-file contents, manifest,
-and review-pack references validate. A malformed or unreadable review pack
-blocks pruning; review packs themselves are never pruned or rewritten.
+after all deletion candidates pass exhaustive validation. Protected batches
+are inventoried from directory and canonical manifest metadata only; routine
+retention does not hash or load their corpus JSONL files. Review-pack protection
+likewise uses a strict, canonical provenance manifest without loading the pack's
+conversation data. If any deletion candidate is corrupt, none is deleted. A
+malformed or unreadable review-pack manifest blocks pruning; review packs
+themselves are never pruned or rewritten.
 
-Changed and unchanged scans both apply retention. Status reports the batches
-pruned by the latest scan, retained batch count, retained automatic bytes,
-review-pack bytes, and total extractor bytes. Before a changed snapshot creates
-a temporary directory, the collector calculates its projected bytes and
-requires that amount plus 512 MiB of free-space headroom. A refusal reports the
-free, projected, and required byte counts without exposing a partial batch.
+Changed and unchanged scans apply retention exactly once. Automatic batches
+have a 10 GiB byte budget. After time-based pruning, additional oldest
+unreferenced, non-current batches are removed until retained automatic bytes
+plus a projected new snapshot fit. Current and review-referenced batches are
+never removed; an unchanged scan preserves them even when they alone prevent
+meeting the nominal budget. A changed scan fails before creating a temporary
+batch when protected bytes plus the projection exceed the budget.
+
+After retention and before temporary-batch creation, a changed scan requires
+the projected bytes plus a 10 GiB post-publication filesystem reserve. Errors
+and status expose total, used and free filesystem bytes, projected and required
+bytes, retained and protected automatic bytes, the configured budget and
+reserve, review-pack bytes, and `last_retention_error`.
+
+Status takes a shared lock and measures storage from the filesystem without
+mutating state. The validator also reports actual storage. Stored byte counters
+are last-known operational telemetry: a mismatch adds
+`stored_storage_telemetry_stale` but does not invalidate an otherwise consistent
+state/current/immutable-batch transaction.
 
 ## Command-line use
 
@@ -256,9 +285,9 @@ python3 tools/extract_prospective_conversations.py status \
   --output-root /disks/disk1/research/mrsMThatcher-prospective-conversations
 ```
 
-The command is read-only and returns valid JSON even before initialisation.
-For direct read-only inspection, use the same command rather than opening the
-state in an editor.
+The command is read-only and returns valid JSON even before initialisation,
+including `last_retention_error: null`. For direct read-only inspection, use
+the same command rather than opening the state in an editor.
 
 Validate state, permissions, the `current` symlink, every batch and review-pack
 manifest, file hashes, JSON/JSONL syntax, ordering, boundary consistency, and
@@ -320,11 +349,15 @@ scan reports lock contention and exits successfully without waiting or changing
 state. Validation takes a shared lock; freezing a pack takes an exclusive lock.
 
 A changed snapshot is first written to a `batches/.tmp-*` directory. Every file
-is flushed, hashed, and validated before an atomic rename. The relative
-`current` symlink is replaced atomically and extractor state is replaced last.
-If state publication fails, the previous `current` link is restored and the new
-unpublished batch is removed. An unchanged canonical snapshot creates no
-duplicate batch; retention and private scan bookkeeping still run.
+is flushed, hashed, and validated before an atomic rename. Before that write,
+retention runs once against the old committed `current`, followed by the byte
+budget and free-space checks. The relative `current` symlink is then replaced
+atomically and extractor state is replaced last. No deletion occurs between
+those two commits. If state publication fails, the still-retained previous
+`current` link is restored and the new unpublished batch is removed. The former
+current may therefore survive one extra hourly cycle. An unchanged canonical
+snapshot creates no duplicate batch; its single retention pass and private
+scan bookkeeping still run.
 
 On a failure, inspect the journal, then run `status` and `validate`. Do not edit
 immutable batches or state to make validation pass. Correct the external cause

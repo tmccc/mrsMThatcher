@@ -43,7 +43,8 @@ X_SNOWFLAKE_FUTURE_SKEW = timedelta(minutes=5)
 MAX_SEND_ATTEMPTS_PER_TARGET = 5
 RECENT_BATCH_RETENTION = timedelta(hours=72)
 DAILY_BATCH_RETENTION = timedelta(days=90)
-DISK_RESERVED_HEADROOM_BYTES = 512 * 1024 * 1024
+MAX_AUTOMATIC_BATCH_BYTES = 10 * 1024 * 1024 * 1024
+MIN_FILESYSTEM_FREE_BYTES = 10 * 1024 * 1024 * 1024
 LOG_BASENAME_RE = re.compile(r"mrsMThatcher\.log(?:\.([0-9]+))?\Z")
 BATCH_ID_RE = re.compile(r"\d{8}T\d{6}Z-[0-9a-f]{12}\Z")
 LOG_HEADER_RE = re.compile(
@@ -773,6 +774,67 @@ def _set_snowflake_creation_time(post: dict[str, Any]) -> None:
     ]
 
 
+def _creation_time_observation(
+    *,
+    created_at: str,
+    event: Mapping[str, Any],
+    field: str,
+    record: LogRecord,
+) -> dict[str, str]:
+    return {
+        "created_at": created_at,
+        "event_kind": str(event.get("event") or event.get("kind") or ""),
+        "field": field,
+        "observed_at": record.timestamp,
+        "record_fingerprint": record.record_fingerprint,
+        "source": "structured_event",
+    }
+
+
+def _snowflake_creation_observation(post: Mapping[str, Any], value: str) -> dict[str, str]:
+    return {
+        "created_at": value,
+        "post_id_field": "post_id",
+        "source": "x_snowflake",
+    }
+
+
+def _record_creation_time_conflict(
+    post: dict[str, Any],
+    observations: Iterable[Mapping[str, Any]],
+) -> None:
+    post["creation_time_conflict"] = True
+    post["creation_time_conflicts"] = _merge_unique_objects(
+        list(post.get("creation_time_conflicts") or []),
+        (dict(observation) for observation in observations),
+    )
+    _record_warning(post, "creation_time_conflict")
+
+
+def _resolve_conflicted_creation_time(post: dict[str, Any]) -> None:
+    decoded, warning = decode_x_snowflake_time(
+        post.get("post_id"), first_observed_at=post.get("first_observed_at")
+    )
+    if decoded is None:
+        post["created_at"] = None
+        post["creation_time_confidence"] = "unavailable"
+        post["creation_time_source"] = "unavailable"
+        post["creation_time_provenance"] = []
+        if warning:
+            _record_warning(post, warning)
+        return
+    decoded_text = str(format_utc(decoded))
+    post["created_at"] = decoded_text
+    post["creation_time_confidence"] = "high"
+    post["creation_time_source"] = "x_snowflake"
+    snowflake_observation = _snowflake_creation_observation(post, decoded_text)
+    post["creation_time_provenance"] = [snowflake_observation]
+    post["creation_time_conflicts"] = _merge_unique_objects(
+        list(post.get("creation_time_conflicts") or []),
+        [snowflake_observation],
+    )
+
+
 def _set_explicit_creation_time(
     post: dict[str, Any],
     event: Mapping[str, Any],
@@ -781,48 +843,88 @@ def _set_explicit_creation_time(
     *,
     subject: str,
 ) -> None:
-    supplied = [
-        (field, str(event[field]).strip())
-        for field in fields
-        if event.get(field) is not None and str(event[field]).strip()
-    ]
+    supplied = sorted(
+        (
+            (field, str(event[field]).strip())
+            for field in fields
+            if event.get(field) is not None and str(event[field]).strip()
+        ),
+        key=lambda item: (item[1], item[0]),
+    )
     if not supplied:
         _set_snowflake_creation_time(post)
         return
-    if len({value for _field, value in supplied}) > 1:
-        _record_warning(post, f"conflicting_explicit_{subject}_creation_times")
-        _set_snowflake_creation_time(post)
-        return
-    field, value = supplied[0]
-    try:
-        parsed = parse_aware_timestamp(value, option=f"structured {field}")
-    except ExtractorError:
-        _record_warning(post, f"invalid_explicit_{subject}_creation_time")
-        _set_snowflake_creation_time(post)
-        return
     first_observed = parse_optional_timestamp(post.get("first_observed_at"))
-    if (
-        first_observed is not None
-        and parsed > first_observed + X_SNOWFLAKE_FUTURE_SKEW
-    ):
-        _record_warning(post, f"implausible_explicit_{subject}_creation_time")
+    valid: list[tuple[datetime, dict[str, str]]] = []
+    for field, value in supplied:
+        try:
+            parsed = parse_aware_timestamp(value, option=f"structured {field}")
+        except ExtractorError:
+            _record_warning(post, f"invalid_explicit_{subject}_creation_time")
+            continue
+        if (
+            first_observed is not None
+            and parsed > first_observed + X_SNOWFLAKE_FUTURE_SKEW
+        ):
+            _record_warning(post, f"implausible_explicit_{subject}_creation_time")
+            continue
+        created_at = str(format_utc(parsed))
+        valid.append(
+            (
+                parsed,
+                _creation_time_observation(
+                    created_at=created_at,
+                    event=event,
+                    field=field,
+                    record=record,
+                ),
+            )
+        )
+    if not valid:
         _set_snowflake_creation_time(post)
         return
-    post["created_at"] = format_utc(parsed)
-    post["creation_time_confidence"] = "high"
-    post["creation_time_source"] = "structured_event"
-    post["creation_time_provenance"] = _merge_unique_objects(
-        list(post.get("creation_time_provenance") or []),
-        [
-            {
-                "event_kind": str(event.get("event") or event.get("kind") or ""),
-                "field": field,
-                "observed_at": record.timestamp,
-                "record_fingerprint": record.record_fingerprint,
-                "source": "structured_event",
-            }
-        ],
-    )
+
+    for parsed, observation in valid:
+        existing = parse_optional_timestamp(post.get("created_at"))
+        existing_source = str(post.get("creation_time_source") or "unavailable")
+        if post.get("creation_time_conflict"):
+            _record_creation_time_conflict(post, [observation])
+            _resolve_conflicted_creation_time(post)
+            continue
+        if existing is None or existing_source == "unavailable":
+            post["created_at"] = observation["created_at"]
+            post["creation_time_confidence"] = "high"
+            post["creation_time_source"] = "structured_event"
+            post["creation_time_provenance"] = _merge_unique_objects(
+                list(post.get("creation_time_provenance") or []), [observation]
+            )
+            continue
+        if abs((parsed - existing).total_seconds()) <= 1:
+            post["creation_time_provenance"] = _merge_unique_objects(
+                list(post.get("creation_time_provenance") or []), [observation]
+            )
+            if existing_source == "x_snowflake":
+                post["creation_time_source"] = "structured_event"
+            continue
+
+        existing_observations = list(post.get("creation_time_provenance") or [])
+        if existing_source == "structured_event":
+            existing_observations = [
+                {
+                    **dict(value),
+                    "created_at": str(value.get("created_at") or post.get("created_at")),
+                }
+                for value in existing_observations
+                if isinstance(value, dict)
+            ]
+        elif existing_source == "x_snowflake":
+            existing_observations = [
+                _snowflake_creation_observation(post, str(post["created_at"]))
+            ]
+        _record_creation_time_conflict(
+            post, [*existing_observations, observation]
+        )
+        _resolve_conflicted_creation_time(post)
 
 
 def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[str, Any]:
@@ -835,6 +937,8 @@ def _blank_post(post_id: str, key: bytes, *, author_role: str = "user") -> dict[
         "canonical_event_id": stable_id("post", post_id),
         "conversation_id": None,
         "created_at": None,
+        "creation_time_conflict": False,
+        "creation_time_conflicts": [],
         "creation_time_confidence": "unavailable",
         "creation_time_provenance": [],
         "creation_time_source": "unavailable",
@@ -1247,6 +1351,62 @@ def _mark_send_attempt(
     return selected
 
 
+def _bind_confirmed_send_attempt(
+    post: dict[str, Any],
+    *,
+    record: LogRecord,
+    reply_post_id: str,
+) -> tuple[dict[str, Any] | None, tuple[str, ...]]:
+    """Bind confirmation text only when attempt identity is sufficiently strong."""
+    attempts = _bounded_attempts(post)
+    target_post_id = str(post.get("post_id") or "")
+    correctly_scoped = [
+        attempt
+        for attempt in attempts
+        if attempt.get("target_post_id") == target_post_id
+        and attempt.get("lane") == "conversational_reply"
+    ]
+    exact = [
+        attempt
+        for attempt in correctly_scoped
+        if attempt.get("remote_post_id_observed") == reply_post_id
+    ]
+    warnings: list[str] = []
+    selected: dict[str, Any] | None = None
+    if len(exact) == 1:
+        selected = exact[0]
+    elif len(exact) > 1:
+        warnings.append("confirmed_reply_multiple_eligible_attempts")
+        warnings.append("ambiguous_confirmed_reply_attempt_text")
+    else:
+        eligible = [
+            attempt
+            for attempt in correctly_scoped
+            if attempt.get("last_observed_status")
+            in {"started", "remote_success_observed"}
+        ]
+        if len(eligible) == 1:
+            selected = eligible[0]
+        elif len(eligible) > 1:
+            warnings.append("confirmed_reply_multiple_eligible_attempts")
+            warnings.append("ambiguous_confirmed_reply_attempt_text")
+        else:
+            warnings.append("confirmed_reply_no_eligible_attempt_text")
+            if any(
+                attempt.get("last_observed_status") in {"failed", "retired"}
+                for attempt in correctly_scoped
+            ):
+                warnings.append(
+                    "confirmed_reply_failed_or_retired_attempt_text_not_reused"
+                )
+    if selected is not None:
+        selected["last_observed_status"] = "confirmed"
+        selected["status_observed_at"] = record.timestamp
+        selected["remote_post_id_observed"] = reply_post_id
+    post["send_attempts"] = attempts[-MAX_SEND_ATTEMPTS_PER_TARGET:]
+    return selected, tuple(warnings)
+
+
 def normalise_canonical_posts(
     records: Sequence[LogRecord],
     prior_posts: Sequence[Mapping[str, Any]],
@@ -1268,6 +1428,9 @@ def normalise_canonical_posts(
         for row in prior_posts
         if row.get("post_id")
     }
+    for post in posts.values():
+        post.setdefault("creation_time_conflict", False)
+        post.setdefault("creation_time_conflicts", [])
     active_attempt: tuple[str, str] | None = None
 
     def get_user(target_id: str) -> dict[str, Any]:
@@ -1320,12 +1483,10 @@ def normalise_canonical_posts(
             if target.get(field):
                 row[field] = target[field]
         _touch_post(row, record)
-        selected_attempt = _mark_send_attempt(
+        selected_attempt, binding_warnings = _bind_confirmed_send_attempt(
             target,
             record=record,
-            status_value="confirmed",
             reply_post_id=reply_post_id,
-            require_unambiguous=True,
         )
         target_attempts = _bounded_attempts(target)
         final_text = (
@@ -1338,8 +1499,8 @@ def normalise_canonical_posts(
             )
         )
         _set_text(row, final_text)
-        if selected_attempt is None and len(target_attempts) > 1:
-            _record_warning(row, "ambiguous_confirmed_reply_attempt_text")
+        for warning in binding_warnings:
+            _record_warning(row, warning)
         if event:
             for field in (contract.identity_fields if contract else ()):
                 _set_identity(row, field, event.get(field))
@@ -1640,6 +1801,12 @@ def normalise_canonical_posts(
         post["trusted_fact_ids"] = sorted(set(post.get("trusted_fact_ids") or []))
         post["creation_time_provenance"] = _merge_unique_objects(
             [], post.get("creation_time_provenance") or []
+        )
+        post["creation_time_conflict"] = bool(
+            post.get("creation_time_conflict", False)
+        )
+        post["creation_time_conflicts"] = _merge_unique_objects(
+            [], post.get("creation_time_conflicts") or []
         )
         post["publication_evidence"] = _merge_unique_objects(
             [], post.get("publication_evidence") or []
@@ -2318,38 +2485,29 @@ def read_extractor_state(root: Path, *, missing_ok: bool = True) -> dict[str, An
 
 def _atomic_write_state(root: Path, state_value: Mapping[str, Any]) -> None:
     state_dir = root / "state"
-    value = dict(state_value)
-    for _attempt in range(4):
-        data = canonical_json_bytes(value)
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=".extractor-state.json.tmp-", dir=state_dir
-        )
-        temporary = Path(temporary_name)
-        try:
-            os.fchmod(descriptor, 0o600)
-            offset = 0
-            while offset < len(data):
-                offset += os.write(descriptor, data[offset:])
-            os.fsync(descriptor)
+    data = canonical_json_bytes(dict(state_value))
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".extractor-state.json.tmp-", dir=state_dir
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        offset = 0
+        while offset < len(data):
+            offset += os.write(descriptor, data[offset:])
+        os.fsync(descriptor)
+        os.close(descriptor)
+        descriptor = -1
+        os.replace(temporary, state_dir / "extractor-state.json")
+        _fsync_directory(state_dir)
+    except Exception:
+        if descriptor >= 0:
             os.close(descriptor)
-            descriptor = -1
-            os.replace(temporary, state_dir / "extractor-state.json")
-            _fsync_directory(state_dir)
-        except Exception:
-            if descriptor >= 0:
-                os.close(descriptor)
-            try:
-                temporary.unlink()
-            except FileNotFoundError:
-                pass
-            raise
-        if "total_extractor_bytes" not in value:
-            return
-        observed_total = _path_tree_bytes(root)
-        if value.get("total_extractor_bytes") == observed_total:
-            return
-        value["total_extractor_bytes"] = observed_total
-    raise ExtractorError("extractor state size accounting did not stabilise")
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 @contextmanager
@@ -2749,33 +2907,35 @@ class RetentionResult:
     pruned_batch_ids: tuple[str, ...]
     retained_batch_count: int
     retained_automatic_bytes: int
+    protected_automatic_bytes: int
     review_pack_bytes: int
+    retention_full_validation_batch_count: int
+    retention_lightweight_protected_batch_count: int
     total_extractor_bytes: int
+    storage_warnings: tuple[str, ...] = ()
 
     def as_state_fields(self) -> dict[str, Any]:
         return {
             "pruned_batch_ids": list(self.pruned_batch_ids),
+            "protected_automatic_bytes": self.protected_automatic_bytes,
             "retained_automatic_bytes": self.retained_automatic_bytes,
             "retained_batch_count": self.retained_batch_count,
+            "retention_full_validation_batch_count": (
+                self.retention_full_validation_batch_count
+            ),
+            "retention_lightweight_protected_batch_count": (
+                self.retention_lightweight_protected_batch_count
+            ),
             "review_pack_bytes": self.review_pack_bytes,
             "total_extractor_bytes": self.total_extractor_bytes,
         }
 
 
-def measure_retained_storage(root: Path) -> RetentionResult:
-    batches = [
-        path
-        for path in (root / "batches").iterdir()
-        if BATCH_ID_RE.fullmatch(path.name)
-    ]
-    packs = list((root / "review-packs").iterdir())
-    return RetentionResult(
-        pruned_batch_ids=(),
-        retained_batch_count=len(batches),
-        retained_automatic_bytes=sum(_path_tree_bytes(path) for path in batches),
-        review_pack_bytes=sum(_path_tree_bytes(path) for path in packs),
-        total_extractor_bytes=_path_tree_bytes(root),
-    )
+@dataclass(frozen=True)
+class RetentionBatchMetadata:
+    path: Path
+    created_at: datetime
+    size_bytes: int
 
 
 def _path_tree_bytes(path: Path) -> int:
@@ -2794,6 +2954,127 @@ def _path_tree_bytes(path: Path) -> int:
     return total
 
 
+def _read_retention_batch_metadata(
+    batch: Path,
+    *,
+    expected_boundary: str,
+) -> RetentionBatchMetadata:
+    """Read only trustworthy batch metadata; never open corpus JSONL files."""
+    try:
+        info = batch.lstat()
+    except OSError as exc:
+        raise ExtractorError(f"cannot inspect automatic batch {batch}: {exc}") from exc
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise ExtractorError(f"automatic batch is not a non-symlink directory: {batch}")
+    if not BATCH_ID_RE.fullmatch(batch.name):
+        raise ExtractorError(f"automatic batch name is invalid: {batch.name}")
+    if stat.S_IMODE(info.st_mode) != 0o500:
+        raise ExtractorError(f"automatic batch directory mode is not 0500: {batch}")
+    try:
+        names = sorted(path.name for path in batch.iterdir())
+    except OSError as exc:
+        raise ExtractorError(f"cannot enumerate automatic batch {batch}: {exc}") from exc
+    if names != sorted(BATCH_FILES):
+        raise ExtractorError(f"automatic batch file set is incorrect: {batch}")
+    manifest_path = batch / "manifest.json"
+    try:
+        manifest_info = manifest_path.lstat()
+    except OSError as exc:
+        raise ExtractorError(f"cannot inspect batch manifest {manifest_path}: {exc}") from exc
+    if stat.S_ISLNK(manifest_info.st_mode) or not stat.S_ISREG(manifest_info.st_mode):
+        raise ExtractorError(f"batch manifest is not a regular file: {manifest_path}")
+    if stat.S_IMODE(manifest_info.st_mode) != 0o400:
+        raise ExtractorError(f"batch manifest mode is not 0400: {manifest_path}")
+    manifest = _strict_read_json(manifest_path)
+    if not isinstance(manifest, dict):
+        raise ExtractorError(f"batch manifest is not an object: {batch}")
+    if manifest_path.read_bytes() != canonical_json_bytes(manifest):
+        raise ExtractorError(f"batch manifest is not in canonical JSON form: {batch}")
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        raise ExtractorError(f"unsupported batch manifest schema: {batch}")
+    if manifest.get("extractor_version") != EXTRACTOR_VERSION:
+        raise ExtractorError(f"batch extractor version mismatch: {batch}")
+    if manifest.get("parser_version") != PARSER_VERSION:
+        raise ExtractorError(f"batch parser version mismatch: {batch}")
+    if manifest.get("prospective_boundary") != expected_boundary:
+        raise ExtractorError(f"batch prospective boundary mismatch: {batch}")
+    created = parse_aware_timestamp(
+        str(manifest.get("creation_timestamp") or ""),
+        option=f"batch {batch.name} creation timestamp",
+    )
+    previous_batch = manifest.get("previous_batch_id")
+    if previous_batch is not None and not BATCH_ID_RE.fullmatch(str(previous_batch)):
+        raise ExtractorError(f"batch previous-batch identity is invalid: {batch}")
+    snapshot_hash = str(manifest.get("canonical_snapshot_sha256") or "")
+    if not re.fullmatch(r"[0-9a-f]{64}", snapshot_hash):
+        raise ExtractorError(f"batch snapshot identity is invalid: {batch}")
+    if not batch.name.endswith(f"-{snapshot_hash[:12]}"):
+        raise ExtractorError(f"batch name disagrees with snapshot identity: {batch}")
+    return RetentionBatchMetadata(
+        path=batch,
+        created_at=created,
+        size_bytes=_path_tree_bytes(batch),
+    )
+
+
+def _read_retention_review_pack_provenance(
+    pack: Path,
+    *,
+    expected_boundary: str,
+) -> str:
+    """Read only immutable review-pack provenance needed for retention."""
+    try:
+        info = pack.lstat()
+    except OSError as exc:
+        raise ExtractorError(f"cannot inspect review pack {pack}: {exc}") from exc
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise ExtractorError(f"review pack is not a non-symlink directory: {pack}")
+    if stat.S_IMODE(info.st_mode) != 0o500:
+        raise ExtractorError(f"review pack directory mode is not 0500: {pack}")
+    try:
+        names = sorted(path.name for path in pack.iterdir())
+    except OSError as exc:
+        raise ExtractorError(f"cannot enumerate review pack {pack}: {exc}") from exc
+    if names != sorted(PACK_FILES):
+        raise ExtractorError(f"review pack file set is incorrect: {pack}")
+    manifest_path = pack / "manifest.json"
+    try:
+        manifest_info = manifest_path.lstat()
+    except OSError as exc:
+        raise ExtractorError(f"cannot inspect review-pack manifest {manifest_path}: {exc}") from exc
+    if stat.S_ISLNK(manifest_info.st_mode) or not stat.S_ISREG(manifest_info.st_mode):
+        raise ExtractorError(f"review-pack manifest is not a regular file: {manifest_path}")
+    if stat.S_IMODE(manifest_info.st_mode) != 0o400:
+        raise ExtractorError(f"review-pack manifest mode is not 0400: {manifest_path}")
+    manifest = _strict_read_json(manifest_path)
+    if not isinstance(manifest, dict):
+        raise ExtractorError(f"review-pack manifest is not an object: {pack}")
+    if manifest_path.read_bytes() != canonical_json_bytes(manifest):
+        raise ExtractorError(f"review-pack manifest is not canonical JSON: {pack}")
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        raise ExtractorError(f"unsupported review-pack schema: {pack}")
+    if manifest.get("extractor_version") != EXTRACTOR_VERSION:
+        raise ExtractorError(f"review-pack extractor version mismatch: {pack}")
+    if manifest.get("parser_version") != PARSER_VERSION:
+        raise ExtractorError(f"review-pack parser version mismatch: {pack}")
+    if manifest.get("prospective_boundary") != expected_boundary:
+        raise ExtractorError(f"review-pack prospective boundary mismatch: {pack}")
+    if manifest.get("pack_name") != pack.name:
+        raise ExtractorError(f"review-pack identity mismatch: {pack}")
+    parse_aware_timestamp(
+        str(manifest.get("creation_timestamp") or ""),
+        option=f"review pack {pack.name} creation timestamp",
+    )
+    parse_aware_timestamp(
+        str(manifest.get("source_batch_creation_timestamp") or ""),
+        option=f"review pack {pack.name} source batch creation timestamp",
+    )
+    source_batch = str(manifest.get("source_batch_id") or "")
+    if not BATCH_ID_RE.fullmatch(source_batch):
+        raise ExtractorError(f"review-pack source batch is invalid: {pack}")
+    return source_batch
+
+
 def _review_pack_batch_references(
     root: Path,
     *,
@@ -2802,29 +3083,71 @@ def _review_pack_batch_references(
     references: set[str] = set()
     total_bytes = 0
     for pack in sorted((root / "review-packs").iterdir(), key=lambda item: item.name):
-        problems = _validate_pack_directory(
-            pack,
-            require_immutable=True,
-            expected_boundary=expected_boundary,
-        )
-        if problems:
+        try:
+            source_batch = _read_retention_review_pack_provenance(
+                pack, expected_boundary=expected_boundary
+            )
+        except ExtractorError as exc:
             raise ExtractorError(
                 "review-pack provenance is invalid; retention is blocked: "
-                + "; ".join(problems)
-            )
-        manifest = _strict_read_json(pack / "manifest.json")
-        if not isinstance(manifest, dict):
-            raise ExtractorError(
-                f"review-pack manifest is not an object; retention is blocked: {pack}"
-            )
-        source_batch = str(manifest.get("source_batch_id") or "")
-        if not BATCH_ID_RE.fullmatch(source_batch):
-            raise ExtractorError(
-                f"review-pack source batch is invalid; retention is blocked: {pack}"
-            )
+                + str(exc)
+            ) from exc
         references.add(source_batch)
         total_bytes += _path_tree_bytes(pack)
     return references, total_bytes
+
+
+def measure_retained_storage(
+    root: Path,
+    *,
+    expected_boundary: str | None = None,
+) -> RetentionResult:
+    batches = sorted(
+        (
+            path
+            for path in (root / "batches").iterdir()
+            if BATCH_ID_RE.fullmatch(path.name)
+        ),
+        key=lambda path: path.name,
+    )
+    packs = sorted((root / "review-packs").iterdir(), key=lambda path: path.name)
+    warnings: list[str] = []
+    references: set[str] = set()
+    if expected_boundary:
+        for pack in packs:
+            try:
+                references.add(
+                    _read_retention_review_pack_provenance(
+                        pack, expected_boundary=expected_boundary
+                    )
+                )
+            except ExtractorError:
+                warnings.append(
+                    f"storage_protection_reference_unavailable:{pack.name}"
+                )
+    current_batch: str | None = None
+    try:
+        current_target = _current_link_target(root, required=False)
+        current_batch = Path(current_target).name if current_target else None
+    except ExtractorError:
+        warnings.append("storage_current_reference_unavailable")
+    sizes = {path.name: _path_tree_bytes(path) for path in batches}
+    protected_names = set(references)
+    if current_batch:
+        protected_names.add(current_batch)
+    return RetentionResult(
+        pruned_batch_ids=(),
+        retained_batch_count=len(batches),
+        retained_automatic_bytes=sum(sizes.values()),
+        protected_automatic_bytes=sum(
+            size for name, size in sizes.items() if name in protected_names
+        ),
+        review_pack_bytes=sum(_path_tree_bytes(path) for path in packs),
+        retention_full_validation_batch_count=0,
+        retention_lightweight_protected_batch_count=len(batches),
+        total_extractor_bytes=_path_tree_bytes(root),
+        storage_warnings=tuple(sorted(set(warnings))),
+    )
 
 
 def _delete_retained_batch(batch: Path) -> None:
@@ -2854,83 +3177,143 @@ def apply_batch_retention(
     *,
     now: datetime,
     expected_boundary: str,
+    projected_batch_bytes: int = 0,
 ) -> RetentionResult:
-    """Apply the fixed recent/daily retention policy under the scan lock."""
+    """Apply time and byte retention using lightweight protected inventory."""
+    if projected_batch_bytes < 0:
+        raise ExtractorError("projected batch bytes must not be negative")
     current_target = _current_link_target(root, required=False)
     current_batch = Path(current_target).name if current_target else None
     review_references, review_bytes = _review_pack_batch_references(
         root, expected_boundary=expected_boundary
     )
-    batch_rows: list[tuple[Path, datetime]] = []
+    batch_rows: list[RetentionBatchMetadata] = []
     for batch in sorted((root / "batches").iterdir(), key=lambda item: item.name):
         if not BATCH_ID_RE.fullmatch(batch.name):
             raise ExtractorError(
                 f"malformed or temporary batch blocks retention: {batch.name}"
             )
-        problems = _validate_batch_directory(
-            batch,
-            require_immutable=True,
-            expected_boundary=expected_boundary,
-        )
-        if problems:
-            raise ExtractorError(
-                "invalid automatic batch blocks retention: " + "; ".join(problems)
+        try:
+            metadata = _read_retention_batch_metadata(
+                batch, expected_boundary=expected_boundary
             )
-        manifest = _strict_read_json(batch / "manifest.json")
-        assert isinstance(manifest, dict)
-        created = parse_aware_timestamp(
-            str(manifest.get("creation_timestamp") or ""),
-            option=f"batch {batch.name} creation timestamp",
-        )
-        batch_rows.append((batch, created))
-    missing_references = review_references - {path.name for path, _ in batch_rows}
+        except ExtractorError as exc:
+            raise ExtractorError(
+                "invalid automatic batch blocks retention: " + str(exc)
+            ) from exc
+        batch_rows.append(metadata)
+    missing_references = review_references - {row.path.name for row in batch_rows}
     if missing_references:
         raise ExtractorError(
             "review pack references missing automatic batch; retention is blocked"
         )
 
-    protected = set(review_references)
+    permanently_protected = set(review_references)
     if current_batch:
-        protected.add(current_batch)
+        permanently_protected.add(current_batch)
+    policy_protected = set(permanently_protected)
     recent_floor = now - RECENT_BATCH_RETENTION
     daily_floor = now - DAILY_BATCH_RETENTION
-    older_daily: dict[str, tuple[Path, datetime]] = {}
-    for batch, created in batch_rows:
-        if created >= recent_floor:
-            protected.add(batch.name)
-        elif created >= daily_floor:
-            day = created.strftime("%Y-%m-%d")
+    older_daily: dict[str, RetentionBatchMetadata] = {}
+    for row in batch_rows:
+        if row.created_at >= recent_floor:
+            policy_protected.add(row.path.name)
+        elif row.created_at >= daily_floor:
+            day = row.created_at.strftime("%Y-%m-%d")
             previous = older_daily.get(day)
-            if previous is None or (created, batch.name) > (
-                previous[1],
-                previous[0].name,
+            if previous is None or (row.created_at, row.path.name) > (
+                previous.created_at,
+                previous.path.name,
             ):
-                older_daily[day] = (batch, created)
-    protected.update(batch.name for batch, _created in older_daily.values())
+                older_daily[day] = row
+    policy_protected.update(row.path.name for row in older_daily.values())
 
     candidates = [
-        batch for batch, _created in batch_rows if batch.name not in protected
+        row for row in batch_rows if row.path.name not in policy_protected
     ]
-    for batch in candidates:
-        if batch.name == current_batch or batch.name in review_references:
-            raise ExtractorError(f"internal retention protection failure: {batch.name}")
-    for batch in candidates:
-        _delete_retained_batch(batch)
+    candidate_names = {row.path.name for row in candidates}
+    retained_rows = [
+        row for row in batch_rows if row.path.name not in candidate_names
+    ]
+    retained_bytes = sum(row.size_bytes for row in retained_rows)
+    projected_total = retained_bytes + projected_batch_bytes
+    if projected_total > MAX_AUTOMATIC_BATCH_BYTES:
+        budget_candidates = sorted(
+            (
+                row
+                for row in retained_rows
+                if row.path.name not in permanently_protected
+            ),
+            key=lambda row: (row.created_at, row.path.name),
+        )
+        for row in budget_candidates:
+            candidates.append(row)
+            candidate_names.add(row.path.name)
+            retained_bytes -= row.size_bytes
+            projected_total = retained_bytes + projected_batch_bytes
+            if projected_total <= MAX_AUTOMATIC_BATCH_BYTES:
+                break
 
-    retained = sorted(
-        (
-            path
-            for path in (root / "batches").iterdir()
-            if BATCH_ID_RE.fullmatch(path.name)
-        ),
-        key=lambda item: item.name,
+    protected_bytes = sum(
+        row.size_bytes
+        for row in batch_rows
+        if row.path.name in permanently_protected
     )
-    automatic_bytes = sum(_path_tree_bytes(path) for path in retained)
+    if projected_batch_bytes and (
+        protected_bytes + projected_batch_bytes > MAX_AUTOMATIC_BATCH_BYTES
+    ):
+        usage = shutil.disk_usage(root)
+        raise ExtractorError(
+            "protected automatic batches plus projected snapshot exceed budget: "
+            f"filesystem_total_bytes={int(usage.total)} "
+            f"filesystem_used_bytes={int(usage.used)} "
+            f"filesystem_free_bytes={int(usage.free)} "
+            f"projected_batch_bytes={projected_batch_bytes} "
+            f"minimum_free_bytes={MIN_FILESYSTEM_FREE_BYTES} "
+            f"required_free_bytes={projected_batch_bytes + MIN_FILESYSTEM_FREE_BYTES} "
+            f"automatic_batch_budget_bytes={MAX_AUTOMATIC_BATCH_BYTES} "
+            f"retained_automatic_bytes={retained_bytes} "
+            f"protected_automatic_bytes={protected_bytes}"
+        )
+
+    unique_candidates = sorted(
+        {row.path.name: row for row in candidates}.values(),
+        key=lambda row: (row.created_at, row.path.name),
+    )
+    for row in unique_candidates:
+        if row.path.name in permanently_protected:
+            raise ExtractorError(
+                f"internal retention protection failure: {row.path.name}"
+            )
+    candidate_problems: list[str] = []
+    for row in unique_candidates:
+        problems = _validate_batch_directory(
+            row.path,
+            require_immutable=True,
+            expected_boundary=expected_boundary,
+        )
+        candidate_problems.extend(problems)
+    if candidate_problems:
+        raise ExtractorError(
+            "invalid automatic deletion candidate blocks retention: "
+            + "; ".join(candidate_problems)
+        )
+    for row in unique_candidates:
+        _delete_retained_batch(row.path)
+
+    deleted_names = {row.path.name for row in unique_candidates}
+    retained_rows = [
+        row for row in batch_rows if row.path.name not in deleted_names
+    ]
+    automatic_bytes = sum(row.size_bytes for row in retained_rows)
     return RetentionResult(
-        pruned_batch_ids=tuple(batch.name for batch in candidates),
-        retained_batch_count=len(retained),
+        pruned_batch_ids=tuple(row.path.name for row in unique_candidates),
+        retained_batch_count=len(retained_rows),
         retained_automatic_bytes=automatic_bytes,
+        protected_automatic_bytes=protected_bytes,
         review_pack_bytes=review_bytes,
+        retention_full_validation_batch_count=len(unique_candidates),
+        retention_lightweight_protected_batch_count=len(retained_rows),
         total_extractor_bytes=_path_tree_bytes(root),
     )
 
@@ -3152,8 +3535,96 @@ def _validate_batch_directory(
         if post.get("creation_time_source") == "unavailable":
             if post.get("created_at") is not None:
                 errors.append(f"unavailable creation time has a value for {post_id}")
+            if post.get("creation_time_confidence") != "unavailable":
+                errors.append(
+                    f"unavailable creation time has authoritative confidence for {post_id}"
+                )
         elif parse_optional_timestamp(post.get("created_at")) is None:
             errors.append(f"authoritative creation time is missing for {post_id}")
+        elif post.get("creation_time_confidence") != "high":
+            errors.append(f"authoritative creation time lacks high confidence for {post_id}")
+        conflict = post.get("creation_time_conflict")
+        conflict_details = post.get("creation_time_conflicts")
+        if type(conflict) is not bool:
+            errors.append(f"creation-time conflict flag is not boolean for {post_id}")
+        if not isinstance(conflict_details, list):
+            errors.append(f"creation-time conflicts are not a list for {post_id}")
+            conflict_details = []
+        if conflict:
+            if post.get("creation_time_source") == "structured_event":
+                errors.append(
+                    f"conflicted structured time remains authoritative for {post_id}"
+                )
+            if len(conflict_details) < 2:
+                errors.append(f"creation-time conflict lacks observations for {post_id}")
+            parsed_conflicts: list[datetime] = []
+            snowflake_values: list[str] = []
+            for detail in conflict_details:
+                if not isinstance(detail, dict):
+                    errors.append(
+                        f"creation-time conflict observation is not an object for {post_id}"
+                    )
+                    continue
+                source = detail.get("source")
+                created_at = str(detail.get("created_at") or "")
+                parsed_detail = parse_optional_timestamp(created_at)
+                if parsed_detail is None:
+                    errors.append(
+                        f"creation-time conflict observation lacks a timestamp for {post_id}"
+                    )
+                else:
+                    parsed_conflicts.append(parsed_detail)
+                if source == "structured_event":
+                    if not all(
+                        isinstance(detail.get(field), str) and detail.get(field)
+                        for field in (
+                            "event_kind",
+                            "field",
+                            "observed_at",
+                            "record_fingerprint",
+                        )
+                    ):
+                        errors.append(
+                            f"structured creation-time conflict provenance is incomplete for {post_id}"
+                        )
+                    if parse_optional_timestamp(detail.get("observed_at")) is None:
+                        errors.append(
+                            f"structured creation-time conflict observation time is invalid for {post_id}"
+                        )
+                    if not re.fullmatch(
+                        r"[0-9a-f]{64}", str(detail.get("record_fingerprint") or "")
+                    ):
+                        errors.append(
+                            f"structured creation-time conflict fingerprint is invalid for {post_id}"
+                        )
+                elif source == "x_snowflake":
+                    snowflake_values.append(created_at)
+                    if detail.get("post_id_field") != "post_id":
+                        errors.append(
+                            f"Snowflake creation-time conflict provenance is invalid for {post_id}"
+                        )
+                else:
+                    errors.append(
+                        f"creation-time conflict source is invalid for {post_id}"
+                    )
+            if not any(
+                abs((left - right).total_seconds()) > 1
+                for index, left in enumerate(parsed_conflicts)
+                for right in parsed_conflicts[index + 1 :]
+            ):
+                errors.append(
+                    f"creation-time conflict observations do not materially disagree for {post_id}"
+                )
+            if post.get("creation_time_source") == "x_snowflake" and str(
+                post.get("created_at") or ""
+            ) not in snowflake_values:
+                errors.append(
+                    f"conflicted Snowflake result lacks matching provenance for {post_id}"
+                )
+        elif conflict_details:
+            errors.append(
+                f"creation-time conflict details exist without a conflict for {post_id}"
+            )
         if post.get("publication_status") == "published" and post.get(
             "author_role"
         ) == "account":
@@ -3394,26 +3865,6 @@ def run_scan(
                 warnings.append("retained_source_coverage_does_not_span_prospective_boundary")
             warnings = sorted(set(warnings))
 
-            try:
-                retention_before = apply_batch_retention(
-                    root,
-                    now=started,
-                    expected_boundary=boundary_text,
-                )
-            except ExtractorError as exc:
-                if state_value is not None:
-                    failed_state = copy.deepcopy(dict(state_value))
-                    failed_warnings = set(failed_state.get("warnings") or [])
-                    failed_warnings.add("automatic_batch_retention_failed")
-                    failed_state["warnings"] = sorted(failed_warnings)
-                    failed_state["last_retention_error"] = str(exc)
-                    failed_state["last_scan_start"] = str(format_utc(started))
-                    failed_state["last_scan_completion"] = str(
-                        format_utc(datetime.now(timezone.utc).replace(microsecond=0))
-                    )
-                    _atomic_write_state(root, failed_state)
-                raise
-
             canonical_data = jsonl_bytes(posts)
             conversations_data = jsonl_bytes(conversations)
             candidates_data = jsonl_bytes(candidates)
@@ -3434,42 +3885,111 @@ def run_scan(
                 str((state_value or {}).get("last_successful_batch") or "") or None
             )
             batch_id = f"{compact_utc(cutoff)}-{snapshot_hash[:12]}"
-            filesystem_free_bytes = int(shutil.disk_usage(root).free)
-
-            next_state = {
-                "counts": counts,
-                "current_snapshot_hash": snapshot_hash,
-                "extractor_version": EXTRACTOR_VERSION,
-                "filesystem_free_bytes": filesystem_free_bytes,
-                "last_scan_completion": completed_text,
-                "last_scan_cutoff": cutoff_text,
-                "last_scan_start": started_text,
-                "last_successful_batch": (
-                    batch_id
-                    if state_value is None
-                    or snapshot_hash != state_value.get("current_snapshot_hash")
-                    else state_value.get("last_successful_batch")
-                ),
-                "last_successful_completion": completed_text,
-                "latest_source_timestamp": parsed.latest_source_timestamp,
-                "last_retention_error": None,
-                "parser_version": PARSER_VERSION,
-                "projected_batch_bytes": 0,
-                "prospective_boundary": boundary_text,
-                "quiescence_hours": float(quiescence_hours),
-                "required_free_bytes": 0,
-                "schema_version": SCHEMA_VERSION,
-                "source_file_cache": parsed.source_cache,
-                "source_file_count": len(inventory.files),
-                "warnings": warnings,
-                **retention_before.as_state_fields(),
-            }
 
             unchanged = bool(
                 state_value is not None
                 and snapshot_hash == state_value.get("current_snapshot_hash")
             )
+
+            def persist_storage_failure(
+                exc: ExtractorError,
+                *,
+                warning: str,
+                projected_bytes: int,
+                retained: RetentionResult | None = None,
+            ) -> None:
+                if state_value is None:
+                    return
+                usage = shutil.disk_usage(root)
+                failed_state = copy.deepcopy(dict(state_value))
+                failed_warnings = set(failed_state.get("warnings") or [])
+                failed_warnings.add(warning)
+                if retained is not None:
+                    failed_state.update(retained.as_state_fields())
+                failed_state.update(
+                    {
+                        "automatic_batch_budget_bytes": MAX_AUTOMATIC_BATCH_BYTES,
+                        "filesystem_free_bytes": int(usage.free),
+                        "filesystem_total_bytes": int(usage.total),
+                        "filesystem_used_bytes": int(usage.used),
+                        "last_retention_error": str(exc),
+                        "last_scan_completion": str(
+                            format_utc(
+                                datetime.now(timezone.utc).replace(microsecond=0)
+                            )
+                        ),
+                        "last_scan_start": started_text,
+                        "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
+                        "projected_batch_bytes": projected_bytes,
+                        "required_free_bytes": (
+                            projected_bytes + MIN_FILESYSTEM_FREE_BYTES
+                        ),
+                        "warnings": sorted(failed_warnings),
+                    }
+                )
+                _atomic_write_state(root, failed_state)
+
+            def next_state_value(
+                retained: RetentionResult,
+                *,
+                projected_bytes: int,
+                usage: Any,
+                successful_batch: str,
+            ) -> dict[str, Any]:
+                return {
+                    "automatic_batch_budget_bytes": MAX_AUTOMATIC_BATCH_BYTES,
+                    "counts": counts,
+                    "current_snapshot_hash": snapshot_hash,
+                    "extractor_version": EXTRACTOR_VERSION,
+                    "filesystem_free_bytes": int(usage.free),
+                    "filesystem_total_bytes": int(usage.total),
+                    "filesystem_used_bytes": int(usage.used),
+                    "last_retention_error": None,
+                    "last_scan_completion": completed_text,
+                    "last_scan_cutoff": cutoff_text,
+                    "last_scan_start": started_text,
+                    "last_successful_batch": successful_batch,
+                    "last_successful_completion": completed_text,
+                    "latest_source_timestamp": parsed.latest_source_timestamp,
+                    "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
+                    "parser_version": PARSER_VERSION,
+                    "projected_batch_bytes": projected_bytes,
+                    "prospective_boundary": boundary_text,
+                    "quiescence_hours": float(quiescence_hours),
+                    "required_free_bytes": (
+                        projected_bytes + MIN_FILESYSTEM_FREE_BYTES
+                        if projected_bytes
+                        else MIN_FILESYSTEM_FREE_BYTES
+                    ),
+                    "schema_version": SCHEMA_VERSION,
+                    "source_file_cache": parsed.source_cache,
+                    "source_file_count": len(inventory.files),
+                    "warnings": warnings,
+                    **retained.as_state_fields(),
+                }
+
             if unchanged:
+                try:
+                    retention_before = apply_batch_retention(
+                        root,
+                        now=started,
+                        expected_boundary=boundary_text,
+                        projected_batch_bytes=0,
+                    )
+                except ExtractorError as exc:
+                    persist_storage_failure(
+                        exc,
+                        warning="automatic_batch_retention_failed",
+                        projected_bytes=0,
+                    )
+                    raise
+                usage = shutil.disk_usage(root)
+                next_state = next_state_value(
+                    retention_before,
+                    projected_bytes=0,
+                    usage=usage,
+                    successful_batch=str(state_value.get("last_successful_batch") or ""),
+                )
                 _atomic_write_state(root, next_state)
                 return {
                     "batch": state_value.get("last_successful_batch"),
@@ -3547,51 +4067,73 @@ def run_scan(
                 "manifest.json": canonical_json_bytes(manifest_value),
             }
             projected_batch_bytes = sum(len(data) for data in all_files.values())
-            filesystem_free_bytes = int(shutil.disk_usage(root).free)
-            required_free_bytes = (
-                projected_batch_bytes + DISK_RESERVED_HEADROOM_BYTES
-            )
-            next_state.update(
-                {
-                    "filesystem_free_bytes": filesystem_free_bytes,
-                    "projected_batch_bytes": projected_batch_bytes,
-                    "required_free_bytes": required_free_bytes,
-                }
-            )
-            if filesystem_free_bytes < required_free_bytes:
-                if state_value is not None:
-                    failed_state = copy.deepcopy(dict(state_value))
-                    failed_warnings = set(failed_state.get("warnings") or [])
-                    failed_warnings.add("disk_space_preflight_failed")
-                    failed_state.update(retention_before.as_state_fields())
-                    failed_state.update(
-                        {
-                            "filesystem_free_bytes": filesystem_free_bytes,
-                            "last_scan_completion": completed_text,
-                            "last_scan_start": started_text,
-                            "projected_batch_bytes": projected_batch_bytes,
-                            "required_free_bytes": required_free_bytes,
-                            "warnings": sorted(failed_warnings),
-                        }
-                    )
-                    _atomic_write_state(root, failed_state)
-                raise ExtractorError(
-                    "insufficient free space for prospective snapshot: "
-                    f"filesystem_free_bytes={filesystem_free_bytes} "
-                    f"projected_batch_bytes={projected_batch_bytes} "
-                    f"required_free_bytes={required_free_bytes}"
-                )
-
-            def finalise_published_state() -> Mapping[str, Any]:
-                retained = apply_batch_retention(
+            try:
+                retention_before = apply_batch_retention(
                     root,
                     now=started,
                     expected_boundary=boundary_text,
+                    projected_batch_bytes=projected_batch_bytes,
                 )
-                return {
-                    **retained.as_state_fields(),
-                    "filesystem_free_bytes": int(shutil.disk_usage(root).free),
-                }
+            except ExtractorError as exc:
+                persist_storage_failure(
+                    exc,
+                    warning="automatic_batch_retention_failed",
+                    projected_bytes=projected_batch_bytes,
+                )
+                raise
+
+            usage = shutil.disk_usage(root)
+            filesystem_free_bytes = int(usage.free)
+            required_free_bytes = projected_batch_bytes + MIN_FILESYSTEM_FREE_BYTES
+            if filesystem_free_bytes < required_free_bytes:
+                exc = ExtractorError(
+                    "insufficient free space for prospective snapshot: "
+                    f"filesystem_total_bytes={int(usage.total)} "
+                    f"filesystem_used_bytes={int(usage.used)} "
+                    f"filesystem_free_bytes={filesystem_free_bytes} "
+                    f"projected_batch_bytes={projected_batch_bytes} "
+                    f"minimum_free_bytes={MIN_FILESYSTEM_FREE_BYTES} "
+                    f"required_free_bytes={required_free_bytes} "
+                    f"automatic_batch_budget_bytes={MAX_AUTOMATIC_BATCH_BYTES} "
+                    f"retained_automatic_bytes={retention_before.retained_automatic_bytes} "
+                    f"protected_automatic_bytes={retention_before.protected_automatic_bytes}"
+                )
+                persist_storage_failure(
+                    exc,
+                    warning="disk_space_preflight_failed",
+                    projected_bytes=projected_batch_bytes,
+                    retained=retention_before,
+                )
+                raise exc
+
+            next_state = next_state_value(
+                retention_before,
+                projected_bytes=projected_batch_bytes,
+                usage=usage,
+                successful_batch=batch_id,
+            )
+
+            def finalise_published_state() -> Mapping[str, Any]:
+                measured = measure_retained_storage(
+                    root, expected_boundary=boundary_text
+                )
+                final_usage = shutil.disk_usage(root)
+                fields = measured.as_state_fields()
+                fields.update(
+                    {
+                        "filesystem_free_bytes": int(final_usage.free),
+                        "filesystem_total_bytes": int(final_usage.total),
+                        "filesystem_used_bytes": int(final_usage.used),
+                        "pruned_batch_ids": list(retention_before.pruned_batch_ids),
+                        "retention_full_validation_batch_count": (
+                            retention_before.retention_full_validation_batch_count
+                        ),
+                        "retention_lightweight_protected_batch_count": (
+                            retention_before.retention_lightweight_protected_batch_count
+                        ),
+                    }
+                )
+                return fields
 
             _publish_batch(
                 root,
@@ -3611,19 +4153,25 @@ def run_scan(
 
 def uninitialised_status() -> dict[str, Any]:
     return {
+        "automatic_batch_budget_bytes": MAX_AUTOMATIC_BATCH_BYTES,
         "canonical_post_count": 0,
         "current_snapshot_hash": None,
         "extractor_version": EXTRACTOR_VERSION,
         "filesystem_free_bytes": None,
+        "filesystem_total_bytes": None,
+        "filesystem_used_bytes": None,
         "initialised": False,
+        "last_retention_error": None,
         "last_scan_completion": None,
         "last_scan_start": None,
         "last_successful_batch": None,
         "latest_source_timestamp": None,
+        "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
         "open_conversation_count": 0,
         "parser_version": PARSER_VERSION,
         "projected_batch_bytes": 0,
         "pruned_batch_ids": [],
+        "protected_automatic_bytes": 0,
         "prospective_boundary": None,
         "prospective_eligible_conversation_count": 0,
         "quiescent_conversation_count": 0,
@@ -3631,6 +4179,8 @@ def uninitialised_status() -> dict[str, Any]:
         "required_free_bytes": 0,
         "retained_automatic_bytes": 0,
         "retained_batch_count": 0,
+        "retention_full_validation_batch_count": 0,
+        "retention_lightweight_protected_batch_count": 0,
         "review_candidate_count": 0,
         "review_pack_bytes": 0,
         "schema_version": SCHEMA_VERSION,
@@ -3647,62 +4197,98 @@ def get_status(output_root: Path) -> dict[str, Any]:
     if not state_path.exists() and not state_path.is_symlink():
         return uninitialised_status()
     _require_real_directory(root, label="output root")
-    state_value = read_extractor_state(root, missing_ok=False)
-    assert state_value is not None
-    counts = state_value.get("counts")
-    if not isinstance(counts, dict):
-        raise ExtractorError("extractor state counts must be an object")
-    result = uninitialised_status()
-    result.update(
-        {
-            "canonical_post_count": int(counts.get("canonical_post_count") or 0),
-            "current_snapshot_hash": state_value.get("current_snapshot_hash"),
-            "extractor_version": state_value.get("extractor_version"),
-            "filesystem_free_bytes": state_value.get("filesystem_free_bytes"),
-            "initialised": True,
-            "last_scan_completion": state_value.get("last_scan_completion"),
-            "last_scan_start": state_value.get("last_scan_start"),
-            "last_successful_batch": state_value.get("last_successful_batch"),
-            "latest_source_timestamp": state_value.get("latest_source_timestamp"),
-            "open_conversation_count": int(
-                counts.get("open_conversation_count") or 0
-            ),
-            "parser_version": state_value.get("parser_version"),
-            "projected_batch_bytes": int(
-                state_value.get("projected_batch_bytes") or 0
-            ),
-            "pruned_batch_ids": list(state_value.get("pruned_batch_ids") or []),
-            "prospective_boundary": state_value.get("prospective_boundary"),
-            "prospective_eligible_conversation_count": int(
-                counts.get("prospective_eligible_conversation_count") or 0
-            ),
-            "quiescent_conversation_count": int(
-                counts.get("quiescent_conversation_count") or 0
-            ),
-            "reconstructed_conversation_count": int(
-                counts.get("reconstructed_conversation_count") or 0
-            ),
-            "review_candidate_count": int(
-                counts.get("review_candidate_count") or 0
-            ),
-            "required_free_bytes": int(
-                state_value.get("required_free_bytes") or 0
-            ),
-            "retained_automatic_bytes": int(
-                state_value.get("retained_automatic_bytes") or 0
-            ),
-            "retained_batch_count": int(
-                state_value.get("retained_batch_count") or 0
-            ),
-            "review_pack_bytes": int(state_value.get("review_pack_bytes") or 0),
-            "source_file_count": int(state_value.get("source_file_count") or 0),
-            "total_extractor_bytes": int(
-                state_value.get("total_extractor_bytes") or 0
-            ),
-            "warnings": list(state_value.get("warnings") or []),
+    _require_real_directory(root / "state", label="state directory")
+    with extractor_lock(
+        root, exclusive=False, nonblocking=False, create=False
+    ) as acquired:
+        if not acquired:
+            raise ExtractorError("could not acquire shared extractor lock")
+        state_value = read_extractor_state(root, missing_ok=False)
+        assert state_value is not None
+        counts = state_value.get("counts")
+        if not isinstance(counts, dict):
+            raise ExtractorError("extractor state counts must be an object")
+        boundary = str(state_value.get("prospective_boundary") or "")
+        storage = measure_retained_storage(
+            root, expected_boundary=boundary or None
+        )
+        usage = shutil.disk_usage(root)
+        telemetry_fields = {
+            "protected_automatic_bytes": storage.protected_automatic_bytes,
+            "retained_automatic_bytes": storage.retained_automatic_bytes,
+            "retained_batch_count": storage.retained_batch_count,
+            "review_pack_bytes": storage.review_pack_bytes,
+            "total_extractor_bytes": storage.total_extractor_bytes,
         }
-    )
-    return result
+        status_warnings = set(state_value.get("warnings") or [])
+        status_warnings.update(storage.storage_warnings)
+        if any(
+            state_value.get(field) != observed
+            for field, observed in telemetry_fields.items()
+        ):
+            status_warnings.add("stored_storage_telemetry_stale")
+        result = uninitialised_status()
+        result.update(
+            {
+                "automatic_batch_budget_bytes": MAX_AUTOMATIC_BATCH_BYTES,
+                "canonical_post_count": int(
+                    counts.get("canonical_post_count") or 0
+                ),
+                "current_snapshot_hash": state_value.get("current_snapshot_hash"),
+                "extractor_version": state_value.get("extractor_version"),
+                "filesystem_free_bytes": int(usage.free),
+                "filesystem_total_bytes": int(usage.total),
+                "filesystem_used_bytes": int(usage.used),
+                "initialised": True,
+                "last_retention_error": state_value.get("last_retention_error"),
+                "last_scan_completion": state_value.get("last_scan_completion"),
+                "last_scan_start": state_value.get("last_scan_start"),
+                "last_successful_batch": state_value.get("last_successful_batch"),
+                "latest_source_timestamp": state_value.get("latest_source_timestamp"),
+                "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
+                "open_conversation_count": int(
+                    counts.get("open_conversation_count") or 0
+                ),
+                "parser_version": state_value.get("parser_version"),
+                "projected_batch_bytes": int(
+                    state_value.get("projected_batch_bytes") or 0
+                ),
+                "pruned_batch_ids": list(
+                    state_value.get("pruned_batch_ids") or []
+                ),
+                "prospective_boundary": state_value.get("prospective_boundary"),
+                "prospective_eligible_conversation_count": int(
+                    counts.get("prospective_eligible_conversation_count") or 0
+                ),
+                "quiescent_conversation_count": int(
+                    counts.get("quiescent_conversation_count") or 0
+                ),
+                "reconstructed_conversation_count": int(
+                    counts.get("reconstructed_conversation_count") or 0
+                ),
+                "retention_full_validation_batch_count": int(
+                    state_value.get("retention_full_validation_batch_count") or 0
+                ),
+                "retention_lightweight_protected_batch_count": int(
+                    state_value.get(
+                        "retention_lightweight_protected_batch_count"
+                    )
+                    or 0
+                ),
+                "review_candidate_count": int(
+                    counts.get("review_candidate_count") or 0
+                ),
+                "required_free_bytes": int(
+                    state_value.get("required_free_bytes") or 0
+                ),
+                "source_file_count": int(
+                    state_value.get("source_file_count") or 0
+                ),
+                "warnings": sorted(status_warnings),
+                **telemetry_fields,
+            }
+        )
+        return result
 
 
 def _validate_pseudonym_key_read_only(path: Path) -> list[str]:
@@ -3940,8 +4526,10 @@ def _validate_root_unlocked(root: Path) -> dict[str, Any]:
         for problem in _walk_forbidden_keys(state_value):
             errors.append(f"extractor state: {problem}")
     retained_automatic_bytes = 0
+    protected_automatic_bytes = 0
     review_pack_bytes = 0
     total_extractor_bytes = 0
+    usage: Any = None
     try:
         retained_automatic_bytes = sum(
             _path_tree_bytes(path)
@@ -3954,28 +4542,43 @@ def _validate_root_unlocked(root: Path) -> dict[str, Any]:
             if path.exists() and not path.is_symlink()
         )
         total_extractor_bytes = _path_tree_bytes(root)
+        measured = measure_retained_storage(
+            root, expected_boundary=boundary
+        )
+        protected_automatic_bytes = measured.protected_automatic_bytes
+        warnings.extend(measured.storage_warnings)
+        usage = shutil.disk_usage(root)
     except (ExtractorError, OSError) as exc:
         errors.append(f"cannot account extractor storage: {exc}")
     if state_value is not None:
         expected_storage = {
+            "protected_automatic_bytes": protected_automatic_bytes,
             "retained_automatic_bytes": retained_automatic_bytes,
             "retained_batch_count": len(batch_dirs),
             "review_pack_bytes": review_pack_bytes,
             "total_extractor_bytes": total_extractor_bytes,
         }
-        for field, observed in expected_storage.items():
-            if state_value.get(field) != observed:
-                errors.append(f"extractor state storage field is inaccurate: {field}")
+        if any(
+            state_value.get(field) != observed
+            for field, observed in expected_storage.items()
+        ):
+            warnings.append("stored_storage_telemetry_stale")
     return {
+        "automatic_batch_budget_bytes": MAX_AUTOMATIC_BATCH_BYTES,
         "batch_count": len(batch_dirs),
         "errors": sorted(set(errors)),
+        "filesystem_free_bytes": int(usage.free) if usage is not None else None,
+        "filesystem_total_bytes": int(usage.total) if usage is not None else None,
+        "filesystem_used_bytes": int(usage.used) if usage is not None else None,
+        "minimum_free_bytes": MIN_FILESYSTEM_FREE_BYTES,
+        "protected_automatic_bytes": protected_automatic_bytes,
         "retained_automatic_bytes": retained_automatic_bytes,
         "review_pack_count": len(pack_dirs),
         "review_pack_bytes": review_pack_bytes,
         "schema_version": SCHEMA_VERSION,
         "total_extractor_bytes": total_extractor_bytes,
         "valid": not errors,
-        "warnings": warnings,
+        "warnings": sorted(set(warnings)),
     }
 
 

@@ -542,7 +542,7 @@ def test_missing_undateable_root_stays_start_unknown(tmp_path: Path) -> None:
     assert conversation["prospective_status"] == "start_unknown"
 
 
-def test_explicit_creation_time_precedes_snowflake_and_malformed_value_falls_back() -> None:
+def test_conflicting_explicit_creation_time_preserves_snowflake_and_malformed_falls_back() -> None:
     key = b"t" * 32
     snowflake = snowflake_id("2026-08-24T15:00:00Z")
     records, _ = extractor.parse_log_records(
@@ -565,12 +565,251 @@ def test_explicit_creation_time_precedes_snowflake_and_malformed_value_falls_bac
     posts = extractor.normalise_canonical_posts(records, [], key)
 
     by_id = {post["post_id"]: post for post in posts}
-    assert by_id[snowflake]["created_at"] == "2026-08-24T15:10:00Z"
-    assert by_id[snowflake]["creation_time_source"] == "structured_event"
+    assert by_id[snowflake]["created_at"] == "2026-08-24T15:00:00Z"
+    assert by_id[snowflake]["creation_time_source"] == "x_snowflake"
+    assert by_id[snowflake]["creation_time_conflict"] is True
     fallback = by_id[snowflake_id("2026-08-24T15:05:00Z", 1)]
     assert fallback["created_at"] == "2026-08-24T15:05:00Z"
     assert fallback["creation_time_source"] == "x_snowflake"
     assert "invalid_explicit_target_creation_time" in fallback["warnings"]
+
+
+def test_equal_structured_creation_times_merge_without_conflict() -> None:
+    records, _ = extractor.parse_log_records(
+        (
+            event_line(
+                "2026-08-24 16:20:00",
+                "ai_reply_pipeline_decision",
+                target_id="opaque-equal",
+                root_post_id="opaque-equal",
+                target_created_at="2026-08-24T15:10:00Z",
+            )
+            + event_line(
+                "2026-08-24 16:21:00",
+                "ai_reply_pipeline_stage_summary",
+                target_id="opaque-equal",
+                root_post_id="opaque-equal",
+                target_created_at="2026-08-24T15:10:00Z",
+            )
+        ).encode()
+    )
+
+    post = extractor.normalise_canonical_posts(records, [], b"e" * 32)[0]
+
+    assert post["created_at"] == "2026-08-24T15:10:00Z"
+    assert post["creation_time_source"] == "structured_event"
+    assert post["creation_time_conflict"] is False
+    assert post["creation_time_conflicts"] == []
+    structured = [
+        value
+        for value in post["creation_time_provenance"]
+        if value["source"] == "structured_event"
+    ]
+    assert len(structured) == 2
+
+
+def test_structured_times_across_boundary_do_not_use_last_event_wins() -> None:
+    records, _ = extractor.parse_log_records(
+        (
+            event_line(
+                "2026-08-24 16:20:00",
+                "ai_reply_pipeline_decision",
+                target_id="opaque-conflict",
+                root_post_id="opaque-conflict",
+                incoming_text="A substantive contribution",
+                target_created_at="2026-08-24T15:00:00Z",
+            )
+            + event_line(
+                "2026-08-24 16:21:00",
+                "ai_reply_pipeline_stage_summary",
+                target_id="opaque-conflict",
+                root_post_id="opaque-conflict",
+                target_created_at="2026-08-24T15:10:00Z",
+            )
+        ).encode()
+    )
+    posts = extractor.normalise_canonical_posts(records, [], b"f" * 32)
+    conversations, _ = extractor.build_conversations(
+        posts,
+        boundary=extractor.parse_aware_timestamp(BOUNDARY, option="test"),
+        cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+        quiescence_hours=48,
+    )
+
+    assert posts[0]["created_at"] is None
+    assert posts[0]["creation_time_source"] == "unavailable"
+    assert posts[0]["creation_time_conflict"] is True
+    assert conversations[0]["prospective_status"] == "start_unknown"
+
+
+def test_snowflake_resolves_structured_creation_conflict_deterministically() -> None:
+    post_id = snowflake_id("2026-08-24T15:05:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            event_line(
+                "2026-08-24 16:20:00",
+                "ai_reply_pipeline_decision",
+                target_id=post_id,
+                root_post_id=post_id,
+                incoming_text="A substantive contribution",
+                target_created_at="2026-08-24T15:00:00Z",
+            )
+            + event_line(
+                "2026-08-24 16:21:00",
+                "ai_reply_pipeline_stage_summary",
+                target_id=post_id,
+                root_post_id=post_id,
+                target_created_at="2026-08-24T15:10:00Z",
+            )
+        ).encode()
+    )
+    posts = extractor.normalise_canonical_posts(records, [], b"g" * 32)
+    conversations, _ = extractor.build_conversations(
+        posts,
+        boundary=extractor.parse_aware_timestamp(BOUNDARY, option="test"),
+        cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+        quiescence_hours=48,
+    )
+
+    assert posts[0]["created_at"] == "2026-08-24T15:05:00Z"
+    assert posts[0]["creation_time_source"] == "x_snowflake"
+    assert posts[0]["creation_time_conflict"] is True
+    assert conversations[0]["prospective_status"] == "pre_boundary"
+
+
+def test_reversing_conflicting_structured_events_has_identical_outcome() -> None:
+    def extract(first: str, second: str) -> tuple[object, object, object]:
+        records, _ = extractor.parse_log_records(
+            (
+                event_line(
+                    "2026-08-24 16:20:00",
+                    "ai_reply_pipeline_decision",
+                    target_id="opaque-order",
+                    root_post_id="opaque-order",
+                    incoming_text="A substantive contribution",
+                    target_created_at=first,
+                )
+                + event_line(
+                    "2026-08-24 16:21:00",
+                    "ai_reply_pipeline_stage_summary",
+                    target_id="opaque-order",
+                    root_post_id="opaque-order",
+                    target_created_at=second,
+                )
+            ).encode()
+        )
+        posts = extractor.normalise_canonical_posts(records, [], b"h" * 32)
+        conversations, _ = extractor.build_conversations(
+            posts,
+            boundary=extractor.parse_aware_timestamp(BOUNDARY, option="test"),
+            cutoff=extractor.parse_aware_timestamp(DEFAULT_UNTIL, option="test"),
+            quiescence_hours=48,
+        )
+        return (
+            posts[0]["created_at"],
+            posts[0]["creation_time_source"],
+            conversations[0]["prospective_status"],
+        )
+
+    before_then_after = extract(
+        "2026-08-24T15:00:00Z", "2026-08-24T15:10:00Z"
+    )
+    after_then_before = extract(
+        "2026-08-24T15:10:00Z", "2026-08-24T15:00:00Z"
+    )
+
+    assert before_then_after == after_then_before == (
+        None,
+        "unavailable",
+        "start_unknown",
+    )
+
+
+def test_creation_conflict_survives_incremental_scan_and_snapshot_reload(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(
+        project,
+        event_line(
+            "2026-08-24 16:20:00",
+            "ai_reply_pipeline_decision",
+            target_id="opaque-persist",
+            root_post_id="opaque-persist",
+            incoming_text="A substantive contribution",
+            target_created_at="2026-08-24T15:00:00Z",
+        )
+        + event_line(
+            "2026-08-24 16:21:00",
+            "ai_reply_pipeline_stage_summary",
+            target_id="opaque-persist",
+            root_post_id="opaque-persist",
+            target_created_at="2026-08-24T15:10:00Z",
+        ),
+    )
+    run_scan(project, output)
+    first = next(
+        post
+        for post in rows(output, "canonical-posts.jsonl")
+        if post["post_id"] == "opaque-persist"
+    )
+    first_details = first["creation_time_conflicts"]
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+
+    result = run_scan(project, output, until="2026-08-28T19:00:00Z")
+    persisted = next(
+        post
+        for post in rows(output, "canonical-posts.jsonl")
+        if post["post_id"] == "opaque-persist"
+    )
+
+    assert result["status"] == "published"
+    assert persisted["creation_time_conflict"] is True
+    assert persisted["creation_time_conflicts"] == first_details
+    assert persisted["created_at"] is None
+
+
+def test_validation_rejects_inconsistent_creation_conflict_fields(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(
+        project,
+        event_line(
+            "2026-08-24 16:20:00",
+            "ai_reply_pipeline_decision",
+            target_id="opaque-invalid-conflict",
+            root_post_id="opaque-invalid-conflict",
+            incoming_text="A substantive contribution",
+            target_created_at="2026-08-24T15:00:00Z",
+        )
+        + event_line(
+            "2026-08-24 16:21:00",
+            "ai_reply_pipeline_stage_summary",
+            target_id="opaque-invalid-conflict",
+            root_post_id="opaque-invalid-conflict",
+            target_created_at="2026-08-24T15:10:00Z",
+        ),
+    )
+    run_scan(project, output)
+    posts = rows(output, "canonical-posts.jsonl")
+    posts[0]["creation_time_conflict"] = False
+    rewrite_batch_posts_and_hashes(current_batch(output), posts)
+
+    validation = extractor.validate_output_root(output)
+
+    assert validation["valid"] is False
+    assert any(
+        "conflict details exist without a conflict" in error
+        for error in validation["errors"]
+    )
 
 
 def test_future_snowflake_is_unavailable_and_observations_track_first_and_last() -> None:
@@ -627,7 +866,7 @@ def test_account_reply_creation_time_comes_from_reply_id_not_confirmation_log(
 
 
 def test_first_scan_initialises_state_second_unchanged_scan_has_no_duplicate_batch(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = tmp_path / "project"
     output = tmp_path / "output"
@@ -635,10 +874,20 @@ def test_first_scan_initialises_state_second_unchanged_scan_has_no_duplicate_bat
 
     first = run_scan(project, output)
     first_batches = sorted((output / "batches").iterdir())
+    real_retention = extractor.apply_batch_retention
+    retention_calls = 0
+
+    def counted_retention(*args: object, **kwargs: object) -> extractor.RetentionResult:
+        nonlocal retention_calls
+        retention_calls += 1
+        return real_retention(*args, **kwargs)
+
+    monkeypatch.setattr(extractor, "apply_batch_retention", counted_retention)
     second = run_scan(project, output)
 
     assert first["status"] == "published"
     assert second["status"] == "no_change"
+    assert retention_calls == 1
     assert sorted((output / "batches").iterdir()) == first_batches
     status = extractor.get_status(output)
     assert status["initialised"] is True
@@ -647,7 +896,7 @@ def test_first_scan_initialises_state_second_unchanged_scan_has_no_duplicate_bat
 
 
 def test_append_creates_one_snapshot_duplicate_event_deduplicates_and_late_turn_updates(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = tmp_path / "project"
     output = tmp_path / "output"
@@ -666,11 +915,21 @@ def test_append_creates_one_snapshot_duplicate_event_deduplicates_and_late_turn_
         handle.write(duplicate)
         handle.write(continuation())
 
+    real_retention = extractor.apply_batch_retention
+    retention_calls = 0
+
+    def counted_retention(*args: object, **kwargs: object) -> extractor.RetentionResult:
+        nonlocal retention_calls
+        retention_calls += 1
+        return real_retention(*args, **kwargs)
+
+    monkeypatch.setattr(extractor, "apply_batch_retention", counted_retention)
     result = run_scan(project, output)
     posts = rows(output, "canonical-posts.jsonl")
     conversations = rows(output, "conversations.jsonl")
 
     assert result["status"] == "published"
+    assert retention_calls == 1
     assert current_target(output) != original_batch
     assert [row["post_id"] for row in posts].count("101") == 1
     assert len(conversations) == 1
@@ -829,7 +1088,150 @@ def test_confirmation_with_multiple_unbound_attempts_does_not_guess_reply_text()
 
     assert account["text"] is None
     assert "ambiguous_confirmed_reply_attempt_text" in account["warnings"]
+    assert "confirmed_reply_multiple_eligible_attempts" in account["warnings"]
     assert "confirmed_account_reply_text_unavailable" in account["warnings"]
+
+
+@pytest.mark.parametrize("terminal_status", ["failed", "retired"])
+def test_unrelated_confirmation_never_reuses_terminal_attempt_text(
+    terminal_status: str,
+) -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:15:00Z")
+    terminal_line = (
+        log_line("2026-08-24 16:12:01", "Failed to post generated reply")
+        if terminal_status == "failed"
+        else log_line(
+            "2026-08-24 16:12:01",
+            "Removed conversational reply sending receipt disposition=discarded "
+            f"source=mention target_id={target_id}",
+        )
+    )
+    records, _ = extractor.parse_log_records(
+        (
+            create_attempt(
+                target_id,
+                "4" * 64,
+                text=f"Do not reuse {terminal_status} draft",
+            )
+            + terminal_line
+            + receipt_promotion(
+                target_id, reply_id, local_time="2026-08-24 16:15:00"
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"n" * 32)
+    account = next(post for post in posts if post["author_role"] == "account")
+    target = next(post for post in posts if post["post_id"] == target_id)
+
+    assert account["text"] is None
+    assert "confirmed_reply_no_eligible_attempt_text" in account["warnings"]
+    assert (
+        "confirmed_reply_failed_or_retired_attempt_text_not_reused"
+        in account["warnings"]
+    )
+    assert target["send_attempts"][0]["last_observed_status"] == terminal_status
+
+
+def test_single_started_attempt_may_supply_confirmation_text() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:15:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            create_attempt(target_id, "5" * 64, text="Sole active draft")
+            + receipt_promotion(
+                target_id, reply_id, local_time="2026-08-24 16:15:00"
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"o" * 32)
+    account = next(post for post in posts if post["author_role"] == "account")
+
+    assert account["text"] == "Sole active draft"
+
+
+def test_single_remote_success_attempt_may_supply_unmatched_confirmation_text() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    observed_reply_id = snowflake_id("2026-08-24T15:14:00Z")
+    confirmed_reply_id = snowflake_id("2026-08-24T15:15:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            create_attempt(target_id, "6" * 64, text="Sole remote-success draft")
+            + generic_success(observed_reply_id)
+            + receipt_promotion(
+                target_id,
+                confirmed_reply_id,
+                local_time="2026-08-24 16:15:00",
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"p" * 32)
+    account = next(post for post in posts if post["author_role"] == "account")
+
+    assert account["text"] == "Sole remote-success draft"
+
+
+def test_exact_reply_id_recovers_text_from_later_failed_attempt_status() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:15:00Z")
+    initial_records, _ = extractor.parse_log_records(
+        (
+            create_attempt(target_id, "7" * 64, text="Exactly identified draft")
+            + generic_success(reply_id)
+        ).encode()
+    )
+    prior = extractor.normalise_canonical_posts(initial_records, [], b"q" * 32)
+    target = next(post for post in prior if post["post_id"] == target_id)
+    target["send_attempts"][0]["last_observed_status"] = "failed"
+    confirmation_records, _ = extractor.parse_log_records(
+        receipt_promotion(
+            target_id, reply_id, local_time="2026-08-24 16:15:00"
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(
+        confirmation_records, prior, b"q" * 32
+    )
+    account = next(post for post in posts if post["author_role"] == "account")
+    target = next(post for post in posts if post["post_id"] == target_id)
+
+    assert account["text"] == "Exactly identified draft"
+    assert target["send_attempts"][0]["last_observed_status"] == "confirmed"
+
+
+def test_failed_attempt_plus_active_attempt_uses_only_active_text() -> None:
+    target_id = snowflake_id("2026-08-24T15:10:00Z")
+    reply_id = snowflake_id("2026-08-24T15:15:00Z")
+    records, _ = extractor.parse_log_records(
+        (
+            create_attempt(target_id, "8" * 64, text="Failed old draft")
+            + log_line("2026-08-24 16:12:01", "Failed to post generated reply")
+            + create_attempt(
+                target_id,
+                "9" * 64,
+                text="Later active draft",
+                local_time="2026-08-24 16:14:00",
+            )
+            + receipt_promotion(
+                target_id, reply_id, local_time="2026-08-24 16:15:00"
+            )
+        ).encode()
+    )
+
+    posts = extractor.normalise_canonical_posts(records, [], b"r" * 32)
+    account = next(post for post in posts if post["author_role"] == "account")
+    target = next(post for post in posts if post["post_id"] == target_id)
+    statuses = {
+        attempt["transaction_id"]: attempt["last_observed_status"]
+        for attempt in target["send_attempts"]
+    }
+
+    assert account["text"] == "Later active draft"
+    assert statuses["8" * 64] == "failed"
+    assert statuses["9" * 64] == "confirmed"
 
 
 def test_failed_draft_is_not_an_account_turn_or_review_candidate(tmp_path: Path) -> None:
@@ -1045,6 +1447,190 @@ def test_retention_keeps_current_recent_and_newest_daily_and_prunes_expired(
     assert batches[1].name not in retained
     assert batches[4].name not in retained
     assert set(result.pruned_batch_ids) == {batches[1].name, batches[4].name}
+    assert result.retained_automatic_bytes < extractor.MAX_AUTOMATIC_BATCH_BYTES
+
+
+def test_retention_does_not_load_protected_current_jsonl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    protected = current_batch(output)
+
+    def reject_jsonl(_path: Path) -> list[dict[str, object]]:
+        raise AssertionError("protected current JSONL was loaded")
+
+    monkeypatch.setattr(extractor, "_load_jsonl", reject_jsonl)
+    result = extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-08-28T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    assert protected.exists()
+    assert result.retention_lightweight_protected_batch_count == 1
+    assert result.retention_full_validation_batch_count == 0
+
+
+def test_retention_does_not_load_review_referenced_batch_jsonl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange() + continuation())
+    run_scan(project, output)
+    referenced = current_batch(output)
+    extractor.freeze_review_pack(
+        output_root=output,
+        pack_name="lightweight-reference",
+        since=BOUNDARY,
+        until="2026-08-28T00:00:00Z",
+        include_open=True,
+    )
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    set_batch_creation_time(referenced, "2026-01-01T00:00:00Z")
+
+    def reject_jsonl(_path: Path) -> list[dict[str, object]]:
+        raise AssertionError("review-referenced JSONL was loaded")
+
+    monkeypatch.setattr(extractor, "_load_jsonl", reject_jsonl)
+    result = extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-12-01T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    assert referenced.exists()
+    assert result.retention_full_validation_batch_count == 0
+
+
+def test_retention_does_not_load_recent_historical_batch_jsonl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    recent = current_batch(output)
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    set_batch_creation_time(recent, "2026-11-30T23:00:00Z")
+    set_batch_creation_time(current_batch(output), "2026-11-30T23:30:00Z")
+
+    def reject_jsonl(_path: Path) -> list[dict[str, object]]:
+        raise AssertionError("recent protected JSONL was loaded")
+
+    monkeypatch.setattr(extractor, "_load_jsonl", reject_jsonl)
+    result = extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-12-01T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    assert recent.exists()
+    assert result.retention_full_validation_batch_count == 0
+
+
+def test_retention_fully_validates_each_deletion_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    candidate = current_batch(output)
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    set_batch_creation_time(candidate, "2026-01-01T00:00:00Z")
+    validated: list[str] = []
+    real_validate = extractor._validate_batch_directory
+
+    def record_validation(batch: Path, **kwargs: object) -> list[str]:
+        validated.append(batch.name)
+        return real_validate(batch, **kwargs)
+
+    monkeypatch.setattr(extractor, "_validate_batch_directory", record_validation)
+    result = extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-12-01T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    assert validated == [candidate.name]
+    assert result.retention_full_validation_batch_count == 1
+    assert not candidate.exists()
+
+
+def test_corrupt_later_deletion_candidate_prevents_all_pruning(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange() + continuation())
+    run_scan(project, output)
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="middle",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    append_independent_root(
+        active,
+        created_at="2026-08-24T19:00:00Z",
+        local_time="2026-08-24 20:00:00",
+        author="current",
+    )
+    run_scan(project, output, until="2026-08-28T20:00:00Z")
+    extractor.freeze_review_pack(
+        output_root=output,
+        pack_name="retention-fail-closed",
+        since=BOUNDARY,
+        until="2026-08-29T00:00:00Z",
+        include_open=True,
+    )
+    batches = sorted((output / "batches").iterdir(), key=lambda path: path.name)
+    for index, batch in enumerate(batches, start=1):
+        set_batch_creation_time(batch, f"2026-01-0{index}T00:00:00Z")
+    corrupt = batches[1] / "canonical-posts.jsonl"
+    os.chmod(corrupt, 0o600)
+    corrupt.write_bytes(corrupt.read_bytes() + b"{}\n")
+    os.chmod(corrupt, 0o400)
+    before_batches = {path.name for path in batches}
+    before_current = current_target(output)
+    pack = output / "review-packs" / "retention-fail-closed"
+    before_pack = {path.name: path.read_bytes() for path in pack.iterdir()}
+
+    with pytest.raises(extractor.ExtractorError, match="deletion candidate"):
+        extractor.apply_batch_retention(
+            output,
+            now=extractor.parse_aware_timestamp(
+                "2026-12-01T00:00:00Z", option="test"
+            ),
+            expected_boundary=BOUNDARY,
+        )
+
+    assert {path.name for path in (output / "batches").iterdir()} == before_batches
+    assert current_target(output) == before_current
+    assert {path.name: path.read_bytes() for path in pack.iterdir()} == before_pack
 
 
 def test_review_pack_reference_protects_old_batch_and_pack_bytes(
@@ -1174,6 +1760,211 @@ def test_unchanged_scan_applies_retention_and_compacts_source_cache(
     )
 
 
+def test_budget_retention_removes_oldest_additional_unreferenced_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    for index in range(2):
+        append_independent_root(
+            active,
+            created_at=f"2026-08-24T{18 + index:02d}:00:00Z",
+            local_time=f"2026-08-24 {19 + index:02d}:00:00",
+            author=f"budget-{index}",
+        )
+        run_scan(project, output, until=f"2026-08-28T{19 + index:02d}:00:00Z")
+    batches = sorted((output / "batches").iterdir(), key=lambda path: path.name)
+    for index, batch in enumerate(batches):
+        set_batch_creation_time(batch, f"2026-11-30T2{index}:00:00Z")
+    sizes = {batch.name: 100 for batch in batches}
+    real_tree_bytes = extractor._path_tree_bytes
+
+    def synthetic_size(path: Path) -> int:
+        if path.parent == output / "batches" and path.name in sizes:
+            return sizes[path.name]
+        return real_tree_bytes(path)
+
+    monkeypatch.setattr(extractor, "MAX_AUTOMATIC_BATCH_BYTES", 250)
+    monkeypatch.setattr(extractor, "_path_tree_bytes", synthetic_size)
+    result = extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-12-01T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    retained = {path.name for path in (output / "batches").iterdir()}
+    assert batches[0].name not in retained
+    assert batches[1].name in retained
+    assert batches[2].name in retained
+    assert result.pruned_batch_ids == (batches[0].name,)
+    assert result.retained_automatic_bytes == 200
+
+
+def test_budget_retention_preserves_large_current_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    old = current_batch(output)
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    current = current_batch(output)
+    set_batch_creation_time(old, "2026-11-30T22:00:00Z")
+    set_batch_creation_time(current, "2026-11-30T23:00:00Z")
+    real_tree_bytes = extractor._path_tree_bytes
+
+    def synthetic_size(path: Path) -> int:
+        if path == old:
+            return 20
+        if path == current:
+            return 95
+        return real_tree_bytes(path)
+
+    monkeypatch.setattr(extractor, "MAX_AUTOMATIC_BATCH_BYTES", 100)
+    monkeypatch.setattr(extractor, "_path_tree_bytes", synthetic_size)
+    extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-12-01T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    assert current.exists()
+    assert current_target(output) == f"batches/{current.name}"
+    assert not old.exists()
+
+
+def test_budget_retention_preserves_review_reference_and_pack_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange() + continuation())
+    run_scan(project, output)
+    referenced = current_batch(output)
+    extractor.freeze_review_pack(
+        output_root=output,
+        pack_name="budget-reference",
+        since=BOUNDARY,
+        until="2026-08-28T00:00:00Z",
+        include_open=True,
+    )
+    for index in range(2):
+        append_independent_root(
+            active,
+            created_at=f"2026-08-24T{18 + index:02d}:00:00Z",
+            local_time=f"2026-08-24 {19 + index:02d}:00:00",
+            author=f"later-{index}",
+        )
+        run_scan(project, output, until=f"2026-08-28T{19 + index:02d}:00:00Z")
+    batches = sorted((output / "batches").iterdir(), key=lambda path: path.name)
+    middle = batches[1]
+    current = current_batch(output)
+    for index, batch in enumerate(batches):
+        set_batch_creation_time(batch, f"2026-11-30T2{index}:00:00Z")
+    pack = output / "review-packs" / "budget-reference"
+    before_pack = {path.name: path.read_bytes() for path in pack.iterdir()}
+    real_tree_bytes = extractor._path_tree_bytes
+
+    def synthetic_size(path: Path) -> int:
+        if path.parent == output / "batches":
+            return 100
+        return real_tree_bytes(path)
+
+    monkeypatch.setattr(extractor, "MAX_AUTOMATIC_BATCH_BYTES", 200)
+    monkeypatch.setattr(extractor, "_path_tree_bytes", synthetic_size)
+    extractor.apply_batch_retention(
+        output,
+        now=extractor.parse_aware_timestamp("2026-12-01T00:00:00Z", option="test"),
+        expected_boundary=BOUNDARY,
+    )
+
+    assert referenced.exists()
+    assert current.exists()
+    assert not middle.exists()
+    assert {path.name: path.read_bytes() for path in pack.iterdir()} == before_pack
+
+
+def test_changed_scan_fails_when_protected_plus_projected_exceeds_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    before_current = current_target(output)
+    before_batches = {path.name for path in (output / "batches").iterdir()}
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    real_tree_bytes = extractor._path_tree_bytes
+
+    def synthetic_size(path: Path) -> int:
+        if path.parent == output / "batches":
+            return 100
+        return real_tree_bytes(path)
+
+    monkeypatch.setattr(extractor, "MAX_AUTOMATIC_BATCH_BYTES", 100)
+    monkeypatch.setattr(extractor, "_path_tree_bytes", synthetic_size)
+    with pytest.raises(extractor.ExtractorError, match="protected automatic"):
+        run_scan(project, output, until="2026-08-28T19:00:00Z")
+
+    assert current_target(output) == before_current
+    assert {path.name for path in (output / "batches").iterdir()} == before_batches
+    assert not any(
+        path.name.startswith(".tmp-") for path in (output / "batches").iterdir()
+    )
+    status = extractor.get_status(output)
+    assert "exceed budget" in str(status["last_retention_error"])
+    assert status["automatic_batch_budget_bytes"] == 100
+
+
+def test_unchanged_scan_prunes_to_byte_budget_without_new_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    active = write_active(project, first_exchange())
+    run_scan(project, output)
+    old = current_batch(output)
+    append_independent_root(
+        active,
+        created_at="2026-08-24T18:00:00Z",
+        local_time="2026-08-24 19:00:00",
+        author="later",
+    )
+    run_scan(project, output, until="2026-08-28T19:00:00Z")
+    current = current_batch(output)
+    set_batch_creation_time(old, "2026-11-30T22:00:00Z")
+    set_batch_creation_time(current, "2026-11-30T23:00:00Z")
+    real_tree_bytes = extractor._path_tree_bytes
+
+    def synthetic_size(path: Path) -> int:
+        if path.parent == output / "batches":
+            return 60
+        return real_tree_bytes(path)
+
+    monkeypatch.setattr(extractor, "MAX_AUTOMATIC_BATCH_BYTES", 100)
+    monkeypatch.setattr(extractor, "_path_tree_bytes", synthetic_size)
+    result = run_scan(project, output, until="2026-08-28T20:00:00Z")
+
+    assert result["status"] == "no_change"
+    assert current_batch(output) == current
+    assert not old.exists()
+    assert [path.name for path in (output / "batches").iterdir()] == [current.name]
+
+
 def test_disk_preflight_refuses_before_temporary_batch_is_exposed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1196,7 +1987,7 @@ def test_disk_preflight_refuses_before_temporary_batch_is_exposed(
         lambda _path: usage_type(10_000, 9_999, 1),
     )
 
-    with pytest.raises(extractor.ExtractorError, match="filesystem_free_bytes=1"):
+    with pytest.raises(extractor.ExtractorError, match="minimum_free_bytes=10737418240"):
         run_scan(project, output, until="2026-08-28T19:00:00Z")
 
     assert current_target(output) == before_current
@@ -1204,6 +1995,9 @@ def test_disk_preflight_refuses_before_temporary_batch_is_exposed(
     assert not any(
         path.name.startswith(".tmp-") for path in (output / "batches").iterdir()
     )
+    status = extractor.get_status(output)
+    assert status["minimum_free_bytes"] == 10 * 1024 * 1024 * 1024
+    assert "insufficient free space" in str(status["last_retention_error"])
 
 
 def test_status_and_validation_account_retained_storage_accurately(
@@ -1436,7 +2230,7 @@ def test_identical_text_with_distinct_post_ids_remains_distinct(tmp_path: Path) 
     assert len(rows(output, "conversations.jsonl")) == 2
 
 
-def test_failed_state_publication_restores_previous_state_current_and_batches(
+def test_failed_state_publication_preserves_old_expired_current_and_rolls_back(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = tmp_path / "project"
@@ -1445,20 +2239,60 @@ def test_failed_state_publication_restores_previous_state_current_and_batches(
     run_scan(project, output)
     before_state = state_bytes(output)
     before_current = current_target(output)
+    old_current = current_batch(output)
+    set_batch_creation_time(old_current, "2026-01-01T00:00:00Z")
     before_batches = sorted(path.name for path in (output / "batches").iterdir())
+    scan_start = extractor.parse_aware_timestamp(
+        "2026-12-01T12:00:00Z", option="test"
+    )
+    old_created = extractor.parse_aware_timestamp(
+        str(extractor._strict_read_json(old_current / "manifest.json")["creation_timestamp"]),
+        option="test",
+    )
+    assert old_created < scan_start - extractor.DAILY_BATCH_RETENTION
     with active.open("a", encoding="utf-8") as handle:
         handle.write(continuation())
+
+    real_retention = extractor.apply_batch_retention
+    retention_calls = 0
+    real_metadata_reader = extractor._read_retention_batch_metadata
+    metadata_reads = 0
+
+    def counted_retention(*args: object, **kwargs: object) -> extractor.RetentionResult:
+        nonlocal retention_calls
+        retention_calls += 1
+        return real_retention(*args, **kwargs)
+
+    def counted_metadata(*args: object, **kwargs: object) -> extractor.RetentionBatchMetadata:
+        nonlocal metadata_reads
+        metadata_reads += 1
+        return real_metadata_reader(*args, **kwargs)
 
     def fail_state(_root: Path, _value: object) -> None:
         raise OSError("injected state failure")
 
+    monkeypatch.setattr(extractor, "apply_batch_retention", counted_retention)
+    monkeypatch.setattr(extractor, "_read_retention_batch_metadata", counted_metadata)
     monkeypatch.setattr(extractor, "_atomic_write_state", fail_state)
     with pytest.raises(OSError, match="injected"):
-        run_scan(project, output)
+        extractor.run_scan(
+            project_dir=project,
+            output_root=output,
+            prospective_start=BOUNDARY,
+            until="2026-12-01T12:00:00Z",
+            quiescence_hours=48,
+            scan_start=scan_start,
+        )
 
     assert state_bytes(output) == before_state
     assert current_target(output) == before_current
+    assert old_current.exists()
+    assert (output / "current").is_symlink()
+    assert (output / "current").resolve() == old_current.resolve()
     assert sorted(path.name for path in (output / "batches").iterdir()) == before_batches
+    assert retention_calls == 1
+    assert metadata_reads == 1
+    assert extractor.validate_output_root(output)["valid"] is True
 
 
 def test_explicit_conversation_id_groups_posts() -> None:
@@ -1833,7 +2667,75 @@ def test_status_is_read_only_and_valid_when_uninitialised(tmp_path: Path) -> Non
 
     assert status["initialised"] is False
     assert status["schema_version"] == 2
+    assert status["last_retention_error"] is None
+    assert status["automatic_batch_budget_bytes"] == 10 * 1024 * 1024 * 1024
+    assert status["minimum_free_bytes"] == 10 * 1024 * 1024 * 1024
     assert set(tmp_path.iterdir()) == before
+
+
+def test_retention_failure_is_visible_and_next_success_clears_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    real_retention = extractor.apply_batch_retention
+
+    def fail_retention(*_args: object, **_kwargs: object) -> extractor.RetentionResult:
+        raise extractor.ExtractorError("injected retention inventory failure")
+
+    monkeypatch.setattr(extractor, "apply_batch_retention", fail_retention)
+    with pytest.raises(extractor.ExtractorError, match="injected retention"):
+        run_scan(project, output)
+
+    failed_status = extractor.get_status(output)
+    assert failed_status["last_retention_error"] == (
+        "injected retention inventory failure"
+    )
+    assert "automatic_batch_retention_failed" in failed_status["warnings"]
+
+    monkeypatch.setattr(extractor, "apply_batch_retention", real_retention)
+    result = run_scan(project, output)
+    recovered_status = extractor.get_status(output)
+
+    assert result["status"] == "no_change"
+    assert recovered_status["last_retention_error"] is None
+    assert "automatic_batch_retention_failed" not in recovered_status["warnings"]
+
+
+def test_stale_storage_telemetry_is_advisory_and_status_is_read_only(
+    tmp_path: Path,
+) -> None:
+    project = tmp_path / "project"
+    output = tmp_path / "output"
+    write_active(project, first_exchange())
+    run_scan(project, output)
+    state_path = output / "state" / "extractor-state.json"
+    state = extractor._strict_read_json(state_path)
+    assert isinstance(state, dict)
+    for field in (
+        "protected_automatic_bytes",
+        "retained_automatic_bytes",
+        "retained_batch_count",
+        "review_pack_bytes",
+        "total_extractor_bytes",
+    ):
+        state[field] = -1
+    rewrite_private_json(state_path, state, mode=0o600)
+    before_state = state_path.read_bytes()
+
+    status = extractor.get_status(output)
+    after_state = state_path.read_bytes()
+    validation = extractor.validate_output_root(output)
+
+    assert after_state == before_state
+    assert status["retained_batch_count"] == 1
+    assert status["retained_automatic_bytes"] > 0
+    assert status["protected_automatic_bytes"] > 0
+    assert "stored_storage_telemetry_stale" in status["warnings"]
+    assert validation["valid"] is True
+    assert "stored_storage_telemetry_stale" in validation["warnings"]
 
 
 def test_validate_detects_manifest_hash_corruption(tmp_path: Path) -> None:
